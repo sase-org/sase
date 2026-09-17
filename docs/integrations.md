@@ -73,19 +73,19 @@ for group in group_agent_statuses(list_all_agents()):
         print(" ", agent.name, agent.status)
 ```
 
-Buckets are emitted in sase's TUI display order and empty buckets are omitted:
-
-Each returned `AgentStatusGroup` contains the bucket label and the running-agent records
+Buckets are emitted in sase's TUI display order and empty buckets are omitted. Each
+returned `AgentStatusGroup` contains the bucket label and the running-agent records
 assigned to that bucket.
 
-| Bucket    | Meaning                                                               |
-| --------- | --------------------------------------------------------------------- |
-| `Stopped` | User-facing blockers such as `PLAN` and `QUESTION`.                   |
-| `Failed`  | Terminal failure statuses (`FAILED...`).                              |
-| `Running` | Active execution, including `PLAN APPROVED` and unrecognized actives. |
-| `Queued`  | `QUEUED` agents parked at the runner-slot admission gate.             |
-| `Waiting` | `WAITING` agents with timer/dependency progress.                      |
-| `Done`    | Terminal success/plan handoff states.                                 |
+| Bucket     | Meaning                                                                            |
+| ---------- | ---------------------------------------------------------------------------------- |
+| `Stopped`  | User-facing blockers: pending `PLAN`, `TALE`, or `EPIC` reviews and `QUESTION`.    |
+| `Failed`   | Terminal failure statuses (`FAILED...`).                                           |
+| `Starting` | `STARTING` agents whose launch is still being set up.                              |
+| `Running`  | Active execution, including `PLAN APPROVED`, `ANSWERED`, and unrecognized actives. |
+| `Queued`   | `QUEUED` agents parked at the runner-slot admission gate.                          |
+| `Waiting`  | `WAITING` agents with timer/dependency progress.                                   |
+| `Done`     | Terminal success/plan handoff states, including `STOPPED` repeat-chain slots.      |
 
 Source: `src/sase/integrations/agent_status_groups.py`,
 `src/sase/agent/status_buckets.py`
@@ -123,7 +123,10 @@ to `QUEUED`; the status is never persisted. `entry.wait.runner_slot_queue_positi
 `runner_slot_queue_size` describe the same set in capacity-aware display order:
 currently eligible waiters first, then parked waiters by the threshold that opens
 soonest, with lower `wait_priority` and `slot_requested_at` FIFO preserved inside each
-group.
+group. The same `wait` object carries the capacity picture behind that order
+(`runner_occupied_capacity`, `runner_effective_limit`, `runner_admission_limit`, and
+`runner_capacity_blockers`) and, when a `%hold` barrier is parking the agent, `held_by`
+and `hold_expires_at` (epoch seconds, when the hold has an expiry).
 
 Source: `src/sase/integrations/agent_list_entries.py`,
 `src/sase/integrations/provider_badges.py`
@@ -176,6 +179,14 @@ stream retained log lines and await completion, or `kill_proc()` to terminate th
 supervised process group. Active `command` rows and historical `detached` rows with no
 supervisor PID are allowed a 60-second startup grace period, then reconciled to `error`;
 `tui` rows are owned by the mirroring TUI and are not treated as supervisor orphans.
+
+A proc row can also carry an optional `service` block, exposed as `Proc.service` (a
+`ProcServiceBlock`) when the row was started as a service run. The block records an
+optional service `name`, a `mode` of `daemon` or `oneshot`, and a `source` of `builtin`,
+`plugin`, `user`, or `transient`; the names `gateway` and `scheduler` are reserved for
+built-in services. `Proc.is_service` and `Proc.service_name` are shorthand readers, and
+the Admin Center Procs query accepts `service` and `svc:<name>`. Rows without the block
+read as `service=None`, so existing consumers are unaffected.
 
 The storage model, CLI inspection commands, retention, and sase's TUI rendering are
 documented under [Durable Procs](ace.md#durable-procs).

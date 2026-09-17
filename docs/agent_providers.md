@@ -287,9 +287,12 @@ and check again.
 If a provider CLI lives at a non-standard path, point SASE at it with the provider's
 `SASE_<PROVIDER>_PATH` override environment variable — `SASE_CLAUDE_PATH`,
 `SASE_CODEX_PATH`, `SASE_OPENCODE_PATH`, `SASE_QWEN_PATH`, `SASE_AGY_PATH`,
-`SASE_MUSE_PATH`, `SASE_GROK_PATH`, or `SASE_FAKEY_PATH`. For deeper integration details
-(model mapping, per-provider environment variables, retry/fallback behavior), see the
-[LLM provider reference](llms.md).
+`SASE_MUSE_PATH`, `SASE_GROK_PATH`, or `SASE_FAKEY_PATH`. `sase doctor`, routing
+availability, `sase agent-cli`, and tmux Agent honor every one of these. Agent runs
+honor them too, with one current exception: the Claude provider always launches `claude`
+from `PATH`, so keep a working `claude` on `PATH` even when `SASE_CLAUDE_PATH` is set.
+For deeper integration details (model mapping, per-provider environment variables,
+retry/fallback behavior), see the [LLM provider reference](llms.md).
 
 ## Subscription Usage
 
@@ -350,8 +353,9 @@ installed CLI; a bare `sase agent-cli update` with neither is a usage error. Com
 run sequentially and without a shell. `-n/--dry-run` prints the exact command or skip
 reason for each CLI and changes nothing.
 
-SASE only automates updates it can identify safely, and it never runs `sudo` without a
-reviewed request and never guesses an update command:
+SASE only automates updates it can identify safely, and it never guesses an update
+command. `sase agent-cli` itself never runs `sudo`; when a manual step needs root, an
+agent must go through a human-reviewed [sudo request](sudo.md) instead:
 
 | Install method                   | Behavior                                                                                |
 | -------------------------------- | --------------------------------------------------------------------------------------- |

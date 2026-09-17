@@ -317,6 +317,13 @@ mentor runners, VCS operations, active-workspace tracking, zombie detection, and
 gate-shell exact-id lookup. Call sites keep the stable `.labels().inc()`, `.observe()`,
 and `.set()` API regardless of whether recording is enabled.
 
+The Gate Shell group covers the lookup that maps a gate request ID to its owning gate
+shell. `sase_gate_shell_lookup_duration_seconds` times each lookup with a `path` label
+of `indexed` (the agent-artifact index answered) or `fallback` (a full-history scan
+answered). `sase_gate_shell_lookup_fallbacks_total` counts lookups where the indexed
+path could not run at all, so a rising count points at a missing, corrupt, or
+mid-migration index (or a stale Rust binding) rather than at slow gates.
+
 ## Migration from the external stack
 
 The bundled Docker Compose, Grafana, Prometheus, and Pushgateway stack has been removed.

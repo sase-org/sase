@@ -134,7 +134,7 @@ compatibility alias for `sase machine init`.
 | `sase init -j, --json`                  | With `--check`, emit one schema-versioned JSON plan; `status` distinguishes drift from blockers.           |
 | `sase init -M, --enable-project-memory` | Mark the current repository as SASE-managed before running initialization.                                 |
 | `sase init -p, --project NAME`          | Check or initialize named enabled projects (repeatable; name, display name, or alias).                     |
-| `sase init --yes`                       | Run every needed initializer in config, machine, memory, repository, skills order without generic prompts. |
+| `sase init -y, --yes`                   | Run every needed initializer in config, machine, memory, repository, skills order without generic prompts. |
 | `sase config init`                      | Interactively create, select, or migrate the explicit owner identity.                                      |
 | `sase config init --check`              | Report owner identity initialization, migration, or conflicts without writing.                             |
 | `sase init config`                      | Compatibility alias for `sase config init`.                                                                |
@@ -191,13 +191,16 @@ red just because enrollment is available. On an interactive TTY, bare `sase init
 still offer enrollment.
 
 The first successful explicit `sase machine init` review on a controller records a local
-acknowledgment under that user's SASE state root. The record is machine-local and is not
-synced through project config or chezmoi. A completed review includes candidates you
-consciously skip, so a later bare `sase init` offers machine initialization only when
-discovery finds a new unreviewed candidate. Existing installations need one catch-up
-review because old state cannot prove which candidates were previously skipped. Run
-`sase machine init` directly, or the `sase init machine` compatibility alias, any time
-you want to reconsider skipped candidates or force a fresh review.
+acknowledgment in `~/.sase/fleet/machine_init_review.json` (under `SASE_HOME` when set).
+The record is machine-local and is not synced through project config or chezmoi. A
+completed review includes candidates you consciously skip, so a later interactive bare
+`sase init` runs discovery and offers machine initialization only when it finds a new
+unreviewed candidate. If that discovery fails, bare `sase init` skips the offer with a
+warning instead of failing. Existing installations need one catch-up review because old
+state cannot prove which candidates were previously skipped, and an unreadable record
+also asks for a catch-up review. Run `sase machine init` directly, or the
+`sase init machine` compatibility alias, any time you want to reconsider skipped
+candidates or force a fresh review.
 
 Explicit apply always rescans. Already-enrolled identities are listed and skipped;
 selecting one existing machine does not hide another candidate. A changed installation

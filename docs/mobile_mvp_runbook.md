@@ -98,9 +98,14 @@ just install
 cargo build -p sase_gateway --manifest-path ../sase-core/Cargo.toml
 ```
 
-The host CLI starts the first gateway binary it can resolve from `PATH`,
-`../sase-core/target/debug/sase_gateway`, or `../sase-core/target/release/sase_gateway`.
-Pass `-c /path/to/sase_gateway` only when you need to override that resolution.
+The host CLI starts the first gateway binary it can resolve from `PATH`, the running
+Python environment's `bin/` directory, `../sase-core/target/debug/sase_gateway`, or
+`../sase-core/target/release/sase_gateway`. Pass `-c /path/to/sase_gateway` (or set
+`mobile_gateway.command`) only when you need to override that resolution.
+
+The gateway is a long-running process, so upgrading `sase` or `sase-core-rs` does not
+replace the binary that is already serving clients. Stop and restart
+`sase mobile gateway start` (or the supervisor unit that runs it) after an upgrade.
 
 Start the gateway on loopback:
 
@@ -257,6 +262,10 @@ Then smoke the end-to-end path:
   the authenticated gateway and refresh after receipt or tap.
 - Auth failures after reinstall or host reset: forget the host in Android Settings and
   pair again.
+- Behavior did not change after upgrading SASE: the running gateway still serves the
+  pre-upgrade `sase_gateway` binary until it restarts. When the same host also serves
+  [remote dispatch](remote_dispatch.md#launch-and-operate), `sase machine status` from
+  another fleet machine reports that as `sase-gateway` version skew.
 - Foreground notification will not appear: verify Android notification permission and
   that connected mode is enabled.
 - A snoozed notification never came back: with no consumer running, nothing rings at the

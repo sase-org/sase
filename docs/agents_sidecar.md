@@ -65,11 +65,25 @@ the global spelling. Agent references do not accept `#L`, `#page=`, or `#t=` fra
 If the page has not been published yet, run `sase agent sync` for the project before
 sharing the `@agent:` reference.
 
-Owner manifests map each hood to the snapshot digest and its complete referenced-file
-set. Snapshot and per-run JSON is strictly versioned, canonically encoded, size/count
+Owner manifests map each hood to its snapshot digest plus run and family counts. The
+snapshot itself lists every referenced file with its size and SHA-256 digest, so the
+manifest does not need to repeat that file set. With the default-on
+`slim_agents_manifest` sunset flag, every manifest write (a fresh publication or either
+repair command below) omits the per-hood `files` list, which keeps an owner manifest
+small even for owners with thousands of hoods. Readers accept manifests with or without
+the list, and when a legacy entry still carries one it must match the snapshot. Owner
+manifests have their own read caps (16 MiB and 16,384 hoods), and a write that would
+exceed them fails before anything lands. Turning the flag off restores the older shape
+that repeats each hood's `files` list. SASE versions that predate the optional list
+treat a slim manifest as malformed and skip that owner when they rebuild shared indexes,
+so upgrade every machine that publishes to a shared sidecar.
+
+Snapshot and per-run JSON is strictly versioned, canonically encoded, size/count
 bounded, and content-addressed with SHA-256. Names and paths are validated as single
 components, and every relationship/container batch passes through the Rust identity
-facade before publication.
+facade before publication. A publication re-reads the referenced files only for the
+hoods it is writing; every other hood still has its snapshot digest and identity
+checked, so a drifted file in one hood does not block publication of another.
 
 The allowlist excludes PIDs, workspace numbers, credentials, absolute paths, checkout
 paths, and other host-local execution state. A publication is fully built and validated
@@ -362,6 +376,28 @@ The command reports every removed hood or Referenced By request and its terminal
 then continues the normal full sync for the selected projects. Both `--drop-retired` and
 `--retry-quarantined` mutate the outbox and are rejected with `--check`.
 
+Two repair modes replace the normal sync for the selected projects. Each runs under the
+same bounded lock and pull/commit/push transaction, touches only the current owner's
+`users/<username>/machines/<machine>/` files, and reports what it changed:
+
+```bash
+sase agent sync --repair-digests -p project-alias   # -g
+sase agent sync --repair-manifest -p project-alias  # -m
+```
+
+- `--repair-digests` handles a published file that was rewritten out of band, such as a
+  hand-edited `chat.md`. It trusts the file on disk and re-signs the stale file
+  references in that hood's snapshot, plus the owner-manifest digest that covers the
+  snapshot. The `state.agent_publication_digest` check in `sase doctor` detects this
+  drift and names the command.
+- `--repair-manifest` restores owner-manifest entries for hood directories that exist on
+  disk but are missing from the manifest. Publication reports such hoods in its
+  diagnostics. Each candidate hood is validated on its own (snapshot identity plus every
+  referenced file's size and digest); a hood that fails is skipped and reported, and
+  existing manifest entries always win. Publication also refuses to start from a missing
+  owner manifest while that owner's hood directories still exist, rather than
+  republishing from an empty manifest.
+
 CLI status checks maintain `~/.sase/agents_sync/status_snapshot.json`:
 
 ```bash
@@ -409,6 +445,10 @@ Textual event loop.
 - A malformed published v2 owner manifest, snapshot, or referenced digest is ignored
   while deterministic indexes are rebuilt; publication still validates the current
   owner's authority files before committing.
+- If publication fails because one of your own published files no longer matches its
+  recorded digest, run `sase agent sync --repair-digests -p <project>`. If publication
+  reports on-disk hoods that the owner manifest omits, run
+  `sase agent sync --repair-manifest -p <project>`.
 - A queued agent-hood publication failure leaves the primary commit successful, with a
   warning naming the recovery command, and a durable retry request under the project's
   SASE state. Fix credentials/connectivity, then run `sase agent sync -p <project>` for

@@ -37,9 +37,11 @@ loads all registered plugins and dispatches VCS operations through pluggy's
 ### Hook Specification
 
 All VCS operations are defined in `VCSHookSpec` (`src/sase/vcs_provider/_hookspec.py`).
-Each method is prefixed with `vcs_` and returns `tuple[bool, str | None]` (success flag
-and optional output). Plugins implement only the hooks they support; unsupported
-operations return `None` and are skipped.
+Each method is prefixed with `vcs_`. Most operation hooks return
+`tuple[bool, str | None]` (success flag and optional output); query and capability hooks
+return typed values such as strings, lists, sets, booleans, or wire records. Plugins
+implement only the hooks they support; unsupported operations return `None` and are
+skipped.
 
 The hooks are organized into several groups:
 
@@ -47,10 +49,14 @@ The hooks are organized into several groups:
   `vcs_apply_patch`, `vcs_apply_patches`, `vcs_add_remove`, `vcs_clean_workspace`,
   `vcs_commit`, `vcs_amend`, `vcs_rename_branch`, `vcs_rebase`, `vcs_archive`,
   `vcs_prune`, `vcs_stash_and_clean`
-- **Optional core** — `vcs_resolve_revision`, `vcs_resolve_current_patch_head_ref`,
-  `vcs_show_revision`, `vcs_diff_with_untracked`, `vcs_committed_diff`,
-  `vcs_get_default_parent_revision`, `vcs_diff_name_status`, `vcs_diff_line_stats`,
-  `vcs_log`, `vcs_file_at_revision`
+- **Optional core** — `vcs_resolve_revision`, `vcs_revision_id`,
+  `vcs_resolve_current_patch_head_ref`, `vcs_show_revision`, `vcs_diff_with_untracked`,
+  `vcs_committed_diff`, `vcs_get_default_parent_revision`, `vcs_diff_name_status`,
+  `vcs_diff_line_stats`, `vcs_log`, `vcs_file_at_revision`,
+  `vcs_existing_branch_suffixes`
+- **Remote timeline** — `vcs_resolve_remote_log_ref`, `vcs_fetch_remote`, and
+  `vcs_partition_commits` (resolve, refresh, and compare the remote ref that
+  `sase stitch list` uses to mark commits synced, unpushed, or remote-only)
 - **Sync operations** — `vcs_sync_workspace`, `vcs_is_sync_in_progress`,
   `vcs_get_conflicted_files`, `vcs_continue_sync`, `vcs_abort_sync`
 - **Commit dispatch** — `vcs_create_commit`, `vcs_create_proposal`,
@@ -59,16 +65,21 @@ The hooks are organized into several groups:
   bead amend, push-with-retry — when `sase stitch create --resume` finishes a workflow
   whose dispatch was interrupted by a merge conflict; plugins that cannot safely replay
   finalization can leave this unimplemented, and the workflow will only replay its
-  tracking steps). See [commit_workflows.md](commit_workflows.md#resume-after-conflict).
+  tracking steps) and `vcs_supports_commit_excludes` (whether the provider honors
+  `sase stitch create -x/--exclude`). See
+  [commit_workflows.md](commit_workflows.md#resume-after-conflict).
+- **Issue-tracker operations** — `vcs_list_issues`, `vcs_get_issue`, `vcs_create_issue`,
+  `vcs_update_issue`, `vcs_get_issue_url` (optional; implemented by providers with a
+  native issue tracker)
 - **VCS-agnostic operations** — `vcs_abandon_change`,
   `vcs_prepare_description_for_reword`, `vcs_normalize_bug_value`, `vcs_get_change_url`,
   `vcs_get_change_body`
 - **Pull-request operations** — `vcs_list_pull_requests` (list existing pull requests;
   only implemented by providers with native PR support, such as `sase-github`)
 - **Info and review hooks** — `vcs_reword`, `vcs_reword_add_tag`, `vcs_get_description`,
-  `vcs_get_branch_name`, `vcs_get_pr_number`, `vcs_get_workspace_name`,
-  `vcs_has_local_changes`, `vcs_get_bug_number`, `vcs_mail`, `vcs_fix`, `vcs_upload`,
-  `vcs_find_reviewers`, `vcs_rewind`
+  `vcs_get_branch_name`, `vcs_get_pr_number`, `vcs_get_cl_number` (legacy alias of the
+  PR number), `vcs_get_workspace_name`, `vcs_has_local_changes`, `vcs_get_bug_number`,
+  `vcs_mail`, `vcs_fix`, `vcs_upload`, `vcs_find_reviewers`, `vcs_rewind`
 - **Branch naming hooks** — `vcs_derive_branch_name`,
   `vcs_derive_branch_name_with_suffix` (compute branch names from Patch names),
   `vcs_can_rename_branch` (check if branch renaming is supported)
@@ -94,16 +105,16 @@ The `SASE_VCS_PROVIDER` environment variable takes highest priority.
 
 ```bash
 # Force the Git provider family; GitHub remotes are reclassified when the plugin is installed.
-SASE_VCS_PROVIDER=git sase stitch create my_feature
+SASE_VCS_PROVIDER=git sase stitch create -m "Update parser"
 
 # Force hg provider
 SASE_VCS_PROVIDER=hg sase tui
 
 # Defer to next tier
-SASE_VCS_PROVIDER=auto sase stitch create my_feature
+SASE_VCS_PROVIDER=auto sase stitch create -m "Update parser"
 ```
 
-The `--vcs-provider` CLI flag on `sase tui` and `sase axe` sets this variable
+The `-v, --vcs-provider` CLI flag on `sase tui` and `sase axe` sets this variable
 internally:
 
 ```bash
@@ -314,7 +325,7 @@ sase stitch create -t pr -n parser_cleanup -m "Update parser" # create_pull_requ
 
 sase's TUI provides interactive actions that use VCS operations:
 
-#### Sync (`S` key)
+#### Sync (`Y` key)
 
 Syncs the workspace with the remote repository.
 
@@ -327,7 +338,7 @@ The git sync auto-detects the default branch via
 `git symbolic-ref refs/remotes/origin/HEAD`, then probes `origin/master` and
 `origin/main`, and finally falls back to `main`.
 
-#### Mail (`m` key)
+#### Mail (`M` key)
 
 Pushes changes for review. The flow differs significantly between providers.
 
@@ -357,25 +368,33 @@ Displays the diff for a Patch. Uses `diff()` for uncommitted changes or
 | Uncommitted | `git diff HEAD`                                  | `hg diff`          |
 | Revision    | `git diff origin/<default>...<rev>` (merge-base) | `hg diff -c <rev>` |
 
-#### Revert (`X` key / status change to "Reverted")
+#### Revert (status change to "Reverted")
 
-Reverts a Patch by saving its diff and pruning the revision.
+Reverts a Patch by saving its diff and pruning the revision. Choose "Reverted" from the
+status change action (`s`); the revert runs as a background proc. (`X` only shows or
+hides reverted Patches in the list.)
 
-1. Save diff to `~/.sase/reverted/<name>.diff` via `diff_revision()`
-2. Prune revision via `prune()`
-3. Update status to "Reverted"
+1. Refuse when another Patch uses this one as its parent
+2. Pick the renamed Patch name with the next free `__<N>` suffix
+3. Save the diff to `~/.sase/reverted/<new_name>.diff` via `diff_revision()`
+4. Close the remote change via `abandon_change()`, then prune the revision via `prune()`
+   and drop any branch alias
+5. Rename the Patch, update its status to "Reverted", and clear its PR field
+
+Steps 3 and 4 run only when the Patch has a PR.
 
 | Operation | Git                        | Mercurial                  |
 | --------- | -------------------------- | -------------------------- |
 | Prune     | `git branch -D <revision>` | `sase_hg_prune <revision>` |
 
-#### Restore (status change from "Reverted" to "WIP"/"Drafted")
+#### Restore (status change from "Reverted" to "WIP", "Draft", or "Ready")
 
-Restores a previously reverted Patch.
+Restores a previously reverted Patch as a background proc.
 
-1. Checkout parent or default branch via `checkout()`
-2. Apply stashed diff via `apply_patch()`
-3. Run `sase stitch create` to re-create the commit
+1. Rename the Patch back to its base name (dropping the `__<N>` suffix)
+2. Checkout parent or default branch via `checkout()`
+3. Apply the stashed diff via `apply_patch()`
+4. Run `sase stitch create` to re-create the commit
 
 | Operation   | Git                     | Mercurial                      |
 | ----------- | ----------------------- | ------------------------------ |
@@ -422,17 +441,28 @@ The `--vcs-provider` flag works identically to `sase tui`.
 Standalone command to revert a Patch. Performs the same operations as the revert action
 in sase's TUI:
 
-1. Save diff via `diff_revision()` to `~/.sase/reverted/<name>.diff`
-2. Prune revision via `prune()`
-3. Update status to "Reverted"
+1. Save diff via `diff_revision()` to `~/.sase/reverted/<new_name>.diff`
+2. Close the remote change and prune the revision via `prune()`
+3. Rename the Patch with its `__<N>` suffix and update status to "Reverted"
+
+```bash
+sase revert my_feature
+```
 
 ### `sase restore`
 
-Standalone command to restore a reverted Patch:
+Standalone command to restore a reverted Patch. `sase restore -l` (`--list`) lists the
+reverted Patches you can name.
 
-1. Checkout parent (or default branch) via `checkout()`
-2. Apply saved diff via `apply_patch()` from `~/.sase/reverted/` or `~/.sase/archived/`
-3. Run `sase stitch create` to re-create the commit
+1. Rename the Patch back to its base name
+2. Checkout parent (or default branch) via `checkout()`
+3. Apply saved diff via `apply_patch()` from `~/.sase/reverted/` or `~/.sase/archived/`
+4. Run `sase stitch create` to re-create the commit
+
+```bash
+sase restore --list
+sase restore my_feature__2
+```
 
 ## Git Provider Details
 
@@ -504,6 +534,32 @@ plugin's
 [GitHub Enterprise setup walkthrough](https://github.com/sase-org/sase-github/blob/master/docs/configuration.md#github-enterprise-setup)
 is the source of truth for the ordered setup, including SSH clone configuration and
 workspace layout.
+
+### GitHub CLI Calls
+
+Core SASE code that shells out to `gh` goes through one shared, non-interactive runner.
+Each attempt runs with `GH_PROMPT_DISABLED=1`, Git terminal and askpass prompts
+disabled, and stdin closed, so a missing login fails instead of waiting for input. Every
+attempt is also appended as a `gh_operation` record to `~/.sase/logs/tui_git_ops.jsonl`
+(or `$SASE_TUI_GIT_OPS_PATH`).
+
+A failed call is retried only when the Rust core classifies its exit status and output
+as transient, such as a rate-limit response; a timeout counts as transient. Permanent
+errors such as `Not Found (HTTP 404)` or `Bad credentials (HTTP 401)` fail on the first
+attempt. A retrying caller makes at most three attempts, waiting 1 second and then 2
+seconds between them. When the classifier, or a `Retry-After` or `X-RateLimit-Reset`
+value in the `gh` output, supplies a delay, SASE waits that long instead, capped by
+`SASE_GH_MAX_RETRY_SLEEP` (default: 60 seconds). `SASE_GH_TIMEOUT` (default: 20 seconds)
+sets the per-attempt timeout only for callers that do not pass their own.
+
+When retries run out, the error names the `gh` command, the attempt count, and the exit
+status or timeout, followed by the first line of `gh` output. If the `gh` binary cannot
+be started, the call fails at once without retrying.
+
+The TUI's incoming-commit previews for SASE and plugin updates use the full retry
+budget. The plugin catalog fetch behind `sase plugin` and the GitHub auth probe in
+`sase doctor -C plugins.github` make a single attempt. PR operations come from the
+`sase-github` plugin, whose documentation owns their retry behavior.
 
 ### Sync
 
@@ -626,11 +682,11 @@ Sase maintains diff files in `~/.sase/` for tracking changes across operations.
 
 ### Diff Storage Locations
 
-| Directory                                         | Purpose                         | When Used                         |
-| ------------------------------------------------- | ------------------------------- | --------------------------------- |
-| `~/.sase/diffs/YYYYMM/<cl_name>-<timestamp>.diff` | Pre-commit/amend diff snapshots | Every commit and amend            |
-| `~/.sase/reverted/<name>.diff`                    | Stashed diff for reverted PRs   | `sase revert` / ace revert action |
-| `~/.sase/archived/<name>.diff`                    | Stashed diff for archived PRs   | ace archive action                |
+| Directory                                         | Purpose                         | When Used                             |
+| ------------------------------------------------- | ------------------------------- | ------------------------------------- |
+| `~/.sase/diffs/YYYYMM/<cl_name>-<timestamp>.diff` | Pre-commit/amend diff snapshots | Every commit and amend                |
+| `~/.sase/reverted/<name>.diff`                    | Stashed diff for reverted PRs   | `sase revert` / TUI status → Reverted |
+| `~/.sase/archived/<name>.diff`                    | Stashed diff for archived PRs   | TUI status → Archived                 |
 
 ### Patch Application
 
@@ -669,7 +725,7 @@ vcs_provider:
 
 ```bash
 # Override VCS provider for a single command
-SASE_VCS_PROVIDER=git sase stitch create my_feature
+SASE_VCS_PROVIDER=git sase stitch create -m "Update parser"
 
 # Set for the entire shell session
 export SASE_VCS_PROVIDER=hg
@@ -677,17 +733,20 @@ export SASE_VCS_PROVIDER=hg
 
 ### CLI Flags
 
-Available on `sase tui` and `sase axe` only:
+Available as `-v, --vcs-provider` on `sase tui` and `sase axe` only. On `sase axe`, the
+flag belongs to the `axe` command itself and must come before the subcommand:
 
 ```bash
 sase tui --vcs-provider git
 sase tui --vcs-provider hg
-sase tui --vcs-provider auto
+sase tui -v auto
 
-sase axe start --vcs-provider git
+sase axe --vcs-provider git start
 ```
 
-Valid values for all three methods: `git`, `hg`, `auto`.
+Valid values for the CLI flag and the config key: `git`, `hg`, `auto`. The environment
+variable is passed through as written, so a concrete provider name such as `bare_git` or
+`github` also works there.
 
 ### Schema
 
@@ -764,6 +823,32 @@ active work. After confirming no Git process is live, rerun the SASE operation; 
 recovery logic will resolve the canonical lock path and remove only an unchanged stale
 file.
 
+### Numbered Workspace Reports a Broken Git Object Dependency
+
+Numbered managed Git checkouts borrow the primary checkout's object database through Git
+alternates by default (`workspace.share_git_objects: true`). If the primary checkout is
+moved or deleted, Git commands in a borrower can fail with missing-object errors, and
+workspace preparation refuses to reuse that checkout with
+`existing managed checkout has a broken SASE Git object dependency`. The checkout and
+any uncommitted work are left in place.
+
+**Fix:** Preview the repair with `sase workspace repair -n`, then run
+`sase workspace repair` to repoint SASE-owned alternates at the current primary. Add
+`-p <project>` when the project cannot be inferred from the current directory. See the
+[`sase workspace` CLI](workspace.md#sase-workspace-cli) for object sharing, compaction,
+and the opt-out.
+
+### Slow or Flaky Sidecar Git Transport
+
+Network Git commands for SDD sidecar repositories (clone, fetch, and push during bead
+sync, SDD integration, repository health checks, and agent publishing) retry failures
+that the Rust core classifies as transient; see
+[Network Git Operations](sdd_storage.md#network-git-operations) for attempts, timeouts,
+and the environment variables that tune them. Those operations are logged to
+`~/.sase/logs/tui_git_ops.jsonl`, and `sase doctor -C vcs.git_transport_margin` reads
+the most recent samples and warns when they keep running close to their time limit. Run
+it with `-v` to see which sidecar stores were slow.
+
 ### "No VCS provider found" Error
 
 **Cause:** Auto-detection could not find `.hg/` or `.git/` in the current directory or
@@ -774,7 +859,7 @@ because no plugin claimed it and `origin` was missing or unreadable.
 explicitly:
 
 ```bash
-SASE_VCS_PROVIDER=git sase stitch create my_feature
+SASE_VCS_PROVIDER=git sase stitch create -m "Update parser"
 ```
 
 ### GitHub: `gh` CLI Not Installed
@@ -789,7 +874,9 @@ GitHub PR operations (`get_change_url`, `mail`, `get_pr_number`) require the
 - `sase tui` mail action fails with "gh pr create failed"
 - No PR URL shown after commit
 
-**Fix:** Install the GitHub CLI and authenticate:
+**Fix:** Install the GitHub CLI and authenticate, then run
+`sase doctor -C plugins.github` to confirm that `gh` is on `PATH` and `gh auth status`
+passes:
 
 ```bash
 # macOS
@@ -801,6 +888,22 @@ gh auth login
 # GitHub Enterprise / self-hosted GitHub
 gh auth login --hostname github.mycompany.com
 ```
+
+### GitHub: Transient `gh` Failures
+
+**Symptoms:** A `gh`-backed step, such as an incoming-commit preview on the Updates
+surfaces, reports `` `gh api -X GET ...` failed after 3 attempts (exit 1): ... `` or
+`` `gh ...` timed out after 3 attempts ``.
+
+**Cause:** Every attempt hit a failure the classifier treats as transient, such as a
+rate limit, or every attempt timed out. Permanent failures stop after one attempt. See
+[GitHub CLI Calls](#github-cli-calls).
+
+**Fix:** Inspect the `gh_operation` records in `~/.sase/logs/tui_git_ops.jsonl`; each
+record includes the attempt number, classifier verdict, and output previews. Confirm
+that `gh auth status` passes, then retry once the GitHub outage or rate-limit window has
+passed. Raise `SASE_GH_MAX_RETRY_SLEEP` only if longer waits between attempts are
+acceptable.
 
 ### Mercurial: Plugin Not Installed
 

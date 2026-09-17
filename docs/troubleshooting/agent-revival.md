@@ -1,10 +1,10 @@
 # Agent Revival Audit Log
 
-The TUI's revive flow (`R` on the Agents tab) writes a JSONL audit log to
-`~/.sase/logs/events.jsonl` so post-mortem questions like "what was the last agent I
-tried to revive?" can be answered without grepping through dismissed-bundle directories.
-Paths shown here use the default SASE state root; when `SASE_HOME` is set, the log lives
-under that root instead.
+The TUI's revive flow (`!R` on the Agents tab; plain `R` retries the selected agent)
+writes a JSONL audit log to `~/.sase/logs/events.jsonl` so post-mortem questions like
+"what was the last agent I tried to revive?" can be answered without grepping through
+dismissed-bundle directories. Paths shown here use the default SASE state root; when
+`SASE_HOME` is set, the log lives under that root instead.
 
 Three event kinds are emitted:
 
@@ -42,9 +42,10 @@ Per-agent fields on `agent_revived` / `agent_revive_failed`:
 
 Failure-only fields:
 
-- `stage` — one of `dismissed_set_update`, `artifact_restore`, `bundle_marking`,
-  `reload`, `refresh_display`, `saved_group_load`, `saved_group_bundle_load`,
-  `saved_group_mark_revived`, or `no_dismissed_agents`.
+- `stage` — one of `artifact_restore`, `dismissed_set_update`, `bundle_marking`,
+  `artifact_index`, `refresh_display`, `saved_group_load`, `saved_group_bundle_load`,
+  `saved_group_mark_revived`, or `no_dismissed_agents`. Older records may also carry
+  `reload`.
 - `error_type` / `error_message` — exception class and `str(exc)` truncated to 500
   characters.
 - `reason` — set for non-exceptional failures (currently only `no_dismissed_agents`).
@@ -53,11 +54,14 @@ Failure-only fields:
 
 ```
 sase revive-log              # last 20 records, rich table
+sase revive-log --limit 50   # last 50 records
 sase revive-log --all        # every record
 sase revive-log --since -7d  # records on/after the daterange start
 sase revive-log --outcome failure
 sase revive-log --json       # one JSON object per line for agent consumption
 ```
+
+`--jsonl` is an alias for `--json`.
 
 `--since` accepts the same daterange grammar as `sase logs`.
 

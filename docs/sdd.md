@@ -130,12 +130,12 @@ by the `sase-5` land agent becomes `sase-5.4` after phases `.1` through `.3`, an
 task-worker proposal from `sase-iq` becomes `sase-iq.1`. Agents with no bead association
 at all continue to create top-level epics.
 
-When `sase plan propose` submits a plan for approval, it touches
-`~/.sase/.ace_refresh_pulse` so any running sase's TUI flips the agent into the
-tier-aware `TALE` or `EPIC` pending-review status immediately rather than waiting for
-the next auto-refresh tick. Legacy or unreadable-tier plans use the `PLAN` fallback. The
-pulse file is consumed by the inotify-based artifact watcher and is harmless when no TUI
-is open.
+When `sase plan propose` submits a plan for approval, it touches the project's
+`~/.sase/projects/<project>/artifacts/.ace_refresh_pulse` so any running sase's TUI
+flips the agent into the tier-aware `TALE` or `EPIC` pending-review status immediately
+rather than waiting for the next auto-refresh tick. Legacy or unreadable-tier plans use
+the `PLAN` fallback. The pulse file is consumed by the inotify-based artifact watcher
+and is harmless when no TUI is open.
 
 Humans can approve the pending proposal from sase's TUI or from the CLI. `sase plan`
 lists pending PlanApproval notifications, recent approvals, and inferred rejected
@@ -189,9 +189,11 @@ To recall prior planning artifacts, `sase plan search [QUERY]` searches plans, r
 and historical prompt snapshots in the resolved SDD store (the `repo` source, surfaced
 first) plus the machine-local `~/.sase/plans/` archive. Use `sase agent prompts list`
 and `sase agent prompts show` for the canonical agents-sidecar prompt archive. The query
-is optional — omit it to browse and filter with `--kind tale|epic|prompt|research`,
-`--status`, `--source`, and `--since`/`--until` date bounds. Results are ranked
-(relevance with a query, recency without) and render as colored `compact`/`full` output
+is optional — omit it to browse and filter with repeatable
+`--kind tale|epic|prompt|<document-role>` (any configured document sidecar, such as
+`research`), `--status`, `--source`, and `--since`/`--until` date bounds. Results are
+ranked (relevance with a query, recency without; `--sort` overrides), capped by
+`--limit` (default 20, `0` for unlimited), and render as colored `compact`/`full` output
 or as agent-friendly `json`/`markdown` via `--format`.
 
 Once you know which plan you want, `sase plan show [TARGET]` resolves it — a path, a
@@ -240,7 +242,7 @@ size: small
   [sase-ai.8](https://github.com/sase-org/sase--beads/blob/main/pages/sase-ai/sase-ai.8.md)
 - **AGENTS:**
   - [bbugyi200.athena.sase-8k.6](https://github.com/sase-org/sase--agents/blob/main/agents/bbugyi200.athena.sase-8k.6/README.md)
-- **STITCHES:**
+- **COMMITS:**
   - [699456a](https://github.com/sase-org/sase/commit/699456a521e25e0aaa38f4e289db38e71a6488a6)
     — fix(xprompt): canonicalize workflow project identity
 
@@ -289,7 +291,8 @@ plan-to-prompt hrefs remain valid and readable during migration.
 | `COMMITS`   | ordered sub-bullets | hosted commit URL in the primary repository, else an unlinked SHA        |
 
 Sub-bullets are indented exactly two spaces and deterministically ordered: agents by
-global name, artifacts by rendered prompt order, commits by commit time then SHA. Commit
+name, artifacts by rendered prompt order, and commits by full SHA (or by the short-SHA
+label of an unlinked commit), so every writer produces the same order. Commit
 sub-bullets show the seven-character short SHA as link text and append `— <subject>`. A
 section with nothing to show is omitted entirely — an empty `- **AGENTS:**` header is
 never rendered — and a list longer than the shared render cap ends with a visible
@@ -313,29 +316,48 @@ The diagnostic names the offending path and the parser's reason, and the same
 anything, so a malformed block fails with that diagnostic and leaves no partially
 written destination file behind.
 
-`BEAD`, `AGENTS`, and `COMMITS` are projections of durable state, never accumulators.
-`BEAD` comes from the plan's managed `bead_id` (or historical `bead`) frontmatter. It
-links when a hosted page URL can be formed and a readable bead store does not show the
-ID to be missing. `sase plan propose` stamps that managed `bead` field when a tale is
-proposed by a phase agent, land agent, or task-bead worker with an active bead
-association. If the resolved store is readable and confirms that the bead is absent, or
-if no hosted page URL is available, it remains an unlinked label so historical IDs do
-not become dead links. If the store cannot be read, refresh preserves a candidate hosted
-link rather than stripping potentially valid links during a transient failure. The
-association sections are re-derived from `SASE_PLAN=` / `SASE_AGENT=` commit footers and
-agent artifact metadata on every refresh, so a stale or wrong entry disappears once its
-source is corrected. Both sources are normalized to the **sase agent**, so each sase
-agent is listed exactly once: a plan touched by `pc--code` and `pc--plan` shows a single
-`pc` row linked to the family page, never the member and its family as two agents. Solo
-agents are listed exactly as before. The row's link is taken from the concrete shell
-when any source knew one, otherwise from the destination recorded in the commit footer,
-and it degrades to an unlinked label rather than guessing a URL. Bead-page agent rows
-follow the same rule, and their commit counts are the sase agent's commits. An epic
-plan's sections roll up its own associations with those of every descendant plan
-reachable through `PARENT`. `sase plan links refresh` reconciles the whole tree (dry run
-by default; `--write` to apply, `--plan <ref>` to scope to one plan), and each primary
-commit refreshes the plan it names on a best-effort basis — a plans-store failure never
-blocks the code commit.
+`BEAD` is a projection of durable state. It comes from the plan's managed `bead_id` (or
+historical `bead`) frontmatter and is rebuilt on every refresh. It links when a hosted
+page URL can be formed and a readable bead store does not show the ID to be missing.
+`sase plan propose` stamps that managed `bead` field when a tale is proposed by a phase
+agent, land agent, or task-bead worker with an active bead association. If the resolved
+store is readable and confirms that the bead is absent, or if no hosted page URL is
+available, it remains an unlinked label so historical IDs do not become dead links. If
+the store cannot be read, refresh preserves a candidate hosted link rather than
+stripping potentially valid links during a transient failure.
+
+`AGENTS` and `COMMITS` are derived from `SASE_PLAN=` / `SASE_AGENT=` commit footers and
+agent artifact metadata, then merged into the rows the plan already carries. A refresh
+only sees the commits and agent artifacts available where it runs, so it adds the rows
+it derives and updates the text and link of rows it derives again, but it never removes
+a row. A refresh that derives nothing leaves both sections untouched, and two machines
+that refresh in either order converge on the same rows. Agent rows are matched by name;
+commit rows are matched by the full SHA in their link, or by short-SHA label when
+unlinked, and a linked row replaces an unlinked row with the same label. Because rows
+are never pruned, correcting a wrong footer or artifact does not remove a row that an
+earlier refresh already wrote.
+
+Both sources are normalized to the **sase agent**, so each sase agent is listed exactly
+once: a plan touched by `pc--code` and `pc--plan` shows a single `pc` row linked to the
+family page, never the member and its family as two agents. Solo agents are listed
+exactly as before. The row's link is taken from the concrete shell when any source knew
+one, otherwise from the destination recorded in the commit footer, and it degrades to an
+unlinked label rather than guessing a URL. Bead-page agent rows follow the same rule,
+and their commit counts are the sase agent's commits. An epic plan's sections roll up
+its own associations with those of every descendant plan reachable through `PARENT`.
+`sase plan links refresh` reconciles the whole tree (dry run by default; `--write` to
+apply, `--plan <ref>` to scope to one plan), and each primary commit refreshes the plan
+it names on a best-effort basis — a plans-store failure never blocks the code commit.
+
+Refreshes on different machines can still edit the same plan concurrently. When SASE
+rebases a plans store (sidecar integration, or a bare-git project's commit rebase) and a
+month-sharded plan file conflicts only in its `AGENTS` and `COMMITS` rows, SASE resolves
+the conflict itself: it writes the union of both sides' rows, keeps the local side's
+text for a row both sides carry, and stages the file. A difference in frontmatter,
+`PROMPT`, `PARENT`, `BEAD`, or the authored body, an unparseable header, or a
+modify/delete conflict is never merged; it is left to SASE's normal conflict handling,
+which for sidecar integration restores the pre-rebase state (see
+[SDD Storage](sdd_storage.md#concurrency-and-recovery)).
 
 A plan's parent is recorded in the `PARENT` bullet. The historical `parent:` frontmatter
 property is deprecated: it remains accepted so already-committed plans still validate,
@@ -526,10 +548,10 @@ epic handoff uses the bead command group:
 | `sase init repo`                     | Alias for `sase repo init`                                                                                        |
 | `sase repo path REPO`                | Print a primary or sidecar path; `-e/--ensure` materializes the selected sidecar                                  |
 | `sase plan links [list]`             | Print each prompt/plan artifact link and whether its reverse link is intact                                       |
-| `sase plan links refresh`            | Preview header-block reconciliation; `-w/--write` applies it, `-P/--plan REF` scopes it                           |
+| `sase plan links refresh`            | Preview header-block reconciliation; `-w/--write` applies, `-P/--plan REF` scopes, `-j/--json` reports            |
 | `sase plan links repair`             | Preview canonical link migration; add `-w/--write` to update unambiguous pairs                                    |
 | `sase plan links validate`           | Validate links; `-j/--json`, `-q/--quiet`, and `-W/--show-warnings` tune output                                   |
-| `sase plan search`                   | Search or browse tale, epic, prompt, and research artifacts                                                       |
+| `sase plan search`                   | Search or browse tale, epic, prompt, and document-sidecar (for example research) artifacts                        |
 | `sase plan show [TARGET]`            | Resolve any plan reference form and render it; `-f/--format` picks full/compact/json/raw                          |
 | `sase plan validate`                 | Validate by authored tier; `-e/--explain`, `-j/--json`, and `-q/--quiet` tune output                              |
 | `sase bead work TARGET [TARGET ...]` | Validate, archive, link, and launch epic plans or bead targets in order; `-n/--dry-run` previews without mutation |
@@ -568,7 +590,8 @@ repository's deterministic README and infographic asset, pushes generated drift,
 only then records the split store. Provider errors fail setup instead of falling back to
 local storage. Missing or false markers make the command and `--check` successful no-ops
 before provider work; invalid local configuration fails safely. `sase init repo` exposes
-the same flow and check/path flags, and `--path` checks the target repository's marker.
+the same flow and the same `-c/--check`, `-d/--diff`, and `-C/--no-commit` flags; both
+act on the repository containing the current directory.
 
 Before explicit initialization creates a missing GitHub sidecar, it asks a default-no
 question naming the role, repository, visibility, and host. Only `y` or `yes` approves.
@@ -671,4 +694,7 @@ including beads, when explicitly ensured. Providerless local storage uses the pr
 workspace. Numbered sibling stores are not merged; coordinate shared state through the
 normal VCS sync path. Prefer `sase repo path plans`, `sase repo path beads`,
 `sase repo path <document-role>`, or the `SASE_SDD_*_DIR` variables over hard-coded
-relative paths.
+relative paths. Numbered-workspace sidecar clones borrow Git objects from the primary
+workspace's clone of the same sidecar when one exists; see
+[Network Git Operations](sdd_storage.md#network-git-operations) for clone retries and
+timeouts.

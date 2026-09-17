@@ -184,9 +184,9 @@ not watcher deltas: a touched July `done.json` showed up in the index as a new
 
 ## Idle-host CPU diet
 
-An idle sase host (ace open, routines running, no agent work) used to burn roughly four
-cores: job subprocesses at ~109 spawns/min, each paying ~0.6s of import tax, plus ace's
-unconditional full reconcile every `refresh_interval`. The idle-CPU-diet epic
+An idle sase host (TUI open, routines running, no agent work) used to burn roughly four
+cores: job subprocesses at ~109 spawns/min, each paying ~0.6s of import tax, plus the
+TUI's unconditional full reconcile every `refresh_interval`. The idle-CPU-diet epic
 (`sase-wn`) turns ticks cheap instead of rare. Use this recipe when a host looks busy at
 rest again — it should take about five minutes.
 
@@ -197,7 +197,7 @@ Success criteria (idle, no agent work):
 | sase sustained CPU            | < 0.4 cores                                         |
 | job subprocess spawns         | < 25/min across every routine                       |
 | representative job import     | < 0.2s / < 400 modules                              |
-| idle ace                      | < 10% of a core, ~0 stall-watchdog records / 30 min |
+| idle TUI                      | < 10% of a core, ~0 stall-watchdog records / 30 min |
 | idle axe collector file opens | near zero when nothing changed                      |
 
 The spawn budget sits on a floor no fs trigger can remove: `stale_running_cleanup`'s
@@ -230,17 +230,17 @@ jq '{chops_spawned, chops_no_op, chops_skipped, last_tick_spawns, last_tick_skip
   ~/.sase/axe/lumberjacks/*/metrics.json
 
 # 3. Process CPU over a quiet minute (/proc deltas)
-pidof -x sase; ps -o pid,pcpu,pmem,comm -p $(pgrep -d, -f 'sase (ace|axe)')
+pidof -x sase; ps -o pid,pcpu,pmem,comm -p $(pgrep -d, -f 'sase (tui|axe)')
 # sample twice, 60s apart:
 awk '{print $1,$14,$15}' /proc/$(pgrep -n -f 'sase tui')/stat; sleep 60; \
 awk '{print $1,$14,$15}' /proc/$(pgrep -n -f 'sase tui')/stat
 # utime+stime ticks / (HZ * elapsed) is cores used. On Linux HZ is usually 100.
 
-# 4. Stall-watchdog count over a 30-minute idle ace session
+# 4. Stall-watchdog count over a 30-minute idle TUI session
 jq -s 'map(select(.event=="tui_stall" or .event=="tui_hitch")) | length' \
   ~/.sase/logs/tui_stalls.jsonl
 
-# 5. Per-tick ace counters (surfaces reloaded, axe collector file opens)
+# 5. Per-tick TUI counters (surfaces reloaded, axe collector file opens)
 SASE_TUI_TRACE=1 sase tui
 # quit after a few idle refresh intervals, then:
 jq -c 'select(.span=="refresh.auto_tick")' ~/.sase/perf/tui_trace.jsonl | tail
@@ -251,18 +251,19 @@ python -X importtime -c "import sase.jobs.sdk" 2>&1 | tail -1
 python -c "import sase.jobs.sdk, sys; print(len(sys.modules))"
 
 # 7. Routine run-history gap analysis (idle ticks should be skipped, not no_op)
+#    History lives under the legacy lumberjacks/<routine>/chops/<job>/ paths.
 python - <<'PY'
 from pathlib import Path
-from datetime import datetime
 import json
-root = Path.home() / ".sase" / "axe" / "routines"
-for jack in sorted(root.iterdir()):
-    for job in sorted((jack / "jobs").glob("*")) if (jack / "jobs").exists() else []:
+root = Path.home() / ".sase" / "axe" / "lumberjacks"
+for routine in sorted(root.iterdir()):
+    jobs_dir = routine / "chops"
+    for job in sorted(jobs_dir.glob("*")) if jobs_dir.exists() else []:
         index = job / "index.json"
         if not index.exists():
             continue
         ids = json.loads(index.read_text())[:8]
-        print(f"== {jack.name}/{job.name} ==")
+        print(f"== {routine.name}/{job.name} ==")
         for run_id in ids:
             meta = json.loads((job / "runs" / f"{run_id}.json").read_text())
             print(f"  {meta.get('started_at')} {meta.get('status')} {meta.get('reason')}")
@@ -444,31 +445,18 @@ Point-in-time records emitted by `trace_event(...)` contain `event` instead of
 `span`/`duration_ms`. They are used for selection and highlight watcher transitions
 where there is no timed block to measure.
 
-## Heap sampler
-
-`SASE_TUI_HEAP=1` enables an opt-in `tracemalloc` sampler for long-lived sase's TUI
-sessions. Tracing starts when `AceApp` initializes, while each snapshot is scheduled
-from the TUI timer into a pump-free task and written from a worker thread. Samples
-append one compact JSONL record to:
-
-```text
-~/.sase/perf/tui_heap.jsonl
-```
-
-Override the destination with `SASE_TUI_HEAP_PATH=/tmp/tui_heap.jsonl`. The default
-interval is 300 seconds; override it with `SASE_TUI_HEAP_INTERVAL_SECONDS`. Each record
-includes `current_bytes`, `peak_bytes`, and the top allocation sites grouped by source
-line. The sampler keeps no previous snapshots in memory, so use adjacent JSONL records
-to compare growth over time.
-
-Timed spans currently wired (by file):
+Timed spans for the main Patch, agents, and AXE hot paths (by file, relative to
+`src/sase/ace/tui/`; run `rg 'tui_trace\(' src/sase` for the complete set, which also
+covers loader stages and pager opens):
 
 - `actions/patch/_display.py` — `patch.refresh_display`, `patch.refresh_debounced`,
   `patch.refresh_detail_only`
 - `actions/patch/_loading.py` — `patch.filter`
-- `actions/agents/_display.py` — `agents.refresh_display`, `agents.refresh_debounced`
-- `actions/agents/_display_panels.py` — `agents.refresh_panel_widgets`,
-  `agents.refresh_panel_highlights`
+- `actions/agents/_display.py` — `agents.refresh_display`,
+  `agents.refresh_display_incremental`, `agents.refresh_debounced`
+- `actions/agents/_display_panel_widgets.py` — `agents.refresh_panel_widgets`
+- `actions/agents/_display_panel_layout.py` — `agents.refresh_panel_highlights`,
+  `agents.refresh_focused_panel`
 - `actions/agents/_loading_helpers.py` — `agents.load_from_disk`
 - `actions/agents/_loading_live_hints.py` — `agents.live_hint_refresh`
 - `actions/agents/_display_detail_render.py` — `agents.view_hints_refresh`
@@ -486,13 +474,16 @@ Timed spans currently wired (by file):
   `widget.agent_detail.update_display_immediate`
 - `widgets/artifacts/relation_panel.py` — `widget.relation_panel.update_relations`
 - `widgets/prompt_panel/_agent_display.py` — `widget.prompt_panel.update_display`,
-  `widget.prompt_panel.update_header_only`
+  `widget.prompt_panel.update_header_only`, `widget.prompt_panel.update_tribe_display`,
+  `widget.prompt_panel.refresh_slow_tool_metadata_from_cache`
 - `widgets/prompt_panel/_agent_display_header_summary.py` —
   `widget.prompt_panel.build_detail_header_summary` and one child span per resolver (see
   "SASE CONTEXT enrichment" below)
-- `widgets/file_panel/__init__.py` — `widget.file_panel.update_display`
-- `widgets/thinking_panel.py` — `widget.thinking_panel.update_display`
-- `widgets/axe_dashboard.py` — `widget.axe_dashboard.update_display`
+- `widgets/file_panel/_panel.py` — `widget.file_panel.update_display`
+- `widgets/tools_panel.py` — `widget.tools_panel.update_display`
+- `widgets/axe_dashboard.py` — `widget.axe_dashboard.update_display`,
+  `widget.axe_dashboard.update_lumberjack_overview` (routine overview),
+  `widget.axe_dashboard.update_chop_run_display` (job detail)
 
 Spans nest cleanly: a single keypress that fires `agents.refresh_debounced` will record
 one outer span plus inner `widget.agent_list.update_highlight` and
@@ -632,6 +623,25 @@ python -m tests.perf.bench_detail_header_summary --include-home \
 only exercises a tiny hermetic in-memory fixture, so it stays safe to run in CI.
 `--count` controls how many non-clan agents from
 `load_tiered_agents(full_history=False)` are sampled.
+
+## Heap sampler
+
+`SASE_TUI_HEAP=1` enables an opt-in `tracemalloc` sampler for long-lived sase's TUI
+sessions. Tracing starts when `AceApp` initializes, while each snapshot is scheduled
+from the TUI timer into a pump-free task and written from a worker thread. Samples
+append one compact JSONL record to:
+
+```text
+~/.sase/perf/tui_heap.jsonl
+```
+
+Override the destination with `SASE_TUI_HEAP_PATH=/tmp/tui_heap.jsonl`. The default
+interval is 300 seconds; override it with `SASE_TUI_HEAP_INTERVAL_SECONDS`. One sample
+is also written at startup. Each record includes `current_bytes`, `peak_bytes`, and the
+top allocation sites grouped by source line, each with its captured traceback. The
+sampler records 25 sites with 25 traceback frames by default; tune them with
+`SASE_TUI_HEAP_TOP_N` and `SASE_TUI_HEAP_NFRAME`. It keeps no previous snapshots in
+memory, so use adjacent JSONL records to compare growth over time.
 
 ## Quick capture
 
@@ -793,10 +803,11 @@ jq -c '{timestamp, all_surfaces_ready_seconds, visible_ready_seconds,
 ```
 
 `tui_agent_loads.jsonl`'s slow-stage records are censored below
-`_SLOW_LOADER_STAGE_THRESHOLD_SECONDS` (2.0 s by default in
+`_DEFAULT_SLOW_LOADER_STAGE_THRESHOLD_SECONDS` (2.0 s in
 `src/sase/ace/tui/actions/agents/_loading_disk_support.py`); a capture run against a
 tree that has already dropped under 2 s needs the sub-threshold stages too. Override the
-threshold for the run instead of editing the constant:
+threshold for the run instead of editing the constant (non-numeric or non-positive
+values fall back to the default):
 
 ```bash
 SASE_TUI_LOADER_LOG_THRESHOLD_SECONDS=0.05 sase tui
@@ -847,9 +858,15 @@ just bench-agent-load-tiering
 It builds a temporary synthetic `SASE_HOME` with about 13,000 artifact directories by
 default, rebuilds the agent artifact index once, then compares authoritative source-scan
 rows with bounded and full-history index rows through the same Agents-tab query
-evaluator. The report includes p50/p95/max wall time for `source_scan`, `index_bounded`,
-and `index_full_history`; pass `--artifact-count`, `--runs`, `--warmup`, and repeated
-`--query` flags while iterating.
+evaluator. The report includes p50/p95/max wall time, read/decode counters, and speedups
+versus the source scan for `source_scan`, `index_bounded`, `index_full_history`, and the
+production loader's `production_bounded` and `production_full_history` paths, plus a
+periodic Tier 1 revalidate, a settled unchanged-query refresh session, and missing/extra
+row diffs. Pass `--artifact-count`, `--runs`, `--warmup`, `--requested-limit`,
+`--session-refreshes`, and repeated `--query` flags while iterating; `--fixture-root`
+reuses (or creates) the fixture under a directory, and `--sase-home` measures an
+existing archive instead (see [Measured acceptance](#measured-acceptance-sase-zu85)
+above).
 
 Run via pytest:
 
@@ -875,7 +892,7 @@ python -m tests.perf.bench_tui_trace \
 Fixture sizes:
 
 ```text
-Patches: 100,  500, 2000   (tests/perf/fixtures.py: legacy-named CHANGESPEC_SIZES)
+Patches: 100,  500, 2000   (tests/perf/fixtures.py: PATCH_SIZES)
 Agents:       50,  200, 1000   (tests/perf/fixtures.py: AGENT_SIZES)
 Large reply:   1,    5,   20 MB (LARGE_REPLY_SIZES_MB)
 ```

@@ -1,13 +1,14 @@
 # Agent queued for a runner slot
 
 An agent shown as `QUEUED` is at an admission boundary: it has finished every
-dependency, bead, and time wait and is holding only for runner capacity under its
-current admission budget. The effective global `max_running_agents` value is an integer
-capacity budget (configured default: 10). A normal launch claims `1.0` unit, while
-`%queue(weight=...)` / `%q(w=...)` can request a positive finite fractional or larger
-weight. An authored `%queue(capacity=N)` replaces the global budget for that launch's
-own admission decision: occupied weighted load plus the candidate's own weight must fit
-within the authored positive-integer budget.
+dependency, bead, and time wait and is holding for runner capacity under its current
+admission budget, or for an [agent hold](#held-agents) that matches it. The effective
+global `max_running_agents` value is an integer capacity budget (configured default:
+10). A normal launch claims `1.0` unit, while `%queue(weight=...)` / `%q(w=...)` can
+request a positive finite fractional or larger weight. An authored `%queue(capacity=N)`
+replaces the global budget for that launch's own admission decision: occupied weighted
+load plus the candidate's own weight must fit within the authored positive-integer
+budget.
 
 sase's TUI Agents header summarizes the same global capacity state as `C/L` before the
 status strip, for example `8.0/10.0 [8 running · 1 queued]`: occupied capacity units,
@@ -71,25 +72,32 @@ The agent's own log records the transition with a single
 for the window currently in progress.
 
 An explicit priority is also visible in sase's TUI, which is usually the fastest way to
-confirm which value the queue actually used. `QUEUED` rows with authored capacity show
-the `cN` badge beside their rank and priority (`QUEUED #4/4 c9 p20`), and the agent
-detail pane appends `· priority N` to its `capacity: N/M in use · queue #P of Q` line,
-where `M` is that row's admission budget. The queue ladder shows any normalized
-non-default priority as `pN` beside the entry it reordered. Press `w` on the agent to
-open the wait modal and edit the priority in place.
+confirm which value the queue actually used. A `QUEUED` row with authored capacity shows
+the `cN` badge before its status, with rank and priority inside the parentheses
+(`c9 (QUEUED #4/4 p20)`). The agent detail pane shows a `Queue:` line
+(`#P of Q · N ahead · <age> in queue`) and a `[capacity]` wait lane such as
+`needs 1.0 · 0.0 free · capacity budget 9 · queue #4 of 4 · priority 20`, followed by
+any other blocker, such as a priority deference window. The queue ladder shows any
+normalized non-default priority as `pN` beside the entry it reordered. Press `w` on the
+agent to open the wait modal and edit the priority in place.
 
 To diagnose a wait:
 
 1. Check active, queued, and waiting agents with `sase agent list` or sase's TUI Agents
-   tab.
+   tab. A row that ends with `held by …` is waiting on a hold, not on capacity; see
+   [Held agents](#held-agents).
 2. Inspect the launch's `waiting.json`. `queue_capacity` is the persisted spelling of an
-   authored per-launch capacity budget; older `wait_runners` records still read as the
-   legacy spelling. `slot_requested_at` is the FIFO request time, and
-   `runner_slot_queue_position` in `sase agent list -j` is its current capacity-aware
-   display rank among all live capacity waiters. `queue_weight` is the requested
-   capacity units, and `wait_priority` is the value used inside each eligible or parked
-   ordering group. `wait_priority_explicit` distinguishes a deliberate `priority=N` from
-   the implicit `10` default.
+   authored per-launch capacity budget, and `queue_capacity_explicit` says whether it
+   was authored; older `wait_runners` records still read as the legacy spelling. A
+   waiter without an authored budget records `queue_capacity: 0` with
+   `queue_capacity_explicit: false`, and `runner_admission_limit` in
+   `sase agent list -j` shows the admission limit that applies to that waiter.
+   `slot_requested_at` is the FIFO request time, and `runner_slot_queue_position` in
+   `sase agent list -j` is its current capacity-aware display rank among all live
+   capacity waiters. `queue_weight` is the requested capacity units, and `wait_priority`
+   is the value used inside each eligible or parked ordering group.
+   `wait_priority_explicit` distinguishes a deliberate `priority=N` from the implicit
+   `10` default.
 3. Press fixed `Ctrl+R` in Launch Control to edit `max_running_agents` persistently or
    apply/clear a temporary value. Parked agents reread the effective capacity budget and
    normally react within about two seconds. Setting another temporary value replaces the
@@ -117,6 +125,22 @@ that marker remains authoritative while the user decides and while the same proc
 queued to resume. Killing a legacy run during either pause cleans up its question and
 queue markers, and its authored priority is retained while reacquiring.
 
+Other gate shells follow the same rule while a human decides. Once the decision arrives,
+the gate shell makes a single capacity attempt before running the chosen option's
+commands, and that attempt never parks: if the gate's weight fits, it claims capacity
+that its follow-up can inherit; otherwise the commands run immediately without a claim
+and the follow-up queues normally. A gate that `%auto` resolves at creation time runs
+inside the creating agent's existing claim.
+
+A stand-alone `%proc` unit that authors `%queue` fields is checked against the same
+budget just before dispatch, but it never becomes a `QUEUED` row, never appears in the
+header count, and holds no claim once it runs. An omitted proc weight counts as `0` for
+that check. For a direct submission, a proc still waiting on capacity is visible only
+under `~/.sase/typed_launches/<request-id>/launch_admission/`: `journal.jsonl` records
+the unit as `eligible` with the capacity message, and `receipt.json` summarizes unit
+outcomes. The host-owned monitor that launches an approved epic also records an explicit
+zero weight and occupies no capacity; its phase agents queue normally.
+
 Lowering the effective cap below current occupied capacity is safe and non-preemptive:
 no running process is killed or forced to yield, but no participant is admitted until
 capacity falls far enough. Raising it does not bypass priority/FIFO order. If the
@@ -132,3 +156,27 @@ budget, not an exclusive fence: after it is admitted, later work can still start
 whenever its own admission budgets permit. Authored `capacity=0` is rejected with a
 migration message, and persisted legacy zero-capacity records translate to the launch's
 own weight so already-parked upgrades keep the same run-alone behavior.
+
+## Held agents
+
+An active [agent hold](../xprompt.md#hold-directive) keeps every agent it matches
+`QUEUED` at this gate even when capacity is free. A held row ends with
+`held by <armer>`, and the agent's `waiting.json` and `sase agent list -j` entry carry
+`held_by` (the armer key) and `hold_expires_at`. The runner rewrites these fields on
+every poll, so they clear as soon as no hold matches.
+
+To find and clear the hold:
+
+1. Run `sase agent hold list` to see active holds with their selectors and expiry, and
+   `sase agent hold show -k <armer-key>` for one hold's full detail.
+2. Release it with `sase agent hold release -k <armer-key>`, or from the **Holds** pane
+   in sase's TUI [Config tab](../configuration.md#config-tab). The held agent is
+   admitted on its next poll if capacity allows.
+3. Otherwise the hold ends by itself when its armer ends or its TTL expires. Run
+   `sase doctor -C agent_holds.stale` to report and prune holds whose armer died or
+   whose TTL passed.
+
+If a held agent and the agent that armed the hold are waiting on each other, SASE posts
+a `Hold deadlock` notification. The TTL still guarantees that the pair eventually moves;
+release the hold or kill one side to resolve it sooner. Holds fail open: if the hold
+store cannot be read, admission ignores holds rather than stranding waiters.

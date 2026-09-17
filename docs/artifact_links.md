@@ -147,6 +147,8 @@ Patches use generated pages, so agents should update their underlying stores wit
 commands and never hand-edit those generated pages. Stitches have no page of their own;
 links to a stitch render on the other artifact.
 
+<a id="browsing-links-in-ace"></a>
+
 ## Browsing links in sase's TUI
 
 When the selected Agent, Artifact, or AXE job has links, sase's TUI shows a contextual

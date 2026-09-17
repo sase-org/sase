@@ -36,8 +36,13 @@ SASE-managed machines can write the same scripts through chezmoi instead:
 
 ```bash
 sase completion deploy-chezmoi -d  # preview source files
-sase completion deploy-chezmoi     # write source, apply, commit, and push
+sase completion deploy-chezmoi     # write source, commit, push, and apply
 ```
+
+`deploy-chezmoi` renders the bash, fish, and zsh scripts plus chezmoi-owned stamp
+metadata into `~/.local/share/chezmoi/home` (override with `-s/--source`).
+`-c/--no-commit` writes the source files only, `-n/--no-push` commits without pulling,
+pushing, or applying, and `-a/--no-apply` commits and pushes but skips `chezmoi apply`.
 
 The generated grammar also understands root `-p/--print-command` as a no-value global
 option. That makes short zsh aliases work cleanly with completion:
@@ -111,11 +116,12 @@ only the completion script itself.
    `sase completion list` and `sase doctor` can tell a real install from a stray file.
 7. **Reports** every step's outcome and prints the recommended `zstyle` snippet below.
 
-`sase completion list` shows every shell's generator availability, install status,
-owner, target path, `.zwc` freshness, and stamp version in one table. `sase doctor`
-includes the same checks as a non-blocking advisory group: `completion.install` runs by
-default, and `completion.registration` — which spawns a real shell — runs only under
-`-D/--deep`. File presence alone is never treated as evidence of a working install.
+`sase completion list` (also the bare `sase completion` default; `-j` for JSON) shows
+every shell's generator availability, install status, owner, target path, `.zwc`
+freshness, and stamp version in one table. `sase doctor` includes the same checks as a
+non-blocking advisory group: `completion.install` runs by default, and
+`completion.registration` — which spawns a real shell — runs only under `-D/--deep`.
+File presence alone is never treated as evidence of a working install.
 
 ## The Recommended `zstyle` Snippet
 
@@ -146,9 +152,9 @@ and answers in well under its latency budget for a warm process. `KIND` complete
 kinds this build can actually answer, so `sase completion candidates <TAB>` is the
 authoritative list; today that is `agent`, `artifact`, `artifact_ref`,
 `artifact_relation`, `bead`, `directive`, `flag`, `memory`, `model`, `monitor`, `patch`,
-`plan`, `plugin`, `proc`, `project`, `repo`, `skill`, `snippet`, `tag`, `workspace`, and
-`xprompt`. Path and directory slots are deliberately not kinds — the shell completes
-those natively.
+`plan`, `plugin`, `proc`, `project`, `provider`, `repo`, `skill`, `snippet`, `tag`,
+`workspace`, and `xprompt`. Path and directory slots are deliberately not kinds — the
+shell completes those natively.
 
 Two flags matter when calling it by hand: `-l/--limit N` caps the printed candidates
 (default `200`), and `-p/--project NAME` scopes project-relative kinds to one project.
@@ -278,8 +284,9 @@ Common issues:
 
 ### Measured Latency
 
-Approximate, measured on this repo's live command tree (331 parsers / 809 options / 140
-positionals):
+Approximate figures, measured when this repo's live command tree had 331 parsers, 809
+options, and 140 positionals (the tree has grown since, so treat them as a baseline
+rather than current numbers):
 
 | Stage                                           | zsh                                                    | bash                                         | fish      |
 | ----------------------------------------------- | ------------------------------------------------------ | -------------------------------------------- | --------- |

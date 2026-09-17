@@ -167,6 +167,12 @@ sase prompt list -j               # stable JSON for scripts and editor integrati
 The table shows the prompt ID, last-used time, status, character count,
 project/xprompt/directive hint chips, and a one-line preview — never the full text.
 
+Inside [sase's TUI](ace.md), the same history is one keystroke away: press `Ctrl+K` in
+the prompt bar (or `,.` from any tab) to open the
+[prompt history modal](ace.md#prompt-history-modal). Its filter accepts a leading
+`project:<name>` qualifier, and `Ctrl+K` pre-scopes it to the project named by the
+current prompt's workspace reference.
+
 ### Print raw prompt text
 
 `show -f raw` writes the exact bytes of the prompt with no added or stripped newline, so

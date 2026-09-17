@@ -36,9 +36,10 @@ just install
 cargo build -p sase_gateway --manifest-path ../sase-core/Cargo.toml
 ```
 
-`sase mobile gateway start` resolves the gateway binary from `PATH`, then from the
-sibling `../sase-core` debug or release target. Use `-c /path/to/sase_gateway` only when
-you need to override that lookup.
+`sase mobile gateway start` uses `-c/--command` or `mobile_gateway.command` when one is
+set. Otherwise it resolves `sase_gateway` from `PATH`, then from the running Python
+environment's `bin/` directory, then from the sibling `../sase-core` debug or release
+target. Use `-c /path/to/sase_gateway` only when you need to override that lookup.
 
 Start the gateway from SASE:
 

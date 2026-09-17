@@ -70,8 +70,11 @@ resolver order.
 - [Config-Based XPrompts](#config-based-xprompts)
 - [Local Configuration Files](#local-configuration-files)
 - [Directives](#directives)
+  - [Static Conditional Segments](#static-conditional-segments)
   - [Remote Dispatch](#remote-dispatch)
   - [Launch-Scoped Model Alias Overrides](#launch-scoped-model-alias-overrides)
+  - [Agent Names, Waits, and Queue Admission](#agent-names-waits-and-queue-admission)
+  - [Hold Directive](#hold-directive)
 - [Command Substitution](#command-substitution)
 - [Protected Content](#protected-content)
 - [XPrompt Aliases](#xprompt-aliases)
@@ -401,7 +404,9 @@ spaces moves the delimiter after a new argument pair instead: `#review:: ` becom
 `#review():: ` with the caret inside `()`, and `#review:: body` becomes
 `#review():: body`. The authored spaces and suffix text are preserved exactly, and tabs,
 newlines, nonbreaking spaces, existing argument lists, and literal regions keep ordinary
-insertion behavior.
+insertion behavior. This pairing applies to xprompt references (including `#!name::`)
+and to the `%proc::` and `%clan::` / `%c::` directive forms; other directives followed
+by `::`, such as `%if::` or `%q::`, just insert `()`.
 
 Examples:
 
@@ -635,6 +640,17 @@ because only the final `]]` sits in terminator position. Prefer an explicit quot
 argument when a `]]` must be followed by `,`, `)`, `}`, or `|`, for example
 `#name("a]], b")`.
 
+### Argument Completion and Highlighting
+
+sase's TUI helps fill arguments in. Inside `#name(`, it offers the xprompt's missing
+`name=` inputs in declaration order, each with its type, default, and description, and
+accepting a `bool`, `path`, or `agent` input opens that input's value menu next. sase's
+TUI and `sase xprompt show` color argument keys and values by type and underline
+unknown, repeated, or mistyped keywords; the xprompt LSP reports the same argument spans
+as [semantic tokens](editor.md#semantic-token-legend). See
+[sase's TUI completion](ace.md#completion) and the
+[Prompt Input Widget](ace.md#prompt-input-widget).
+
 ## Shorthand Syntax
 
 Shorthand syntax captures line-oriented prompt text as a single argument without
@@ -643,8 +659,9 @@ does not round-trip the prose through source syntax.
 
 ### Single-Colon Shorthand
 
-`#name: text` at the start of a line captures text until a blank line (`\n\n`) or end of
-string:
+`#name: text` captures text until a blank line (`\n\n`) or end of string. Like any
+reference, it must start the prompt or follow whitespace or one of `([{"'`; the space
+after the colon is what distinguishes it from the `#name:arg` form:
 
 ```
 #review: Please check this code for correctness
@@ -656,8 +673,10 @@ not rewrite the source into that form.
 
 ### Double-Colon Shorthand
 
-`#name:: text` captures text until the next xprompt directive at a line boundary or end
-of string (blank lines do not terminate it):
+`#name:: text` captures text until the next line that starts with an xprompt reference
+followed by `(`, `: `, or `:: `, or until the end of the string. Blank lines do not
+terminate it, and neither do lines that start with a `%` directive, a bare `#name`, or a
+`#name:arg` reference:
 
 ```
 #instructions:: Follow these rules:
@@ -679,7 +698,8 @@ Combine parenthesized args with shorthand text:
 Even across blank lines (double-colon only).
 ```
 
-The text is appended as a final positional text-block argument.
+The text is bound as one more positional argument after any positional arguments inside
+the parentheses.
 
 ## Typed Inputs
 
@@ -727,6 +747,7 @@ save-time conversion, and literal-zone rules.
 | `line`  | --        | No newlines allowed (default type)                      |
 | `text`  | --        | Any content, no restrictions                            |
 | `path`  | --        | No whitespace                                           |
+| `agent` | --        | Non-empty, no whitespace; completes agent names         |
 | `int`   | `integer` | Must parse as an integer                                |
 | `bool`  | `boolean` | Accepts `true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off` |
 | `float` | --        | Must parse as a float                                   |
@@ -762,6 +783,24 @@ input:
 
 A value outside the declared `choices` fails validation and lists the allowed values in
 the error.
+
+### Repeatable Inputs
+
+Set `repeatable: true` on the last user-facing positional input to let it collect every
+remaining positional value as a list. Only one input may be repeatable, and it must be
+the final positional input; any other placement is a validation error. The bundled
+`#fork` workflow uses this so `#fork(a, b)` resumes from several parents:
+
+```yaml
+input:
+  name:
+    type: agent
+    default: null
+    repeatable: true
+```
+
+An explicitly supplied repeatable value is always a list, even when only one value is
+given. A `null` value cannot be combined with other values for the same input.
 
 ### Defaults
 
@@ -1308,8 +1347,11 @@ add more skill sources, so `sase skill list` may show entries that are not bundl
 | `sase_questions`     | Ask the user structured questions when the provider-native question tool is disabled          |
 | `sase_repo`          | Open and audit linked, sidecar, other-project, or external repositories before accessing them |
 | `sase_run`           | Request an agent-initiated launch through `LaunchApproval`                                    |
-| `sase_sudo`          | Request reviewed privileged execution through a typed sudo gate instead of raw sudo           |
+| `sase_sudo`          | Request reviewed privileged execution through a typed sudo gate instead of raw sudo (beta)    |
 | `sase_var`           | Attach named output variables to the current SASE agent run                                   |
+
+The sudo request workflow behind `sase_sudo` requires the `agent_sudo_requests` beta
+flag; see [Sudo Requests](sudo.md).
 
 ## Memory Field
 
@@ -1581,7 +1623,7 @@ are extracted and stripped from the prompt before further processing.
 | `%clan`             | `%c`  | Declare a new named, rootless parallel agent clan                     |
 | `%wait`             | `%w`  | Wait for agents, closed beads, and/or a time floor                    |
 | `%queue`            | `%q`  | Set per-launch capacity budget, queue priority, and/or claim weight   |
-| `%hold`             |       | Arm a durable pre-run admission hold on selected agents (beta)        |
+| `%hold`             |       | Declare a pre-run admission hold on selected agents and procs (beta)  |
 | `%dispatch`         |       | Launch on one enrolled remote machine                                 |
 | `%if`               |       | Statically omit a segment, or attach a beta admission predicate       |
 | `%proc`             |       | Define and natively dispatch a beta stand-alone process unit          |
@@ -1610,24 +1652,24 @@ ranges. Name completion advertises every enabled user-facing directive, includin
 recipes appear only when the `typed_launch_units` beta flag is enabled. Retired `%name`
 / `%n` and `%tribe` / `%t` forms are not completed.
 
-| Directive           | Completed forms                                                                         | Completed argument rows                                                                                                                                                                                                                                                                                                                                                                                          |
-| ------------------- | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `%model` / `%m`     | `%model:...`, `%model(...)`                                                             | Model catalog rows, model aliases, provider drill-down rows, and `%model(..., alias=...)` keys from configured model aliases. In an alias keyword value such as `%model(..., medium=...)`, the matching `@medium` self-reference is omitted.                                                                                                                                                                     |
-| `%effort` / `%e`    | `%effort:...`                                                                           | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.                                                                                                                                                                                                                                                                                                                                                      |
-| `%final`            | Bare `%final`, `%final:...`, `%final(...)`                                              | Configured finalizer instance rows plus `none` when no required finalizers are configured. Removal selectors use `!name`; keywords are not offered.                                                                                                                                                                                                                                                              |
-| `%id` / `%i`        | Bare `%id`, `%id:...`, `%id(...)`                                                       | `bead=`, `clan=`, `family=`, `tribe=` in parenthesized form; open bead IDs for `bead=`, and matching clan, family, or tribe targets for those keyword values.                                                                                                                                                                                                                                                    |
-| `%clan` / `%c`      | `%clan:...`, `%clan(...)`                                                               | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                                                                                                                                            |
-| `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                                                 | Colon form completes only positional agent/family/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, and `time=` suggests `5m` and `1430`.                                                                                                                                                                        |
-| `%queue` / `%q`     | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)`                             | Colon form completes only the positional positive-integer `capacity` value, suggesting `1`. Parenthesized form adds `capacity=`, `priority=`, `p=`, `weight=`, and `w=`; `priority=`/`p=` and `weight=`/`w=` are alias pairs, `priority=`/`p=` suggest `10` and `1`, `capacity=` suggests `1`, and `weight=`/`w=` suggest `0.25`, `1.0`, and `2.0`. Authored `runners=` is a migration error naming `capacity=`. |
-| `%hold`             | Bare `%hold`, `%hold:...`, `%hold(...)`                                                 | Colon and positional forms complete name/`@tribe` targets plus `pending` and `future`. Parenthesized form adds `hood=`, `scope=`, `ttl=`, and `tribe=`; `scope=` suggests `project` and `host`, `ttl=` suggests common durations, and `hood=`/`tribe=` use their target rows. Shown only when the `agent_holds` beta flag is enabled.                                                                            |
-| `%dispatch`         | `%dispatch:...`, `%dispatch(...)`                                                       | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                                                                                                                                        |
-| `%if`               | `%if(should_run=...)`; with `typed_launch_units`, `%if::` Bash and Python fence recipes | `should_run=` with `true` and `false` is always available. The code-form recipes are shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                            |
-| `%proc`             | `%proc(...)`, `%proc::`; Bash/Python recipes                                            | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=`; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                            |
-| `%hide` / `%h`      | Bare flag and plus form                                                                 | No argument rows.                                                                                                                                                                                                                                                                                                                                                                                                |
-| `%auto` / `%a`      | Bare, plus, and `%auto:...`                                                             | `plan`, `tale`, `epic`; gate-owned free-form values remain typable.                                                                                                                                                                                                                                                                                                                                              |
-| `%repeat` / `%r`    | `%repeat:...`                                                                           | `2`, `3`; other positive integers remain typable.                                                                                                                                                                                                                                                                                                                                                                |
-| `%alt`              | `%{...}` shorthand, `%alt(...)`, `%alt:...`                                             | No structured argument rows.                                                                                                                                                                                                                                                                                                                                                                                     |
-| `%xprompts_enabled` | `%xprompts_enabled:...`                                                                 | `false`, `true`.                                                                                                                                                                                                                                                                                                                                                                                                 |
+| Directive           | Completed forms                                                                              | Completed argument rows                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `%model` / `%m`     | `%model:...`, `%model(...)`                                                                  | Model catalog rows, model aliases, provider drill-down rows, and `%model(..., alias=...)` keys from configured model aliases. In an alias keyword value such as `%model(..., medium=...)`, the matching `@medium` self-reference is omitted.                                                                                                                                                                                                              |
+| `%effort` / `%e`    | `%effort:...`                                                                                | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`.                                                                                                                                                                                                                                                                                                                                                                                               |
+| `%final`            | Bare `%final`, `%final:...`, `%final(...)`                                                   | Configured finalizer instance rows plus `none` when no required finalizers are configured. Removal selectors use `!name`; keywords are not offered.                                                                                                                                                                                                                                                                                                       |
+| `%id` / `%i`        | Bare `%id`, `%id:...`, `%id(...)`                                                            | `bead=`, `clan=`, `family=`, `tribe=` in parenthesized form; open bead IDs for `bead=`, and matching clan, family, or tribe targets for those keyword values.                                                                                                                                                                                                                                                                                             |
+| `%clan` / `%c`      | `%clan:...`, `%clan(...)`                                                                    | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                                                                                                                                                                                     |
+| `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                                                      | Colon form completes only positional agent/family/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, and `time=` suggests `5m` and `1430`.                                                                                                                                                                                                                 |
+| `%queue` / `%q`     | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)`                                  | Colon form completes only the positional positive-integer `capacity` value, suggesting `1` and `100`. Parenthesized form adds `capacity=`, `priority=`, `p=`, `weight=`, and `w=` before those positional values; `priority=`/`p=` and `weight=`/`w=` are alias pairs, `priority=`/`p=` suggest `10` and `1`, `capacity=` suggests `1`, and `weight=`/`w=` suggest `0.25`, `1.0`, and `2.0`. Authored `runners=` is a migration error naming `capacity=`. |
+| `%hold`             | Bare `%hold`, `%hold:...`, and `%hold(pending, future)` / `%hold(hood=..., ttl=...)` recipes | Colon and positional forms complete name/`@tribe` targets plus `pending` and `future`. Parenthesized form adds `hood=`, `scope=`, `ttl=`, and `tribe=`; `scope=` suggests `project` and `host`, `ttl=` suggests common durations, and `hood=`/`tribe=` use their target rows. Shown only when the `agent_holds` beta flag is enabled.                                                                                                                     |
+| `%dispatch`         | `%dispatch:...`, `%dispatch(...)`                                                            | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                                                                                                                                                                                 |
+| `%if`               | `%if(should_run=...)`; with `typed_launch_units`, `%if::` Bash and Python fence recipes      | `should_run=` with `true` and `false` is always available. The code-form recipes are shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                                                                     |
+| `%proc`             | `%proc(...)`, `%proc::`; Bash/Python recipes                                                 | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=`; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                                                                     |
+| `%hide` / `%h`      | Bare flag and plus form                                                                      | No argument rows.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `%auto` / `%a`      | Bare, plus, and `%auto:...`                                                                  | `plan`, `tale`, `epic`; gate-owned free-form values remain typable.                                                                                                                                                                                                                                                                                                                                                                                       |
+| `%repeat` / `%r`    | `%repeat:...`                                                                                | `2`, `3`; other positive integers remain typable.                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `%alt`              | `%{...}` shorthand, `%alt(...)`, `%alt:...`                                                  | No structured argument rows.                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `%xprompts_enabled` | `%xprompts_enabled:...`                                                                      | `false`, `true`.                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 
 Keyword-name completion omits non-repeatable keywords that are already present and
 keywords that conflict with a selected keyword, but this is only a completion filter:
@@ -1665,16 +1707,32 @@ surviving segment launches, so a bad condition in a later segment cannot partial
 dispatch an earlier one.
 
 Static `%if` acts like literal deletion of the disabled segment and its separator. A
-false first, middle, last, sole, or all-disabled batch is valid; an empty result is a
-zero-launch no-op, not a fallback blank agent. Bare `%wait` binds to the previous
-surviving unit exactly as if the omitted block had never been written, and surviving
-named waits keep their normal resolution behavior. Static conditions inside inline code,
-fenced code, directive-owned code bodies, or `%xprompts_enabled:false` regions are
-literal text.
+false first, middle, last, sole, or all-disabled batch is valid; an all-disabled batch
+launches nothing rather than falling back to a blank agent. Bare `%wait` binds to the
+previous surviving unit exactly as if the omitted block had never been written, and
+surviving named waits keep their normal resolution behavior. Static conditions inside
+inline code, fenced code, directive-owned code bodies, or `%xprompts_enabled:false`
+regions are literal text.
+
+Inside an xprompt body, the condition is evaluated after that body's Jinja rendering, so
+a typed input can drive it:
+
+```text
+Draft the report.
+---
+%if(should_run={{ include_images }})
+Generate the supporting images.
+```
+
+In an [xprompt swarm](#xprompt-swarms-library-defined-fan-out), a disabled segment is
+dropped before any nested references in it expand. In an ordinary inline xprompt, a
+false `%if` removes only that xprompt's own expansion; the prompt segment that
+references it still launches with the rest of its text.
 
 `%if(should_run=...)` cannot be combined with script admission syntax. For example,
 `%if(should_run=false)::` and `%if("test -f pyproject.toml", should_run=false)` both
-raise an error instead of dropping the segment silently.
+raise an error instead of dropping the segment silently. `%if:value` and `%if+` are not
+static forms and raise an error; use `%if(should_run=...)` for static omission.
 
 ### Experimental typed launch units
 
@@ -1764,11 +1822,12 @@ proc. A typed dependency is satisfied when the target settles, even if it was sk
 failed; that outcome is available in the `%if::` context and does not automatically
 cancel the dependent unit.
 
-An eligible `%proc` unit dispatches natively once its waits and `%if::` pass: the
-admission coordinator reserves a `proc-shell` (lifecycle `proc-shell`, origin
-`xprompt-proc`) and starts its detached supervisor. The supervisor then acquires an
-operational workspace lease when `workspace` is true, materializes the approved source
-as a private `0600` script, executes it by argv —
+An eligible `%proc` unit dispatches natively once its waits and `%if::` pass, no active
+[agent hold](#hold-directive) matches it, and any authored queue fields pass the
+runner-capacity check described below: the admission coordinator reserves a `proc-shell`
+(lifecycle `proc-shell`, origin `xprompt-proc`) and starts its detached supervisor. The
+supervisor then acquires an operational workspace lease when `workspace` is true,
+materializes the approved source as a private `0600` script, executes it by argv —
 `/bin/bash --noprofile --norc <script>` or the SASE interpreter plus that script, never
 shell interpolation — and releases the lease through the existing resumable settlement
 path on every terminal outcome. Execution and idle timeouts begin when the child starts,
@@ -1786,6 +1845,24 @@ the `0600` script and is not a replacement user home, and this scrubbing is not 
 filesystem or network sandbox — the child still runs with the supervisor's filesystem
 and network permissions. A stand-alone `%proc` unit never allocates an agent runner
 slot, family, `done.json`, or finalizer obligation.
+
+A `%proc` unit may also carry `%queue` / `%q` fields:
+
+```text
+%q(1, priority=4, weight=0.25)
+%proc("just check")
+```
+
+Queue fields make dispatch wait for a runner-capacity check that uses the same capacity
+budget, priority, FIFO, and deference rules as an agent launch (see the `%queue` rules
+under [Syntax](#syntax)). The check is not a claim: once dispatched, the proc holds no
+runner capacity and never delays later launches. An omitted weight counts as `0` for the
+check, so `%q:1` on its own waits while running work fills that budget. A weight that
+can never fit keeps the unit pending instead of failing it. A proc without queue fields
+skips the check entirely. While it waits, the unit has no Agents-tab row and is not
+counted as `QUEUED`; for a direct submission, inspect its state in
+`~/.sase/typed_launches/<request-id>/launch_admission/`, where `journal.jsonl` records
+the capacity message and `receipt.json` summarizes unit outcomes.
 
 In project context `workspace` defaults to `true` and an optional relative `cwd` is
 resolved beneath the leased checkout; `workspace="false"` opts out and requires an
@@ -1900,13 +1977,13 @@ Directives use the same argument syntax as xprompt references:
 %queue(capacity=5, priority=20, weight=2) # Capacity, priority, and weight together
 %wait(agent1, time=5m) %queue(capacity=1) # Dependencies, then time floor, then capacity budget
 #t:5m                        # Shorthand for %wait(time=5m)
-%hold:planner                # Hold planner until this launch settles (beta)
+%hold:planner                # Name selector for an admission hold (beta)
 %hold:planner,reviewer       # Colon list of name selectors
-%hold:@nightly                # Tribe selector (positional @)
-%hold(pending)                # Also freeze WAITING/QUEUED agents at arm time
-%hold(future)                  # Also fence launches created after arm time
-%hold(hood=sase-s7)            # Hood selector
-%hold(tribe=nightly)           # Tribe selector, keyword form
+%hold:@nightly               # Tribe selector (positional @)
+%hold(pending)               # Freeze the WAITING/QUEUED agents in scope
+%hold(future)                # Fence launches submitted after the hold
+%hold(hood=sase-s7)          # Hood selector
+%hold(tribe=nightly)         # Tribe selector, keyword form
 %hold(pending, future, ttl=90m, scope=host) # Widest form, explicit in the text
 %repeat:3                    # Run the prompt 3 times
 %r:5                         # Same, using alias
@@ -2039,9 +2116,9 @@ ordinary local launch.
 
 The source strips only `%dispatch`; the target receives and processes the remaining
 prompt and launch directives. V1 remote launch cannot be combined with `%wait`,
-`%queue`, or `%clan`, and it rejects local-only run payloads such as resolved launch
-units, collected inputs, attachments, files, and images. The remaining prompt must be
-non-empty.
+`%queue`, `%clan`, or an active `%hold`, and it rejects local-only run payloads such as
+resolved launch units, collected inputs, attachments, files, and images. The remaining
+prompt must be non-empty.
 
 Project context must be reproducible on the target. A trusted launch integration can
 provide a Patch reference or explicit revision in the durable request payload; writing a
@@ -2111,6 +2188,8 @@ alias.
 A `%model` value may carry a trailing `@<effort>` reasoning-effort suffix (e.g.
 `%model:opus@xhigh`); the effort is split off the clean model and behaves exactly like a
 standalone `%effort` directive. See the [Effort Directive](#effort-directive) below.
+
+### Agent Names, Waits, and Queue Admission
 
 The `%id` and `%wait` directives can be used without arguments. Bare `%id`
 auto-generates a permanent unique name for the agent. `%id(<id>, clan=<clan>)` derives
@@ -2212,7 +2291,14 @@ generation must complete successfully; for a family or multi-agent workflow name
 member or child must complete successfully. An exact agent name still targets only that
 agent. Failed, killed, crashed, still-running, malformed, or missing `done.json`
 artifacts do not satisfy the wait; the dependent agent stays parked until a later
-successful run of the same dependency name appears.
+successful run of the same dependency name appears. When the dependency has already
+ended unsuccessfully, AXE's `wait_checks` job posts one red `wait_checks` notification
+("Wait dependency can never self-resolve") that names the waiter and the blocking
+artifact and attaches both directories; later passes add `+1` evidence to the same row
+instead of new notifications. If the blocker is a monitor whose follow-up could not
+launch, the notification also names the `sase monitor resume <id>` command and any saved
+worktree recovery diff. The waiter itself stays parked: kill and relaunch it, clear the
+wait, or let a later successful run release it.
 
 A bare family target makes one exception for retried shells. A monitor or gate member
 that ended unsuccessfully without handing off to a follow-up is ignored once a newer
@@ -2242,7 +2328,9 @@ aggregate clan wait succeeds. `#fork:@review` implies this same wait and then re
 from the selected agent conversation or every member's launch-ordered prompt and reply
 summary in the selected clan; full clan-member replies remain available through the
 included transcript paths rather than being injected automatically. Tribe names use
-letters, digits, underscores, dots, and dashes after the leading `@`.
+letters, digits, underscores, dots, and dashes after the leading `@`. `@default` is
+rejected because that panel is display-only, and `@job` targets AXE job agents (see
+[The built-in job tribe](agent_families.md#the-built-in-job-tribe)).
 
 A submitted plan awaiting review is the one exception. A planner that ran
 `sase plan propose` blocks in the approval flow without writing a `done.json`, so its
@@ -2285,9 +2373,10 @@ until an absolute wall-clock time. For a pure time wait, `#t:<time>` is shorthan
 Agent and bead dependencies and `time=` combine across `%wait(...)` directives.
 `capacity=`, `priority=`/`p=`, and `weight=`/`w=` combine separately across
 `%queue(...)` / `%q(...)` directives. All dependencies wait first, then the time floor
-applies, and the runner-capacity gate is the final admission stage. Primary and
-linked-workspace preparation starts only after admission, so admitted capacity includes
-that preparation work.
+applies, and the runner-capacity gate is the final admission stage. That stage also
+keeps a launch `QUEUED`, even with free capacity, while an active
+[agent hold](#hold-directive) matches it. Primary and linked-workspace preparation
+starts only after admission, so admitted capacity includes that preparation work.
 
 The effective global `max_running_agents` value is an integer capacity budget
 (configured default `10`; an active `~/.sase/max_running_agents_override.json` value
@@ -2329,8 +2418,17 @@ inherit the family weight when their prompt omits one, and must reacquire capaci
 the family releases its claim. Independently launched clan members and live parallel
 family members each hold their own claim. Processless gates and modern question shells
 hold zero capacity while waiting for a human, and their follow-up work must either
-transfer a live claim or re-enter admission. Workflow Python/bash steps and axe Patch
-runners are outside this budget.
+transfer a live claim or re-enter admission. Once a decision arrives, the gate shell
+makes one capacity attempt before running the chosen option's commands, and that attempt
+never parks: if the gate's weight fits, it claims capacity so the follow-up can inherit
+it; otherwise the commands run right away without a claim and the follow-up queues
+normally. A gate that `%auto` resolves at creation time runs its commands inside the
+creating agent's existing claim instead of taking a second one. The host-owned monitor
+that launches an approved epic records an explicit zero weight and consumes no capacity;
+the phase agents it launches claim their own. A zero weight cannot be authored. A
+`%proc` unit with queue fields is checked against this budget but never holds a claim
+(see [Experimental typed launch units](#experimental-typed-launch-units)). Workflow
+Python/bash steps and axe Patch runners are outside this budget.
 
 Roll out this change by replacing long-lived sase's TUI/AXE and runner processes, or by
 letting old work drain before launching weighted workloads. Records written before
@@ -2480,47 +2578,90 @@ Tidy up the logging module.
 
 ### Hold Directive
 
-The `%hold` directive arms a durable pre-run admission hold: agents (and, on `%proc`
-units, procs) matching its selectors are blocked from starting until this launch
-settles. It is sugar over the `sase agent hold` store, which offers the same selectors
-as a standalone CLI (`sase agent hold create`/`run`/`list`/`release`/`show`).
+An **agent hold** is a durable wait in the reverse direction. `%wait` makes a new launch
+wait for other work; a hold makes other work wait. While a hold is active, every agent
+it matches stays `QUEUED` at the runner-admission gate, even when capacity is free, and
+every matching `%proc` unit that has not been dispatched yet stays pending. Work that is
+already running is never paused or stopped. Use a hold to quiet the host before
+maintenance or a long verification run, or to keep a group of queued agents from
+starting until an earlier step finishes.
+
+Holds live in one store (`~/.sase/agent_holds.json`), keyed by the _armer_: the agent or
+shell that armed the hold. Each armer has at most one hold. A hold ends when it is
+released, when its armer ends (an agent armer's family settles or a shell armer's
+process exits), or when its TTL expires. A broken hold store fails open: admission
+ignores it rather than stranding a waiter. The
+[`sase agent hold`](cli.md#sase-agent-hold) commands arm, list, show, and release holds,
+and `sase agent hold run -- COMMAND` holds matching work only while one command runs.
+The **Holds** pane in sase's TUI [Config tab](configuration.md#config-tab) lists active
+holds and releases one.
+
+The `%hold` directive declares a hold in prompt text, using the same selectors:
 
 ```
 %hold:planner                                # name selector
 %hold:planner,reviewer                       # colon list
 %hold:@nightly                               # tribe (positional @)
-%hold(pending)                               # freeze WAITING/QUEUED at arm time
-%hold(future)                                # fence launches created after arm time
-%hold(hood=sase-s7)                          # hood selector (component boundary)
+%hold(pending)                               # freeze WAITING/QUEUED agents in scope
+%hold(future)                                # fence launches submitted after the hold
+%hold(hood=sase-s7)                          # hood selector
 %hold(tribe=nightly)                         # tribe selector (keyword form)
 %hold(pending, future, ttl=90m, scope=host)  # widest form, explicit in the text
 ```
 
+| Selector                     | Matches                                                                                                                       |
+| ---------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Name (`planner`)             | An exact agent name or `%proc` shell name                                                                                     |
+| Tribe (`@nightly`, `tribe=`) | Agents in that tribe                                                                                                          |
+| Hood (`hood=sase-s7`)        | Agents in that [hood](agent_families.md), written without a `--role` suffix                                                   |
+| `pending`                    | The agents that are WAITING or QUEUED in scope when the hold is armed; later launches and undispatched procs are not captured |
+| `future`                     | Agents and undispatched procs submitted after the hold is armed                                                               |
+
+`scope=project` (the default) limits the hold to the armer's project; `scope=host`
+covers every project on the machine. `ttl=` accepts durations such as `90s`, `45m`, or
+`1h30m`; without it the hold uses `agent_hold_default_ttl` (`2h`), and no hold may
+outlive `agent_hold_max_ttl` (`12h`). See
+[agent hold limits](configuration.md#agent-hold-limits).
+
 `%hold` may appear more than once; every occurrence is unioned. `hood=` and `tribe=` may
 repeat; `ttl=` and `scope=` may each appear at most once per launch unit. Positional
-`pending` and `future` are reserved words; `@<tribe>` is a tribe selector; anything else
-is a name, matched against a candidate's agent name, family, clan, or workflow. There is
-no short alias — `%h` remains `%hide`.
+`pending` and `future` are reserved words, `@<tribe>` is a tribe selector, and anything
+else is a name. There is no short alias — `%h` remains `%hide`.
 
-The hold arms when its launch is submitted (both agent and proc units), automatically
-excludes its own kin (its own name, family, and clan), and releases when the arming
-family or proc settles or its TTL expires. `scope` defaults to `project`; `ttl` defaults
-to the configured `agent_hold_default_ttl` and is capped by `agent_hold_max_ttl`. A hold
-never blocks the launch that armed it, and a broken hold store fails open rather than
-stranding a waiter.
+`%hold` requires the `agent_holds` beta flag (`sase flag enable agent_holds`); the
+`sase agent hold` commands do not. With the flag off, any non-bare `%hold` fails to
+parse with an error naming the flag, and a bare `%hold` stays inert prose the same way
+disabled `%proc` does. `%hold` cannot be combined with `%repeat` or `%dispatch`.
 
-`%hold` requires the `agent_holds` beta flag (`sase flag enable agent_holds`). With the
-flag off, any non-bare `%hold` fails to parse with an error naming the flag, and a bare
-`%hold` stays inert prose the same way disabled `%proc` does. `%hold` cannot be combined
-with `%repeat` or `%dispatch`.
+**Current beta status:** `%hold` is parsed, validated, stripped from the model prompt,
+carried on typed launch units, and shown in launch previews and confirmation prompts,
+but submitting the launch does not arm a hold in the store yet. Arming at launch
+submission is still being implemented. Until it lands, arm the hold explicitly with
+`sase agent hold create` or `sase agent hold run`.
 
-**Limitations:** the frozen `pending` snapshot cannot capture an un-dispatched proc —
-only lexical selectors and `future` fence those. A launch preview lists each hold's
-canonical directive, scope, resolved TTL, and live `pending` capture; sase's TUI and
-`sase run` ask for interactive confirmation before arming a hold that combines `future`
-with `scope=host`, or whose `pending` capture would exceed the configured
-`agent_hold_confirm_capture_threshold`. A non-interactive launch proceeds without
-asking, since the arm notification and the launch preview already list the capture.
+A LaunchApproval preview adds a `## Holds` section listing each held agent or proc unit
+with its canonical directive, its scope, and its TTL next to the configured default and
+cap. A `pending` hold also shows a live count such as
+`captures 4 waiting + 2 queued; skips 3 running`. A hold is _broad_ when it combines
+`future` with `scope=host`, which would fence every project's later launches, or when
+its `pending` capture would freeze more than `agent_hold_confirm_capture_threshold`
+(default `10`) agents. Before submitting a prompt with a broad hold, sase's TUI asks
+**Arm this hold?**, and `sase run` on an interactive terminal prints the capture and
+asks `Arm this hold? [y/N]`. Declining cancels the launch; `sase run` prints
+`Hold not armed; launch cancelled.` and exits `1`. Narrow holds, non-interactive
+`sase run`, and launches from inside an agent or proc proceed without asking.
+
+`pending` freezes only agents that already exist; it cannot capture a `%proc` that has
+not been dispatched. Use a name selector or `future` to fence procs.
+
+A held agent's `QUEUED` row in sase's TUI ends with `held by <armer>`, and its
+`waiting.json` marker and `sase agent list -j` entry carry `held_by` and
+`hold_expires_at`. If a held agent and the agent that armed the hold end up waiting on
+each other, SASE posts a `Hold deadlock` notification (sender `runner_slot_admission`).
+The TTL still guarantees progress, so release the hold or kill one side to resolve it
+sooner. Arming and releasing a hold post `agent_hold` notifications, including an
+automatic release when the armer dies; a routine TTL expiry is silent.
+`sase doctor -C agent_holds.stale` reports holds whose armer died or whose TTL passed.
 
 ### Editor Review Marker (` @`)
 
@@ -3350,7 +3491,12 @@ If a launch fails with a directive migration error such as
 sase doctor -C config.xprompt_directives
 ```
 
-The check locates the definition file that still uses retired directive syntax. Remember
-that a personal `~/sase/xprompts/<name>.md` or project `sase/xprompts/` copy shadows a
-plugin or package xprompt of the same name, and `sase xprompt show <name>` reveals which
-definition wins.
+The check locates the definition file that still uses retired directive syntax. It scans
+every loaded xprompt body and each workflow's `prompt_part` text for `%name` / `%n`,
+`%tribe` / `%t`, `%time`, `%edit`, and `%wait(...)` / `%w(...)` calls that pass
+`runners=`, `capacity=`, `priority=`, or `p=`, and prints each hit as
+`<name> (<source>):<line>: <directive> — <migration hint>`. Code spans, fenced blocks,
+and disabled regions are skipped. Findings are a `WARN`, so `sase doctor` still exits
+`0` unless you add `-s/--strict`. Remember that a personal `~/sase/xprompts/<name>.md`
+or project `sase/xprompts/` copy shadows a plugin or package xprompt of the same name,
+and `sase xprompt show <name>` reveals which definition wins.

@@ -91,11 +91,12 @@ This is useful when a prompt asks an agent to inspect or transform an existing
 screenshot, mockup, reference image, or reference video and the resulting run should
 keep that source media one keypress away in sase's TUI.
 
-Prompt-referenced media are sase's TUI artifact-list entries, not notification delivery
-attachments. Current runs persist them to the global artifact index during finalization;
-legacy runs can still synthesize them from prompt artifacts when sase's TUI loads the
-row. Downstream notification plugins should continue to use `done.json.image_paths` and
-`done.json.video_paths` for the generated-media notification contract.
+Prompt-referenced media are artifact-list entries in sase's TUI, not notification
+delivery attachments. Current runs persist them to the global artifact index during
+finalization; legacy runs can still synthesize them from prompt artifacts when sase's
+TUI loads the row. Downstream notification plugins should continue to use
+`done.json.image_paths` and `done.json.video_paths` for the generated-media notification
+contract.
 
 Source: `src/sase/core/artifact_file_defaults.py`
 

@@ -279,9 +279,9 @@ unit of repeatable agent work in SASE.
 
 When a task is too big to hand to a single agent and hope, SASE asks you to write a plan
 first. **Spec-Driven Development (SDD)** keeps those plans as first-class artifacts on
-disk under three (admittedly whimsical) names: ordinary plans are _tales_, and
-executable multi-phase plans are _epics_. Any of them can be filed as a **bead**: a
-git-portable, issue-like work unit with status, dependencies, and an assignee.
+disk under two (admittedly whimsical) names: ordinary plans are _tales_, and executable
+multi-phase plans are _epics_. Either can be filed as a **bead**: a git-portable,
+issue-like work unit with status, dependencies, and an assignee.
 
 The smallest useful loop:
 

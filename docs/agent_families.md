@@ -531,21 +531,42 @@ sase agent tribe list [-n <agent>]
 ```
 
 Pass a bare tribe name to `set`, without the display-only `@` prefix. Names may contain
-letters, digits, underscores, dots, and dashes. Per-agent assignments are stored
-canonically in `~/.sase/agent_tribes.json` with a `tribe` field. If that file does not
-exist, SASE reads the legacy `~/.sase/agent_tags.json` scalar `tag` and list `tags`
-shapes. The first mutation writes all imported assignments to the canonical store, which
-is authoritative from then on. Existing artifacts and saved bundles can still be read
-when they use the legacy `tag` field, but rewritten metadata, new bundles, CLI output,
-and editor projections use `tribe`. Clan-wide assignments use the separate per-member
-`clan_tribe` metadata and are resolved across the generation. For sase's TUI panel
-grouping, that explicit clan assignment takes precedence over per-agent assignments.
+letters, digits, underscores, dots, and dashes. `set` exits with status `2` for an
+invalid name, an unknown agent, or the reserved name `default`. The CLI updates only the
+assignment store; it does not rewrite the agent's prompt or metadata. Per-agent
+assignments are stored canonically in `~/.sase/agent_tribes.json` with a `tribe` field.
+If that file does not exist, SASE reads the legacy `~/.sase/agent_tags.json` scalar
+`tag` and list `tags` shapes. The first mutation writes all imported assignments to the
+canonical store, which is authoritative from then on. Existing artifacts and saved
+bundles can still be read when they use the legacy `tag` field, but rewritten metadata,
+new bundles, CLI output, and editor projections use `tribe`. Clan-wide assignments use
+the separate per-member `clan_tribe` metadata and are resolved across the generation.
+For sase's TUI panel grouping, that explicit clan assignment takes precedence over
+per-agent assignments.
 
 sase's TUI derives the reserved `@default` panel for agents whose outer presentation
 root has no effective tribe. This fallback is display-only: SASE does not write
-`default` into agent metadata or the assignment store. An explicit stored `default`
-assignment joins the same panel, and clearing any user-managed tribe returns the agent
-there.
+`default` into agent metadata or the assignment store. An agent that nonetheless carries
+a stored `default` tribe joins the same panel, and clearing any user-managed tribe
+returns the agent there. Because the panel never resolves to a real entity,
+`%wait:@default` and `#fork:@default` are rejected at launch.
+
+### The built-in job tribe
+
+Agents launched by [AXE jobs](axe.md) belong to the built-in `@job` tribe, whose panel
+starts collapsed so routine background work stays quiet. For compatibility, SASE stores
+that tribe under its historical name `chop`. Assigning `job` through `%id(tribe=job)`,
+`#tribe:job`, `%clan(<clan>, tribe=job)`, the `N` modal, or
+`sase agent tribe set -t job` persists `chop`, and `@job` in `%wait` or `#fork` targets
+the same agents. A few surfaces show the stored name instead of the public one:
+`sase agent tribe list` prints `chop`, and prompt completion and the panel's `W`/`F`
+keys insert `@chop`, which targets the same tribe.
+
+Two exceptions apply. If existing agent or clan records already use a literal `job`
+tribe, `job` refers to that literal tribe instead of the built-in one. If your
+configuration defines both `ace.tribes.chop` and `ace.tribes.job` with different
+settings, assigning `job` fails with an error that names both keys, and nothing is
+written.
 
 ### Tribe panel focus and folding
 

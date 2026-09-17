@@ -50,11 +50,31 @@ project; they do not require generated Markdown pages under `pages/`.
 Interactive section bodies have an editor-style line-number gutter. Numbers restart at 1
 for each section and appear only on the first visual row of a wrapped logical line;
 continuation rows keep an empty gutter cell. The digit column is sized once from the
-largest section, so moving between sections does not shift the document. Following a
-line-qualified file target such as `path/to/file.py:42` or `README.md#L42` scrolls to
-that logical line. To jump within the current section, press `:` or `;`, type a line
-number, and press `Enter`; this route also accents the destination's gutter number.
-Plain and redirected output does not include the gutter.
+largest section, so moving between sections does not shift the document. Plain and
+redirected output does not include the gutter.
+
+## Line-addressed links
+
+A link to a file or file-backed artifact may carry a line, a column, or a line range:
+
+| Style        | Line            | Line and column    | Range                                          |
+| ------------ | --------------- | ------------------ | ---------------------------------------------- |
+| Colon suffix | `src/app.py:12` | `src/app.py:12:5`  | `src/app.py:12-40`, `src/app.py:12:5-40`       |
+| GitHub-style | `README.md#L12` | `src/app.py#L12C5` | `src/app.py#L12-L40`, `src/app.py#L12C5-L40C2` |
+
+Artifact references accept the colon suffix too, as in `plan:202609/x.md:12`. Anything
+else, such as `README.md#usage` or `src/app.py:0`, is followed as a plain target.
+
+Following a located link opens the target and marks the landed line — or every line of a
+range, including wrapped continuation rows — with a thick accent rail in the gutter. The
+view scrolls so the first line sits a short distance below the top (a quarter of the
+viewport, between two and eight lines) and, when the range fits, keeps its last line on
+screen too. A line past the end of the file lands on the last line with a toast naming
+the file's length. The subject and trail labels show the location as a `:12` or `:12–40`
+suffix, and `E<label>` opens the editor at that line and column.
+
+To jump within the current section, press `:` or `;`, type a line number, and press
+`Enter`; the destination is railed and positioned the same way.
 
 ## Syntax highlighting
 
@@ -103,6 +123,7 @@ without highlighting. Unknown types can still be forced with an explicit lexer.
 | `j` / `k`, Down / Up   | Scroll one line                                                       |
 | `Ctrl+D` / `Ctrl+U`    | Scroll half a page                                                    |
 | `g` / `G`              | Go to the top / bottom                                                |
+| `:` / `;`              | Go to a line number in the current section                            |
 | `Ctrl+N` / `Ctrl+P`    | Go to the next / previous section                                     |
 | `/`, `n`, `N`          | Search; repeat forward / backward                                     |
 | `Backspace` / `Ctrl+O` | Follow the pager trail backward; an empty back trail closes the pager |
@@ -124,6 +145,12 @@ nearby targets. Typing a label follows the target in place; URL targets copy the
 instead of replacing the document. Each follow records a bounded backward/forward trail
 and restores the prior section, scroll position, and search state when revisited.
 Following a new target after going back discards the forward branch.
+
+File titles in the subject line and trail keep paths short. A file inside a managed SASE
+workspace checkout (other than the primary checkout) is labeled
+`~ws/<workspace>/<path>`, with the `~ws/` root muted; other files under your home
+directory are labeled `~/...`. The labels are display-only: copy, edit, and trail
+identity keep the exact path.
 
 When either trail direction exists, a breadcrumb band appears below the subject line.
 The first row shows the retained visit position, total retained visits, available
@@ -166,11 +193,13 @@ sources, the toast lists qualified `#.../skill/...` alternatives. Copy keeps the
 authored skill destination, while `E<label>` opens the canonical source file.
 
 Resolution uses the document's owning project and already-available repositories, not
-the viewer's current directory. A same-named file in an unrelated checkout is not a hit.
-Distinct repositories that each contain the path produce an ambiguity page with
-followable candidate links rather than a first-hit guess. A source path that exists only
-in a linked repository still resolves even when the primary Git index has no matching
-entry.
+the viewer's current directory. Home paths are the exception: `~` and `~/...` always
+resolve against your home directory, even in a project-owned document, while an
+explicitly relative `./~/...` still names a repository path. A same-named file in an
+unrelated checkout is not a hit. Distinct repositories that each contain the path
+produce an ambiguity page with followable candidate links rather than a first-hit guess.
+A source path that exists only in a linked repository still resolves even when the
+primary Git index has no matching entry.
 
 URL labels copy the exact destination, including query strings and fragments. File and
 artifact labels that cannot be resolved stay visible. The toast names the outcome:

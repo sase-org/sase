@@ -106,8 +106,10 @@ beads role is never auto-cloned even under an explicit override.
 
 Initialization clones, initializes, and pushes every configured sidecar in the workspace
 where it runs. After that, normal numbered-workspace preparation evicts the complete
-`sase/repos/` tree and clones plans directly from its recorded remote. A newly prepared
-workspace leaves the beads role and ordinary document sidecars lazy unless
+`sase/repos/` tree and clones plans directly from its recorded remote. When the primary
+workspace already has a matching clone of a sidecar, the new clone borrows its objects
+to shorten the transfer (see [Network Git Operations](#network-git-operations)). A newly
+prepared workspace leaves the beads role and ordinary document sidecars lazy unless
 `auto_clone: true`; a consumer can materialize one with
 `sase repo path <role> --ensure`, or let `sase bead` and the agent-launch bead claim
 materialize beads on first use. GitHub HTTPS values in legacy records resolve in memory
@@ -217,13 +219,72 @@ that write SDD data—such as prompt export, bead initialization and mutation, a
 repair with `--write`—materialize a provider-required store first and fail if it cannot
 be made usable.
 
-Once a positive record and primary clone exist, reads and numbered-workspace cloning can
-work offline from the primary clone. Refresh pulls are best effort. Separate-repository
-commits remain local if an ordinary follow-up push fails so they can be inspected and
-pushed manually; only the initial adoption push is transactional.
+Once a positive record exists, reads from an existing clone work offline. A legacy
+single-root (`separate_repo`) workspace clone is copied from the primary workspace's
+`.sase/sdd/` clone and can be created offline; a split sidecar clone always takes its
+refs from the recorded remote, so creating one needs that remote. Refresh pulls are best
+effort. Separate-repository commits remain local if an ordinary follow-up push fails so
+they can be inspected and pushed manually; only the initial adoption push is
+transactional.
 
 `sdd.push_after_commit` controls pushes after later SDD commits: `async` starts a
 detached background push, `true` pushes synchronously, and `false` skips the push.
+
+### Network Git Operations
+
+SDD `git clone`, `git fetch`, and `git push` run with Git progress enabled so SASE can
+tell a slow transfer from a hung one; the progress output is captured, not printed. A
+transfer is aborted only after it makes no progress for the network timeout or runs past
+the absolute transfer ceiling, so a large but healthy clone is not cut off at a fixed
+wall-clock limit. Other SDD Git commands keep wall-clock timeouts.
+
+Store integration, repository-health, and recovery fetches, bead-sync pushes, and
+agents-sidecar publication retry up to three attempts, waiting 0.25 and then 1 second
+(or a longer delay the failure classifier reports), when an attempt timed out or failed
+with a transport error that the Rust core classifies as transient. A retry never starts
+after the caller's deadline has passed.
+
+Sidecar clones have their own bounded retry loop:
+
+- In a numbered workspace, SASE first clones with the primary workspace's clone of the
+  same sidecar as an object reference (`git clone --reference-if-able ... --dissociate`)
+  when that clone exists and has the same origin. Refs still come from the recorded
+  remote, and the new clone copies what it borrowed, so it never depends on the primary
+  clone afterward. If that attempt fails or times out, SASE immediately retries without
+  the reference.
+- A clone makes at most four attempts in total, waiting 0.25, 1, and 2 seconds between
+  them. Each retry allows 50% more idle time than the first attempt (120, 180, 240, and
+  300 seconds by default), within any deadline the caller sets. Partial output is
+  removed before every retry.
+- Timeouts and failures classified as transient network or transport errors are retried.
+  Permanent failures, such as a missing repository or rejected credentials, stop
+  immediately.
+- Clones from hosted remotes such as GitHub take a machine-wide clone permit (a lock
+  under the managed temp root's `sdd-remote-clone-pool/`), so concurrent agent launches
+  clone sidecars one at a time by default. The permit is held only while Git runs.
+
+If an agent launch still cannot clone a sidecar for a transient reason, the launch fails
+but releases its workspace claim instead of holding the workspace for dismissal.
+
+SDD fetches and pushes, failed commands, and commands slower than the slow-command
+threshold are logged to `~/.sase/logs/tui_git_ops.jsonl` with their duration and limit;
+clone records also note the attempt number and whether an object reference was used. The
+`vcs.git_transport_margin` check in `sase doctor` reads the 20 most recent network
+records and warns when at least two of them, and at least 40% overall, used 85% or more
+of their limit. With `-v`, the warning lists the affected sidecar stores, their
+durations, and how many samples ran with or without a reference. Repeated near-limit
+samples usually mean cold clones or a degraded network path.
+
+| Variable                                | Default | Meaning                                                    |
+| --------------------------------------- | ------- | ---------------------------------------------------------- |
+| `SASE_SDD_GIT_NETWORK_TIMEOUT`          | `120`   | Seconds without progress before a transfer is aborted      |
+| `SASE_SDD_GIT_NETWORK_TRANSFER_CEILING` | `900`   | Absolute seconds a clone, fetch, or push may run           |
+| `SASE_SDD_GIT_LOCAL_TIMEOUT`            | `30`    | Wall-clock seconds for other SDD Git commands              |
+| `SASE_SDD_GIT_SLOW_MS`                  | `1000`  | Duration at which a successful command is logged           |
+| `SASE_SDD_REMOTE_CLONE_CONCURRENCY`     | `1`     | Machine-wide concurrent hosted-remote sidecar clones       |
+| `SASE_TUI_GIT_OPS_PATH`                 | (unset) | Alternate Git operation log, also read by the doctor check |
+
+Zero, negative, or unparseable values fall back to the defaults.
 
 ### Concurrency and Recovery
 
@@ -246,8 +307,12 @@ approval.
 
 Managed Git commands disable `rerere` and `rerere.autoupdate`, so a user's ambient Git
 configuration cannot replay a cached textual conflict resolution over SASE's semantic
-bead merge. Ordinary transactional integration restores the pre-rebase state after a
-failed rebase and refuses unsafe or unprovable recovery.
+bead merge. During a rebase SASE also resolves conflicts it can prove are generated:
+bead event state, artifact-link indexes and managed `## Links` / `## Referenced By`
+blocks, and the `AGENTS` / `COMMITS` rows of a month-sharded plan's generated header
+(see [Artifact Links](sdd.md#artifact-links)). Any other conflict, including authored
+plan text, is not merged. Ordinary transactional integration restores the pre-rebase
+state after a failed rebase and refuses unsafe or unprovable recovery.
 
 Machine-managed disposable sidecar clones have one additional recovery path for a wedged
 checkout. Before resetting to the configured upstream, SASE snapshots local branch and

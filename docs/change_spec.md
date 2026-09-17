@@ -267,8 +267,8 @@ document kinds such as `plan:` and `research:`. Historical `commit:`, `chat:`, `
 and `plans:` references remain readable for compatibility. `sase patch ref add`
 normalizes entries before writing, deduplicates them while preserving first-write order,
 and stores the canonical rendered form. Hand-edited entries are preserved by the parser
-so `sase doctor -C project.changespec_refs` can report malformed or unresolved
-references instead of silently erasing them.
+so `sase doctor -C project.patch_refs` can report malformed or unresolved references
+instead of silently erasing them.
 
 Use the command group instead of editing the section by hand:
 

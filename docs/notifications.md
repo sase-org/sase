@@ -6,11 +6,12 @@ Sase includes a notification system that surfaces important events from backgrou
 processes (axe, workflows, mentors) to the user through sase's TUI. Notifications are
 stored as JSONL and persisted to `~/.sase/notifications/notifications.jsonl`.
 
-Plan, epic-plan, question, agent-launch, and task-triage approvals use the notification
-row as a typed transport projection of a durable interaction gate. The reviewed content,
-option-query branches, validation schemas, and hash-verified commands live in
-`~/.sase/interaction_requests/<kind>/<request-id>/`; sase's TUI, mobile, Telegram, and
-typed CLI actions all resolve that same bundle.
+Plan, epic-plan, question, agent-launch, sudo, and task-triage approvals use the
+notification row as a typed transport projection of a durable interaction gate. The
+reviewed content, option-query branches, validation schemas, and hash-verified commands
+live in `~/.sase/interaction_requests/<kind>/<request-id>/`; sase's TUI, mobile,
+Telegram, and typed CLI actions all resolve that same bundle. Sudo requests add a
+terminal-only approval path; see [Sudo Requests](sudo.md).
 
 ### Remote Attention
 
@@ -64,10 +65,12 @@ The detail-pane scroll keys work with either the notification list or detail pan
 focused. Apostrophe jump mode consumes hint keys first, so `g` and `G` select matching
 jump hints while hints are visible instead of scrolling the detail pane.
 
-Plan, launch, question, task-triage, flag-triage, snooze, and stale-cleanup
-notifications require confirmation (`y` / `n`) before dismissal to prevent accidental
-loss of pending decisions. The same `y` / `n` confirmation is used for bulk dismissal
-when at least one marked protected notification is included in the batch.
+Every gate-backed notification (plan, epic, question, launch, workflow HITL, custom,
+sudo, task-triage, flag-triage, snooze, stale-cleanup, and required-plugin) and every
+[remote attention](#remote-attention) row requires confirmation (`y` / `n`) before
+dismissal to prevent accidental loss of pending decisions. The same `y` / `n`
+confirmation is used for bulk dismissal when at least one marked protected notification
+is included in the batch.
 
 `R` is scoped to the tab you are on, not the whole inbox, and it is a wider write than
 it looks: it marks the tab read in the notification store, which includes rows matching
@@ -84,18 +87,19 @@ notifications the store marked read.
 
 ### Gate Detail Pane
 
-Highlighting any gate-backed row — plan, epic, question, launch, custom, task-triage,
-flag-triage, snooze, stale-cleanup, or workflow HITL — always renders a live decision
-card in the right pane: a status line (`Awaiting your decision`, `Answered`,
-`Cancelled`, `Timed out`, or `Gate details unavailable`), the notification's context and
-tags, a `Decision` block listing every branch in canonical query order with the primary
-branch marked, and an `Attachments` line when the gate has files. The card renders
-instantly from the notification row and enriches itself with the verified bundle a
-moment later without blocking navigation. When a bundle cannot be resolved, hashed, or
-parsed — a deleted directory, a corrupted `request.json`, a legacy bundle layout — the
-card degrades to `▲ Gate details unavailable` rather than going blank; press `d` to open
-Gate Debug and see exactly why. Every other notification, including attachment-less
-ones, gets a compact summary card instead of an empty pane.
+Highlighting any gate-backed row — plan, epic, question, launch, custom, sudo,
+task-triage, flag-triage, snooze, stale-cleanup, required-plugin, or workflow HITL —
+always renders a live decision card in the right pane: a status line
+(`Awaiting your decision`, `Answered`, `Cancelled`, `Timed out`, or
+`Gate details unavailable`), the notification's context and tags, a `Decision` block
+listing every branch in canonical query order with the primary branch marked, and an
+`Attachments` line when the gate has files. The card renders instantly from the
+notification row and enriches itself with the verified bundle a moment later without
+blocking navigation. When a bundle cannot be resolved, hashed, or parsed — a deleted
+directory, a corrupted `request.json`, a legacy bundle layout — the card degrades to
+`▲ Gate details unavailable` rather than going blank; press `d` to open Gate Debug and
+see exactly why. Every other notification, including attachment-less ones, gets a
+compact summary card instead of an empty pane.
 
 ### `+1` Evidence
 
@@ -136,7 +140,7 @@ the tiebreak at equal priority. The tabs, at their default priorities:
 | `Errors`  | `✖`  | `40`     | Axe digests, failed file hooks, and agent errors (`axe`, `file-hooks`, or `user-agent` with `ViewErrorReport`).                                                                                                                                                                                                                                                                                               |
 | `General` | `✉`  | `30`     | Untagged, unmuted notifications with no other classification.                                                                                                                                                                                                                                                                                                                                                 |
 | `Done`    | `#`  | `20`     | Notifications carrying the `done` tag, pinned before other custom tags.                                                                                                                                                                                                                                                                                                                                       |
-| Custom    | `#`  | `10`     | Other normalized notification tags, sorted alphabetically after `Done` at equal priority.                                                                                                                                                                                                                                                                                                                     |
+| Custom    | `#`  | `10`     | Other normalized notification tags, sorted alphabetically after `Done` at equal priority. Sudo requests declare no panel, so they land in the `sudo` tag tab rather than `Gates`.                                                                                                                                                                                                                             |
 | `Snoozed` | `☾`  | `-10`    | Muted notifications with a future wake time — snoozed notifications and notifications for snoozed task beads alike.                                                                                                                                                                                                                                                                                           |
 | `Muted`   | `⊘`  | `-20`    | Muted notifications with no wake time.                                                                                                                                                                                                                                                                                                                                                                        |
 
@@ -184,9 +188,9 @@ is never bulk-dismissed by accident.
 
 Press `m` on a notification to toggle a per-row mark. Marks are scoped to the open modal
 — closing the modal clears them. While at least one row is marked, `x`, `M`, and `s`
-target every live marked row instead of the highlighted row. Plan, launch, question, and
-task-triage rows in a marked dismiss batch use the same `y` / `n` confirmation prompt as
-a single dismissal.
+target every live marked row instead of the highlighted row. Gate-backed and remote
+attention rows in a marked dismiss batch use the same `y` / `n` confirmation prompt as a
+single dismissal.
 
 Successful marked mute, unmute, snooze, and dismiss actions consume the acted-on marks.
 Stale marks are pruned; if no live marks remain, `M` and `s` fall back to the
@@ -350,10 +354,11 @@ notification. sase's TUI toast says `Tale ready` or `Epic ready`; an epic adds t
 gate-time phase, dependency-wave, and non-zero phase-size counts, while batched toasts
 count tales and epics separately. Already-handled plan reviews discovered during polling
 and the intermediate post-approval handoff remain silent. Task triage, stale-cleanup,
-questions, launch/custom/HITL gates, errors, agent completions, and ordinary
+questions, launch/custom/HITL/sudo gates, errors, agent completions, and ordinary
 notifications retain their arrival bell. Priority actions include `PlanApproval`,
 `EpicApproval`, `UserQuestion`, `LaunchApproval`, `TaskTriage`, `BeadSnooze`,
-`FlagTriage`, `BeadStaleCleanup`, and `JumpToMentorReview`.
+`FlagTriage`, `BeadStaleCleanup`, `PluginsRequired`, `JumpToMentorReview`, and
+`RemoteAttention`.
 
 Snooze expiry is an explicit reminder chosen by the user and remains audible for every
 notification class, including a snoozed tale or epic review.
@@ -369,11 +374,17 @@ The following events generate notifications:
 | `plugin`                       | A project's required plugins are missing; the gate offers to install them                                                                       |
 | `launch`                       | A running agent requested a new agent launch for approval                                                                                       |
 | `question`                     | An agent is asking the user a question (via `/sase_questions`)                                                                                  |
+| `sudo`                         | An agent requested reviewed privileged execution (via `sase sudo request`); see [Sudo Requests](sudo.md)                                        |
+| `custom`                       | A `sase gate create` custom gate is waiting for review, unless its `presentation.sender` names another sender                                   |
 | `hitl`                         | A workflow HITL step is waiting for user input                                                                                                  |
 | `sync`                         | A sync operation completed for a Patch                                                                                                          |
 | `axe`                          | Hourly error digest summarizing recent axe errors                                                                                               |
 | `file-hooks`                   | A configured per-file hook completed or failed, or a producer-side dispatch failure before a command ran                                        |
 | `mentors`                      | All mentors finished for a Patch entry (or none matched)                                                                                        |
+| `wait_checks`                  | A `%wait` dependency ended in a terminal state that can never satisfy the waiter                                                                |
+| `gate`                         | A gate shell's follow-up handoff failed; the notes name the failed stage and the resume command                                                 |
+| `agent_hold`                   | A `%hold` or `sase agent hold` admission hold was armed or released                                                                             |
+| `runner_slot_admission`        | A held agent and the agent holding it are blocking each other (hold deadlock)                                                                   |
 | Workflow-specific sender label | Workflow completion (success or failure)                                                                                                        |
 
 ### Task Triage Notification
@@ -524,6 +535,32 @@ non-interactive contexts still fail closed and never auto-install. Run
 `sase axe job run plugins_required` to raise or refresh those gates without waiting for
 the next five-minute checks tick.
 
+### Blocked Wait and Hold Notifications
+
+These informational rows have no action, so they carry nothing to approve. Each one is
+deduplicated, and a repeat occurrence appends `+1` evidence to the existing row instead
+of creating a new one.
+
+- **Terminally blocked waits.** The `wait_checks` job notifies once per parked waiter
+  whose named `%wait` dependency already ended with an outcome that can never satisfy
+  the wait, such as a failed or killed agent. The notes name the waiter, the blocking
+  dependency, its artifact directory, and its outcome, and suggest killing and
+  relaunching the waiter or deliberately clearing the wait. The row attaches both
+  artifact directories and carries the `wait`, `blocked`, and `terminal-dependency`
+  tags; later checks append `Still blocked on …` evidence.
+- **Hold armed and released.** Arming a `sase agent hold` admission hold posts one
+  `agent_hold` row per armer with the `agent-hold` and `armed` tags, its expiry, and any
+  frozen `pending` capture counts. (The beta [`%hold`](xprompt.md#hold-directive)
+  directive does not arm holds yet, so it posts no row.) Re-arming appends `+1`
+  evidence. A release posts an `agent-hold` / `released` row with the reason, including
+  an automatic release after the armer dies. A routine TTL expiry stays silent.
+- **Hold deadlocks.** When runner-slot admission finds that a held agent and the agent
+  holding it are blocking each other, it posts a `Hold deadlock` row with the `hold`,
+  `deadlock`, and `blocked` tags and both artifact directories. This happens when the
+  armer is itself still waiting or queued on the held agent, directly or through its own
+  `%wait` chain. The notification only reports the deadlock: the hold's TTL still
+  guarantees progress, and releasing the hold or killing one side resolves it sooner.
+
 ### Agent Completion Attachments
 
 Agent completion notifications attach the standard chat transcript and diff first. On
@@ -579,6 +616,13 @@ path) the row's unread marker clears on the next refresh. Manually toggling a ro
 with `U` overrides this projection locally so a deliberately re-flagged row is not
 immediately re-cleared. Plan approvals and user questions still require an explicit `y`
 / `n` response and are never auto-dismissed by row navigation.
+
+A newly arrived completion notification also drives a targeted Agents-tab refresh:
+sase's TUI reloads only the matching agents' artifact directories rather than rebuilding
+the whole list. Host-owned settlement notifications from epic launches and monitor
+handoffs (senders `epic-launch` and `monitor-settlement`) refresh the agent family they
+name the same way, so a settled family updates without waiting for the next full
+refresh.
 
 See [`agent_images.md`](agent_images.md) for the full attachment contract and sase's TUI
 image preview notes.
@@ -726,8 +770,9 @@ the panel, the top-bar indicator, and the mobile snapshot always agree:
 1. `Snoozed` — muted with a `snooze_until` wake time
 2. `Muted` — muted with no wake time
 3. the gate's declared `presentation.panel`
-4. `Gates` — a human-in-the-loop gate action (the core still keys this synthetic tab
-   `hitl`; only the display label is `Gates`)
+4. `Gates` — a `PlanApproval`, `EpicApproval`, `UserQuestion`, `HITL`, `LaunchApproval`,
+   `TaskTriage`, or `CustomGate` action (the core still keys this synthetic tab `hitl`;
+   only the display label is `Gates`)
 5. `Errors` — an error report
 6. the **first** stored tag, in sender order
 7. `General` — everything else
@@ -828,8 +873,9 @@ sase notify +1 -k ci/sase-main "failure reproduced again" -s ci_watch
 Raw creation validates and preserves the optional single-glyph JSON `icon`, the optional
 `#RRGGBB` JSON `color` (see [Tab colors](#tab-colors)), and the JSON `silent` field. It
 rejects registered privileged actions (`PlanApproval`, `EpicApproval`, `TaskTriage`,
-`BeadSnooze`, `FlagTriage`, `BeadStaleCleanup`, `UserQuestion`, `LaunchApproval`,
-`CustomGate`, and `HITL`) because a raw row has no trusted command bundle.
+`BeadSnooze`, `FlagTriage`, `BeadStaleCleanup`, `PluginsRequired`, `UserQuestion`,
+`LaunchApproval`, `SudoRequest`, `CustomGate`, and `HITL`) because a raw row has no
+trusted command bundle.
 
 `sase notify +1 [ID] NOTE` accepts an exact notification ID or unique prefix. With
 `-k/--dedup-key`, it instead selects the newest row matching the resolved sender and
@@ -1042,8 +1088,11 @@ successor is already recorded. Conflicting `--option` / input values are refused
 handoff. `act` runs one declared action headlessly, including opening `$EDITOR` for an
 `edit_file` action, without answering the gate; `show` prints a gate's declared
 branches, each option's input fields, and its declared actions, so an author can check
-that the gate they wrote asks for what they intended. See `--help` on each for the full
-flag reference.
+that the gate they wrote asks for what they intended. When a decision has been accepted
+but its execution has not written `response.json` yet, `show` adds an **Acceptance**
+block (an `acceptance` object with `--json`) with the accepted options, the submitting
+surface, and the latest recorded execution error, or flags an invalid decision receipt.
+See `--help` on each for the full flag reference.
 
 For read-only inspection, list recent notifications as either a compact table or stable
 JSON:
@@ -1138,48 +1187,6 @@ submit `selected_option_ids`, feedback, and each selected option's declared inpu
 [Gate inputs](#gate-inputs) below), and the shared executor runs the selected commands
 in query order.
 
-### Fast decision acceptance
-
-Gate answers are split into fast decision acceptance and slower command execution.
-Before a selected option runs its commands, the shared executor writes a durable,
-write-once `decision_receipt.json` under an acceptance lock. The receipt binds the
-request hash, selected option IDs, typed input identities, feedback identity, submitting
-surface, acceptance time, and execution owner. An identical duplicate selection replays
-the accepted decision; a conflicting selection fails before any command runs.
-Cancellation is refused after acceptance, even if the selected command is still blocked
-or a detached proc must be resumed later.
-
-`decision_receipt.json` is the local signal for immediate notification dismissal and
-targeted sase's TUI refresh. `response.json` remains the terminal execution record
-written only after the command set, archive, and successor launch work has completed.
-Approval labels therefore mean the human decision is durable; they do not imply that a
-commit, archive, or next agent has already finished unless the terminal response says
-so.
-
-Rollout keeps existing bundles readable. Upgrade `sase-core` first so every surface has
-the indexed shell lookup and acceptance policy, then upgrade the SASE Python/sase's
-TUI/mobile clients against that binding, and finally upgrade Telegram so its receiver
-submits answers through the same supervised proc path. In-flight legacy gates still fall
-back to their historical `response.json` path. Telegram receiver adoption requires no
-config edit: the first enabled job tick re-arms the persistent receiver, `--once`
-remains the diagnostic direct poll path, disabled or credential-less receivers
-self-terminate, and a running receiver can be stopped with `sase proc kill`.
-
-Latency evidence from isolated probes on 2026-09-14:
-
-- Exact shell lookup over 5,002 fixture artifacts had p50 1.317 ms, p95 3.755 ms, and
-  max 13.008 ms across 25 lookups. Index rebuild took 3.554 s off the click path. The
-  target resolved to the owning gate shell rather than a later inherited-code successor.
-- Ten blocked-command acceptance runs wrote `decision_receipt.json` at p50 18.95 ms, p95
-  21.6 ms, and max 22.53 ms. Notification dismissal followed at p50 35.37 ms, p95 44.47
-  ms, and max 46.35 ms, while `response.json` stayed unwritten until the held command
-  was released.
-
-These measurements exercise local durability and notification behavior only. Live
-Telegram callback acknowledgement, message delivery, and keyboard edits remain bounded
-by Bot API round-trip time and rate limits; terminal keyboard cleanup is retried from
-the on-disk tombstone when a remote edit fails.
-
 | Key             | Action                                                                                         |
 | --------------- | ---------------------------------------------------------------------------------------------- |
 | `j` / `k`       | Focus the next / previous branch control                                                       |
@@ -1205,12 +1212,19 @@ map kinds to notification actions:
 | `plan`               | `PlanApproval`      | `sase plan propose` with an authored `tier: tale` |
 | `epic_plan`          | `EpicApproval`      | `sase plan propose` with an authored `tier: epic` |
 | `task_triage`        | `TaskTriage`        | AXE's built-in `bead_task_triage` job             |
+| `bead_snooze`        | `BeadSnooze`        | AXE's built-in `bead_task_triage` job             |
 | `flag_triage`        | `FlagTriage`        | AXE's built-in `bead_task_triage` job             |
 | `bead_stale_cleanup` | `BeadStaleCleanup`  | AXE's built-in `bead_stale_cleanup` job           |
 | `plugins_required`   | `PluginsRequired`   | AXE's built-in `plugins_required` job             |
 | `question`           | `UserQuestion`      | `sase questions`                                  |
 | `launch`             | `LaunchApproval`    | Agent-initiated `sase launch request`             |
+| `hitl`               | `HITL`              | A workflow `HITL` step                            |
+| `sudo`               | `SudoRequest`       | Agent-initiated `sase sudo request` (beta)        |
 | `custom`             | `CustomGate`        | `sase gate create`                                |
+
+`SudoRequest` gates use `approve OR deny`. Approval requires a terminal and is accepted
+only from `sase sudo answer`, while denial works from any surface; see
+[Sudo Requests](sudo.md).
 
 `TaskTriage` uses `launch OR close OR snooze`, with Launch as the primary branch. Launch
 accepts optional feedback and submits or reuses one globally visible unattributed proc
@@ -1227,6 +1241,56 @@ questions and plans. Historical HITL bundles remain readable and use their compa
 response-file path; every neutral bundle is resolved through the same hash-verified
 executor in sase's TUI and Telegram.
 
+### Fast decision acceptance
+
+Gate answers are split into fast decision acceptance and slower command execution.
+Before a selected option runs its commands, the shared executor writes a durable,
+write-once `decision_receipt.json` under an acceptance lock. The receipt binds the
+request hash, selected option IDs, typed input identities, feedback identity, submitting
+surface, acceptance time, and execution owner. An identical duplicate selection replays
+the accepted decision; a conflicting selection fails before any command runs.
+Cancellation is refused after acceptance, even if the selected command is still blocked
+or a detached proc must be resumed later.
+
+`decision_receipt.json` is the local signal for immediate notification dismissal and
+targeted sase's TUI refresh. `response.json` remains the terminal execution record
+written only after the command set, archive, and successor launch work has completed.
+Approval labels therefore mean the human decision is durable; they do not imply that a
+commit, archive, or next agent has already finished unless the terminal response says
+so.
+
+An accepted decision whose execution has not finished is protected from cleanup.
+`sase gate cancel` leaves that shell as it is, the `gate_shell_reclaim` housekeeping job
+never settles it as lost or timed out, and `sase gate show` reports it in an
+**Acceptance** block. A receipt whose attempt failed partway is superseded by the next
+submission instead of blocking it. sase's TUI submits gate decisions, including plan and
+epic approvals, as a tracked `sase gate answer` proc, so an accepted decision keeps
+running after the modal closes.
+
+Rollout keeps existing bundles readable. Upgrade `sase-core` first so every surface has
+the indexed shell lookup and acceptance policy. Then upgrade the SASE Python package,
+sase's TUI, and mobile clients against that binding, and finally upgrade Telegram so its
+receiver submits answers through the same supervised proc path. In-flight legacy gates
+still fall back to their historical `response.json` path. Telegram receiver adoption
+requires no config edit: the first enabled job tick re-arms the persistent receiver,
+`--once` remains the diagnostic direct poll path, disabled or credential-less receivers
+self-terminate, and a running receiver can be stopped with `sase proc kill`.
+
+Latency evidence from isolated probes on 2026-09-14:
+
+- Exact shell lookup over 5,002 fixture artifacts had p50 1.317 ms, p95 3.755 ms, and
+  max 13.008 ms across 25 lookups. Index rebuild took 3.554 s off the click path. The
+  target resolved to the owning gate shell rather than a later inherited-code successor.
+- Ten blocked-command acceptance runs wrote `decision_receipt.json` at p50 18.95 ms, p95
+  21.6 ms, and max 22.53 ms. Notification dismissal followed at p50 35.37 ms, p95 44.47
+  ms, and max 46.35 ms, while `response.json` stayed unwritten until the held command
+  was released.
+
+These measurements exercise local durability and notification behavior only. Live
+Telegram callback acknowledgement, message delivery, and keyboard edits remain bounded
+by Bot API round-trip time and rate limits; terminal keyboard cleanup is retried from
+the on-disk tombstone when a remote edit fails.
+
 ### Gate shells and continuation
 
 A gate shell is a named, non-LLM member of an agent family, normally `--gate` or
@@ -1234,12 +1298,23 @@ A gate shell is a named, non-LLM member of an agent family, normally `--gate` or
 or a runner slot alive. The shell can retain the family's workspace claim while pending,
 records approved command output in `gate.log`, and settles only after the selected
 commands finish. Its lifecycle is pending, settling, answered, completed, failed,
-timeout, stopped, or lost.
+timeout, stopped, or lost. Answered commands start right away even when every runner
+slot is busy. A free slot is claimed so a follow-up agent can inherit it, but a full
+queue never delays the decision itself.
+
+The hourly `gate_shell_reclaim` housekeeping job settles pending shells whose gates were
+already answered, cancelled, or removed. It also times out gates past their own
+`gate_timeout_seconds` deadline, and it marks a shell lost once
+[`gate.shell.reclaim_grace_seconds`](configuration.md#gate) (one hour by default) has
+passed after that deadline.
 
 Agent-side gate creation also writes a per-process intent marker before slow setup work
-starts. A clean creation error or the normal runner handoff clears it. If the creation
-command dies before handing off, the host fails the run with a `gate intent lost:` error
-naming the gate kind and request ID, and that failed run is never retried.
+starts. A clean creation error or the normal runner handoff clears it. If the provider
+turn ends while a marker remains, the host waits up to 60 seconds for a creator that is
+still running to hand off. Otherwise it writes `gate_intent_lost.json` evidence to the
+agent's artifacts and fails the run with a `gate intent lost:` error. The error names
+the gate kind and request ID and points at `sase gate list --all`
+(`sase sudo list --all` for a sudo gate). That failed run is never retried.
 
 The built-in front doors choose statuses and continuation policy for their domain:
 
@@ -1254,6 +1329,9 @@ The built-in front doors choose statuses and continuation policy for their domai
   outcome, feedback, typed dispatch result, requester identity, family/workspace
   context, and checkpoint. A stopped gate remains terminal; an explicit
   `terminal_handoff` mode suppresses requester continuation on every branch.
+- Agent-side `sase sudo request` creates `SUDO`. Approval settles it as `SUDOED` and
+  launches the request's `next.prompt` successor with the runner ledger; denial settles
+  it as `DENIED` without a follow-up. See [Sudo Requests](sudo.md).
 
 For a custom handoff, pass `--shell` to `sase gate create`. `--next` supplies the
 default answered-branch prompt; `--next-fork family|shell|none`, `--next-model`, and
@@ -1442,10 +1520,11 @@ bound.
 ### Debugging a gate
 
 Press `d` on any notification row or from an open plan, epic, question, launch,
-custom-gate, or workflow HITL panel to open **Gate Debug**. The overlay keeps the
-underlying form mounted, so closing it returns to the same selected branch, checked
-group options, and typed feedback. Non-gate inbox rows use the same view and show an
-explicit no-bundle state alongside their raw notification JSON.
+custom-gate, or workflow HITL panel to open **Gate Debug**. The sudo review modal is the
+exception: there `d` denies the request, so open Gate Debug from the notification row.
+The overlay keeps the underlying form mounted, so closing it returns to the same
+selected branch, checked group options, and typed feedback. Non-gate inbox rows use the
+same view and show an explicit no-bundle state alongside their raw notification JSON.
 
 Gate Debug loads bundle I/O and hash verification away from the TUI event loop. Its tabs
 show the lifecycle overview, the canonical `request.json`, the terminal `response.json`
@@ -1495,8 +1574,10 @@ inbox counters cheap when sase's TUI or a bridge process only needs mutation met
 
 sase's TUI snapshot reads memoize the parsed store against the JSONL path, the
 `include_dismissed` flag, and an mtime+size change token, so an unchanged live file is
-not re-parsed on the TUI refresh cadence. A due `next_snooze_deadline` still forces a
-re-read when the caller asked to expire snoozes.
+not re-parsed on the TUI refresh cadence. A parsed snapshot is cached only when the
+change token is the same before and after the read, so a write that lands mid-read is
+picked up by the next read instead of being masked. A due `next_snooze_deadline` still
+forces a re-read when the caller asked to expire snoozes.
 
 The store keeps itself O(live). The hourly `notification_store_compact` housekeeping job
 drives compaction so a multi-megabyte re-parse does not sit on an interactive path. When

@@ -9,21 +9,21 @@ reviewed, retried, and handed off through stable project artifacts.
 
 ## System Boundary
 
-| Area         | Responsibility                                                                                                                       | Main References                                                    |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
-| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                                      | [CLI reference](cli.md)                                            |
-| sase's TUI   | Interactive TUI for Patches, agents, notifications, artifacts, and axe status.                                                       | [sase's TUI](ace.md)                                               |
-| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                               | [Axe](axe.md)                                                      |
-| XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                             | [XPrompts](xprompt.md)                                             |
-| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                      | [Workflow spec](workflow_spec.md)                                  |
-| Gates        | Durable, command-backed user decisions and processless family-shell handoffs.                                                        | [Notifications](notifications.md#command-backed-interaction-gates) |
-| Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                                    | [Patches](change_spec.md)                                          |
-| Memory       | Always-loaded and on-demand context, explicit flat-note xprompt inclusion, audited reads, and sase's TUI-backed note/strand changes. | [Memory](memory.md)                                                |
-| SDD          | Durable prompt, tale, epic, and research artifacts.                                                                                  | [SDD](sdd.md)                                                      |
-| Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                             | [Beads](beads.md)                                                  |
-| Providers    | Pluggable LLM, VCS, workspace, config, and xprompt boundaries.                                                                       | [Plugins](plugins.md)                                              |
-| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch prep, and bead data operations.        | [Rust backend](rust_backend.md)                                    |
-| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                             | [Integrations](integrations.md)                                    |
+| Area         | Responsibility                                                                                                                                    | Main References                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                                                   | [CLI reference](cli.md)                                            |
+| sase's TUI   | Interactive TUI for Patches, agents, notifications, artifacts, and axe status.                                                                    | [sase's TUI](ace.md)                                               |
+| Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                                            | [Axe](axe.md)                                                      |
+| XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                                          | [XPrompts](xprompt.md)                                             |
+| Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                                   | [Workflow spec](workflow_spec.md)                                  |
+| Gates        | Durable, command-backed user decisions and processless family-shell handoffs.                                                                     | [Notifications](notifications.md#command-backed-interaction-gates) |
+| Patches      | PR-sized review records with lifecycle state, stitches, hooks, comments, mentors, and timestamps.                                                 | [Patches](change_spec.md)                                          |
+| Memory       | Always-loaded and on-demand context, explicit flat-note xprompt inclusion, audited reads, and sase's TUI-backed note/strand changes.              | [Memory](memory.md)                                                |
+| SDD          | Durable prompt, tale, epic, and research artifacts.                                                                                               | [SDD](sdd.md)                                                      |
+| Beads        | Git-portable issue/dependency tracking and executable epic launch plans.                                                                          | [Beads](beads.md)                                                  |
+| Providers    | Pluggable LLM, VCS, workspace, config, and xprompt boundaries.                                                                                    | [Plugins](plugins.md)                                              |
+| Rust core    | Required `sase_core_rs` extension for ported parsing, query, notification, agent scan, launch and admission, retention, and bead data operations. | [Rust backend](rust_backend.md)                                    |
+| Integrations | Public helpers and fixed bridge APIs for editors, mobile gateway, and external packages.                                                          | [Integrations](integrations.md)                                    |
 
 The Python host owns user-facing orchestration, plugin calls, subprocess handling,
 filesystem context, TUI rendering, and workflow side effects. Rust owns reusable
@@ -50,14 +50,19 @@ across those entry points:
    MRU entries then use that stable ref.
 4. Prepare fixed or deferred workspace metadata. For a normal launch, claim the final
    numbered workspace atomically immediately before spawning the process.
-5. Continue xprompt or workflow processing and invoke the selected LLM provider or
+5. In the detached runner, wait for `%wait` dependencies and time floors, then pass
+   runner admission: no active [agent hold](cli.md#sase-agent-hold) may match the run,
+   and its queue weight must fit the global `max_running_agents` budget or its own
+   `%queue` capacity budget. A deferred-workspace launch claims its numbered workspace
+   only after admission.
+6. Continue xprompt or workflow processing and invoke the selected LLM provider or
    workflow executor.
-6. Stream subprocess output, write chat history, and persist launch metadata.
-7. Record agent artifacts such as prompts, diffs, generated Markdown PDFs, images,
+7. Stream subprocess output, write chat history, and persist launch metadata.
+8. Record agent artifacts such as prompts, diffs, generated Markdown PDFs, images,
    plans, and explicit files.
-8. Emit notifications and update sase's TUI-visible status.
-9. Hand review, revert, restore, or commit work to the VCS and workspace provider layers
-   when requested.
+9. Emit notifications and update sase's TUI-visible status.
+10. Hand review, revert, restore, or commit work to the VCS and workspace provider
+    layers when requested.
 
 When the `typed_launch_units` beta flag is enabled, user-initiated sase's TUI and
 `sase run` submissions, approved LaunchApproval requests, and typed AXE job proposal
@@ -81,21 +86,40 @@ unit receives a restored named-agent `%wait` for the nearest earlier unit that a
 launched. Generic typed logical waits outside AXE remain coordinator-owned and are not
 re-emitted into rebuilt agent prompts. A detached launch-admission coordinator —
 infrastructure owned by the launch-request bundle, not an Agents-tab row — journals each
-unit through waiting, checking, skipped/error, dispatching, and launched states. Waits
-resolve before conditions. For a selected managed project, `%if` briefly claims and
-prepares a numbered operational workspace, runs the predicate from that checkout, and
-releases the claim before dispatch. Home/unmanaged conditions have no claimable
-workspace and keep using their explicit source cwd. A false `%if` is still terminal
-without allocating a runner, agent identity, proc identity, or model request; eligible
-Agent units still use the established agent launch path; eligible `%proc` units dispatch
-as native `proc-shell` records with origin `xprompt-proc`. Restarts replay the journal
-instead of re-running settled predicates or duplicating reserved identities.
+unit through reserved, waiting, checking, eligible, and dispatching states to a terminal
+launched, skipped, condition-error, launch-error, or cancelled state. Waits resolve
+before conditions. For a selected managed project, `%if` briefly claims and prepares a
+numbered operational workspace, runs the predicate from that checkout, and releases the
+claim before dispatch. Home/unmanaged conditions have no claimable workspace and keep
+using their explicit source cwd. A false `%if` is still terminal without allocating a
+runner, agent identity, proc identity, or model request. Eligible Agent units still use
+the established agent launch path. An eligible `%proc` unit stays undispatched while an
+active agent hold matches it, and one that authors `%queue` fields must also fit the
+shared runner-capacity budget; it then dispatches as a native `proc-shell` record with
+origin `xprompt-proc`. Restarts replay the journal instead of re-running settled
+predicates or duplicating reserved identities.
 
 Detached launches appear in the agent registry and sase's TUI Agents tab. Multi-prompt
 launches create a sequence of detached agents. Stand-alone `%proc` shells appear in the
 same Agents tab as top-level `▣` rows backed only by the proc store, counted separately
 from agents. Workflow launches persist step state so sase's TUI and axe can inspect
 progress and recover meaningful output.
+
+Agent holds are durable reverse waits. [`sase agent hold`](cli.md#sase-agent-hold) arms
+a hold in `~/.sase/agent_holds.json` that selects agents or proc shells by name, tribe,
+or hood; it can freeze the WAITING/QUEUED agents already in scope and fence launches
+submitted later. Runner admission and undispatched `%proc` dispatch both consult active
+holds. A hold ends when it is released, when its armer settles or exits, or when its TTL
+expires, and a broken hold store fails open rather than stranding a waiter. The beta
+[`%hold` directive](xprompt.md#hold-directive) describes the same selectors in prompt
+text; it is parsed and previewed today, but arming at launch submission has not landed
+yet.
+
+On Linux, when detached work starts inside a SASE-owned systemd unit or scope (such as
+`sase.service` or an axe scope), agent runners, launch-admission coordinators, proc
+supervisors, and monitor supervisors move into their own transient user scopes, so
+restarting that service does not kill them. `SASE_DETACH_SCOPE_DISABLE=1` turns this
+off.
 
 ## Agent, Monitor, and Gate Shells
 
@@ -106,14 +130,17 @@ gate is pending, it has no provider or command process. All three appear in one 
 timeline. Once their evidence is readable, later family forks can include the agent
 transcript, monitor log, or gate decision record.
 
-Questions, plan review, agent-side workflow HITL, and agent-initiated launch approval
-use gate shells. At the handoff boundary SASE persists the verified gate bundle, names
-the shell, transfers or releases the workspace claim according to policy, releases the
-runner slot, and ends the provider turn. A client later selects a branch; SASE runs its
-hashed commands, records their output, settles the shell, and optionally launches the
-next agent-shell family member. The answered branch can inherit a default follow-up;
-timeout, stopped, failed, and lost outcomes require explicit follow-up policy. This
-makes a human pause durable without holding a provider process or runner slot open.
+Questions, plan review, agent-side workflow HITL, agent-initiated launch approval, and
+beta [sudo requests](sudo.md) use gate shells. At the handoff boundary SASE persists the
+verified gate bundle, names the shell, transfers or releases the workspace claim
+according to policy, releases the runner slot, and ends the provider turn. A client
+later selects a branch; SASE first writes a write-once decision receipt, so the choice
+is durable and a conflicting answer fails before any command runs. It then runs the
+branch's hashed commands (normally in a supervised detached proc), records their output,
+settles the shell, and optionally launches the next agent-shell family member. The
+answered branch can inherit a default follow-up; timeout, stopped, failed, and lost
+outcomes require explicit follow-up policy. This makes a human pause durable without
+holding a provider process or runner slot open.
 
 ## State Model
 
@@ -130,7 +157,10 @@ The project-adjacent taxonomy has three non-overlapping roles:
   repo. One project can therefore own several repos.
 - A **workspace** is a numbered clone of a project's primary repo, tracked by that
   project's workspace registry and claimed by one SASE agent until completion.
-  Linked/sidecar checkouts materialized within it remain repos, not workspaces.
+  Linked/sidecar checkouts materialized within it remain repos, not workspaces. By
+  default a managed Git workspace borrows the primary checkout's object database through
+  Git alternates, so moving or deleting the primary checkout calls for
+  [`sase workspace repair`](workspace.md#sase-workspace-cli).
 
 | State             | Location / Owner                                                                 | Use                                                                                                                                                                                            |
 | ----------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -144,12 +174,24 @@ The project-adjacent taxonomy has three non-overlapping roles:
 | Memory audit      | `~/.sase/projects/<project>/memory_reads.jsonl`                                  | Attributable flat-note, strand, and batched reference-memory reads.                                                                                                                            |
 | Configuration     | `~/.config/sase/sase.yml`, overlays, project `sase/sase.yml`                     | Provider selection, axe jobs, mentors, xprompts, telemetry, mobile gateway, and defaults.                                                                                                      |
 | Notifications     | Notification store facade backed by Rust operations                              | User-visible actions, unread state, agent completion, errors, and mobile events.                                                                                                               |
-| Interaction gates | `~/.sase/interaction_requests/<kind>/<request-id>/`                              | Immutable request bundles, owned commands and resources, and write-once responses for user decisions.                                                                                          |
+| Interaction gates | `~/.sase/interaction_requests/<kind>/<request-id>/`                              | Immutable request bundles, owned commands and resources, write-once decision receipts, and terminal responses for user decisions.                                                              |
+| Procs             | `~/.sase/procs/`                                                                 | Rust-owned proc rows, logs, and runtime directories for `%proc` shells, gate answers, and other supervised background commands.                                                                |
+| Agent holds       | `~/.sase/agent_holds.json`                                                       | Durable reverse-wait holds consulted by runner admission and undispatched `%proc` dispatch.                                                                                                    |
+| Managed temp      | `$SASE_TMPDIR`, else `~/.sase/tmp/`                                              | Per-launch agent scratch, Cargo targets, handoff files, and workflow scratch, bounded by the owner reaper and runner-exit cleanup.                                                             |
 | Workspace claims  | Running-field state and provider metadata                                        | Reservation and release of numbered workspaces for parallel agents.                                                                                                                            |
 | Workspace stores  | Per-project `registry.json` under the configured workspace root                  | Checkout paths, role/materialization, pins, generation, created/last-used times, and cleanup eligibility.                                                                                      |
 
 `~/.sase` is the default SASE state root. Set `SASE_HOME` to move that root for isolated
 tests, alternate profiles, or containerized runs.
+
+Every SASE-owned disk root has an owner that decides its retention. `sase disk list`
+attributes usage to those owners, and `sase disk reap` previews their cleanup passes or,
+with `--apply`, delegates cleanup to them: the managed-temp reaper, proc runtime sweeps,
+agent artifact-run retention, and workspace Git object compaction. Unowned Cargo-shaped
+strays are reported but never deleted. The hourly axe `disk_pressure` job runs the
+owner-safe passes early when free space runs low. See
+[`sase disk`](configuration.md#sase-disk) and
+[axe housekeeping](axe.md#housekeeping-1-hour-interval).
 
 The canonical project/home namespace and legacy read boundary are documented in
 [Canonical SASE Content Layout](content_layout.md). Global config, `.sase` runtime
@@ -194,6 +236,12 @@ frontends. Current Rust-backed areas include:
   spawn, and workspace-claim planning.
 - Bead read, mutation, JSONL, SQLite, single-store ID allocation, and deterministic
   work-plan operations.
+- Agent hold validation, runner-capacity snapshots, and gate decision acceptance and
+  lifecycle policy.
+- Managed-temp reaping, disk inventory and pressure classification, and agent
+  artifact-run and proc runtime retention.
+- Git object-sharing plans for managed workspaces and failure retryability
+  classification for `gh` and network Git calls.
 
 The frontend-neutral `repo_inventory.py` and `workspace_provider/inventory.py` adapters
 currently compose those Rust-owned project records with Python-owned linked-repo

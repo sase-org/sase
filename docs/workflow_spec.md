@@ -32,7 +32,7 @@ A workflow YAML file must define `steps` and can include optional metadata, inpu
 environment variables, and local xprompt helpers:
 
 ```yaml
-name: my_workflow # Workflow identifier (optional, defaults to filename)
+description: Refresh generated docs # One-line summary (optional)
 tags: vcs, rollover # Semantic role tags (optional)
 hidden: false # Hide the workflow run row from sase's TUI default Agents-tab view (optional)
 input: # Input parameter definitions (optional)
@@ -48,16 +48,21 @@ steps: # Ordered list of steps (required)
 
 ### Fields
 
-| Field         | Required | Description                                                                             |
-| ------------- | -------- | --------------------------------------------------------------------------------------- |
-| `name`        | No       | Workflow identifier used in xprompt references. Defaults to filename without extension. |
-| `tags`        | No       | Semantic role tags. See [XPrompt Tags](xprompt.md#tags) for available tags.             |
-| `hidden`      | No       | Hide the workflow run row from sase's TUI default Agents-tab view.                      |
-| `wraps_all`   | No       | Legacy wrapper flag; new workflows should prefer `tags: vcs`.                           |
-| `input`       | No       | Input parameter definitions. See [Input Parameters](#input-parameters).                 |
-| `environment` | No       | Environment variables set before any steps run. See [Environment](#environment).        |
-| `xprompts`    | No       | Workflow-local xprompt definitions available to this workflow's steps.                  |
-| `steps`       | Yes      | Ordered list of workflow steps to execute.                                              |
+| Field         | Required | Description                                                                      |
+| ------------- | -------- | -------------------------------------------------------------------------------- |
+| `description` | No       | One-line human-facing summary for catalogs and other rich xprompt surfaces.      |
+| `tags`        | No       | Semantic role tags. See [XPrompt Tags](xprompt.md#tags) for available tags.      |
+| `hidden`      | No       | Hide the workflow run row from sase's TUI default Agents-tab view.               |
+| `wraps_all`   | No       | Legacy wrapper flag; new workflows should prefer `tags: vcs`.                    |
+| `input`       | No       | Input parameter definitions. See [Input Parameters](#input-parameters).          |
+| `environment` | No       | Environment variables set before any steps run. See [Environment](#environment). |
+| `xprompts`    | No       | Workflow-local xprompt definitions available to this workflow's steps.           |
+| `steps`       | Yes      | Ordered list of workflow steps to execute.                                       |
+
+The workflow's name, as used in `#name` and `#!name` references, is always its file name
+without the extension. There is no top-level `name` field: the loader ignores one, and
+editors that validate against the bundled `workflow.schema.json` flag it as an unknown
+key.
 
 ## Input Parameters
 
@@ -95,15 +100,21 @@ input: { diff_path: path, split_desc: { type: line, default: "multiple PRs" } }
 
 ### Supported Types
 
-| Type    | Description                                         |
-| ------- | --------------------------------------------------- |
-| `word`  | Single word, no whitespace                          |
-| `line`  | Single line, no newlines                            |
-| `text`  | Multi-line text (any content)                       |
-| `path`  | File path (no whitespace)                           |
-| `int`   | Integer value                                       |
-| `bool`  | Boolean value (`true`/`false`, `yes`/`no`, `1`/`0`) |
-| `float` | Floating point value                                |
+| Type    | Description                                                                         |
+| ------- | ----------------------------------------------------------------------------------- |
+| `word`  | Single word, no whitespace                                                          |
+| `line`  | Single line, no newlines (the default when `type` is omitted)                       |
+| `text`  | Multi-line text (any content)                                                       |
+| `path`  | File path (no whitespace)                                                           |
+| `agent` | Agent name (no whitespace); sase's TUI completes agent targets                      |
+| `int`   | Integer value (alias `integer`)                                                     |
+| `bool`  | Boolean value (`true`/`false`, `yes`/`no`, `1`/`0`, `on`/`off`; alias `boolean`)    |
+| `float` | Floating point value                                                                |
+| `enum`  | One of the input's `choices`; declare `choices` with the shortform syntax           |
+| `code`  | Structured source plus language (see [Supported Types](xprompt.md#supported-types)) |
+
+Inputs can also set `description` and, on the last positional input, `repeatable: true`;
+see [Typed Inputs](xprompt.md#typed-inputs) for the shared input rules.
 
 ### Default Values
 
@@ -123,7 +134,7 @@ persist for the entire agent session. Values support Jinja2 templates rendered a
 the workflow's input arguments.
 
 ```yaml
-name: deploy_workflow
+# deploy_workflow.yml
 input: { target: word }
 environment:
   DEPLOY_TARGET: "{{ target }}"
@@ -310,7 +321,8 @@ order):
 6. `~/xprompts/steps/` (legacy)
 7. `~/sase/xprompts/<project>/steps/` (canonical project-specific home source)
 8. `~/.config/sase/xprompts/<project>/steps/` (legacy project-specific home source)
-9. `<sase-package>/xprompts/steps/` (built-in)
+9. A `steps/` directory next to the workflow file itself, when it is not already listed
+10. `<sase-package>/xprompts/steps/` (built-in)
 
 Both `.yml` and `.yaml` extensions are checked. First match wins. New shared steps are
 written only to canonical project or home directories; the legacy sources remain
@@ -789,7 +801,8 @@ When a HITL step completes:
 1. Step output is displayed to the user
 2. User can:
    - **Accept**: Continue to next step
-   - **Edit**: Modify the output before continuing
+   - **Edit**: Modify the output before continuing (offered for `agent` steps and for
+     `bash`/`python` steps that declare `output`; cancelling the edit rejects the step)
    - **Reject**: Abort the workflow
 
 The workflow state machine handles accept, edit, and reject as direct control actions.
@@ -800,10 +813,18 @@ also launch a fresh continuation. Reject, cancellation, timeout, and terminal br
 without an explicit follow-up stop the workflow. Outside an agent-runner context, the
 executor waits inline for the same durable decision instead.
 
+When a workflow runs in the foreground of a terminal, HITL uses an inline prompt
+instead: `a` accepts, `e` edits, `x` rejects, and Enter with no input accepts. That
+prompt also offers free-text feedback for `agent` steps and `r` (re-run) for
+`bash`/`python` steps, but the inline executor does not act on either yet; it continues
+to the next step without setting `approved`.
+
 ### Accessing Approval Status
 
 After an accepted `bash` or `python` HITL step, `step.approved` is set to `true` for
-downstream conditions:
+downstream conditions. An edited step continues with the edited output but does not get
+`approved`, so a condition such as `if: "{{ step.approved }}"` skips its target after an
+edit:
 
 ```yaml
 - name: prompt_user
@@ -918,12 +939,13 @@ The following workflow files demonstrate these features:
 
 - `eval_ifs_loops.yml` - Conditional execution, for loops, while/repeat loops
 - `eval_parallel.yml` - Parallel execution with different join modes
-- `split.yml` - Real workflow with HITL, agent steps, and xprompt references
+- `sync.yml` - Real standalone workflow that mixes hidden Python steps with a repeated,
+  conditional agent step
 
 ### Minimal Example
 
 ```yaml
-name: simple_workflow
+# simple_workflow.yml
 input: { name: word }
 steps:
   - name: greet
@@ -934,7 +956,7 @@ steps:
 ### Multi-Step with Conditionals
 
 ```yaml
-name: conditional_workflow
+# conditional_workflow.yml
 input:
   run_optional: { type: bool, default: true }
   items: { type: text, default: '["a", "b", "c"]' }
@@ -963,7 +985,7 @@ steps:
 ### Parallel with Dependencies
 
 ```yaml
-name: parallel_workflow
+# parallel_workflow.yml
 steps:
   - name: fetch_data
     parallel:
@@ -984,7 +1006,7 @@ steps:
 ### Retry with HITL
 
 ```yaml
-name: retry_workflow
+# retry_workflow.yml
 steps:
   - name: attempt_operation
     bash: |

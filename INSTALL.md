@@ -13,7 +13,7 @@ Then verify the install:
 sase version       # inspect the exact SASE packages loaded by this environment
 sase doctor        # readiness gate: install, config, provider, and state report
 sase core health   # confirm the required Rust core extension loaded
-sase agent-cli      # inventory supported provider CLIs and their install/update state
+sase agent-cli     # inventory supported provider CLIs and their install/update state
 ```
 
 The `uv tool install sase` path is more than a convenience: `sase update`,

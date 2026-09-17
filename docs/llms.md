@@ -33,7 +33,7 @@ preprocessing, invocation, and postprocessing.
 - [Temporary Provider Priority](#temporary-provider-priority)
 - [Subscription Usage](#subscription-usage)
 - [Usage-Limit Auto-Disable](#usage-limit-auto-disable)
-- [Environment Variables](#environment-variables)
+- [Environment Variable Reference](#environment-variable-reference)
 - [CLI Flags](#cli-flags)
 - [Retry and Fallback](#retry-and-fallback)
 - [Token Usage Tracking](#token-usage-tracking)
@@ -206,12 +206,17 @@ action. The skill publishes context and exits early when no payload is required.
 required declaration is missing or stale after the normal response, the host opens one
 bounded recovery turn that explicitly asks the agent to use `/sase_final`. The submitted
 declaration gives each dirty repository exactly one `commit` decision with a
-Conventional Commit message; `commit` is the only legal repository action. Typed
-deferrals can name explicit paths that must not be committed, using host-adjudicated
-reasons such as `foreign_work` or `protected_paths`. Accepted commit decisions dispatch
-through the appropriate stitch workflow. A narrow generated SDD plan closeout, where the
-only enforced change is one markdown file's frontmatter `status: wip` becoming
-`status: done`, is committed directly with a `SASE_TYPE=sdd` commit.
+Conventional Commit message; `commit` is the only legal repository action. When the run
+has an assigned bead (`SASE_BEAD_ID`), each commit decision also carries an explicit
+`bead_action`: `keep` for intermediate work, proposals, and linked or sidecar
+repositories, or `close` only on the primary repository once the whole bead is complete
+and verified (see [Explicit Bead Action](commit_workflows.md#explicit-bead-action)).
+Typed deferrals can name explicit paths that must not be committed, using
+host-adjudicated reasons such as `foreign_work` or `protected_paths`. Accepted commit
+decisions dispatch through the appropriate stitch workflow. A narrow generated SDD plan
+closeout, where the only enforced change is one markdown file's frontmatter
+`status: wip` becoming `status: done`, is committed directly with a `SASE_TYPE=sdd`
+commit.
 
 When an artifacts directory is available, the host writes generic artifacts such as
 `final_context.json`, `final_submission.json`, `finalizer_baseline.json`, and
@@ -231,11 +236,42 @@ The `ClaudeCodeProvider` invokes the `claude` CLI tool.
 ### Command Construction
 
 ```
-claude -p --verbose --model <alias> --output-format stream-json --dangerously-skip-permissions --session-id <uuid> [extra_args...]
+claude -p --verbose --model <alias> --output-format stream-json \
+  --dangerously-skip-permissions \
+  --append-system-prompt <single-turn directive> --disallowedTools ScheduleWakeup \
+  --session-id <uuid> [--effort <level>] [extra_args...]
 ```
 
 The prompt is written to stdin. Output is streamed as JSON events; SASE extracts
-assistant text and token usage from the stream.
+assistant text and token usage from the stream. A wait-guard continuation (see below)
+replaces `--session-id <uuid>` with `--resume <uuid>` so the nudge lands in the same
+Claude session.
+
+SASE also sets two Claude Code environment variables on the subprocess unless the caller
+already set them: `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`, and `BASH_MAX_TIMEOUT_MS`
+raised to four hours (`14400000`) so long verification commands can stay in the
+foreground. Commands still need an explicit larger timeout to use that ceiling.
+
+### Single-Turn Wait Guard
+
+A SASE provider turn is one `claude -p` process with no follow-up event loop, so a
+background-task notification or a scheduled wake-up can never reach the model. SASE
+guards against replies that end the turn waiting for one:
+
+- The appended system prompt tells the model that the session is single-turn, that
+  commands must run synchronously in the foreground, and that a command killed by its
+  timeout should be rerun with a larger explicit timeout.
+- The `ScheduleWakeup` tool is disallowed.
+- The stream parser records background task IDs reported by tool results, clears them
+  when a matching `<task-notification>` arrives, and notes any `ScheduleWakeup` call.
+
+After a successful exit, a turn counts as a wait state when it requested a wake-up, or
+when a background task is still outstanding and the tail of the final reply reads like a
+wait ("I'll wait", "will be notified", "still running", and similar). SASE then resumes
+the same session with a nudge to read the task output or rerun the command in the
+foreground and finish. After `SASE_CLAUDE_MAX_WAIT_CONTINUATIONS` continuations (default
+`2`) the run fails with `LLMInvocationError` instead of recording the waiting reply as a
+successful answer.
 
 ### Model Mapping
 
@@ -249,12 +285,13 @@ model (Opus 5 today), so SASE intentionally does not pin them to point version I
 
 ### Environment Variables
 
-| Variable                 | Description                                                |
-| ------------------------ | ---------------------------------------------------------- |
-| `SASE_LLM_LARGE_ARGS`    | Extra CLI args for `large` tier (generic, preferred)       |
-| `SASE_LLM_SMALL_ARGS`    | Extra CLI args for `small` tier (generic, preferred)       |
-| `SASE_CLAUDE_LARGE_ARGS` | Extra CLI args for `large` tier (Claude-specific fallback) |
-| `SASE_CLAUDE_SMALL_ARGS` | Extra CLI args for `small` tier (Claude-specific fallback) |
+| Variable                             | Description                                                |
+| ------------------------------------ | ---------------------------------------------------------- |
+| `SASE_LLM_LARGE_ARGS`                | Extra CLI args for `large` tier (generic, preferred)       |
+| `SASE_LLM_SMALL_ARGS`                | Extra CLI args for `small` tier (generic, preferred)       |
+| `SASE_CLAUDE_LARGE_ARGS`             | Extra CLI args for `large` tier (Claude-specific fallback) |
+| `SASE_CLAUDE_SMALL_ARGS`             | Extra CLI args for `small` tier (Claude-specific fallback) |
+| `SASE_CLAUDE_MAX_WAIT_CONTINUATIONS` | Wait-guard continuation cap (default: `2`)                 |
 
 The generic `SASE_LLM_*_ARGS` variables take precedence. Values are split on whitespace
 and appended to the command.
@@ -507,6 +544,17 @@ nominal budget. Command input, paths, errors, read/web content, and subagent fin
 messages remain head-oriented. Set `SASE_TOOL_LOG_FULL=1` only for explicit debugging
 sessions when raw tool input or output is needed in the local artifact.
 
+### Turn Integrity Check
+
+Codex can exit `0` after a turn that completed without a usable answer. The stream
+parser watches for that case: if Codex reports the task complete, never emitted a
+non-empty final agent message, and a command execution was either killed at teardown
+(`exit_code` `-1`) or started without ever reporting a result, SASE raises an
+`LLMInvocationError` that starts with `Codex turn integrity failure` and names up to
+three of the affected commands. That prefix is one of Codex's provider-supplied retry
+patterns (see [Provider-Supplied Retry Defaults](#provider-supplied-retry-defaults)), so
+the turn is retried with the resume nudge instead of being recorded as an empty success.
+
 ### Timer Display
 
 While waiting for a response, a `provider_timer("Waiting for Codex")` spinner is shown
@@ -706,7 +754,7 @@ model name, it has the short alias `spark12c`, and
 name, and a [model advisory](#model-advisories) makes sure the trade is visible when you
 do.
 
-### Reasoning Effort
+### Muse Reasoning Effort
 
 Muse accepts `none|minimal|low|medium|high|xhigh|ultra` and rejects `max` by name, so
 SASE's canonical `max` maps onto Muse's `ultra`. Muse is the first provider to cover all
@@ -888,7 +936,7 @@ Decisions inside that command:
 catalog. Inventing a distinct `small` mapping to a model that may not exist would make
 ordinary `@small`/`@xsmall` routing fail; this is revisited if the catalog grows.
 
-### Reasoning Effort
+### Grok Reasoning Effort
 
 `grok-4.6` accepts only `--effort low|medium|high|xhigh`; `none`, `minimal`, and `max`
 are rejected by the CLI with a nonzero exit. SASE declares exactly the four supported
@@ -1145,6 +1193,59 @@ llm_provider:
 | `llm_provider.model_aliases.buckets`     | dict   | -           | Optional display-only sase's TUI Launch Control bucket descriptions.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | `llm_provider.usage_limit`               | dict   | enabled     | Usage-limit classification and automatic temporary provider-disable policy. See [Usage-Limit Auto-Disable](#usage-limit-auto-disable).                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | `llm_provider.usage_metrics`             | dict   | enabled     | Subscription-capacity collection cadence and opt-out. See [Subscription usage extension](#subscription-usage-extension).                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `llm_provider.continuation_budget`       | dict   | see below   | Byte budget for the continuation preflight that runs before monitor successor prompts reach a provider. See [Continuation Budget Preflight](#continuation-budget-preflight).                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `llm_provider.retry`                     | dict   | see below   | Per-provider retry and fallback policy. See [Retry and Fallback](#retry-and-fallback).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+
+### Continuation Budget Preflight
+
+A monitor successor (the follow-up agent a [monitor](monitors.md) launches) can carry a
+large replayed history: ancestor prompts and replies, checkpoints, and command evidence.
+Before such a prompt reaches the provider, `invoke_agent()` measures the fully expanded
+prompt against a provider-aware byte budget, after the execution provider and model are
+resolved. The preflight runs for monitor successors (`SASE_MONITOR_CONTINUATION=1`) and
+for any invocation with `SASE_CONTINUATION_BUDGET_ENFORCE=1`; other launches skip it.
+
+The shared `sase-core` planner returns one of three outcomes:
+
+- **fits** — the prompt is sent unchanged.
+- **compact** — SASE drops reducible spans that the prompt renderers explicitly marked
+  (older raw output excerpts, selected diagnostics, and assistant transcript already
+  covered by a checkpoint) and replaces each with a short note that points at the
+  retained evidence. The compacted prompt is re-measured, and it is refused if it still
+  does not fit.
+- **refuse** — the provider is not called. The invocation fails with
+  `Continuation context budget exceeded`, and the recovery guidance asks for an adequate
+  checkpoint or a route with a larger context budget rather than a rerun of the
+  monitored command.
+
+Each decision is written to `continuation_budget_decision.json` in the agent's artifacts
+directory, alongside the projected prompt when compaction changed it.
+
+The budget is configured under `llm_provider.continuation_budget`. Settings layer from
+the shared values, to `providers.<provider>`, to `providers.<provider>.models.<model>`,
+and the `SASE_CONTINUATION_*` environment variables (see
+[LLM provider environment variables](configuration.md#llm-provider)) override all of
+them:
+
+```yaml
+llm_provider:
+  continuation_budget:
+    context_limit_bytes: 800000 # total budget before reserves
+    estimate_uncertain: true # byte counts are estimates, not provider accounting
+    instruction_reserve_bytes: 0
+    tool_reserve_bytes: 0
+    output_reserve_bytes: 0
+    reasoning_reserve_bytes: 0
+    # checkpoint_threshold_bytes: 400000  # optional
+    providers:
+      agy:
+        transport_limit_bytes: 122880 # agy sends the prompt as one argv element
+        instruction_reserve_bytes: 512
+```
+
+`transport_limit_bytes` caps what the provider transport itself can carry, independent
+of the model's context. The shipped `agy` values mirror the
+[Antigravity prompt-size guard](#antigravity-agy-integration).
 
 ## Per-Prompt Provider Switching
 
@@ -1617,8 +1718,8 @@ governs what happens on a provider that cannot honor the requested level:
 For `agy` and `qwen` (no reasoning-effort mechanism today), every level is
 "unsupported": an explicit effort raises, while a config-default effort is skipped with
 a warning. The effort args are appended alongside the existing
-[`SASE_LLM_*_ARGS` / `SASE_<P>_LARGE_ARGS`](#environment-variables) escape hatches,
-which remain available.
+[`SASE_LLM_*_ARGS` / `SASE_<P>_LARGE_ARGS`](#environment-variable-reference) escape
+hatches, which remain available.
 
 Source: `src/sase/xprompt/effort.py` (vocabulary + `split_model_effort`),
 `src/sase/llm_provider/config.py` (`resolve_effective_effort`, the temporary-effort
@@ -2171,6 +2272,14 @@ remains open; it does not first detect whether AXE is running. Per-provider coal
 makes concurrent AXE, sase's TUI, CLI, and limit-event requests join the same live
 probe.
 
+Background refreshes, and `sase usage refresh` without `-p`, only probe eligible
+providers: registered providers that are not hidden from model pickers, ship a probe
+collector, have a resolvable CLI, and are either referenced by the default model, an
+epic-lander model, or a built-in or custom model alias, or explicitly enabled with
+`llm_provider.usage_metrics.providers.<name>.enabled: true`. The CLI check resolves the
+executable the same way the launcher does, so Codex counts as ready when it is found
+through `SASE_CODEX_PATH`, `PATH`, or `$NVM_BIN/codex`.
+
 Each provider summary reports remaining capacity, scope, freshness, and collection
 status. Details show every currently retained allowance window with its reset, age,
 applicability, state, and source; they are current state, not a history of every sample.
@@ -2363,7 +2472,7 @@ family or clan membership, and scoped authorization are reconstructed. Do not re
 forced reuse by running a bare `sase run "$(cat rewritten.md)"`; `execution.md` is
 retained for audit of the already-prepared launch text, not as a privileged replay path.
 
-## Environment Variables
+## Environment Variable Reference
 
 Complete reference of environment variables used by the LLM provider layer.
 
@@ -2384,10 +2493,11 @@ provider separately as `exec_llm_provider`.
 
 ### Claude-Specific
 
-| Variable                 | Description                                 |
-| ------------------------ | ------------------------------------------- |
-| `SASE_CLAUDE_LARGE_ARGS` | Claude-specific extra args for `large` tier |
-| `SASE_CLAUDE_SMALL_ARGS` | Claude-specific extra args for `small` tier |
+| Variable                             | Description                                                                       |
+| ------------------------------------ | --------------------------------------------------------------------------------- |
+| `SASE_CLAUDE_LARGE_ARGS`             | Claude-specific extra args for `large` tier                                       |
+| `SASE_CLAUDE_SMALL_ARGS`             | Claude-specific extra args for `small` tier                                       |
+| `SASE_CLAUDE_MAX_WAIT_CONTINUATIONS` | [Single-turn wait guard](#single-turn-wait-guard) continuation cap (default: `2`) |
 
 ### Codex-Specific
 
@@ -2408,12 +2518,13 @@ provider separately as `exec_llm_provider`.
 
 ### Antigravity (`agy`)-Specific
 
-| Variable                 | Description                                                        |
-| ------------------------ | ------------------------------------------------------------------ |
-| `SASE_AGY_PATH`          | Path to the Antigravity CLI binary (default: `"agy"`).             |
-| `SASE_AGY_PRINT_TIMEOUT` | Override the `agy --print-timeout` Go duration (default: `"24h"`). |
-| `SASE_AGY_LARGE_ARGS`    | Antigravity-specific extra args for `large` tier                   |
-| `SASE_AGY_SMALL_ARGS`    | Antigravity-specific extra args for `small` tier                   |
+| Variable                                 | Description                                                        |
+| ---------------------------------------- | ------------------------------------------------------------------ |
+| `SASE_AGY_PATH`                          | Path to the Antigravity CLI binary (default: `"agy"`).             |
+| `SASE_AGY_PRINT_TIMEOUT`                 | Override the `agy --print-timeout` Go duration (default: `"24h"`). |
+| `SASE_AGY_MAX_NO_PROGRESS_CONTINUATIONS` | Override the no-progress continuation cap (default: `2`).          |
+| `SASE_AGY_LARGE_ARGS`                    | Antigravity-specific extra args for `large` tier                   |
+| `SASE_AGY_SMALL_ARGS`                    | Antigravity-specific extra args for `small` tier                   |
 
 ### OpenCode-Specific
 
@@ -2458,23 +2569,23 @@ repos.
 
 ## CLI Flags
 
-### ace
+### tui
 
-| Flag               | Values              | Description                                 |
-| ------------------ | ------------------- | ------------------------------------------- |
-| `-m, --model-tier` | `large`, `small`    | Override model tier for all LLM invocations |
-| `--model-size`     | `big`, `little`     | Deprecated alias for `--model-tier`         |
-| `--vcs-provider`   | `git`, `hg`, `auto` | Override VCS provider                       |
+| Flag                 | Values              | Description                                 |
+| -------------------- | ------------------- | ------------------------------------------- |
+| `-m, --model-tier`   | `large`, `small`    | Override model tier for all LLM invocations |
+| `-M, --model-size`   | `big`, `little`     | Deprecated alias for `--model-tier`         |
+| `-v, --vcs-provider` | `git`, `hg`, `auto` | Override VCS provider                       |
 
 ### axe
 
-| Flag             | Values              | Description           |
-| ---------------- | ------------------- | --------------------- |
-| `--vcs-provider` | `git`, `hg`, `auto` | Override VCS provider |
+| Flag                 | Values              | Description           |
+| -------------------- | ------------------- | --------------------- |
+| `-v, --vcs-provider` | `git`, `hg`, `auto` | Override VCS provider |
 
-The `ace` command wires `--model-tier` / `--model-size` into the `model_tier_override`
-parameter of `AceApp`. The `--vcs-provider` flag is wired to the `SASE_VCS_PROVIDER`
-environment variable for downstream resolution.
+The `sase tui` command wires `--model-tier` / `--model-size` into the
+`model_tier_override` parameter of the TUI app (`AceApp`). The `--vcs-provider` flag is
+wired to the `SASE_VCS_PROVIDER` environment variable for downstream resolution.
 
 ## Retry and Fallback
 
@@ -2535,6 +2646,22 @@ config can replace or extend it through the normal config merge.
 - **wait_times**: `[60, 300, 1800]` (1 min, 5 min, 30 min) — rate limits need a real
   cool-down
 
+**`sase`** (provider-independent process-version skew):
+
+- **max_retries**: 1
+- **error_patterns**: `["uses a format this process does not understand"]`
+- **wait_times**: `[0]`
+- **preserve_workspace**: `true`
+- **spawn_new_agent**: `true` — the retry runs in a fresh process that inherits the
+  existing workspace, so a version-skew failure late in a run does not discard the
+  agent's work
+
+SASE first checks the agent's own provider policy. When that policy does not match the
+error, it checks every configured `llm_provider.retry` entry in order (then
+built-in-only providers) and uses the first whose patterns match, which is how the
+provider-independent `sase` entry and errors from an inner workflow step on another
+provider are retried.
+
 ### Provider-Supplied Retry Defaults
 
 Providers can also declare retry defaults through the `llm_default_retry_config()` hook.
@@ -2557,10 +2684,11 @@ Claude:
 Codex:
 
 - **error patterns**: `"exceeded retry limit"`, `"429 Too Many Requests"`,
-  `"Too Many Requests"`, `"rate limit"`, and `"failed to connect to websocket"`, and
+  `"Too Many Requests"`, `"rate limit"`, `"failed to connect to websocket"`, and
   `"Selected model is at capacity"` — the transient transport, rate-limit, and
   model-capacity failure modes where the Codex CLI exhausts its own internal reconnects
-  or exits non-zero
+  or exits non-zero — plus `"Codex turn integrity failure"`, raised by SASE's
+  [turn integrity check](#turn-integrity-check) when a turn ends with no final answer
 - **max_retries**: 3
 - **wait_times**: `[60, 300, 1800]` — the bundled Codex policy supplies the same backoff
 - **continuation_prompt**: The same `git status` / `git diff` resume nudge as Claude
@@ -2752,16 +2880,20 @@ and formatting work.
 ### Order Matters
 
 The pipeline runs in strict order. Prompt directives are extracted after xprompt
-expansion, so directives embedded in xprompts are honored. Late-phase command
-substitution and reference processing run with fenced blocks protected, so examples
-inside code fences are not executed or rewritten. Canonical artifact references are
-expanded before ordinary file references: built-in artifact expansions become portable
-semantic prose (for example `the 202608/foobar.md file in the plans sidecar repo`) and
-do not inject `@path` tokens that the ordinary file-reference pass would re-parse.
-Unknown `@kind:` references remain unchanged as prose. The retired `#ref/<kind>`
-renderer syntax is not accepted. Inline-code references also remain literal. Explicit
-custom path-bound document providers may still emit path-shaped text; those remain
-excluded from the subsequent `@path` pass.
+expansion, so directives embedded in xprompts are honored. Before extraction, segments
+disabled by a static `%if(should_run=false)` are dropped, and a kept segment loses only
+its `%if(...)` line (see
+[Static Conditional Segments](xprompt.md#static-conditional-segments)). Late-phase
+command substitution and reference processing run with fenced blocks protected, so
+examples inside code fences are not executed or rewritten. Canonical artifact references
+are expanded before ordinary file references: built-in artifact expansions become
+portable semantic prose (for example
+`the 202608/foobar.md file in the plans sidecar repo`) and do not inject `@path` tokens
+that the ordinary file-reference pass would re-parse. Unknown `@kind:` references remain
+unchanged as prose. The retired `#ref/<kind>` renderer syntax is not accepted.
+Inline-code references also remain literal. Explicit custom path-bound document
+providers may still emit path-shaped text; those remain excluded from the subsequent
+`@path` pass.
 
 During the same pass, SASE stages prompt references for later archive publication. File
 references are recorded in the workspace-local `.sase/artifacts/prompt-artifacts.jsonl`
@@ -2963,6 +3095,7 @@ invoke_agent(prompt, agent_type, model_tier, ...)
 ├── 9. Save prompt to artifacts directory
 │
 ├── 10. Get provider from registry and invoke
+│   ├── Run the continuation budget preflight (monitor successors or when enforced)
 │   ├── Build CLI command with flags
 │   ├── Spawn subprocess (Popen)
 │   ├── Supply prompt via provider transport
@@ -2985,7 +3118,7 @@ invoke_agent(prompt, agent_type, model_tier, ...)
 │       ├── Log error to sase.md
 │       └── Save error chat history
 │
-└── 12. Return AIMessage(content=response), or raise LLMInvocationError on failure
+└── 13. Return AIMessage(content=response), or raise LLMInvocationError on failure
 ```
 
 ### Parameters

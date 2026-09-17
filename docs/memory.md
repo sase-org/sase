@@ -123,8 +123,10 @@ is appended when the note has nested reference children, followed by a
 note authors any `[[target]]` reference links — see [Memory Links](#memory-links) below.
 `-f/--format` selects `markdown` (the default, byte-identical to `read`'s stdout for the
 same note), `rich` (a styled terminal view), or `json` (a structured payload with
-`project`, `origin`, `note`, `children`, and `linked_references`). No audit event is
-written and no agent identity is required.
+`project`, `origin`, `note`, `children`, and `linked_references`). `-p/--project REF`
+resolves memory from a named project instead of the one inferred from the current
+directory; `read` accepts the same flag. No audit event is written and no agent identity
+is required.
 
 ## Audited Reads
 
@@ -154,6 +156,16 @@ Agents should always use `read`, not `show`, when consulting memory to accomplis
 task; nothing is printed unless the read was recorded.
 [`sase memory show`](#show-a-note) is the supported way for a human shell to view a
 note.
+
+`sase memory log` summarizes the project's read log by memory file and by agent;
+`--path`, `--agent`, and `--id` narrow it to matching read events, and `--json` emits a
+deterministic machine-readable payload. A batched read (one `sase memory read` with
+several selectors) is recorded as one event, but the summaries credit every file or
+strand the batch requested, and `--path` matches any of them — for example
+`--path glossary:stitch` finds a batch that also read other strands. Strands pulled in
+only by link or mention closure count as context, not as requested reads. The same
+per-file counting drives the `SASE CONTEXT` / `MEMORY` lane of the
+[agent metadata panel](ace.md#agents-tab-metadata-panel), including clan aggregates.
 
 ## Memory Webs
 

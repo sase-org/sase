@@ -186,14 +186,17 @@ fails with a provider-mismatch error and points to the matching VCS tag instead 
 rewriting the project in place. A genuine bare-git project whose checkout still has a
 local-path `origin` can repair a missing `BARE_REPO_DIR` automatically.
 
-That provider guard applies when `<ref>` is the existing ProjectSpec's directory key.
-Friendly-alias handling has a narrower current guarantee: canonicalization leaves an
-alias unchanged when its tag names the wrong provider, but the bare-git resolver treats
-an otherwise unknown slashless name as a new project. Consequently,
-`#git:<github-alias>` may initialize a separate bare-git project named after the alias;
-use the registered project's matching tag, such as `#gh:<github-alias>`. The
-VCS-reference history removes provider-mismatched alias entries even though launch
-resolution does not reject them.
+The same guard covers names another project already claims. Before a slashless `<ref>`
+that has no ProjectSpec directory of its own is treated as a Patch name or a new
+project, the resolver checks whether an existing project declares it as its
+`PROJECT_NAME` or as an alias. A bare-git owner resolves as that canonical project; any
+other owner fails with the provider-mismatch error, so `#git:<github-alias>` points you
+to the matching tag (such as `#gh:<github-alias>`) instead of creating a stray bare-git
+project. A bare-repository path whose basename is claimed this way resolves the same
+way, and bare-git initialization likewise refuses a name another project claims.
+`sase doctor`'s `project.name_collisions` check warns when a project's `PROJECT_NAME` or
+alias collides with another project's directory key or alias. The VCS-reference history
+also removes provider-mismatched alias entries.
 
 `#git:home` is special because it is the default for bare prompts. If the `home`
 ProjectSpec is missing, SASE bootstraps a managed empty bare-git project at the default
@@ -499,7 +502,7 @@ disabled projects; `--json` emits the same inventory model as structured data.
 | `sase workspace list [-p PROJECT] [-a/--all] [-j/--json]`              | List one project's registry or all registered workspaces. All-project rows include claim/liveness, pin, staleness, checkout presence, and isolated per-project issues. |
 | `sase workspace path NUM`                                              | Print the configured checkout path for `NUM` without cloning or preparing it.                                                                                          |
 | `sase workspace cleanup -s/--stale`                                    | Remove unclaimed managed checkouts older than `workspace.cleanup_ttl_days`. `-n/--dry-run` previews.                                                                   |
-| `sase workspace compact [NUM ...] [-n]`                                | Safely retrofit unclaimed, clean, registry-owned numbered checkouts to borrow primary Git objects and repack away duplicate private packs.                             |
+| `sase workspace compact [NUM ...] [-n] [-j]`                           | Safely retrofit unclaimed, clean, registry-owned numbered checkouts to borrow primary Git objects and repack away duplicate private packs.                             |
 | `sase workspace repair [-n]`                                           | Drop missing registry entries, re-materialize live claimed checkouts, repoint stale SASE Git alternates, or dissociate borrowers when sharing is disabled.             |
 | `sase workspace migrate --to xdg-state [-s/--symlink-transition] [-n]` | Move existing `<primary>_<num>` adjacent checkouts under the managed `xdg-state` root and register them. Exits non-zero on skipped refusals.                           |
 | `sase workspace migrate --finalize`                                    | Remove `<primary>_<num>` transition symlinks once workflows have adapted to the managed paths.                                                                         |
@@ -516,15 +519,30 @@ enabled, the primary checkout is protected with local `gc.pruneExpire=never`, an
 borrowers disable automatic Git maintenance that would silently copy objects back into
 private packs. The dependency is explicit: deleting or moving the primary checkout can
 break borrowers until `sase workspace repair` repoints their alternates to the current
-primary object directory.
+primary object directory. The alternate policy itself (path resolution, SASE-owned
+versus foreign entries, and rewrite plans) is decided by the Rust core; Python runs the
+Git commands under the project lock.
+
+Workspace preparation never rewrites an existing checkout's object dependency. A usable
+alternate is kept as-is, even when it still points at an older primary object directory;
+only `sase workspace repair` repoints it. A broken SASE borrower (for example one whose
+`git status` fails because the borrowed objects are gone) makes preparation fail with a
+pointer to `sase workspace repair`, leaving the checkout and any uncommitted work intact
+instead of deleting and recloning it. This holds whether or not sharing is enabled.
+Preview the fix with `sase workspace repair -n`.
 
 `sase workspace compact -n` previews eligible existing checkouts and reports local
 object bytes without changing Git config or objects. Pass one or more workspace numbers
-to restrict the operation to those registered checkouts. Apply mode skips the primary,
-missing or non-Git paths, RUNNING claims, live occupant records, dirty checkouts, and
-unexpected alternates. It repeats those checks under the project lock before writing the
-SASE-owned alternate while preserving foreign alternate entries, runs a local-only
-repack, and requires `git fsck --connectivity-only` to pass before reporting success.
+to restrict the operation to those registered checkouts, and `-j/--json` for a
+per-checkout result object (status, reason, and before/after/reclaimed bytes). Apply
+mode skips the primary, missing or non-Git paths, RUNNING claims, live occupant records,
+dirty checkouts, unexpected alternates, and broken alternates that SASE does not own. It
+repeats those checks under the project lock before writing the SASE-owned alternate
+while preserving foreign alternate entries, runs a local-only repack, and requires
+`git fsck --connectivity-only` to pass before reporting success. `sase disk reap` runs
+this same command (`sase workspace compact --json`, plus `-n` unless `--apply` is given)
+for each enabled project as one of its owner cleanup steps; the hourly `disk_pressure`
+job does not.
 
 Set `workspace.share_git_objects: false` to opt out for future materializations. With
 sharing disabled, `sase workspace repair` safely dissociates existing SASE-managed
@@ -532,7 +550,10 @@ borrowers by first repointing them to the current primary when needed, copying r
 objects into a local pack, then removing only the SASE-owned alternate after
 connectivity can be proven. Repair does not claim or overwrite non-SASE alternate
 entries, including files that contain the primary object directory alongside foreign
-entries.
+entries. With sharing enabled, repair repoints stale or broken SASE-owned alternates,
+leaves unexpected foreign alternates alone, and reports a broken non-SASE alternate as a
+failure. Either way, alternate repair skips checkouts with a live RUNNING claim, a live
+occupant record, or uncommitted changes.
 
 `sase doctor -C workspace.occupancy_conflicts` is the read-only occupancy check. It
 reads every project's RUNNING field and each checkout's occupant record, then reports
@@ -546,18 +567,21 @@ preview registry/checkout reconciliation separately.
 configured path without cloning. Use this command when you only need to inspect the
 path.
 
-`open` is intentionally more forceful. It materializes the requested checkout, backs up
-uncommitted local changes through the normal workspace-preparation path, cleans it,
-checks out the active VCS provider's default parent revision, runs the provider's
-workspace sync hook when available, and then prints the path. For built-in bare-git
-projects, it first makes sure the primary checkout has generated SDD guide files. `list`
-and `path` remain read-only and do not run SDD initialization. `--clean` is accepted as
-a compatibility flag for this default behavior. Use a claim-range number such as `10`
-when handing a numbered checkout to an external shell, editor, or debugging tool. `#0`
-is the primary checkout, and `#1` through `#9` are reserved compatibility numbers rather
-than good choices for new manual checkouts. For linked-repo work, `-p/--project` is
-still the project selector: pass the configured linked repo name there, then the
-workspace number as the positional argument.
+The hidden legacy `sase workspace open NUM -r REASON` command (superseded by
+`sase repo open`, and omitted from help and the table above) is intentionally more
+forceful. It requires a non-empty `-r/--reason`, records the same repo-open audit event
+as `sase repo open`, materializes the requested checkout, backs up uncommitted local
+changes through the normal workspace-preparation path, cleans it, checks out the active
+VCS provider's default parent revision, runs the provider's workspace sync hook when
+available, and then prints the path. For built-in bare-git projects, it first makes sure
+the primary checkout has generated SDD guide files. `list` and `path` remain read-only
+and do not run SDD initialization. `--clean` is accepted as a compatibility flag for
+this default behavior. Use a claim-range number such as `10` when handing a numbered
+checkout to an external shell, editor, or debugging tool. `#0` is the primary checkout,
+and `#1` through `#9` are reserved compatibility numbers rather than good choices for
+new manual checkouts. For linked-repo work, `-p/--project` is still the project
+selector: pass the configured linked repo name there, then the workspace number as the
+positional argument.
 
 `cleanup` and `repair` skip workspace `#0` and any workspace number with an active
 claim. `cleanup --include-shares` opts workflow-share checkouts into the same cleanup

@@ -17,17 +17,17 @@ provider abstraction, but differ in what they produce and how they track the res
 #commit / #propose / #pr
         |
         v
-Agent edits files
+Agent edits files, then declares each dirty repo through /sase_final
         |
         v
-Provider-neutral commit finalizer
-        |
-        v
-Commit skill wrapper (/sase_git_commit, ...)
+Host-owned builtin@commit finalizer
         |
         v
 sase stitch create -> CommitWorkflow -> VCS provider -> tracked output
 ```
+
+Outside a SASE-launched agent turn, a human (or an agent explicitly told to commit) runs
+the same `sase stitch create` command directly or through the `/sase_git_commit` skill.
 
 ## How It Works
 
@@ -39,35 +39,31 @@ The agent receives an xprompt (`#commit`, `#propose`, or `#pr`) which sets the
 
 ### 2. Commit finalizer checks for uncommitted work
 
-When a provider invocation succeeds inside a SASE-launched agent session, the
-provider-neutral **commit finalizer** runs in the shared LLM invocation layer before
-normal success postprocessing. In practice this means the process has
-`SASE_AGENT_TIMESTAMP` set. The finalizer checks the main workspace for uncommitted
-changes through the active VCS provider. It enforces configured linked repositories at
-their host-scoped workspace paths. Repositories opened through `/sase_repo`, including
+When a provider invocation succeeds inside a SASE-launched agent session, the host-owned
+[commit finalizer](#commit-finalizer) (`builtin@commit`) runs before normal success
+postprocessing. In practice this means the process has `SASE_AGENT_TIMESTAMP` set. The
+finalizer checks the main workspace for uncommitted changes through the active VCS
+provider. It enforces configured linked repositories at their host-scoped workspace
+paths once they have been opened. Repositories opened through `/sase_repo`, including
 external repos, are also recorded for sase's TUI context and the durable repo-open audit
 log and become finalizer candidates. It does not scan arbitrary same-remote numbered
 workspaces just because their paths appear in run artifacts. If everything is clean, the
 agent response is postprocessed normally.
 
-There is one special case before the normal enforced-work follow-up path:
+The agent never commits its own work in this path. Its `/sase_final` declaration gives
+every dirty repository a Conventional Commit message, and the host then runs
+`sase stitch create` for each repository with that message, any `-x` excludes, and
+`-B keep|close` when a bead is assigned. If the required declaration is missing or
+stale, the host spends one recovery turn that asks for `/sase_final` again.
 
-- If the only enforced dirty file is a tracked markdown file under `sdd/plans/`, and the
-  only file diff is one leading-front-matter line changing from `status: wip` to
-  `status: done`, SASE creates a direct closeout commit with the message
-  `chore: Mark SDD plan done` and a `SASE_TYPE=sdd` runtime tag. If enforced changes
-  remain, the finalizer starts bounded follow-up passes with the same provider. Each
-  pass sends one follow-up prompt that lists dirty files and instructs the agent to use
-  a commit skill such as `/sase_git_commit`. For the main workspace, the skill name is
-  selected from the detected VCS provider; provider-specific generated skills can be
-  scoped to the runtimes that support that provider. For configured linked repos, the
-  current finalizer checks `git status` only in the resolved linked-repo `workspace_dir`
-  assigned to the same workspace number after that linked-repo name appears in
-  `opened_linked_workspaces.json`, and emits Git commit-skill instructions that first
-  `cd` into that linked workspace. Dirty linked repos are enforced after they are
-  opened.
+Before it dispatches declared work, the finalizer commits proven machine-owned changes
+itself. For example, if the only enforced dirty file is a tracked markdown file under
+`sdd/plans/`, and the only file diff is one leading-front-matter line changing from
+`status: wip` to `status: done`, SASE creates a direct closeout commit with the message
+`chore: Mark SDD plan done` and a `SASE_TYPE=sdd` runtime tag.
 
-Generated skills normally run an observable wrapper such as `sase_git_commit`, which
+Outside that host path — a human at a shell, or an agent explicitly told to commit — the
+generated `/sase_git_commit` skill runs an observable wrapper, `sase_git_commit`, which
 records skill invocation evidence and then delegates to `sase stitch create`. A typical
 Git skill invocation omits `--type` because the xprompt already set
 `SASE_COMMIT_METHOD`:
@@ -85,38 +81,43 @@ The method defaults to `$SASE_COMMIT_METHOD` if the `-t` flag is omitted. If bot
 environment and `-t/--type` are set, they must resolve to the same method unless
 `SASE_COMMIT_METHOD_ALLOW_OVERRIDE=1` is set.
 
-If `SASE_BEAD_ID` is set, the finalizer first asks the agent to decide whether the
-uncommitted changes were made in the current session. For changes the agent did make, it
-requires the commit skill invocation to declare `-B keep` or `-B close`. This keeps bead
-lifecycle state tied to the durable commit/proposal/PR dispatch while avoiding
-accidental closure for unrelated or intermediate dirty work.
+If `SASE_BEAD_ID` is set, every commit attempt must say what happens to that assigned
+bead. In a `/sase_final` declaration, each repository decision carries
+`"bead_action": "keep"` or `"bead_action": "close"`, and the host passes that choice to
+`sase stitch create` as `-B keep` or `-B close`. A manual `/sase_git_commit` or
+`sase stitch create` run passes `-B` itself. Use `keep` for intermediate work,
+proposals, deferrals, and linked or sidecar repositories; use `close` only on the
+primary repository once the whole bead is complete and verified. Nothing closes a bead
+implicitly, so unrelated or intermediate dirty work can never close it. See
+[Explicit Bead Action](#explicit-bead-action).
 
-The finalizer uses the shared instruction helpers in `sase.commit_instructions`, so the
-bead and method wording stays consistent between main-workspace and linked-repository
-commit guidance. `finalizers.instances.commit.max_attempts` controls how many commit
+`finalizers.instances.commit.max_attempts` (default `2`) controls how many commit
 executor attempts may run before SASE fails the invocation with a clear error and, when
 an artifacts directory is available, a `finalizer_result.json` artifact. A retry has to
 earn its attempt: each dispatch records its inputs (repo path, `HEAD`, dirty-path
-fingerprints, exclude set, and message digest) as an `attempt-<n>.<repo>.inputs.json`
-artifact, and a `stitch_failed` whose fingerprint is unchanged from the previous attempt
-is reported as `stitch_retry_skipped_identical_inputs` instead of spending a second
-mutating attempt on a guaranteed-identical failure.
+fingerprints, exclude set, message digest, bead action, and assigned bead) as an
+`attempt-<n>.<repo>.inputs.json` artifact and its outcome (exit code, duration, timeout
+and truncation flags, argv, and message file) as `attempt-<n>.<repo>.outcome.json`, next
+to the captured `.stdout` and `.stderr`. A `stitch_failed` whose fingerprint is
+unchanged from the previous attempt is reported as
+`stitch_retry_skipped_identical_inputs` instead of spending a second mutating attempt on
+a guaranteed-identical failure.
 
 ### CLI Arguments
 
-| Short | Long                | Description                                                                                                                                                                                                                                                           |
-| ----- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-m`  | `--message`         | Commit message string (mutually exclusive with `-M`)                                                                                                                                                                                                                  |
-| `-M`  | `--message-file`    | Path to file containing the commit message / PR description (mutually exclusive with `-m`)                                                                                                                                                                            |
-| `-x`  | `--exclude`         | Repo-relative file or directory to leave out of the commit (repeatable; everything else, including untracked files, is staged)                                                                                                                                        |
-| `-n`  | `--name`            | Branch/PR name (required for `create_pull_request`)                                                                                                                                                                                                                   |
-| `-b`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                                                                                                                                                                                                        |
-| `-B`  | `--bead-action`     | Explicit assigned-bead action: `keep` for intermediate commits, `close` after completing and verifying the assigned bead                                                                                                                                              |
-| `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                                                                                                                                                                                                               |
-| `-p`  | `--parent`          | Parent Patch **name** (overrides auto-detection from current branch). Must be an existing Patch in the current ProjectSpec or its archive — if it does not resolve, the PARENT field is omitted with a warning. Never pass a VCS ref (e.g., `origin/main`, `p4head`). |
-| `-r`  | `--resume`          | Resume a previously-checkpointed commit after manual conflict resolution. When set, `-m` / `-M` / `-x` and other commit args are ignored (the payload is loaded from the checkpoint). See [Resume after Conflict](#resume-after-conflict) below.                      |
-| `-s`  | `--status`          | Patch status for PRs (`wip`, `draft`, `ready`). Overrides `$SASE_PR_STATUS`; default is `draft`.                                                                                                                                                                      |
-| `-t`  | `--type`            | Commit method — accepts full names or short aliases (see table below)                                                                                                                                                                                                 |
+| Short | Long                | Description                                                                                                                                                                                                                                                                                                                                 |
+| ----- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-m`  | `--message`         | Commit message string (mutually exclusive with `-M`)                                                                                                                                                                                                                                                                                        |
+| `-M`  | `--message-file`    | Path to file containing the commit message / PR description (mutually exclusive with `-m`)                                                                                                                                                                                                                                                  |
+| `-x`  | `--exclude`         | Repo-relative file or directory to leave out of the commit (repeatable; everything else, including untracked files, is staged)                                                                                                                                                                                                              |
+| `-n`  | `--name`            | Branch/PR name (required for `create_pull_request`)                                                                                                                                                                                                                                                                                         |
+| `-b`  | `--bug-id`          | Bug ID to associate with the commit (overrides `$SASE_BUG_ID`)                                                                                                                                                                                                                                                                              |
+| `-B`  | `--bead-action`     | Explicit assigned-bead action: `keep` for intermediate commits, `close` after completing and verifying the assigned bead. Required when `SASE_BEAD_ID` is set; may be given only once.                                                                                                                                                      |
+| `-c`  | `--checkout-target` | Branch point for PR (default: `HEAD~1`)                                                                                                                                                                                                                                                                                                     |
+| `-p`  | `--parent`          | Parent Patch **name** (overrides auto-detection from current branch). Must be an existing Patch in the current ProjectSpec or its archive — if it does not resolve, the PARENT field is omitted with a warning. Never pass a VCS ref (e.g., `origin/main`, `p4head`).                                                                       |
+| `-r`  | `--resume`          | Resume a previously-checkpointed commit after manual conflict resolution. When set, `-m` / `-M` / `-x` and other commit args are ignored (the payload is loaded from the checkpoint), except `-B`, which must match a saved bead action or supply one a legacy checkpoint lacks. See [Resume after Conflict](#resume-after-conflict) below. |
+| `-s`  | `--status`          | Patch status for PRs (`wip`, `draft`, `ready`). The flag is accepted but currently not applied; set `$SASE_PR_STATUS` (or the `#pr` `status` input) instead. The default is `draft`.                                                                                                                                                        |
+| `-t`  | `--type`            | Commit method — accepts full names or short aliases (see table below)                                                                                                                                                                                                                                                                       |
 
 #### Type Aliases
 
@@ -139,12 +140,14 @@ runs through these stages:
 ```
 Subject gate       (reject a non-Conventional-Commit subject before any side effect)
     |
+Bead-action gate   (require -B keep|close when a bead is assigned; validate close)
+    |
 Bead association   (append linked SASE_BEAD= footer when SASE_BEAD_ID is set)
     |
-Bead sync          (sync beads after explicit bead-action preflight) [skip for proposals]
+Bead sync          (sync beads)                                           [skip for proposals]
     |
 Plan handling      (store/copy plan, append storage-relative SASE_PLAN=,  [skip for proposals]
-                    mark plan done)
+                    mark plan done; skipped once the plan is done/archived)
     |
 Before hook        (`commit_hooks.before`, e.g. `just fix`)
     |
@@ -205,32 +208,64 @@ For PRs, the subject is validated exactly as the agent authored it.
 title _after_ validation, so the final title on the pull request can differ from the
 validated subject.
 
+#### Commit Hook Evidence
+
+Every `commit_hooks.before` and `commit_hooks.after` run leaves evidence, written before
+the command starts: a JSON record, `.stdout.log` and `.stderr.log` files (each capped at
+1 MiB), and rolling `.stdout.tail` and `.stderr.tail` files holding the last 16 KiB. The
+files live under `$SASE_ARTIFACTS_DIR/commit_hooks/`, or under
+`<tmpdir>/sase-commit-hooks/<uid>/` when no artifacts directory is set, and the CLI
+prints `Before commit hook evidence: <path>` (or `After ...`). The record's `status`
+moves from `starting` to `running` and then to `success`, `failed`, or
+`failed_to_start`. Hooks have no timeout of their own. A failing hook prints the
+evidence path again together with the last 50 lines of its output. When the host
+finalizer has to stop a hung stitch, its diagnostic points at the most recent hook
+record for that repository (see [Commit Finalizer](#commit-finalizer)).
+
 #### Explicit Bead Action
 
-When a payload has an assigned `bead_id`, `CommitWorkflow` requires an explicit
-`bead_action` before any commit side effect starts. Use `-B keep` for intermediate work,
-proposals, linked/sidecar repository commits, and any commit that does not finish the
-assigned bead. Use `-B close` only after the assigned bead's full scope is complete and
-verified.
+`sase stitch create` never changes a bead's lifecycle on its own. When the payload has
+an assigned `bead_id` (from `SASE_BEAD_ID`), `CommitWorkflow` requires an explicit
+`bead_action` right after the subject gate, before the bead sync, plan handling, hooks,
+or any VCS work:
+
+- `-B keep` leaves the bead unchanged. Use it for intermediate work, proposals,
+  linked/sidecar repository commits, and any commit that does not finish the bead.
+- `-B close` closes the bead after the commit or PR lands. Use it only after the
+  assigned bead's full scope is complete and verified.
+
+The rule applies to whatever bead `SASE_BEAD_ID` names — task, phase, or plan bead. The
+gate prints the chosen action (for example
+`Bead <id> will be left unchanged by explicit -B keep.`) and refuses the whole command,
+before anything is staged or committed, when:
+
+- a bead is assigned but no `-B` was given (`bead_action is required ...`);
+- `-B close` is combined with `create_proposal`;
+- `-B close` runs outside the project's primary repository, such as a configured linked
+  repository or an SDD sidecar (`... only the owning primary repository ...`);
+- `-B close` names a bead whose status is neither `in_progress` nor already `closed`,
+  for example `open` or `ready` (`close requires the assigned bead ...`);
+- `-B close` is given with no assigned bead (`there is no assigned bead to close`); or
+- the payload still carries the removed `do_not_close_bead` field.
+
+`-B` may be passed only once, and `-B keep` without an assigned bead does nothing. The
+removed `--do-not-close-bead` flag exits with a usage error that points at `-B keep` /
+`-B close`.
 
 As the last stage of `CommitWorkflow`, `create_commit` and `create_pull_request` honor
-`-B close` by closing the assigned bead, provided all of the following hold:
-
-- The bead's `status` is `in_progress` or already `closed` (idempotent resume).
-- The commit's repository root is the project's primary repo. Commits made in a
-  configured linked repository or an SDD sidecar cannot close the primary task
-  lifecycle.
-- The method is a landed commit or PR. `create_proposal` must use `-B keep`.
-
-When the close is allowed, SASE runs the equivalent of
+`-B close` by running the equivalent of
 `sase bead close <id> --resolution done --note "<note>"`, where the note begins:
 
 > Closed by explicit `sase stitch create -B close` after `<method>` landed `<short-sha>`
 > ("`<subject>`").
 
-If the close fails after the commit has landed, the workflow exits non-zero and leaves
-the checkpoint for `sase stitch create --resume`, so the bead lifecycle failure must be
-fixed instead of silently reporting success. See
+and then print `Closed assigned bead <id> after explicit -B close.` A bead that is
+already closed counts as satisfied, so a resumed workflow never closes it twice.
+
+If the close fails after the commit has landed, the workflow prints
+`Explicit close failed for bead <id>: ...`, exits non-zero, and keeps its checkpoint.
+Fix the bead problem, then run `sase stitch create --resume`; completed steps are
+skipped, so the resume retries only what is left, including the close. See
 [Standalone Task Workflow](beads.md#standalone-task-workflow) for how this fits into the
 broader task-bead lifecycle.
 
@@ -256,7 +291,8 @@ sase stitch create -M .sase/commit_message.md -t commit
 Typical PR:
 
 ```bash
-sase stitch create -M .sase/pr_description.md -n feature_branch -b 12345 -s ready -t pr
+SASE_PR_STATUS=ready \
+  sase stitch create -M .sase/pr_description.md -n feature_branch -b 12345 -t pr
 ```
 
 The internal payload has this shape:
@@ -265,14 +301,16 @@ The internal payload has this shape:
 {
   "message": "Commit message (required for commit/propose)",
   "name": "Branch or PR name (required for PR)",
-  "exclude": ["optional", "list", "of", "paths", "to", "leave", "out"]
+  "exclude": ["optional", "list", "of", "paths", "to", "leave", "out"],
+  "bead_action": "keep | close (required when SASE_BEAD_ID is set)"
 }
 ```
 
 The CLI maps `-m` / `-M` to `message`, repeated `-x` flags to `exclude`, `-n` to `name`,
-`-b` to `bug_id`, `-B` to `bead_action`, `-c` to `checkout_target`, `-p` to `parent`,
-and `-s` to `status`. Omitted `-x` means "stage everything" and is represented as an
-empty `exclude` list. The internal allowlist key, `files`, is not reachable from the
+`-b` to `bug_id`, `-B` to `bead_action`, `-c` to `checkout_target`, and `-p` to
+`parent`. `-s` is not currently copied into the payload, so PR Patch status comes from
+`SASE_PR_STATUS`. Omitted `-x` means "stage everything" and is represented as an empty
+`exclude` list. The internal allowlist key, `files`, is not reachable from the
 agent-facing CLI — it exists only for the internal `--only-file` flag used by SASE's own
 SDD plan-commit caller.
 
@@ -284,6 +322,14 @@ hosted on GitHub, the tag is a Markdown reference link to the bead's generated p
 the `--beads` repository; otherwise it remains the bare ID. Resolution is local-only and
 best-effort. Conflict resumes reuse the already-tagged message captured in the original
 checkpoint.
+
+Plan attribution is environment-driven too. When `SASE_PLAN` names a plan that is not
+yet `done` or `archived`, `create_commit` and `create_pull_request` store or copy the
+plan, mark it `status: done`, and append a storage-relative `SASE_PLAN=` footer tag.
+Once the plan is `done` or `archived`, plan handling is skipped entirely: later commits
+in the same run get no `SASE_PLAN=` tag and do not rewrite or re-commit the plan.
+`SASE_PLAN` is also not inherited by an agent launched from inside another agent; a
+launch that should carry plan attribution sets it explicitly.
 
 Runtime provenance tags are also not user-supplied CLI flags. For `create_commit` and
 `create_pull_request`, `CommitWorkflow` appends or updates a trailing
@@ -564,12 +610,17 @@ SASE_ARTIFACTS_DIR/commit_state.json              # preferred, when running unde
 **Resume flow (`sase stitch create --resume`):**
 
 1. Load the checkpoint from disk (if missing, the command errors out).
-2. Re-check the working tree for conflict markers — if they're still present, refuse to
+2. Reconcile the bead action. A checkpoint that already saved a `bead_action` keeps it,
+   and a `-B` value on the resume command must match it or the resume is refused. A
+   legacy checkpoint that names an assigned bead but saved no action refuses to resume
+   until you pass `-B keep` or `-B close`. `-B close` is refused when the checkpoint has
+   no assigned bead.
+3. Re-check the working tree for conflict markers — if they're still present, refuse to
    continue with `CONFLICT`.
-3. Verify the commit at `HEAD` matches the subject line from the checkpointed message.
+4. Verify the commit at `HEAD` matches the subject line from the checkpointed message.
    If it doesn't, abort with `FAILED`; the user is expected to re-run
    `sase stitch create` from scratch rather than resume into a foreign commit.
-4. If dispatch was not already completed, re-stamp `HEAD`'s `SASE_*` provenance footer
+5. If dispatch was not already completed, re-stamp `HEAD`'s `SASE_*` provenance footer
    (`SASE_AGENT`, `SASE_TYPE`, `SASE_BEAD`) when it is missing or stale compared to the
    checkpointed payload, then call the provider's `vcs_finalize_commit` hook to replay
    idempotent post-commit work (bead amend, push with retry), then checkpoint dispatch
@@ -577,11 +628,11 @@ SASE_ARTIFACTS_DIR/commit_state.json              # preferred, when running unde
    restamp matters: manual conflict resolution can rewrite the message body and drop the
    footer even when the subject survives unchanged, and an unattributed commit is what
    the discarded-work guard reads as a discard.
-5. Run `commit_hooks.after` for commit/PR workflows unless its completion is already
+6. Run `commit_hooks.after` for commit/PR workflows unless its completion is already
    checkpointed.
-6. Re-run the tracking steps (STITCHES entry append, Patch creation) using the
-   snapshotted payload.
-7. Delete the checkpoint on success.
+7. Re-run the tracking steps (STITCHES entry append, Patch creation) and any
+   still-pending explicit bead close, using the snapshotted payload.
+8. Delete the checkpoint on success.
 
 Resume is VCS-agnostic: the same `--resume` flag works for commits, proposals, and PRs.
 Skills emit the on-conflict instructions automatically, so agents know to hand control
@@ -603,22 +654,22 @@ or overwritten.
 
 ## Environment Variables
 
-| Variable                            | Purpose                                                                                          |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `SASE_COMMIT_METHOD`                | Dispatch method (set by xprompt `environment:` section)                                          |
-| `SASE_COMMIT_METHOD_ALLOW_OVERRIDE` | Allow `-t/--type` to override a conflicting `SASE_COMMIT_METHOD`                                 |
-| `SASE_ARTIFACTS_DIR`                | Directory for `commit_result.json` and other artifacts                                           |
-| `SASE_AGENT_NAME`                   | Agent name used for `SASE_AGENT=` runtime commit provenance                                      |
-| `SASE_BEAD_ID`                      | Bead ID written as a linked `SASE_BEAD=` footer tag without changing the subject                 |
-| `SASE_PLAN`                         | Plan source for storage/staging, status update, and the storage-relative `SASE_PLAN=` commit tag |
-| `SASE_AGENT_PROJECT_FILE`           | Project file for Patch/STITCHES tracking                                                         |
-| `SASE_AGENT_CL_NAME`                | PR name used for proposal diff naming                                                            |
-| `SASE_PR_NAME`                      | PR name (set by `#pr` xprompt input)                                                             |
-| `SASE_PR_STATUS`                    | Initial PR Patch status (`draft`, `wip`, `ready`)                                                |
-| `SASE_BUG_ID`                       | Bug ID for PR metadata                                                                           |
-| `SASE_VCS_PROVIDER`                 | Override VCS provider detection (see [vcs.md](vcs.md))                                           |
-| `SASE_LINKED_REPOS_JSON`            | JSON metadata for configured linked repos passed to agents                                       |
-| `SASE_LINKED_REPO_<ENV_NAME>_DIR`   | Workspace-matched path for one configured linked repo                                            |
+| Variable                            | Purpose                                                                                                                                                                                 |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_COMMIT_METHOD`                | Dispatch method (set by xprompt `environment:` section)                                                                                                                                 |
+| `SASE_COMMIT_METHOD_ALLOW_OVERRIDE` | Allow `-t/--type` to override a conflicting `SASE_COMMIT_METHOD`                                                                                                                        |
+| `SASE_ARTIFACTS_DIR`                | Directory for `commit_result.json` and other artifacts                                                                                                                                  |
+| `SASE_AGENT_NAME`                   | Agent name used for `SASE_AGENT=` runtime commit provenance                                                                                                                             |
+| `SASE_BEAD_ID`                      | Bead ID written as a linked `SASE_BEAD=` footer tag without changing the subject                                                                                                        |
+| `SASE_PLAN`                         | Plan source for storage/staging, status update, and the storage-relative `SASE_PLAN=` commit tag; ignored once the plan is done or archived, and not inherited by nested agent launches |
+| `SASE_AGENT_PROJECT_FILE`           | Project file for Patch/STITCHES tracking                                                                                                                                                |
+| `SASE_AGENT_CL_NAME`                | PR name used for proposal diff naming                                                                                                                                                   |
+| `SASE_PR_NAME`                      | PR name (set by `#pr` xprompt input)                                                                                                                                                    |
+| `SASE_PR_STATUS`                    | Initial PR Patch status (`draft`, `wip`, `ready`)                                                                                                                                       |
+| `SASE_BUG_ID`                       | Bug ID for PR metadata                                                                                                                                                                  |
+| `SASE_VCS_PROVIDER`                 | Override VCS provider detection (see [vcs.md](vcs.md))                                                                                                                                  |
+| `SASE_LINKED_REPOS_JSON`            | JSON metadata for configured linked repos passed to agents                                                                                                                              |
+| `SASE_LINKED_REPO_<ENV_NAME>_DIR`   | Workspace-matched path for one configured linked repo                                                                                                                                   |
 
 ## Commit Finalizer
 
@@ -664,9 +715,12 @@ context, plan, repositories, and workspace, the host installs the prepared decla
 and executes the finalizers in no-model mode. It records a durable host-completion
 receipt, so reconciliation does not repeat an already completed commit. A failed or
 timed-out command, stale observation, degraded workspace, or other eligibility failure
-invalidates the shortcut and launches one recovery agent instead. This does not let a
-plain `--profile verify` commit: host completion requires the separately prepared and
-bound intent.
+invalidates the shortcut and launches one recovery agent instead. If the receipt shows a
+commit whose outcome cannot be determined, the monitor stops at `needs_attention`
+(`ambiguous_commit_receipt`) instead of retrying or launching a recovery agent; an
+interrupted host completion whose receipt already proves some commits resumes only the
+outstanding actions. This does not let a plain `--profile verify` commit: host
+completion requires the separately prepared and bound intent.
 
 The wrapper shape is:
 
@@ -698,10 +752,11 @@ The wrapper shape is:
 ```
 
 Start from `sase final context -f json` and fill its `manifest_template` rather than
-guessing digests or obligation IDs. `sase final prepare <file> -j` prints the
-`intent_ref` to bind. See
-[Prepared host completion](monitors.md#prepared-host-completion) for monitor settlement
-and recovery behavior.
+guessing digests or obligation IDs. When the context has `assigned_bead`, every
+repository decision inside the wrapped declaration also needs its `bead_action`, exactly
+as for `sase final submit`. `sase final prepare <file> -j` prints the `intent_ref` to
+bind. See [Prepared host completion](monitors.md#prepared-host-completion) for monitor
+settlement and recovery behavior.
 
 **Flow:**
 
@@ -716,19 +771,27 @@ and recovery behavior.
    one recovery turn that explicitly requests `/sase_final` again.
 3. For `builtin@commit`, require each dirty repository obligation to receive exactly one
    `commit` decision with a Conventional Commit message; `commit` is the only legal
-   repository action. There is no free-text refusal — a SASE agent's workspace is an
-   ephemeral clone, so leaving a tree dirty needs the user's standing consent, not the
-   agent's. `sase final submit` therefore asks the agent only to author commit messages.
-   The one escape hatch is `sase final defer`, a separate, deliberate command that names
-   a typed reason from a closed set (`protected_paths`, `foreign_work`,
-   `unsafe_content`, `belongs_to_another_turn`) and explicit paths. The host adjudicates
-   every deferral against run evidence inside `sase final submit`'s existing lock: a
-   deferral it can disprove is rejected with concrete counter-evidence so the agent
-   repairs and resubmits in the same turn, and a deferral it cannot refute is upheld.
-   `finalizers.instances.<id>.refusal` then decides what an upheld deferral does to the
-   run: `fail` still fails it, while the shipped default `defer` completes the run with
-   a distinct `deferred` status, a dirty tree, and a notification naming the repository,
-   reason, paths, and the command to finish the commit by hand.
+   repository action. When the context has `assigned_bead`, the template gives every
+   repository decision a `"bead_action": null` placeholder that must become `"keep"` or
+   `"close"`, and only the primary repository's decision should say `close`. A missing
+   or invalid value is rejected with `commit_bead_action_invalid`
+   (`bead_action is required when a bead is assigned; use keep or close`);
+   `sase final defer` fills the placeholder with `keep` for the deferred repository, and
+   the pretty `sase final context` output shows
+   `Assigned bead: <id>; primary repo: <repo_id>`. There is no free-text refusal — a
+   SASE agent's workspace is an ephemeral clone, so leaving a tree dirty needs the
+   user's standing consent, not the agent's. `sase final submit` therefore asks the
+   agent only to author commit messages. The one escape hatch is `sase final defer`, a
+   separate, deliberate command that names a typed reason from a closed set
+   (`protected_paths`, `foreign_work`, `unsafe_content`, `belongs_to_another_turn`) and
+   explicit paths. The host adjudicates every deferral against run evidence inside
+   `sase final submit`'s existing lock: a deferral it can disprove is rejected with
+   concrete counter-evidence so the agent repairs and resubmits in the same turn, and a
+   deferral it cannot refute is upheld. `finalizers.instances.<id>.refusal` then decides
+   what an upheld deferral does to the run: `fail` still fails it, while the shipped
+   default `defer` completes the run with a distinct `deferred` status, a dirty tree,
+   and a notification naming the repository, reason, paths, and the command to finish
+   the commit by hand.
 4. Resolve the project directory from provider/workspace environment variables, then
    check the main workspace, configured linked repos, and repos opened through
    `/sase_repo`.
@@ -739,6 +802,30 @@ and recovery behavior.
    refuses before running the stitch and fails with the non-retryable
    `protected_paths_exhausted` diagnostic, which names the protected paths and the
    baseline record (`repo_id`, `scope`, `captured_at`) that protects them.
+
+   The host binds every stitch it runs — new stitches, checkpoint resumes, and the
+   post-repair follow-up — to the bead captured in the accepted context. It sets
+   `SASE_BEAD_ID` to that bead (or removes it when the context had none) and passes the
+   decision's `bead_action` as `-B`. A declaration whose context names a different bead
+   fails with `assigned_bead_binding_invalid`. A pending checkpoint that still owes an
+   explicit `-B close` counts as unfinished and is resumed; if its saved action differs
+   from the declaration's, the resume is refused.
+
+   Every `sase stitch create` the host runs is bounded: at most 30 minutes (1800
+   seconds) of run time and 1 MiB each of captured stdout and stderr. These limits are
+   fixed, not configurable. On a breach the host stops the stitch's whole process group
+   (SIGTERM, then SIGKILL after five seconds) and fails with `stitch_timeout` or
+   `stitch_output_cap`. The message gives the elapsed time, then the most recent
+   [commit-hook record](#commit-hook-evidence) for that repository (phase, command,
+   `status`, duration, and the evidence and log paths) followed by the hook's output
+   tail, so a hook still at `status=running` identifies the stage that hung. With no
+   hook record, the message says
+   `last stage unknown; no matching commit-hook record was found` and shows the stitch's
+   own output tail instead. When the commit had already landed before the process was
+   killed, the host keeps it and records a `stitch_timeout_after_commit` (or
+   `stitch_output_cap_after_commit`) warning. If the decision asked for `close`, the
+   assigned bead must also already be closed; otherwise completion fails with
+   `<code>_bead_not_closed`.
 
    A conflict gets one automated repair turn. That turn must resolve and stage every
    marker, run the project's verification gate before continuing the paused VCS
@@ -782,8 +869,8 @@ non-Git linked-repo paths can still be exposed through environment variables and
 metadata, but the finalizer does not enforce them as dirty targets.
 
 When the only enforced dirty state is the exact SDD status closeout described above, the
-finalizer creates the commit itself instead of running a follow-up provider invocation.
-The result artifact records `reason: "auto_committed_done_plan_status"`.
+finalizer creates the commit itself instead of requiring a declared stitch. The result
+artifact records `reason: "auto_committed_done_plan_status"`.
 
 Historical agents may still have archived `commit_finalizer_result.json` or
 `commit_finalizer_baseline.json` files. Reporting reads those legacy files only as a

@@ -214,8 +214,12 @@ sase doctor -C axe.jobs
 - `sase axe job list` shows configured jobs with status; add `--available` to include
   discoverable executable job scripts. `sase axe job doctor` checks for missing
   configured script jobs (`ERROR`), unconfigured available scripts (`WARN`), and
-  Telegram job `pass`/environment prerequisites (`WARN`). The same job diagnostics are
-  mirrored by `sase doctor -C axe.jobs`.
+  Telegram job `pass`/environment prerequisites (`WARN`). It also reports which Telegram
+  job entrypoints are in use: the canonical `sase_job_tg_inbound` and
+  `sase_job_tg_outbound` scripts are `OK`, while an install or config that only has the
+  legacy `sase_chop_tg_inbound` / `sase_chop_tg_outbound` names still works but gets a
+  `WARN` to upgrade `sase-telegram` and switch the configured job scripts. The same job
+  diagnostics are mirrored by `sase doctor -C axe.jobs`.
 
 ## Updating sase and plugins (`sase update`)
 
@@ -554,14 +558,27 @@ See [docs/workspace.md](workspace.md) for the full workspace provider reference.
 ### LLM Plugins (pluggy)
 
 LLM provider plugins use pluggy's hook system. The hook specification is defined in
-`LLMHookSpec` (`src/sase/llm_provider/_hookspec.py`). Core dispatch hooks (`llm_invoke`,
-`llm_resolve_model_name`) use `firstresult=True` so the first matching plugin handles a
-call; metadata hooks (`llm_provider_name`, `llm_known_model_names`,
-`llm_skill_template_context`, `llm_skill_deploy_subpath`, `llm_cli_status_color`,
-`llm_autodetect_priority`, `llm_autodetect_cli_name`, `llm_default_retry_config`,
-`llm_install_metadata`, `llm_interactive_cli`, `llm_model_advisories`) are invoked
-per-plugin by the registry so each provider contributes its own metadata. All hook
-method names are prefixed with `llm_`.
+`LLMHookSpec` (`src/sase/llm_provider/_hookspec.py`), and every hook is declared with
+`firstresult=True`. The core dispatch hooks (`llm_invoke`, `llm_resolve_model_name`) go
+through pluggy dispatch, so the first matching plugin handles a call. The metadata hooks
+are called directly on each registered plugin instance by the registry, so each provider
+contributes its own values:
+
+| Area                  | Hooks                                                                                                                              |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Identity and models   | `llm_provider_name`, `llm_provider_short_name`, `llm_known_model_names`, `llm_model_short_aliases`, `llm_model_advisories`         |
+| Skills                | `llm_skill_template_context`, `llm_skill_deploy_subpath`, `llm_additional_skill_deploy_subpaths`                                   |
+| Detection and display | `llm_cli_status_color`, `llm_autodetect_priority`, `llm_autodetect_cli_name`, `llm_auth_evidence`, `llm_hidden_from_model_pickers` |
+| CLI management        | `llm_install_metadata`, `llm_interactive_cli`, `llm_hidden_from_agent_cli_management`                                              |
+| Failure policy        | `llm_default_retry_config`, `llm_default_usage_limit_config`                                                                       |
+| Subscription usage    | `llm_usage_capabilities`, `llm_usage_probe` (see [Subscription usage extension](llms.md#subscription-usage-extension))             |
+
+`llm_auth_evidence()` lists credential paths and API-key environment variable names
+(never secret values) for `sase doctor`. `llm_hidden_from_model_pickers()` hides a
+testing-only provider from the model picker and `%model` completion without changing
+routing, and `llm_hidden_from_agent_cli_management()` opts a provider out of
+`sase agent-cli` and the Admin Center's Agent CLIs list. Omitting any metadata hook
+keeps the default behavior. All hook method names are prefixed with `llm_`.
 
 Core Sase ships Claude, Codex, Antigravity (`agy`), Qwen, OpenCode, Meta's Muse Code,
 and xAI's Grok Build providers as built-in entry points. Additional providers belong in

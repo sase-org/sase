@@ -48,8 +48,8 @@ saves or deletes a slot without changing the active query; see
 Agent, Stitches, Beads, Plans, Files, and document-provider panes use the same idle
 chrome -- the committed query stays visible without opening an editor -- but each pane
 has its own query profile and previews against **that pane's** loaded snapshot, not the
-Patch snapshot. Shared keys such as `/` and `f` still focus the row; the tokens you can
-type are documented per pane in
+Patch snapshot. `/` still focuses the row (as does the pane-local `f`, except on
+Artifacts -> Agent); the tokens you can type are documented per pane in
 [sase's TUI Artifacts](ace.md#filtering-agent-patches-stitches-beads-and-plans). The
 top-level Agents tab hides its filter bar when idle; press `/` or `f` to edit the live
 Agent query there. `,/` searches the selected agent's metadata and does not edit the

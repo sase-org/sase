@@ -90,10 +90,10 @@ canonical paths.
   remain read-compatible. Xprompts use first-wins resolution: the canonical source wins
   and a lower-priority duplicate is shadowed rather than merged.
 
-The compatibility window is active for the 0.10 release line. No removal release is
-assigned. Legacy reads will not be removed without a separately announced deprecation
-and updated migration guidance; new content should nevertheless be moved now because
-every writer already targets the canonical layout.
+The compatibility window opened with the 0.10 release line and is still active. No
+removal release is assigned. Legacy reads will not be removed without a separately
+announced deprecation and updated migration guidance; new content should nevertheless be
+moved now because every writer already targets the canonical layout.
 
 ## XPrompt Compatibility Order
 

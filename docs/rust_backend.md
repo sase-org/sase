@@ -71,6 +71,21 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   `create`, `update`, `open`, `close`, `rm`, `dep add`, ready-to-work flags, sync-clean
   checks, compatibility projection export), deterministic epic work planning, and the
   early `sase bead` CLI fast path for common read/write commands
+- Disk and retention owners: managed-temp reaping (`reap_managed_tmpdir`), disk-pressure
+  and disk-inventory classification (`classify_disk_pressure`,
+  `classify_disk_inventory`), cleanup-outcome normalization, proc runtime retention
+  (`apply_proc_runtime_retention`), and `ace-run` retention preview plus its fail-closed
+  apply refusal (`apply_agent_artifact_run_retention`). Each has its own wire schema
+  version that the Python adapter checks before calling; the adapters gather inputs
+  (filesystem measurements, protection facts, configured thresholds) and handle
+  host-side follow-ups such as dropping reaped directories from the agent artifact index
+- Git object-sharing planning for managed workspaces (`plan_git_object_sharing`)
+- AXE configuration composition and entry-edit planning (`axe_config_compose`,
+  `axe_config_plan_entry`), including routine/job input aliases, description-shape
+  diagnostics, and the public routine/job projection; the public
+  `sase axe status --json` projection (`project_axe_status_public`); and agent-tribe
+  identity resolution, including the public `job` alias for the stored `chop` tribe
+  (`resolve_agent_tribe_identity`)
 
 The intentionally Python-owned host surfaces include:
 
@@ -170,40 +185,45 @@ Important boundary modules under `src/sase/core/` include the following. This is
 guided map, not an exhaustive directory listing; some `*_facade.py` modules are
 Rust-backed boundaries, while others are Python-owned host adapters.
 
-| Module                          | Purpose                                                                                                            |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `rust.py`                       | Strict `sase_core_rs` loader (`require_rust_extension`, `require_rust_binding`)                                    |
-| `health.py`                     | `sase core health` Rust-extension probe + report                                                                   |
-| `parser_facade.py`              | `parse_project_file` Python API + Rust-backed `parse_project_bytes`                                                |
-| `project_lifecycle_facade.py`   | Rust-backed ProjectSpec lifecycle parse/update/list helpers                                                        |
-| `project_lifecycle_wire.py`     | Project lifecycle and project-record wire dataclasses                                                              |
-| `wire.py`                       | Stable wire record types that cross the Python ↔ Rust boundary                                                     |
-| `wire_conversion.py`            | Python `Patch` ↔ wire record serialization                                                                         |
-| `query_facade.py`               | `parse_query` (Rust); per-row query context/eval (Python host logic); batch compatibility wrapper over Rust corpus |
-| `query_corpus_facade.py`        | Persistent Rust query corpus wrapper for cached batch evaluation                                                   |
-| `notification_store_facade.py`  | Notification JSONL snapshot, append, rewrite, and state mutation facade (Rust)                                     |
-| `notification_store_wire.py`    | Stable notification snapshot/update wire records across the Rust boundary                                          |
-| `status_facade.py`              | Status line helpers + planner (Rust); side-effecting transition (Python host logic)                                |
-| `graph_index_facade.py`         | `build_changespec_graph_index()` facade (Python host logic)                                                        |
-| `agent_scan_facade.py`          | Agent artifact scan plus persistent index query/rebuild/update/delete facade (Rust)                                |
-| `agent_scan_wire.py`            | Stable wire records for agent-artifact scans and index maintenance                                                 |
-| `agent_identity_facade.py`      | Rust-backed agent identity, ownership, validation, and name-rewriting boundary                                     |
-| `agent_runtime_facade.py`       | Rust-backed clan/family wall-clock runtime aggregation                                                             |
-| `artifact_file_facade.py`       | Compatibility import surface; artifact-file storage/default synthesis is Python-owned                              |
-| `artifact_file_query_facade.py` | Rust-backed query facade for the persistent artifact-file index                                                    |
-| `agent_cleanup_wire.py`         | Stable cleanup planning and side-effect intent wires                                                               |
-| `agent_cleanup_facade.py`       | Agent cleanup target conversion and `plan_agent_cleanup()` facade                                                  |
-| `agent_cleanup_execution.py`    | Host-safe wrappers for Rust-backed deterministic cleanup mutations                                                 |
-| `agent_launch_wire.py`          | Stable launch, workspace-claim, and fan-out wire records                                                           |
-| `agent_launch_facade.py`        | Rust-backed launch preparation, spawn, timestamp allocation, and fan-out planning                                  |
-| `agent_launch_claims.py`        | Rust-backed RUNNING-field claim planning/mutation helpers                                                          |
-| `bead_read_facade.py`           | Rust-backed bead read facade for one active bead store                                                             |
-| `bead_mutation_facade.py`       | Rust-backed bead mutation facade                                                                                   |
-| `bead_wire.py`                  | Stable bead issue/dependency conversion helpers across the Rust boundary                                           |
-| `status_wire.py`                | Stable wire records for the status state machine                                                                   |
-| `status_wire_conversion.py`     | Python plan reference + project-file → request-wire converter                                                      |
-| `git_query_facade.py`           | Pure Git query parsers facade (Rust)                                                                               |
-| `git_query_wire.py`             | Stable wire records for the Git query parsers                                                                      |
+| Module                            | Purpose                                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `rust.py`                         | Strict `sase_core_rs` loader (`require_rust_extension`, `require_rust_binding`)                                    |
+| `health.py`                       | `sase core health` Rust-extension probe + report                                                                   |
+| `parser_facade.py`                | `parse_project_file` Python API + Rust-backed `parse_project_bytes`                                                |
+| `project_lifecycle_facade.py`     | Rust-backed ProjectSpec lifecycle parse/update/list helpers                                                        |
+| `project_lifecycle_wire.py`       | Project lifecycle and project-record wire dataclasses                                                              |
+| `wire.py`                         | Stable wire record types that cross the Python ↔ Rust boundary                                                     |
+| `wire_conversion.py`              | Python `Patch` ↔ wire record serialization                                                                         |
+| `query_facade.py`                 | `parse_query` (Rust); per-row query context/eval (Python host logic); batch compatibility wrapper over Rust corpus |
+| `query_corpus_facade.py`          | Persistent Rust query corpus wrapper for cached batch evaluation                                                   |
+| `notification_store_facade.py`    | Notification JSONL snapshot, append, rewrite, and state mutation facade (Rust)                                     |
+| `notification_store_wire.py`      | Stable notification snapshot/update wire records across the Rust boundary                                          |
+| `status_facade.py`                | Status line helpers + planner (Rust); side-effecting transition (Python host logic)                                |
+| `graph_index_facade.py`           | `build_changespec_graph_index()` facade (Python host logic)                                                        |
+| `agent_scan_facade.py`            | Agent artifact scan plus persistent index query/rebuild/update/delete facade (Rust)                                |
+| `agent_scan_wire.py`              | Stable wire records for agent-artifact scans and index maintenance                                                 |
+| `agent_identity_facade.py`        | Rust-backed agent identity, ownership, validation, and name-rewriting boundary                                     |
+| `agent_runtime_facade.py`         | Rust-backed clan/family wall-clock runtime aggregation                                                             |
+| `artifact_file_facade.py`         | Compatibility import surface; artifact-file storage/default synthesis is Python-owned                              |
+| `artifact_file_query_facade.py`   | Rust-backed query facade for the persistent artifact-file index                                                    |
+| `agent_cleanup_wire.py`           | Stable cleanup planning and side-effect intent wires                                                               |
+| `agent_cleanup_facade.py`         | Agent cleanup target conversion and `plan_agent_cleanup()` facade                                                  |
+| `agent_cleanup_execution.py`      | Host-safe wrappers for Rust-backed deterministic cleanup mutations                                                 |
+| `agent_launch_wire.py`            | Stable launch, workspace-claim, and fan-out wire records                                                           |
+| `agent_launch_facade.py`          | Rust-backed launch preparation, spawn, timestamp allocation, and fan-out planning                                  |
+| `agent_launch_claims.py`          | Rust-backed RUNNING-field claim planning/mutation helpers                                                          |
+| `bead_read_facade.py`             | Rust-backed bead read facade for one active bead store                                                             |
+| `bead_mutation_facade.py`         | Rust-backed bead mutation facade                                                                                   |
+| `bead_wire.py`                    | Stable bead issue/dependency conversion helpers across the Rust boundary                                           |
+| `status_wire.py`                  | Stable wire records for the status state machine                                                                   |
+| `status_wire_conversion.py`       | Python plan reference + project-file → request-wire converter                                                      |
+| `git_query_facade.py`             | Pure Git query parsers facade (Rust)                                                                               |
+| `git_query_wire.py`               | Stable wire records for the Git query parsers                                                                      |
+| `git_object_sharing.py`           | Rust-backed managed-workspace Git alternates planning                                                              |
+| `managed_tmp_reaper.py`           | Schema-checked adapter over the Rust managed-temp reaper                                                           |
+| `disk_pressure.py`                | Filesystem observation plus the Rust disk-pressure classifier                                                      |
+| `agent_artifact_run_retention.py` | `ace-run` retention protection gathering plus the Rust preview/refusal owner                                       |
+| `agent_tribe.py`                  | Rust-backed tribe validation and public/stored tribe identity resolution                                           |
 
 The Rust extension is a sibling repo at `../sase-core/`, organized as a Cargo workspace
 with a PyO3 crate at `crates/sase_core_py/`.
@@ -318,6 +338,15 @@ git clone https://github.com/sase-org/sase-core.git ../sase-core
 just install     # builds sase_core_rs from ../sase-core, then installs sase in editable mode
 ```
 
+Throughout this page, `../sase-core` stands for the configured core checkout. The
+Justfile uses `SASE_CORE_DIR` when it is set, then a workspace's linked
+`sase/repos/linked/sase-core` checkout (or the `SASE_LINKED_REPO_SASE_CORE_DIR` family
+of variables), and falls back to the sibling `../sase-core`. Before building, the Rust
+install targets fast-forward a clean core checkout that is strictly behind its upstream,
+then refuse to build from a checkout that is still behind the `sase-core-rs` floor in
+`pyproject.toml`; set `SASE_ALLOW_STALE_CORE=1` to skip the refresh and downgrade the
+floor check to a warning for an intentional bisect.
+
 Dev installs always track the local checkout. The published `sase-core-rs` version
 window in `pyproject.toml` applies only to wheel-based installs: editable installs pass
 a uv override that lifts the window so the locally built extension is never downgraded
@@ -385,7 +414,11 @@ uses 16 codegen units, and disables incremental compilation so repeated updates 
 leave unbounded `incremental/` trees under the shared target roots. The Justfile also
 sets `CARGO_INCREMENTAL=0` on those dev-update build commands so older `sase-core`
 checkouts keep the same bounded-disk behavior. Set `SASE_RUST_DEV_PROFILE=release` to
-force the published release profile for one update without editing the Justfile.
+force the published release profile for one update without editing the Justfile. A
+prebuild-cache miss makes this step a full Cargo build that can take several minutes, so
+`sase update` gives it its own one-hour deadline instead of the five-minute limit used
+for its Git and uv steps; the same deadline applies when the update runs from sase's TUI
+Updates panel.
 
 A measured feature-unified
 `cargo build --release -p sase_core_py -p sase_xprompt_lsp --features sase_core_py/extension-module`
@@ -394,18 +427,27 @@ still left `maturin develop --release` rebuilding the PyO3 crate through maturin
 fast-update plan: separate target directories for the Python extension and LSP builds.
 
 ```bash
-CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=../sase-core/target/uv-tool-py maturin develop --profile ${SASE_RUST_DEV_PROFILE:-dev-update}
-CARGO_INCREMENTAL=0 CARGO_TARGET_DIR=../sase-core/target/uv-tool-lsp cargo build --profile ${SASE_RUST_DEV_PROFILE:-dev-update} -p sase_xprompt_lsp
+CARGO_INCREMENTAL=0 \
+  CARGO_TARGET_DIR=../sase-core/target/uv-tool-py \
+  CARGO_BUILD_BUILD_DIR=../sase-core/target/uv-tool-py/build \
+  maturin develop --profile ${SASE_RUST_DEV_PROFILE:-dev-update}
+CARGO_INCREMENTAL=0 \
+  CARGO_TARGET_DIR=../sase-core/target/uv-tool-lsp \
+  CARGO_BUILD_BUILD_DIR=../sase-core/target/uv-tool-lsp/build \
+  cargo build --profile ${SASE_RUST_DEV_PROFILE:-dev-update} -p sase_xprompt_lsp
 ```
 
 This does not deduplicate the first compile after `cargo clean`, but it prevents the two
-dev-update builds from invalidating each other's cached units on later runs. The LSP
-artifact is copied from the selected profile directory, for example
+dev-update builds from invalidating each other's cached units on later runs. After each
+build the recipe deletes that target's `incremental/` directory. The LSP artifact is
+copied from the selected profile directory, for example
 `target/uv-tool-lsp/dev-update/sase-xprompt-lsp`. The recipe copies that binary into the
-uv-tool venv with the same atomic temp-file install used by `just rust-lsp-install`. The
-older separate `rust-install*` and `rust-lsp-install*` targets remain available for
-direct maintenance, `just install`, and CI paths that intentionally exercise the
-published release profile separately.
+uv-tool venv with the same atomic temp-file install used by `just rust-lsp-install`,
+which builds the LSP the same way (dev-update profile, isolated `uv-tool-lsp` target).
+The separate `rust-install*` targets remain available for direct maintenance and
+`just install`; they build the extension with the release profile (or install a cached
+release wheel) and then chain `rust-lsp-install`. CI builds its release wheel and LSP
+binary directly with `maturin build --release` and `cargo build --release`.
 
 Launched agents receive `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and
 `CARGO_BUILD_BUILD_DIR` under SASE's managed temp root for each run. Agent code and ad
@@ -508,7 +550,7 @@ contributors without the sibling checkout are never blocked.
 | `just rust-install-uv-tool`     | Same as `rust-install` but targets `$(uv tool dir)/sase` for users who installed sase via `uv tool install`                 |
 | `just rust-dev-install`         | Build and install `sase_core_rs` and `sase-xprompt-lsp` into a venv using the `dev-update` profile and isolated target dirs |
 | `just rust-dev-install-uv-tool` | Same as `rust-dev-install` but targets `$(uv tool dir)/sase`; this is the Rust reconcile step used by editable dev update   |
-| `just rust-lsp-install`         | Build and atomically copy only the `sase-xprompt-lsp` binary into a venv                                                    |
+| `just rust-lsp-install`         | Build `sase-xprompt-lsp` (dev-update profile, isolated target) and atomically copy only that binary into a venv             |
 | `just rust-lsp-install-uv-tool` | Same as `rust-lsp-install` but targets `$(uv tool dir)/sase`                                                                |
 | `just rust-test`                | `cargo test --workspace` in `../sase-core`                                                                                  |
 | `just rust-fmt`                 | Auto-format Rust sources with `cargo fmt --all`                                                                             |
@@ -723,15 +765,20 @@ diagnosable from the build log without a manual repro.
 #### The CI source revision pin
 
 `ci.yml`'s `build-core` job and `master-gate.yml`'s `core-wheel` job both build
-`sase_core_rs` from the git SHA recorded in `sase-core-revision.txt`, not from
-`sase-core`'s HEAD at build time. An unpinned checkout let an ordinary `sase-core` push
-redden `sase` master with no `sase` commit involved, and made two CI runs of the same
-`sase` SHA build different Rust cores. `tools/ratchet_core_revision`
-(`just ratchet-core-revision`) proposes moving the pin forward once `sase-core`'s remote
-HEAD has moved past it, and `.github/workflows/core-pin-ratchet.yml` runs that tool on a
-schedule and opens a PR when a bump is pending — never on push, so the ratchet itself
-can't redden a commit's gate. If `sase` source now calls a binding the pinned revision
-doesn't expose, the `lint` job's "Check pinned core bindings" step
+`sase_core_rs` from the full 40-character git SHA recorded in `sase-core-revision.txt`,
+not from `sase-core`'s HEAD at build time. An unpinned checkout let an ordinary
+`sase-core` push redden `sase` master with no `sase` commit involved, and made two CI
+runs of the same `sase` SHA build different Rust cores. The master gate caches the built
+wheel under a key that includes the pinned SHA, so it rebuilds only when the pin moves.
+`tools/ratchet_core_revision` (`just ratchet-core-revision`) moves the pin to
+`sase-core`'s current remote HEAD: `--check` exits 2 when a bump is pending,
+`--report-only` prints the change without writing, and a bare run rewrites the file.
+`.github/workflows/core-pin-ratchet.yml` runs the check every six hours (or on manual
+dispatch) and opens a PR when a bump is pending — never on push, so the ratchet itself
+can't redden a commit's gate. When a `sase` change needs core behavior newer than the
+pin, bump `sase-core-revision.txt` alongside that change once the `sase-core` commit is
+pushed, so CI builds a core that has it. If `sase` source now calls a binding the pinned
+revision doesn't expose, the `lint` job's "Check pinned core bindings" step
 (`tools/check_sase_core_rs_bindings --remedy ...`) fails with the missing binding names
 and names the pin bump as the remedy, instead of a bare `AttributeError` surfacing later
 in a consumer job. This is a source-revision pin, separate from the published

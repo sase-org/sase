@@ -9,7 +9,10 @@ sections, environment variables, and CLI flags.
 - [Owner Identity](#owner-identity)
 - [SASE Admin Center (interactive editor)](#sase-admin-center-interactive-editor)
   - [Config tab](#config-tab)
+  - [Logs tab](#logs-tab)
+  - [Machines tab](#machines-tab)
   - [Projects tab](#projects-tab)
+  - [Statistics tab](#statistics-tab)
   - [Updates tab](#updates-tab)
 - [Deep-Merge System](#deep-merge-system)
 - [Configuration Sections](#configuration-sections)
@@ -39,11 +42,14 @@ sections, environment variables, and CLI flags.
   - [xprompt_aliases](#xprompt_aliases)
   - [use_chezmoi](#use_chezmoi)
   - [commit_hooks](#commit_hooks)
+  - [gate](#gate)
   - [max_running_agents](#max_running_agents)
   - [max_agent_pipe_chain](#max_agent_pipe_chain)
   - [runner_slots](#runner_slots)
+  - [agent hold limits](#agent-hold-limits)
   - [procs](#procs)
   - [disk](#disk)
+  - [managed_tmp](#managed_tmp)
   - [markdown](#markdown)
   - [pager](#pager)
   - [timezone](#timezone)
@@ -165,16 +171,17 @@ Press `#` in the `sase tui` TUI to open **SASE Admin Center**. The first press a
 starts on its lightweight home page, where the working sections—**Config**, **Logs**,
 **Machines**, **Procs**, **Projects**, **Statistics**, and **Updates**—are introduced
 without loading their data. Config's nested catalog is alphabetized. With the default-on
-`admin_center_flags` sunset flag it is **All**, **Flags**, **Launch**, **Memory**,
-**Snippets**, and **XPrompts**, labeled `01` through `06`. Disabling that flag omits
-Flags and numbers the remaining five children `01` through `05`. While home is visible,
-press `#` again to resume the last section that was successfully active in this sase's
-TUI process. Before the first section visit, the repeated key leaves home unchanged and
-constructs no pane. Press `1`–`7` or click the numbered tab strip to enter a section:
-`1` Config, `2` Logs, `3` Machines, `4` Procs, `5` Projects, `6` Statistics, and `7`
-Updates. From home, `Tab` enters Config and `Shift+Tab` enters Updates; within a working
-section they wrap across the same tabs. Pane-local `[` / `]` keys switch sub-tabs or
-views where the active pane provides them, including Config's nested catalog.
+`admin_center_flags` sunset flag it is **All**, **Flags**, **Holds**, **Launch**,
+**Memory**, **Snippets**, and **XPrompts**, labeled `01` through `07`. Disabling that
+flag omits Flags and numbers the remaining six children `01` through `06`. While home is
+visible, press `#` again to resume the last section that was successfully active in this
+sase's TUI process. Before the first section visit, the repeated key leaves home
+unchanged and constructs no pane. Press `1`–`7` or click the numbered tab strip to enter
+a section: `1` Config, `2` Logs, `3` Machines, `4` Procs, `5` Projects, `6` Statistics,
+and `7` Updates. From home, `Tab` enters Config and `Shift+Tab` enters Updates; within a
+working section they wrap across the same tabs. Pane-local `[` / `]` keys switch
+sub-tabs or views where the active pane provides them, including Config's nested
+catalog.
 
 Inside a working section, the same opener key takes on a second meaning: it jumps to the
 section you were in immediately before the current one, and pressing it again toggles
@@ -202,11 +209,18 @@ The Config tab answers four questions for every field — what value is effectiv
 (its provenance), where an edit will go, and whether it validates:
 
 The nested Config catalog is alphabetized. When `admin_center_flags` is on (the
-default), it is **01 All**, **02 Flags**, **03 Launch**, **04 Memory**, **05 Snippets**,
-and **06 XPrompts**. With the bundled prefix, press `0` and then `1`-`6` to open those
-children. When the flag is off, the catalog is **01 All** through **05 XPrompts**, and
-`0` then `1`-`5` selects them. Remap the prefix with `ace.keymaps.config.select_subtab`
-without changing the visible default badges.
+default), it is **01 All**, **02 Flags**, **03 Holds**, **04 Launch**, **05 Memory**,
+**06 Snippets**, and **07 XPrompts**. With the bundled prefix, press `0` and then
+`1`-`7` to open those children. When the flag is off, the catalog runs from **01 All**
+and **02 Holds** through **06 XPrompts**, and `0` then `1`-`6` selects them. Remap the
+prefix with `ace.keymaps.config.select_subtab` without changing the visible default
+badges.
+
+**Holds** lists the active [agent holds](xprompt.md#hold-directive) with their selectors
+and expiry. `j` / `k` move, `d` releases the highlighted hold immediately, and `r`
+reloads the list. The pane is available regardless of the `agent_holds` beta flag, which
+gates only the `%hold` directive; see [agent hold limits](#agent-hold-limits) for the
+TTL settings.
 
 **Flags** is a keyboard-first control surface for every code-owned SASE feature flag. It
 does not edit `~/.config/sase/sase.yml`, overlays, project-local `sase.yml`, or chezmoi
@@ -495,8 +509,8 @@ previous:
 4. **Selected `sase_*.yml` overlays** — ordinary overlays plus only the machine overlay
    whose nested `id.machine_name` (or deprecated top-level fallback) matches
    `~/.sase/machine_name`, sorted alphabetically; lists **concatenate**
-5. **Local `sase.yml`** — project-level config in the current working directory; lists
-   **concatenate** (highest priority)
+5. **Local `sase/sase.yml`** — project-level config at the detected project root (or the
+   legacy root `sase.yml` fallback); lists **concatenate** (highest priority)
 
 This allows splitting shared configuration across ordinary files (e.g., `sase_work.yml`,
 `sase_personal.yml`) without duplication and keeping machine-specific settings in
@@ -516,7 +530,12 @@ config that adds a third, the merged result contains all three profiles. A user
 `~/.config/sase/sase.yml` list replaces earlier defaults instead. If two files define
 the same scalar key (e.g., `axe.max_hook_runners`), the later layer wins.
 
-Source: `src/sase/config/core.py`
+The `axe` block is the one exception to plain dictionary merging: after the layers are
+combined, SASE recomposes it from the same layer chain so that keyed routine and job
+entries merge by identity and legacy AXE spellings (see [axe](#axe)) normalize to one
+effective shape.
+
+Source: `src/sase/config/core.py`, `src/sase/config/loading.py`
 
 ## Configuration Sections
 
@@ -759,7 +778,8 @@ ace:
           models_panel: "m"
           update_sase: "U"
           update_everything: "E"
-          full_history_refresh: "y"
+          full_history_refresh: "y" # with refresh_panel on, opens the Refresh panel
+          collapse_fold_by_hint: "H" # Agents fold-collapse hints; `,H`
       fold_mode:
         prefix: "z"
         keys:
@@ -782,21 +802,51 @@ ace:
             shell: "just test"
 ```
 
-| Field                      | Type         | Default   | Description                                                                                                                                                |
-| -------------------------- | ------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `artifacts`                | dict         | see below | Per-pane settings for sase's TUI Artifacts tab.                                                                                                            |
-| `axe_description_expanded` | bool         | `true`    | State the Axe-tab [description panel](ace.md#description-panel) starts each session in; `d` toggles it in memory.                                          |
-| `current_project`          | dict         | see below | Top-bar `+<project>` chip and session seeds for project filters.                                                                                           |
-| `keymaps`                  | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
-| `page_size`                | int          | `100`     | Ctrl+J / Ctrl+K step and the default Artifacts `limit:` value. Must be at least 1. Launch Control alias history uses a fixed 10-run step instead.          |
-| `prompt_completion`        | dict         | see below | Live soft-completion settings for sase's TUI prompt input.                                                                                                 |
-| `prompt_inputs`            | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                 |
-| `prompt_spellcheck`        | dict         | see below | Sticky misspelling highlight settings for sase's TUI prompt input.                                                                                         |
-| `repro_output_dir`         | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
-| `snippet_config_path`      | str          | `""`      | Config file that receives new `ace.snippets` entries written from the prompt bar (see below).                                                              |
-| `snippets`                 | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
-| `tribes`                   | dict         | see below | Per-tribe sase's TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                   |
-| `updates`                  | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
+| Field                               | Type         | Default   | Description                                                                                                                                                |
+| ----------------------------------- | ------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `artifact_file_viewer`              | dict         | see below | mpv-backed terminal video playback settings for the external artifact-file viewer.                                                                         |
+| `artifacts`                         | dict         | see below | Per-pane settings for sase's TUI Artifacts tab.                                                                                                            |
+| `axe_description_expanded`          | bool         | `true`    | State the Axe-tab [description panel](ace.md#description-panel) starts each session in; `d` toggles it in memory.                                          |
+| `current_project`                   | dict         | see below | Top-bar `+<project>` chip and session seeds for project filters.                                                                                           |
+| `keymaps`                           | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
+| `notification_indicator_max_counts` | int          | `4`       | Per-tab counts shown in the top-bar notification indicator before the rest collapse into `+N`.                                                             |
+| `notification_tabs`                 | dict         | see below | Per-tab colors, icons, priorities, and grouping for notification tabs.                                                                                     |
+| `page_size`                         | int          | `100`     | Ctrl+J / Ctrl+K step and the default Artifacts `limit:` value. Must be at least 1. Launch Control alias history uses a fixed 10-run step instead.          |
+| `prompt_completion`                 | dict         | see below | Live soft-completion settings for sase's TUI prompt input.                                                                                                 |
+| `prompt_inputs`                     | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                 |
+| `prompt_spellcheck`                 | dict         | see below | Sticky misspelling highlight settings for sase's TUI prompt input.                                                                                         |
+| `repro_output_dir`                  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
+| `snippet_config_path`               | str          | `""`      | Config file that receives new `ace.snippets` entries written from the prompt bar (see below).                                                              |
+| `snippets`                          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
+| `tool_calls`                        | dict         | see below | Tool-call presentation settings for sase's TUI Agents tab.                                                                                                 |
+| `tribes`                            | dict         | see below | Per-tribe sase's TUI icons and identity colors, plus Agents-tab panel initial expansion.                                                                   |
+| `updates`                           | dict         | see below | Startup update checks, the top-bar update badge, and the one-shot post-update restart confirmation toast.                                                  |
+
+#### `ace.artifact_file_viewer`
+
+Controls terminal video playback when the external artifact-file viewer opens a video
+artifact through mpv.
+
+```yaml
+ace:
+  artifact_file_viewer:
+    video:
+      audio: false
+      loop: false
+      vo: "kitty"
+      extra_mpv_args: []
+```
+
+| Field                  | Type             | Default   | Description                                                     |
+| ---------------------- | ---------------- | --------- | --------------------------------------------------------------- |
+| `video.audio`          | bool             | `false`   | Start playback unmuted.                                         |
+| `video.loop`           | bool             | `false`   | Loop playback with mpv `--loop-file=inf`.                       |
+| `video.vo`             | str              | `"kitty"` | mpv video output driver, such as `kitty` or `tct`.              |
+| `video.extra_mpv_args` | list[str] or str | `[]`      | Extra mpv arguments appended after SASE's own playback options. |
+
+SASE launches mpv with `--no-config`, so put viewer-specific customization here rather
+than in an mpv profile. See [Video Preview](agent_images.md#video-preview) for playback
+keys.
 
 #### `ace.artifacts`
 
@@ -899,10 +949,10 @@ only while that panel remains live in the current sase's TUI session. On restart
 when a tribe panel disappears and later returns, `initially_expanded` is applied again.
 
 SASE bundles display config only for the tribes its own source assigns (`default`,
-`epic`, `job`, `pinned`, `review`); a tribe your own xprompts assign with `%tribe:` has
-no bundled entry, renders with sase's TUI gold fallback and no icon until you configure
-it under `ace.tribes`, and — once configured — requires a `description` like any other
-entry.
+`epic`, `job`, `pinned`, `review`); a tribe your own xprompts assign with
+`%id(tribe=...)`, `%clan(..., tribe=...)`, or the `#tribe` xprompt has no bundled entry,
+renders with sase's TUI gold fallback and no icon until you configure it under
+`ace.tribes`, and — once configured — requires a `description` like any other entry.
 
 A missing or blank `description` on any configured tribe is an error-severity config
 diagnostic: sase's TUI Config Center refuses to write _any_ change while it is present,
@@ -991,6 +1041,22 @@ user-authored `limit:40`. Launch Control's model-alias history panel is the exce
 Ctrl+J / Ctrl+K there always step by 10 runs, independently of this setting and of
 `llm_provider.model_alias_history_limit`.
 
+#### `ace.tool_calls`
+
+```yaml
+ace:
+  tool_calls:
+    slow_threshold_seconds: 20
+```
+
+| Field                    | Type | Default | Minimum | Description                                                                          |
+| ------------------------ | ---- | ------- | ------- | ------------------------------------------------------------------------------------ |
+| `slow_threshold_seconds` | int  | `20`    | `0`     | Minimum tool-call duration shown as slow in Agents metadata and tool-call timelines. |
+
+The threshold drives the `SLOW TOOL CALLS` section of the Agents metadata header and the
+slow markers in the [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel). A missing,
+negative, or non-integer value falls back to `20`.
+
 #### `ace.updates`
 
 | Field                                   | Type   | Default | Description                                                                                                                       |
@@ -1048,7 +1114,7 @@ available actions are:
 
 | Field           | Default | Description                                                                                      |
 | --------------- | ------- | ------------------------------------------------------------------------------------------------ |
-| `select_subtab` | `0`     | Arm numbered Config-child selection (`01`-`06` when Flags is visible, `01`-`05` when it is not). |
+| `select_subtab` | `0`     | Arm numbered Config-child selection (`01`-`07` when Flags is visible, `01`-`06` when it is not). |
 
 **`statistics`** — Bindings active only while the Admin Center Statistics pane is
 focused. The available actions are:
@@ -1234,17 +1300,30 @@ The top-level Agents query editor is available as the app-level `edit_query` bin
 default `/`, and the direct `agents_filters` binding, default `f`. The leader-mode
 `search_forward` chord, default `,/`, starts inline metadata search on Agents only.
 
-| Field                       | Default   | Action                                                      |
-| --------------------------- | --------- | ----------------------------------------------------------- |
-| `agents_filters`            | `f`       | Open the top-level Agents `agents-live` filter bar.         |
-| `connect_agent_machine`     | `unbound` | Open the Admin Center Machines tab.                         |
-| `setup_agent_machine`       | `unbound` | Open the Admin Center Machines tab for enrollment guidance. |
-| `retry_remote_agent`        | `unbound` | Retry the selected row on its owning host.                  |
-| `view_remote_agent_content` | `unbound` | Fetch bounded remote chat, output, or diff content.         |
-| `answer_remote_attention`   | `unbound` | Answer a pending remote question or approve a pending gate. |
+| Field                           | Default   | Action                                                                                         |
+| ------------------------------- | --------- | ---------------------------------------------------------------------------------------------- |
+| `agents_filters`                | `f`       | Open the top-level Agents `agents-live` filter bar.                                            |
+| `agents_refresh`                | `r`       | Refresh the Agents tab, or open the Refresh panel while the `refresh_panel` sunset flag is on. |
+| `agents_retry`                  | `R`       | Retry the selected local or remote agent.                                                      |
+| `view_agent_metadata`           | `V`       | Open the selected local agent's metadata panel in the SASE pager.                              |
+| `connect_agent_machine`         | `unbound` | Open the Admin Center Machines tab.                                                            |
+| `setup_agent_machine`           | `unbound` | Open the Admin Center Machines tab for enrollment guidance.                                    |
+| `retry_remote_agent`            | `unbound` | Compatibility id: retry the selected row on its owning host.                                   |
+| `view_remote_agent_content`     | `unbound` | Fetch bounded remote chat, output, or diff content.                                            |
+| `answer_remote_attention`       | `unbound` | Answer a pending remote question or approve a pending gate.                                    |
+| `check_dispatch_launch_outcome` | `unbound` | Reconcile the selected provisional remote dispatch-launch row with its operation outcome.      |
 
-Remote stop and fork reuse the ordinary `kill_agent` and `edit_hooks` actions when the
-row advertises those capabilities. See [Machines](ace.md#machines).
+On the Agents tab, `r` refreshes and `R` retries; every other tab keeps `r` for
+`run_workflow` and `R` for `refresh`, which is why those pairs share keys (see the
+allowlist below). With the default-on `refresh_panel` sunset flag, both refresh actions
+open the Refresh panel, and the leader `full_history_refresh` chord (`,y`) opens it with
+the cursor on the Agents full-history rescan. Likewise, `V` opens the Agent Run Log
+modal (`show_agent_run_log`) everywhere except the Agents tab, where
+`view_agent_metadata` owns it.
+
+Remote retry, stop, and fork reuse the ordinary `agents_retry`, `kill_agent`, and
+`edit_hooks` actions when the row advertises those capabilities. See
+[Machines](ace.md#machines).
 
 **`modes`** — Prefix-key mode definitions. Built-in modes (`fold_mode`, `copy_mode`,
 `leader_mode`, `bang_mode`) can be reconfigured, and custom modes can be added. Each
@@ -1281,14 +1360,19 @@ A small allowlist of app actions intentionally shares a key because the two acti
 never be available on the same surface. Validation permits exactly these pairs and
 rejects every other duplicate app binding:
 
-| Shared key (default) | Spelled in YAML as | Pair                                                   | Disjoint because                                       |
-| -------------------- | ------------------ | ------------------------------------------------------ | ------------------------------------------------------ |
-| `a`                  | `a`                | `add_axe_item` / `open_artifact_files`                 | Axe vs Artifacts                                       |
-| `d`                  | `d`                | `show_diff` / `toggle_axe_description`                 | Patches vs Axe                                         |
-| `E`                  | `E`                | `beads_open_bug` / `files_open_external`               | Beads vs Files panes (the shared open-externally verb) |
-| `.`                  | `full_stop`        | `toggle_relation_panel` / `toggle_hide_reverted`       | Artifacts vs Agents/Axe                                |
-| `X`                  | `X`                | `open_agent_cleanup_panel` / `patches_toggle_reverted` | Agents vs Patches                                      |
-| `D`                  | `D`                | `toggle_attempt_view` / `cycle_artifacts_description`  | Agents vs Artifacts                                    |
+| Shared key (default) | Spelled in YAML as    | Pair                                                   | Disjoint because                                       |
+| -------------------- | --------------------- | ------------------------------------------------------ | ------------------------------------------------------ |
+| `a`                  | `a`                   | `add_axe_item` / `open_artifact_files`                 | Axe vs Artifacts                                       |
+| `d`                  | `d`                   | `show_diff` / `toggle_axe_description`                 | Patches vs Axe                                         |
+| `E`                  | `E`                   | `beads_open_bug` / `files_open_external`               | Beads vs Files panes (the shared open-externally verb) |
+| `w`                  | `w`                   | `agents_revive` / `beads_launch_work`                  | Artifacts Agents pane vs Beads pane                    |
+| `w`                  | `w`                   | `agents_revive` / `reword`                             | Artifacts Agents pane vs Patches                       |
+| `.`                  | `full_stop`           | `toggle_relation_panel` / `toggle_hide_reverted`       | Artifacts vs Agents/Axe                                |
+| `X`                  | `X`                   | `open_agent_cleanup_panel` / `patches_toggle_reverted` | Agents vs Patches                                      |
+| `D`                  | `D`                   | `toggle_attempt_view` / `cycle_artifacts_description`  | Agents vs Artifacts                                    |
+| `_`                  | `underscore` (or `_`) | `next_query` / `collapse_all_panel_folds`              | Artifacts query history vs Agents fold sweep           |
+| `r`                  | `r`                   | `agents_refresh` / `run_workflow`                      | Agents vs Patches/Axe                                  |
+| `R`                  | `R`                   | `agents_retry` / `refresh`                             | Agents vs every other tab                              |
 
 The first column is what the key looks like on your keyboard; the second is the name to
 write in `sase.yml`, matching how `src/sase/default_config.yml` spells it. Punctuation
@@ -1299,7 +1383,10 @@ The allowlist is keyed by action pair, not by key, so moving one of these action
 different key keeps the exemption, and pointing a third action at a shared key does not
 gain it. Only actions you overrode are checked: an override that collides with any
 action outside its allowed pair is logged as a duplicate and reverted to that action's
-default, leaving the rest of your keymap in place.
+default, leaving the rest of your keymap in place. The shipped `V` shared by
+`show_agent_run_log` and `view_agent_metadata` is not on the list: it loads as shipped,
+but moving both actions onto one new key is logged as a duplicate and both revert to
+`V`.
 
 `ace.keymaps.app.start_saved_query_mode` (default `0`) arms direct saved-PR-query slot
 selection: press it, then a slot digit (`1`-`9`, then `0`) to load that slot. Its digit
@@ -1738,6 +1825,7 @@ llm_provider:
 | `llm_provider.default_model`             | string | `@large`    | Model expression used when a launch has no explicit `%model` directive.                                                                                                                                                           |
 | `llm_provider.epic_lander_model`         | string | `@large`    | Model expression used by epic land agents when the epic has fewer authored phases than `bead.big_epic_phase_threshold`.                                                                                                           |
 | `llm_provider.big_epic_lander_model`     | string | `@xlarge`   | Model expression used by epic land agents when the epic has `bead.big_epic_phase_threshold` or more authored phases.                                                                                                              |
+| `llm_provider.default_effort`            | string | `""`        | Reasoning effort applied when a launch requests none: `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`. Empty leaves each provider on its own default; unsupported levels are skipped with a warning.                |
 | `llm_provider.model_alias_history_limit` | int    | `10`        | Maximum prior runs returned per alias for the Launch Control agent-history panel. Must be at least `1`; malformed runtime values defensively fall back to `10`.                                                                   |
 | `llm_provider.model_aliases.builtin`     | dict   | -           | Overrides for the five built-in size aliases (`xsmall`, `small`, `medium`, `large`, `xlarge`). Values use the single-target grammar, `\|` round-robin pools, `\|\|` ordered fallbacks, or `(A \| B) \|\| C` last-resort.          |
 | `llm_provider.model_aliases.custom`      | dict   | -           | User-defined aliases usable from `%model:@<alias>` / `%m:@<alias>`. Each requires `model` (single target or selector) and `description`.                                                                                          |
@@ -2007,6 +2095,53 @@ user-base `sase.yml` (or its chezmoi source), while temporary values live indepe
 in `~/.sase/max_running_agents_override.json`. This is a Launch Control binding, not an
 `ace.keymaps` option.
 
+#### `llm_provider.continuation_budget`
+
+Byte budget for the continuation-budget preflight. Monitor successors always run it, and
+so does any invocation with `SASE_CONTINUATION_BUDGET_ENFORCE=1`. The preflight measures
+the final expanded prompt; when its essential content cannot fit the effective budget,
+SASE records the decision and refuses before calling the provider.
+
+```yaml
+llm_provider:
+  continuation_budget:
+    context_limit_bytes: 800000
+    estimate_uncertain: true
+    instruction_reserve_bytes: 0
+    tool_reserve_bytes: 0
+    output_reserve_bytes: 0
+    reasoning_reserve_bytes: 0
+    providers:
+      agy:
+        transport_limit_bytes: 122880
+        instruction_reserve_bytes: 512
+        # models:
+        #   <model-name>: { context_limit_bytes: 400000 }
+```
+
+| Field                        | Type | Default  | Minimum | Description                                                                               |
+| ---------------------------- | ---- | -------- | ------- | ----------------------------------------------------------------------------------------- |
+| `context_limit_bytes`        | int  | `800000` | `1`     | Provider context budget, in UTF-8 bytes, before reserves are subtracted.                  |
+| `transport_limit_bytes`      | int  | unset    | `1`     | Largest prompt the provider transport can carry safely, such as a single-argv limit.      |
+| `checkpoint_threshold_bytes` | int  | unset    | `1`     | Prompt size at which checkpoint-backed reductions are considered.                         |
+| `instruction_reserve_bytes`  | int  | `0`      | `0`     | Bytes reserved for provider-side system instructions or command framing.                  |
+| `tool_reserve_bytes`         | int  | `0`      | `0`     | Bytes reserved for provider tool definitions or tool-call framing.                        |
+| `output_reserve_bytes`       | int  | `0`      | `0`     | Bytes reserved for the model's response.                                                  |
+| `reasoning_reserve_bytes`    | int  | `0`      | `0`     | Bytes reserved for hidden reasoning or other provider overhead.                           |
+| `estimate_uncertain`         | bool | `true`   | -       | Mark byte estimates as uncertain when exact provider accounting is unavailable.           |
+| `providers.<name>`           | dict | -        | -       | Overrides of any field above for one registered provider.                                 |
+| `providers.<name>.models`    | dict | -        | -       | Overrides keyed by provider-resolved model name, applied on top of that provider's entry. |
+
+Each field resolves independently: a matching model entry wins over its provider entry,
+which wins over the shared values, and the matching `SASE_CONTINUATION_*` variable (see
+[LLM Provider environment variables](#llm-provider)) outranks all of them. A zero,
+negative, or non-integer value uses the built-in default instead. The bundled `agy`
+entry reflects that Antigravity sends the print prompt as one argv element; SASE keeps
+those `agy` transport and instruction-reserve values even without configuration and
+never lets the `agy` instruction reserve drop below 512 bytes.
+
+Source: `src/sase/llm_provider/continuation_budget_request.py`
+
 #### `llm_provider.retry`
 
 Per-provider retry and fallback configuration. See
@@ -2115,11 +2250,14 @@ become declaration obligations; each repository must receive exactly one `commit
 decision with a Conventional Commit message, and `commit` is the only legal repository
 action. Typed deferrals can name explicit paths that must not be committed, using the
 adjudicated reasons `protected_paths`, `foreign_work`, `unsafe_content`, or
-`belongs_to_another_turn`. Commit decisions dispatch through `sase stitch create`
-sequentially, preserve protected pre-existing dirt, write stitch evidence, stop on the
-first conflict for repair/resume, and fail completion when a rejected deferral or
-unrepaired dirty state remains. Later mutating finalizers can reactivate commit until
-the controller reaches its bounded fixed point.
+`belongs_to_another_turn`. When the run has an assigned bead (`SASE_BEAD_ID`), the
+primary repository's commit decision also carries a `keep` or `close` bead action, which
+is forwarded to `sase stitch create -B`; see
+[Explicit Bead Action](commit_workflows.md#explicit-bead-action). Commit decisions
+dispatch through `sase stitch create` sequentially, preserve protected pre-existing
+dirt, write stitch evidence, stop on the first conflict for repair/resume, and fail
+completion when a rejected deferral or unrepaired dirty state remains. Later mutating
+finalizers can reactivate commit until the controller reaches its bounded fixed point.
 
 When `$SASE_ARTIFACTS_DIR` is set, new runs write generic finalizer artifacts:
 `finalizer_baseline.json`, `final_context.json`, `final_submission.json`,
@@ -2723,11 +2861,12 @@ axe:
         - name: stale_running_cleanup
           script: sase_job_stale_running_cleanup
           description: |-
-            Release workspace claims held by dead processes
+            Release workspace claims and terminalize proc rows held by dead processes
 
             Walks every project, including disabled projects, and releases unpinned workspace claims whose owning
             process has exited. A pinned held claim is preserved while its agent artifacts still exist; this fast-lane
-            placement frees ordinary dead claims within seconds.
+            placement frees ordinary dead claims within seconds. It also terminalizes active proc rows whose supervisor
+            exited without reporting.
     waits:
       description: |-
         Resolve agent wait dependencies and keep bead claims and stores in sync
@@ -2805,16 +2944,17 @@ axe:
             Scans enabled projects every five minutes and gives every live task bead exactly one pending
             gate: a TaskTriage gate while a task bead is ready and has at least its effective +1 bar in reports
             (its own task type's triage.min_plus_ones, else the global bead.task_triage.min_plus_ones), a BeadSnooze
-            wake gate while it is snoozed, and a FlagTriage gate once a flag-typed task bead's date and
-            release removal thresholds have both passed. A ready task bead below the +1 bar is withheld from
+            wake gate while it is snoozed, and a FlagTriage gate once a flag-typed task bead's date and release removal
+            thresholds have both passed. A ready task bead below the +1 bar is withheld from
             triage without changing its stored status, and a gate already raised for a bead that falls below the
             bar is canceled and its notification dismissed. Deterministic gate generations in lane state prevent
             duplicate notifications, a gate of the wrong kind is replaced when its bead's status or due-ness
             changes, and a snoozed bead's notification is re-snoozed to its wake time if it ever drifts. Gates are
             canceled when their beads leave those states, while answered or missing gates can be regenerated
             safely if work remains. Gates stranded by removed projects or forgotten lane state are swept without
-            touching projects that are only temporarily unreadable. A gateable bead with a detached launch still
-            in flight is deferred instead of re-gated.
+            touching projects that are only temporarily unreadable. A gateable bead is deferred while a detached
+            launch is still in flight or a live agent is working the bead, and a pending gate is canceled when a
+            live agent owns the bead.
         - name: plugins_required
           script: sase_job_plugins_required
           timeout: "2m"
@@ -2841,11 +2981,12 @@ axe:
         - name: stale_running_cleanup
           script: sase_job_stale_running_cleanup
           description: |-
-            Backstop release of workspace claims held by dead processes
+            Backstop release of workspace claims and proc rows held by dead processes
 
             Runs the same all-project dead-process reconciliation as the hooks-lane cleanup, including conservative
-            handling of pinned claims with agent artifacts. This five-minute placement still frees stale workspace
-            claims if the fast hooks lane is disabled, restarting, or repeatedly failing.
+            handling of pinned claims with agent artifacts and terminalization of orphaned active proc rows. This
+            five-minute placement still frees stale workspace claims and proc rows if the fast hooks lane is disabled,
+            restarting, or repeatedly failing.
     comments:
       description: |-
         Start background critique-comment checks for mailed PRs every minute
@@ -2865,11 +3006,12 @@ axe:
             polling throttle; pending_checks_poll later consumes each background result.
     housekeeping:
       description: |-
-        Run hourly error digests, artifact previews, and cleanup
+        Run hourly error digests, notification compaction, artifact previews, and cleanup
 
-        Runs once an hour because notification batching, bounded scratch reclamation, artifact/run-retention
-        previews, and stale-backlog cleanup are useful but not latency-sensitive. Put durable maintenance that
-        may scan substantial local state here, not lifecycle, dependency, or remote polling work.
+        Runs once an hour because notification batching, live-inbox bounding, bounded scratch reclamation,
+        artifact/run-retention previews, and stale-backlog cleanup are useful but not latency-sensitive. Put
+        durable maintenance that may scan substantial local state here, not lifecycle, dependency, or remote polling
+        work.
       interval: 3600
       jobs:
         - name: error_digest
@@ -2887,12 +3029,33 @@ axe:
 
             Removes old children from managed-temp buckets using workload-specific age limits, without following
             symlinks or deleting the stable bucket directories. Launched agents default TMPDIR/TMP/TEMP,
-            CARGO_TARGET_DIR, and CARGO_BUILD_BUILD_DIR into managed buckets. The reaper can also prune aged large
-            build output early
-            when the managed root exceeds its size target or the filesystem falls below the free-space floor, while
-            preserving generic agent scratch, handoff data, unknown buckets, and build trees with fresh descendants.
-            Each pass removes at most 2,000 entries and de-indexes deleted agent-artifact directories, so a neglected
-            root converges without blocking interactive commands.
+            CARGO_TARGET_DIR, and CARGO_BUILD_BUILD_DIR into managed buckets, and runners remove their own
+            launch-assigned scratch at exit when no live process still uses it. The reaper can also prune aged large
+            build output early when the managed root exceeds its size target or the filesystem falls below the
+            free-space floor; pressure pruning waits for the configured minimum age (12h by default), or 1h once the
+            free-space floor is breached, while preserving generic agent scratch, handoff data, unknown buckets, and
+            build trees with fresh descendants. Each pass removes at most 2,000 entries and de-indexes deleted
+            agent-artifact directories, so a neglected root converges without blocking interactive commands.
+        - name: proc_runtime_sweep
+          script: sase_job_proc_runtime_sweep
+          description: |-
+            Prune stale rowless proc runtime directories
+
+            Removes only canonical proc runtime directories that no longer have a durable proc row, are older than
+            the configured proc runtime orphan horizon, and are direct non-symlink children of ~/.sase/procs/runtime.
+            The Rust owner rechecks the proc store under its lock before deletion so concurrent reservations are
+            preserved. Runtime directories for proc rows actually pruned by retention are deleted immediately by the
+            proc store path; this job handles historical orphans over a bounded per-pass budget.
+        - name: disk_pressure
+          script: sase_job_disk_pressure
+          timeout: "5m"
+          description: |-
+            React when SASE's filesystem crosses disk-pressure thresholds
+
+            Checks proportional free-space thresholds, logs and notifies the largest SASE disk owners, then runs
+            unattended owner-safe cleanup passes early. Managed temp and proc runtime sweeps may apply because their
+            owners encode deletion policy. Artifact run directories, backups, and unowned Cargo-shaped strays are
+            reported for human action and are never deleted by this job.
         - name: bead_stale_cleanup
           script: sase_job_bead_stale_cleanup
           timeout: "2m"
@@ -2937,14 +3100,14 @@ axe:
 
 **Routine fields** (per entry under `routines`):
 
-| Field          | Type                    | Required | Default | Description                                                                                                        |
-| -------------- | ----------------------- | -------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
-| `description`  | string                  | yes      | -       | Summary line, blank line, optional body describing the lane's cadence and work.                                    |
-| `interval`     | int                     | no       | `1`     | Seconds between job polling cycles.                                                                                |
-| `job_timeout`  | string                  | no       | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"`.                                           |
-| `wait_runners` | int                     | no       | -       | Optional runner-count condition: start a lane agent once at most this many other participating lanes are occupied. |
-| `env`          | dict[string, env-value] | no       | `{}`    | Environment inherited by every job in this routine.                                                                |
-| `jobs`         | list[object] or map     | no       | `[]`    | Composable job definitions (see below).                                                                            |
+| Field          | Type                    | Required | Default | Description                                                                                                 |
+| -------------- | ----------------------- | -------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `description`  | string                  | yes      | -       | Summary line, blank line, optional body describing the lane's cadence and work.                             |
+| `interval`     | int                     | no       | `1`     | Seconds between job polling cycles.                                                                         |
+| `job_timeout`  | string                  | no       | -       | Positive compound duration limit, such as `"90s"`, `"1h30m"`, or `"1d"`.                                    |
+| `wait_runners` | int                     | no       | -       | Per-launch capacity budget for proposed lane agents, emitted as `%queue(capacity=N)`; must be at least `1`. |
+| `env`          | dict[string, env-value] | no       | `{}`    | Environment inherited by every job in this routine.                                                         |
+| `jobs`         | list[object] or map     | no       | `[]`    | Composable job definitions (see below).                                                                     |
 
 **Job fields** (per entry under `jobs`):
 
@@ -2970,6 +3133,18 @@ whole string capped at 2000 characters. Violations produce the
 `description_body_separator_required`, and `description_too_long` diagnostics. See
 [AXE — Description Grammar](axe.md#description-grammar) for the full contract, the
 authoring style guide, and the YAML literal-block form.
+
+Routines were formerly called lumberjacks and jobs were called chops. The old spellings
+remain accepted, schema-valid input aliases but are marked deprecated: `lumberjacks` for
+`routines`, `chops` for `jobs`, `chop_timeout` for `job_timeout`, `chop_script_dirs` for
+`job_script_dirs`, and `lumberjack_log_max_bytes`,
+`lumberjack_log_temp_max_age_seconds`, `lumberjack_restart_backoff_max_seconds`, and
+`verbose_lumberjack_diagnostics` for their `routine_*` counterparts. New configuration
+should use the canonical keys. With the default-on `axe_routine_job_contract` sunset
+flag, `sase config show` prints the effective AXE block with the canonical names. Legacy
+`sase_chop_*` executables still exist beside the `sase_job_*` entrypoints. See
+[AXE compatibility aliases](axe.md#compatibility-aliases) for the matching CLI,
+environment, and artifact-reference aliases.
 
 All jobs are scripts. Exact-name resolution checks `job_script_dirs`, then the running
 interpreter's bin directory, then `$PATH`. Invalid fields, duplicate identities,
@@ -3479,16 +3654,41 @@ commit_hooks:
 | `commit_hooks.before` | string | `""`    | Command before diff capture and VCS dispatch. Empty means disabled.        |
 | `commit_hooks.after`  | string | `""`    | Command after a commit/PR dispatch and push succeed. Empty means disabled. |
 
-Hook output is captured and a bounded stdout/stderr tail is printed on failure. A
-failing `before` hook aborts before dispatch. A failing `after` hook leaves the commit
-checkpoint in place and returns failure even though the commit may already be pushed;
-fix the command and run `sase stitch create --resume`. The completed after-hook step is
-checkpointed so a normal resume does not rerun it. A crash after the external command
-succeeds but before that checkpoint write can run it again, so `after` commands must be
-safe to repeat.
+Hook output is captured and a bounded stdout/stderr tail is printed on failure; each run
+also leaves per-run evidence files described in
+[Commit Hook Evidence](commit_workflows.md#commit-hook-evidence). A failing `before`
+hook aborts before dispatch. A failing `after` hook leaves the commit checkpoint in
+place and returns failure even though the commit may already be pushed; fix the command
+and run `sase stitch create --resume`. The completed after-hook step is checkpointed so
+a normal resume does not rerun it. A crash after the external command succeeds but
+before that checkpoint write can run it again, so `after` commands must be safe to
+repeat.
 
 Source: `src/sase/default_config.yml`, `src/sase/workflows/commit/commit_hooks.py`,
 `src/sase/workflows/commit/workflow.py`
+
+### gate
+
+Settings for durable, command-backed gates. The only current setting controls how the
+hourly `gate_shell_reclaim` housekeeping job settles a
+[gate shell](notifications.md#gate-shells-and-continuation) whose gate has already
+passed its own deadline.
+
+```yaml
+gate:
+  shell:
+    reclaim_grace_seconds: 3600
+```
+
+| Field                              | Type | Default | Minimum | Description                                                                                   |
+| ---------------------------------- | ---- | ------- | ------- | --------------------------------------------------------------------------------------------- |
+| `gate.shell.reclaim_grace_seconds` | int  | `3600`  | `0`     | Seconds after a shell gate's deadline before reclaim force-settles the pending shell as lost. |
+
+Within the grace window, reclaim cancels an expired gate and settles its shell as a
+normal `timeout`; once the window has passed, a still-pending shell settles as `lost`
+instead. A missing, negative, or non-integer value falls back to `3600`.
+
+Source: `src/sase/default_config.yml`, `src/sase/gate_shell/reclaim.py`
 
 ### max_running_agents
 
@@ -3522,11 +3722,12 @@ versioned record at `~/.sase/max_running_agents_override.json`; a new set replac
 previous value, expiry is enforced at its deadline, and a persistent edit leaves an
 active override in force. Lowering the effective value is non-preemptive, so existing
 agents continue and new launches wait for occupied capacity to drain. Parked waiters and
-question continuations reread the effective cap on each normal poll. An explicit
-`%queue(capacity=N)` uses that positive-integer value as the launch's own admission
-budget, replacing the global budget for that launch only. Once admitted, the launch
-holds an ordinary weighted claim, so occupied capacity can honestly exceed the global
-budget until work drains.
+question continuations reread the effective cap on each normal poll. With the default-on
+`queue_capacity_budget` sunset flag, an explicit `%queue(capacity=N)` (or
+`sase bead work -c/--capacity N` for an epic) uses that positive-integer value as the
+launch's own admission budget, replacing the global budget for that launch only. Once
+admitted, the launch holds an ordinary weighted claim, so occupied capacity can honestly
+exceed the global budget until work drains.
 
 When upgrading from an unweighted scheduler build, restart sase's TUI and AXE and let
 already running agent processes finish or relaunch them under the new binary. Legacy
@@ -3612,13 +3813,49 @@ waits. See [Agent waiting for a runner slot](troubleshooting/runner-slots.md) fo
 diagnosis, and [`%queue(priority=N)`](xprompt.md#supported-directives) for the directive
 itself.
 
+### agent hold limits
+
+Three top-level keys bound agent holds: the `sase agent hold create` / `run` commands
+and the beta [`%hold` directive](xprompt.md#hold-directive), which needs the
+`agent_holds` feature flag.
+
+```yaml
+agent_hold_default_ttl: 2h
+agent_hold_max_ttl: 12h
+agent_hold_confirm_capture_threshold: 10
+```
+
+| Field                                  | Type   | Default | Description                                                                                                 |
+| -------------------------------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `agent_hold_default_ttl`               | string | `2h`    | TTL for a hold armed without an explicit TTL. Bare seconds or a number suffixed with `s`, `m`, or `h`.      |
+| `agent_hold_max_ttl`                   | string | `12h`   | Largest TTL a hold may request. `sase agent hold create` / `run` reject a larger `-T/--ttl`.                |
+| `agent_hold_confirm_capture_threshold` | int    | `10`    | Frozen `pending` capture size above which a launch preview asks for interactive confirmation before arming. |
+
+The launch preview lists each `%hold` with its scope and a TTL resolved against these
+values, showing both the default and the cap. sase's TUI and `sase run` also ask for
+confirmation before arming a hold that combines `future` with `scope=host`, regardless
+of the threshold; non-interactive launches proceed without asking. The Admin Center
+[Config tab](#config-tab)'s **Holds** child lists and releases active holds, and
+`sase doctor -C agent_holds.stale` reports holds whose armer died or whose TTL passed.
+
+A missing or unparsable TTL, or a negative or non-integer threshold, falls back to the
+default shown above rather than failing the command.
+
+Source: `src/sase/default_config.yml`, `src/sase/config/_settings.py`,
+`src/sase/agents/cli_hold.py`, `src/sase/agent/launch_hold_preview.py`
+
 ### procs
 
 Durable proc records live in `~/.sase/procs/procs.jsonl`, with combined output logs
 under `~/.sase/procs/logs/`. Retention keeps every pending or running proc plus the
 newest configured number of finished procs. Lowering the limit trims the oldest finished
-rows and their logs; active work is never pruned. The legacy `tasks.history_limit` key
-is still honored as a deprecated alias.
+rows and their logs; active work is never pruned.
+
+Each proc also has a runtime directory under `~/.sase/procs/runtime/`. Retention deletes
+a pruned row's runtime directory immediately, while the hourly `proc_runtime_sweep`
+housekeeping job removes older rowless (orphaned) runtime directories within the horizon
+and per-pass budget below. Fresh orphans are left alone so a launch that is still
+reserving its row is never raced.
 
 ```yaml
 procs:
@@ -3633,6 +3870,12 @@ procs:
 | `procs.runtime_orphan_horizon_seconds` | int  | `259200` | `0`     | Age before the hourly proc runtime owner may remove rowless runtime directories.               |
 | `procs.runtime_orphan_max_removals`    | int  | `2000`   | `1`     | Maximum historical rowless proc runtime directories removed in one pass.                       |
 | `tasks.history_limit`                  | int  | `100`    | `1`     | Deprecated alias for `procs.history_limit`; use `procs.*` for proc runtime retention settings. |
+
+The top-level `tasks` block is still schema-valid, and `sase config layers` and
+`sase doctor` flag it for migration. In practice the legacy key has no effect in a
+normal merged configuration: the bundled defaults always supply `procs.history_limit`,
+which takes precedence over `tasks.history_limit`. Move the value to
+`procs.history_limit` to change retention.
 
 ### disk
 
@@ -3656,15 +3899,41 @@ disk:
 | `disk.pressure.top_owner_min_bytes` | int    | `1073741824` | `>= 0`  | Minimum unowned row size named directly in pressure diagnostics. |
 
 `sase doctor` still honors its absolute floors of 3 GiB for WARN and 1 GiB for ERROR;
-the effective threshold is the larger of the absolute and proportional values.
+the effective threshold is the larger of the absolute and proportional values. Use
+`sase disk list` to see SASE disk usage by owner and `sase disk reap` to preview or run
+the owners' cleanup passes.
+
+Source: `src/sase/default_config.yml`, `src/sase/core/disk_pressure.py`
 
 ### managed_tmp
 
-Age horizons and pressure thresholds for the managed SASE temp root (everything under
-`get_sase_managed_tmpdir(...)`). `sase disk reap` and the hourly `managed_tmp_reap`
-housekeeping job both call the Rust-owned reaper with these values; see
-`core/managed_tmp_reaper.py` for which subdirectory buckets map to which horizon
-category.
+Age horizons and pressure thresholds for the managed SASE temp root: `$SASE_TMPDIR` when
+set, otherwise `$SASE_HOME/tmp` (`~/.sase/tmp` by default). SASE writes scratch there in
+per-purpose bucket directories, and launched agents get `TMPDIR`/`TMP`/`TEMP`,
+`CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` pointed into managed buckets. Runners
+remove their own launch-assigned scratch at exit when no live process still uses it;
+`sase disk reap` and the hourly `managed_tmp_reap` housekeeping job clean up the rest
+with these values.
+
+Each bucket belongs to one horizon category. Editor, wrapper, per-agent `agent-tmp`, and
+similar command scratch uses the command-scratch horizon; `handoff`, `gh-diffs`, and
+`muse-prompts` use the handoff horizon; `build-targets` and `cargo-targets` use the
+build-scratch horizon; and `launch-prompts` and `workflow-artifacts`, which sase's TUI
+reads back after a run ends, use the run-artifact horizon. Unknown buckets and stray
+top-level entries are aged at the handoff horizon. The bucket mapping is fixed; only the
+durations and pressure thresholds are configurable.
+
+Pressure pruning is a second pass that removes aged, large build scratch early when the
+managed root grows past `pressure.max_bytes` or the filesystem's free space drops below
+`pressure.min_available_bytes`. It never prunes generic agent scratch, handoff data,
+unknown buckets, or build trees with fresh descendants.
+
+In practice, the housekeeping `managed_tmp_reap` job, the `disk_pressure` job, and
+`sase disk reap` all pass the shared [`disk.pressure`](#disk) warn threshold (the larger
+of 3 GiB and `disk.pressure.warn_free_percent`) as both the free-space floor and the
+recovery target, so `pressure.min_available_bytes` and
+`pressure.recovery_available_bytes` currently take effect only for direct reaper calls
+that leave those values unset.
 
 ```yaml
 managed_tmp:
@@ -3698,6 +3967,9 @@ managed_tmp:
 | `managed_tmp.pressure.min_age_seconds`                | int  | `43200`       | `0`     | Minimum age before pressure can prune a large scratch entry.                                  |
 | `managed_tmp.pressure.low_free_space_min_age_seconds` | int  | `3600`        | `0`     | Emergency minimum age used instead when the free-space floor is breached, if lower than base. |
 | `managed_tmp.pressure.min_entry_bytes`                | int  | `1073741824`  | `0`     | Small entries below this size do not participate in pressure pruning.                         |
+
+Source: `src/sase/default_config.yml`, `src/sase/config/_settings.py`,
+`src/sase/core/managed_tmp_reaper.py`
 
 ### markdown
 
@@ -3934,6 +4206,8 @@ mobile_gateway:
   state_dir: ""
   allow_non_loopback: false
   command: ""
+  agent_bridge_command: ""
+  helper_bridge_command: ""
   push_provider: "disabled"
   fcm_project_id: ""
   fcm_service_account_json: ""
@@ -3944,21 +4218,23 @@ mobile_gateway:
   startup_timeout_seconds: 10
 ```
 
-| Field                                     | Type   | Default       | Description                                                               |
-| ----------------------------------------- | ------ | ------------- | ------------------------------------------------------------------------- |
-| `mobile_gateway.bind_address`             | string | `"127.0.0.1"` | Host address to bind. Non-loopback values require explicit opt-in.        |
-| `mobile_gateway.port`                     | int    | `7629`        | Gateway HTTP port.                                                        |
-| `mobile_gateway.state_dir`                | string | `""`          | SASE state root for gateway storage. Empty uses the Rust gateway default. |
-| `mobile_gateway.allow_non_loopback`       | bool   | `false`       | Allow LAN or tailnet binds after explicit user opt-in.                    |
-| `mobile_gateway.command`                  | string | `""`          | Gateway binary command override, parsed without a shell.                  |
-| `mobile_gateway.push_provider`            | string | `"disabled"`  | Push provider: `disabled`, `test`, or `fcm`.                              |
-| `mobile_gateway.fcm_project_id`           | string | `""`          | Firebase project ID for FCM HTTP v1.                                      |
-| `mobile_gateway.fcm_service_account_json` | string | `""`          | Local service-account JSON path. Do not commit this file.                 |
-| `mobile_gateway.fcm_credential_env`       | string | `""`          | Env var containing an FCM bearer token or service-account JSON.           |
-| `mobile_gateway.fcm_dry_run`              | bool   | `false`       | Ask FCM to validate messages without delivering them.                     |
-| `mobile_gateway.push_timeout_seconds`     | float  | `5`           | Timeout per push provider HTTP attempt.                                   |
-| `mobile_gateway.push_retry_limit`         | int    | `1`           | Retry attempts for best-effort push delivery.                             |
-| `mobile_gateway.startup_timeout_seconds`  | float  | `10`          | Seconds to wait for gateway readiness before exiting.                     |
+| Field                                     | Type   | Default       | Description                                                                   |
+| ----------------------------------------- | ------ | ------------- | ----------------------------------------------------------------------------- |
+| `mobile_gateway.bind_address`             | string | `"127.0.0.1"` | Host address to bind. Non-loopback values require explicit opt-in.            |
+| `mobile_gateway.port`                     | int    | `7629`        | Gateway HTTP port.                                                            |
+| `mobile_gateway.state_dir`                | string | `""`          | SASE state root for gateway storage. Empty uses the Rust gateway default.     |
+| `mobile_gateway.allow_non_loopback`       | bool   | `false`       | Allow LAN or tailnet binds after explicit user opt-in.                        |
+| `mobile_gateway.command`                  | string | `""`          | Gateway binary command override, parsed without a shell.                      |
+| `mobile_gateway.agent_bridge_command`     | string | `""`          | Agent bridge command override passed to the gateway; empty uses its default.  |
+| `mobile_gateway.helper_bridge_command`    | string | `""`          | Helper bridge command override passed to the gateway; empty uses its default. |
+| `mobile_gateway.push_provider`            | string | `"disabled"`  | Push provider: `disabled`, `test`, or `fcm`.                                  |
+| `mobile_gateway.fcm_project_id`           | string | `""`          | Firebase project ID for FCM HTTP v1.                                          |
+| `mobile_gateway.fcm_service_account_json` | string | `""`          | Local service-account JSON path. Do not commit this file.                     |
+| `mobile_gateway.fcm_credential_env`       | string | `""`          | Env var containing an FCM bearer token or service-account JSON.               |
+| `mobile_gateway.fcm_dry_run`              | bool   | `false`       | Ask FCM to validate messages without delivering them.                         |
+| `mobile_gateway.push_timeout_seconds`     | float  | `5`           | Timeout per push provider HTTP attempt.                                       |
+| `mobile_gateway.push_retry_limit`         | int    | `1`           | Retry attempts for best-effort push delivery.                                 |
+| `mobile_gateway.startup_timeout_seconds`  | float  | `10`          | Seconds to wait for gateway readiness before exiting.                         |
 
 Push payloads are hint-only and must not contain bearer tokens, pairing codes, prompt
 bodies, response text, attachment contents, attachment tokens, or host paths. Only
@@ -4177,6 +4453,28 @@ The generated JSON Schema exposes one boolean property per registered flag with 
 description and default. Unknown keys are tolerated by the schema so downgraded installs
 can still read a config written by a newer SASE, but the resolver warns and ignores
 unknown keys at runtime.
+
+`beta` flags default off and gate work that is still landing; `sunset` flags default on
+and keep a fallback path reachable until the flag is removed. The schema marks sunset
+flags deprecated. The currently registered flags are:
+
+| Flag                           | Kind   | Default | Controls                                                                                                        |
+| ------------------------------ | ------ | ------- | --------------------------------------------------------------------------------------------------------------- |
+| `ace_refresh_tokens`           | sunset | `true`  | sase's TUI and proc refreshes are gated on per-surface, stat-only change tokens.                                |
+| `admin_center_flags`           | sunset | `true`  | The Admin Center Config catalog shows the Flags pane.                                                           |
+| `agent_holds`                  | beta   | `false` | The [`%hold` directive](xprompt.md#hold-directive).                                                             |
+| `agent_sudo_requests`          | beta   | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                             |
+| `agents_unified_query`         | sunset | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                      |
+| `axe_routine_job_contract`     | sunset | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                           |
+| `monitor_continuation_records` | sunset | `true`  | New monitors persist versioned continuation records, frozen outcome policy, and durable delivery state.         |
+| `provider_drain`               | beta   | `false` | A hard provider disable relaunches stranded agents through `sase agent drain` (see `llm_provider.usage_limit`). |
+| `queue_capacity_budget`        | sunset | `true`  | `%queue(capacity=N)` is the launch's own admission budget; see [max_running_agents](#max_running_agents).       |
+| `ref_sync_gesture`             | sunset | `true`  | Typing a second `:` after an empty `@<kind>:` refreshes that kind's sidecar and reopens the payload menu.       |
+| `refresh_panel`                | sunset | `true`  | `r` on Agents and `R` elsewhere open the Refresh panel, and `,y` opens it on Full history.                      |
+| `slim_agents_manifest`         | sunset | `true`  | Agents-sidecar owner manifests omit each hood's per-hood file list.                                             |
+| `typed_launch_units`           | beta   | `false` | Typed launch units, `%if::` script admission, and `%proc` (see below).                                          |
+
+Run `sase flag list` for the live registry with effective and saved state.
 
 The registered `typed_launch_units` beta flag defaults to `false`. Enabling it exposes
 the experimental `%if::` script-admission and `%proc` parser, completion, and
@@ -4400,6 +4698,9 @@ telemetry:
 | `telemetry.health_thresholds.p95_latency_warn`     | float | `300.0`    | P95 latency threshold (seconds) for WARN status. |
 | `telemetry.health_thresholds.p95_latency_critical` | float | `600.0`    | P95 latency threshold (seconds) for CRITICAL.    |
 
+The legacy `telemetry.prometheus` block (`url`, `pushgateway_url`, `exposition_port`) is
+still schema-valid for compatibility but is ignored.
+
 Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
 
 ### update
@@ -4431,6 +4732,7 @@ Source: `src/sase/default_config.yml`, `src/sase/mode_switch/repos.py`
 | `SASE_LLM_SMALL_ARGS`                          | Extra CLI args appended for `small` tier invocations (any provider).                |
 | `SASE_CLAUDE_LARGE_ARGS`                       | Claude-specific extra args for `large` tier (fallback if generic unset).            |
 | `SASE_CLAUDE_SMALL_ARGS`                       | Claude-specific extra args for `small` tier (fallback if generic unset).            |
+| `SASE_CLAUDE_MAX_WAIT_CONTINUATIONS`           | Claude [single-turn wait guard](llms.md#single-turn-wait-guard) cap (default: `2`). |
 | `SASE_CODEX_PATH`                              | Path to the Codex CLI binary (default: PATH lookup, then NVM_BIN/codex).            |
 | `SASE_CODEX_LARGE_ARGS`                        | Codex-specific extra args for `large` tier (fallback if generic unset).             |
 | `SASE_CODEX_SMALL_ARGS`                        | Codex-specific extra args for `small` tier (fallback if generic unset).             |
@@ -4470,8 +4772,10 @@ Monitor successors always run the continuation-budget preflight; the explicit en
 variable is for another invocation path that needs the same guard. The preflight
 measures the final expanded prompt after replay. When essential content exceeds the
 effective budget, SASE records the decision and refuses before calling the provider.
-Invalid, zero, or negative numeric overrides fall back to the corresponding default or
-remain unset.
+Each `SASE_CONTINUATION_*_BYTES` variable outranks the matching
+[`llm_provider.continuation_budget`](#llm_providercontinuation_budget) setting,
+including provider and model overrides. Invalid, zero, or negative numeric overrides
+fall back to the corresponding default or remain unset.
 
 SASE-launched Codex subprocesses use a disposable shadow `CODEX_HOME` by default. The
 shadow home is created under `~/.cache/sase/codex_home/`, receives a copy of the real
@@ -4526,14 +4830,16 @@ for `--effort`; see [LLM Providers — Reasoning Effort](llms.md#reasoning-effor
 
 ### VCS Provider
 
-| Variable                          | Description                                                                                                                                               |
-| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SASE_VCS_PROVIDER`               | Override VCS provider selection (`git`, `hg`, or `auto`).                                                                                                 |
-| `SASE_WORKSPACE_ROOT`             | Override the workspace-root base for this process. Use an absolute path; `WorkspaceStore` appends `<project_key>/<project>_<num>/` for managed checkouts. |
-| `SASE_BUG_ID`                     | Bug ID for PR workflows. When set and non-zero, injects `SASE_BUG=<id>` into PR tags and Patch.                                                           |
-| `SASE_BEAD_ID`                    | Bead ID for commit workflows. When set, `sase stitch create` adds a linked `SASE_BEAD=` footer tag and leaves the subject unchanged.                      |
-| `SASE_LINKED_REPOS_JSON`          | Resolved linked-repo metadata passed to launched agents.                                                                                                  |
-| `SASE_LINKED_REPO_<ENV_NAME>_DIR` | Workspace-matched directory for one configured linked repo.                                                                                               |
+| Variable                          | Description                                                                                                                                                                                                                                                                |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SASE_VCS_PROVIDER`               | Override VCS provider selection (`git`, `hg`, or `auto`).                                                                                                                                                                                                                  |
+| `SASE_WORKSPACE_ROOT`             | Override the workspace-root base for this process. Use an absolute path; `WorkspaceStore` appends `<project_key>/<project>_<num>/` for managed checkouts.                                                                                                                  |
+| `SASE_BUG_ID`                     | Bug ID for PR workflows. When set and non-zero, injects `SASE_BUG=<id>` into PR tags and Patch.                                                                                                                                                                            |
+| `SASE_BEAD_ID`                    | Assigned bead ID for commit workflows. When set, `sase stitch create` adds a linked `SASE_BEAD=` footer tag, leaves the subject unchanged, and requires an explicit `-B/--bead-action keep\|close` (see [Explicit Bead Action](commit_workflows.md#explicit-bead-action)). |
+| `SASE_GH_TIMEOUT`                 | Positive per-attempt timeout, in seconds, for SASE's retried `gh` CLI calls (default: `20`).                                                                                                                                                                               |
+| `SASE_GH_MAX_RETRY_SLEEP`         | Positive cap, in seconds, on one wait between `gh` retries, including a server-requested retry delay (default: `60`).                                                                                                                                                      |
+| `SASE_LINKED_REPOS_JSON`          | Resolved linked-repo metadata passed to launched agents.                                                                                                                                                                                                                   |
+| `SASE_LINKED_REPO_<ENV_NAME>_DIR` | Workspace-matched directory for one configured linked repo.                                                                                                                                                                                                                |
 
 ### SDD Git Operations
 
@@ -4541,6 +4847,11 @@ for `--effort`; see [LLM Providers — Reasoning Effort](llms.md#reasoning-effor
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `SASE_SDD_STORE_WRITE_LOCK_TIMEOUT`         | Non-negative seconds to wait for the cooperative SDD store lock. Overrides both the 10-second metadata-write default and 180-second worktree-mutation default. |
 | `SASE_SDD_GIT_LOCK_RETRY_DELAYS`            | Comma-separated non-negative delays, in seconds, for transient Git lock failures. Invalid or empty values use the built-in shared retry schedule.              |
+| `SASE_SDD_GIT_LOCAL_TIMEOUT`                | Positive seconds allowed for one local SDD Git command (default: 30).                                                                                          |
+| `SASE_SDD_GIT_NETWORK_TIMEOUT`              | Positive seconds allowed for one network SDD Git attempt (default: 120). For progress-reporting clone, fetch, and push, it is the no-progress stall limit.     |
+| `SASE_SDD_GIT_NETWORK_TRANSFER_CEILING`     | Positive wall-clock cap, in seconds, on one progress-reporting clone, fetch, or push even while it keeps making progress (default: 900).                       |
+| `SASE_SDD_GIT_SLOW_MS`                      | Positive duration, in milliseconds, at which a successful SDD Git command is logged as slow (default: 1000).                                                   |
+| `SASE_SDD_REMOTE_CLONE_CONCURRENCY`         | Positive number of SDD sidecar remote clones allowed to run at once on this machine (default: 1).                                                              |
 | `SASE_EPIC_PLAN_LAUNCH_LOCK_TIMEOUT`        | Positive seconds an epic plan launch waits for another launch in the same project (default: 900).                                                              |
 | `SASE_EPIC_APPROVAL_PREFLIGHT_LOCK_TIMEOUT` | Positive seconds an approval preflight waits for an in-flight epic launch before deferring its health check to the detached launch (default: 120).             |
 
@@ -4573,13 +4884,17 @@ VCS, workspace, and LLM registries load provider entry points directly.
 
 | Variable                              | Description                                                                                                                                                                                                                                                                                                                    |
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `SASE_TMPDIR`                         | Override SASE's managed temp root. When unset, the root is `$SASE_HOME/tmp` (`~/.sase/tmp` by default).                                                                                                                                                                                                                        |
+| `SASE_TMPDIR`                         | Override SASE's [managed temp root](#managed_tmp). When unset, the root is `$SASE_HOME/tmp` (`~/.sase/tmp` by default). Keep it off tmpfs and out of file-sync folders, because build scratch can be large.                                                                                                                    |
+| `SASE_DETACH_SCOPE_DISABLE`           | Set to `1`, `true`, `yes`, or `on` to stop detached agent runners, procs, and monitors from escaping SASE's systemd cgroup. By default on Linux, when the launcher runs inside a SASE-owned systemd unit or scope and `systemd-run` exists, SASE starts that work in its own transient `systemd-run --user --scope`.           |
+| `SASE_AXE_DISABLE_SYSTEMD_SCOPE`      | Set to a truthy value to start the `sase axe start` orchestrator without its transient `sase-axe-*` systemd user scope. It also disables detached-work scope escape, like `SASE_DETACH_SCOPE_DISABLE`.                                                                                                                         |
 | `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` | Plan-specific auto-approval action for an agent; currently `approve` or `epic`.                                                                                                                                                                                                                                                |
 | `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                                                                                                                                                                                                                                           |
 | `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                                                                                                                                                                                                                                    |
 | `SASE_FEATURE_FLAGS`                  | Strict JSON object of booleans carrying the resolved feature-flag snapshot for this process and its children. Outranks config layers and a saved machine preference. Root `-f/--enable-feature` and `-F/--disable-feature` merge into this variable so launched processes inherit those CLI overrides.                         |
 | `SASE_XPROMPT_LSP_CMD`                | Override the command used by `sase lsp` to launch the xprompt language server.                                                                                                                                                                                                                                                 |
 | `SASE_CORE_DIR`                       | Preferred `sase-core` source checkout for `Justfile` Rust build/install targets; overrides `../sase-core`.                                                                                                                                                                                                                     |
+| `SASE_RUST_DEV_PROFILE`               | Cargo profile for the `just` Rust dev-install recipes and editable `sase-core` update prebuilds (default: `dev-update`); set `release` to force the published release profile. See [Rust Backend](rust_backend.md).                                                                                                            |
+| `SASE_FORMAT_VENV_DIR`                | Virtualenv the `just` formatting recipes install their narrow formatter tool set into (default: `.venv-format`).                                                                                                                                                                                                               |
 | `SASE_PYTEST_DIST`                    | xdist scheduler for the `just` pytest recipes: `worksteal` (default) or `loadfile` (fallback). Invalid values fail before worker-token acquisition; serial inline-snapshot modes ignore it.                                                                                                                                    |
 | `SASE_PYTEST_SANDBOX_DIR`             | Pytest-published sandbox root inherited by test subprocesses; bead-store writes during pytest must target a path at or below this directory.                                                                                                                                                                                   |
 | `SASE_PYTEST_WORKERS`                 | Request exactly this positive number of governed xdist workers for the `just` pytest recipes. The request must fit the active host pool unless accounting is deliberately disabled.                                                                                                                                            |
@@ -4637,7 +4952,8 @@ workspace claims.
 
 Command groups that default to a nested `list` command still parse flags at the
 subcommand level. Use the explicit `list` form when passing list options, such as
-`sase notify list -j`, `sase memory list -j`, or `sase workspace list --json`.
+`sase notify list -j`, `sase agent hold list -j`, or `sase workspace list --json`. See
+the [CLI Reference](cli.md#daily-operation) for which groups delegate to `list`.
 
 ### `sase (global)`
 
@@ -4645,26 +4961,27 @@ These options are recognized only in the leading run of option tokens, before th
 subcommand. They do not steal `-f`/`-F` or `-p` from commands such as
 `sase bead list -f json` or `sase completion candidates -p PROJECT`.
 
-| Flag                    | Values              | Default | Description                                                                                                                                                                                         |
-| ----------------------- | ------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `-F, --disable-feature` | registered flag key | -       | Force a registered feature flag off for this invocation and every process it launches. Repeatable. Outranks config layers, a saved machine preference, and an inherited `SASE_FEATURE_FLAGS` value. |
-| `-f, --enable-feature`  | registered flag key | -       | Force a registered feature flag on for this invocation and every process it launches. Repeatable. Outranks config layers, a saved machine preference, and an inherited `SASE_FEATURE_FLAGS` value.  |
-| `-p, --print-command`   | flag                | -       | Print a shell-quoted `sase ...` header to stderr before running the command. The displayed invocation omits the root print switch.                                                                  |
+| Flag                    | Values              | Default | Description                                                                                                                                                                                                                                                    |
+| ----------------------- | ------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-F, --disable-feature` | registered flag key | -       | Force a registered feature flag off for this invocation and every process it launches. Repeatable. Outranks config layers, a saved machine preference, and an inherited `SASE_FEATURE_FLAGS` value.                                                            |
+| `-f, --enable-feature`  | registered flag key | -       | Force a registered feature flag on for this invocation and every process it launches. Repeatable. Outranks config layers, a saved machine preference, and an inherited `SASE_FEATURE_FLAGS` value.                                                             |
+| `-p, --print-command`   | flag                | -       | Print a shell-quoted `sase ...` header, prefixed with `❯` (or `>` when stderr cannot encode it), to stderr before running the command. The header keeps feature-flag overrides but omits the root print switch, and it is never printed during tab completion. |
 
 ### `sase tui`
 
-| Flag                     | Values                                                 | Default                          | Description                                                                                                                                                                                                                       |
-| ------------------------ | ------------------------------------------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[query]`                | string                                                 | last used, first saved, or `!!!` | Query string for filtering Patches.                                                                                                                                                                                               |
-| `-m, --model-tier`       | `large`, `small`                                       | -                                | Override model tier for all LLM invocations.                                                                                                                                                                                      |
-| `-M, --model-size`       | `big`, `little`                                        | -                                | Deprecated alias for `--model-tier`.                                                                                                                                                                                              |
-| `-p, --profile`          | optional path                                          | -                                | Profile the TUI session with pyinstrument. Without a path, write `ace-profiles/ace_profile_<timestamp>.txt` under SASE's managed temp root; after exit, print a shortened path and copy it to the system clipboard when possible. |
-| `-r, --refresh-interval` | int (seconds)                                          | `10`                             | Auto-refresh interval (0 to disable).                                                                                                                                                                                             |
-| `-R, --restart-axe`      | flag                                                   | -                                | Restart the axe daemon on startup (no-op if axe is not running).                                                                                                                                                                  |
-| `-t, --tab`              | `artifacts`, `changespecs`, `patches`, `agents`, `axe` | `agents`                         | Tab to focus on startup (`changespecs` and `patches` are legacy aliases for `artifacts`).                                                                                                                                         |
-| `-T, --tmux`             | flag                                                   | -                                | Launch sase's TUI in a new tmux window named `sase_tmux_<N>` and print the session/window target for external control.                                                                                                            |
-| `-x, --no-axe`           | flag                                                   | -                                | Disable auto-starting the axe daemon.                                                                                                                                                                                             |
-| `-v, --vcs-provider`     | `git`, `hg`, `auto`                                    | -                                | Override VCS provider.                                                                                                                                                                                                            |
+| Flag                            | Values                                                 | Default                          | Description                                                                                                                                                                                                                       |
+| ------------------------------- | ------------------------------------------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[query]`                       | string                                                 | last used, first saved, or `!!!` | Query string for filtering Patches.                                                                                                                                                                                               |
+| `-m, --model-tier`              | `large`, `small`                                       | -                                | Override model tier for all LLM invocations.                                                                                                                                                                                      |
+| `-M, --model-size`              | `big`, `little`                                        | -                                | Deprecated alias for `--model-tier`.                                                                                                                                                                                              |
+| `-p, --profile`                 | optional path                                          | -                                | Profile the TUI session with pyinstrument. Without a path, write `ace-profiles/ace_profile_<timestamp>.txt` under SASE's managed temp root; after exit, print a shortened path and copy it to the system clipboard when possible. |
+| `-r, --refresh-interval`        | int (seconds)                                          | `10`                             | Auto-refresh interval (0 to disable).                                                                                                                                                                                             |
+| `-R, --restart-axe`             | flag                                                   | -                                | Restart the axe daemon on startup (no-op if axe is not running).                                                                                                                                                                  |
+| `-s, --sanity-refresh-interval` | int (seconds)                                          | `300`                            | Full sanity-refresh interval; missed watcher or change-token updates are still reconciled at least this often.                                                                                                                    |
+| `-t, --tab`                     | `artifacts`, `changespecs`, `patches`, `agents`, `axe` | `agents`                         | Tab to focus on startup (`changespecs` and `patches` are legacy aliases for `artifacts`).                                                                                                                                         |
+| `-T, --tmux`                    | flag                                                   | -                                | Launch sase's TUI in a new tmux window named `sase_tmux_<N>` and print the session/window target for external control.                                                                                                            |
+| `-x, --no-axe`                  | flag                                                   | -                                | Disable auto-starting the axe daemon.                                                                                                                                                                                             |
+| `-v, --vcs-provider`            | `git`, `hg`, `auto`                                    | -                                | Override VCS provider.                                                                                                                                                                                                            |
 
 ### `sase tmux-agent`
 
@@ -4697,12 +5014,14 @@ explains that a tmux session is required, and still prints the catalog.
 ### `sase axe status`
 
 Collects one read-only whole-system AXE snapshot. Human output is the default; JSON
-output is the exact stable schema-version-1 wire object and never contains Rich markup
-or ANSI escapes.
+output is deterministic and never contains Rich markup or ANSI escapes. While the
+default-on `axe_routine_job_contract` flag is enabled, `--json` emits the public
+schema-version-2 object with routine/job field names; disabling that flag restores the
+legacy schema-version-1 wire object.
 
-| Flag         | Values | Default | Description                                               |
-| ------------ | ------ | ------- | --------------------------------------------------------- |
-| `-j, --json` | flag   | -       | Emit the machine-readable schema-version-1 status object. |
+| Flag         | Values | Default | Description                              |
+| ------------ | ------ | ------- | ---------------------------------------- |
+| `-j, --json` | flag   | -       | Emit the machine-readable status object. |
 
 The classifier-owned exit code is `0` for healthy or intentionally inactive states, `1`
 for actionable degradation, and `2` for a collection or classification error. See
@@ -4722,29 +5041,36 @@ For `sase axe start`, CLI flags take precedence over values from the `axe` confi
 section in `sase.yml`. If neither is set, the built-in defaults from
 `default_config.yml` are used.
 
-### `sase repro`
-
-Agents-tab reproduction bundles capture and replay the loader/apply sequence used to
-render agent rows. The command is intended for debugging row disappearance,
-reappearance, and duplicate-parent regressions; see
-[Agents Tab Reproduction Bundles](ace.md#agents-tab-reproduction-bundles).
-
-| Form                            | Flag                | Values | Default  | Description                                                                |
-| ------------------------------- | ------------------- | ------ | -------- | -------------------------------------------------------------------------- |
-| `sase repro capture agents-tab` | `--output`          | path   | required | Directory where `agents_tab_repro.json` and capture artifacts are written. |
-| `sase repro capture agents-tab` | `--commit-safe`     | flag   | enabled  | Redact local names and paths for a shareable bundle.                       |
-| `sase repro capture agents-tab` | `--no-commit-safe`  | flag   | -        | Keep unredacted local identifiers in the capture.                          |
-| `sase repro capture agents-tab` | `--size`            | `WxH`  | `120x40` | Terminal size label stored with the bundle.                                |
-| `sase repro capture agents-tab` | `--json`            | flag   | -        | Emit a machine-readable capture result.                                    |
-| `sase repro replay`             | `path`              | path   | required | Bundle JSON file or bundle directory to replay.                            |
-| `sase repro replay`             | `--assert-stable`   | flag   | -        | Exit non-zero if replay invariants fail.                                   |
-| `sase repro replay`             | `--json`            | flag   | -        | Emit a machine-readable replay verdict.                                    |
-| `sase repro replay`             | `--write-artifacts` | path   | -        | Directory for replay screen text and SVG artifacts.                        |
-| `sase repro replay`             | `--size`            | `WxH`  | `120x40` | Headless terminal size used for replay.                                    |
-
 ### `sase axe stop`
 
-No flags. Stops the running axe orchestrator.
+Requests the stopped state and stops the running axe orchestrator and its routines.
+
+| Flag          | Values | Default | Description                                                |
+| ------------- | ------ | ------- | ---------------------------------------------------------- |
+| `-f, --force` | flag   | -       | Also sweep orphaned axe processes and reset the PID state. |
+
+### `sase axe restart`
+
+Runs the verified stop, start, and heartbeat-verify restart, even when axe is not
+running, and exits `0` only once every configured routine reports a fresh heartbeat.
+Unset runner and query flags fall back to the `axe` config values, as for
+`sase axe start`.
+
+| Flag                      | Values        | Default      | Description                                                      |
+| ------------------------- | ------------- | ------------ | ---------------------------------------------------------------- |
+| `-j, --json`              | flag          | -            | Suppress progress output and emit one deterministic JSON result. |
+| `-A, --max-agent-runners` | int           | config value | Maximum concurrent agent runners.                                |
+| `-H, --max-hook-runners`  | int           | config value | Maximum concurrent hook runners.                                 |
+| `-q, --query`             | string        | config value | Query string for filtering Patches.                              |
+| `-t, --verify-timeout`    | float (s)     | `15`         | Heartbeat verification timeout per start attempt.                |
+| `-z, --zombie-timeout`    | int (seconds) | config value | Timeout before marking a hook/workflow as a zombie.              |
+
+### `sase axe ensure`
+
+Bare `sase axe ensure` starts a missing orchestrator unless axe was explicitly stopped.
+`sase axe ensure install` installs and starts the optional user-systemd watchdog timer
+that runs the same check, and `sase axe ensure uninstall` stops and removes it. None of
+the three forms takes flags. See [Watchdog and Recovery](axe.md#watchdog-and-recovery).
 
 ### `sase axe maintenance`
 
@@ -4763,16 +5089,18 @@ See [axe.md — Maintenance Mode](axe.md#maintenance-mode) for the runtime behav
 With no subcommand, `sase axe job` defaults to `sase axe job list`. Use the explicit
 `list` or `doctor` subcommand when passing diagnostic flags.
 
-| Form                  | Flags                                         | Description                                                                                                                                                   |
-| --------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase axe job list`   | `-a/--available`, `-j/--json`, `-v/--verbose` | List configured jobs with one summary line each; `--available` also shows discoverable executable job scripts, and `--verbose` adds a full-description panel. |
-| `sase axe job doctor` | `-j/--json`, `-v/--verbose`                   | Diagnose missing configured jobs, unconfigured scripts, and Telegram job prerequisites.                                                                       |
-| `sase axe job run`    | `-L/--routine`                                | Run a single job once in the foreground.                                                                                                                      |
+| Form                     | Flags                                                            | Description                                                                                                                                                                                                                                                                                               |
+| ------------------------ | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase axe job list`      | `-a/--available`, `-j/--json`, `-v/--verbose`                    | List configured jobs with one summary line each; `--available` also shows discoverable executable job scripts, and `--verbose` adds a full-description panel.                                                                                                                                             |
+| `sase axe job doctor`    | `-j/--json`, `-v/--verbose`                                      | Diagnose missing configured jobs, unconfigured scripts, and Telegram job prerequisites.                                                                                                                                                                                                                   |
+| `sase axe job run <JOB>` | `-L/--routine`, `-n/--dry-run`, `-f/--force`, `-V/--job-verbose` | Run a single job once in the foreground. `-L` names the routine when the job appears in several, `-n` runs the script but only previews its agent proposals, `-f` bypasses declarative guards (triggers are always bypassed), and `-V` enables verbose script diagnostics and the full structured result. |
 
 `sase axe job doctor` exits `1` when any check is `ERROR` (a configured script job
 cannot be resolved) and `0` otherwise. Unconfigured available scripts and Telegram
 prerequisite gaps report `WARN`. The same job diagnostics are also surfaced by
-`sase doctor -C axe.jobs`.
+`sase doctor -C axe.jobs`. The hidden legacy `sase axe chop ...` group accepts the same
+subcommands (plus the hidden `--chop-verbose` and `--lumberjack` spellings) and keeps
+its schema-version-1 JSON; see [Compatibility aliases](axe.md#compatibility-aliases).
 
 ### `sase axe routine`
 
@@ -4786,6 +5114,9 @@ With no subcommand, `sase axe routine` defaults to `sase axe routine list`.
 
 Both listings print only the description summary line by default so the output stays
 scannable; `-v/--verbose` renders the full [description](axe.md#description-grammar).
+`sase axe routine run` takes the routine name positionally; its runner flags are the
+ones the orchestrator forwards when it spawns routines. The hidden legacy
+`sase axe lumberjack ...` group accepts the same subcommands.
 
 ### `sase stitch create`
 
@@ -4814,9 +5145,9 @@ resume semantics.
 primary repo and configured linked repos. Add `-S/--sdd` to include sidecar repository
 history. The legacy `sase vcs` spelling is still accepted as a deprecated alias.
 
-| Subcommand | Flags                                                                                                                                                                                                                                                                                                           | Description                                                       |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| `list`     | `-a/--all`, `-A/--author`, `-b/--branch/--ref`, `-c/--color`, `-o/--current-only`, `-F/--fetch`, `-f/--format pretty\|full\|oneline\|json`, `-n/--limit`, `-m/--merges hide\|show\|only`, `-N/--no-fetch`, `-T/--no-tags`, `-r/--repo`, `-R/--reverse`, `-S/--sdd`, `-s/--since/--after`, `-u/--until/--before` | Show a merged commit timeline with local/remote presence markers. |
+| Subcommand | Flags                                                                                                                                                                                                                                                                                                                                            | Description                                                       |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- |
+| `list`     | `-a/--all`, `-A/--author`, `-b/--branch/--ref`, `-c/--color`, `-o/--current-only`, `-F/--fetch`, `-f/--format pretty\|full\|oneline\|json`, `-n/--limit`, `-m/--merges hide\|show\|only`, `-N/--no-fetch`, `-T/--no-tags`, `--origin stitch\|auto\|manual`, `-r/--repo`, `-R/--reverse`, `-S/--sdd`, `-s/--since/--after`, `-u/--until/--before` | Show a merged commit timeline with local/remote presence markers. |
 
 `sase stitch list` date filters accept relative offsets (`Nh`, `Nd`, `Nw`), `today`,
 `yesterday`, `YYYY-MM-DD`, or `YYYY-MM-DDTHH:MM`. Day-granular `--until` / `--before`
@@ -4829,7 +5160,8 @@ with repeatable `--repo` filters but not `--current-only`. Add `--sdd` to either
 before selecting SDD history with `--repo sdd`; without the opt-in, that repo filter
 does not expand the eligible set. `--all --sdd` includes materialized separate SDD
 repositories across registered projects. The `--limit` is the cap on the final merged
-timeline.
+timeline (default `40`; `0` means unlimited). `--origin` has no short form; repeat it to
+OR `stitch`, `auto`, and `manual` origins.
 
 ### `sase patch search`
 
@@ -4975,25 +5307,43 @@ deterministically.
 
 ### `sase run`
 
-| Flag      | Values | Default | Description                                                                                                   |
-| --------- | ------ | ------- | ------------------------------------------------------------------------------------------------------------- |
-| `[query]` | string | -       | Prompt text, inline reference (`#name`), standalone workflow reference (`#!name`), or `.` for history picker. |
+| Flag                 | Values | Default                   | Description                                                                                                   |
+| -------------------- | ------ | ------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `[PROMPT]`           | string | -                         | Prompt text, inline reference (`#name`), standalone workflow reference (`#!name`), or `.` for history picker. |
+| `-Q, --request-path` | path   | `$SASE_PROC_REQUEST_PATH` | Private operation request sidecar used when sase's TUI runs the launch as a durable proc.                     |
+| `-R, --result-path`  | path   | `$SASE_PROC_RESULT_PATH`  | Private typed result sidecar for the same durable-proc path.                                                  |
 
 When invoked with no arguments, opens `$EDITOR` for composing a prompt interactively.
 When invoked with `.`, opens a prompt history picker. All prompts launch as detached
 background agents, and multi-prompt queries (containing `---` separators) are launched
 as sequential detached background agents.
 
+From an interactive terminal outside an agent or durable proc, a prompt that arms a
+broad [`%hold`](xprompt.md#hold-directive) — `future` combined with `scope=host`, or a
+`pending` capture larger than `agent_hold_confirm_capture_threshold` — prints the hold
+preview and asks `Arm this hold? [y/N]`. Declining prints
+`Hold not armed; launch cancelled.` and exits `1`.
+
 ### `sase repro`
 
 `sase repro` captures and replays debugging bundles for narrow, reproducible TUI bug
 classes. The current target is the Agents-tab loader/apply sequence used to diagnose row
-disappearance, reappearance, and duplicate workflow parents.
+disappearance, reappearance, and duplicate workflow parents; see
+[Agents Tab Reproduction Bundles](ace.md#agents-tab-reproduction-bundles). All of its
+options are long-only.
 
-| Form                            | Flags                                                                     | Description                                                                                        |
-| ------------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `sase repro replay <path>`      | `--assert-stable`, `--json`, `--write-artifacts <dir>`, `--size`          | Replay a bundle JSON file or bundle directory through the headless TUI harness.                    |
-| `sase repro capture agents-tab` | `--output <dir>`, `--commit-safe`, `--no-commit-safe`, `--size`, `--json` | Capture a baseline bundle from current filesystem state. `--commit-safe` redaction is the default. |
+| Form                            | Flag                | Values | Default  | Description                                                                |
+| ------------------------------- | ------------------- | ------ | -------- | -------------------------------------------------------------------------- |
+| `sase repro capture agents-tab` | `--output`          | path   | required | Directory where `agents_tab_repro.json` and capture artifacts are written. |
+| `sase repro capture agents-tab` | `--commit-safe`     | flag   | enabled  | Redact local names and paths for a shareable bundle.                       |
+| `sase repro capture agents-tab` | `--no-commit-safe`  | flag   | -        | Keep unredacted local identifiers in the capture.                          |
+| `sase repro capture agents-tab` | `--size`            | `WxH`  | `120x40` | Terminal size label stored with the bundle.                                |
+| `sase repro capture agents-tab` | `--json`            | flag   | -        | Emit a machine-readable capture result.                                    |
+| `sase repro replay`             | `path`              | path   | required | Bundle JSON file or bundle directory to replay through the headless TUI.   |
+| `sase repro replay`             | `--assert-stable`   | flag   | -        | Exit non-zero if replay invariants fail.                                   |
+| `sase repro replay`             | `--json`            | flag   | -        | Emit a machine-readable replay verdict.                                    |
+| `sase repro replay`             | `--write-artifacts` | path   | -        | Directory for replay screen text and SVG artifacts.                        |
+| `sase repro replay`             | `--size`            | `WxH`  | `120x40` | Headless terminal size used for replay.                                    |
 
 Use the in-TUI `,B` capture when a transient row-list bug has just happened in a live
 sase's TUI session. The CLI capture path is out-of-band: it loads current filesystem
@@ -5052,16 +5402,18 @@ inputs, tags, `is_skill`, and preview. Clients that insert references should pre
 ### `sase init`
 
 Bare `sase init` is the onboarding coordinator for SASE-managed resources. It runs
-read-only planners for memory, SDD, and skills, prints a grouped summary, and prompts
-once per initializer that needs work when stdin is interactive. Non-interactive runs
-never prompt; they print the drift summary and ask the caller to rerun with `--yes`.
-That flag runs needed initializers but cannot authorize creation of a missing GitHub SDD
-sidecar, which always requires its own interactive `y`/`yes` response. The memory
+read-only planners for config (owner identity), machine enrollment, memory,
+repositories, and skills, in that order, prints a grouped summary, and prompts once per
+initializer that needs work when stdin is interactive. Non-interactive runs never
+prompt; they print the drift summary and ask the caller to rerun with `--yes`. That flag
+runs needed initializers but cannot authorize creation of a missing provider sidecar
+repository, which always requires its own interactive `y`/`yes` response. The memory
 planner (which owns agent-document initialization) only generates managed project
 `AGENTS.md` from bare `sase init` when the current project's own `sase/sase.yml` sets
-`is_sase_managed: true`. The SDD planner uses that same local marker and skips unmanaged
-repositories before provider work. Neither planner infers project ownership from
-`memory.h1_title`, existing memory notes, lifecycle state, or merged configuration.
+`is_sase_managed: true`. The repository planner uses that same local marker and skips
+unmanaged repositories before provider work. Neither planner infers project ownership
+from `memory.h1_title`, existing memory notes, lifecycle state, or merged configuration.
+See [Initialization](init.md) for the full flow.
 
 `--all` applies that coordinator to every registered enabled main project from its
 recorded primary workspace, even when the command starts outside a project. It excludes
@@ -5069,17 +5421,25 @@ disabled projects, internal sibling backing records, `home`, and other system-ma
 records, continues after per-project failures, and returns non-zero if any project has
 drift, is unavailable, or fails. `--all --check` is read-only, while non-interactive
 apply still requires `--yes`. `--all` is incompatible with `--enable-project-memory` and
-with explicit compatibility subcommands.
+with explicit compatibility subcommands. `-p/--project` names a subset of the same
+enabled projects instead and has the same restrictions, plus it cannot be combined with
+`--all`.
 
 Advanced deploy controls stay on explicit subcommands such as
-`sase memory init --no-commit` and `sase skill init --no-push`.
+`sase memory init --no-commit` and `sase skill init --no-push`. The compatibility
+subcommands `sase init config`, `sase init machine`, `sase init memory`,
+`sase init repo`, and `sase init skills` accept the flags of `sase config init`,
+`sase machine init`, `sase memory init`, `sase repo init`, and `sase skill init`.
 
-| Flag                          | Values | Default | Description                                                                              |
-| ----------------------------- | ------ | ------- | ---------------------------------------------------------------------------------------- |
-| `-a, --all`                   | flag   | -       | Attempt every known enabled main SASE project and report one aggregate status.           |
-| `-c, --check`                 | flag   | -       | Report initialization drift without writing; exits non-zero when changes are needed.     |
-| `-M, --enable-project-memory` | flag   | -       | Mark the repository with `is_sase_managed: true` before initialization.                  |
-| `-y, --yes`                   | flag   | -       | Run needed initializers without generic prompts; cannot approve GitHub sidecar creation. |
+| Flag                          | Values       | Default | Description                                                                                                        |
+| ----------------------------- | ------------ | ------- | ------------------------------------------------------------------------------------------------------------------ |
+| `-a, --all`                   | flag         | -       | Attempt every known enabled main SASE project and report one aggregate status.                                     |
+| `-c, --check`                 | flag         | -       | Report initialization drift without writing; exits non-zero when changes are needed.                               |
+| `-d, --diff`                  | flag         | -       | Show full file diffs for planned changes.                                                                          |
+| `-j, --json`                  | flag         | -       | With `--check`, emit one schema-versioned JSON plan (`current`, `drift`, or `blocked`) instead of human output.    |
+| `-M, --enable-project-memory` | flag         | -       | Mark the repository with `is_sase_managed: true` before initialization; cannot be combined with `--check`.         |
+| `-p, --project`               | project name | -       | Check or initialize one enabled project by name, display name, or alias; repeatable.                               |
+| `-y, --yes`                   | flag         | -       | Run needed initializers without generic prompts; cannot approve creation of a missing provider sidecar repository. |
 
 ### `sase machine`
 
@@ -5120,18 +5480,31 @@ With no subcommand, `sase memory agent-docs` defaults to `sase memory agent-docs
 
 With no subcommand, `sase memory` defaults to `sase memory list`.
 
-| Form                      | Flags                                              | Description                                                                                          |
-| ------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `sase memory`             | -                                                  | Show the same read-only memory context dashboard as `sase memory list`.                              |
-| `sase memory list`        | -                                                  | Show loaded, referenced, available, and missing memory files for the current launch context.         |
-| `sase memory read <path>` | `-r, --reason <reason>` required                   | Agent-side read of a `type: reference` memory note without leading frontmatter, plus an audit event. |
-| `sase memory log`         | `--path`, `--agent`, `--id`, `--include`, `--json` | Summarize or inspect audited memory reads; `--include glossary` folds in the legacy glossary log.    |
+| Form                                   | Flags                                                                         | Description                                                                                                                                                            |
+| -------------------------------------- | ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase memory`                          | -                                                                             | Show the same read-only memory context dashboard as `sase memory list`.                                                                                                |
+| `sase memory list`                     | -                                                                             | Show loaded, referenced, available, and missing memory files for the current launch context.                                                                           |
+| `sase memory read <selector> ...`      | `-r, --reason <reason>` required; `-d/--depth`, `-f/--format`, `-p/--project` | Agent-side read of one or more selectors (a flat note, a bare web, or `web:keyword`) with one attributable audit event.                                                |
+| `sase memory show <selector> ...`      | `-d/--depth`, `-f/--format`, `-p/--project`                                   | Resolve and print the same selectors without recording a read.                                                                                                         |
+| `sase memory log`                      | `--path`, `--agent`, `--id`, `--include`, `--json`                            | Summarize or inspect audited memory reads; `--include glossary` folds in the legacy glossary log. These options are long-only.                                         |
+| `sase memory web` / `web list`         | `-f/--format table\|names\|json`, `-p/--project`                              | List discovered memory webs with rendering, scope, and strand count.                                                                                                   |
+| `sase memory web show <web> [PATTERN]` | `-b/--bodies`, `-f/--format table\|names\|json`, `-p/--project`               | Print one web's strand index (keyword, slug, aliases, reference count, summary), filtered by `PATTERN`; `-b` extends matching into strand bodies. Never prints bodies. |
+
+`read` and `show` resolve each selector from the project's `sase/memory/` first and fall
+back to `~/sase/memory/`. The whole batch is resolved before anything is printed or
+logged, so one unknown selector fails the request. `-f/--format` accepts `markdown` (the
+default), `rich`, or `json`. `-d/--depth N` caps link and mention closure recursion
+(unlimited by default); `-d 0` prints only the requested selectors and lists every link
+as a reference. See [Memory](memory.md#audited-reads) for attribution and log details.
 
 Examples:
 
 ```bash
 # read requires SASE agent identity
 sase memory read generated_skills.md --reason "Need generated skill context"
+sase memory read glossary:stitch glossary:patch -r "Need the terms"
+sase memory show generated_skills.md -f rich
+sase memory web show glossary agent
 sase memory log
 sase memory log --path generated_skills.md
 sase memory log --id <read-id>
@@ -5164,11 +5537,13 @@ inlining is stale. Unlike the generated notes above, `sase/memory/glossary.md` a
 other web descriptor are user-owned content: memory init rewrites only the roster it
 renders, never the rest of the descriptor body.
 
-| Flag                          | Values | Default | Description                                                                                             |
-| ----------------------------- | ------ | ------- | ------------------------------------------------------------------------------------------------------- |
-| `-c, --check`                 | flag   | -       | Report memory initialization drift without writing project or home files.                               |
-| `-M, --enable-project-memory` | flag   | -       | Set `is_sase_managed: true`, enabling managed project memory; incompatible with `--check`.              |
-| `-C, --no-commit`             | flag   | -       | Write files, but skip only the project git commit/pull/push path; home deployment still follows config. |
+| Flag                          | Values | Default | Description                                                                                                                                   |
+| ----------------------------- | ------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-c, --check`                 | flag   | -       | Report memory initialization drift without writing project or home files.                                                                     |
+| `-d, --diff`                  | flag   | -       | Show full file diffs for planned memory changes.                                                                                              |
+| `-M, --enable-project-memory` | flag   | -       | Set `is_sase_managed: true`, enabling managed project memory; incompatible with `--check`.                                                    |
+| `-m, --message`               | string | -       | Commit subject used when eligible memory source edits are folded into the generated-change commit; a `docs(memory):` tag is added if omitted. |
+| `-C, --no-commit`             | flag   | -       | Write files, but skip only the project git commit/pull/push path; home deployment still follows config.                                       |
 
 ### `sase init repo`
 
@@ -5177,11 +5552,11 @@ renders, never the rest of the descriptor body.
 sidecars, creates or refreshes generated README files, ensures the managed plans and
 research declarations, and maintains the root `/sase/repos/` ignore rule. Missing or
 false markers produce an informative successful no-op, while invalid local configuration
-fails before provider or filesystem work. `--path` always checks the target repository's
-marker. GitHub setup creates missing sidecars with their configured public/private
-visibility. Bare-git projects refresh generated files automatically during repository
-setup and first SDD writes; the explicit command remains useful for refreshes and
-`--check` audits.
+fails before provider or filesystem work. The command always targets the Git repository
+that contains the current directory; it has no `--path` option. GitHub setup creates
+missing sidecars with their configured public/private visibility. Bare-git projects
+refresh generated files automatically during repository setup and first SDD writes; the
+explicit command remains useful for refreshes and `--check` audits.
 
 When the GitHub sidecar is missing, this alias uses the same default-no
 repository-specific confirmation as `sase repo init`. EOF, interruption, and any answer
@@ -5189,10 +5564,11 @@ other than `y`/`yes` return nonzero before remote creation. Generic `--yes` appr
 never authorizes repository creation; non-interactive bare onboarding instead reports
 the missing remote and defers its creation.
 
-| Flag          | Values | Default         | Description                                                        |
-| ------------- | ------ | --------------- | ------------------------------------------------------------------ |
-| `-c, --check` | flag   | -               | Report provider and generated-file work without writing files.     |
-| `-p, --path`  | path   | current project | Project root whose provider-owned SDD store should be initialized. |
+| Flag              | Values | Default | Description                                                          |
+| ----------------- | ------ | ------- | -------------------------------------------------------------------- |
+| `-c, --check`     | flag   | -       | Report sidecar, config, and ignore-rule work without writing files.  |
+| `-d, --diff`      | flag   | -       | Show full file diffs for planned repository changes.                 |
+| `-C, --no-commit` | flag   | -       | Write project config and ignore rules without committing or pushing. |
 
 ### `sase skill`
 
@@ -5211,21 +5587,22 @@ in the provenance manifest — see
 [Commit Before Deploying](init.md#commit-before-deploying). `sase init skills` is a
 compatibility alias for `sase skill init`.
 
-| Form               | Flags                                                                   | Description                                                                                             |
-| ------------------ | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| `sase skill`       | -                                                                       | Show the same read-only dashboard as `sase skill list`.                                                 |
-| `sase skill list`  | -                                                                       | Inspect generated skill sources, provider targets, and deployed-file drift.                             |
-| `sase skill init`  | `-f, --force`                                                           | Overwrite deployed skill files without confirmation; bypass the provenance manifest guard.              |
-| `sase skill init`  | `-D, --allow-dirty`                                                     | Deploy from uncommitted or unmerged xprompt sources; can revert other agents' deployments.              |
-| `sase skill init`  | `-n, --dry-run`                                                         | Show what would be written without writing files.                                                       |
-| `sase skill init`  | `-c, --check`; `-d, --diff`                                             | Report or diff generated skill-file drift without writing files.                                        |
-| `sase skill init`  | `-p, --provider <name>`                                                 | Deploy only for one registered provider (`claude`, `agy`, `codex`, `grok`, `muse`, `opencode`, `qwen`). |
-| `sase skill init`  | `-A, --no-apply`                                                        | With `use_chezmoi`, skip `chezmoi apply` after generated files are committed and pushed.                |
-| `sase skill init`  | `-C, --no-commit`                                                       | With `use_chezmoi`, skip the entire git commit, push, and apply sequence.                               |
-| `sase skill init`  | `-P, --no-push`                                                         | With `use_chezmoi`, commit generated files but skip pull/rebase, push, and `chezmoi apply`.             |
-| `sase skill log`   | `-a, --agent`; `-R, --runtime`; `-s, --skill`; `-i, --id`; `-j, --json` | Summarize or inspect audited generated skill-use events.                                                |
-| `sase skill use`   | `-r, --reason <reason>` required                                        | Agent-side audit event recording that the current agent is using a generated skill.                     |
-| `sase init skills` | same as `sase skill init`                                               | Compatibility alias for `sase skill init`.                                                              |
+| Form               | Flags                                                                   | Description                                                                                                                                              |
+| ------------------ | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase skill`       | -                                                                       | Show the same read-only dashboard as `sase skill list`.                                                                                                  |
+| `sase skill list`  | -                                                                       | Inspect generated skill sources, provider targets, and deployed-file drift.                                                                              |
+| `sase skill init`  | `-f, --force`                                                           | Overwrite deployed skill files without confirmation; bypass the provenance manifest guard.                                                               |
+| `sase skill init`  | `-D, --allow-dirty`                                                     | Deploy from uncommitted or unmerged xprompt sources; can revert other agents' deployments.                                                               |
+| `sase skill init`  | `-n, --dry-run`                                                         | Show what would be written without writing files.                                                                                                        |
+| `sase skill init`  | `-c, --check`; `-d, --diff`                                             | Report or diff generated skill-file drift without writing files.                                                                                         |
+| `sase skill init`  | `-p, --provider <name>`                                                 | Deploy only for one registered provider (`claude`, `agy`, `codex`, `grok`, `muse`, `opencode`, `qwen`).                                                  |
+| `sase skill init`  | `-y, --yes`                                                             | Answer the overwrite confirmation for existing generated targets; unlike `--force`, it does not override source-integrity or provenance-manifest guards. |
+| `sase skill init`  | `-A, --no-apply`                                                        | With `use_chezmoi`, skip `chezmoi apply` after generated files are committed and pushed.                                                                 |
+| `sase skill init`  | `-C, --no-commit`                                                       | With `use_chezmoi`, skip the entire git commit, push, and apply sequence.                                                                                |
+| `sase skill init`  | `-P, --no-push`                                                         | With `use_chezmoi`, commit generated files but skip pull/rebase, push, and `chezmoi apply`.                                                              |
+| `sase skill log`   | `-a, --agent`; `-R, --runtime`; `-s, --skill`; `-i, --id`; `-j, --json` | Summarize or inspect audited generated skill-use events.                                                                                                 |
+| `sase skill use`   | `-r, --reason <reason>` required                                        | Agent-side audit event recording that the current agent is using a generated skill.                                                                      |
+| `sase init skills` | same as `sase skill init`                                               | Compatibility alias for `sase skill init`.                                                                                                               |
 
 ### `sase repo init`
 
@@ -5252,6 +5629,20 @@ owners. With no subcommand, `sase disk` defaults to `sase disk list`.
 Unowned Cargo-shaped strays are listed for human action and are never deleted by
 `sase disk reap`.
 
+The `sase disk list` table shows each row's owner, section, size, coverage, horizon, and
+path. Unowned rows are highlighted; a row whose coverage is `partial` or `unresolved`
+means the owner could not account for every byte. When rows share physical storage (for
+example workspaces that borrow primary Git objects), the size cell also shows the
+exclusively counted bytes, and the footer reports the physical total, the logical row
+total when it differs, the overall coverage status, and any partial-scan diagnostics.
+
+`sase disk reap` runs, or previews, the owner passes in order: managed-temp reaping,
+proc runtime cleanup, ACE-run artifact retention (the same owner as
+`sase artifact prune-runs`), and workspace Git object compaction. It exits `1` when any
+owner step is blocked, fails, or cannot report a trustworthy result, and `0` otherwise.
+Because ACE-run deletion is currently preview-only, the artifact-run step reports
+`blocked` under `--apply`.
+
 ### `sase workspace`
 
 Workspace commands inspect and maintain the managed checkout registry for the inferred
@@ -5273,6 +5664,7 @@ project, or for the project named by `-p/--project`. With no subcommand,
 | `sase workspace cleanup` | `-n, --dry-run`            | flag         | Report planned removals without touching the filesystem.                                            |
 | `sase workspace compact` | `-p, --project`            | project name | Compact a project other than the inferred one.                                                      |
 | `sase workspace compact` | `-n, --dry-run`            | flag         | Report planned Git object compactions without touching config or objects.                           |
+| `sase workspace compact` | `-j, --json`               | flag         | Emit the compaction plan or result as a machine-readable JSON object.                               |
 | `sase workspace compact` | `workspace_nums`           | integer list | Optional registered workspace numbers to compact; omit to scan all numbered checkouts.              |
 | `sase workspace repair`  | `-p, --project`            | project name | Repair a project other than the inferred one.                                                       |
 | `sase workspace repair`  | `-n, --dry-run`            | flag         | Report registry/filesystem and SASE-managed alternate reconciliation without writing.               |
@@ -5289,51 +5681,61 @@ initialization.
 
 ### `sase bead`
 
-With no subcommand, `sase bead` defaults to `sase bead list`.
+With no subcommand, `sase bead` defaults to `sase bead list`. Commands that take
+existing bead IDs route a full ID to the enabled project whose bead store owns it, while
+shorthand suffixes stay in the current project; see
+[CLI Reference](cli.md#work-tracking-and-planning) and
+[Bead ID Arguments](beads.md#bead-id-arguments). The tables below cover the most-used
+subcommands; [Beads](beads.md#cli-commands) documents every subcommand.
 
-| Flag         | Values                                                                                                                                                                                                                                    | Default | Description     |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | --------------- |
-| _subcommand_ | `blocked`, `close`, `create`, `dep`, `doctor`, `epic-symbols`, `history`, `init`, `list`, `note`, `onboard`, `open`, `pages`, `ready`, `ref`, `resolve-conflicts`, `rm`, `search`, `show`, `stats`, `sync`, `task-type`, `update`, `work` | `list`  | Bead subcommand |
+| Flag         | Values                                                                                                                                                                                                                                                                     | Default | Description     |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | --------------- |
+| _subcommand_ | `+1`, `blocked`, `close`, `create`, `dep`, `doctor`, `epic-symbols`, `history`, `init`, `list`, `note`, `onboard`, `open`, `pages`, `ready`, `ref`, `resolve-conflicts`, `rm`, `search`, `show`, `snooze`, `stats`, `sync`, `sync-external`, `task-type`, `update`, `work` | `list`  | Bead subcommand |
 
 #### `sase bead create`
 
-| Flag                           | Values                                         | Default    | Description                                                                                                         |
-| ------------------------------ | ---------------------------------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------- |
-| `-t, --title`                  | string                                         | (required) | Issue title                                                                                                         |
-| `-T, --type`                   | string                                         | (required) | `plan(<file>)`, `plan(<file>,<parent>)`, `phase(<parent_id>)`, or `task(<slug>)`. Feature flags use `sase flag new` |
-| `-f, --field`                  | `k=v`                                          | -          | Task-type field value; repeatable. `@<path>` reads the value from a file                                            |
-| `-d, --description`            | string                                         | -          | Issue description                                                                                                   |
-| `-a, --assignee`               | string                                         | -          | Assignee name                                                                                                       |
-| `-m, --model`                  | string                                         | -          | Epic land-agent, phase-worker, or task-worker model                                                                 |
-| `-R, --ref`                    | artifact reference                             | -          | Artifact reference to attach; repeatable                                                                            |
-| `-z, --size`                   | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase/task size; phases use model and plan-first routing, tasks use model routing only                              |
-| `-r, --tier`                   | `plan`, `epic`                                 | -          | Plan-bead tier; invalid for phase and task beads                                                                    |
-| `--patch` / `-c, --changespec` | Patch name                                     | -          | Attach Patch metadata to a plan bead; `--changespec` is legacy-compatible                                           |
-| `-b, --bug-id`                 | string                                         | -          | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                 |
+| Flag                          | Values                                         | Default    | Description                                                                                                                                     |
+| ----------------------------- | ---------------------------------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `-t, --title`                 | string                                         | (required) | Issue title                                                                                                                                     |
+| `-T, --type`                  | string                                         | (required) | `plan(<file>)`, `plan(<file>,<parent>)`, `phase(<parent_id>)`, or `task(<slug>)`. Feature flags use `sase flag new`                             |
+| `-f, --field`                 | `k=v`                                          | -          | Task-type field value; repeatable. `@<path>` reads the value from a file                                                                        |
+| `-d, --description`           | string                                         | -          | Issue description                                                                                                                               |
+| `-a, --assignee`              | string                                         | -          | Assignee name                                                                                                                                   |
+| `-m, --model`                 | string                                         | -          | Epic land-agent, phase-worker, or task-worker model                                                                                             |
+| `-R, --ref`                   | artifact reference                             | -          | Artifact reference to attach; repeatable                                                                                                        |
+| `-z, --size`                  | `xsmall`, `small`, `medium`, `large`, `xlarge` | -          | Phase/task size; required for new task beads and rejected for plan beads. Phases use model and plan-first routing, tasks use model routing only |
+| `-r, --tier`                  | `plan`, `epic`                                 | -          | Plan-bead tier; invalid for phase and task beads                                                                                                |
+| `-c, --patch`, `--changespec` | Patch name                                     | -          | Attach Patch metadata to a plan bead; `--changespec` is legacy-compatible                                                                       |
+| `-b, --bug-id`                | string                                         | -          | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                                             |
+| `-x, --external-ref`          | string                                         | -          | Project-qualified external issue identity, e.g. `bug:sase#42`                                                                                   |
 
 #### `sase bead list`
 
-| Flag              | Values                                              | Default     | Description                                                            |
-| ----------------- | --------------------------------------------------- | ----------- | ---------------------------------------------------------------------- |
-| `-f, --format`    | `compact`, `json`, `full`                           | `compact`   | Output format                                                          |
-| `-n, --limit`     | non-negative integer                                | (unlimited) | Maximum beads to print; closed listings default to 20, `0` means all   |
-| `-s, --status`    | `open`, `claimed`, `ready`, `in_progress`, `closed` | -           | Filter by status (repeatable)                                          |
-| `-T, --task-type` | catalog slug or `untyped`                           | -           | Filter by task type (repeatable); `untyped` selects legacy beads       |
-| `-r, --tier`      | `plan`, `epic`                                      | -           | Filter by plan-bead tier (repeatable)                                  |
-| `-t, --type`      | `plan`, `phase`, `task`                             | -           | Filter by issue type (repeatable). Flag beads are tasks; use `-T flag` |
+| Flag              | Values                                                                | Default                                    | Description                                                                                                                 |
+| ----------------- | --------------------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- |
+| `-c, --color`     | `auto`, `always`, `never`                                             | `auto`                                     | Color mode for compact output                                                                                               |
+| `-f, --format`    | `compact`, `json`, `full`                                             | `compact`                                  | Output format                                                                                                               |
+| `-n, --limit`     | non-negative integer                                                  | (unlimited)                                | Maximum beads to print; closed listings default to 20, `0` means all                                                        |
+| `-S, --since`     | DATE                                                                  | -                                          | Only beads created at or after DATE                                                                                         |
+| `-s, --status`    | `all`, `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | open, claimed, ready, snoozed, in progress | Filter by status (repeatable); `all` selects every status. With no match and no `--status`, closed beads are listed instead |
+| `-T, --task-type` | catalog slug or `untyped`                                             | -                                          | Filter by task type (repeatable); `untyped` selects legacy beads                                                            |
+| `-r, --tier`      | `plan`, `epic`                                                        | -                                          | Filter by plan-bead tier (repeatable)                                                                                       |
+| `-t, --type`      | `plan`, `phase`, `task`                                               | -                                          | Filter by issue type (repeatable). Flag beads are tasks; use `-T flag`                                                      |
+| `-u, --until`     | DATE                                                                  | -                                          | Only beads created at or before DATE                                                                                        |
 
 #### `sase bead search`
 
-| Flag              | Values                                              | Default     | Description                                                            |
-| ----------------- | --------------------------------------------------- | ----------- | ---------------------------------------------------------------------- |
-| `query`           | string                                              | (required)  | Literal non-empty text to search for                                   |
-| `-c, --color`     | `auto`, `always`, `never`                           | `auto`      | Color mode for compact output                                          |
-| `-f, --format`    | `compact`, `json`, `full`                           | `compact`   | Output format                                                          |
-| `-n, --limit`     | non-negative integer                                | (unlimited) | Maximum results to print; `0` also means unlimited                     |
-| `-s, --status`    | `open`, `claimed`, `ready`, `in_progress`, `closed` | -           | Filter by status (repeatable); all statuses are searched by default    |
-| `-T, --task-type` | catalog slug or `untyped`                           | -           | Filter by task type (repeatable); `untyped` selects legacy beads       |
-| `-r, --tier`      | `plan`, `epic`                                      | -           | Filter by plan-bead tier (repeatable)                                  |
-| `-t, --type`      | `plan`, `phase`, `task`                             | -           | Filter by issue type (repeatable). Flag beads are tasks; use `-T flag` |
+| Flag              | Values                                                         | Default     | Description                                                                            |
+| ----------------- | -------------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------- |
+| `query`           | string                                                         | (required)  | Literal non-empty text to search for                                                   |
+| `-c, --color`     | `auto`, `always`, `never`                                      | `auto`      | Color mode for compact output                                                          |
+| `-f, --format`    | `compact`, `json`, `full`                                      | `compact`   | Output format                                                                          |
+| `-e, --regex`     | flag                                                           | -           | Treat the query as a case-insensitive regular expression unless it starts with `(?-i)` |
+| `-n, --limit`     | non-negative integer                                           | (unlimited) | Maximum results to print; `0` also means unlimited                                     |
+| `-s, --status`    | `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | -           | Filter by status (repeatable); all statuses are searched by default                    |
+| `-T, --task-type` | catalog slug or `untyped`                                      | -           | Filter by task type (repeatable); `untyped` selects legacy beads                       |
+| `-r, --tier`      | `plan`, `epic`                                                 | -           | Filter by plan-bead tier (repeatable)                                                  |
+| `-t, --type`      | `plan`, `phase`, `task`                                        | -           | Filter by issue type (repeatable). Flag beads are tasks; use `-T flag`                 |
 
 #### `sase bead task-type`
 
@@ -5355,15 +5757,16 @@ With no subcommand, `sase bead task-type` defaults to `sase bead task-type list`
 
 #### `sase bead show`
 
-| Flag             | Values                             | Default     | Description                                                              |
-| ---------------- | ---------------------------------- | ----------- | ------------------------------------------------------------------------ |
-| `ids`            | string                             | (required)  | One or more IDs; `<epic-id>..` expands the epic plus direct children     |
-| `-c, --color`    | `auto`, `always`, `never`          | `auto`      | Color mode; applies to `--format full` and compact                       |
-| `-f, --format`   | `compact`, `json`, `full`          | `full`      | Output format. Compact never expands artifact links                      |
-| `-N, --no-links` | flag                               | off         | Skip artifact-link neighborhood resolution and omit link sections / JSON |
-| `-p, --pager`    | `auto`, `always`, `never`          | `auto`      | Page long terminal output                                                |
-| `-s, --style`    | `auto`, `plain`, `rich`            | `auto`      | Styling level for `--format full`                                        |
-| `-w, --wrap`     | integer >= 20, `auto`, `none`, `0` | print width | Prose wrap width for description, notes, link reasons, and evidence      |
+| Flag             | Values                             | Default         | Description                                                                             |
+| ---------------- | ---------------------------------- | --------------- | --------------------------------------------------------------------------------------- |
+| `ids`            | string                             | (required)      | One or more IDs; `<epic-id>..` expands the epic plus direct children                    |
+| `-c, --color`    | `auto`, `always`, `never`          | `auto`          | Color mode; applies to `--format full` and compact                                      |
+| `-f, --format`   | `compact`, `json`, `full`          | `full`          | Output format. Compact never expands artifact links                                     |
+| `-N, --no-links` | flag                               | off             | Skip artifact-link neighborhood resolution and omit link sections / JSON                |
+| `-p, --pager`    | `auto`, `always`, `never`          | `auto`          | Page long terminal output                                                               |
+| `-P, --project`  | project key, name, or alias        | current project | Resolve every ID against one enabled project's bead store, including shorthand suffixes |
+| `-s, --style`    | `auto`, `plain`, `rich`            | `auto`          | Styling level for `--format full`                                                       |
+| `-w, --wrap`     | integer >= 20, `auto`, `none`, `0` | `88`            | Prose wrap width for description, notes, link reasons, and evidence                     |
 
 #### `sase bead open`
 
@@ -5373,19 +5776,21 @@ With no subcommand, `sase bead task-type` defaults to `sase bead task-type list`
 
 #### `sase bead update`
 
-| Flag                | Values                                              | Default    | Description                              |
-| ------------------- | --------------------------------------------------- | ---------- | ---------------------------------------- |
-| `ids`               | string                                              | (required) | One or more full or shorthand issue IDs  |
-| `-s, --status`      | `open`, `claimed`, `ready`, `in_progress`, `closed` | -          | Change status; `ready` is task-only      |
-| `-t, --title`       | string                                              | -          | Change title                             |
-| `-d, --description` | string                                              | -          | Change description                       |
-| `-n, --note`        | string                                              | -          | Append an attributed note to each issue  |
-| `-D, --design`      | path                                                | -          | Change design path; all types accepted   |
-| `-a, --assignee`    | string                                              | -          | Change assignee                          |
-| `-m, --model`       | string                                              | -          | Change launch model                      |
-| `-b, --remove-by`   | `YYYY-MM-DD/release`                                | -          | Extend one `flag` task bead's thresholds |
-| `-z, --size`        | `xsmall`, `small`, `medium`, `large`, `xlarge`      | -          | Change phase/task size                   |
-| `-r, --tier`        | `plan`, `epic`                                      | -          | Change plan-bead tier                    |
+| Flag                       | Values                                              | Default    | Description                                                           |
+| -------------------------- | --------------------------------------------------- | ---------- | --------------------------------------------------------------------- |
+| `ids`                      | string                                              | (required) | One or more full or shorthand issue IDs                               |
+| `-s, --status`             | `open`, `claimed`, `ready`, `in_progress`, `closed` | -          | Change status; `ready` is task-only. Use `sase bead snooze` to snooze |
+| `-t, --title`              | string                                              | -          | Change title                                                          |
+| `-d, --description`        | string                                              | -          | Change description                                                    |
+| `-n, --note`               | string                                              | -          | Append an attributed note to each issue                               |
+| `-D, --design`             | path                                                | -          | Change design path; all types accepted                                |
+| `-a, --assignee`           | string                                              | -          | Change assignee                                                       |
+| `-m, --model`              | string                                              | -          | Change launch model; `''` clears it                                   |
+| `-b, --remove-by`          | `YYYY-MM-DD/release`                                | -          | Extend one `flag` task bead's thresholds                              |
+| `-z, --size`               | `xsmall`, `small`, `medium`, `large`, `xlarge`      | -          | Change phase/task size                                                |
+| `-r, --tier`               | `plan`, `epic`                                      | -          | Change plan-bead tier                                                 |
+| `-x, --external-ref`       | string                                              | -          | Set the project-qualified external issue identity, e.g. `bug:sase#42` |
+| `-X, --clear-external-ref` | flag                                                | -          | Clear the external issue identity                                     |
 
 #### `sase bead close`
 
@@ -5409,12 +5814,34 @@ once. Removal is irreversible.
 | ----- | ------ | ---------- | --------------------- |
 | `ids` | string | (required) | One or more issue IDs |
 
-#### `sase bead dep add`
+#### `sase bead note`
 
-| Flag         | Values | Default    | Description               |
-| ------------ | ------ | ---------- | ------------------------- |
-| `issue`      | string | (required) | Issue that depends        |
-| `depends_on` | string | (required) | Issue being depended upon |
+| Flag           | Values           | Default                   | Description                                                                                   |
+| -------------- | ---------------- | ------------------------- | --------------------------------------------------------------------------------------------- |
+| `id`           | string           | (required)                | Full or shorthand issue ID                                                                    |
+| `text`         | string           | -                         | Note text; a single `@<path>` token reads it from a file. Required unless `--remove` is given |
+| `-a, --author` | string           | current agent, else owner | Author recorded on the entry                                                                  |
+| `-e, --edit`   | note ordinal `N` | -                         | Rewrite note `N` as numbered by `sase bead show`; ordinals shift after any edit or removal    |
+| `-x, --remove` | note ordinal `N` | -                         | Retract note `N`; `sase bead history` keeps the retracted record                              |
+
+#### `sase bead dep`
+
+Bare `sase bead dep` delegates to `sase bead dep list`. Mutations reject dependency
+edges that would cross bead stores before writing.
+
+| Form                   | Flag / argument                | Values                                        | Default                                                | Description                                         |
+| ---------------------- | ------------------------------ | --------------------------------------------- | ------------------------------------------------------ | --------------------------------------------------- |
+| `dep list`             | `id`                           | string                                        | store-wide                                             | Optional issue whose edges to list                  |
+| `dep list`             | `-d, --direction`              | `both`, `in`, `out`                           | `both`                                                 | Edges to show                                       |
+| `dep list`, `dep tree` | `-c, --color` / `-f, --format` | `auto\|always\|never` / `compact\|full\|json` | `auto` / `compact`                                     | Color mode and output format                        |
+| `dep list`, `dep tree` | `-s, --status`                 | `open`, `claimed`, `in_progress`, `closed`    | all when scoped; open, claimed, in progress store-wide | Filter by status (repeatable)                       |
+| `dep list`             | `-n, --limit`                  | non-negative integer                          | -                                                      | Maximum beads to print; `0` means unlimited         |
+| `dep tree`             | `id`                           | string                                        | store-wide                                             | Optional issue to walk from                         |
+| `dep tree`             | `-d, --direction`              | `both`, `in`, `out`                           | `out`                                                  | Walk dependencies (`out`), blockers (`in`), or both |
+| `dep tree`             | `-L, --levels`                 | non-negative integer                          | unlimited                                              | Maximum levels to descend; `0` means unlimited      |
+| `dep add`              | `issue`                        | string                                        | (required)                                             | Issue that depends                                  |
+| `dep add`              | `depends_on`                   | string                                        | (required)                                             | Issue being depended upon                           |
+| `dep rm`               | `issue` `depends_on...`        | strings                                       | (required)                                             | Remove one or more dependencies from an issue       |
 
 #### `sase bead sync`
 
@@ -5424,18 +5851,19 @@ once. Removal is irreversible.
 
 #### `sase bead work`
 
-| Flag                  | Values                 | Default    | Description                                                                                        |
-| --------------------- | ---------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
-| `targets`             | bead IDs or plan paths | (required) | One or more epic/task beads or validated epic plan files, processed in order until the first error |
-| `-a, --artifacts-dir` | directory              | -          | Back-fill planner artifacts after each approved epic; plan-file targets only                       |
-| `-c, --capacity`      | positive integer       | omitted    | Epic-only per-launch capacity budget; `1` runs alone; a heavier xprompt weight floors that segment |
-| `-C, --cl-name`       | Patch name             | -          | Approved epic Patch name applied per plan-file target                                              |
-| `-n, --dry-run`       | flag                   | -          | Preview the epic wave plan or task prompt without mutating files, beads, or agents                 |
-| `-j, --json`          | flag                   | -          | Print one result object per processed target as JSON Lines and imply `--yes-to-all`                |
-| `-P, --no-push`       | flag                   | -          | Commit checkpoint state locally but skip post-commit pushes                                        |
-| `-p, --parent`        | bead ID or `top-level` | -          | Override a plan file's `parent_bead`, including forcing an unparented epic; plan-file targets only |
-| `-y, --yes`           | flag                   | -          | Skip only the launch confirmation prompt                                                           |
-| `-Y, --yes-to-all`    | flag                   | -          | Skip both destructive-cleanup and launch confirmation prompts                                      |
+| Flag                  | Values                                | Default    | Description                                                                                        |
+| --------------------- | ------------------------------------- | ---------- | -------------------------------------------------------------------------------------------------- |
+| `targets`             | bead IDs or plan paths                | (required) | One or more epic/task beads or validated epic plan files, processed in order until the first error |
+| `-a, --artifacts-dir` | directory                             | -          | Back-fill planner artifacts after each approved epic; plan-file targets only                       |
+| `-c, --capacity`      | positive integer                      | omitted    | Epic-only per-launch capacity budget; `1` runs alone; a heavier xprompt weight floors that segment |
+| `-C, --cl-name`       | Patch name                            | -          | Approved epic Patch name applied per plan-file target                                              |
+| `-n, --dry-run`       | flag                                  | -          | Preview the epic wave plan or task prompt without mutating files, beads, or agents                 |
+| `-j, --json`          | flag                                  | -          | Print one result object per processed target as JSON Lines and imply `--yes-to-all`                |
+| `-P, --no-push`       | flag                                  | -          | Commit checkpoint state locally but skip post-commit pushes                                        |
+| `-p, --parent`        | bead ID or `top-level`                | -          | Override a plan file's `parent_bead`, including forcing an unparented epic; plan-file targets only |
+| `-w, --wait`          | comma-separated names and `bead=<id>` | -          | Agent names and bead dependencies the launched phases wait for                                     |
+| `-y, --yes`           | flag                                  | -          | Skip only the launch confirmation prompt                                                           |
+| `-Y, --yes-to-all`    | flag                                  | -          | Skip both destructive-cleanup and launch confirmation prompts                                      |
 
 Multiple `sase bead work` targets are non-atomic: earlier successes are not rolled back,
 later targets are not prevalidated, and every command-wide flag is checked again for the
@@ -5448,24 +5876,30 @@ prompt/plan link maintenance live under `sase plan`. Link commands accept `-p/--
 which may point at an SDD root or a project root. Bare `sase plan links` defaults to its
 `list` child.
 
-| Command                    | Flags                                                                     | Description                                                    |
-| -------------------------- | ------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `sase repo init`           | `-p/--path`, `-c/--check`, `-d/--diff`, `-C/--no-commit`                  | Initialize configured sidecars and repository wiring           |
-| `sase repo path REPO`      | `-e/--ensure`, `-p/--project`, `-w/--workspace`                           | Print a primary or sidecar path; optionally materialize it     |
-| `sase plan links [list]`   | `-p/--path`, `-j/--json`                                                  | List prompt/plan artifact links and bidirectional status       |
-| `sase plan links repair`   | `-p/--path`, `-w/--write`                                                 | Infer unambiguous prompt/plan pairs and optionally write fixes |
-| `sase plan links validate` | `-p/--path`, `-j/--json`, `-q/--quiet`, `-W/--show-warnings`              | Validate a plan's own metadata and `PROMPT` bullet             |
-| `sase plan search`         | `-k/--kind`, `-o/--source`, `-f/--format`, plus query/date/status filters | Search or browse tale, epic, prompt, and research artifacts    |
+| Command                    | Flags                                                                     | Description                                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `sase repo init`           | `-c/--check`, `-d/--diff`, `-C/--no-commit`                               | Initialize configured sidecars and repository wiring for the current repository                                  |
+| `sase repo path REPO`      | `-e/--ensure`, `-p/--project`, `-w/--workspace`                           | Print a primary or sidecar path; optionally materialize it                                                       |
+| `sase plan links [list]`   | `-p/--path`, `-j/--json`                                                  | List prompt/plan artifact links and bidirectional status                                                         |
+| `sase plan links refresh`  | `-p/--path`, `-P/--plan`, `-j/--json`, `-w/--write`                       | Dry-run (or, with `--write`, commit) reconciliation of `PARENT`, `BEAD`, `AGENTS`, and `COMMITS` header sections |
+| `sase plan links repair`   | `-p/--path`, `-w/--write`                                                 | Infer unambiguous prompt/plan pairs and optionally write fixes                                                   |
+| `sase plan links validate` | `-p/--path`, `-j/--json`, `-q/--quiet`, `-W/--show-warnings`              | Validate a plan's own metadata and `PROMPT` bullet                                                               |
+| `sase plan search`         | `-k/--kind`, `-o/--source`, `-f/--format`, plus query/date/status filters | Search or browse tale, epic, prompt, and document-sidecar artifacts                                              |
 
 ### `sase validate`
 
-`sase validate` is the top-level portable SASE validation command. It runs the explicit
+`sase validate` is the top-level portable SASE validation command. It takes no options
+and runs, in order, `sase doctor -C plugins.required` (so a missing required plugin is
+never reported as spurious generated-file drift), the explicit
 `sase init memory --check`, `sase init repo --check`, and `sase init skills --check`
-surfaces plus `sase plan links validate`, prints one status line per check, and exits
-non-zero if any check fails. It deliberately leaves the machine-local Config planner to
-bare `sase init --check` and `sase doctor`, so clean CI hosts do not need a synthetic
-machine identity. The command can still fail on user/home memory or skill deployment
-drift even when repository-local SDD validation passes.
+surfaces, `sase doctor -C config.file_hooks`, `sase plan links validate`, and
+`sase agent prompts validate`. It prints one `ok`, `skip`, or `fail` line per check and
+exits non-zero if any check fails; the prompt-archive check reports `skip` rather than
+failing when no agents-sidecar prompt archive context is available. It deliberately
+leaves the machine-local Config and machine planners to bare `sase init --check` and
+`sase doctor`, so clean CI hosts do not need a synthetic machine identity. The command
+can still fail on user/home memory or skill deployment drift even when repository-local
+SDD validation passes.
 
 A check can pass and still have something to say. When a check that exits 0 prints its
 own `Warnings:` section — `sase init skills --check` deferring a chezmoi redeploy is the
@@ -5502,7 +5936,11 @@ Use `sase doctor -L` to list targeted check IDs. Useful focused checks include
 The two inventory checks report telemetry-only directories without ProjectSpecs and
 registered workspace paths missing from disk; both are read-only and provide
 cleanup/repair guidance. `workspace.occupancy_conflicts` reports RUNNING-field and
-occupant-record collisions and never auto-repairs.
+occupant-record collisions and never auto-repairs. `config.xprompt_directives` locates
+definition files that still use retired directive syntax. `agent_holds.stale` warns
+about [agent holds](cli.md#sase-agent-hold) whose armer died or whose TTL passed; it
+reconciles the hold store the same way `sase agent hold list` does, so the stale records
+it reports are pruned as a side effect.
 
 Default exit behavior is `0` for `OK`, `WARN`, and `SKIP`, and `1` for `ERROR`. Attach
 `sase doctor -v` or `sase doctor -j` when asking for help.
@@ -5823,15 +6261,15 @@ With no subcommand, `sase file-history` defaults to `sase file-history list`.
 Create, inspect, answer, and manage durable command-backed gates and their optional
 gate-shell family members.
 
-| Form               | Principal flags                                                                                                                                                       | Description                                                                                 |
-| ------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| `sase gate act`    | `-i/--id`, `-k/--kind`, `-o/--operation`, `-I/--input`, `-j/--json`                                                                                                   | Run one repeatable declared action without answering the gate                               |
-| `sase gate answer` | `-i/--id`, `-k/--kind`, repeatable `-o/--option`, `-s/--set`, `-O/--option-input`, `-f/--feedback`, `--detach` / `--no-detach`, `--resume` / `--restart`, `-j/--json` | Answer one branch; `--resume` continues a partial option run or an unfinished coder handoff |
-| `sase gate cancel` | `<shell>`, `-r/--reason`, `-j/--json`                                                                                                                                 | Cancel a pending shell by id/prefix, member name, or owner; launches no follow-up           |
-| `sase gate create` | `--shell`, `--next`, `--next-fork`, `--next-model`, repeatable `--next-output`, `--origin-agent`, `--shell-status`, `--shell-stop-status`, `-s/--sender`, `-t/--tag`  | Create a gate from JSON on stdin, optionally handing an agent to a gate shell               |
-| `sase gate list`   | `-a/--all`, `-l/--agent`, `-p/--project`, repeatable `-s/--state`, `-n/--limit`, `-f/--format`, `-j/--json`                                                           | List pending gate shells newest first; `--all` includes settled shells                      |
-| `sase gate show`   | `[shell]` or `-i/--id -k/--kind`, `-j/--json`                                                                                                                         | Show branches, inputs, actions, runtime state, workspace claim, and follow-up disposition   |
-| `sase gate wait`   | `-i/--id`, `-j/--json`, `-k/--kind`, `-t/--timeout`                                                                                                                   | Wait for a gate; exits 0 answered, 3 cancelled, 4 timeout                                   |
+| Form               | Principal flags                                                                                                                                                                                                                          | Description                                                                                 |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `sase gate act`    | `-i/--id`, `-k/--kind`, `-o/--operation`, `-I/--input`, `-j/--json`                                                                                                                                                                      | Run one repeatable declared action without answering the gate                               |
+| `sase gate answer` | `-i/--id`, `-k/--kind`, repeatable `-o/--option`, `-s/--set`, `-O/--option-input`, `-I/--input`, `-f/--feedback`, `-d/--detach` / `-D/--no-detach`, `-r/--resume` / `-R/--restart`, `-j/--json`                                          | Answer one branch; `--resume` continues a partial option run or an unfinished coder handoff |
+| `sase gate cancel` | `<shell>`, `-r/--reason`, `-j/--json`                                                                                                                                                                                                    | Cancel a pending shell by id/prefix, member name, or owner; launches no follow-up           |
+| `sase gate create` | `-G/--shell`, `-n/--next`, `-f/--next-fork`, `-m/--next-model`, repeatable `-N/--next-output`, `-o/--origin-agent`, `-g/--shell-status`, `-E/--shell-stop-status`, `-p/--panel`, `-P/--panel-icon`, `-s/--sender`, repeatable `-t/--tag` | Create a gate from JSON on stdin, optionally handing an agent to a gate shell               |
+| `sase gate list`   | `-a/--all`, `-l/--agent`, `-p/--project`, repeatable `-s/--state`, `-n/--limit`, `-f/--format`, `-j/--json`                                                                                                                              | List pending gate shells newest first; `--all` includes settled shells                      |
+| `sase gate show`   | `[shell]` or `-i/--id -k/--kind`, `-j/--json`                                                                                                                                                                                            | Show branches, inputs, actions, runtime state, workspace claim, and follow-up disposition   |
+| `sase gate wait`   | `-i/--id`, `-j/--json`, `-k/--kind`, `-t/--timeout`                                                                                                                                                                                      | Wait for a gate; exits 0 answered, 3 cancelled, 4 timeout                                   |
 
 Gate creation accepts one option `query`, a required complete `primary_branch`, an
 `options` list with configurable labels, icons, default selections, and feedback modes,
@@ -5847,7 +6285,36 @@ need their own explicit follow-up. `--next-fork family|shell|none` chooses inher
 context, `--next-model` pins the successor model, and repeatable
 `--next-output none|results|tail|file` chooses what gate-command evidence reaches it.
 Use `sase gate wait` from non-agent automation; an agent that created a shell-backed
-gate must hand off rather than hold a provider process open.
+gate must hand off rather than hold a provider process open. `-p/--panel` places the
+gate's notification in a named notification-panel tab and requires `-P/--panel-icon`.
+For `sase gate answer`, per-option input (`-s/--set`, `-O/--option-input`) and the
+legacy shared `-I/--input` value are mutually exclusive; a gate shell answers through a
+supervised background proc unless `-D/--no-detach` is given.
+
+### `sase sudo`
+
+`sase sudo` creates typed sudo request gates and answers them from a controlling
+terminal through SASE's dedicated sudo runner; see [Sudo Requests](sudo.md). Every
+subcommand requires the `agent_sudo_requests` beta flag and fails with a
+`feature_disabled` error otherwise. With no subcommand, `sase sudo` defaults to
+`sase sudo list`.
+
+| Form                    | Flags                                                                                                                               | Description                                                                                                               |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `sase sudo request`     | `-j/--json`, `-o/--origin-agent`                                                                                                    | Read one JSON request object from stdin, create the gate shell, and print its descriptor; an agent caller then hands off. |
+| `sase sudo list`        | `-a/--all`, `-j/--json`, `-l/--limit`, `-p/--project`                                                                               | List pending sudo gate shells; `--all` includes settled ones.                                                             |
+| `sase sudo show <ID>`   | `-j/--json`                                                                                                                         | Show one sudo gate by gate id or shell ref.                                                                               |
+| `sase sudo answer <ID>` | `-u/--run` or `-a/--approve`, `-d/--deny`, repeatable `-c/--command`, `-f/--feedback`, `-r/--resume` or `-R/--restart`, `-j/--json` | Approve and run, or deny, one sudo gate.                                                                                  |
+
+`--run` and `--approve` both authenticate and run the reviewed commands; `-c/--command`
+limits the run to selected reviewed command ids. Without `--run`, `--approve`, or
+`--deny`, an interactive terminal asks `Approve sudo request? [y/N]`, and a
+non-interactive caller gets a `tty_required` error. Approval always needs a controlling
+terminal, so the gate stays pending when none is available; denial runs no privileged
+command and works headlessly. For a machine-targeted request, approval runs the target's
+`sase sudo exec` over `ssh -t`. `-r/--resume` continues a partially executed batch after
+its completed command ids, and `-R/--restart` reruns the reviewed branch from the start.
+The hidden `sase sudo exec` subcommand is the target-side runner entrypoint.
 
 ### `sase lsp`
 
@@ -5918,14 +6385,16 @@ effect when the current dedup key already matches a row. See
 
 With no subcommand, `sase plan` defaults to the `sase plan list` dashboard.
 
-| Form                             | Flags                                                                                                                         | Description                                                             |
-| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `sase plan approve [selector]`   | `-k/--kind`, `-m/--model`, `-p/--prompt`, `-w/--wait`                                                                         | Approve one pending proposal by notification ID or unique ID prefix.    |
-| `sase plan` / `sase plan list`   | `-j/--json`, `-n/--limit`, `-s/--status`, `-t/--tier`                                                                         | List pending proposals, approvals, and inferred rejected rows.          |
-| `sase plan propose <plan_file>`  | -                                                                                                                             | Submit a Markdown plan file for approval from the `/sase_plan` skill.   |
-| `sase plan reject [selector]`    | -                                                                                                                             | Reject one pending proposal by notification ID or unique ID prefix.     |
-| `sase plan search [query]`       | `-f/--format`, `-k/--kind`, `-s/--status`, `-o/--source`, `-r/--sort`, `-A/--since`, `-B/--until`, `-n/--limit`, `-c/--color` | Search SDD and machine-local Markdown plans.                            |
-| `sase plan validate <plan_file>` | `-e/--explain`, `-j/--json`, `-q/--quiet`                                                                                     | Validate using the plan's authored `tier: tale` or `tier: epic` schema. |
+| Form                             | Flags                                                                                                                         | Description                                                                                    |
+| -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `sase plan approve [selector]`   | `-k/--kind`, `-m/--model`, `-p/--prompt`, `-w/--wait`                                                                         | Approve one pending proposal by notification ID or unique ID prefix.                           |
+| `sase plan` / `sase plan list`   | `-j/--json`, `-n/--limit`, `-s/--status`, `-t/--tier`                                                                         | List pending proposals, approvals, and inferred rejected rows.                                 |
+| `sase plan propose <plan_file>`  | -                                                                                                                             | Submit a Markdown plan file for approval from the `/sase_plan` skill.                          |
+| `sase plan reject [selector]`    | -                                                                                                                             | Reject one pending proposal by notification ID or unique ID prefix.                            |
+| `sase plan search [query]`       | `-f/--format`, `-k/--kind`, `-s/--status`, `-o/--source`, `-r/--sort`, `-A/--since`, `-B/--until`, `-n/--limit`, `-c/--color` | Search SDD and machine-local Markdown plans.                                                   |
+| `sase plan show [target]`        | `-c/--color`, `-f/--format full\|compact\|json\|raw`, `-t/--target`, `-w/--wrap`                                              | Resolve one plan by path, `plan:` reference, pending selector, slug, or bead id and render it. |
+| `sase plan validate <plan_file>` | `-e/--explain`, `-j/--json`, `-q/--quiet`                                                                                     | Validate using the plan's authored `tier: tale` or `tier: epic` schema.                        |
+| `sase plan links ...`            | see [SDD repository and plan commands](#sdd-repository-and-plan-commands)                                                     | List, refresh, repair, or validate SDD prompt/plan links.                                      |
 
 `sase plan list` prints a Rich dashboard by default and emits a stable JSON projection
 with `summary`, `proposed`, `approved`, and `rejected` keys when `-j/--json` is set.
@@ -5958,12 +6427,14 @@ discoverable.
 `sase plan search [query]` scans plans in the resolved SDD store (the `repo` source) and
 the machine-local `~/.sase/plans/` archive. The query is a literal case-insensitive
 substring; omit it to browse and filter. `--format` accepts `compact`, `full`, `json`,
-or `markdown`; `--kind` is repeatable and filters SDD-store plans to `tale`, `epic`,
-`research`; `--status` is repeatable and filters frontmatter status to `wip` or `done`;
-`--source` selects `all`, `repo`, or `local`; `--sort` selects `relevance`, `recent`, or
-`title` (defaulting to relevance with a query and recent without one);
-`--since`/`--until` accept `YYYY-MM-DD`, `YYYY-MM`, `YYYYMM`, or relative durations such
-as `14d`; and `--limit 0` prints all matches.
+or `markdown`; `--kind` is repeatable and filters SDD-store artifacts to a plan tier
+(`tale` or `epic`), `prompt`, or a configured document-sidecar role such as `research`
+(an unknown kind is a usage error that lists the valid ones); `--status` is repeatable
+and filters frontmatter status to `wip` or `done`; `--source` selects `all`, `repo`, or
+`local`; `--sort` selects `relevance`, `recent`, or `title` (defaulting to relevance
+with a query and recent without one); `--since`/`--until` accept `YYYY-MM-DD`,
+`YYYY-MM`, `YYYYMM`, or relative durations such as `14d`; and `--limit` defaults to
+`20`, with `0` printing all matches.
 
 `sase plan validate <plan_file>` infers the validation schema from the authored `tier`;
 it no longer accepts `-t/--tier`. `--explain` prints tier-specific authoring guidance
@@ -5983,33 +6454,37 @@ artifacts. Bare `sase artifact` delegates to `sase artifact list`, and
 storage and associates it with the current agent so the Agents tab can open it with `A`,
 even after the agent has been dismissed and revived. `-k/--kind` accepts `chat`, `plan`,
 `image`, `markdown`, `pdf`, or `file` and defaults to a kind inferred from the file
-extension. `-m/--move` opts into removing the source after it is stored. On success the
-command prints the artifact's `id:`, absolute `source:`, stored `path:`, and durable
-`ref:` (`file:<id>`). Only `create` is agent-gated; every other artifact subcommand
-works outside an agent run.
+extension. `-m/--move` opts into removing the source after it is stored, `-l/--label`
+sets the display label (default: the source file name), and `-b/--bead [ID]` attaches
+the new `file:` reference to a bead (a bare `-b` uses the agent's `SASE_BEAD_ID` bead).
+On success the command prints the artifact's `id:`, absolute `source:`, stored `path:`,
+and durable `ref:` (`file:<id>`). Only `create` is agent-gated; every other artifact
+subcommand works outside an agent run.
 
-| Form                                 | Flags                                                                                                                            | Description                                                                                                                             |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase artifact create`               | `-b/--bead`, `-k/--kind`, `-l/--label`, `-m/--move`, `-p/--path`                                                                 | Store one explicit artifact for the current agent                                                                                       |
-| `sase artifact doctor`               | `-f/--fix`, `-v/--verify`                                                                                                        | Report file-index and link-graph health; repair projections/renames and backfill enrichment with `--fix`, verify hashes with `--verify` |
-| `sase artifact link add`             | (positionals `source_ref`, `relation`, `target_ref`, `why`)                                                                      | Add or rewrite one typed artifact link                                                                                                  |
-| `sase artifact link import-indexes`  | optional attestation, `-a/--apply`, `-j/--json`                                                                                  | Preview or apply the attested, resumable legacy `links/` to immutable-event cutover                                                     |
-| `sase artifact link list`            | `-d/--direction`, `-j/--json`, `-l/--limit`, `-o/--origin`, `-R/--relation`, `-s/--source`, optional `ref`                       | List recent artifact links or one artifact's neighborhood                                                                               |
-| `sase artifact link migrate-notes`   | `-a/--apply`, `-j/--json`                                                                                                        | Convert parseable historical `RELATED:` bead notes to typed links                                                                       |
-| `sase artifact link relation`        | `list` / `show <slug>`, `-j/--json`                                                                                              | Inspect the closed relation registry, direction, examples, and recommended endpoint kinds                                               |
-| `sase artifact link rm`              | `-R/--relation`, (positionals `source_ref`, `target_ref`)                                                                        | Remove typed links between two artifacts                                                                                                |
-| `sase artifact link suggest`         | optional `reference`, `-j/--json`, `-l/--limit`                                                                                  | Print write-free missing-link suggestions backed by deterministic evidence                                                              |
-| `sase artifact list`                 | `-a/--agent`, `-e/--explicit`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-p/--project`, `-q/--query`, `-s/--since`, `-u/--unused` | List indexed artifacts newest-first                                                                                                     |
-| `sase artifact open`                 | (positional `reference`)                                                                                                         | Open a resolved reference with a kind-appropriate viewer                                                                                |
-| `sase artifact path`                 | (positional `reference`)                                                                                                         | Print the one absolute path a reference resolves to                                                                                     |
-| `sase artifact prune`                | `-a/--apply`, `-b/--before`, `-g/--keep-generations`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-m/--min-size`, `-p/--project`    | Plan retention, then move selected automatic rows to restorable trash only with `--apply`                                               |
-| `sase artifact read`                 | `-f/--format`, `-n/--lines`, (positionals `reference`, `reason`)                                                                 | Print one artifact as audited context and optionally record a `read` link                                                               |
-| `sase artifact reclaim`              | `-a/--apply`, `-d/--max-history-scan`, `-j/--json`, `-l/--limit`, `-p/--project`                                                 | Convert eligible stored automatic rows to verified VCS-backed rows only with `--apply`                                                  |
-| `sase artifact show`                 | `-j/--json`, (positional `reference`)                                                                                            | Show metadata, resolution, and consumption                                                                                              |
-| `sase artifact stats`                | `-j/--json`, `-p/--project`, `-t/--top`                                                                                          | Report store economics, protection-source evidence, trash occupancy, and default-policy selection                                       |
-| `sase artifact trash` / `trash list` | `-j/--json`, `-l/--limit`                                                                                                        | List trash entries newest-first, flagging entries past the grace period                                                                 |
-| `sase artifact trash purge`          | `-a/--all`, `-j/--json`                                                                                                          | Permanently delete entries past the grace period, or every entry with `-a`                                                              |
-| `sase artifact trash restore`        | `-j/--json`, (positional `reference`)                                                                                            | Restore one entry's payload and complete index row by entry id or artifact ref                                                          |
+| Form                                 | Flags                                                                                                                            | Description                                                                                                                                                  |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sase artifact create`               | `-b/--bead`, `-k/--kind`, `-l/--label`, `-m/--move`, `-p/--path`                                                                 | Store one explicit artifact for the current agent                                                                                                            |
+| `sase artifact doctor`               | `-f/--fix`, `-v/--verify`                                                                                                        | Report file-index and link-graph health; repair projections/renames and backfill enrichment with `--fix`, verify hashes with `--verify`                      |
+| `sase artifact link add`             | (positionals `source_ref`, `relation`, `target_ref`, `why`)                                                                      | Add or rewrite one typed artifact link                                                                                                                       |
+| `sase artifact link import-indexes`  | optional attestation, `-a/--apply`, `-j/--json`                                                                                  | Preview or apply the attested, resumable legacy `links/` to immutable-event cutover                                                                          |
+| `sase artifact link list`            | `-d/--direction`, `-j/--json`, `-l/--limit`, `-o/--origin`, `-R/--relation`, `-s/--source`, optional `ref`                       | List recent artifact links or one artifact's neighborhood                                                                                                    |
+| `sase artifact link migrate-notes`   | `-a/--apply`, `-j/--json`                                                                                                        | Convert parseable historical `RELATED:` bead notes to typed links                                                                                            |
+| `sase artifact link relation`        | `list` / `show <slug>`, `-j/--json`                                                                                              | Inspect the closed relation registry, direction, examples, and recommended endpoint kinds                                                                    |
+| `sase artifact link rm`              | `-R/--relation`, (positionals `source_ref`, `target_ref`)                                                                        | Remove typed links between two artifacts                                                                                                                     |
+| `sase artifact link suggest`         | optional `reference`, `-j/--json`, `-l/--limit`                                                                                  | Print write-free missing-link suggestions backed by deterministic evidence                                                                                   |
+| `sase artifact list`                 | `-a/--agent`, `-e/--explicit`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-p/--project`, `-q/--query`, `-s/--since`, `-u/--unused` | List indexed artifacts newest-first                                                                                                                          |
+| `sase artifact open`                 | (positional `reference`)                                                                                                         | Open a resolved reference with a kind-appropriate viewer                                                                                                     |
+| `sase artifact pane show`            | `-j/--json`, (positional `pane_id`)                                                                                              | Explain one configured Artifacts pane contract: every capability ON or OFF with its rule, declared fact, and reason; unknown pane ids fail                   |
+| `sase artifact path`                 | (positional `reference`)                                                                                                         | Print the one absolute path a reference resolves to                                                                                                          |
+| `sase artifact prune`                | `-a/--apply`, `-b/--before`, `-g/--keep-generations`, `-j/--json`, `-k/--kind`, `-l/--limit`, `-m/--min-size`, `-p/--project`    | Plan retention, then move selected automatic rows to restorable trash only with `--apply`                                                                    |
+| `sase artifact prune-runs`           | `-a/--apply`, `-i/--index-path`, `-j/--json`, `-l/--limit`, `-m/--keep-recent-months`, `-p/--project`, `-r/--projects-root`      | Preview removal of old `ace-run` directories and empty out-of-range shards; `--apply` currently refuses and exits 1 because ACE-run deletion is preview-only |
+| `sase artifact read`                 | `-f/--format`, `-n/--lines`, (positionals `reference`, `reason`)                                                                 | Print one artifact as audited context and optionally record a `read` link                                                                                    |
+| `sase artifact reclaim`              | `-a/--apply`, `-d/--max-history-scan`, `-j/--json`, `-l/--limit`, `-p/--project`                                                 | Convert eligible stored automatic rows to verified VCS-backed rows only with `--apply`                                                                       |
+| `sase artifact show`                 | `-j/--json`, (positional `reference`)                                                                                            | Show metadata, resolution, and consumption                                                                                                                   |
+| `sase artifact stats`                | `-j/--json`, `-p/--project`, `-t/--top`                                                                                          | Report store economics, protection-source evidence, trash occupancy, and default-policy selection                                                            |
+| `sase artifact trash` / `trash list` | `-j/--json`, `-l/--limit`                                                                                                        | List trash entries newest-first, flagging entries past the grace period                                                                                      |
+| `sase artifact trash purge`          | `-a/--all`, `-j/--json`                                                                                                          | Permanently delete entries past the grace period, or every entry with `-a`                                                                                   |
+| `sase artifact trash restore`        | `-j/--json`, (positional `reference`)                                                                                            | Restore one entry's payload and complete index row by entry id or artifact ref                                                                               |
 
 `list` filters: `-k/--kind` is repeatable and accepts the artifact kinds above;
 `-l/--limit` defaults to `50` and `0` means unlimited; `-p/--project` accepts a display
@@ -6083,22 +6558,23 @@ than `artifacts.retention.trash_grace_days`. Because trashed bytes still occupy 
 `sase agent` provides cross-project visibility into running agents and synchronizes
 shared agent history. Subcommands:
 
-| Subcommand  | Flags                                                                                                                                    | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `list`      | `-a/--all`, `-j/--json`, `-p/--project`                                                                                                  | List running agents. `-a` includes DONE/FAILED agents (capped at 50 per project). `-j` emits a JSON array with a stable schema. `-p` limits output to a single project.                                                                                                                                                                                                                                                                                                                                                     |
-| `search`    | query words, `-j/--json`, `-l/--limit`, `-p/--project`                                                                                   | Search the historical catalog with the Artifacts → Agent Boolean dialect. Bare search hides hidden and workflow-child rows and caps at 40; `-l 0` or `limit:all` is unlimited. Explicit `-l` wins over a query `limit:` token.                                                                                                                                                                                                                                                                                              |
-| `show`      | `<name>`                                                                                                                                 | Render a full detail panel (prompt, reply, metadata) for a single agent by name.                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `kill`      | `-n/--name`                                                                                                                              | SIGTERM a running agent by name.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `wait`      | names or `-a/--all`, `-i/--interval`, `-j/--json`, `-p/--project`, `-q/--quiet`, `-t/--timeout`, `-w/--wait-blocked`                     | Wait for agents, families, clans, or workflows to settle; exit status distinguishes failure, human blocking, timeout, and signals.                                                                                                                                                                                                                                                                                                                                                                                          |
-| `restart`   | `<name>`, `-j/--json`, `-m/--model`, `-n/--dry-run`, `-y/--yes`                                                                          | Stop one agent and relaunch its stored prompt under the same name. Planning precedes mutation; dry-run previews and JSON skips confirmation.                                                                                                                                                                                                                                                                                                                                                                                |
-| `drain`     | `<provider>`, `-j/--json`, `-l/--limit`, `-m/--model`, `-n/--dry-run`, `-y/--yes`                                                        | Replan and relaunch agents stranded by a hard-disabled provider. Enabled and soft-disabled providers are refused.                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `tribe`     | `set` / `unset` / `list`                                                                                                                 | Manage the user-defined tribe on an agent (used by the Agents tab tribe side panels). `tribe set -n <agent> -t <tribe>` replaces any prior tribe; `tribe unset -n <agent>` clears it; `tribe list [-n <agent>]` prints tribes as JSON (filtered when given).                                                                                                                                                                                                                                                                |
-| `archive`   | `rebuild-index` / `verify`                                                                                                               | Maintain the dismissed-agent bundle summary index under `~/.sase/dismissed_bundles/`. `verify` exits non-zero if rows are stale or missing.                                                                                                                                                                                                                                                                                                                                                                                 |
-| `artifacts` | `layout status` / `migrate` / `verify` / `rollback`, `-P/--project`, `-p/--projects-root`, `-i/--index-path`, `-j/--json`                | Inspect and migrate the physical `ace-run` artifact directory layout. `status` reports flat and sharded directory counts, `migrate` moves flat timestamp directories into day shards, `verify` checks current or manifest-backed state, and `rollback` reverses a manifest-backed migration.                                                                                                                                                                                                                                |
-| `index`     | `status` / `rebuild` / `verify` / `gc` / `vacuum`, `-i/--index-path`, `-p/--projects-root`, `-j/--json`; `vacuum` accepts `-a/--apply`   | Maintain the persistent artifact index. `status` is a lightweight check, `verify` compares source artifacts, `gc` rebuilds the index and dismissed projection, and `vacuum` reports or reclaims SQLite freelist pages.                                                                                                                                                                                                                                                                                                      |
-| `names`     | `migrate-auto`, `purge-local-state`, `-f/--force`, `-j/--json`; `purge-local-state` also takes `-a/--apply`                              | Maintain the permanent agent-name registry. `migrate-auto` runs the historical generated-name namespace migration; `--force` reruns it after the completion marker exists. `purge-local-state` removes every locally materialized import closure regardless of transport or source machine (artifacts, chats, dismissed bundles, identities, historical import staging, incoming-cache directories, and receipts); a dry run unless `-a/--apply` is given. `-j/--json` emits a machine-readable summary for any subcommand. |
-| `prompts`   | `list` / `migrate` / `show` / `validate`, `-p/--project`, `-m/--month`, `-j/--json`; `migrate -w/--write`, `validate -s/--show-warnings` | Inspect the canonical agents-sidecar prompt archive. `list` browses `prompts/<YYYYMM>/`; `show` prints the archived Markdown document; `validate` checks headers, artifact bytes, manifests, and plan links; and `migrate` moves historical plans-sidecar prompts only with `--write`.                                                                                                                                                                                                                                      |
-| `sync`      | `-c/--check`, `-d/--drop-retired`, `-j/--json`, repeatable `-p/--project`, `-q/--retry-quarantined`, `-r/--refresh`                      | Pull enabled agents sidecars, publish locally commit-eligible hoods, restore deferred prompt archives, push, and drain Referenced By write-backs. Plain `--check` uses cached status without Git or artifact scans; `--check --refresh` fetches and recomputes status. Mutating sync can retry quarantined or drop retired hood and back-reference requests. See [Agent Hood Synchronization](agents_sidecar.md).                                                                                                           |
+| Subcommand  | Flags                                                                                                                                                                                                                    | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `list`      | `-a/--all`, `-j/--json`, `-p/--project`                                                                                                                                                                                  | List running agents. `-a` includes DONE/FAILED agents (capped at 50 per project). `-j` emits a JSON array with a stable schema. `-p` limits output to a single project.                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `search`    | query words, `-j/--json`, `-l/--limit`, `-p/--project`                                                                                                                                                                   | Search the historical catalog with the Artifacts → Agent Boolean dialect. Bare search hides hidden and workflow-child rows and caps at 40; `-l 0` or `limit:all` is unlimited. Explicit `-l` wins over a query `limit:` token.                                                                                                                                                                                                                                                                                                                                                                    |
+| `show`      | `<name>`                                                                                                                                                                                                                 | Render a full detail panel (prompt, reply, metadata) for a single agent by name.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `kill`      | `-n/--name`                                                                                                                                                                                                              | SIGTERM a running agent by name.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `wait`      | names or `-a/--all`, `-i/--interval`, `-j/--json`, `-p/--project`, `-q/--quiet`, `-t/--timeout`, `-w/--wait-blocked`                                                                                                     | Wait for agents, families, clans, or workflows to settle; exit status distinguishes failure, human blocking, timeout, and signals.                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `hold`      | `create` / `list` / `release` / `run` / `show`; selectors `-n/--name`, `-t/--tribe`, `-H/--hood`, `-f/--future`, `-p/--pending`; `-s/--scope`, `-T/--ttl`; `list`/`show -j`; `release`/`show -k/--key`                   | Arm and manage durable admission holds that keep matching WAITING/QUEUED agents, later launches, and undispatched procs from starting. Bare `hold` defaults to `list`. See [Agent holds](cli.md#sase-agent-hold).                                                                                                                                                                                                                                                                                                                                                                                 |
+| `restart`   | `<name>`, `-j/--json`, `-m/--model`, `-n/--dry-run`, `-y/--yes`                                                                                                                                                          | Stop one agent and relaunch its stored prompt under the same name. Planning precedes mutation; dry-run previews and JSON skips confirmation.                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `drain`     | `<provider>`, `-j/--json`, `-l/--limit`, `-m/--model`, `-n/--dry-run`, `-y/--yes`                                                                                                                                        | Replan and relaunch agents stranded by a hard-disabled provider. Enabled and soft-disabled providers are refused.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `tribe`     | `set` / `unset` / `list`                                                                                                                                                                                                 | Manage the user-defined tribe on an agent (used by the Agents tab tribe side panels). `tribe set -n <agent> -t <tribe>` replaces any prior tribe; `tribe unset -n <agent>` clears it; `tribe list [-n <agent>]` prints tribes as JSON (filtered when given).                                                                                                                                                                                                                                                                                                                                      |
+| `archive`   | `rebuild-index` / `verify`                                                                                                                                                                                               | Maintain the dismissed-agent bundle summary index under `~/.sase/dismissed_bundles/`. `verify` exits non-zero if rows are stale or missing.                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| `artifacts` | `layout status` / `migrate` / `verify` / `rollback`, `-P/--project`, `-p/--projects-root`, `-i/--index-path`, `-j/--json`; `-m/--manifest` on `migrate`/`verify`/`rollback`; `migrate` also `-d/--dry-run`, `-l/--limit` | Inspect and migrate the physical `ace-run` artifact directory layout. `status` reports flat and sharded directory counts, `migrate` moves flat timestamp directories into day shards (with `--dry-run`, it only writes or prints the manifest), `verify` checks current or manifest-backed state, and `rollback` reverses a manifest-backed migration.                                                                                                                                                                                                                                            |
+| `index`     | `status` / `rebuild` / `verify` / `gc` / `vacuum`, `-i/--index-path`, `-p/--projects-root`, `-j/--json`; `vacuum` accepts `-a/--apply`; `gc` accepts `--dry-run` and `-r/--purge-revived-bundles`                        | Maintain the persistent artifact index. `status` is a lightweight check, `verify` compares source artifacts, `gc` rebuilds the index and dismissed projection (`--dry-run` only reports its reconciliation counts, and `-r` first purges dismissed bundles for already-revived agents), and `vacuum` reports or reclaims SQLite freelist pages.                                                                                                                                                                                                                                                   |
+| `names`     | `migrate-auto`, `purge-local-state`, `-f/--force`, `-j/--json`; `purge-local-state` also takes `-a/--apply`                                                                                                              | Maintain the permanent agent-name registry. `migrate-auto` runs the historical generated-name namespace migration; `--force` reruns it after the completion marker exists. `purge-local-state` removes every locally materialized import closure regardless of transport or source machine (artifacts, chats, dismissed bundles, identities, historical import staging, incoming-cache directories, and receipts); a dry run unless `-a/--apply` is given. `-j/--json` emits a machine-readable summary for any subcommand.                                                                       |
+| `prompts`   | `list` / `migrate` / `show` / `validate`, `-p/--project`, `-m/--month`, `-j/--json`; `migrate -w/--write`, `validate -s/--show-warnings`                                                                                 | Inspect the canonical agents-sidecar prompt archive. `list` browses `prompts/<YYYYMM>/`; `show` prints the archived Markdown document; `validate` checks headers, artifact bytes, manifests, and plan links; and `migrate` moves historical plans-sidecar prompts only with `--write`.                                                                                                                                                                                                                                                                                                            |
+| `sync`      | `-c/--check`, `-d/--drop-retired`, `-g/--repair-digests`, `-j/--json`, `-m/--repair-manifest`, repeatable `-p/--project`, `-q/--retry-quarantined`, `-r/--refresh`                                                       | Pull enabled agents sidecars, publish locally commit-eligible hoods, restore deferred prompt archives, push, and drain Referenced By write-backs. Plain `--check` uses cached status without Git or artifact scans; `--check --refresh` fetches and recomputes status. Mutating sync can retry quarantined or drop retired hood and back-reference requests. `--repair-digests` re-signs drifted locally owned hood-snapshot file references and `--repair-manifest` rebuilds missing owner-manifest entries, each instead of a normal sync. See [Agent Hood Synchronization](agents_sidecar.md). |
 
 Agent-index paths default to `~/.sase/agent_artifact_index.sqlite` and
 `~/.sase/projects`. `sase agent index vacuum` is a dry run unless `-a`/`--apply` is
@@ -6106,6 +6582,10 @@ supplied. It reports freelist pages left by normal SQLite deletes and dismissed-
 row counts. Apply runs SQLite `VACUUM` to rebuild the index file and reclaim that free
 space; it never removes or alters an index row. `-i/--index-path` selects another index
 and `-j/--json` emits the machine-readable report.
+
+`sase agent persist-cleanup`, `sase agent persist-directive`, and `sase agent revert`
+are durable-operation entrypoints that sase's TUI runs as procs; they read their details
+from the `-Q/--request-path` sidecar and are not meant for direct use.
 
 ### `sase agent-cli`
 

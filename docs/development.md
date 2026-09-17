@@ -34,7 +34,8 @@ diagnosing setup problems.
 ```bash
 just install       # Install with dev deps
 just fmt           # Auto-format code and Markdown
-just lint          # Run ruff, mypy, pyscripts, symvision, toobig, and keep-sorted
+just fix           # fmt plus keep-sorted fixes
+just lint          # Run ruff, mypy, repository audits, symvision, toobig, and keep-sorted
 just test          # Fast parallel test run, excluding slow and PNG visual snapshot tests
 just test-cost     # Fast suite with cost attribution and committed budget checks
 just test-slow     # Slow pytest subset only
@@ -44,8 +45,9 @@ just test-cov      # Parallel test run with coverage + 50% gate, excluding visua
 just test-contexts # Record the per-test coverage baseline the selector consumes, and cache it host-locally
 just test-ace-page-group-isolated  # Rerun AcePageGroup modules with fresh AcePage checkouts
 just test-contention  # Diagnostic soak: repeat the default lane under pinned-CPU contention and tally per-node failures
-just check         # Agent default: whole-repo lint gates + a diff-scoped test lane
-just check-full    # Exhaustive verification: whole-repo lint gates + the full test suite
+just check         # Agent default: whole-repo lint and validation gates + a diff-scoped test lane
+just check-full    # Exhaustive verification: whole-repo gates + the full test suite + flake baseline
+just validate      # sase-core-rs minimum, static feature flags, and sase validate
 just selection-health  # Health of the diff-scoped test lane, including false negatives
 just selection-backtest  # Replay real history and measure selection recall against coverage
 just refresh-contexts-baseline  # Cache Full CI's per-test coverage baseline for selection
@@ -58,16 +60,19 @@ just build         # Build wheel and sdist
 
 ### Diff-scoped checks (`just check`)
 
-`just check` is the agent default: every whole-repo lint gate runs unchanged, but the
-test stage is `just test-scoped` instead of `just test`. `tools/select_tests` builds a
-cached import graph from `src/**` and `tests/**`, seeds it with the changed and
-untracked files in the current diff against `$SASE_CHECK_BASE` (default
-`origin/master`), and walks reverse import edges out to a bounded depth
-(`SASE_TEST_SELECTION_DEPTH`, default `2`) to find the test files that plausibly
-exercise the change. The selection always includes the curated `contract` set
-(`tests/contract_manifest.txt`) and excludes `tests/ace/tui/visual/**` unconditionally.
-The scoped run is serial (`-n 1`) unless the middle gear below wins it a small lease,
-and it never queues behind other agents' runs either way.
+`just check` is the agent default: every whole-repo lint gate runs unchanged, followed
+by `just validate` (the published `sase-core-rs` minimum, static feature-flag checks,
+and `sase validate`), committed plan validation, and an advisory probe of the published
+`sase-core-rs` floor, but the test stage is `just test-scoped` instead of `just test`.
+`just check-full` runs the same gates. `tools/select_tests` builds a cached import graph
+from `src/**` and `tests/**`, seeds it with the changed and untracked files in the
+current diff against `$SASE_CHECK_BASE` (default `origin/master`), and walks reverse
+import edges out to a bounded depth (`SASE_TEST_SELECTION_DEPTH`, default `2`) to find
+the test files that plausibly exercise the change. The selection always includes the
+curated `contract` set (`tests/contract_manifest.txt`) and excludes
+`tests/ace/tui/visual/**` unconditionally. The scoped run is serial (`-n 1`) unless the
+middle gear below wins it a small lease, and it never queues behind other agents' runs
+either way.
 
 Selection is a **heuristic**, not a guarantee: an unbounded closure would select the
 vast majority of the suite because of a large import cycle in `src/sase`, so
@@ -976,20 +981,6 @@ update or implicitly accept a golden, and they do not bypass the Linux-only rege
 gate. Per-assertion equivalents are `max_diff_pixels`, `max_diff_ratio`,
 `max_material_diff_pixels`, and `material_diff_threshold`.
 
-## Timestamp Display Convention
-
-User-facing timestamp display must go through `sase.core.time.parse_local` or
-`sase.core.time.format_local`, so stored UTC instants, offset-aware values, naive
-configured-timezone wall times, and epoch values all render in the configured
-`timezone`. Naive-model arithmetic keeps using `local_now` and `to_local`; storage and
-wire contracts keep canonical UTC unless their owning schema says otherwise.
-
-`tests/test_timezone_display_consistency.py` has the focused `tz_divergence` fixture
-coverage and the `test_no_system_clock_display_sites` AST guard. A new bare
-`datetime.now()`, argument-less `.astimezone()`, or tz-less `datetime.fromtimestamp()`
-under `src/sase/` should normally be fixed by routing through the time helpers instead
-of adding another guard allowlist entry.
-
 Mismatch assertions, `summary.txt`, and `failure.json` report `material_diff_pixels`,
 `material_diff_ratio`, and `material_diff_threshold` alongside the active area and
 material limits. Inspect those fields to distinguish broad, low-amplitude renderer drift
@@ -1072,6 +1063,20 @@ composition, or a regression that is hard to express as state. Prefer a plain
 state/widget test when the behavior can be asserted through model state, rendered text,
 selection identity, key handling, or a small widget contract.
 
+## Timestamp Display Convention
+
+User-facing timestamp display must go through `sase.core.time.parse_local` or
+`sase.core.time.format_local`, so stored UTC instants, offset-aware values, naive
+configured-timezone wall times, and epoch values all render in the configured
+`timezone`. Naive-model arithmetic keeps using `local_now` and `to_local`; storage and
+wire contracts keep canonical UTC unless their owning schema says otherwise.
+
+`tests/test_timezone_display_consistency.py` has the focused `tz_divergence` fixture
+coverage and the `test_no_system_clock_display_sites` AST guard. A new bare
+`datetime.now()`, argument-less `.astimezone()`, or tz-less `datetime.fromtimestamp()`
+under `src/sase/` should normally be fixed by routing through the time helpers instead
+of adding another guard allowlist entry.
+
 ## Required Rust Core
 
 Ported `sase.core` operations are served by the required Rust extension `sase_core_rs`,
@@ -1100,6 +1105,7 @@ boundaries, and docs/tests:
 | `src/sase/ace/`                | sase's TUI, Patch rendering, query integration, actions, widgets, and TUI state.                       |
 | `src/sase/agent/`              | Agent launch, detached spawn, prompt fan-out, running-agent metadata, artifact lookup, and naming.     |
 | `src/sase/axe/`                | Axe orchestrator, routines, job execution, scheduled jobs, maintenance mode, and automation state.     |
+| `src/sase/jobs/`               | Public `sase.jobs` SDK for axe job scripts (`src/sase/chops/` keeps the legacy chop-named facade).     |
 | `src/sase/xprompt/`            | XPrompt expansion, directives, workflow loading, execution, tracing, explaining, and graphing.         |
 | `src/sase/xprompts/`           | Bundled xprompt templates, workflows, and schemas shipped with the package.                            |
 | `src/sase/xprompts/skills/`    | Bundled agent skill sources and the generated `SKILL.md` frame.                                        |
@@ -1115,6 +1121,8 @@ boundaries, and docs/tests:
 | `src/sase/running_field/`      | Workspace claim and slot-management helpers.                                                           |
 | `src/sase/procs/`              | Durable proc store, ids, logs, supervisor, and runner for background work.                             |
 | `src/sase/monitor/`            | Monitor shell lifecycle: start handoff, detached supervisor, store queries, and follow-up launch.      |
+| `src/sase/notification_gates/` | Command-backed gate bundles, decision receipts, branch execution, and gate CLI helpers.                |
+| `src/sase/sudo/`               | Typed sudo gate requests, reviewed terminal handoff, leases, and receipts.                             |
 | `src/sase/notifications/`      | Notification delivery and storage integration.                                                         |
 | `src/sase/telemetry/`          | Local debugging metric accumulation, store queries, health checks, and shared numeric render helpers.  |
 | `src/sase/version/`            | Runtime inventory collection and rendering for the `sase version` CLI command.                         |

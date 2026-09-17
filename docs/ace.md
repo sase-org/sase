@@ -11,24 +11,32 @@ for navigating, managing, and operating on Patches, agents, and the Axe daemon.
 sase tui [QUERY] [options]
 ```
 
+Run `sase tui` from an interactive terminal. It opens on the Agents tab and starts the
+axe daemon if it is not already running (pass `-x` to skip that). Press `?` on any tab
+for the keymap and a short guide, `:` for the [Command Palette](#command-palette), and
+`q` to quit. The command was previously `sase ace`, which no longer exists; the TUI's
+settings still live under the `ace:` section of `sase.yml` (for example `ace.keymaps`
+and `ace.page_size`).
+
 If no Patches query is provided, sase's TUI loads the last used Patches query, then the
 first saved Patches query, then falls back to `!!!` for error suffixes. The top-level
 Agents tab restores its own last submitted Agents query after startup.
 
 ### CLI Options
 
-| Option                     | Description                                                                                            |
-| -------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `QUERY` (positional)       | Query string for filtering Patches                                                                     |
-| `-m`, `--model-tier`       | Override model tier for all LLM providers (`large` or `small`)                                         |
-| `-M`, `--model-size`       | Deprecated alias for `--model-tier` (`big` or `little`)                                                |
-| `-p`, `--profile [PATH]`   | Profile the TUI session with pyinstrument; optional output path                                        |
-| `-r`, `--refresh-interval` | Auto-refresh interval in seconds (default: 10, 0 to disable)                                           |
-| `-x`, `--no-axe`           | Disable auto-starting the axe daemon on startup                                                        |
-| `-v`, `--vcs-provider`     | Override VCS provider (`git`, `hg`, or `auto`)                                                         |
-| `-R`, `--restart-axe`      | Restart the axe daemon on startup (shows RESTARTING indicator)                                         |
-| `-t`, `--tab`              | Tab to focus on startup (`artifacts`, `agents`, `axe`; `changespecs` and `patches` are legacy aliases) |
-| `-T`, `--tmux`             | Launch sase's TUI in a new tmux window and print the target for external control                       |
+| Option                            | Description                                                                                                                          |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `QUERY` (positional)              | Query string for filtering Patches                                                                                                   |
+| `-m`, `--model-tier`              | Override model tier for all LLM providers (`large` or `small`)                                                                       |
+| `-M`, `--model-size`              | Deprecated alias for `--model-tier` (`big` or `little`)                                                                              |
+| `-p`, `--profile [PATH]`          | Profile the TUI session with pyinstrument; optional output path                                                                      |
+| `-r`, `--refresh-interval`        | Auto-refresh interval in seconds (default: 10, 0 to disable)                                                                         |
+| `-s`, `--sanity-refresh-interval` | Full sanity-refresh interval in seconds (default: 300); see [Auto-Refresh](#auto-refresh)                                            |
+| `-x`, `--no-axe`                  | Disable auto-starting the axe daemon on startup                                                                                      |
+| `-v`, `--vcs-provider`            | Override VCS provider (`git`, `hg`, or `auto`)                                                                                       |
+| `-R`, `--restart-axe`             | Restart an already-running axe daemon on startup (shows RESTARTING indicator)                                                        |
+| `-t`, `--tab`                     | Tab to focus on startup (`agents` by default, `artifacts`, or `axe`; `changespecs` and `patches` are legacy aliases for `artifacts`) |
+| `-T`, `--tmux`                    | Launch sase's TUI in a new tmux window and print the target for external control                                                     |
 
 When profiling is enabled, sase's TUI writes text output to `PATH`. If `PATH` is
 omitted, it uses the managed temp tree:
@@ -108,12 +116,12 @@ inactive labels, leaving their digits and icons visible. If even micro is wider 
 available space, micro remains selected. Every Artifacts tab has an icon, including
 provider tabs whose missing or invalid `ref.icon` falls back to the generic `◆`, so the
 micro tier never leaves an inactive tab unidentified. Hovering a tab shows that pane's
-one-sentence description. These keys act only while Artifacts is visible. Press `p` in
-Agent, Stitch, Bead, provider document panes, or File to change the shared project scope
-— first-open seeds from the [current project](#current-project) — or use the command
-palette to jump directly to a top-level view. Patches remains query-scoped and retains
-the existing Patch workflow. The strip order does not change the entry point: opening
-Artifacts still selects Stitch by default.
+one-sentence description. These keys act only while Artifacts is visible. Press `p` on
+any Artifacts pane to change the shared project scope — first-open seeds from the
+[current project](#current-project) — or use the command palette to jump directly to a
+top-level view. Patches remains query-scoped: choosing a project there rewrites the
+Patches query's `project:` token. The strip order does not change the entry point:
+opening Artifacts still selects Stitch by default.
 
 ### Contextual Artifact Links
 
@@ -145,7 +153,7 @@ Link follows can cross tabs and keep a bounded 32-hop trail. `Ctrl+O` walks back
 `Ctrl+Shift+O` walks forward, restoring the tab, pane, project scope, query, selection,
 and supported AXE fold state. If no link-trail hop is available, those keys retain the
 current pane's normal jump-stack behavior. Ordinary navigation clears the link trail.
-See [Artifact Links](artifact_links.md#browsing-links-in-ace) for relation and
+See [Artifact Links](artifact_links.md#browsing-links-in-sases-tui) for relation and
 projection details.
 
 #### The Reveal Ladder
@@ -310,13 +318,14 @@ accelerator and a warm preview, and can be selected with the mouse, arrow keys o
 is configured as `j`, `k`, or `q`, the configured copy target wins over navigation or
 cancellation.
 
-| Pane               | Keys                                                                                                                                                              |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Agent              | `%@` artifact ref · `%!` ref in agent prompt · `%n` name · `%l` Markdown link · `%p` artifacts path · `%c` chat path · `%P` prompt · `%j` metadata JSON           |
-| Stitches           | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan               |
-| Beads              | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` id · `%t` title · `%b` description and notes · `%d` design          |
-| Provider documents | `%@` artifact ref · `%d` bead design ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` bead id · `%p` path · `%t` title · `%b` body |
-| Files              | `%%` contents · `%@` artifact ref · `%L` Markdown link · `%p` stored path · `%o` source path · `%l` label · `%j` metadata JSON · `%!` ref in agent prompt         |
+| Pane            | Keys                                                                                                                                                                             |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Agent           | `%@` artifact ref · `%!` ref in agent prompt · `%n` name · `%l` Markdown link · `%p` artifacts path · `%c` chat path · `%P` prompt · `%j` metadata JSON                          |
+| Stitches        | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` full SHA · `%m` message · `%r` `repo@sha` · `%p` plan                              |
+| Beads           | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` id · `%t` title · `%b` description and notes · `%d` design · `%u` linked issue ref |
+| Plans           | `%@` artifact ref · `%d` bead design ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%%` bead id · `%p` path · `%t` title · `%b` body                |
+| Other providers | `%@` artifact ref · `%l` Markdown link · `%J` metadata JSON · `%!` ref in agent prompt · `%p` path · `%t` title · `%b` body                                                      |
+| Files           | `%%` contents · `%@` artifact ref · `%L` Markdown link · `%p` stored path · `%o` source path · `%l` label · `%j` metadata JSON · `%!` ref in agent prompt                        |
 
 `%s` captures the current `sase tui` tmux pane on every view.
 
@@ -546,7 +555,7 @@ because bare `revivable` remains a free-text term.
 
 ### Bead Pane
 
-The top-level Beads view (`3`) is the work-item home for standalone tasks, epic plan
+The top-level Beads view (`4`) is the work-item home for standalone tasks, epic plan
 beads, and their phase beads. Every bead appears once: tasks occupy their own section,
 while epics expand with `l` and collapse with `h` to reveal phases. Rows show stored
 status and ownership metadata, `✦` when a task has a pending TaskTriage decision, and
@@ -559,26 +568,26 @@ filter is active.
 
 The pane supports the full bead workflow:
 
-| Key                 | Action                                                                                |
-| ------------------- | ------------------------------------------------------------------------------------- |
-| `j` / `k`           | Select the next / previous bead                                                       |
-| `Enter`             | Open the complete bead detail in the preview reader                                   |
-| `f`                 | Edit the bead filter query                                                            |
-| `Ctrl+J` / `Ctrl+K` | Load more matching beads / unload one page (rewrites `limit:`)                        |
-| `l` / `h`           | Expand / collapse the selected epic                                                   |
-| `s`                 | Cycle the selected bead's status using the type-aware sequence below                  |
-| `z`                 | Snooze the selected task bead (or edit/cancel an existing snooze)                     |
-| `e`                 | Edit the bead's valid fields                                                          |
-| `N`                 | Append a note without replacing prior notes                                           |
-| `n`                 | Create a task bead in the selected project                                            |
-| `c`                 | Close with a required reason and optional note, or reopen a closed bead               |
-| `w`                 | Launch an epic or launchable task; phase work launches with its epic                  |
-| `E`                 | Open a linked external issue                                                          |
-| `y`                 | Copy the bead's `@bead:` reference                                                    |
-| `% u`               | Copy a linked issue reference (copy mode)                                             |
-| `b`                 | Enter issue-action prefix mode                                                        |
-| `L`                 | Jump to the linked plan document; the same key in Plans jumps back to the owning bead |
-| `R`                 | Refresh beads                                                                         |
+| Key                 | Action                                                                          |
+| ------------------- | ------------------------------------------------------------------------------- |
+| `j` / `k`           | Select the next / previous bead                                                 |
+| `Enter`             | Open the complete bead detail in the preview reader                             |
+| `f`                 | Edit the bead filter query                                                      |
+| `Ctrl+J` / `Ctrl+K` | Load more matching beads / unload one page (rewrites `limit:`)                  |
+| `l` / `h`           | Expand / collapse the selected epic                                             |
+| `s`                 | Cycle the selected bead's status using the type-aware sequence below            |
+| `z`                 | Snooze the selected task bead (or edit/cancel an existing snooze)               |
+| `e`                 | Edit the bead's valid fields                                                    |
+| `N`                 | Append a note without replacing prior notes                                     |
+| `n`                 | Create a task bead in the selected project                                      |
+| `c`                 | Close with a required reason and optional note, or reopen a closed bead         |
+| `w`                 | Launch an epic or launchable task; phase work launches with its epic            |
+| `E`                 | Open a linked external issue                                                    |
+| `y`                 | Copy the bead's `@bead:` reference                                              |
+| `% u`               | Copy a linked issue reference (copy mode)                                       |
+| `b`                 | Enter issue-action prefix mode                                                  |
+| `$`                 | Arm the [link rail](#contextual-artifact-links), e.g. to follow the linked plan |
+| `R`                 | Open the [Refresh panel](#refresh-panel)                                        |
 
 When a bead has several issue links, `E`, `% u`, and the `b`-mode `v`, `e`, `s`, and `u`
 actions first open a selector. In `b` prefix mode, press `v` to view the cached body,
@@ -652,14 +661,14 @@ same graph as query facets.
 | Key                 | Action                                                          |
 | ------------------- | --------------------------------------------------------------- |
 | `j` / `k`           | Select the next / previous catalog row                          |
-| `/` / `f`           | Edit the Boolean Agent query                                    |
+| `/`                 | Edit the Boolean Agent query                                    |
 | `o` / `O`           | Cycle grouping forward / backward                               |
 | `w`                 | Revive the selected dismissed row, or the marked revivable rows |
 | `m` / `u`           | Mark / unmark the selected row · clear this pane's marks        |
 | `Ctrl+J` / `Ctrl+K` | Load more matching agents / unload one page (rewrites `limit:`) |
 | `p`                 | Change the shared Artifacts project scope                       |
 | `%`                 | Open the Agent **Copy as…** palette                             |
-| `R`                 | Refresh the catalog                                             |
+| `R`                 | Refresh the catalog (through the Refresh panel)                 |
 
 `w` skips marked rows that are not revivable. On an aggregate family or clan with one
 revivable member it revives that member directly; with several, it narrows the pane to
@@ -681,12 +690,13 @@ inactive icons render dim. A missing `ref.icon`, one that fails validation, or o
 than two terminal cells uses the generic `◆` provider icon instead.
 
 Plans is the built-in provider-backed document pane for the plans sidecar. It keeps the
-existing plan actions: `A` and `X` approve or reject pending proposals, and `L` appears
-only when the selected document has an owning bead. That key jumps to Beads; pressing
-`L` on the linked bead returns to the document. If a destination filter hides the
-counterpart, sase's TUI clears that filter before landing on the row. Other document
-providers reuse the same list, filter, detail, preview, copy, and refresh behavior from
-their declared properties and detail fields.
+existing plan actions: `A` and `X` approve or reject pending proposals. A plan's owning
+bead (and a bead's linked plan) is an artifact link, so follow it from the
+[link rail](#contextual-artifact-links) with `$`. Plans groups its list by **Kind**,
+**Status**, or **Project** (`o` / `O`). Other document providers reuse the same list,
+filter, detail, preview, copy, and refresh behavior from their declared properties and
+detail fields, and group only when they declare `ref.grouping` (or `ref.pane.group_by`);
+see [Grouping declarations](artifacts_pane_contract.md#grouping-declarations).
 
 ### Commit Detail and Linked Plans
 
@@ -809,12 +819,13 @@ provenance.
 | `f`                 | Edit the pane's filter query                                                    |
 | `Ctrl+J` / `Ctrl+K` | Load more matching files / unload one page (rewrites `limit:`)                  |
 | `z`                 | Cycle the kind filter through All and the stored kinds present in the snapshot  |
+| `o` / `O`           | Cycle grouping (**Source**, **Kind**, **Project**) forward / backward           |
 | `(` / `)`           | Select previous / next version for the current logical file                     |
 | `y`                 | Copy the row's `@file:<id>` reference                                           |
 | `Y`                 | Copy the row's anchored stored path                                             |
 | `m` / `u`           | Mark / unmark the selected file · clear this pane's marks                       |
 | `%`                 | Open the Files **Copy as…** palette                                             |
-| `R`                 | Refresh the index                                                               |
+| `R`                 | Refresh the index (through the [Refresh panel](#refresh-panel))                 |
 | `p`                 | Change the shared Artifacts project scope (first-open seeds current project)    |
 
 These are the default keymap values; the Files-pane actions retain their `files_*`
@@ -903,39 +914,42 @@ stored size; launch routing uses the same `@small` fallback.
 
 > **Note:** `o`/`O` cycle the L0 grouping bucket forward / reverse on the Agents tab and
 > on every Artifacts pane that has a grouping mode (each surface keeps its own
-> in-session mode). Beads and Plans have no grouping-mode data, so the keys are a silent
-> no-op there; the same is true on the AXE tab. The Artifacts open-externally verb moved
-> to `E`; bang-mode `!o` still marks PR origin. See
+> in-session mode). Beads has no grouping modes, and a provider document pane has them
+> only when it declares `ref.grouping`, so the keys are a silent no-op on panes without
+> modes; the same is true on the AXE tab. The Artifacts open-externally verb moved to
+> `E`; bang-mode `!o` still marks PR origin. See
 > [PR Grouping and Folding](#pr-grouping-and-folding) and the Agents-tab
 > [Grouping Modes](#grouping-modes) below.
 
 ### PR Actions
 
-| Key             | Action                                                                                       |
-| --------------- | -------------------------------------------------------------------------------------------- |
-| `A`             | Accept proposal (`!` = spec only, `@` = mark ready to mail)                                  |
-| `b`             | Rebase PR onto parent                                                                        |
-| `C` / `c1`-`c9` | Checkout PR (primary / workspace 1-9)                                                        |
-| `d`             | Show diff (Patches sub-tab only; `d` is the Axe description toggle elsewhere)                |
-| `e`             | Edit spec file                                                                               |
-| `f`             | Edit hooks (re-run / delete via hint input)                                                  |
-| `M`             | Mail PR                                                                                      |
-| `m`             | Mark / unmark current PR (auto-advances to next)                                             |
-| `n`             | Rename PR (non-Sub/Rev PRs only)                                                             |
-| `!o`            | Mark PR origin (`sase`/`external`/`unknown`)                                                 |
-| `!R`            | Rewind to previous commit (`!` suffix skips VCS operations)                                  |
-| `R`             | Refresh (the shared `artifacts_copy_reference`/`refresh` actions every Artifacts pane binds) |
-| `y`             | Copy the PR's `@patch:` reference                                                            |
-| `s`             | Change status (opens status modal)                                                           |
-| `S`             | Bulk status change for all marked PRs                                                        |
-| `T`             | Checkout + tmux (opens workspace input modal for number)                                     |
-| `u`             | Clear all marks                                                                              |
-| `v`             | View files (hint mode)                                                                       |
-| `w`             | Reword PR description                                                                        |
-| `W`             | Add tag to PR description                                                                    |
-| `x`             | Show/hide submitted PRs                                                                      |
-| `X`             | Show/hide reverted PRs                                                                       |
-| `Y`             | Sync workspace                                                                               |
+| Key             | Action                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------ |
+| `A`             | Accept proposal (`!` = spec only, `@` = mark ready to mail)                                |
+| `b`             | Rebase PR onto parent                                                                      |
+| `C` / `c1`-`c9` | Checkout PR (primary / workspace 1-9)                                                      |
+| `d`             | Show diff (Patches sub-tab only; `d` toggles sidecars on Stitches and the Axe description) |
+| `e`             | Edit spec file                                                                             |
+| `f`             | Edit the Patches filter query                                                              |
+| `F`             | Edit hooks (re-run / delete via hint input; type `.` to pick from hook history)            |
+| `M`             | Mail PR                                                                                    |
+| `m`             | Mark / unmark current PR (auto-advances to next)                                           |
+| `n`             | Rename PR (non-Sub/Rev PRs only)                                                           |
+| `!o`            | Mark PR origin (`sase`/`external`/`unknown`)                                               |
+| `!R`            | Rewind to previous commit (`!` suffix skips VCS operations)                                |
+| `R`             | Open the [Refresh panel](#refresh-panel) (refreshes immediately when it is disabled)       |
+| `y`             | Copy the PR's `@patch:` reference                                                          |
+| `s`             | Change status (opens status modal)                                                         |
+| `S`             | Bulk status change for all marked PRs                                                      |
+| `T` / `t`       | Checkout + tmux (primary workspace / prompt for a workspace number)                        |
+| `u`             | Clear all marks                                                                            |
+| `v`             | View files (hint mode)                                                                     |
+| `V`             | Open the Agent Run Log modal for the current PR                                            |
+| `w`             | Reword PR description                                                                      |
+| `W`             | Add tag to PR description                                                                  |
+| `x`             | Show/hide submitted PRs                                                                    |
+| `X`             | Show/hide reverted PRs                                                                     |
+| `Y`             | Sync workspace                                                                             |
 
 ### PR Grouping and Folding
 
@@ -962,7 +976,7 @@ The active grouping mode is shown in the Patches sub-tab's info-panel header as 
 | ---- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `l`  | Expand the focused banner one level (or peel one layer of the visible tree)                                                            |
 | `h`  | Collapse the focused banner; on a collapsed L1 banner, escalate to its parent. With agent focus, collapse the deepest enclosing group. |
-| `zL` | Snap to fully expanded — all banners and Patch rows visible (`z` fold-mode prefix; bare `L` is siblings' `artifacts_link_jump`)        |
+| `zL` | Snap to fully expanded — all banners and Patch rows visible (`z` fold-mode prefix; bare `L` does nothing on Patches)                   |
 | `H`  | Snap to fully collapsed — collapse every visible banner                                                                                |
 
 Collapsed banner rows are first-class navigation stops: `j`/`k` step through them just
@@ -975,12 +989,12 @@ sits on a row the user can see.
 | Key     | Action                                                 |
 | ------- | ------------------------------------------------------ |
 | `z` `c` | Cycle stitches section (expand → collapse)             |
-| `z` `d` | Cycle deltas section (folded ↔ unfolded)               |
+| `z` `d` | Cycle deltas section (summary → files → line counts)   |
 | `z` `h` | Cycle hooks section (expand → collapse)                |
 | `z` `m` | Cycle mentors section (expand → collapse)              |
 | `z` `t` | Cycle timestamps section (expand → collapse)           |
 | `z` `C` | Toggle stitches section (collapsed ↔ fully expanded)   |
-| `z` `D` | Toggle deltas section (folded ↔ unfolded)              |
+| `z` `D` | Toggle deltas section (summary ↔ line counts)          |
 | `z` `H` | Toggle hooks section (collapsed ↔ fully expanded)      |
 | `z` `M` | Toggle mentors section (collapsed ↔ fully expanded)    |
 | `z` `T` | Toggle timestamps section (collapsed ↔ fully expanded) |
@@ -989,6 +1003,7 @@ sits on a row the user can see.
 | `z` `1` | Set every section to collapsed (level 1)               |
 | `z` `2` | Set every section to expanded (level 2)                |
 | `z` `3` | Set every section to fully expanded (level 3)          |
+| `z` `L` | Expand every grouping banner                           |
 
 STITCHES, HOOKS, MENTORS, and TIMESTAMPS sections each cycle through three fold levels:
 
@@ -1009,20 +1024,25 @@ truncation accounts for it. TIMESTAMPS shows a `[folded: N]` indicator inline wi
 header and displays the most recent timestamp entry when collapsed, giving a quick view
 of the last lifecycle event.
 
-The DELTAS section uses two semantic states. When **folded**, the section renders a
-one-line file and line-count summary such as
-`DELTAS:  +3 (+428) ~6 (+91 ~37 -14) -1 (-22) (10 files)`. When **unfolded**, the
-alphabetical entry list is shown with colored glyphs (green `+`, gold `~`, red `-`) and
-inline line-count tokens. Binary files display `binary`; zero-count entries display
-`0 lines`. The section is omitted entirely when the Patch has no deltas.
+The DELTAS section uses the same three levels with its own meaning. When **collapsed**,
+the section renders a one-line file and line-count summary such as
+`DELTAS:  +3 (+428) ~6 (+91 ~37 -14) -1 (-22) (10 files)`. When **expanded**, the
+alphabetical entry list is shown with colored glyphs (green `+`, gold `~`, red `-`);
+**fully expanded** adds inline line-count tokens to each entry. Binary files display
+`binary`; zero-count entries display `0 lines`. `z` `D` jumps between the summary and
+the full list. The section is omitted entirely when the Patch has no deltas.
 
 ### Workflows and Agents
 
-| Key     | Action                                             |
-| ------- | -------------------------------------------------- |
-| `r`     | Run workflow on current PR                         |
-| `+`     | Run a custom agent (opens project/Patch selection) |
-| `Space` | Run agent from current PR                          |
+| Key          | Action                                                         |
+| ------------ | -------------------------------------------------------------- |
+| `r`          | Run workflow on current PR                                     |
+| `+`          | Run a custom agent (opens project/Patch selection)             |
+| `Space`      | Run an agent from the home prompt context                      |
+| `,<space>`   | Run an agent from the current PR (skips selection)             |
+| `Ctrl+Space` | Prefill the prompt with the most recently launched VCS xprompt |
+| `Ctrl+G`     | Open that most recent VCS xprompt in `$EDITOR` first           |
+| `@`          | Restore a stashed prompt                                       |
 
 If sase's TUI cannot detect a workspace provider for the selected Patch or agent, the
 quick-launch actions show an error toast instead of opening a prompt with a broken VCS
@@ -1030,22 +1050,30 @@ prefix.
 
 ### Bang Mode (`!` prefix)
 
-| Key  | Action                                            |
-| ---- | ------------------------------------------------- |
-| `!!` | Run background command (opens hook history modal) |
-| `!x` | Start / stop axe (or select process)              |
+| Key  | Action                                                                   |
+| ---- | ------------------------------------------------------------------------ |
+| `!!` | Run a background command (choose a project, a workspace, then a command) |
+| `!x` | Start / stop axe (or select process)                                     |
+| `!o` | Mark PR origin (`sase`/`external`/`unknown`)                             |
+| `!R` | Rewind to previous commit (`!` suffix skips VCS operations)              |
+
+`!!` ends in a **Run Command** picker over previously run background commands: type to
+filter the history or enter a new command, move with `Ctrl+N` / `Ctrl+P` or the arrow
+keys, press `Enter` to run it, and `Esc` to cancel. `,!` skips the project and uses the
+current PR's project.
 
 ### Hook History Modal
 
-Pressing `!!` opens the hook history modal showing previously run background commands:
+Type `.` into the `F` edit-hooks input to open the hook history modal, which lists
+previously added hook commands:
 
-| Key         | Action                                     |
-| ----------- | ------------------------------------------ |
-| `j` / `k`   | Navigate through hook history              |
-| `Enter`     | Select and execute highlighted hook        |
-| `Ctrl+D`    | Delete highlighted hook from history       |
-| `Ctrl+G`    | Edit first — select hook and open in input |
-| `Esc` / `q` | Cancel and close modal                     |
+| Key         | Action                                        |
+| ----------- | --------------------------------------------- |
+| `j` / `k`   | Navigate through hook history                 |
+| `Enter`     | Add the highlighted hook to the current Patch |
+| `Ctrl+D`    | Delete highlighted hook from history          |
+| `Ctrl+G`    | Edit first — select hook and open in input    |
+| `Esc` / `q` | Cancel and close modal                        |
 
 The modal supports live filtering as you type in the search box and displays last-used
 timestamps for each hook.
@@ -1113,7 +1141,6 @@ accept or reject suggestions, and apply accepted changes. See
 | `N` / `P`           | Navigate between accepted comments only                  |
 | `Ctrl+D` / `Ctrl+U` | Scroll comment details down / up                         |
 | `Space`             | Toggle acceptance of the current comment                 |
-| `Enter`             | Apply all accepted comments (launches agent)             |
 | `a`                 | Apply accepted comments and propose (amend with propose) |
 | `A`                 | Apply accepted comments and commit                       |
 | `r`                 | Run a mentor profile (opens profile picker)              |
@@ -1128,16 +1155,17 @@ mouse, arrows or `j`/`k` and `Enter`, or complete any configured two-key acceler
 directly. `q`/`Esc` cancels; configured target keys take precedence if rebound to `j`,
 `k`, or `q`.
 
-| Key  | Action                 |
-| ---- | ---------------------- |
-| `%%` | Copy Patch             |
-| `%!` | Copy Patch + snapshot  |
-| `%b` | Copy bug number        |
-| `%c` | Copy PR number         |
-| `%n` | Copy PR name           |
-| `%l` | Copy Markdown link     |
-| `%p` | Copy project spec file |
-| `%s` | Copy sase tui snapshot |
+| Key  | Action                   |
+| ---- | ------------------------ |
+| `%%` | Copy Patch               |
+| `%!` | Copy Patch + snapshot    |
+| `%b` | Copy bug number          |
+| `%c` | Copy PR number           |
+| `%n` | Copy PR name             |
+| `%@` | Copy `@patch:` reference |
+| `%l` | Copy Markdown link       |
+| `%p` | Copy project spec file   |
+| `%s` | Copy sase tui snapshot   |
 
 ## Keybindings: Agents Tab
 
@@ -1157,6 +1185,14 @@ require local files, tmux, or local Patch state stay unavailable. Remote mutatio
 durable requests, optimistically annotate the row while in flight, and refresh the
 Agents list after they settle. Setup and recovery commands are covered by the
 [Remote Dispatch Runbook](remote_dispatch.md).
+
+Remote agents are grouped into the same family and clan nodes as local ones, with the
+same queue badges (`cN`, `wN`) and the same family and clan status rules. A remote row
+stays free of connection chrome while its machine's feed is online and fresh; anything
+else is shown on the row. A stale feed reads like `stale · cached 5h ago`, and an
+invalid feed reads `feed invalid`, is named in the Agents header, and adds a **Feed
+error** line to the detail panel, so cached data never looks silently healthy. A remote
+row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 
 ### Navigation
 
@@ -1179,11 +1215,12 @@ Agents list after they settle. Setup and recovery commands are covered by the
 
 > **Note:** `o`/`O` cycle the L0 grouping bucket forward / reverse on the Agents tab and
 > on every Artifacts pane that has a grouping mode (each surface keeps its own
-> in-session mode). Beads and Plans have no grouping-mode data, so the keys are a silent
-> no-op there; the same is true on the AXE tab. The Artifacts open-externally verb moved
-> to `E`; bang-mode `!o` still marks PR origin. `g`/`G` keep their conventional
-> vim-style scroll-to-top/bottom meaning on every tab. See
-> [Grouping Modes](#grouping-modes) below.
+> in-session mode). Beads has no grouping modes, and a provider document pane has them
+> only when it declares `ref.grouping`, so the keys are a silent no-op on panes without
+> modes; the same is true on the AXE tab. The Artifacts open-externally verb moved to
+> `E`; bang-mode `!o` still marks PR origin. `g`/`G` keep their conventional vim-style
+> scroll-to-top/bottom meaning on every tab. See [Grouping Modes](#grouping-modes)
+> below.
 
 On the Agents tab, `~` uses dotted agent-name relationships rather than Patch sibling
 families. Relations are keyed on the name a row presents as its **sase agent** name, so
@@ -1237,9 +1274,9 @@ somewhere stale.
 | `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                          |
 | `U`                 | Toggle the focused agent's unread marker                                                                       |
 | `u`                 | Clear all agent marks                                                                                          |
-| `x`                 | Kill / dismiss agent, stop a running monitor, or act on every marked agent or focused group                    |
-| `X`                 | Open the cleanup panel for panel, global, tribe, clan, marked, group, or custom cleanup                        |
-| `Enter` / `L`       | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                       |
+| `x`                 | Kill / dismiss the agent, clan, or focused panel or group (or every marked agent); stop a monitor or proc      |
+| `X`                 | Open the cleanup panel for panel, all-panel, tribe, marked, group, or custom cleanup                           |
+| `Enter`             | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                       |
 | `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                 |
 | `E`                 | Edit panel content in editor                                                                                   |
 | `t`                 | Open the focused agent's tmux target; agents with opened linked-workspace context show a workspace chooser     |
@@ -1280,7 +1317,7 @@ Press `W` on the same selections to prepare `%w:<agent-or-family>`, `%w:<clan>`,
 wait over the named marked rows instead of the focused group. The reserved `@default`
 panel and grouping banners are not wait targets either.
 
-Group references are dynamic; pressing `f` does not snapshot the selected transcripts. A
+Group references are dynamic; pressing `F` does not snapshot the selected transcripts. A
 family reference contributes every known concrete shell in the family's sequential
 chain, oldest first, agent shells and monitor shells alike, and includes shells that
 ended unsuccessfully with their failure context rather than dropping them. Only shells
@@ -1473,10 +1510,12 @@ This-tab refreshes still stay on the visible-inbox path. Use
 `sase agent index status --json` for a lightweight check that does not scan source
 artifacts, `sase agent index verify` to compare the index with source artifacts, and
 `sase agent index gc` to rebuild the index and dismissed projection. Use `r` then `f`
-when you want an immediate full-history refresh from source artifacts. Normal SQLite
-deletes never reclaim disk space; `sase agent index vacuum` reports freelist pages and
-dismissed row counts, and `-a`/`--apply` compacts the index file with `VACUUM` (dry run
-by default; this never removes or alters a row).
+(or `,y`) when you want an immediate full-history refresh: it revalidates and reads the
+whole archive through the artifact index, and falls back to a full source-artifact scan
+only when the index is missing, busy, or fails. Normal SQLite deletes never reclaim disk
+space; `sase agent index vacuum` reports freelist pages and dismissed row counts, and
+`-a`/`--apply` compacts the index file with `VACUUM` (dry run by default; this never
+removes or alters a row).
 
 ### Refresh Panel
 
@@ -1484,20 +1523,25 @@ Press `R` on Artifacts or Axe, or `r` on Agents, to open the Refresh panel: a ce
 single-key chooser that names every refresh sase's TUI can perform, shows how fresh each
 target already is, and runs exactly one of them.
 
-| Key | Aliases           | Option        | What it does                                                                |
-| --- | ----------------- | ------------- | --------------------------------------------------------------------------- |
-| `r` | `R`, `Enter`, `1` | This tab      | Reload the current tab's visible surface (Agents inbox, Artifacts, or Axe). |
-| `f` | `2`               | Full history  | Rescan Agents from every source artifact. Works from any tab.               |
-| `u` | `3`               | Usage windows | Re-probe provider subscription limits.                                      |
-| `a` | `4`               | Everything    | Forced sanity sweep plus full history and usage.                            |
+| Key | Aliases  | Option        | What it does                                                                |
+| --- | -------- | ------------- | --------------------------------------------------------------------------- |
+| `r` | `R`, `1` | This tab      | Reload the current tab's visible surface (Agents inbox, Artifacts, or Axe). |
+| `f` | `2`      | Full history  | Reload Agents from the complete archive. Works from any tab.                |
+| `u` | `3`      | Usage windows | Re-probe provider subscription limits.                                      |
+| `a` | `4`      | Everything    | Forced sanity sweep plus full history and usage.                            |
 
 `R` is an alias for This tab, so a double-tapped `R R` on Artifacts or Axe (or `r r` on
 Agents) reproduces the old immediate refresh. `j`/`k` (or arrows / `Ctrl+N`/`Ctrl+P`)
-move the cursor; `Enter` activates the highlighted row; `Esc` or `q` cancels.
+move the cursor; `Enter` activates the highlighted row (This tab when the panel opens);
+`Esc` or `q` cancels. The `,y` leader chord opens the same panel from any tab with Full
+history highlighted and a `,y lives here now — press f` reminder, so `,y` then `f` (or
+`Enter`) runs the full-history reload.
 
-Each row shows a freshness chip from a real reload in this session (`12s ago`, `2h ago`,
-`just now`). A surface that has not been reloaded yet shows `—`, never a guessed age.
-The header line reports the auto-refresh cadence and the countdown to the next tick.
+Each row shows a freshness chip from a reload requested in this session (`12s ago`,
+`2h ago`, `just now`). A surface that has not been reloaded yet shows `—`, never a
+guessed age. The usage row shows `checking…` while it looks up how many providers it can
+refresh. When auto-refresh is enabled, a header line reports its cadence and the
+countdown to the next tick.
 
 If usage metrics are disabled or no providers are eligible, the usage row stays visible
 but unavailable: pressing `u` explains why and leaves the panel open so you can pick
@@ -1580,10 +1624,10 @@ external repo discards local clone changes without re-cloning from the network.
 ### Wait Modal
 
 Press `w` on the Agents tab to open the WaitModal. It has five editable fields —
-**Agents**, **Beads**, **Time**, **Runners**, and **Priority** — each prefilled from the
-agent's current wait. Time, Runners, Priority, and Beads render a live preview of how
-the typed value will be interpreted; an invalid Time, Runners, or Priority value blocks
-apply and focuses the offending field.
+**Agents**, **Beads**, **Time**, **Capacity**, and **Priority** — each prefilled from
+the agent's current wait. Time, Capacity, Priority, and Beads render a live preview of
+how the typed value will be interpreted; an invalid Time, Capacity, or Priority value
+blocks apply and focuses the offending field.
 
 Beads completes against every non-closed bead in the agent's project, read from the same
 canonical store the wait resolver consults, so a bead offered by the picker is always
@@ -1596,7 +1640,7 @@ present in the field renders with a dim `· selected` suffix.
 
 The Agents and Beads fields each have their own completion list directly beneath them,
 but only one is ever visible at a time — whichever of the two fields was focused most
-recently (Agents by default). Focusing Time, Runners, or Priority never changes which
+recently (Agents by default). Focusing Time, Capacity, or Priority never changes which
 list is shown, and the hidden list is not part of keyboard focus traversal.
 
 The beads preview reports one of: an empty-field neutral message, a loading message
@@ -1617,9 +1661,9 @@ Behavior depends on the agent's status:
   agent applies a capacity- or priority-only edit live on its next poll; changing
   earlier wait stages restarts the agent. Clearing an explicit capacity budget returns
   that launch to the current global `max_running_agents` budget.
-- **RUNNING agent**: Enter a dependency, bead gate, time floor, capacity budget, or
-  priority to kill and restart the current agent with canonical `%wait(...)` /
-  `%queue(...)` directives.
+- **STARTING or RUNNING agent**: Enter a dependency, bead gate, time floor, capacity
+  budget, or priority to kill and restart the current agent with canonical `%wait(...)`
+  / `%queue(...)` directives.
 
 The **Capacity** field is this launch's capacity budget, replacing the current global
 `max_running_agents` budget for its own admission decision. It is not a count of
@@ -1639,7 +1683,7 @@ wait condition, and `Escape` cancels. The modal supports readline-style keybindi
 (`Ctrl+F`/`Ctrl+B`/`Ctrl+A`/`Ctrl+E`) for cursor movement.
 
 `Ctrl+J` and `Ctrl+K` walk forward and backward through the five fields directly, in the
-displayed order (Agents, Beads, Time, Runners, Priority), wrapping around at either end
+displayed order (Agents, Beads, Time, Capacity, Priority), wrapping around at either end
 and placing the cursor at the end of the field's current value. Unlike `Tab`, they never
 consume a highlighted completion, so they move focus even while a completion list is
 open; when focus is on the Agents or Beads completion list itself, the step is taken
@@ -1766,31 +1810,34 @@ count in the panel title. One standalone agent or one sequential family is one s
 agent, and a rootless clan contributes one sase agent per direct member rather than one
 for its synthetic container. Per-tribe icons, identity colors, and initial expansion are
 configurable through [`ace.tribes`](configuration.md#acetribes); the special `default`
-entry styles the reserved panel. A manual panel fold lasts for that panel's current
-lifetime, and the configured initial state is applied again when the panel appears after
-a restart or after the tribe disappears and returns. Across structured sase's TUI
-surfaces, identity colors apply only to an existing configured icon and the `@tribe`
-name; they do not recolor free-form `@...` text or selection, fold, count, heading, and
-status chrome. Configured icons remain limited to surfaces that already show an icon.
-Each panel title can also show compact scoped metrics in the form `[S1 R2 W1 F1 U1 D3]`:
-`S` is stopped for human input, `R` is running, `W` is waiting to start, `F` is failed,
-`U` is unread terminal work, and `D` is done/read terminal work. Zero-count metrics are
-omitted. The status metrics use the same sase-agent projection as the adjacent total and
-classify a sequential family once from its normalized owner status. The selected
-whole-panel `TRIBE` header uses that same projection, while its nested count and
-per-family/per-clan member summaries preserve the concrete-member distinction. On the
-selected whole panel, the title marker, total, brackets, and metric letters use the
-focus accent; each numeric metric count retains its semantic status color. The title can
-end with an amber `⚙N` badge for running monitors followed by a grey `⚙N` badge for
-finished ones, in that order, after the metric chip (or after the total when the chip is
-empty); the two counts partition the tribe's monitors exactly. Each badge is fold- and
-collapse-independent — it still reports on a fully collapsed panel — and is omitted
-entirely when its own count is zero. Both badges keep their semantic hue on a selected
-panel while the brackets and metric letters take the focus accent. Panel heights are
-sized to their content and separated by a one-row gap. When the panels fit, the first
-panel grows to absorb leftover vertical space while later panels stay pinned to their
-natural height; when the panels overflow, space is weighted by each panel's rendered row
-count.
+entry styles the reserved panel. Agents launched by AXE jobs land in the built-in `@job`
+panel. SASE still stores that tribe under its legacy name `chop`, but `@job` wait and
+fork targets, `tribe:job` filters, and an `ace.tribes.job` entry all address it (an
+explicit `ace.tribes.chop` entry still wins for styling). A manual panel fold lasts for
+that panel's current lifetime, and the configured initial state is applied again when
+the panel appears after a restart or after the tribe disappears and returns. Across
+structured sase's TUI surfaces, identity colors apply only to an existing configured
+icon and the `@tribe` name; they do not recolor free-form `@...` text or selection,
+fold, count, heading, and status chrome. Configured icons remain limited to surfaces
+that already show an icon. Each panel title can also show compact scoped metrics in the
+form `[S1 R2 W1 F1 U1 D3]`: `S` is stopped for human input, `R` is running, `W` is
+waiting to start, `F` is failed, `U` is unread terminal work, and `D` is done/read
+terminal work. Zero-count metrics are omitted. The status metrics use the same
+sase-agent projection as the adjacent total and classify a sequential family once from
+its normalized owner status. The selected whole-panel `TRIBE` header uses that same
+projection, while its nested count and per-family/per-clan member summaries preserve the
+concrete-member distinction. On the selected whole panel, the title marker, total,
+brackets, and metric letters use the focus accent; each numeric metric count retains its
+semantic status color. The title can end with an amber `⚙N` badge for running monitors
+followed by a grey `⚙N` badge for finished ones, in that order, after the metric chip
+(or after the total when the chip is empty); the two counts partition the tribe's
+monitors exactly. Each badge is fold- and collapse-independent — it still reports on a
+fully collapsed panel — and is omitted entirely when its own count is zero. Both badges
+keep their semantic hue on a selected panel while the brackets and metric letters take
+the focus accent. Panel heights are sized to their content and separated by a one-row
+gap. When the panels fit, the first panel grows to absorb leftover vertical space while
+later panels stay pinned to their natural height; when the panels overflow, space is
+weighted by each panel's rendered row count.
 
 A selected tribe panel's `TRIBE` header ends with an unlabeled description row only when
 the tribe has a configured [`description`](configuration.md#acetribes). That row is set
@@ -1969,16 +2016,17 @@ therefore be visible at once:
 | ----------------- | -------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Grouping banner   | Project, Patch, date, status, and name buckets           | Repeated `H` collapses after scoped agent nodes/clans; `l` expands; `-` never sweeps banners                                                                          |
 | Structural row    | Clan members, family members, and workflow descendants   | `H` retreats a selected workflow/family one level, then remaining group agent nodes, then group clans; `l` expands; `-` sweeps every open agent node and clan at once |
-| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` expands; on an expanded panel `L` hints an agent-node/clan/banner fold to toggle                                               |
+| Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` expands; `L` hints an agent-node/clan/banner fold to toggle in the focused expanded panel                                      |
 
 | Key  | Action                                                                                                                                                                     |
 | ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `l`  | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                                           |
 | `h`  | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                                     |
-| `L`  | On an expanded selected panel, hint every visible agent-node/clan/banner fold to toggle expand/collapse; on a collapsed panel, no-op with the already-collapsed warning    |
+| `L`  | From a row or the selected panel, hint every visible agent-node/clan/banner fold in the focused tribe to toggle; on a collapsed panel, show the already-collapsed warning  |
 | `H`  | Collapse selected workflow/family one level, then remaining group agent nodes/clans/group, or hint a fold to collapse in the selected panel; compact expanded Tools detail |
 | `=`  | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                                      |
 | `-`  | Sweep every open agent node and clan in the focused panel closed in one press, or restore the last sweep; never touches grouping banners or the panel itself               |
+| `_`  | Like `-`, but across every eligible tribe panel at once                                                                                                                    |
 | `,H` | Collapse one fold by hint: the selected tribe's expanded folds from a row; every tribe's expanded folds and panel titles from a selected panel                             |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain
@@ -2192,15 +2240,18 @@ by-project grouping; cycling only changes the current session.
 
 **Queued** holds `QUEUED` agents that have cleared every dependency, bead, and time wait
 and need only runner capacity under their current admission budget. A queued row renders
-as `QUEUED #3/12`; authored capacity renders as a quiet `cN` badge beside the existing
-`wN` weight badge, and turns gold when the launch's budget exceeds the current effective
-global limit. Non-default queue weights render as the same quiet `wN` badge used on
-running rows and queue-ladder entries. The detail pane repeats these values as `Weight:`
-and `Capacity:` lines. Remote rows show the same badges and detail lines using the
-values reported by the machine that owns the agent. New prompts reject `capacity=0`, but
-a persisted legacy record with an explicit zero capacity still renders `c0` and
-`Capacity: legacy 0 (exact-weight drain budget)`. **Waiting** holds genuinely blocked
-but self-progressing agents — `WAITING` with a time wait (`%wait(time=5m)`,
+as `QUEUED #3/12`, followed by `pN` for an explicit queue priority and by
+`held by <armer>` while an [agent hold](#agent-holds) keeps it from starting. A
+sequential family whose next member is queued shows that member's `QUEUED` status and
+queue position on the family row. Authored capacity renders as a quiet `cN` badge beside
+the existing `wN` weight badge, and turns gold when the launch's budget exceeds the
+current effective global limit. Non-default queue weights render as the same quiet `wN`
+badge used on running rows and queue-ladder entries. The detail pane repeats these
+values as `Weight:` and `Capacity:` lines. Remote rows show the same badges and detail
+lines using the values reported by the machine that owns the agent. New prompts reject
+`capacity=0`, but a persisted legacy record with an explicit zero capacity still renders
+`c0` and `Capacity: legacy 0 (exact-weight drain budget)`. **Waiting** holds genuinely
+blocked but self-progressing agents — `WAITING` with a time wait (`%wait(time=5m)`,
 `%wait(time=1430)`), a non-empty `waiting_for` dependency, or a bead wait. A compact
 `WAITING` row summarizes named waits as one sequence of independent tokens: agent counts
 keep the established status glyphs (`✗1 ▶1 ✓1 ?1`), while bead counts keep the canonical
@@ -2402,7 +2453,10 @@ directives that create it.
 ### Agent Search
 
 Press `/` or `f` on the Agents tab to open the auto-hiding filter bar. `,/` (leader
-mode) starts forward inline metadata search over the selected agent's metadata. The
+mode) starts forward inline metadata search over the selected agent's metadata: type to
+jump to matches, `Ctrl+R` reverses the search direction, `Enter` keeps the matches
+(`Esc` or `Ctrl+C` cancels), `n` / `N` move between them, `y` / `Y` yank the current
+match or selection / its whole line, and `Esc` or `q` closes a committed search. The
 filter bar uses the same **structured Boolean Agent dialect** as Artifacts -> Agent and
 [`sase agent search`](configuration.md#sase-agent), evaluated against the live
 `agents-live` profile. Bare words match an agent's `cl_name`, `display_name`,
@@ -2419,7 +2473,7 @@ accepts completions, and `^` / `_` walk query history while the bar is open. Eac
 successful `Enter` commit is remembered in machine-local SASE state and restored in the
 next sase's TUI session; submitting an empty or whitespace-only query remembers the
 unfiltered view. Typing, `Escape`, invalid submits, history preview, saved-slot
-commands, and bare `/` metadata search do not replace the remembered query.
+commands, and `,/` metadata search do not replace the remembered query.
 
 Restored Agents queries are applied before provider filtering and before current-project
 seeding. A restored query does not push history, change saved-query slots, or write back
@@ -2466,6 +2520,15 @@ Parse failures are non-fatal: the filter bar renders the error inline and keeps 
 good result. When the bad token is a known legacy spelling such as `age>2h` or
 `type:run`, the error appends the unified replacement hint.
 
+A committed query also decides how much agent history is loaded. When the persistent
+artifact index can answer every term exactly — `cl:`, `model:`, `provider:`, `project:`,
+`kind:agent` / `kind:workflow`, and `machine:` (including a negated `machine:` filter),
+combined with `AND` / `OR` — the loader selects matching agents from the whole archive.
+Any other term (for example `status:`, `name:`, `tribe:`, or free text) is first
+evaluated against the bounded recent-history window, and the header adds
+`filtered on recent history; loading full history...` until a quiet-window full-history
+reconcile finishes and older matches can appear.
+
 Transcript files are read only by the background content-index worker while a query is
 active and are cached by `(path, mtime_ns)` so auto-refresh stays cheap. Per-file reads
 are capped at 512 KB; missing or unreadable files are skipped silently. Keystrokes do
@@ -2490,11 +2553,13 @@ modal.
 | `,H`       | Collapse one fold by hint: the selected tribe's expanded folds from a row; every tribe's expanded folds and panel titles from a selected panel |
 | `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read                                              |
 | `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state                                                   |
-| `,u`       | Mark all loaded unread completed agents as read                                                                                                |
+| `,u`       | Mark all loaded unread completed agents as read; with none unread, restore the last bulk-read set to unread                                    |
 | `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                                                                          |
 | `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control))                                                    |
 | `,U`       | Open Update panel (SASE, providers)                                                                                                            |
 | `,E`       | Plan Everything from cached update snapshots and skip confirmation if runnable                                                                 |
+| `,y`       | Open the [Refresh panel](#refresh-panel) with Full history highlighted (refresh Agents from full history when the panel is disabled)           |
+| `,R`       | Show runners info                                                                                                                              |
 | `,L`       | Jump to the log entry for the most recent error toast                                                                                          |
 | `,B`       | Capture an Agents-tab reproduction bundle for debugging row disappearance or duplication                                                       |
 | `,T`       | Toggle continuous Agents-tab repro invariant checks and auto-capture on violation                                                              |
@@ -2647,6 +2712,7 @@ not write a new bundle every refresh while the same violation remains active.
 | ---- | ------------------------------------ |
 | `!!` | Run background command               |
 | `!x` | Start / stop axe (or select process) |
+| `!R` | Revive a previously dismissed agent  |
 
 ### Copy Mode (`%` prefix)
 
@@ -2784,13 +2850,15 @@ scrolled off screen on selection.
 | Key                       | Action                                                                    |
 | ------------------------- | ------------------------------------------------------------------------- |
 | `j` / `k`                 | Move to next / previous sidebar row (routine, job, or background command) |
-| `Ctrl+N` / `Ctrl+P`       | Page through the focused job's run history (newer / older)                |
+| `Ctrl+N` / `Ctrl+P`       | Page through the focused job's run history (older / newer)                |
 | `'`                       | Jump to a current-tab entry by adaptive hint                              |
 | `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack                |
 | `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered job link, or open the complete links panel    |
 | `` ` ``                   | Jump to an entry across all tabs                                          |
 | `g`                       | Scroll to top                                                             |
 | `G`                       | Scroll to bottom (pins auto-scroll)                                       |
+| `Ctrl+D` / `Ctrl+U`       | Scroll output down / up by half a page                                    |
+| `Ctrl+F` / `Ctrl+B`       | Scroll output down / up by a full page                                    |
 
 ### Commands
 
@@ -2804,7 +2872,6 @@ scrolled off screen on selection.
 | `r` | Run an enabled selected job manually, or re-run the focused completed background command (`!!`) row |
 | `x` | Start / stop axe (or kill the focused background command)                                           |
 | `X` | Clear output                                                                                        |
-| `/` | Edit the current Axe query                                                                          |
 
 The `a` flow discovers installed `sase_job_*` executables and also accepts a custom
 executable. Both add and edit open a single-page property sheet showing every schema
@@ -2898,9 +2965,9 @@ cancels, with configured target keys taking precedence.
 
 ### Axe Control
 
-| Key | Action            |
-| --- | ----------------- |
-| `Q` | Stop axe and quit |
+| Key | Action                                                            |
+| --- | ----------------------------------------------------------------- |
+| `Q` | Open the [quit / restart menu](#quit-restart-menu) (can stop axe) |
 
 ## Query System
 
@@ -2918,7 +2985,7 @@ and `,/` starts forward inline metadata search. Help is the app-level `?` on eve
 | Beads              | `/` (or local `f`) |
 | Provider documents | `/` (or local `f`) |
 | Files              | `/` (or local `f`) |
-| Artifacts → Agent  | `/` (or local `f`) |
+| Artifacts → Agent  | `/`                |
 | Agents tab query   | `/` or `f`         |
 
 The Axe tab has no query editor. Its `?` help modal and the command palette both still
@@ -2931,8 +2998,8 @@ To save a query, prefix with `#`:
 - `# "myproject"` -- save to next available slot
 - `#3` (no query) -- delete slot 3
 
-On Patches and the top-level Agents tab, these commands run inside the inline filter and
-leave both the active query and editor session in place.
+On Patches, Artifacts → Agent, and the top-level Agents tab, these commands run inside
+the inline filter and leave both the active query and editor session in place.
 
 On first open, when `ace.current_project.seed_filters` is on and the Patches query
 carries no `project:` / `+name` term of any polarity or depth, sase's TUI appends a
@@ -2944,19 +3011,20 @@ query from the filter bar keeps the token as yours and persists it.
 
 ### Saved Queries
 
-On the Artifacts tab, press `0` followed by a slot digit (`1`-`9`, then `0` again for
-slot 0) to load that saved Patches query directly -- e.g. `02` loads slot 2. This works
-from any Artifacts sub-tab, not just Patches, and always lands on the Patches sub-tab.
-`Esc` or any other non-digit key after `0` cancels without changing the query. Bare
-digits still select the corresponding visible Artifacts sub-tab; the saved-query slot
-keys live behind the `0` prefix so the two never collide.
+Saved-query slots are kept separately for each Artifacts pane. On the Artifacts tab,
+press `0` followed by a slot digit (`1`-`9`, then `0` again for slot 0) to load that
+slot from the active pane's saved queries -- e.g. `02` loads slot 2. The active pane is
+not switched; a slot saved for a different query dialect is refused with an error
+instead of being applied. `Esc` or any other non-digit key after `0` cancels without
+changing the query. Bare digits still select the corresponding visible Artifacts
+sub-tab; the saved-query slot keys live behind the `0` prefix so the two never collide.
 
-Press `*` on the Patches sub-tab to open the saved-query chooser instead. Press a
-populated slot (`1`–`9`, then `0`), move with `j`/`k` or the arrow keys and press
-`Enter`, or click a row. `q`/`Esc` closes the chooser without changing the query. The
-chooser shows the saved query text and marks the active query; an empty chooser also
-repeats the save syntax. The chooser itself is unavailable from Agents, Axe, Stitches,
-Beads, and Plans.
+Press `*` on an Artifacts pane that supports saved queries to open the saved-query
+chooser instead. Press a populated slot (`1`–`9`, then `0`), move with `j`/`k` or the
+arrow keys and press `Enter`, or click a row. `q`/`Esc` closes the chooser without
+changing the query. The chooser shows the saved query text and marks the active query;
+an empty chooser also repeats the save syntax. The chooser is unavailable from the
+Agents and Axe tabs.
 
 ### Query History
 
@@ -2984,12 +3052,12 @@ removal bead, and removal horizon; it does not edit portable configuration files
 With the default-on `admin_center_flags` sunset flag, Config's nested catalog is:
 
 ```text
-01 All · 02 Flags · 03 Launch · 04 Memory · 05 Snippets · 06 XPrompts
+01 All · 02 Flags · 03 Holds · 04 Launch · 05 Memory · 06 Snippets · 07 XPrompts
 ```
 
-Disable `admin_center_flags` to restore the five-child catalog numbered `01` All through
-`05` XPrompts. `sase flag enable` and `sase flag disable` remain available either way;
-they are the recovery and automation surface when the pane is off.
+Disable `admin_center_flags` to drop Flags, leaving the six-child catalog numbered `01`
+All through `06` XPrompts. `sase flag enable` and `sase flag disable` remain available
+either way; they are the recovery and automation surface when the pane is off.
 
 The pane uses the Admin Center list/detail layout: a header with registered/on/saved
 counts, a flag rail, a scrollable detail card, a hidden inline filter, and a one-line
@@ -3003,9 +3071,10 @@ override is removed.
 | `/`              | Open an inline filter over key, description, kind, effective state, and provenance            |
 | `Esc`            | Close/clear the filter before closing Admin Center                                            |
 | `j` / `k`        | Move the rail; arrows, Home/End, and mouse clicks work the same way                           |
+| `q`              | Close Admin Center                                                                            |
 | `Enter`/`Space`  | Open a cancel-first confirmation (`OFF -> ON` or `ON -> OFF`)                                 |
 | `r`              | Reload the catalog                                                                            |
-| `0` then `1`–`6` | Jump to a numbered Config child while Flags is visible (`1`–`5` when the rollout flag is off) |
+| `0` then `1`–`7` | Jump to a numbered Config child while Flags is visible (`1`–`6` when the rollout flag is off) |
 
 Confirmation is cancel-first. It names the flag, the current-to-target state, the saved
 state path, any shadowing source, and that **sase's TUI and AXE restart after active
@@ -3031,14 +3100,17 @@ These work on all tabs:
 | `.`                     | Artifacts: collapse/expand the relations panel; Agents: show/hide non-run agents; Axe: show/hide axe commands                                                     |
 | `:` / `;`               | Open the context-aware [Command Palette](#command-palette)                                                                                                        |
 | `i`                     | Show notifications inbox                                                                                                                                          |
+| `+`                     | Run a custom agent (opens project/Patch selection)                                                                                                                |
+| `Space`                 | Run an agent from the home prompt context                                                                                                                         |
+| `Ctrl+Space`            | Prefill the prompt bar with the most recently launched VCS xprompt                                                                                                |
 | `Ctrl+G`                | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                                                                          |
 | `Ctrl+L`                | Dismiss all currently-visible toast notifications                                                                                                                 |
-| `@`                     | Open the stashed-prompt restore picker                                                                                                                            |
+| `@`                     | Restore a stashed prompt: a lone entry restores directly; several open the restore picker                                                                         |
 | `$$` / `$1`-`$9` / `$0` | Follow the first / numbered contextual artifact link, or open the links panel                                                                                     |
 | `Q`                     | Open the quit / restart menu                                                                                                                                      |
 | `R`                     | Open the [Refresh panel](#refresh-panel) on Artifacts and Axe (this tab, full history, usage, or everything). On Agents, retry the selected local or remote agent |
 | `r`                     | On Agents, refresh (or open the Refresh panel). Artifacts and Axe keep `r` for Patch workflow / Axe run or re-run                                                 |
-| `q`                     | Quit                                                                                                                                                              |
+| `q`                     | Quit (first closes an open artifact viewer pane)                                                                                                                  |
 | `?`                     | Show help modal                                                                                                                                                   |
 
 The generic **Open SASE Admin Center** action and the first `#` always open a
@@ -3075,12 +3147,12 @@ a hint character moves the selection there, `'` again returns to the previous po
 own keybindings table names its jump targets; two are deliberate exceptions. The
 Statistics tab has no row cursor, so `'` there arms the same numbered-view selection the
 `0` prefix already arms, using the visible strip numbers as hints. Config's nested
-catalog is alphabetized as **01 All · 02 Flags · 03 Launch · 04 Memory · 05 Snippets ·
-06 XPrompts** when `admin_center_flags` is on, or **01 All** through **05 XPrompts**
-when it is off; `0` then the matching digits selects those children, while bare digits
-continue to belong to the active child or the Admin Center's top-level tabs. The Updates
-tab's single merged list jumps normally across every section — SASE, Plugins, and Agent
-CLIs alike.
+catalog is ordered **01 All · 02 Flags · 03 Holds · 04 Launch · 05 Memory · 06 Snippets
+· 07 XPrompts** when `admin_center_flags` is on, or **01 All** through **06 XPrompts**
+(without Flags) when it is off; `0` then the matching digits selects those children,
+while bare digits continue to belong to the active child or the Admin Center's top-level
+tabs. The Updates tab's single merged list jumps normally across every section — SASE,
+Plugins, and Agent CLIs alike.
 
 ### Quit / Restart Menu
 
@@ -3284,8 +3356,9 @@ XPrompts · 07 Plans & Questions · 08 Perf**; press `0` and then the second dig
 straight to a view. The Admin Center-wide `'` entry-jump key arms this same
 numbered-view selection instead of painting row hints — Statistics has no row cursor, so
 the already visible strip numbers act as its jump hints; `Esc` or any non-digit cancels.
-Use `[` / `]` to move between views, `t` / `T` to cycle time ranges, `p` / `P` to cycle
-project scope, and `r` to refresh. First open seeds the project filter from the
+Use `[` / `]` to move between views, `t` / `T` to cycle time ranges, `c` to enter a
+custom range, `p` / `P` to cycle project scope, `Ctrl+D` / `Ctrl+U` to scroll, `r` to
+refresh, and `?` for the pane's key help. First open seeds the project filter from the
 [current project](#current-project) when `ace.current_project.seed_filters` is on; `p` /
 `P` can always cycle away from that seed, including back to **All projects**. On
 Overview, Agents Run, Success Rate, and Commits open Projects; Plans Proposed and
@@ -3329,9 +3402,9 @@ launched, and a nested swarm records every link of its chain. Because swarm reco
 carry no arguments, **Refs** equals **Runs** for a swarm row. Attribution is
 forward-only: runs launched before this feature shipped are not backfilled.
 
-This Statistics sub-tab is distinct from the Admin Center's top-level **XPrompts** tab
-described in [XPrompt Browser](#xprompt-browser): the top-level tab browses and edits
-xprompt definitions, while the Statistics sub-tab measures how launch prompts used them.
+This Statistics sub-tab is distinct from Config's **XPrompts** child described in
+[XPrompt Browser](#xprompt-browser): that child browses and edits xprompt definitions,
+while the Statistics sub-tab measures how launch prompts used them.
 
 <a id="models-panel"></a>
 
@@ -4057,10 +4130,11 @@ state-file format.
 
 ## Notifications Modal
 
-Press `i` (or the `,n` leader chord to jump straight to an agent's notification) to open
-the notifications modal. See [`docs/notifications.md`](notifications.md) for the full
-keybinding reference, modal tabs, priority/error/muted classification, and the
-per-notification snooze and mute affordances.
+Press `i` to open the notifications modal. The `,n` leader chord skips the modal and
+opens the pending plan or question for an agent directly. See
+[`docs/notifications.md`](notifications.md) for the full keybinding reference, modal
+tabs, priority/error/muted classification, and the per-notification snooze and mute
+affordances.
 
 Rows and the detail header begin with the notification's single-glyph icon when one is
 present, with a per-action fallback icon otherwise. The text action badge remains
@@ -4125,6 +4199,7 @@ is selected. The following notification action types are supported:
 | `LaunchApproval`     | Agent           | Opens the launch approval modal for an agent-requested launch                   |
 | `PlanApproval`       | Agent           | Opens the plan approval modal                                                   |
 | `RemoteAttention`    | Remote machine  | Opens the remote question or gate modal and submits to the owning machine       |
+| `SudoRequest`        | Agent           | Opens the [sudo review modal](sudo.md#review-ux); approving runs in a terminal  |
 | `Tmux`               | External bridge | Runs `tm <workspace-name>` for the notification's `action_data.workspace_dir`   |
 | `UserQuestion`       | Agent           | Opens the structured user-question response modal                               |
 | `ViewErrorReport`    | Axe/agent       | Opens `action_data.error_report_path`, or the first attached file, in `$EDITOR` |
@@ -4175,11 +4250,12 @@ agents (no `agent_name`) keep the prior format.
 
 ## XPrompt Browser
 
-Press `#` on any tab to open **SASE Admin Center**, then press `1` for **Config**. The
-default **XPrompts** child displays all discovered xprompts in a two-panel layout: a
-filterable list on the left and a syntax-highlighted preview on the right. Markdown
-xprompts with leading YAML frontmatter render the frontmatter and body with their
-respective syntax styles.
+Press `#` on any tab to open **SASE Admin Center**, press `1` for **Config**, then
+choose the **XPrompts** child (`0` then `7`, or `[` / `]`; within a session, Config
+reopens on the child you used last). It displays all discovered xprompts in a two-panel
+layout: a filterable list on the left and a syntax-highlighted preview on the right.
+Markdown xprompts with leading YAML frontmatter render the frontmatter and body with
+their respective syntax styles.
 
 Xprompts are grouped by source (project `sase/xprompts/`, home `~/sase/xprompts/`,
 project-specific home, config `sase.yml`, plugins, built-in, plus labeled legacy
@@ -4201,6 +4277,8 @@ surface because they are supplied by workflow execution rather than typed by the
 | `Ctrl+N`  | Navigate to next xprompt                                                     |
 | `Ctrl+P`  | Navigate to previous xprompt                                                 |
 | `'`       | Jump to a non-header row via adaptive hints                                  |
+| `/`       | Show and focus the filter input                                              |
+| `[` / `]` | Switch to the previous / next Config child                                   |
 | `Ctrl+D`  | Scroll preview panel down                                                    |
 | `Ctrl+U`  | Scroll preview panel up / clear input                                        |
 | `Enter`   | Target the highlighted xprompt: load it into the home prompt bar for editing |
@@ -4209,11 +4287,12 @@ surface because they are supplied by workflow execution rather than typed by the
 | `Ctrl+I`  | Inline-expand the highlighted xprompt into the home prompt bar               |
 | `Esc`     | Close SASE Admin Center                                                      |
 
-Type in the filter input to narrow the list in real time. The filter input is focused by
-default, so two keys are reserved while it is **empty**: digits `1`–`9`/`0` jump to an
-Admin Center tab, and `'` arms entry-jump over the list's non-header rows instead of
-being typed. Once the filter holds text, both keys fall through to ordinary editing, so
-values such as `bug2` or a filter ending in a literal apostrophe can be typed normally.
+The filter input starts hidden. Press `/` to reveal it, then type to narrow the list in
+real time; `Enter` or `Esc` closes the input and returns to the list. While the input is
+focused, every printable key — including digits and `'` — is ordinary filter text, so
+values such as `bug2` can be typed normally; `Ctrl+N` / `Ctrl+P`, `Ctrl+D` / `Ctrl+U`,
+`Ctrl+O`, and `Ctrl+I` still reach the list. From the list itself, `'` arms entry-jump
+over the non-header rows.
 
 ### Editing XPrompts
 
@@ -4255,10 +4334,12 @@ Up to 62 entries use `0`–`9`, `a`–`z`, `A`–`Z`. Larger result sets use fix
 from `00` through `ZZ`; a first character is consumed without closing the modal, and
 uppercase characters remain case-sensitive.
 
-| Key         | Action                          |
-| ----------- | ------------------------------- |
-| Hint        | Jump to the corresponding entry |
-| `Esc` / `q` | Close modal                     |
+| Key                 | Action                                                   |
+| ------------------- | -------------------------------------------------------- |
+| Hint                | Jump to the corresponding entry                          |
+| `` ` ``             | Jump back to the previous position (see below)           |
+| `Ctrl+D` / `Ctrl+U` | Scroll the entry list down / up                          |
+| `Esc`               | Close modal (any other key that is not a hint also does) |
 
 The modal groups entries by tab (Agents, Artifacts, Axe) and shows contextual
 information for each: PR names and statuses, agent names with running indicators, and
@@ -4409,6 +4490,21 @@ with the active panel highlighted; use `]` / `[` to cycle those panels with wrap
 A tribe zoom exposes only the `METADATA` target, so panel cycling and file paging are
 inert there while search, copy, edit, and refresh continue to work.
 
+| Key                  | Action                                           |
+| -------------------- | ------------------------------------------------ |
+| `j` / `k`, `↓` / `↑` | Scroll one line                                  |
+| `Ctrl+D` / `Ctrl+U`  | Scroll half a page                               |
+| `g` / `G`            | Scroll to the top / bottom                       |
+| `]` / `[`            | Cycle the zoomed panel                           |
+| `Ctrl+N` / `Ctrl+P`  | Cycle files                                      |
+| `l` / `h`            | Show more / less Tools detail                    |
+| `L` / `H`            | Jump to full / compact Tools detail              |
+| `/` / `?`, `n` / `N` | Search forward / backward; next / previous match |
+| `y`                  | Copy the zoomed content                          |
+| `E`                  | Open the zoomed content in `$EDITOR`             |
+| `r`                  | Refresh the zoomed content                       |
+| `q` / `Esc` / `z`    | Close the zoom                                   |
+
 When the zoom modal shows files, the file list is fixed for the life of that modal so
 refreshes cannot add, remove, reorder, or jump the selected file. Use `Ctrl+N` /
 `Ctrl+P` to cycle files with first-to-last wrap-around. Multi-file views show a left
@@ -4456,7 +4552,7 @@ newer overlapping launch. See [XPrompt template directives](xprompt.md#directive
 
 Names are permanent IDs: a name used by any existing agent state remains reserved until
 that agent is explicitly wiped or deleted. This enables the fork-by-name workflow: press
-`f` on a running named agent to queue a follow-up that waits for it to finish and then
+`F` on a running named agent to queue a follow-up that waits for it to finish and then
 loads its conversation history.
 
 ### Provider/Model Suffixes
@@ -4540,6 +4636,7 @@ Running bucket when it handed off to a successor.
 | **EPIC APPROVED** | Grey on the settled gate shell | Epic was approved, but no created epic ID has been back-filled yet                                               |
 | **QUESTION**      | Gate accent; legacy dim        | Agent is asking the user a question (via `/sase_questions`)                                                      |
 | **ANSWERED**      | Grey on the settled gate shell | The answer was accepted and a successor is being launched                                                        |
+| **SUDO**          | Gate accent                    | An agent's [sudo request](sudo.md) is waiting for review; it settles as `SUDOED` or `DENIED`                     |
 | **RETRYING**      | Orange                         | Agent hit a retryable error and is in a countdown before retrying                                                |
 
 Modern `/sase_questions` calls hand the family to a processless `QUESTION` gate shell
@@ -4941,6 +5038,11 @@ timestamp. The body shows `No tools artifact available` when the file does not y
 for this agent and `No tool calls recorded` when the file exists but contains zero
 records.
 
+The timeline has three detail levels: compact, expanded, and full. While the Tools panel
+is showing, `l` adds one level of detail and `H` returns to compact, taking priority
+over their usual fold actions. In the [zoom view](#agents-zoom-panel), `l` / `h` step
+the level up or down and `L` / `H` jump to full or compact.
+
 For retry chains and planner-to-coder follow-up families, the panel aggregates
 `tool_calls.jsonl` from related artifact directories so the selected logical agent shows
 one ordered tool timeline. Discovery uses the persistent artifact index when it is
@@ -5036,8 +5138,13 @@ Highlighting does not alter validation or the reviewed file contents.
 For tale plans, the modal's primary **Approve** decision includes two independently
 selectable add-ons: **Commit plan file to the plans sidecar** and **Run coder
 follow-up**. Both are selected by default. Press `enter` to approve with the current
-checkbox selection; the existing `a`, `t`, `c`, `r`, `f`, and `E` bindings remain as
-compatibility shortcuts for their common presets and alternate flows.
+checkbox selection, move to another decision (reject or feedback) with `j` / `k` and
+submit it with `Ctrl+S`, or press `c` for [Custom Approval](#custom-approval).
+
+sase's TUI submits the decision as a tracked `sase gate answer` proc labeled
+`Plan response: <choice>`, so a slow or failed submission shows up in the Procs tab and
+an error toast rather than blocking the TUI; the inbox and Agents rows refresh once the
+answer is recorded.
 
 For the Tale and Commit choices, SASE publishes the reviewed plan to the archive before
 the approval response is made terminal. The response carries a canonical `plan:`
@@ -5052,15 +5159,16 @@ proposals, recent approvals, and inferred rejected archived plans; run
 `sase plan reject <id-prefix>` to write the same response protocol used by the TUI
 modal. Use the `id_prefix` from a Proposed row; if the selector is omitted, the CLI acts
 only when exactly one proposal is pending. Omitting `--kind` uses the plan's authored
-tier. In the Plan Review modal, `enter` uses that same authored-tier default; `a`, `t`,
-and `E` remain explicit overrides. `approve` starts the coder without committing an SDD
-plan, `tale` commits the plan as an SDD tale and starts the coder, `epic` commits the
-matching SDD tier and launches the bead follow-up, and `commit` records the approved
-plan in SDD without launching a coder. `-m/--model` picks the follow-up agent's model,
-while `-p/--prompt` adds extra coder instructions for the `approve` and `tale` paths.
-Tale and epic choices validate the plan against the target schema before consuming the
-approval; failures surface an error and keep the notification actionable. CLI rejection
-also attempts the durable planner cleanup used by no-feedback TUI rejection.
+tier. In the Plan Review modal, `enter` uses that same authored-tier default; use
+[Custom Approval](#custom-approval) to pick a different outcome. `approve` starts the
+coder without committing an SDD plan, `tale` commits the plan as an SDD tale and starts
+the coder, `epic` commits the matching SDD tier and launches the bead follow-up, and
+`commit` records the approved plan in SDD without launching a coder. `-m/--model` picks
+the follow-up agent's model, while `-p/--prompt` adds extra coder instructions for the
+`approve` and `tale` paths. Tale and epic choices validate the plan against the target
+schema before consuming the approval; failures surface an error and keep the
+notification actionable. CLI rejection also attempts the durable planner cleanup used by
+no-feedback TUI rejection.
 
 For active Agents-tab rows, `A` opens the **Auto-Approve menu**, a single-key modal that
 configures how the agent's _next_ submitted plan is auto-approved. The agent's current
@@ -5077,20 +5185,25 @@ unrelated HITL prompts.
 
 ### Plan Approval Keybindings
 
-| Key          | Action                                                   |
-| ------------ | -------------------------------------------------------- |
-| `a`          | Approve and run coder without committing an SDD tale     |
-| `t`          | Save as tale and run coder                               |
-| `c`          | Open [Custom Approval](#custom-approval)                 |
-| `r`          | Reject the plan                                          |
-| `f`          | Request feedback (send follow-up questions to the agent) |
-| `e`          | Edit the plan file in `$EDITOR`                          |
-| `E`          | Mark the plan as an epic (creates bead)                  |
-| `y`          | Copy plan content to clipboard                           |
-| `Y`          | Copy plan file path to clipboard                         |
-| `Ctrl+D`/`U` | Scroll plan content down / up                            |
-| `g` / `G`    | Scroll to top / bottom                                   |
-| `q` / `Esc`  | Cancel                                                   |
+| Key          | Action                                                                  |
+| ------------ | ----------------------------------------------------------------------- |
+| `j` / `k`    | Move between decision controls                                          |
+| `Space`      | Toggle the focused add-on checkbox                                      |
+| `Enter`      | Submit the primary (approve) decision with the current add-ons          |
+| `Ctrl+S`     | Submit the focused decision (for example reject or feedback)            |
+| `1`–`9`      | Submit the correspondingly numbered decision                            |
+| `i`          | Open the input panel for the focused decision's note or declared fields |
+| `c`          | Open [Custom Approval](#custom-approval)                                |
+| `e`          | Edit the plan file in `$EDITOR`                                         |
+| `y`          | Copy the plan file path to the clipboard                                |
+| `Y`          | Copy the plan content to the clipboard                                  |
+| `d`          | Open Gate Debug                                                         |
+| `Ctrl+D`/`U` | Scroll plan content down / up                                           |
+| `g` / `G`    | Scroll to top / bottom                                                  |
+| `q` / `Esc`  | Cancel                                                                  |
+
+The navigation, submit, and input-panel keys are the shared gate-modal keys; see
+[Remapping Gate Modal Keys](#remapping-gate-modal-keys).
 
 The question modal also supports `y` to copy questions and selected answers.
 
@@ -5113,6 +5226,7 @@ in-tree, a legacy `.sase/sdd/` clone, or the split `--plans` sidecar;
 | `m`          | Select coder model            |
 | `p`          | Edit additional coder prompt  |
 | `w`          | Edit wait dependencies        |
+| `c`          | Edit capacity (Epic only)     |
 | `Ctrl+N`/`P` | Next / previous action        |
 | `q` / `Esc`  | Cancel                        |
 
@@ -5126,6 +5240,8 @@ launches bead work directly, so those controls are hidden for Epic:
   to edit it. The dialog validates the same grammar as `sase plan approve --wait` before
   returning to the approval screen. Approve and Tale hold the coder follow-up; Epic
   holds the launched bead work.
+- **Capacity** — Epic only. Press `c` to set a per-launch runner-capacity budget for the
+  launched bead work; blank keeps the default queue behavior and `1` runs it alone.
 - **Coder model** — Select an LLM model for the next follow-up agent instead of using
   the role default. For Approve and Tale that agent is the coder. Shows all registered
   models grouped by provider (Claude, Codex, Antigravity, Qwen, OpenCode, Muse Code,
@@ -5169,6 +5285,33 @@ without a requester continuation. Outside a SASE agent, terminal handoff is the 
 the command registers the gate, prints its creation descriptor, and returns. Automation
 that needs the terminal gate result can then run
 `sase gate wait -i <request-id> -k launch -j`.
+
+## Agent Holds
+
+An agent hold is a durable reverse wait: while it is active, matching `WAITING` or
+`QUEUED` agents, later launches, and undispatched procs are kept from starting. Holds
+are armed with [`sase agent hold`](cli.md#sase-agent-hold). With the beta `agent_holds`
+flag enabled, the TUI also parses and previews the
+[`%hold` directive](xprompt.md#hold-directive), but submitting a prompt does not arm
+that hold yet (see the directive's beta status note). sase's TUI shows holds in three
+places:
+
+- **Agents tab rows.** A `QUEUED` row parked by a hold appends `held by <armer>` after
+  its queue position. If a held agent and the agent that armed the hold end up blocking
+  each other, SASE also sends a **Hold deadlock** notification; the hold's TTL still
+  guarantees progress, but you can release the hold or kill one side sooner.
+- **Launch confirmation.** Submitting a prompt with a broad `%hold` — one that combines
+  `future` with `scope=host`, or whose `pending` capture would freeze more WAITING and
+  QUEUED agents than `agent_hold_confirm_capture_threshold` (default `10`) — opens an
+  **Arm this hold?** confirmation before anything launches. It lists each broad hold's
+  directive and live `pending` capture, plus a warning for a host-wide `future` hold.
+  Cancelling leaves the prompt in the bar; narrow holds launch without asking.
+- **Holds pane.** Open SASE Admin Center with `#`, then Config > **03 Holds** (`0` then
+  `3`; **02** when `admin_center_flags` is off). Each row shows the armer and its kind,
+  the scope (`host` or `project:<name>`), the selectors (`names=`, `hoods=`, `tribes=`,
+  `future`, and `pending=N`), and the time until expiry. Press `j` / `k` (or the arrow
+  keys) to move, `d` to release the highlighted hold, `r` to reload, and `q` or `Esc` to
+  close Admin Center.
 
 ## Linked Chats in Multi-Step Workflows
 
@@ -5429,6 +5572,16 @@ space-indented `<N>.` / `<N>)` ordered marker, are additionally bolded with the 
 theme-aware accent, including inside fenced code; this presentation does not change the
 prompt text. A tab-indented dash or ordered marker is not treated as a list marker.
 
+Known xprompt syntax is layered over the Markdown colors using the active theme:
+`#xprompt` references are bold in the theme's success color, `%directives` are bold in
+its warning color, `/skill` references use a tint of the accent color, and `---`
+separators are dimmed. Argument text is split into parts instead of one flat color —
+delimiters such as `:`, `(`, `,`, and `)` and the `=` sign are muted, keyword names use
+a lighter tint of the owning reference's color, and values are tinted by type (strings,
+numbers, and booleans each get their own hue). Directive arguments get the same
+treatment in the directive palette. An argument that names an unknown keyword, repeats a
+keyword, or has a value of the wrong type is additionally underlined.
+
 When loaded prompt text contains literal top-level `---` multi-agent separators, sase's
 TUI renders the text as a prompt stack: one pane per agent segment. YAML frontmatter at
 the start stays prompt-level metadata, and `---` lines inside fenced code blocks are
@@ -5482,45 +5635,44 @@ only the count; if even that cannot fit, only `Ln, Col` remains.
 
 ### INSERT Mode (Default)
 
-| Key                          | Action                                                                                                                                   |
-| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `Enter`                      | Submit; in a prompt stack, open the submit chooser                                                                                       |
-| `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the stashed-prompt picker                                                              |
-| `Ctrl+G Enter`               | Submit only the selected pane                                                                                                            |
-| `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                                                      |
-| `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet or `<N>.` item (renumbered), or leave the list from an empty marker                  |
-| `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                                                 |
-| `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                                                           |
-| `Ctrl+G`                     | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                                                             |
-| `Ctrl+G Enter`               | Submit only the selected pane                                                                                                            |
-| `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                                                                  |
-| `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                                                               |
-| `Ctrl+G -`                   | Add an empty bottom pane                                                                                                                 |
-| `Ctrl+G G`                   | Open the Memory panel; seeds from the glossary term under the cursor when there is one                                                   |
-| `Ctrl+G m`                   | Open the Memory panel; seeds from the `#memory/<stem>` reference under the cursor when there is one                                      |
-| `Ctrl+G D`                   | Choose a local or eligible enrolled launch target and update the pane's `%dispatch` selector                                             |
-| `Ctrl+G d`                   | Edit the xprompt definition under the cursor in the prompt bar                                                                           |
-| `Ctrl+G f`                   | Reformat the active prompt pane's Markdown with Prettier                                                                                 |
-| `Ctrl+G w`                   | Write a bound xprompt definition; unbound drafts fall through to save-as                                                                 |
-| `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel; its rows-mode `g=` returns to the originating pane                                             |
-| `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                                           |
-| `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                                 |
-| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Open or retarget one mini-xprompt pane                                                                                                   |
-| `Ctrl+G t`                   | Open a new/rename-in-place snippet target pane (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar)) |
-| `Ctrl+G X`                   | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                                                     |
-| `Ctrl+G L`                   | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                     |
-| `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                                                            |
-| `Ctrl+G p`                   | Open the stashed-prompt picker                                                                                                           |
-| `Ctrl+Y`                     | Open the workflow YAML editor                                                                                                            |
-| `Ctrl+K`                     | Open prompt history from a single-line prompt, pre-filtered by that text                                                                 |
-| `Ctrl+P`                     | Cycle toward older workspace MRU prefixes, including a no-prefix stop before wrapping                                                    |
-| `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes, including a no-prefix stop before wrapping                                                    |
-| `Ctrl+T`                     | Completion (structured tokens, paths, prompt-local words, or history words; see [Completion](#completion))                               |
-| `Ctrl+R`                     | Recursive fuzzy file finder using the same prompt-aware path root as file completion                                                     |
-| `Tab`                        | Expand a snippet or advance its tabstop; otherwise indent a bullet or nest an ordered item under a preceding marker                      |
-| `Shift+Tab`                  | Retreat to the previous snippet tabstop; otherwise dedent a bullet or unnest an ordered item into its enclosing run                      |
-| `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                                                                          |
-| `Escape` / `Ctrl+]`          | Switch to vim NORMAL mode; `Ctrl+]` is the race-free alternative when typing following NORMAL commands quickly                           |
+| Key                          | Action                                                                                                                                         |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Enter`                      | Submit; in a prompt stack, open the submit chooser                                                                                             |
+| `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the stashed-prompt picker                                                                    |
+| `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                                                            |
+| `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet or `<N>.` item (renumbered), or leave the list from an empty marker                        |
+| `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                                                       |
+| `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                                                                 |
+| `Ctrl+G`                     | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                                                                   |
+| `Ctrl+G Enter`               | Submit only the selected pane                                                                                                                  |
+| `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                                                                        |
+| `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                                                                     |
+| `Ctrl+G -`                   | Add an empty bottom pane                                                                                                                       |
+| `Ctrl+G G`                   | Open the Memory panel; seeds from the glossary term under the cursor when there is one                                                         |
+| `Ctrl+G m`                   | Open the Memory panel; seeds from the `#memory/<stem>` reference under the cursor when there is one                                            |
+| `Ctrl+G D`                   | Choose a local or eligible enrolled launch target and update the pane's `%dispatch` selector                                                   |
+| `Ctrl+G d`                   | Edit the xprompt definition under the cursor in the prompt bar                                                                                 |
+| `Ctrl+G f`                   | Reformat the active prompt pane's Markdown with Prettier                                                                                       |
+| `Ctrl+G w`                   | Write a bound xprompt definition; unbound drafts fall through to save-as                                                                       |
+| `Ctrl+G =`                   | Show/focus the xprompt frontmatter panel; its rows-mode `g=` returns to the originating pane                                                   |
+| `Ctrl+G s`                   | Bundle every non-empty pane into one stash row                                                                                                 |
+| `Ctrl+G S`                   | Overwrite a pinned stashed prompt with the current stack                                                                                       |
+| `Ctrl+G x` / `Ctrl+G Ctrl+X` | Open or retarget one mini-xprompt pane                                                                                                         |
+| `Ctrl+G t`                   | Open a new/rename-in-place snippet target pane (see [Authoring a snippet from the prompt bar](#authoring-a-snippet-from-the-prompt-bar))       |
+| `Ctrl+G X`                   | Save as reusable xprompt/snippet; xprompt mode converts raw `<tags>`                                                                           |
+| `Ctrl+G L`                   | Convert the active pane into a frontmatter-local xprompt; raw `<tags>` become inputs                                                           |
+| `Ctrl+G Ctrl+C`              | Cancel every pane in the prompt stack at once                                                                                                  |
+| `Ctrl+G p`                   | Open the stashed-prompt picker                                                                                                                 |
+| `Ctrl+Y`                     | Open the workflow YAML editor                                                                                                                  |
+| `Ctrl+K`                     | Open prompt history from a single-line prompt, scoped to that prompt's project (see [Prompt History Modal](#prompt-history-modal))             |
+| `Ctrl+P`                     | Cycle toward older workspace MRU prefixes (no-prefix stop before wrapping); in an xprompt keyword slot, open the keyword menu at its last row  |
+| `Ctrl+N`                     | Cycle toward newer workspace MRU prefixes (no-prefix stop before wrapping); in an xprompt keyword slot, open the keyword menu at its first row |
+| `Ctrl+T`                     | Completion (structured tokens, paths, prompt-local words, or history words; see [Completion](#completion))                                     |
+| `Ctrl+R`                     | Recursive fuzzy file finder using the same prompt-aware path root as file completion                                                           |
+| `Tab`                        | Expand a snippet or advance its tabstop; otherwise indent a bullet or nest an ordered item under a preceding marker                            |
+| `Shift+Tab`                  | Retreat to the previous snippet tabstop; otherwise dedent a bullet or unnest an ordered item into its enclosing run                            |
+| `#@`                         | Open XPrompt snippet picker (type `#` then `@`)                                                                                                |
+| `Escape` / `Ctrl+]`          | Switch to vim NORMAL mode; `Ctrl+]` is the race-free alternative when typing following NORMAL commands quickly                                 |
 
 In prompt INSERT mode, sase's TUI auto-pairs safe openers for `()`, `[]`, `{}`, `<>`,
 single quotes, double quotes, and backticks. Typing the matching closer over an
@@ -5930,11 +6082,19 @@ token under the cursor:
   position, `Ctrl+T` completes the active argument instead of the xprompt name. For
   `path` inputs it delegates to file path completion, for `bool` inputs it offers `true`
   and `false`, and inside parenthesized syntax it completes missing `name=` arguments
-  without repeating names already present in the argument list. Agent inputs such as
-  `#fork` offer agent, proc/monitor, family, clan, and `@tribe` targets with kind and
-  member context. A proc or monitor row inserts its exact durable proc ID while
-  displaying the friendly, reusable shell name. Family rows also show the associated
-  plan or bead when SASE can resolve one: the row reads
+  without repeating names already present in the argument list. Each keyword row shows
+  the input's type, its default when optional, and its description. At a keyword slot
+  (right after `#review(`, or after a comma and space in `#review(a=1,`), the keyword
+  menu also opens automatically while typing (unless
+  `ace.prompt_completion.auto_xprompt_menu` is off), and INSERT-mode `Ctrl+N` / `Ctrl+P`
+  open it with the first / last keyword highlighted. Accepting a keyword immediately
+  opens its value menu when the input has one (bool values, agent targets, or paths).
+  While nothing has been typed in the slot and you have not moved through an
+  automatically opened menu, `Enter` still submits the prompt instead of accepting a
+  row. Agent inputs such as `#fork` offer agent, proc/monitor, family, clan, and
+  `@tribe` targets with kind and member context. A proc or monitor row inserts its exact
+  durable proc ID while displaying the friendly, reusable shell name. Family rows also
+  show the associated plan or bead when SASE can resolve one: the row reads
   `<kind> · <phases/waves> · <title>` (for example
   `Epic · 5 phases · 2 waves · Bead review hardening`), and its plan title is
   searchable, so typing part of the title filters to that family. Selecting the row
@@ -6794,8 +6954,9 @@ once the project-identity snapshot resolves, with the remaining text preserved a
 literal search (see Filtering below). Press `,.` (leader + `.`) to open the same modal
 unscoped from the main sase's TUI UI. The modal loads prompts previously launched from
 sase's TUI or `sase run` in recency pages of `ace.page_size` rows (default 100). Normal
-launch writes skip trivial one-token prompts (e.g. `y`, `ok`) so they do not clutter the
-list, while failed-launch recovery can still preserve a short submitted prompt.
+launch writes skip prompts shorter than five words (e.g. `y`, `ok`) so they do not
+clutter the list, while failed-launch recovery can still preserve a short submitted
+prompt. The same history is available from the shell through [`sase prompt`](prompt.md).
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit
 workspace reference appears with the default `#git:home` prefix. Explicit workspace
@@ -6810,13 +6971,14 @@ the most recent entry and `Ctrl+N` starts at the oldest one.
 
 | Key              | Action                                                    |
 | ---------------- | --------------------------------------------------------- |
+| `↑` / `↓`        | Move the highlight (also `Ctrl+P` / `Ctrl+N`)             |
 | `Enter`          | Submit the highlighted prompt directly                    |
 | `Ctrl+G`         | Open the highlighted prompt in `$EDITOR`                  |
 | `Tab` / `Ctrl+I` | Load prompt into the input widget for editing             |
 | `Ctrl+J`         | Load older prompts (`+ace.page_size`, default +100)       |
 | `Ctrl+K`         | Unload the last page, never dropping below the first page |
 | `Ctrl+X`         | Toggle visibility of cancelled prompts                    |
-| `Ctrl+Y`         | Copy prompt to clipboard                                  |
+| `Ctrl+Y`         | Copy prompt to clipboard and close the modal              |
 | `Esc`            | Close modal                                               |
 
 ### Filtering
@@ -6894,7 +7056,7 @@ second, so the tab never stats, reads, or locks the store from a render or keyst
 path. Retention is governed by `procs.history_limit` (see
 [configuration](configuration.md#procs)): finished rows and their logs age out
 oldest-first, and running procs are never pruned. Because the store owns that retention,
-`d` / `D` only dismiss this session's in-memory rows.
+`d` / `D` do not dismiss rows; they only explain the retention policy.
 
 The top-bar proc indicator counts this session's active `command` procs plus **every
 active unattributed proc globally**, including an approved epic that had to use the
@@ -7035,6 +7197,8 @@ with a leading `-`, and a boolean key takes the bare shorthand (`monitor` means
 | `status:`  | enum     | `pending`, `running`, `settling`, `success`, `error`, `killed` |
 | `kind:`    | enum     | `command`, `tui`, `detached`                                   |
 | `monitor`  | bool     | A `sase monitor start` proc shell                              |
+| `service`  | bool     | A service proc run (daemon or oneshot)                         |
+| `svc:`     | string   | Service name (exact)                                           |
 | `running`  | bool     | Active and owned by a live session                             |
 | `failed`   | bool     | Terminal status is `error` or `killed`                         |
 | `exit:`    | int      | Exit code (exact)                                              |
@@ -7159,6 +7323,10 @@ automatic result, revalidates exactly those names, and never broadens the captur
 from an Updates-pane load. Manual-only providers remain in the preview with their
 suggested command or docs. A real SASE/core/plugin code change restarts sase's TUI and
 axe only after provider work finishes, while provider-only updates refresh in place.
+Before that restart, sase's TUI waits up to 60 seconds for tracked background procs to
+finish (a toast reports the queued restart) and then restarts anyway with a warning
+naming whatever is still active. Long-lived services that outlive sase's TUI by design —
+monitor shells and the persistent Telegram receiver — never delay the restart.
 
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate
 pane-wide agent-CLI action: it updates `Space`-marked agent CLIs from anywhere in the

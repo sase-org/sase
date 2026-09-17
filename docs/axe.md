@@ -15,21 +15,21 @@ directly with `sase axe start` and `sase axe stop`.
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Orchestrator                          │
-│  (spawns & monitors all routines)                    │
-├──────────┬──────────┬──────────┬────────────┬───────────┤
-│  hooks   │  waits   │  checks  │  comments  │ housekeep │
-│  (5s)    │  (10s)   │  (5min)  │  (1min)    │ (1hr)     │
-│          │          │          │            │           │
-│ hook_    │ wait_    │ cl_sub-  │ comment_   │ error_    │
-│ checks   │ checks   │ mitted_  │ checks     │ digest    │
-│ mentor_  │          │ checks   │            │ managed_  │
-│ checks   │          │ stale_   │            │ tmp_reap  │
-│ workflow_│          │ running_ │            │           │
-│ checks   │          │ cleanup  │            │           │
-│ ...      │          │          │            │           │
-└──────────┴──────────┴──────────┴────────────┴───────────┘
+┌───────────────────────────────────────────────────────────────────────┐
+│                              Orchestrator                             │
+│                    (spawns & monitors all routines)                   │
+├───────────┬──────────┬────────────┬───────────┬──────────┬────────────┤
+│ hooks     │ waits    │ checks     │ external_ │ comments │ housekeep- │
+│ (5s)      │ (10s)    │ (5min)     │ mirror    │ (1min)   │ ing (1hr)  │
+│           │          │            │ (15min)   │          │            │
+│ hook_     │ wait_    │ bead_task_ │ external_ │ comment_ │ error_     │
+│ checks    │ checks   │ triage     │ issue_    │ checks   │ digest     │
+│ mentor_   │ bead_    │ pr_sub-    │ mirror    │          │ managed_   │
+│ checks    │ claim_   │ mitted_    │ external_ │          │ tmp_reap   │
+│ workflow_ │ checks   │ checks     │ pr_mirror │          │ disk_      │
+│ checks    │ ...      │ ...        │           │          │ pressure   │
+│ ...       │          │            │           │          │ ...        │
+└───────────┴──────────┴────────────┴───────────┴──────────┴────────────┘
 ```
 
 ### Key Concepts
@@ -60,22 +60,24 @@ a nested subcommand.
 | -------------------------------------- | ----------------------------------------------------------------------------- |
 | `sase axe start`                       | Start the orchestrator (spawns all routines)                                  |
 | `sase axe stop`                        | Stop the orchestrator gracefully                                              |
+| `sase axe stop --force`                | Also kill orphaned axe worker processes and reset PID state                   |
 | `sase axe restart`                     | Verified stop/start/heartbeat-verify restart; works even from a stopped state |
 | `sase axe ensure`                      | Heal a missing daemon unless it was explicitly stopped                        |
 | `sase axe ensure install`              | Install and start the optional user-systemd watchdog                          |
 | `sase axe ensure uninstall`            | Stop and remove the optional user-systemd watchdog                            |
 | `sase axe status`                      | Show the read-only whole-system health snapshot                               |
-| `sase axe status --json`               | Emit the schema-version-1 status object                                       |
-| `sase axe job list`                    | List configured jobs with status (`-a` adds scripts)                          |
-| `sase axe job list -v`                 | Add a panel with each job's full description                                  |
-| `sase axe job doctor`                  | Diagnose configured/available jobs and Telegram setup                         |
+| `sase axe status --json`               | Emit the machine-readable status object (schema version 2)                    |
+| `sase axe job list`                    | List configured jobs with status (`-a` adds discoverable scripts)             |
+| `sase axe job list -v`                 | Add full descriptions, resolution paths, and search-directory detail          |
+| `sase axe job list --json`             | Emit the job inventory as a schema-version-2 JSON object                      |
+| `sase axe job doctor`                  | Diagnose configured/available jobs and Telegram setup (`-j` for JSON)         |
 | `sase axe job run <name>`              | Run a single job in the foreground                                            |
 | `sase axe job run <name> -L <routine>` | Run a single job attributed to a specific routine                             |
-| `sase axe routine list`                | List configured routines and their jobs                                       |
+| `sase axe routine list`                | List configured routines and their enabled jobs                               |
 | `sase axe routine list -v`             | Add each routine's full description under `details`                           |
 | `sase axe routine run <name>`          | Run a single routine in the foreground                                        |
 | `sase axe routine status`              | Show status of all routines                                                   |
-| `sase axe maintenance enter`           | Pause routine ticks until maintenance exits                                   |
+| `sase axe maintenance enter -r <text>` | Pause routine ticks until maintenance exits                                   |
 | `sase axe maintenance exit`            | Clear the maintenance marker                                                  |
 | `sase axe maintenance status`          | Show whether maintenance mode is active                                       |
 
@@ -85,19 +87,28 @@ Current commands, configuration, examples, and public JSON use routine/job terms
 older names remain accepted as compatibility aliases where existing installations may
 still send them:
 
-| Legacy spelling                            | Current spelling                          | Notes                                                                    |
-| ------------------------------------------ | ----------------------------------------- | ------------------------------------------------------------------------ |
-| `sase axe lumberjack ...`                  | `sase axe routine ...`                    | Hidden CLI alias; completions and help advertise `routine`.              |
-| `sase axe chop ...`                        | `sase axe job ...`                        | Hidden CLI alias; legacy invocations keep schema-version-1 JSON.         |
-| `axe.lumberjacks.<name>.chops`             | `axe.routines.<name>.jobs`                | Accepted on input; effective config and new examples use canonical keys. |
-| `chop_script_dirs`, `chop_timeout`         | `job_script_dirs`, `job_timeout`          | The old keys remain input aliases.                                       |
-| `SASE_CHOP_*`, `sase_chop_*`, `sase.chops` | `SASE_JOB_*`, `sase_job_*`, `sase.jobs`   | Script authors should use the job-named entrypoints and SDK facade.      |
-| `chop:<routine>/<job>` artifact references | `job:<routine>/<job>` artifact references | Both resolve to the same stored link identity.                           |
+| Legacy spelling                                                   | Current spelling                                       | Notes                                                                    |
+| ----------------------------------------------------------------- | ------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `sase axe lumberjack ...`                                         | `sase axe routine ...`                                 | Hidden CLI alias; completions and help advertise `routine`.              |
+| `sase axe chop ...`                                               | `sase axe job ...`                                     | Hidden CLI alias; legacy invocations keep schema-version-1 JSON.         |
+| `axe.lumberjacks.<name>.chops`                                    | `axe.routines.<name>.jobs`                             | Accepted on input; effective config and new examples use canonical keys. |
+| `chop_script_dirs`, `chop_timeout`                                | `job_script_dirs`, `job_timeout`                       | The old keys remain input aliases.                                       |
+| `lumberjack_log_*`, `lumberjack_restart_backoff_max_seconds`      | `routine_log_*`, `routine_restart_backoff_max_seconds` | The old keys remain input aliases.                                       |
+| `verbose_lumberjack_diagnostics`                                  | `verbose_routine_diagnostics`                          | The old key remains an input alias.                                      |
+| `SASE_CHOP_*`, `sase_chop_*`, `sase.chops`                        | `SASE_JOB_*`, `sase_job_*`, `sase.jobs`                | Script authors should use the job-named entrypoints and SDK facade.      |
+| `sase_chop_tg_inbound`, `sase_chop_tg_outbound` (`sase-telegram`) | `sase_job_tg_inbound`, `sase_job_tg_outbound`          | `sase axe job doctor` warns when only the legacy entrypoints are found.  |
+| `chop:<routine>/<job>` artifact references                        | `job:<routine>/<job>` artifact references              | Both resolve to the same stored link identity.                           |
+| `sase doctor -C axe.chops`                                        | `sase doctor -C axe.jobs`                              | The old check ID remains a selection alias.                              |
+| Stored `chop` agent tribe                                         | `job` tribe                                            | See [Structured Results](#structured-results-and-launch-proposals).      |
 
-The enabled rename contract projects schema-version-2 JSON with routine/job field names
-for canonical commands such as `sase axe status --json` and `sase axe job ...`. Hidden
-legacy `chop` commands continue returning schema-version-1 envelopes. Runtime state
-paths and durable registries are not migrated: directories under
+The `axe_routine_job_contract` [feature flag](configuration.md#feature_flags), a sunset
+flag that is on by default, controls the public projection. While it is on, canonical
+commands such as `sase axe status --json`, `sase axe job list --json`, and
+`sase axe job doctor --json` emit schema-version-2 JSON with routine/job field names
+(for example `routines`, `routine_name`, `configured_jobs`, and `jobs`), and
+`sase config show` prints the AXE block with canonical keys. Hidden legacy `chop`
+commands, and every command while the flag is off, keep the schema-version-1 envelopes.
+Runtime state paths and durable registries are not migrated: directories under
 `~/.sase/axe/lumberjacks/`, per-job `chops/` subdirectories, and `agent_chops.json`
 remain intentionally legacy-named storage.
 
@@ -160,9 +171,10 @@ sase axe maintenance exit
 `sase axe status` collects one read-only snapshot of AXE intent and runtime evidence,
 classifies it once, and renders an operator dashboard. It does not clean stale files,
 start or stop processes, clear maintenance, or otherwise change host state.
-`sase axe status -j` (equivalently `--json`) emits that same snapshot as the stable
-schema-version-1 JSON object, with deterministic formatting and no Rich markup or ANSI
-escapes.
+`sase axe status -j` (equivalently `--json`) emits that same snapshot as a stable JSON
+object, with deterministic formatting and no Rich markup or ANSI escapes. The object is
+schema version 2 with routine/job field names by default, or the legacy schema version 1
+when the rename contract is off (see [Compatibility aliases](#compatibility-aliases)).
 
 The top-level lifecycle state and health are separate:
 
@@ -185,14 +197,18 @@ and staleness threshold, start and heartbeat times/ages, uptime, cycle and histo
 error counts, configured jobs, and a **Load** column read from each routine's
 `metrics.json` (spawns/min, no-op ratio, last-tick spawned/skipped, and per-reason skip
 buckets `t`/`re`/`inh` for trigger, run_every, inhibited). At narrow terminal widths
-those facts fold into a compact details column rather than being truncated. The
-schema-version-1 `--json` snapshot stays the portable health wire; spawn-rate numbers
-live in the on-disk routine status/metrics JSON that the human view overlays.
+those facts fold into a compact details column rather than being truncated. The `--json`
+snapshot stays the portable health wire; spawn-rate numbers live in the on-disk routine
+status/metrics JSON that the human view overlays.
 
 When the classifier reports issues or collection failure, an **Attention** panel
-preserves the issue order and lists deduplicated suggested commands. Exit codes are part
-of the snapshot contract: `0` means healthy or intentionally inactive, `1` means
-actionable degradation, and `2` means collection/classification error.
+preserves the issue order and lists deduplicated suggested commands. Issue text uses
+routine/job wording even when the rename contract is off. On Linux, the snapshot also
+warns (`orchestrator_session_scope`) when the live orchestrator sits in a session-tied
+systemd scope that would be killed with its launching pane or session, and suggests
+`sase axe restart`; see [Process Lifecycle](#process-lifecycle). Exit codes are part of
+the snapshot contract: `0` means healthy or intentionally inactive, `1` means actionable
+degradation, and `2` means collection/classification error.
 
 Use these related commands according to intent:
 
@@ -217,16 +233,16 @@ Axe ships with six default routines:
 
 High-frequency hook lifecycle management:
 
-| Job                     | Description                                   |
-| ----------------------- | --------------------------------------------- |
-| `hook_checks`           | Complete finished hooks, start stale ones     |
-| `mentor_checks`         | Start mentors once hook prerequisites are met |
-| `workflow_checks`       | Complete/start CRS and fix-hook workflows     |
-| `pending_checks_poll`   | Poll background check results                 |
-| `comment_zombie_checks` | Mark old comment threads as ZOMBIE            |
-| `suffix_transforms`     | Strip stale suffixes, update mail-readiness   |
-| `orphan_cleanup`        | Release workspace claims for dead processes   |
-| `stale_running_cleanup` | Release workspace claims from dead processes  |
+| Job                     | Description                                    |
+| ----------------------- | ---------------------------------------------- |
+| `hook_checks`           | Complete finished hooks, start stale ones      |
+| `mentor_checks`         | Start mentors once hook prerequisites are met  |
+| `workflow_checks`       | Complete/start CRS and fix-hook workflows      |
+| `pending_checks_poll`   | Poll background check results                  |
+| `comment_zombie_checks` | Mark old comment threads as ZOMBIE             |
+| `suffix_transforms`     | Strip stale suffixes, update mail-readiness    |
+| `orphan_cleanup`        | Release workspace claims for dead processes    |
+| `stale_running_cleanup` | Release claims and proc rows of dead processes |
 
 Every job above except `stale_running_cleanup` ships with an `fs` trigger so an idle
 tick costs a handful of `stat()` calls instead of a subprocess spawn: the six
@@ -294,7 +310,8 @@ Lower-frequency status checks:
 | `bead_task_triage`      | Reconcile the one pending gate each task bead owns           |
 | `plugins_required`      | Raise one `PluginsRequired` gate per project missing plugins |
 | `pr_submitted_checks`   | Start PR submission status checks                            |
-| `stale_running_cleanup` | Backstop dead-process claim cleanup                          |
+| `stale_running_cleanup` | Backstop dead-process claim and proc-row cleanup             |
+| `usage_refresh`         | Submit due subscription-usage refreshes                      |
 
 **A live task bead has at most one pending gate**, and `bead_task_triage` is the single
 owner of that invariant. It scans enabled non-home projects for task beads and derives
@@ -396,6 +413,12 @@ holds the pending request, a generation counter, and a fingerprint over the miss
 so a re-run does not duplicate a notification. Run `sase axe job run plugins_required`
 to raise or refresh those gates without waiting for the next five-minute checks tick.
 
+The `usage_refresh` job checks machine-local due and backoff state and submits coalesced
+work to the same durable subscription-usage refresh service the CLI and sase's TUI use;
+it does not poll per agent or per project. Collection stays gated by
+`llm_provider.usage_metrics.enabled`; see
+[Subscription usage extension](llms.md#subscription-usage-extension).
+
 ### external_mirror (15-minute interval)
 
 Isolated remote-tracker polling:
@@ -479,6 +502,7 @@ Periodic maintenance:
 | `proc_runtime_sweep`         | Prune stale rowless proc runtime directories                                    |
 | `disk_pressure`              | Notify on disk pressure and run owner-safe cleanup early                        |
 | `bead_stale_cleanup`         | Sweep stale sub-threshold ready task beads into one `BeadStaleCleanup` gate     |
+| `gate_shell_reclaim`         | Settle pending gate shells whose gates answered, canceled, expired, or vanished |
 | `artifact_link_backfill`     | Derive and reconcile artifact links, drain reads, and repair renamed refs       |
 | `artifact_run_prune`         | Preview old ace-run directories and empty shard cleanup                         |
 
@@ -509,48 +533,69 @@ subdirectory: command scratch (`editors/`, `wrappers/`, `viewers/`, `commit-mess
 (`launch-prompts/`, `workflow-artifacts/`) after 14 days. Launched agents default
 `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` to per-launch
 directories under those managed buckets, so shell scratch and Cargo targets no longer
-fall back to host-global `/tmp`. A runner also removes its own launch-assigned
-`agent-tmp/` and `cargo-targets/` children at exit when it can prove, through procfs,
-that no live process still references either tree; monitor/gate handoffs and hosts
-without readable procfs leave cleanup to the reaper.
+fall back to host-global `/tmp`. Launched agents also get `CARGO_INCREMENTAL=0` and
+line-tables-only debug info for the dev and test Cargo profiles, which keeps per-launch
+targets small. A runner also removes its own launch-assigned `agent-tmp/` and
+`cargo-targets/` children at exit when they still match its exported `TMPDIR` and
+`CARGO_TARGET_DIR` and it can prove, through procfs, that no live process still
+references either tree (by environment or working directory). That removal goes through
+the same Rust reaper as the hourly pass. Monitor/gate handoffs and hosts without
+readable procfs leave cleanup to the reaper.
 
 Each run removes at most 2,000 entries by default so a long-neglected root converges
 over several passes instead of stalling one. The reaper also runs a pressure pass when
-the managed root grows beyond 16 GiB or the filesystem holding it falls below 32 GiB
-free, by default. Under pressure, aged entries of at least 1 GiB in regenerable
-build-output buckets (`cargo-targets/`, plus the legacy `build-targets/`), and
-cargo/core target-shaped top-level residue, are removed largest-first until the root is
-estimated below 8 GiB, available space is estimated back to 48 GiB, or the removal
-budget is reached. Pressure pruning normally waits 12 hours, but once the free-space
-floor is breached it uses the lower configured low-space age, 1 hour by default, without
-weakening the fresh-descendant check. All of the horizons, the removal budget, and the
-pressure thresholds in this section are configurable under `managed_tmp` in `sase.yml`;
-see [Configuration](configuration.md#managed_tmp). Generic agent scratch, handoff
-buckets, artifact buckets, unknown buckets, symlinks, and build trees with fresh
-descendants are not early pressure candidates. The job summary reports `scanned`,
-`removed`, `pressure_removed`, `pressure_reclaimed_bytes`, `pressure_trigger`,
+the managed root grows beyond 16 GiB by default, or when the filesystem holding it falls
+below SASE's shared disk-pressure warn threshold: the larger of 3 GiB and
+[`disk.pressure.warn_free_percent`](configuration.md#disk) (5% by default) of that
+filesystem. Under pressure, aged entries of at least 1 GiB in regenerable build-output
+buckets (`cargo-targets/`, plus the legacy `build-targets/`), and cargo/core
+target-shaped top-level residue, are removed largest-first until the root is estimated
+below 8 GiB, available space is estimated back above that same warn threshold, or the
+removal budget is reached. Pressure pruning normally waits 12 hours, but once the
+free-space floor is breached it uses the lower configured low-space age, 1 hour by
+default, without weakening the fresh-descendant check. The horizons, removal budget,
+root-size limits, pressure ages, and minimum pressure entry size are configurable under
+`managed_tmp` in `sase.yml`; see [Configuration](configuration.md#managed_tmp). The
+housekeeping job, `disk_pressure`, and `sase disk reap` all derive the free-space floor
+and recovery target from the `disk.pressure` policy rather than from
+`managed_tmp.pressure.min_available_bytes` and `recovery_available_bytes`. Generic agent
+scratch, handoff buckets, artifact buckets, unknown buckets, symlinks, and build trees
+with fresh descendants are not early pressure candidates. The job summary reports
+`scanned`, `selected`, and `removed` counts with their byte totals, the same counts
+split into `ordinary_*`, `launch_*`, and `pressure_*` passes, `pressure_trigger`,
 `pressure_available_bytes`, `pressure_recovery_available_bytes`,
-`pressure_min_age_seconds`, `deindexed`, and `capped=1` when it hit that budget. Reaped
-directories are dropped from the agent artifact index too, since a workflow launched
-without an explicit `artifacts_dir` gets one under `workflow-artifacts/`. It lives on
-`housekeeping` rather than an interactive path because the first pass over a neglected
-root walks tens of thousands of entries.
+`pressure_min_age_seconds`, `deindexed`, `skipped`, `failed`, `incomplete_observations`,
+and `capped=1` when it hit that budget. Reaped directories are dropped from the agent
+artifact index too, since a workflow launched without an explicit `artifacts_dir` gets
+one under `workflow-artifacts/`. It lives on `housekeeping` rather than an interactive
+path because the first pass over a neglected root walks tens of thousands of entries.
 
-The `proc_runtime_sweep` job bounds `~/.sase/procs/runtime`. Proc-row retention deletes
+The `proc_runtime_sweep` job bounds `~/.sase/procs/runtime`. Both halves of proc runtime
+retention run in the Rust proc runtime-retention owner. Proc-row retention deletes
 runtime directories for rows it actually pruned in the same operation as log cleanup.
 This hourly sweep handles historical rowless runtime directories separately: it removes
 only canonical proc-id directories that are direct, non-symlink children of the runtime
 root, older than the configured `procs.runtime_orphan_horizon_seconds`, absent from the
 proc store after a locked re-read, and within `procs.runtime_orphan_max_removals`.
 Fresh, invalidly named, symlinked, active, or otherwise retained entries are preserved.
+The summary reports `scanned`, `selected`, `removed`, `skipped`, `errors`,
+`reclaimable_bytes`, `reclaimed_bytes`, and `capped`.
 
-The `disk_pressure` job checks SASE's proportional free-space threshold on the
-filesystem that holds `~/.sase`. When the volume falls below
-`disk.pressure.warn_free_percent`, it logs and sends a notification naming the largest
-rows from `sase disk list`, then runs unattended owner-safe cleanup early. Managed-temp
-pressure pruning and proc runtime orphan sweeps may apply because those owners encode
-their deletion policy. Artifact run directories, backups, and unowned Cargo-shaped
-strays are reported for human action and are never deleted by this job.
+The `disk_pressure` job measures the filesystems that hold the managed temp root and
+`~/.sase` (once per distinct filesystem) and classifies them through the Rust
+disk-pressure policy: a filesystem is under pressure when its free space falls below the
+larger of 3 GiB and [`disk.pressure.warn_free_percent`](configuration.md#disk) of its
+size. With no pressure, the job exits with reason `space_ok` without scanning the disk
+footprint. Under pressure, it logs the largest owners from `sase disk list` and, when
+any qualify, sends a notification naming them; it then runs unattended owner-safe
+cleanup early: the managed-temp reaper, using the measured free space and warn threshold
+as its pressure floor and recovery target, and the proc cleanup owner (proc-row and log
+retention plus the rowless runtime sweep). Those owners encode their own deletion
+policy, and one owner's failure is reported without skipping the next. Workspace
+Git-object compaction is left to an explicit `sase disk reap --apply`, and artifact run
+directories, backups, and unowned Cargo-shaped strays are reported for human action;
+this job never touches them. The summary reports the free percentage, effective warn
+threshold, owner and step counts, and how many steps changed or failed.
 
 The `bead_stale_cleanup` job is the other half of the task-bead `+1` bar. Ready task
 beads that never clear their [effective `+1` bar](beads.md#per-type-triage-bar) stay
@@ -570,6 +615,15 @@ and cannot cancel a healthy pending gate, because the true roster is then unknow
 `sase axe job run bead_stale_cleanup` to raise or refresh that gate without waiting for
 the hour.
 
+The `gate_shell_reclaim` job is the backstop for
+[gate shells](notifications.md#gate-shells-and-continuation). It scans gate-shell family
+members across projects, settles shells whose gate bundle is already terminal, cancels
+gates that reached their own deadline, and force-settles a shell as `lost` once
+`gate.shell.reclaim_grace_seconds` (one hour by default) has passed after that deadline.
+It then diagnoses settled gates whose requested successor never recorded, reading the
+agent artifact index once per pass and resuming from a per-project cursor. Work left
+when the pass-wide time budget runs out is deferred to the next tick.
+
 The `artifact_link_backfill` job runs four bounded jobs per enabled project. It sweeps
 older documents for deterministic derived links, resuming from a per-project checkpoint
 when one tick's budget is exhausted; drains audited-read outbox rows whose agents have
@@ -580,14 +634,22 @@ instead of rescanning the full corpus each time. Run
 doctor counters are documented in [Artifact Links](artifact_links.md).
 
 The `artifact_run_prune` job is a read-only preview for old `artifacts/ace-run/`
-directories. It keeps the newest `artifacts.retention.keep_recent_run_months` calendar
-months whole and protects runs referenced by artifact-file rows, text refs, agent names,
-and non-closed beads. The summary reports selected run directories, reclaimable bytes,
-protection-source gaps, and empty month/day shards outside sase's TUI startup watch
-window. When candidates or protection problems remain unchanged across hourly passes,
-the job upserts one deduplicated Axe report notification with the preview command.
-Artifact-run deletion is currently preview-only; apply requests fail closed before any
-run directory, empty shard, or artifact-index row is removed.
+directories. Protection facts are gathered in Python, while the preview classification,
+symlink safety check, and empty-shard walk run in the Rust run-retention owner. The
+preview keeps the newest `artifacts.retention.keep_recent_run_months` calendar months
+whole and protects runs that are incomplete, running, waiting, or asking a question;
+runs referenced by artifact-file rows, text refs, agent names, or continuation ancestry;
+runs tied to non-closed beads; and symlinked run directories. If continuation retention
+planning fails, every candidate is protected (`continuation_unavailable`) instead of the
+job crashing. The summary reports `candidates`, `selected` run directories,
+`empty_shards` outside sase's TUI startup watch window, reclaimable `bytes`,
+`protected`, and `unavailable` protection sources; any unavailable source turns the run
+into `check_error`. Whenever the preview finds candidates or protection problems, the
+job upserts an Axe `ViewReport` notification that names the preview command
+(`sase artifact prune-runs`). The notification is deduplicated by a fingerprint of the
+findings, so an unchanged preview adds a `+1` note to the existing notification rather
+than a new one. Artifact-run deletion is currently preview-only; apply requests fail
+closed before any run directory, empty shard, or artifact-index row is removed.
 
 ## Configuration
 
@@ -626,7 +688,7 @@ axe:
         routines.
       interval: 60 # Seconds between cycles
       job_timeout: "60s" # Default timeout for all jobs in this routine
-      wait_runners: 0 # Start lane agents only when no other agent holds a runner slot
+      wait_runners: 1 # Emitted as %queue(capacity=1): lane agents run alone
       env: # Inherited by every job; individual job env wins
         API_TOKEN: { env: MY_API_TOKEN }
       jobs:
@@ -661,19 +723,26 @@ summary/body grammar in [Description Grammar](#description-grammar).
 
 #### Routine Fields
 
-| Field          | Type                   | Required | Description                                                                                                                        |
-| -------------- | ---------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `description`  | `str`                  | yes      | Summary line, then a blank line, then an optional body (see [Description Grammar](#description-grammar))                           |
-| `interval`     | `int`                  | no       | Seconds between job polling cycles; defaults to `1`                                                                                |
-| `job_timeout`  | `str \| null`          | no       | Default positive compound duration for jobs in this routine                                                                        |
-| `wait_runners` | `int \| null`          | no       | Start a lane agent once at most this many other participating lanes are occupied; omitting it uses only the global capacity budget |
-| `env`          | `dict[str, env-value]` | no       | Values inherited by every job; individual job env wins                                                                             |
-| `jobs`         | list or map            | no       | Composable job definitions                                                                                                         |
+| Field          | Type                   | Required | Description                                                                                                                   |
+| -------------- | ---------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `description`  | `str`                  | yes      | Summary line, then a blank line, then an optional body (see [Description Grammar](#description-grammar))                      |
+| `interval`     | `int`                  | no       | Seconds between job polling cycles; defaults to `1`                                                                           |
+| `job_timeout`  | `str \| null`          | no       | Default positive compound duration for jobs in this routine                                                                   |
+| `wait_runners` | `int \| null`          | no       | Per-launch capacity budget for lane agents, emitted as `%queue(capacity=N)`; omitting it uses only the global capacity budget |
+| `env`          | `dict[str, env-value]` | no       | Values inherited by every job; individual job env wins                                                                        |
+| `jobs`         | list or map            | no       | Composable job definitions                                                                                                    |
 
 `wait_runners` applies only to agents emitted through a script job's
-`proposed_launches`; it does not gate mentor, hook, or CRS workflow launchers. When a
-job proposes a clan, every member carries the threshold and waits independently, so a
-low threshold can serialize the clan.
+`proposed_launches`; it does not gate mentor, hook, or CRS workflow launchers. The
+runner prepends it to each proposed prompt as `%queue(capacity=N)` unless the prompt
+already authors its own `%queue` capacity, so it follows the
+[per-launch capacity budget](xprompt.md#agent-names-waits-and-queue-admission) rules:
+the agent starts when the occupied weighted load plus its own weight fits within `N`,
+and `1` makes a default-weight lane agent run alone. While the default-on
+`queue_capacity_budget` flag is enabled, `N` must be at least `1`; `wait_runners: 0`
+produces a `%queue(capacity=0)` that is rejected at launch. When a job proposes a clan,
+every member carries the budget and waits independently, so a low budget can serialize
+the clan.
 
 #### Job Fields
 
@@ -810,9 +879,12 @@ Every job is an external executable. Axe resolves the exact configured `script` 
 3. An exact-name executable on `$PATH`.
 
 No prefix is added automatically. Builtin jobs therefore declare names such as
-`script: sase_job_hook_checks` explicitly. The available-script inventory still scans
-`$PATH` for `sase_job_*` executables as a discovery convenience, but resolution always
-uses the configured full name.
+`script: sase_job_hook_checks` explicitly. As a discovery convenience, the
+available-script inventory (`sase axe job list -a`) lists every executable in
+`axe.job_script_dirs` plus `sase_job_*` executables beside the interpreter and on
+`$PATH`. Legacy `sase_chop_*` executables are still installed and discovered, but when
+both spellings resolve to the same file or console-script entry point the inventory
+shows only the `sase_job_*` name. Resolution always uses the configured full name.
 
 Axe runs script jobs as:
 
@@ -827,11 +899,12 @@ source (`scheduled`, `manual`, or `oneshot`), the `dry_run` flag, and the run-lo
 result path. The result path is also exported as `SASE_JOB_RESULT_FILE`; the source and
 dry-run flag are mirrored as `SASE_JOB_SOURCE` and `SASE_JOB_DRY_RUN` (`1` for true, `0`
 for false). `SASE_JOB_VERBOSE` enables opt-in debug output. Target fields are exported
-as `SASE_JOB_TARGET_<FIELD>` along with `SASE_JOB_TARGET_KEY`. Scripts with direct side
-effects must honor `dry_run` before mutating external state; runner-level dry-run only
-previews launch proposals. Scheduled script jobs within one routine tick run
-concurrently; use `timeout` or `job_timeout` to keep a slow script from blocking later
-ticks indefinitely.
+as `SASE_JOB_TARGET_<FIELD>` along with `SASE_JOB_TARGET_KEY`. Each of these variables
+is also mirrored under its legacy `SASE_CHOP_*` spelling for older scripts; configuring
+both spellings with different values is rejected. Scripts with direct side effects must
+honor `dry_run` before mutating external state; runner-level dry-run only previews
+launch proposals. Scheduled script jobs within one routine tick run concurrently; use
+`timeout` or `job_timeout` to keep a slow script from blocking later ticks indefinitely.
 
 Script job stdout and stderr are streamed to the job's per-run log file while the
 subprocess is still alive (see [Job Run History](#job-run-history) below). The Axe-tab
@@ -881,7 +954,14 @@ and `workspace`; optional fields are `id`, `agent_name`, `clan`, `clan_summary`,
 `tribe`, `model`, `effort`, `env`, `dedupe_key`, and `wait_on` (an earlier proposal
 index or ID). With `clan`, `agent_name` is the member ID and the runner owns concrete
 clan allocation plus the full `<clan>.<member>` identity. Clan proposals cannot also set
-`tribe`; the first accepted member declares the clan with the default `job` tribe.
+`tribe`; the first accepted member declares the clan with the default job tribe.
+
+The built-in job tribe is stored under its historical `chop` identity and displayed as
+`job` on public surfaces. A proposal that sets `tribe: job` (or omits `tribe`) resolves
+to that stored identity before anything is written, so scaffolded directives read
+`tribe=chop`. Tribe resolution is provenance-aware: agents whose stored tribe is already
+a literal `job` keep it, and configuring display entries for both `ace.tribes.job` and
+`ace.tribes.chop` is reported as an alias-collision diagnostic.
 
 `clan` and `agent_name` may each carry at most one `@` auto-name template marker, so a
 composed clan-member identity holds up to two. The runner resolves them in two stages:
@@ -967,17 +1047,18 @@ shapes before writing. Unknown fields, block kinds, and tones are rejected fail-
 by result validation.
 
 The runner validates the full document before launching anything. It injects the
-workspace reference, a deterministic agent name and `tribe=job` in one `%id(...)`
-directive, model/effort directives, and a `%wait` dependency for `wait_on`, then
-launches proposals in document order. Clan-scoped proposals are preplanned as one
+workspace reference, a deterministic agent name and the job tribe (`tribe=chop`) in one
+`%id(...)` directive, model/effort directives, and a `%wait` dependency for `wait_on`,
+then launches proposals in document order. Clan-scoped proposals are preplanned as one
 multi-prompt batch: the first surviving member declares one concrete clan generation and
-later members join it, while waits use their full resolved names. A summarized declarer
-receives `%clan(<name>, tribe=job, summary=[[<literal Rich markup>]])`; joiners receive
-only `%id(<member>, clan=<name>)`. Axe neither executes the value as a summary script
-nor inserts it into any proposal's work prompt. Standalone `#!workflow` references are
-forbidden in proposal prompts; reusable inline `#xprompt` references remain valid. The
-runner records every launched agent in `agent_chops.json` and finalizes the job only
-when the linked agents reach terminal state.
+later members join it, while waits use their full resolved names. The declarer receives
+`%id:<full name>` plus `%clan(<name>, tribe=chop)`, or
+`%clan(<name>, tribe=chop, summary=[[<literal Rich markup>]])` when it carries a
+summary; joiners receive only `%id(<member>, clan=<name>)`. Axe neither executes the
+summary as a script nor inserts it into any proposal's work prompt. Standalone
+`#!workflow` references are forbidden in proposal prompts; reusable inline `#xprompt`
+references remain valid. The runner records every launched agent in `agent_chops.json`
+and finalizes the job only when the linked agents reach terminal state.
 
 A launcher can still fail partway through an otherwise valid batch. The caller receives
 `action_failed` immediately. When at least one proposal already started, however, the
@@ -1221,10 +1302,14 @@ sase axe job run <job> --force            # -f: bypass guards (triggers already 
 ```
 
 When the same job name appears under multiple routines, `sase axe job run <job>` fails
-with an unambiguous error listing the candidate routines. Pass `-L/--routine` to pick
-one. The manual run is recorded under the legacy-named
+with an unambiguous error listing the candidate routines (exit code 2). Pass
+`-L/--routine` to pick one. A name that is not configured anywhere but matches a
+discoverable executable still runs, attributed to the synthetic `_oneshot` routine. The
+CLI run is recorded under the legacy-named
 `~/.sase/axe/lumberjacks/<routine>/chops/<job>/` path exactly like a scheduled run,
-except its metadata is tagged with `source = "manual"` (vs `"scheduled"`).
+except its metadata is tagged with `source = "oneshot"` (vs `"scheduled"`). The command
+exits 0 for `success`, `skipped`, `no_op`, `launched`, and `action_succeeded` outcomes,
+and non-zero otherwise, including when the same job already has a live run.
 
 **From sase's TUI:**
 
@@ -1240,8 +1325,9 @@ duplicate. On non-job rows — routine rows and running bgcmd rows — `r` is a 
 completed bgcmd row, `r` continues to re-run the bgcmd.
 
 Manual runs participate in `Ctrl+N` / `Ctrl+P` history navigation just like scheduled
-runs. The job-detail header marks them with a `Source: manual` chip so it is easy to
-tell at a glance why a run started.
+runs. TUI runs are tagged `source = "manual"`, and the job-detail header marks any
+non-scheduled run with a `Source:` chip (`manual` or `oneshot`) so it is easy to tell at
+a glance why a run started.
 
 ### Job Run History
 
@@ -1339,8 +1425,9 @@ The durable `agent_chops.json` linkage associates launched proposals with job li
 state. Configuration is always script-based. Each launched agent receives
 `SASE_JOB_ROUTINE`, `SASE_JOB_NAME`, `SASE_JOB_RUN_ID`, and a prompt hash; the
 housekeeping pass uses the registry plus normal agent completion artifacts to finalize
-`launched` runs. Legacy `SASE_CHOP_*` metadata is still accepted for installed callers
-but is not the documented authoring surface.
+`launched` runs. The same values are mirrored under the legacy `SASE_CHOP_*` names,
+which are still accepted from installed callers but are not the documented authoring
+surface.
 
 Linkage is explicit: a registry record is created only for proposal launches the runner
 itself performs and for continuation respawns (retry or model-fallback) of an
@@ -1557,6 +1644,26 @@ only once the restart is verified.
 7. `sase axe ensure` compares this live state with `desired_state.json`; it heals
    unexpected downtime but honors an explicit stop. See
    [Watchdog and Recovery](#watchdog-and-recovery).
+
+### systemd Scope Isolation
+
+On Linux hosts with `systemd-run`, `sase axe start` launches the orchestrator in its own
+transient user scope (`sase-axe-<id>.scope`), so closing the terminal pane or login
+session that started it does not kill the daemon. If the scoped launch exits before
+publishing a PID, startup retries once without the scope. `sase axe status` and
+`sase doctor -C axe.systemd_scope` warn when a live orchestrator is still attached to a
+session-tied scope; `sase axe restart` moves it into a fresh one.
+
+Long-lived work that SASE detaches — agent runners, proc supervisors, monitor
+supervisors, and typed launch-admission coordinators — escapes in the same way whenever
+the launching process already runs inside a SASE-owned systemd unit (`sase.service`, an
+`sase-axe-*` scope, or another `sase-*` scope or service). Each such child starts in its
+own transient scope (for example `sase-agent-*`, `sase-proc-*`, or `sase-monitor-*`), so
+stopping or restarting AXE or a SASE service does not tear down the agents and procs it
+launched. Outside a SASE-owned unit, children keep the ordinary new-session detach; on
+macOS they always detach into a new session. Set `SASE_DETACH_SCOPE_DISABLE=1` to turn
+off the child escape, or the older `SASE_AXE_DISABLE_SYSTEMD_SCOPE=1`, which also turns
+off the orchestrator's own scope.
 
 ## sase's TUI Integration
 

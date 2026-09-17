@@ -205,6 +205,10 @@ network work, and local mutations:
 | `sase machine repair`            | Rotate a quarantined or mismatched enrollment with a fresh one-time bundle and activate it.      |
 | `sase machine rename` / `remove` | Change viewer-local alias state; removal also deletes the local credential reference.            |
 
+`sase machine add -S/--ssh-target` records the SSH destination that terminal handoffs,
+such as [remote sudo requests](sudo.md#remote-flow), use for that machine. It defaults
+to the alias itself; `sase machine show ALIAS` prints the effective target.
+
 `--bootstrap-file` is available on `init`, `add`, and `repair`. The `init` workflow
 always requires an interactive stdin for candidate selection and alias prompts; it gets
 the bundle from `--bootstrap-file` or a hidden prompt, not from piped stdin. The lower
@@ -253,12 +257,22 @@ and remove actions show persistent CLI guidance rather than mutating immediately
 `Enter` returns to Agents with a `machine:<alias>` filter.
 
 Once a machine is enrolled, the Agents tab shows local and remote rows in one list.
-Remote agent nodes carry a host-alias chip such as `apollo` or `mac`; local rows never
-carry a `here` chip. Group with `o` until the header says **by machine** to render the
-`here` machine banner first, then remote aliases, each split into status subgroups.
+Remote agent, family, and clan nodes carry a host-alias chip such as `apollo` or `mac`;
+local rows never carry a `here` chip. Group with `o` until the header says **by
+machine** to render the `here` machine banner first, then remote aliases, each split
+into status subgroups.
 
 - The list loads the bounded remote catalog across enrolled machines and keeps host
   failures visible as diagnostics rather than hiding healthy hosts.
+- Remote rows are grouped into the same family and clan nodes as local rows, using the
+  membership the owning machine reports. Member shells nest under their remote parent
+  and do not repeat its host chip.
+- A host whose feed is invalid or served from a stale cache says so loudly. The header
+  names the alias and error (for example `apollo: feed invalid: … (cached 5m ago)`, or
+  `2 machines with feed errors`), its **by machine** banner adds `feed invalid` or
+  `stale · cached 5m ago`, its rows add a `feed invalid` or `stale` marker, and the
+  detail panel shows a `Feed error:` line. A remote `WAS RUNNING` row also carries a
+  `last seen … ago` label.
 - Remote rows show the owning machine's authored capacity and weight as `cN` / `wN`
   badges and `Capacity:` / `Weight:` detail lines, including `c0` for a persisted legacy
   zero-capacity record. Their load is never added to the `C/L` capacity in sase's TUI
@@ -295,9 +309,16 @@ sase run "%dispatch:apollo report hostname and SASE version; do not change files
 The enrollment should survive a gateway process restart. Reissue a bootstrap only for a
 new or repaired enrollment, not for ordinary gateway restarts.
 
-After upgrading `sase` or `sase-core-rs` on a target that runs `sase-gateway` under a
+After upgrading `sase` or `sase-core-rs` on a target whose `sase_gateway` runs under a
 supervisor, restart that gateway process before trusting fleet status from another
 machine. Units with `Restart=on-failure` keep the old, still-healthy binary running
-after an install upgrade; `sase machine status TARGET` reports remote service versions
-and fleet-contract schema skew, and a skew warning means the supervised gateway is still
-serving the pre-upgrade binary.
+after an install upgrade.
+
+`sase machine status TARGET` appends version details to each healthy hello. Normally
+that is `versions: sase-gateway X.Y.Z, …, fleet contract schema vN`; a gateway too old
+to report its own version shows `sase-gateway unknown`. When the gateway's version
+differs from the controller's installed `sase-core-rs`, or the fleet-contract schema
+versions differ, the line instead reads `version skew: …; restart target gateway`. That
+warning usually means the supervised gateway is still serving the pre-upgrade binary.
+With `-j/--json`, each status row carries the same facts as `gateway_version`,
+`service_versions`, `capability_schema_version`, and a `version_skew` list.

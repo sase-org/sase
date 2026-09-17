@@ -86,7 +86,13 @@ and records the wait output where the follow-up can inspect it.
 
 - The command is the remainder after `--` (for example `-- just check-full`). That is
   the form `sase monitor start --help` shows. `-c/--command` still works as a hidden
-  compatibility alias for a single shell string, but new invocations should use `--`.
+  compatibility alias for a single shell string, but new invocations should use `--`. A
+  single word after `--` is used verbatim as the shell command, so quote a pipeline or
+  `&&` chain as one argument (`-- 'just fix && just check'`). Several words are
+  re-quoted with `shlex.join`, so each stays one literal argument and shell operators
+  among them are not interpreted. SASE already runs the command with `/bin/sh -c`, so do
+  not wrap it in `bash -c` or `sh -c`; `sase monitor start` warns when it sees that
+  redundant wrapper.
 - `-p/--profile verify` supplies the standard verification policy: `TESTING` / `TESTED`
   labels, `--next-output auto`, no continuation after success, and a recovery
   continuation after failure or timeout. `-n/--next` replaces the built-in recovery
@@ -127,11 +133,29 @@ and records the wait output where the follow-up can inspect it.
 - `--label` / `-L`, `--agent` / `-a` (`--lane` remains accepted as a deprecated alias),
   `--cwd` / `-C`, and `--tail-lines` / `-T` are optional; see
   `sase monitor start --help` for the full list.
+- `-k`, `-P`, `-p`, and `-f` need the `monitor_continuation_records` feature flag, which
+  is on by default.
+
+`--cwd` may name any directory inside a managed checkout, including a repository opened
+with `sase repo open`. The command runs in that directory, but the monitor records and
+claims the checkout that contains it, and an ordinary follow-up starts at that
+checkout's root. When the directory is inside the caller's own workspace, the caller's
+claim moves to the monitor; inside a different managed workspace, the monitor takes a
+fresh claim and the caller keeps its own. A directory outside every managed checkout
+uses workspace `0`.
+
+Before it creates the monitor member or binds a completion intent, `sase monitor start`
+checks the target workspace's claims. If another live process holds that workspace, the
+start fails with `could not claim workspace for monitor: …` and leaves no monitor row
+behind. A claim left by the same agent whose process has died is taken over instead.
 
 Only one monitor may be running per agent at a time. Repeating the same full request
-returns the existing running record; changing the command, cwd, timeout, next action,
-status labels, checkpoint, policy, completion intent, or output policy is rejected until
-the active monitor settles. A `lost` monitor is never implicitly replayed.
+returns the existing running record; changing the command, cwd, reason, label, timeout,
+idle timeout, next action, model, status labels, tail lines, profile, checkpoint,
+policy, completion intent, or output policy is rejected until the active monitor
+settles. A `lost` monitor is never implicitly replayed: repeating the identical request
+is refused with a pointer to `sase monitor show`, while a different request may start a
+new monitor.
 
 ### Checkpoints and outcome policies
 
@@ -231,8 +255,16 @@ turn. The monitor reports `Completed by host` and retains a completion receipt.
 
 A failed or timed-out command, stale repository state, or another eligibility failure
 invalidates host completion and launches one ordinary recovery continuation instead.
-That successor receives the reason and must repair or finish normally. Stopped and lost
-monitors never complete or continue automatically. See
+That successor receives the reason and must repair or finish normally; without `--next`,
+it is told to diagnose the failure or stale verification and then finish the requested
+change. Stopped and lost monitors never complete or continue automatically.
+
+The monitor's host-completion status (`Host final` in sase's TUI) reads `finalizing`
+while the finalizers run, `completed_by_host` once they succeed, and `recovery` after
+the intent was invalidated and handed to a recovery continuation. `needs_attention`
+means a commit receipt is ambiguous, so SASE neither completes nor continues
+automatically; inspect the receipt and finish the change by hand. A monitor that carries
+a host-completion status cannot be resumed with `sase monitor resume`. See
 [Commit Finalizer](commit_workflows.md#commit-finalizer) for the declaration side of the
 protocol.
 
@@ -257,9 +289,10 @@ An unresolvable caller (no artifacts match any of the above) is a clear error na
 lane. `sase monitor show`/`stop` with no id resolve the same way, against the caller's
 own durable family -- never a parent's or sibling's.
 
-The command is executed through the platform shell (`sh -c` on Unix), so shell quoting,
-redirection, and variable expansion are the caller's responsibility. Monitors are for
-batch commands: do not use them for interactive programs or commands that require a TTY.
+The stored command string is executed with `/bin/sh -c`, so shell quoting, redirection,
+and variable expansion in a single-string command are the caller's responsibility.
+Monitors are for batch commands: do not use them for interactive programs or commands
+that require a TTY.
 
 ### Supervision guarantees
 
@@ -278,7 +311,8 @@ the follow-up agent rather than preserving unlimited bytes.
 
 The command does not inherit the starter agent's `SASE_AGENT*` identity or
 `SASE_ARTIFACTS_DIR`, so tools run by the command cannot accidentally write artifacts or
-variables into the dead starter's directory.
+variables into the dead starter's directory. It receives `SASE_MONITOR_ID`,
+`SASE_MONITOR_ARTIFACTS_DIR`, and `SASE_MONITOR_DIAGNOSTICS_DIR` instead.
 
 ### Surviving the starter's teardown
 
@@ -291,19 +325,25 @@ launched after the call cannot reach it by walking PPIDs. The supervisor also se
 it runs, before any expensive import, closing the startup window in which a stray signal
 could kill it silently.
 
+On Linux, when the starter runs inside a SASE-owned systemd unit or scope such as
+`sase.service`, the supervisor also moves into its own transient
+`systemd-run --user --scope`, so restarting that service does not kill a running
+monitor. Set `SASE_DETACH_SCOPE_DISABLE=1` to opt out.
+
 ### Startup acknowledgement
 
+The monitored command runs under the durable proc service's detached supervisor, and
 `start_monitor` never hands back a `running` record for a supervisor that is not
 provably alive, because its caller's very next act — inside an agent — is to kill
-itself. Once the supervisor has taken ownership (dispositions set, meta read, output log
-opened) it writes a `.monitor_started` marker carrying its real pid, pgid, and identity;
-`start_monitor` blocks on that marker for up to 20 seconds, polling the supervisor's
-liveness too so a pid that is already dead fails fast instead of waiting out the full
-budget. A missing acknowledgement terminates the supervisor, hands the workspace claim
-back to the still-live starter exactly as it held it (never releasing it into the free
-pool), tears the member down as terminal `failed`, and raises `MonitorError` — so the
-starter agent stays alive, `sase monitor start` exits non-zero, and nothing downstream
-ever hands off to a phantom.
+itself. Once the supervisor has taken ownership, it writes a `.proc_started`
+acknowledgement in its proc runtime directory. `start_monitor` waits for that marker for
+up to 20 seconds (`SASE_PROC_START_ACK_TIMEOUT_SECONDS` overrides the budget), polling
+the supervisor's liveness too so a supervisor that is already dead fails fast instead of
+waiting out the full budget. A failed start hands the workspace claim back to the
+still-live starter exactly as it held it (never releasing it into the free pool),
+returns any bound completion intent to the prepared state, tears the member down as
+terminal `failed`, and raises `MonitorError` — so the starter agent stays alive,
+`sase monitor start` exits non-zero, and nothing downstream ever hands off to a phantom.
 
 ### A monitor owns its workspace until it is reconciled
 
@@ -373,7 +413,8 @@ under the same agent family once the command finishes and the monitor settles. A
 `--next`, the `verify` profile, or an explicit policy may supply that branch. It
 receives:
 
-- the starter's full prior conversation, via `#fork`; the follow-up joins the family it
+- the starter's full prior conversation, via `#fork`, once the starter's own record has
+  settled (settlement waits up to 60 seconds for it); the follow-up joins the family it
   forks and does not wait on or list itself, though it still waits for any other live
   family member;
 - the original `--reason` and the resolved next instruction, verbatim, under its own
@@ -394,13 +435,25 @@ Continuation history is replayed from versioned parent links rather than reconst
 from shell names. Each ancestor is hydrated once in order, including local authored
 prompt segments, host instructions, final responses, checkpoints, and monitor-result
 evidence. A missing ancestor is disclosed as a gap; SASE does not guess across uncertain
-legacy history.
+legacy history. Artifact-run pruning keeps old runs that a live or recoverable
+continuation still references, and SASE registers required checkpoints and monitor
+results as portable artifacts, so replay can still hydrate them after the local files
+are gone.
 
 Before invoking the provider, SASE measures the fully expanded continuation against its
 context and transport budget. If essential content is too large, the provider is not
 called: the follow-up becomes `not-launchable`, the budget decision and composed prompt
 remain inspectable, and recovery guidance asks for an adequate checkpoint or a route
 with more context. The monitored command is not rerun merely to reconstruct context.
+
+A follow-up that cannot launch keeps its recovery evidence. Before SASE releases the
+monitor's workspace, it saves a best-effort `git diff HEAD` plus untracked files as
+`diagnostics/worktree_recovery.diff` (recorded as `monitor_worktree_recovery_diff_path`)
+and links it from the saved prompt. An agent waiting on that monitor gets a
+[terminally blocked wait](xprompt.md#syntax) notification that names the
+`sase monitor resume <id>` command and the saved diff. If the follow-up was blocked only
+because the starter had not settled yet, a later `sase monitor resume` repairs the
+missing parent link and launches normally.
 
 The launch is not coupled to a workspace-claim handoff that can fail: if the monitor's
 own workspace claim can no longer be transferred to the follow-up (for example, a stale
@@ -417,14 +470,16 @@ replayed by hand instead of surviving only as an error string. See
 The follow-up prompt's body is enclosed in an xprompt-disabled region, so directives,
 `#xprompt` references, and `$(...)` command substitution inside `--reason`, `--next`,
 table fields, diagnostics, and embedded output are delivered as literal text. Only the
-routing prefix (`#fork:`, `%model:`, `%effort:`) remains live. When `--next-output tail`
-is used, retained output is also fenced and labeled as untrusted program output. The
-command and cwd fields are fenced too, so directive-shaped strings inside a shell
-command or path remain literal even if the disabled region is ever removed.
-`--next-output auto` defaults completed runs to facts and refs, failed runs to bounded
-selected diagnostics when available, and timeouts to a bounded raw tail. Use
-`--next-output file` for large or hostile logs when the follow-up should inspect the log
-explicitly, or `--next-output none` when the outcome summary and
+routing prefix remains live: `#fork:`, `%model:`, `%effort:`, a `%queue(...)` line that
+carries the monitor's recorded queue weight (plus any recorded priority or capacity), a
+`%auto` line when the starter requested automatic gate resolution, and the starter's VCS
+workspace reference. When `--next-output tail` is used, retained output is also fenced
+and labeled as untrusted program output. The command and cwd fields are fenced too, so
+directive-shaped strings inside a shell command or path remain literal even if the
+disabled region is ever removed. `--next-output auto` defaults completed runs to facts
+and refs, failed runs to bounded selected diagnostics when available, and timeouts to a
+bounded raw tail. Use `--next-output file` for large or hostile logs when the follow-up
+should inspect the log explicitly, or `--next-output none` when the outcome summary and
 `sase monitor show --all-lines` pointer are enough. The continuation evidence limits
 live under `monitor.evidence_limits` in `sase.yml`; the shipped defaults are 8 KiB
 selected diagnostics, 4 KiB fallback tail, 12 KiB total raw excerpt budget, and 200
@@ -432,19 +487,23 @@ raw-tail lines.
 
 ## Runner slots
 
-A monitor is not a way to free runner capacity. The family keeps its one
-[`max_running_agents`](configuration.md#max_running_agents) slot for the monitor's whole
-lifetime and then hands that same slot to any ordinary follow-up. The starter's runner
-process exits at handoff, but occupancy stays continuous: the monitor member counts as
-soon as it has a recorded supervisor pid, and the follow-up inherits the family's slot
-instead of waiting at the admission gate. A fire-and-forget monitor (an outcome policy
-with no continuation) still holds the slot until the command settles. In-process
-successors such as `sase pipe` keep the same family's slot as well; they never become a
-second occupant.
+A monitor is not a way to free runner capacity. The family keeps its one weighted claim
+against [`max_running_agents`](configuration.md#max_running_agents) for the monitor's
+whole lifetime, and the monitor inherits the starter's queue weight. The starter's
+runner process exits at handoff, but occupancy stays continuous: the monitor member
+counts as soon as it has a recorded supervisor pid. An ordinary follow-up carries that
+weight forward in its `%queue(...)` prefix and, as a serial family member, continues the
+family's claim. A fire-and-forget monitor (an outcome policy with no continuation) still
+holds the claim until the command settles. In-process successors such as `sase pipe`
+keep the same family's claim as well; they never become a second occupant.
 
-Holding a slot and waiting for one stay separate. Only a root or a live parallel family
+The host-owned monitor that launches an approved epic is the exception: it records an
+explicit zero queue weight and consumes no capacity, because the phase agents it
+launches claim their own.
+
+Holding a claim and waiting for one stay separate. Only a root or a live parallel family
 member parks at the gate. Serial family members — the monitor and any ordinary follow-up
-included — ride the slot the family already holds. See
+included — ride the claim the family already holds. See
 [Agent queued for a runner slot](troubleshooting/runner-slots.md).
 
 ## Inspecting and stopping monitors
@@ -459,7 +518,7 @@ sase monitor show <id> --follow            # stream new output until it finishes
 sase monitor show <id> --all-lines --output-only
 sase monitor show <id> --diagnostics       # selected failed-stage diagnostics
 sase monitor show <id> --range 0:65536     # retained raw-output byte range
-sase monitor resume <id> [-k checkpoint.yml] [-m codex/gpt-5]
+sase monitor resume <id> [-j] [-k checkpoint.yml] [-m codex/gpt-5]
 
 sase monitor stop [<id>]                   # stop a running monitor; omit id to target
                                             # the calling agent's active monitor
@@ -473,11 +532,13 @@ even when `--next` was given.
 monitor member or its owner. `sase monitor stop` remains the clearest explicit form.
 
 Every subcommand can emit machine-readable output, but not with the same flag: `start`,
-`list`, and `stop` take `-j/--json`, while `list` and `show` take `-f/--format`
-(`table`/`markdown`/`json` for `list`, `markdown`/`json` for `show`).
-`sase monitor show` has **no** `-j` — use `--format json` there. See
-`sase monitor --help` and each subcommand's `--help` for the complete flag reference, or
-[CLI Reference](cli.md).
+`list`, `resume`, and `stop` take `-j/--json`, while `list` and `show` take
+`-f/--format` (`table`/`markdown`/`json` for `list`, `markdown`/`json` for `show`).
+`sase monitor show` has **no** `-j` — use `--format json` there. Short options also
+differ by subcommand: `-f` is `--completion` on `start` but `--format` on `list` and
+`show`, and `-a` is `--agent` on `start` but `--all` on `list`, where `-l` is `--agent`.
+See `sase monitor --help` and each subcommand's `--help` for the complete flag
+reference, or [CLI Reference](cli.md).
 
 `--diagnostics` reads the bounded stage diagnostics selected for a failed monitor;
 `--range START:END` reads a bounded byte interval from retained raw output. Both default
@@ -493,8 +554,12 @@ delivery was not already acknowledged. Concurrent receiver adoption is revalidat
 the delivery lock before any undelivered branch is fenced, so an acknowledged delivery
 is never overwritten. A dispatching branch whose launch receipts or process identity
 cannot prove the receiver uninvoked is recorded as `needs_attention` instead of spawning
-another successor. Ineligible monitors print the precise eligible resume command when
-one exists.
+another successor. When settlement recorded a follow-up as `not-launchable` only because
+the starter had not settled in time, resume first repairs that missing parent link.
+Ineligible monitors — still running, stopped or lost, fire-and-forget, owned by host
+completion, or already delivered, among others — make `resume` exit `2` and print the
+precise eligible resume command to stderr when one exists; with `-j`, the JSON result
+carries `code` and `suggested_command` fields.
 
 Reading monitors also performs dead-supervisor reconciliation. `sase monitor list`, the
 sase's TUI Agents tab refresh path, and the axe scheduler look for running monitor
@@ -525,14 +590,18 @@ work.
 Selecting a monitor row keeps the ordinary agent header and renders a `MONITOR` detail
 section in place of the usual prompt and reply body. It opens with compact `Result`,
 `Next`, and `Evidence` rows, then shows the shell-highlighted `Command`, whichever of
-`Cwd`, `Reason`, `Next action`, `Next model`, profile, policy, and completion fields
-were recorded, then `Status` (the effective label in its pair accent, with the other
-half dim after a `→`) and `State` (a colored glyph plus the machine state name, with
-`(exit N)` appended once an exit code is known). `Timeout` reports elapsed time against
-the budget (`3m12s of 45m0s budget`), falling back to a plain `Elapsed` row for a record
-with no recorded budget, and an `--idle-timeout` adds its own `Idle timeout` row. The
-section ends with the full `Monitor id`, its short form, and the exact
-`sase monitor show <short-id> --follow` command to stream the rest from a shell.
+`Cwd`, `Reason`, `Next action`, `Next model`, `Next output`, profile, policy, and
+completion fields were recorded, then `Status` (the effective label in its pair accent,
+with the other half dim after a `→`) and `State` (a colored glyph plus the machine state
+name, with `(exit N)` appended once an exit code is known). `Timeout` reports elapsed
+time against the budget (`3m12s of 45m0s budget`), falling back to a plain `Elapsed` row
+for a record with no recorded budget, and an `--idle-timeout` adds its own
+`Idle timeout` row. Next come the full `Monitor id`, its short form, and the exact
+`sase monitor show <short-id> --follow` command to stream the rest from a shell. When
+recorded, trailing rows show a follow-up error (`Follow-up`) or degradation
+(`Degraded`), the host-completion status (`Host final`), and the evidence and
+continuation locators: `Diagnostics`, `Retained log`, `Result ref`, `Checkpoint`,
+`Node ref`, `Manifest`, `Budget`, and `Saved prompt`.
 
 Beneath that, an `OUTPUT` block renders the captured stdout/stderr. Because
 `live_reply.md` holds a command's raw merged output rather than prose, it is rendered as
@@ -602,7 +671,10 @@ mechanism, not a workflow that files notifications, so neither a completed monit
 dropped `--next` appends a notification row. The badges and flags above, plus
 `monitor_followup_outcome` / `monitor_followup_error` in `agent_meta.json` and
 `done.json`, are the durable signals — read them with `sase monitor list`,
-`sase monitor show <id>`, or the Agents tab.
+`sase monitor show <id>`, or the Agents tab. Two related notifications belong to other
+features: an agent whose `%wait` targets a monitor that ended without a launchable
+follow-up gets a `wait_checks` "never self-resolve" notification, and the approved-epic
+launcher below releases the planner's completion notification when its monitor settles.
 
 ## Example: approved epic launches
 
@@ -612,13 +684,18 @@ proc. Its monitor shell reads `EPIC APPROVED` while running and uses the configu
 `EPIC CREATED` label after every terminal state, even failure, timeout, stop, or loss;
 check the state and exit details instead of treating that label as success. A successful
 launch attempts to back-fill the epic ID; when that metadata lands, the planner row
-itself moves to `EPIC CREATED`, and otherwise it remains `EPIC APPROVED`. The monitor
-takes a zero workspace claim (the launch runs in the project's primary workspace, not
-the planner's), and no follow-up agent is recorded — `sase bead work` launches the phase
-agents itself. If the planner's agent family cannot be resolved (a very old artifacts
-layout, a wiped agent), the launch falls back to the original global `detached` proc
-submission rather than silently dropping the approval. Other monitor-start errors fail
-the approval instead of using the proc fallback. See
+itself moves to `EPIC CREATED`, and otherwise it remains `EPIC APPROVED`. The launch
+acquires an operational workspace lease for the project and runs in that leased
+checkout, never in the user's primary checkout; the lease's claim moves to the monitor.
+The monitor records an explicit zero queue weight, and no follow-up agent is recorded —
+`sase bead work` launches the phase agents itself. If the planner's agent family cannot
+be resolved (a very old artifacts layout, a wiped agent), the launch falls back to a
+detached proc in the same leased workspace rather than silently dropping the approval.
+Other monitor-start errors fail the approval instead of using the proc fallback. The
+planner's completion notification is held until the launch monitor settles, folds in the
+launch outcome, and is published once even if more than one settlement path observes the
+result. AXE's `epic_launch_flush` job flushes a held notification whose launch never
+settled after a 90-second grace period, with a resume command. See
 [Plan Approval Flow](beads.md#plan-approval-flow) for the approval side of that handoff.
 
 The host-owned epic launcher keeps `sase bead work` as the visible logical command. If

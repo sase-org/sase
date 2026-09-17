@@ -15,12 +15,12 @@ just install
 See <https://sase.sh/development/> for the full development workflow.
 
 ```bash
-just fmt           # Auto-format code
-just lint          # Run ruff + mypy
+just fix           # Auto-format code and Markdown, and fix keep-sorted blocks
+just lint          # Run ruff, mypy, and the repository audits (flags, changelog, symvision, ...)
 just test          # Fast parallel test run (no coverage)
 just test-cov      # Parallel test run with coverage + 50% gate
-just check         # All checks, agent default (fmt-check + lint + diff-scoped test lane)
-just check-full    # All checks, exhaustive (fmt-check + lint + full test suite); run before submitting
+just check         # Agent default: fmt-check + lint + sase validate + diff-scoped test lane
+just check-full    # Exhaustive: fmt-check + lint + sase validate + full suite + flake gate; run before submitting
 ```
 
 ## Adding Dependencies
@@ -38,6 +38,7 @@ changelog entries with a proper `feat:` or `fix:` commit subject and a
 ## Running Specific Tests
 
 ```bash
+just test tests/path/to/test_file.py           # Single file through the governed runner
 pytest tests/path/to/test_file.py             # Single file
 pytest tests/path/to/test_file.py::test_name  # Single test
 pytest -k "pattern"                            # By name pattern

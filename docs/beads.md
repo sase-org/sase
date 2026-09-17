@@ -104,16 +104,49 @@ Full IDs are still accepted unchanged, including IDs whose project prefix contai
 dashes. If a shorthand suffix matches more than one bead, SASE rejects the command and
 lists the candidate full IDs instead of choosing one arbitrarily.
 
-When a full ID is not present in the current store, existing-bead operands can fall back
-to enabled SASE projects. SASE checks the current store first, then looks for the exact
-full ID in each enabled project's canonical bead store; project names, aliases, and
-stored prefixes are hints, not proof that an ID exists. Shorthand suffixes remain
-local-only. Mutating commands resolve every bead operand before writing, and a batch
-that spans more than one store is rejected before any event is recorded. For example,
-`sase bead close bob-cli-1e --note done` can be run from another enabled project, while
-`sase bead update bob-cli-1e sase-2 -s ready` is refused if those IDs belong to
-different stores. Commands with no bead selector, such as `list`, `search`, `ready`,
-`blocked`, and `stats`, keep their current-project scope.
+When a full ID is not present in the current store, existing-bead operands fall back to
+enabled SASE projects. SASE checks the current store first, and a local hit never reads
+the project registry. After a local miss it looks for the exact full ID in each enabled
+project's canonical bead store; project names, aliases, and stored prefixes are hints,
+not proof that an ID exists. Shorthand suffixes remain local-only unless
+`sase bead show -P/--project` pins a project. Every command that takes an existing bead
+ID routes this way: `+1`, `apply-status`, `close` (including `--phases`), `create` (the
+parent in `phase(<parent>)` or `plan(<file>,<parent>)`), `dep`, `epic-symbols`,
+`history`, `note`, `open`, `pages refresh --bead`, `pages url`, `ref`, `rm`, `show`,
+`snooze`, `update`, and `work`. Commands with no bead selector, such as `list`,
+`search`, `ready`, `blocked`, and `stats`, keep their current-project scope, as do the
+store-wide forms of `dep list`, `dep tree`, and `ref list`.
+
+A routed command settles on one owning store before it does any work. Reads, writes, the
+store commit, publication, and refresh all use that store, and project-specific context
+follows the owner: `close` settles the owner's triage gates and checks the owner's
+Justfile for `--epic-symbol` entries, `epic-symbols <id>` lists the owner's Justfile,
+`ref list --resolve` resolves from the owner's workspace, `create` records the plan
+reference relative to the owner's SDD store, and `work` launches in the owner's project
+context. Free-form inputs stay relative to you: `@<path>` values and relative plan paths
+resolve from the directory where you ran the command. A routed command never creates a
+bead store in your current directory.
+
+Every bead operand is resolved before anything is written. A batch that spans more than
+one store, including a local shorthand next to another project's full ID, fails with
+`multiple stores match the requested bead targets` before any event is recorded. For
+example, `sase bead close bob-cli-1e --note done` can be run from another enabled
+project, while `sase bead update bob-cli-1e sase-2 -s ready` is refused if those IDs
+belong to different stores. A full ID that no readable store holds reports
+`issue not found: <id>`, and an ID that exists in more than one enabled project's store
+is reported as ambiguous with the candidate projects. If the likely owner (by name,
+alias, or stored prefix) has no materialized or readable store on this machine, the
+error names that project; an unrelated project with an unavailable store never blocks a
+valid target. A routed mutation must also produce its store commit: if the owner's
+auto-commit fails or creates nothing, the command fails with a
+`routed bead mutation ... could not be committed for publication` diagnostic.
+
+The active checkout belongs to the enabled project whose `WORKSPACE_DIR`, or a numbered
+`_<N>` sibling of it, contains the current directory. Another project whose directory
+key merely matches the workspace name, such as one auto-created for a `#git:<name>`
+reference, cannot take over bead-store resolution. `sase doctor` warns
+(`project.name_collisions`) when a project directory key collides with another project's
+name or alias.
 
 ## Data Model
 
@@ -896,9 +929,11 @@ Isolating bead state this way gives it its own git history, its own cooperative 
 lock, and its own repository-health preflight, so hot bead writes no longer serialize
 behind plan writes and a wedged bead rebase cannot block plan commits or epic approval.
 
-Normal bead commands read and write one store for the active checkout. In in-tree mode,
-canonical bead state lives in the current checkout's `sdd/beads/events/**` event store
-plus `sdd/beads/config.json`. Providerless local commands route to the primary
+Normal bead commands read and write one store for the active checkout. The exception is
+a full bead ID that the active store does not hold: it routes to the owning enabled
+project's store, as described in [Bead ID Arguments](#bead-id-arguments). In in-tree
+mode, canonical bead state lives in the current checkout's `sdd/beads/events/**` event
+store plus `sdd/beads/config.json`. Providerless local commands route to the primary
 workspace's `.sase/sdd/beads/` store. Sidecar-policy commands first materialize the
 provider store, then route to the active workspace clone so an agent in workspace `#N`
 writes its matching `.sase/sdd/` checkout, its `sase/repos/beads/` clone, or its
@@ -1091,6 +1126,18 @@ matchers and copy/paste always see the complete target.
 With no subcommand, `sase bead` defaults to `sase bead list` with default options. Use
 the explicit `sase bead list` form when passing list filters.
 
+### `sase bead apply-status <id> <status>`
+
+Set one bead's status through the normal bead-store mutation path. This is the
+proc-friendly form of `sase bead update <id> --status <status>`: the full or shorthand
+ID routes like any other existing-bead operand, and when the command runs as a durable
+proc it writes its typed result to the proc's result sidecar.
+
+| Flag                 | Description                                                                         |
+| -------------------- | ----------------------------------------------------------------------------------- |
+| `-Q, --request-path` | Versioned operation request sidecar; defaults to `$SASE_PROC_REQUEST_PATH` when set |
+| `-R, --result-path`  | Typed result sidecar; defaults to `$SASE_PROC_RESULT_PATH` when set                 |
+
 ### `sase bead blocked`
 
 Show all issues that have at least one active (non-closed) blocker. Rows use the same
@@ -1115,8 +1162,8 @@ start. Other active statuses are preserved, and plan or phase beads are rejected
 
 ### `sase bead close <id> [<id2> ...]`
 
-Close one or more issues. (An in-progress task bead is also closed automatically after
-its worker's commit or PR lands — see
+Close one or more issues. (A worker's final `sase stitch create -B close` commit or PR
+also closes its assigned in-progress bead — see
 [Standalone Task Workflow](#standalone-task-workflow) — so an explicit close is usually
 only needed for canceling, superseding, or a non-commit resolution.) Every requested
 bead is checked before the first write, so a batch either closes completely or leaves
@@ -1191,11 +1238,11 @@ Create a new issue.
 | `-t, --title`                  | yes                  | Issue title                                                                                                                                                                                                                                                         |
 | `-T, --type`                   | yes                  | Bead type: `task(<slug>)`, `plan(<file>)`, `plan(<file>,<parent>)`, or `phase(<parent_id>)`; parent IDs may be full or shorthand. New tasks require a catalog slug; list them with `sase bead task-type`. Feature flags use `sase flag new`, not this grammar.      |
 | `-f, --field`                  | no                   | Task-type field value as `k=v` (repeatable). A value of `@<path>` is read from that file. Valid only with `-T 'task(<slug>)'`                                                                                                                                       |
-| `-d, --description`            | no                   | Issue description                                                                                                                                                                                                                                                   |
+| `-d, --description`            | no                   | Issue description; `@<path>` reads it from that file and `@@` escapes a literal leading `@`                                                                                                                                                                         |
 | `-a, --assignee`               | no                   | Assignee name                                                                                                                                                                                                                                                       |
 | `-x, --external-ref`           | no                   | Project-qualified external issue identity, e.g. `bug:sase#42`; accepts a bare number, `#N`, `<project>#N`, `bug:<project>#N`, or a `github.com/<owner>/<repo>/issues\|pull/<n>` URL, and normalizes to `bug:<project-key>#<issue-id>`. Must be unique across beads. |
 | `-r, --tier`                   | no                   | Plan-bead tier: `plan` or `epic`                                                                                                                                                                                                                                    |
-| `--patch` / `-c, --changespec` | no                   | Attach a Patch name to a plan bead; `--changespec` is legacy-compatible                                                                                                                                                                                             |
+| `-c, --patch` / `--changespec` | no                   | Attach a Patch name to a plan bead; `--changespec` is legacy-compatible                                                                                                                                                                                             |
 | `-b, --bug-id`                 | no                   | Bug ID for the attached Patch; requires `--patch` or `--changespec`                                                                                                                                                                                                 |
 | `-m, --model`                  | no                   | Model used when this bead is launched. Provider-qualified (e.g. `codex/gpt-5.6-sol`) or a configured local alias (e.g. `#pro`). On epic plan beads this becomes the land-agent model; on phase/task beads it is the worker model.                                   |
 | `-R, --ref`                    | no                   | Artifact reference to attach to the bead; repeatable and stored canonically                                                                                                                                                                                         |
@@ -1234,8 +1281,9 @@ dependency is not yet closed.
 `dep list` prints dependency edges with their blocking state and recorded provenance. A
 scoped read, such as `sase bead dep list beads-001.2`, includes every bead status by
 default because closed dependencies are usually what you need to see when explaining
-readiness. A store-wide read defaults to `open`, `claimed`, `ready`, and `in_progress`,
-matching `sase bead list`.
+readiness. A store-wide read defaults to `open`, `claimed`, `ready`, `snoozed`, and
+`in_progress`, matching `sase bead list`. The `-s/--status` filter currently accepts
+only `open`, `claimed`, `in_progress`, and `closed`.
 
 `dep tree` walks the dependency graph as a deterministic tree. `--direction out` follows
 what the root waits on, `--direction in` follows what is waiting on the root, and
@@ -1253,18 +1301,18 @@ Tree output marks graph states explicitly:
 all-or-nothing mutation. The command records `dependency_removed` events and then
 reports whether the source bead is ready or still blocked.
 
-| Subcommand | Flag              | Values                                                         | Description                                      |
-| ---------- | ----------------- | -------------------------------------------------------------- | ------------------------------------------------ |
-| `list`     | `-c, --color`     | `auto`, `always`, `never`                                      | Color mode for text output                       |
-| `list`     | `-d, --direction` | `both`, `in`, `out`                                            | Edges to show; defaults to `both`                |
-| `list`     | `-f, --format`    | `compact`, `full`, `json`                                      | Output format; defaults to `compact`             |
-| `list`     | `-n, --limit`     | non-negative integer                                           | Maximum root beads to print; `0` means unlimited |
-| `list`     | `-s, --status`    | `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by endpoint/status root (repeatable)      |
-| `tree`     | `-c, --color`     | `auto`, `always`, `never`                                      | Color mode for text output                       |
-| `tree`     | `-d, --direction` | `both`, `in`, `out`                                            | Direction to walk; defaults to `out`             |
-| `tree`     | `-f, --format`    | `compact`, `full`, `json`                                      | Output format; defaults to `compact`             |
-| `tree`     | `-L, --levels`    | non-negative integer                                           | Maximum levels to descend; `0` means unlimited   |
-| `tree`     | `-s, --status`    | `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by bead status (repeatable)               |
+| Subcommand | Flag              | Values                                     | Description                                      |
+| ---------- | ----------------- | ------------------------------------------ | ------------------------------------------------ |
+| `list`     | `-c, --color`     | `auto`, `always`, `never`                  | Color mode for text output                       |
+| `list`     | `-d, --direction` | `both`, `in`, `out`                        | Edges to show; defaults to `both`                |
+| `list`     | `-f, --format`    | `compact`, `full`, `json`                  | Output format; defaults to `compact`             |
+| `list`     | `-n, --limit`     | non-negative integer                       | Maximum root beads to print; `0` means unlimited |
+| `list`     | `-s, --status`    | `open`, `claimed`, `in_progress`, `closed` | Filter by endpoint/status root (repeatable)      |
+| `tree`     | `-c, --color`     | `auto`, `always`, `never`                  | Color mode for text output                       |
+| `tree`     | `-d, --direction` | `both`, `in`, `out`                        | Direction to walk; defaults to `out`             |
+| `tree`     | `-f, --format`    | `compact`, `full`, `json`                  | Output format; defaults to `compact`             |
+| `tree`     | `-L, --levels`    | non-negative integer                       | Maximum levels to descend; `0` means unlimited   |
+| `tree`     | `-s, --status`    | `open`, `claimed`, `in_progress`, `closed` | Filter by bead status (repeatable)               |
 
 ### `sase bead ref`
 
@@ -1285,9 +1333,10 @@ per-reference events, so concurrent agents attaching different references do not
 each other's entries.
 
 `ref list` prints stored canonical references. With `--resolve`, it also reports where
-each reference resolves from the current workspace, or that it resolves nowhere. The
-optional bead ID scopes the listing to one bead; without it, the command lists beads in
-the current store that carry references. Add `--json` for a stable machine-readable
+each reference resolves from the current workspace (or, for a bead routed to another
+enabled project, from that project's primary workspace), or that it resolves nowhere.
+The optional bead ID scopes the listing to one bead; without it, the command lists beads
+in the current store that carry references. Add `--json` for a stable machine-readable
 response.
 
 | Subcommand | Flag            | Description                                      |
@@ -1367,8 +1416,9 @@ same preview in automation.
 
 ### `sase bead epic-symbols [<id>]`
 
-List `--epic-symbol` whitelist entries from the working tree's Justfile. With no ID,
-every entry is printed. With an ID, only entries keyed to that bead or a descendant
+List `--epic-symbol` whitelist entries from the working tree's Justfile (for a full ID
+owned by another enabled project, that project's primary-workspace Justfile). With no
+ID, every entry is printed. With an ID, only entries keyed to that bead or a descendant
 suffix (`sase-64` matches `sase-64` and `sase-64.2`) are shown. Land and phase agents
 should run this before closing: leftover entries go stale the instant the bead closes,
 and `sase bead close` refuses while any remain.
@@ -1577,6 +1627,14 @@ blocker remains stored as `ready` but is omitted until the blocker closes. Rows 
 same plain status/size gutter as compact list rows, including the collapsed size column
 when no ready bead has a stored size.
 
+### `sase bead resolve-conflicts`
+
+Resolve merge or rebase conflicts in generated bead state from the current store. Only
+`issues.jsonl`, `events/manifest.json`, `config.json` (when only `next_counter`
+conflicts), and `events/streams/*.jsonl` conflicts are merged automatically; any other
+conflict is left for you. See [Duplicate Bead IDs](#duplicate-bead-ids) for how add/add
+stream conflicts are relocated.
+
 ### `sase bead rm <id> [<id2> ...]`
 
 Remove one or more issues and recursively cascade-delete the union of all their
@@ -1622,7 +1680,7 @@ sase bead search auth --type plan --tier epic
 | `-e, --regex`     | flag                                                           | Interpret the query as a regular expression                            |
 | `-s, --status`    | `open`, `claimed`, `ready`, `snoozed`, `in_progress`, `closed` | Filter by status (repeatable)                                          |
 | `-T, --task-type` | catalog slug or `untyped`                                      | Filter by task type (repeatable); `untyped` selects legacy             |
-| `--tier`          | `plan`, `epic`                                                 | Filter by plan-bead tier (repeatable)                                  |
+| `-r, --tier`      | `plan`, `epic`                                                 | Filter by plan-bead tier (repeatable)                                  |
 | `-t, --type`      | `plan`, `phase`, `task`                                        | Filter by issue type (repeatable). Flag beads are tasks; use `-T flag` |
 
 ### `sase bead show <id> [<id2> ...]`
@@ -1668,12 +1726,20 @@ sase bead show bob-cli-1e          # works from another enabled project
 sase bead show 1e --project bob-cli
 ```
 
-If no enabled project owns a full ID's prefix, the error remains
-`Error: issue not found: <id>`. If a known project owns the prefix but its bead store is
-not materialized on this machine, `show` reports that project and says the store is not
-materialized. If more than one enabled project claims the same prefix, `show` names the
-candidates and points at `-P/--project`. Aggregate read commands (`list`, `search`,
-`ready`, `blocked`, and `stats`) stay project-local.
+If no enabled project's store holds a full ID, the error remains
+`Error: issue not found: <id>`. If the exact ID exists in more than one enabled
+project's store, `show` reports an ambiguous bead ID with the candidate projects; pin
+one with `-P/--project`. Two projects that merely share a prefix are not ambiguous when
+only one of them holds the ID. If the project that looks like the owner (by name, alias,
+or stored prefix) has no materialized or readable bead store on this machine, `show`
+names that project and says its store is not available.
+
+`show` never creates a bead store in the current directory. From a directory with no
+store, full IDs still route, but a shorthand suffix needs `-P/--project`; without it the
+command reports `Error: no local bead store is available`. A multi-ID batch may mix
+projects: each bead renders with its own project's plan paths and page URL, and an
+`<epic-id>..` expansion reads the children from the epic's own store. Aggregate read
+commands (`list`, `search`, `ready`, `blocked`, and `stats`) stay project-local.
 
 With `--format full`, a multi-bead batch prints one detail block per bead. Each block is
 preceded by a left-aligned ordinal divider such as `── 1/3 ───`, styled with the same
@@ -1926,7 +1992,7 @@ unaffected — same syntax, output line, and commit message as before.
 | `-a, --assignee`           | Change assignee                                                                                                                                              |
 | `-x, --external-ref`       | Set the external issue identity (mutually exclusive with `-X`); see [`sase bead create`](#sase-bead-create) for accepted forms. Must be unique across beads. |
 | `-X, --clear-external-ref` | Clear the external issue identity (mutually exclusive with `-x`)                                                                                             |
-| `--tier`                   | Change plan tier                                                                                                                                             |
+| `-r, --tier`               | Change plan tier                                                                                                                                             |
 | `-m, --model`              | Change the launch model. Pass an empty string to clear.                                                                                                      |
 | `-b, --remove-by`          | Extend one `flag` task bead's removal thresholds as `<YYYY-MM-DD>/<release>`. Takes exactly one flag-typed task bead ID.                                     |
 | `-z, --size`               | Change a phase or task bead's `xsmall`, `small`, `medium`, `large`, or `xlarge` size.                                                                        |
@@ -1981,8 +2047,15 @@ weight gets a budget equal to that weight (`ceil(weight)`). `N` is that launch's
 admission budget and must be at least 1; `1` means run alone. Omission preserves default
 queue behavior. The option applies to epic bead IDs and epic Markdown plan targets. An
 explicit capacity on a standalone task target is an actionable error: earlier successful
-targets stand and processing stops. `-C/--cl-name NAME` retains the existing
-completion-notification behavior and plan-file restriction.
+targets stand and processing stops. When a segment is raised above `N`, the work-plan
+summary prints `Capacity: requested N · <agent> raised to M (queue weight W)`. The raise
+follows the `queue_capacity_budget` flag, which is on by default; with the flag off,
+every segment gets plain `N`. Before it marks the epic ready, preclaims beads, or spawns
+anything, SASE expands each phase and land xprompt to check the combined queue fields:
+an xprompt that sets its own `%queue(capacity=...)` conflicts with `--capacity`, and
+that target fails (under `--dry-run` too) without changing any bead or agent state.
+`-C/--cl-name NAME` retains the existing completion-notification behavior and plan-file
+restriction.
 
 `-w/--wait SPEC` holds launched epic phases until every named dependency finishes.
 `SPEC` is a comma-separated list of agent names and `bead=<id>` entries; `time=`,
@@ -1991,7 +2064,17 @@ any bead or file mutation. The option applies to plan-file targets and existing 
 beads. Extra waits are appended only to segments whose intra-epic `waits_on` is empty —
 the current root wave, and the land segment when it does not wait on phases — after
 those segments' existing wait lines and before their `#<xprompt>` line. Dependent
-segments inherit the wait transitively and do not repeat it.
+segments inherit the wait transitively and do not repeat it. A `bead=<id>` entry may
+name a full ID from another enabled project; the waiting segment stays parked until that
+bead's owning store shows it closed, including while the ID is ambiguous or its store is
+unavailable. Shorthand `bead=` entries keep the launching project's scope.
+
+A full epic or task bead ID from another enabled project launches in that project's
+context: SASE reads and checkpoints the owner's bead store, resolves the owner project's
+bead-work xprompts, and prefixes each segment with the owner's VCS workflow and project
+name. `--dry-run` reads the owner's store without materializing it. In plan-file mode, a
+`parent_bead` or `--parent` that belongs to another enabled project archives the plan
+into that project's SDD store and creates the epic in its bead store.
 
 For a task bead, `sase bead work <task-id>` accepts `ready` (normal), `open` (manual
 launch), or recoverable `in_progress` state. It does not launch a duplicate when the
@@ -2070,26 +2153,28 @@ Once an epic bead exists, the shared launch path:
    therefore do not launch a duplicate phase agent.
 2. On a confirmed launch, force-reuses the deterministic bead-work names —
    `<epic_id>.<N>` (for each open phase), `<epic_id>.land` (for the land agent), and the
-   legacy `<epic_id>` land-agent name — by wiping any prior owner of those names,
-   whether that owner is a completed, dismissed, or planned reservation or a still-live
-   agent (live owners are terminated). This also covers owners that hold the name only
-   as a `workflow_name`. If the forced-reuse cleanup cannot complete (a wipe fails or a
-   name is still reserved afterward), the command aborts before mutating any bead state.
-   A waiting phase, land, or task worker is not considered reusable merely because a
-   signal was sent: SASE records explicit kill intent, waits for the old process group
-   to stop, escalates when needed, and only then removes artifacts, releases workspaces,
-   preclaims beads, or launches the replacement. If two waiting shells share the same
-   selected name, every matching shell must be confirmed stopped before the new shell
-   can reuse that name; an unresolved or still-running duplicate blocks the launch.
-   `--dry-run` performs no cleanup; it only warns which live agents a real launch would
-   force-reuse.
+   legacy `<epic_id>` land-agent name. It wipes any prior owner of those names that is a
+   completed, failed, dismissed, or planned reservation, or a live worker still waiting
+   to start (waiting owners are stopped). A live owner that is already running is
+   preserved: its slot is not relaunched. This also covers owners that hold the name
+   only as a `workflow_name`. If the forced-reuse cleanup cannot complete (a wipe fails
+   or a name is still reserved afterward), the command aborts before mutating any bead
+   state. A waiting phase, land, or task worker is not considered reusable merely
+   because a signal was sent: SASE records explicit kill intent, waits for the old
+   process group to stop, escalates when needed, and only then removes artifacts,
+   releases workspaces, preclaims beads, or launches the replacement. If two waiting
+   shells share the same selected name, every matching shell must be confirmed stopped
+   before the new shell can reuse that name; an unresolved or still-running duplicate
+   blocks the launch. `--dry-run` performs no cleanup; it only warns which live agents a
+   real launch would force-reuse.
 
    The itemized preview labels each existing agent with the action cleanup would take —
    `BLOCKED`, `PRESERVE`, `KILL`, `REMOVE`, or `RELEASE`. Rows are grouped in that
    order, then sorted by agent name, and each prints as
    `ACTION (current-state) agent-name bead=<expected-bead> reason`, with the `bead=`
    part omitted when the slot has no expected bead. `BLOCKED` marks a slot whose
-   existing owner cannot be safely classified, usually a conflicting bead association;
+   existing owner cannot be safely classified, usually a conflicting bead association,
+   an unknown live state, or a second still-running shell that holds the same name;
    family and clan members reached without their own bead ids are accepted rather than
    treated as conflicts. Every blocker is listed instead of aborting on the first one,
    and a real launch still stops before any wipe, bead mutation, or spawn. `--dry-run`
@@ -2170,6 +2255,7 @@ landing to sweep it up.
 | `-P, --no-push`       | Skip checkpoint synchronization; a remote-backed detached store stops before spawning                                                           |
 | `-p, --parent`        | Override a plan file's `parent_bead`; use `top-level` for an unparented epic; plan-file targets only                                            |
 | `-y, --yes`           | Skip only the launch confirmation prompt                                                                                                        |
+| `-w, --wait`          | Comma-separated agent names and `bead=<id>` entries the launched epic phases wait for; plan-file targets and epic beads                         |
 | `-Y, --yes-to-all`    | Skip both the destructive-cleanup and launch confirmation prompts                                                                               |
 
 Progress, timing, and admission are separate from the dependency schedule. Kahn waves
@@ -2203,8 +2289,9 @@ generated prompt. The first phase segment targets the project reference and adds
 reference for the Patch, while later phase and land segments target the Patch ref
 directly. For non-Patch epics launched from a known SASE workspace, each segment is
 still prefixed with the detected VCS workflow and project name (for example `#git:sase`
-or `#gh:sase-org/sase`). If the current directory is not associated with a SASE project,
-the prompts are left unprefixed and run in the caller's normal launch context.
+or `#gh:sase-org/sase`); a bead routed to another enabled project uses that project's
+workflow and name. If the current directory is not associated with a SASE project, the
+prompts are left unprefixed and run in the caller's normal launch context.
 
 If checkpoint creation fails before it commits, the command restores every phase/epic
 status and assignee it changed, and restores `is_ready_to_work` only when this attempt
@@ -2259,12 +2346,12 @@ just bead-perf-smoke
 
 ## Current Checkout Source Of Truth
 
-In in-tree mode, every `sase bead` read and mutation command uses the current checkout's
-`sdd/beads/events/**` event store and `sdd/beads/config.json`, with `issues.jsonl` used
-only as a fallback when events are absent. Running the command in `myproject/` reads
-that checkout's bead state; running it in `myproject_2/` reads `myproject_2/sdd/beads/`.
-The CLI does not merge sibling workspace stores, and duplicate IDs in another checkout
-do not override the active checkout's records.
+In in-tree mode, `sase bead` reads and mutations of beads that the current checkout
+holds use that checkout's `sdd/beads/events/**` event store and `sdd/beads/config.json`,
+with `issues.jsonl` used only as a fallback when events are absent. Running the command
+in `myproject/` reads that checkout's bead state; running it in `myproject_2/` reads
+`myproject_2/sdd/beads/`. The CLI does not merge sibling workspace stores, and duplicate
+IDs in another checkout do not override the active checkout's records.
 
 ID allocation also uses only the active store's `config.json` and canonical event state.
 If a sibling checkout has not pulled or merged the latest bead state, it may allocate
@@ -2272,10 +2359,12 @@ IDs based on its local state; sync bead changes through the normal VCS workflow 
 several agents are coordinating on the same project.
 
 Cross-project helper surfaces, such as mobile/editor bead pickers, may inspect one
-canonical store per known project, but they still do not merge numbered sibling
-workspaces or legacy bead stores for the same project.
+canonical store per known project. So may CLI commands, which fall back to those stores
+for a full bead ID after a local miss (see [Bead ID Arguments](#bead-id-arguments)).
+None of them merge numbered sibling workspaces or legacy bead stores for the same
+project.
 
-## sase's TUI Integration
+## sase's TUI Integration { #ace-tui-integration }
 
 ### Plan File Linking
 
@@ -2315,9 +2404,9 @@ epic approval surface behaves the same way — sase's TUI,
 `sase bead work <plan-file> --yes-to-all` to a detached supervisor that runs it from the
 project's primary workspace, then record that the host owns the launch in the planner
 response. Epic Custom Approval exposes an optional Capacity control (`c`) beside Wait:
-Default means omission, and `0` is an explicit drain threshold. The durable approve
-result retains that integer so launch argv can emit `--capacity N`; tale, reject, and
-feedback actions never submit it.
+blank (Default) means omission; an explicit value must be at least 1, and `1` runs
+alone. The durable approve result retains that integer so launch argv can emit
+`--capacity N`; tale, reject, and feedback actions never submit it.
 
 The preferred handoff is a [monitor](monitors.md) shell under the planner's own agent
 family, labeled `Epic launch · <plan>`. The monitor shell reads `EPIC APPROVED` while
@@ -2334,13 +2423,16 @@ family cannot be resolved, the same command is submitted as one deduplicated glo
 
 Either handoff is durable and unowned by any interactive session: it survives the
 approving process, and normal command success or failure emits the epic-completion
-notification. Inspect a monitor through `sase monitor list` /
-`sase monitor show <id> --follow`, and the proc fallback through every default
-`sase proc list` and Procs-tab scope, `sase proc show <id> --follow`, and
-`sase proc kill`. The approval passes `--artifacts-dir`, `--capacity N` when the durable
-result set an explicit capacity, and `--cl-name` when a Patch is involved, so a
-successful launch attempts to back-fill the epic ID and committed plan path into planner
-metadata.
+notification. For a monitor handoff, that notification is held until the monitor shell
+itself settles, so opening it shows the settled monitor rather than a running one. If
+the process that settles the monitor dies before sending it, monitor reconciliation or
+the `epic_launch_flush` AXE job publishes it later, at most once. Inspect a monitor
+through `sase monitor list` / `sase monitor show <id> --follow`, and the proc fallback
+through every default `sase proc list` and Procs-tab scope,
+`sase proc show <id> --follow`, and `sase proc kill`. The approval passes
+`--artifacts-dir`, `--capacity N` when the durable result set an explicit capacity, and
+`--cl-name` when a Patch is involved, so a successful launch attempts to back-fill the
+epic ID and committed plan path into planner metadata.
 
 There is no planner-side subprocess fallback and no foreground path. An absent or
 unresolvable planner agent family selects the detached-proc fallback; other
