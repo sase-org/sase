@@ -11,6 +11,9 @@ from .agent_cleanup_modal import AgentCleanupPanelState as AgentCleanupPanelStat
 from .agent_cleanup_modal import AgentCleanupResult as AgentCleanupResult
 from .agent_cleanup_modal import AgentCleanupTribeModal as AgentCleanupTribeModal
 from .agent_cleanup_modal import AgentCleanupTribeResult as AgentCleanupTribeResult
+from .agent_view_modal import AgentViewChoice as AgentViewChoice
+from .agent_view_modal import AgentViewModal as AgentViewModal
+from .agent_view_modal import AgentViewResult as AgentViewResult
 from .agent_name_modal import AgentNameModal as AgentNameModal
 from .agent_neighbor_modal import AgentNeighborChoice as AgentNeighborChoice
 from .agent_neighbor_modal import AgentNeighborModal as AgentNeighborModal

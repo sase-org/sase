@@ -214,6 +214,10 @@ class AgentInfoDisplayMixin:
         display_query, query_rich, match_count = self._agents_info_panel_query_display()
         load_state = getattr(self, "_agent_load_state", None)
         query_partial_history = bool(getattr(load_state, "query_incomplete", False))
+        view_picker_checker = getattr(self, "_can_open_agent_view_picker", None)
+        view_picker_available = (
+            bool(view_picker_checker()) if callable(view_picker_checker) else False
+        )
         update_state = getattr(agent_info_panel, "update_state", None)
         if callable(update_state):
             update_state(
@@ -240,6 +244,7 @@ class AgentInfoDisplayMixin:
                 search_query_partial_history=query_partial_history,
                 grouping_mode=grouping_mode,
                 view_mode=view_mode,
+                view_picker_available=view_picker_available,
                 runner_limit=runner_capacity.effective_limit,
                 runner_occupied_capacity=runner_capacity.occupied_capacity,
                 runner_queue_count=runner_capacity.queued_count,

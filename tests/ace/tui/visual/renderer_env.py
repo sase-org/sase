@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from tests.ace.tui.visual._visual_render import _bundled_fonts_dir
+from tests.ace.tui.visual.png_diff import _bundled_fonts_dir
 
 _MANIFEST_PATH = Path(__file__).with_name("renderer_env.json")
 _FONTS_DIR = _bundled_fonts_dir()

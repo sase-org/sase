@@ -97,11 +97,8 @@ class IncompleteAttempt:
 class ExecutionFailureFacts:
     """One redacted failure outcome read back from the journal.
 
-    Matches the shape of the Rust wire ``GateDecisionFailureOutcomeWire`` this
-    project will eventually feed (bead ``sase-zr.7.1.1.3`` and later), even
-    though nothing sends it there yet: :func:`to_wire` is exercised today only
-    by :mod:`sase.notification_gates.failure_outcome` reading its own writes
-    back for tests.
+    Matches the shape recorded by :mod:`sase.notification_gates.failure_outcome`
+    when it reads its own writes back for tests and operator diagnostics.
     """
 
     outcome_id: str

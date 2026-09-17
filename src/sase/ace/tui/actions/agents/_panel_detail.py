@@ -159,21 +159,10 @@ class AgentPanelDetailMixin:
             self._axe_step_chop_run(direction=-1)  # type: ignore[attr-defined]
 
     def action_toggle_layout(self) -> None:
-        """Toggle the layout between prompt-priority and file-priority."""
-        if self.current_tab != "agents":
-            return
-
-        from ...widgets import AgentDetail
-
-        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-
-        if agent_detail.is_info_mode() or (
-            not agent_detail.is_file_visible() and not agent_detail.is_tools_visible()
-        ):
-            self.notify("No panel to toggle layout", severity="warning")  # type: ignore[attr-defined]
-            return
-
-        agent_detail.toggle_layout()
+        """Retired app action; open the Agent view picker instead."""
+        chooser = getattr(self, "action_choose_agent_view", None)
+        if callable(chooser):
+            chooser()
 
     def action_zoom_panel(self) -> None:
         """Zoom the active agent or tribe detail panel."""
@@ -426,27 +415,13 @@ class AgentPanelDetailMixin:
         self._refresh_agents_display()  # type: ignore[attr-defined]
 
     def action_toggle_thinking(self) -> None:
-        """Toggle the tools panel for the selected agent."""
-        self._cycle_panel_mode()
+        """Retired app action; open the Agent view picker instead."""
+        chooser = getattr(self, "action_choose_agent_view", None)
+        if callable(chooser):
+            chooser()
 
     def action_toggle_thinking_reverse(self) -> None:
-        """Toggle the tools panel in reverse direction."""
-        self._cycle_panel_mode(reverse=True)
-
-    def _cycle_panel_mode(self, *, reverse: bool = False) -> None:
-        """Cycle the panel mode forward or backward."""
-        if self.current_tab != "agents":
-            return
-
-        agent = self._get_selected_agent()  # type: ignore[attr-defined]
-        if agent is None:
-            self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
-            return
-
-        from ...widgets import AgentDetail
-
-        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-        agent_detail.toggle_tools(agent, reverse=reverse)
-
-        # Refresh footer to reflect new state
-        self._refresh_agents_display()  # type: ignore[attr-defined]
+        """Retired app action; open the Agent view picker instead."""
+        chooser = getattr(self, "action_choose_agent_view", None)
+        if callable(chooser):
+            chooser()

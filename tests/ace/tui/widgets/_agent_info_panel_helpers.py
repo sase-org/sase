@@ -12,6 +12,7 @@ from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 DEFAULT_GROUPING_KEY = key_display_name(
     load_keymap_registry({}).app.choose_agent_grouping
 )
+DEFAULT_VIEW_KEY = key_display_name(load_keymap_registry({}).app.choose_agent_view)
 DEFAULT_NEIGHBOR_KEY = key_display_name(load_keymap_registry({}).app.start_sibling_mode)
 
 

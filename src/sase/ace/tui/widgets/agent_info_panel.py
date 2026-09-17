@@ -51,6 +51,7 @@ class AgentInfoPanel(Static):
         self._countdown = 0
         self._interval = 0
         self._view_mode: str = ""
+        self._view_picker_available: bool = False
         self._grouping_mode: str = ""
         self._search_query: str = ""
         self._search_query_seeded: bool = False
@@ -154,7 +155,7 @@ class AgentInfoPanel(Static):
 
         Args:
             mode: The current view mode label (``"file"``, ``"tools"``,
-                ``"collapsed"``, or ``"summary"``). Empty string hides the
+                ``"none"``, or ``"summary"``). Empty string hides the
                 indicator.
         """
         self._view_mode = mode
@@ -223,6 +224,7 @@ class AgentInfoPanel(Static):
         view_mode: str,
         grouping_mode: str,
         search_query: str,
+        view_picker_available: bool = False,
         search_query_seeded: bool = False,
         search_query_rich: Text | None = None,
         search_query_match_count: tuple[int, int] | None = None,
@@ -255,6 +257,7 @@ class AgentInfoPanel(Static):
             runner_queue_count,
             max(0, neighbor_count),
             view_mode,
+            view_picker_available,
             grouping_mode,
             search_query,
             search_query_seeded,
@@ -279,6 +282,7 @@ class AgentInfoPanel(Static):
             self._runner_queue_count,
             self._neighbor_count,
             self._view_mode,
+            self._view_picker_available,
             self._grouping_mode,
             self._search_query,
             self._search_query_seeded,
@@ -312,6 +316,7 @@ class AgentInfoPanel(Static):
             self._runner_queue_count,
             self._neighbor_count,
             self._view_mode,
+            self._view_picker_available,
             self._grouping_mode,
             self._search_query,
             self._search_query_seeded,
@@ -356,7 +361,7 @@ class AgentInfoPanel(Static):
     _VIEW_MODE_STYLES: dict[str, str] = {
         "file": "bold green",
         "tools": "bold #87D7FF",
-        "collapsed": "dim italic",
+        "none": "dim italic",
         "summary": "bold #FFD75F",
     }
 
@@ -506,6 +511,10 @@ class AgentInfoPanel(Static):
             text.append("view: ", style="dim")
             style = self._VIEW_MODE_STYLES.get(self._view_mode, "dim")
             text.append(self._view_mode, style=style)
+            view_key = self._registry.app.choose_agent_view
+            if self._view_picker_available and not is_unbound_key(view_key):
+                key = key_display_name(view_key)
+                text.append(f" ({key})", style="dim")
             text.append("]", style="dim")
         grouping_label = self._grouping_mode or "by project"
         text.append("   ")

@@ -185,7 +185,6 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ALL_TABS,
         (),
     ),
-    ("toggle_layout", "Toggle layout", "Folding", ALL_TABS, ()),
     # Marking
     ("toggle_mark", "Mark / unmark entry", "Marking", CL_AGENTS, ()),
     ("clear_marks", "Clear all marks", "Marking", CL_AGENTS, ("unmark",)),

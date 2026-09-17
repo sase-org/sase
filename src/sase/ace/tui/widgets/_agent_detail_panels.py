@@ -27,10 +27,17 @@ class DetailPanelMode(Enum):
     INFO = "info"  # Metadata only, prompt at 100%
 
 
+class DetailLayoutMode(Enum):
+    """Existing vertical detail-layout proportions."""
+
+    SECONDARY_LARGER = "secondary_larger"  # Metadata 30% / File or Tools 70%
+    METADATA_LARGER = "metadata_larger"  # Metadata 70% / File or Tools 30%
+
+
 _MODE_LABELS: dict[DetailPanelMode, str] = {
     DetailPanelMode.AUTO: "file",
     DetailPanelMode.TOOLS: "tools",
-    DetailPanelMode.INFO: "collapsed",
+    DetailPanelMode.INFO: "none",
 }
 
 
@@ -69,78 +76,109 @@ class AgentDetailPanelMixin(Static):
     def _expand_prompt_only(self) -> None:
         """Hide the file panel and expand the prompt panel to fill the space."""
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
+        tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
         prompt_scroll = self._active_metadata_scroll()
         file_scroll.add_class("hidden")
+        tools_scroll.add_class("hidden")
         file_scroll.remove_class("layout-secondary")
+        tools_scroll.remove_class("layout-secondary")
         prompt_scroll.add_class("expanded")
         prompt_scroll.remove_class("layout-priority")
-
-    # ------------------------------------------------------------------
-    # Panel mode cycling
-    # ------------------------------------------------------------------
-
-    def toggle_tools(self, agent: Agent, *, reverse: bool = False) -> None:
-        """Cycle to the next (or previous) panel mode.
-
-        Always cycles through file -> tools -> none -> file so the
-        ``]`` key behaves consistently regardless of content availability.
-        The ``[`` key cycles in the opposite direction.
-
-        Args:
-            agent: The currently selected agent.
-            reverse: If True, cycle in the reverse direction.
-        """
-        self._apply_panel_mode(self._next_panel_mode(reverse=reverse), agent)
-        self._update_panel_indicators()
-
-    def _next_panel_mode(self, *, reverse: bool = False) -> DetailPanelMode:
-        """Compute the next panel mode in the fixed cycle.
-
-        For entries with tool sources: AUTO -> TOOLS -> INFO -> AUTO.
-        For other entries: AUTO -> INFO -> AUTO (no tools).
-
-        Args:
-            reverse: If True, cycle in the reverse direction.
-
-        Returns:
-            The next mode to transition to.
-        """
-        if self._current_agent and supports_slow_tool_sources(self._current_agent):
-            cycle = [
-                DetailPanelMode.AUTO,
-                DetailPanelMode.TOOLS,
-                DetailPanelMode.INFO,
-            ]
-        else:
-            cycle = [
-                DetailPanelMode.AUTO,
-                DetailPanelMode.INFO,
-            ]
-        if self._panel_mode not in cycle:
-            return cycle[0]
-        idx = cycle.index(self._panel_mode)
-        step = -1 if reverse else 1
-        return cycle[(idx + step) % len(cycle)]
-
-    def next_panel_label(self, *, reverse: bool = False) -> str:
-        """Get the footer label for what pressing ``]`` / ``[`` will do next.
-
-        Args:
-            reverse: If True, return the label for the reverse direction.
-
-        Returns:
-            Label string like "file", "tools", or "collapsed".
-        """
-        return _MODE_LABELS[self._next_panel_mode(reverse=reverse)]
 
     @property
     def panel_mode_label(self) -> str:
         """Get a human-readable label for the current panel mode.
 
         Returns:
-            ``"file"``, ``"tools"``, or ``"collapsed"``.
+            ``"file"``, ``"tools"``, or ``"none"``.
         """
         return _MODE_LABELS[self._panel_mode]
+
+    @property
+    def panel_mode(self) -> DetailPanelMode:
+        """Return the current detail panel mode."""
+        return self._panel_mode
+
+    @property
+    def detail_layout_mode(self) -> DetailLayoutMode:
+        """Return the saved detail layout preference."""
+        if self._layout_swapped:
+            return DetailLayoutMode.METADATA_LARGER
+        return DetailLayoutMode.SECONDARY_LARGER
+
+    def set_detail_layout(self, layout: DetailLayoutMode) -> bool:
+        """Set the saved layout and apply it to the visible secondary panel.
+
+        Returns True when the saved preference changed.
+        """
+        old = self.detail_layout_mode
+        self._layout_swapped = layout is DetailLayoutMode.METADATA_LARGER
+        self._apply_detail_layout_classes()
+        return old is not layout
+
+    def toggle_layout(self) -> None:
+        """Toggle between default (30/70) and swapped (70/30) layout."""
+        target = (
+            DetailLayoutMode.SECONDARY_LARGER
+            if self._layout_swapped
+            else DetailLayoutMode.METADATA_LARGER
+        )
+        self.set_detail_layout(target)
+
+    def _apply_detail_layout_classes(self) -> None:
+        """Apply the saved layout to the currently visible secondary panel."""
+        prompt_scroll = self._active_metadata_scroll()
+        file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
+        tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
+        file_scroll.remove_class("layout-secondary")
+        tools_scroll.remove_class("layout-secondary")
+
+        if self._panel_mode == DetailPanelMode.INFO:
+            prompt_scroll.remove_class("layout-priority")
+            return
+
+        secondary_scroll = None
+        if self._panel_mode == DetailPanelMode.TOOLS and not tools_scroll.has_class(
+            "hidden"
+        ):
+            secondary_scroll = tools_scroll
+        elif self._panel_mode == DetailPanelMode.AUTO and not file_scroll.has_class(
+            "hidden"
+        ):
+            secondary_scroll = file_scroll
+
+        if secondary_scroll is None:
+            prompt_scroll.remove_class("layout-priority")
+            return
+
+        if self._layout_swapped:
+            prompt_scroll.add_class("layout-priority")
+            secondary_scroll.add_class("layout-secondary")
+        else:
+            prompt_scroll.remove_class("layout-priority")
+
+    def set_panel_mode(
+        self,
+        mode: DetailPanelMode,
+        agent: Agent,
+        *,
+        attempt_number: int | None = None,
+    ) -> bool:
+        """Apply a detail mode explicitly.
+
+        Same-mode selections are a no-op only when the rendered detail already
+        belongs to the selected row and attempt.
+        """
+        if (
+            mode is self._panel_mode
+            and self._current_agent is not None
+            and self._current_agent.identity == agent.identity
+            and getattr(self, "_current_attempt_number", None) == attempt_number
+        ):
+            return False
+        self._apply_panel_mode(mode, agent)
+        self._update_panel_indicators()
+        return True
 
     def _apply_panel_mode(self, mode: DetailPanelMode, agent: Agent) -> None:
         """Apply visual transition to the given panel mode.
@@ -157,23 +195,20 @@ class AgentDetailPanelMixin(Static):
         if mode == DetailPanelMode.TOOLS:
             # Show tools, hide file
             file_scroll.add_class("hidden")
+            file_scroll.remove_class("layout-secondary")
             tools_scroll.remove_class("hidden")
             prompt_scroll.remove_class("expanded")
 
-            if self._layout_swapped:
-                tools_scroll.add_class("layout-secondary")
-                prompt_scroll.add_class("layout-priority")
-            else:
-                tools_scroll.remove_class("layout-secondary")
-                prompt_scroll.remove_class("layout-priority")
-
             self._panel_mode = DetailPanelMode.TOOLS
+            self._apply_detail_layout_classes()
             tools_panel.update_display(agent)
 
         elif mode == DetailPanelMode.INFO:
             # Hide both secondary panels, prompt at 100%
             file_scroll.add_class("hidden")
             tools_scroll.add_class("hidden")
+            file_scroll.remove_class("layout-secondary")
+            tools_scroll.remove_class("layout-secondary")
             prompt_scroll.add_class("expanded")
             prompt_scroll.remove_class("layout-priority")
 
@@ -184,7 +219,9 @@ class AgentDetailPanelMixin(Static):
             self._panel_mode = DetailPanelMode.AUTO
             prompt_scroll.remove_class("expanded")
             tools_scroll.add_class("hidden")
+            tools_scroll.remove_class("layout-secondary")
             file_scroll.remove_class("hidden")
+            self._apply_detail_layout_classes()
             # Invalidate file_panel state so the next dispatch skips the
             # same-agent fast paths in both `_update_display_body` and
             # `set_file_list` and forces a fresh render. Required because the
@@ -243,9 +280,7 @@ class AgentDetailPanelMixin(Static):
 
         tools_scroll.remove_class("hidden")
         prompt_scroll.remove_class("expanded")
-        if self._layout_swapped:
-            prompt_scroll.add_class("layout-priority")
-            tools_scroll.add_class("layout-secondary")
+        self._apply_detail_layout_classes()
 
     def on_file_visibility_changed(self, message: FileVisibilityChanged) -> None:
         """Handle file panel visibility changes.
@@ -270,10 +305,7 @@ class AgentDetailPanelMixin(Static):
             # Show file panel
             file_scroll.remove_class("hidden")
             prompt_scroll.remove_class("expanded")
-            # Restore layout preference if swapped
-            if self._layout_swapped:
-                prompt_scroll.add_class("layout-priority")
-                file_scroll.add_class("layout-secondary")
+            self._apply_detail_layout_classes()
         else:
             self._expand_prompt_only()
 

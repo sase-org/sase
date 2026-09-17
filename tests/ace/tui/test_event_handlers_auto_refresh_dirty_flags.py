@@ -96,7 +96,7 @@ async def test_watcher_active_clean_tick_skips_completed_selected_agent() -> Non
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("panel_mode_label", ["tools", "collapsed"])
+@pytest.mark.parametrize("panel_mode_label", ["tools", "none"])
 async def test_watcher_active_clean_tick_skips_non_file_detail_modes(
     panel_mode_label: str,
 ) -> None:

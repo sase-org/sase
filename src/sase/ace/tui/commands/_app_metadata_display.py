@@ -44,14 +44,12 @@ DISPLAY_COMMAND_META: tuple[AppCommandMeta, ...] = (
         CL_ONLY,
         (),
     ),
-    # Tools panel
-    ("toggle_thinking", "Toggle tools panel", "Display", AGENTS_ONLY, ()),
     (
-        "toggle_thinking_reverse",
-        "Toggle tools panel (reverse)",
+        "choose_agent_view",
+        "Choose agent view and layout",
         "Display",
         AGENTS_ONLY,
-        (),
+        ("panels", "file", "tools", "none", "metadata", "layout", "view"),
     ),
     # Queries
     (

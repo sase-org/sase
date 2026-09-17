@@ -1,0 +1,426 @@
+"""Agents-tab detail view picker action."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+from ...tools import supports_slow_tool_sources
+from ...widgets._agent_detail_panels import DetailLayoutMode, DetailPanelMode
+from ._panel_types import TabName
+
+if TYPE_CHECKING:
+    from ...models import Agent
+    from ...widgets import AgentDetail
+    from ...modals.agent_view_modal import AgentViewChoice, AgentViewResult
+
+
+@dataclass(frozen=True)
+class _AgentViewOpenSnapshot:
+    """Selection identity captured when the picker opens."""
+
+    tab: TabName
+    agent_identity: tuple[object, ...]
+    attempt_number: int | None
+    forced_metadata_reason: str | None
+
+
+@dataclass(frozen=True)
+class _AgentViewCapabilities:
+    """Current presentation-only capability state for the picker."""
+
+    agent: Agent
+    forced_metadata_reason: str | None
+    file_enabled: bool
+    file_subtitle: str
+    tools_enabled: bool
+    tools_reason: str | None
+    layout_enabled: bool
+    layout_reason: str | None
+    secondary_label: str
+    effective_mode: DetailPanelMode
+
+
+class AgentViewPickerMixin:
+    """Open and apply the Agents detail view/layout picker."""
+
+    current_tab: TabName
+    current_attempt_number: int | None
+
+    def _agent_view_picker_busy_reason(self) -> str | None:
+        """Return why modal-like or prefix state currently owns input."""
+        from textual.screen import ModalScreen
+
+        if isinstance(getattr(self, "screen", None), ModalScreen):
+            return "Finish the current modal first"
+        prompt_active = getattr(self, "_prompt_input_active", None)
+        if callable(prompt_active) and prompt_active():
+            return "Finish the prompt first"
+        if getattr(self, "_agents_filter_session_open", False):
+            return "Finish the query first"
+        metadata_search = getattr(self, "_agent_metadata_search", None)
+        if bool(getattr(metadata_search, "is_active", False)):
+            return "Finish metadata search first"
+        for attr in (
+            "_leader_mode_active",
+            "_bang_mode_active",
+            "_fold_mode_active",
+            "_copy_mode_active",
+            "_entry_jump_mode_active",
+            "_panel_fold_hint_mode_active",
+        ):
+            if getattr(self, attr, False):
+                return "Finish the active key mode first"
+        if getattr(self, "_custom_mode_active", None) is not None:
+            return "Finish the active key mode first"
+        if getattr(self, "_member_jump_pending_digit", None):
+            return "Finish member jump first"
+        return None
+
+    def _agent_view_picker_block_reason(self) -> str | None:
+        """Return why the Agent view picker cannot open right now."""
+        if self.current_tab != "agents":
+            return "Agent view is only available on the Agents tab"
+        busy_reason = self._agent_view_picker_busy_reason()
+        if busy_reason is not None:
+            return busy_reason
+        resolve_panel = getattr(self, "_resolve_focused_panel", None)
+        if callable(resolve_panel) and resolve_panel() is not None:
+            return "Select an agent row first"
+        if getattr(self, "_current_group_key", None) is not None:
+            return "Select an agent row first"
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
+            return "No agent selected"
+        return None
+
+    def _can_open_agent_view_picker(self) -> bool:
+        """Return whether the Agent view picker is currently applicable."""
+        return self._agent_view_picker_block_reason() is None
+
+    def action_choose_agent_view(self) -> None:
+        """Open the Agents detail view/layout picker."""
+        reason = self._agent_view_picker_block_reason()
+        if reason is not None:
+            if self.current_tab == "agents":
+                self.notify(reason, severity="warning", timeout=3.0)  # type: ignore[attr-defined]
+            return
+
+        from ...modals.agent_view_modal import AgentViewModal
+        from ...widgets import AgentDetail
+
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if agent is None:
+            self.notify("No agent selected", severity="warning", timeout=3.0)  # type: ignore[attr-defined]
+            return
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        capabilities = self._agent_view_capabilities(agent_detail, agent)
+        snapshot = _AgentViewOpenSnapshot(
+            tab=self.current_tab,
+            agent_identity=agent.identity,
+            attempt_number=getattr(self, "current_attempt_number", None),
+            forced_metadata_reason=capabilities.forced_metadata_reason,
+        )
+        choices = self._agent_view_choices(agent_detail, capabilities)
+        selected_key = self._agent_view_selected_key(capabilities.effective_mode)
+
+        def _on_choice(result: AgentViewResult | None) -> None:
+            if result is None:
+                return
+            self._apply_agent_view_result(snapshot, result)
+
+        self.push_screen(  # type: ignore[attr-defined]
+            AgentViewModal(choices, selected_key=selected_key),
+            _on_choice,
+        )
+
+    def _agent_view_capabilities(
+        self,
+        agent_detail: AgentDetail,
+        agent: Agent,
+    ) -> _AgentViewCapabilities:
+        forced_reason = self._forced_metadata_reason(agent)
+        effective_mode = (
+            DetailPanelMode.INFO
+            if forced_reason is not None
+            else agent_detail.panel_mode
+        )
+        file_enabled = forced_reason is None
+        file_has_content = bool(getattr(agent_detail, "_has_file_content", False))
+        file_subtitle = (
+            "Files and diffs"
+            if file_has_content
+            else "No file currently; metadata fills the space"
+        )
+        tools_enabled = forced_reason is None and supports_slow_tool_sources(agent)
+        tools_reason: str | None = None
+        if forced_reason is not None:
+            tools_reason = forced_reason
+        elif not tools_enabled:
+            tools_reason = "Unavailable for this entry"
+
+        secondary_label = "File / Tools"
+        layout_enabled = False
+        layout_reason: str | None = "Choose File or Tools first"
+        if forced_reason is not None:
+            layout_reason = forced_reason
+        elif effective_mode == DetailPanelMode.AUTO:
+            secondary_label = "File"
+            layout_enabled = agent_detail.is_file_visible()
+            layout_reason = None if layout_enabled else "No file to resize"
+        elif effective_mode == DetailPanelMode.TOOLS:
+            secondary_label = "Tools"
+            layout_enabled = agent_detail.is_tools_visible()
+            layout_reason = None if layout_enabled else "Choose File or Tools first"
+
+        return _AgentViewCapabilities(
+            agent=agent,
+            forced_metadata_reason=forced_reason,
+            file_enabled=file_enabled,
+            file_subtitle=file_subtitle,
+            tools_enabled=tools_enabled,
+            tools_reason=tools_reason,
+            layout_enabled=layout_enabled,
+            layout_reason=layout_reason,
+            secondary_label=secondary_label,
+            effective_mode=effective_mode,
+        )
+
+    def _forced_metadata_reason(self, agent: Agent) -> str | None:
+        if getattr(self, "current_attempt_number", None) is not None:
+            return "Historical attempt"
+        if getattr(agent, "is_clan_container", False) or getattr(
+            agent, "is_proc_shell", False
+        ):
+            return "Summary view"
+        return None
+
+    def _agent_view_choices(
+        self,
+        agent_detail: AgentDetail,
+        capabilities: _AgentViewCapabilities,
+    ) -> tuple[AgentViewChoice, ...]:
+        from ...modals.agent_view_modal import AgentViewChoice, AgentViewResult
+
+        current_mode = capabilities.effective_mode
+        forced_reason = capabilities.forced_metadata_reason
+        choices: list[AgentViewChoice] = [
+            AgentViewChoice(
+                "f",
+                "File",
+                capabilities.file_subtitle,
+                "view",
+                AgentViewResult.mode_choice(DetailPanelMode.AUTO),
+                enabled=capabilities.file_enabled,
+                badge="Current" if current_mode is DetailPanelMode.AUTO else None,
+                disabled_reason=forced_reason,
+            ),
+            AgentViewChoice(
+                "t",
+                "Tools",
+                "Tool calls and activity",
+                "view",
+                AgentViewResult.mode_choice(DetailPanelMode.TOOLS),
+                enabled=capabilities.tools_enabled,
+                badge="Current" if current_mode is DetailPanelMode.TOOLS else None,
+                disabled_reason=capabilities.tools_reason,
+            ),
+            AgentViewChoice(
+                "n",
+                "None",
+                "Metadata fills the detail area",
+                "view",
+                AgentViewResult.mode_choice(DetailPanelMode.INFO),
+                enabled=True,
+                badge="Current" if current_mode is DetailPanelMode.INFO else None,
+            ),
+        ]
+
+        saved_layout = agent_detail.detail_layout_mode
+        layout_badge_kind: Literal["Current", "Saved"] = (
+            "Current" if capabilities.layout_enabled else "Saved"
+        )
+        larger_label = capabilities.secondary_label
+        if current_mode == DetailPanelMode.AUTO:
+            larger_label = "File"
+        elif current_mode == DetailPanelMode.TOOLS:
+            larger_label = "Tools"
+        choices.extend(
+            [
+                AgentViewChoice(
+                    "1",
+                    "Metadata larger",
+                    f"Metadata 70% / {capabilities.secondary_label} 30%",
+                    "layout",
+                    AgentViewResult.layout_choice(DetailLayoutMode.METADATA_LARGER),
+                    enabled=capabilities.layout_enabled,
+                    badge=(
+                        layout_badge_kind
+                        if saved_layout is DetailLayoutMode.METADATA_LARGER
+                        else None
+                    ),
+                    disabled_reason=capabilities.layout_reason,
+                ),
+                AgentViewChoice(
+                    "2",
+                    f"{larger_label} larger",
+                    f"Metadata 30% / {capabilities.secondary_label} 70%",
+                    "layout",
+                    AgentViewResult.layout_choice(DetailLayoutMode.SECONDARY_LARGER),
+                    enabled=capabilities.layout_enabled,
+                    badge=(
+                        layout_badge_kind
+                        if saved_layout is DetailLayoutMode.SECONDARY_LARGER
+                        else None
+                    ),
+                    disabled_reason=capabilities.layout_reason,
+                ),
+                AgentViewChoice(
+                    "p",
+                    "Swap sizes",
+                    self._agent_view_swap_subtitle(
+                        saved_layout,
+                        capabilities.secondary_label,
+                    ),
+                    "layout",
+                    AgentViewResult.swap(),
+                    enabled=capabilities.layout_enabled,
+                    disabled_reason=capabilities.layout_reason,
+                ),
+            ]
+        )
+        return tuple(choices)
+
+    def _agent_view_swap_subtitle(
+        self,
+        saved_layout: DetailLayoutMode,
+        secondary_label: str,
+    ) -> str:
+        if saved_layout is DetailLayoutMode.METADATA_LARGER:
+            return f"Metadata larger -> {secondary_label} larger"
+        return f"{secondary_label} larger -> Metadata larger"
+
+    def _agent_view_selected_key(self, mode: DetailPanelMode) -> str:
+        return {
+            DetailPanelMode.AUTO: "f",
+            DetailPanelMode.TOOLS: "t",
+            DetailPanelMode.INFO: "n",
+        }[mode]
+
+    def _apply_agent_view_result(
+        self,
+        snapshot: _AgentViewOpenSnapshot,
+        result: AgentViewResult,
+    ) -> None:
+        if self.current_tab != snapshot.tab:
+            self.notify("Selection changed; reopen Agent view", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        from ...widgets import AgentDetail
+
+        agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        if (
+            agent is None
+            or agent.identity != snapshot.agent_identity
+            or getattr(self, "current_attempt_number", None) != snapshot.attempt_number
+        ):
+            self.notify("Selection changed; reopen Agent view", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        capabilities = self._agent_view_capabilities(agent_detail, agent)
+        if capabilities.forced_metadata_reason != snapshot.forced_metadata_reason:
+            self.notify("Selection changed; reopen Agent view", severity="warning")  # type: ignore[attr-defined]
+            return
+
+        if result.kind == "mode":
+            self._apply_agent_view_mode_result(agent_detail, capabilities, result)
+        elif result.kind == "layout":
+            self._apply_agent_layout_result(agent_detail, capabilities, result)
+        elif result.kind == "swap":
+            self._apply_agent_layout_swap(agent_detail, capabilities)
+
+    def _apply_agent_view_mode_result(
+        self,
+        agent_detail: AgentDetail,
+        capabilities: _AgentViewCapabilities,
+        result: AgentViewResult,
+    ) -> None:
+        mode = result.mode
+        if mode is None:
+            return
+        reason = self._mode_rejection_reason(capabilities, mode)
+        if reason is not None:
+            self.notify(reason, severity="warning")  # type: ignore[attr-defined]
+            return
+        if capabilities.forced_metadata_reason is not None:
+            return
+        changed = agent_detail.set_panel_mode(
+            mode,
+            capabilities.agent,
+            attempt_number=getattr(self, "current_attempt_number", None),
+        )
+        if changed:
+            self._refresh_agent_view_surfaces()
+
+    def _mode_rejection_reason(
+        self,
+        capabilities: _AgentViewCapabilities,
+        mode: DetailPanelMode,
+    ) -> str | None:
+        if capabilities.forced_metadata_reason is not None:
+            return (
+                None
+                if mode is DetailPanelMode.INFO
+                else capabilities.forced_metadata_reason
+            )
+        if mode is DetailPanelMode.TOOLS and not capabilities.tools_enabled:
+            return capabilities.tools_reason or "Unavailable for this entry"
+        if mode is DetailPanelMode.AUTO and not capabilities.file_enabled:
+            return capabilities.forced_metadata_reason
+        return None
+
+    def _apply_agent_layout_result(
+        self,
+        agent_detail: AgentDetail,
+        capabilities: _AgentViewCapabilities,
+        result: AgentViewResult,
+    ) -> None:
+        layout = result.layout
+        if layout is None:
+            return
+        if not capabilities.layout_enabled:
+            self.notify(  # type: ignore[attr-defined]
+                capabilities.layout_reason or "Choose File or Tools first",
+                severity="warning",
+            )
+            return
+        if agent_detail.detail_layout_mode is layout:
+            return
+        agent_detail.set_detail_layout(layout)
+        self._refresh_agent_view_surfaces()
+
+    def _apply_agent_layout_swap(
+        self,
+        agent_detail: AgentDetail,
+        capabilities: _AgentViewCapabilities,
+    ) -> None:
+        if not capabilities.layout_enabled:
+            self.notify(  # type: ignore[attr-defined]
+                capabilities.layout_reason or "Choose File or Tools first",
+                severity="warning",
+            )
+            return
+        agent_detail.toggle_layout()
+        self._refresh_agent_view_surfaces()
+
+    def _refresh_agent_view_surfaces(self) -> None:
+        update_info = getattr(self, "_update_agents_info_panel", None)
+        if callable(update_info):
+            update_info()
+        refresh_footer = getattr(self, "_refresh_agent_footer_bindings_only", None)
+        if callable(refresh_footer):
+            refresh_footer()
+
+
+__all__ = ["AgentViewPickerMixin"]

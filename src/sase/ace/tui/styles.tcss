@@ -4650,6 +4650,83 @@ AgentGroupingModal #agent-grouping-footer {
     text-align: center;
 }
 
+AgentViewModal {
+    align: center middle;
+}
+
+AgentViewModal #agent-view-container {
+    width: 68;
+    max-width: 94%;
+    height: auto;
+    max-height: 90%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+AgentViewModal #agent-view-title {
+    height: 1;
+    text-align: center;
+    text-style: bold;
+    color: $primary;
+}
+
+AgentViewModal #agent-view-guidance {
+    height: auto;
+    color: $text-muted;
+    margin: 0 0 1 0;
+}
+
+AgentViewModal #agent-view-list {
+    height: auto;
+    max-height: 22;
+    scrollbar-gutter: stable;
+}
+
+AgentViewModal .agent-view-section {
+    height: 1;
+    color: $text-muted;
+    text-style: bold;
+    padding: 0 1;
+}
+
+AgentViewModal .agent-view-divider {
+    height: 1;
+}
+
+AgentViewModal .agent-view-row {
+    height: auto;
+    min-height: 2;
+    padding: 0 1;
+}
+
+AgentViewModal .agent-view-row.focused {
+    background: $primary 20%;
+    border-left: thick $primary;
+    padding: 0 1 0 0;
+}
+
+AgentViewModal .agent-view-row.current {
+    border-right: thick $success;
+}
+
+AgentViewModal .agent-view-row.disabled {
+    color: $text-muted;
+}
+
+AgentViewModal .agent-view-row.blocked {
+    border-right: thick #FFAF5F;
+}
+
+AgentViewModal #agent-view-footer {
+    height: auto;
+    color: $text-muted;
+    border-top: solid $primary;
+    margin-top: 1;
+    padding-top: 1;
+    text-align: center;
+}
+
 AxeNewEntryIdentityModal {
     align: center middle;
 }

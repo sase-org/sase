@@ -1283,8 +1283,8 @@ somewhere stale.
 | `t`                 | Open the focused agent's tmux target; agents with opened linked-workspace context show a workspace chooser     |
 | `T`                 | Open tmux window in the agent's primary project workspace                                                      |
 | `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it)     |
-| `]` / `[`           | Cycle panels: file → tools → metadata (forward / reverse)                                                      |
-| `p`                 | Toggle file / prompt layout                                                                                    |
+| `p`                 | Open Agent view picker: `f` file, `t` tools, `n` none, `1`/`2` layout sizes, `p` swap sizes                    |
+| `pp`                | Swap detail layout sizes                                                                                       |
 | `z`                 | Start metadata fold mode for clan, agent node (family or single agent), or selected whole-tribe detail panels  |
 | `Z`                 | Zoom the active agent or tribe detail panel                                                                    |
 | `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                |
@@ -4786,10 +4786,25 @@ top-level/workflow-child identity. Older dismissed bundles may still contain
 compatibility helpers for reading those bundles. Bare `%wait` (no target) intentionally
 skips legacy dismissal-prefixed candidates so it anchors on a live, visible agent.
 
+### Agents Detail View Picker
+
+Press `p` on an agent row to choose the detail view without cycling through hidden
+panels. Inside the picker, `f` shows the selected file, `t` shows the tools timeline,
+and `n` shows metadata only. `1` makes metadata larger, `2` makes the file/tools side
+larger, and `p` swaps those two sizes once, so `pp` keeps the old quick layout-swap
+workflow.
+
+The layout choice is session-local and independent from the view mode: switching between
+file and tools keeps the same split. Layout options are disabled when there is no
+visible secondary panel to resize, such as metadata-only view, a file view with no
+selected file content, summaries, or pinned historical attempts. Bare `[` and `]` no
+longer change the Agents detail view; their existing uses in help, zoom, and other
+surface-local panels are unchanged.
+
 ## Agents Tab Metadata Panel
 
-The Agents tab metadata panel (cycled to via `]`/`[`) shows structured information about
-the selected agent:
+The Agents tab metadata panel (choose `n` from the Agent view picker) shows structured
+information about the selected agent:
 
 Pressing `V` on any local Agents-tab row (running or done) opens that same agent's
 metadata full-screen in the [pager](pager.md) instead, as a sectioned document —
@@ -4940,17 +4955,17 @@ cursor.
   gets `SASE CONTEXT` and an `ARTIFACTS` lane.
 - **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or
   longer, ordered by start time and capped at 8 rows (an overflow line points to the
-  full [Tools panel](#agents-tab-tools-panel) timeline via `]`). Level 1 is a compact
-  triage table: every row keeps its timestamp, state, tool, duration, and a short path-,
-  query-, or command-aware digest, while a dim tail reports that full commands are
-  hidden. From position 2 upward, each row adds the complete command or target in an
-  indented block that wraps with a hanging indent, plus start/end and outcome facts and
-  any error. The lane's last position also adds output previews, subagent tool/token
-  statistics, and each call's rank and share of selected slow time. These tiers are
-  positional: an ordinary agent uses compact/detail/full across its three levels, while
-  a family uses compact/full across its two. `za` and `zA` can change only this section.
-  For a root agent the list aggregates calls across its children while attributing each
-  call to the child that made it.
+  full [Tools panel](#agents-tab-tools-panel) timeline via `p` then `t`). Level 1 is a
+  compact triage table: every row keeps its timestamp, state, tool, duration, and a
+  short path-, query-, or command-aware digest, while a dim tail reports that full
+  commands are hidden. From position 2 upward, each row adds the complete command or
+  target in an indented block that wraps with a hanging indent, plus start/end and
+  outcome facts and any error. The lane's last position also adds output previews,
+  subagent tool/token statistics, and each call's rank and share of selected slow time.
+  These tiers are positional: an ordinary agent uses compact/detail/full across its
+  three levels, while a family uses compact/full across its two. `za` and `zA` can
+  change only this section. For a root agent the list aggregates calls across its
+  children while attributing each call to the child that made it.
 - **Wait state**: For a `WAITING` agent gated by `%wait`, a duration wait, or an
   absolute-time wait, the detail view shows a tagged `Wait:` block with one lane per
   active dimension: `[agents]`, `[beads]`, `[time]`, then `[capacity]`. Present tags
@@ -5016,10 +5031,9 @@ scrolling the metadata panel.
 
 ## Agents Tab Tools Panel
 
-The tools panel sits between the file panel and the metadata panel in the Agents-tab
-cycle (`]` advances forward, `[` goes back). It shows a chronological timeline of the
-LLM tool calls the selected agent has made — file reads, edits, bash invocations, web
-fetches, sub-agent launches, and so on.
+Choose `t` from the Agent view picker to open the tools panel. It shows a chronological
+timeline of the LLM tool calls the selected agent has made — file reads, edits, bash
+invocations, web fetches, sub-agent launches, and so on.
 
 Entries are read from the `tool_calls.jsonl` artifact in the agent's run directory. Each
 call renders as one timeline row:

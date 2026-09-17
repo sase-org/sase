@@ -9,6 +9,7 @@ from sase.ace.tui.keymaps import load_keymap_registry
 from ._agent_info_panel_helpers import (
     DEFAULT_GROUPING_KEY,
     DEFAULT_NEIGHBOR_KEY,
+    DEFAULT_VIEW_KEY,
     AgentInfoPanel,
     collect_rich_text,
     collect_text,
@@ -105,6 +106,32 @@ def test_summary_view_badge_is_visible_and_gold() -> None:
 
     assert "[view: summary]" in text.plain
     assert style_for_plain_segment(text, "summary") == "bold #FFD75F"
+
+
+def test_view_badge_renders_picker_key_when_available() -> None:
+    panel = AgentInfoPanel()
+    panel._view_mode = "file"
+    panel._view_picker_available = True
+
+    plain = collect_text(panel)
+
+    assert f"[view: file ({DEFAULT_VIEW_KEY})]" in plain
+
+
+def test_view_badge_omits_picker_key_when_unavailable_or_unbound() -> None:
+    panel = AgentInfoPanel()
+    panel._view_mode = "file"
+    panel._view_picker_available = False
+
+    assert "[view: file]" in collect_text(panel)
+
+    with patch.object(panel, "update"):
+        panel.set_keymap_registry(
+            load_keymap_registry({"keymaps": {"app": {"choose_agent_view": "unbound"}}})
+        )
+    panel._view_picker_available = True
+
+    assert "[view: file]" in collect_text(panel)
 
 
 def test_grouping_badge_suppressed_while_loading() -> None:

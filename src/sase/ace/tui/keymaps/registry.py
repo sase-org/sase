@@ -52,6 +52,9 @@ _RETIRED_APP_KEYS: frozenset[str] = frozenset(
         "focus_bug_links",
         "activate_bug_link",
         "refresh_bugs",
+        "toggle_layout",
+        "toggle_thinking",
+        "toggle_thinking_reverse",
     }
 )
 
@@ -112,6 +115,8 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         # forward/reverse grouping cycles.
         frozenset({"choose_agent_grouping", "cycle_grouping_mode"}),
         frozenset({"choose_agent_grouping", "cycle_grouping_mode_reverse"}),
+        # Tab-disjoint: Agents view picker vs Artifacts project scope.
+        frozenset({"choose_agent_view", "pick_artifacts_project"}),
     }
 )
 

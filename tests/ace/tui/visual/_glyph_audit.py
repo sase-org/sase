@@ -12,8 +12,7 @@ from functools import lru_cache
 
 import pytest
 
-from tests.ace.tui.visual._visual_render import _bundled_fonts_dir
-from tests.ace.tui.visual.png_diff import render_svg_to_png
+from tests.ace.tui.visual.png_diff import _bundled_fonts_dir, render_svg_to_png
 
 TTFont = pytest.importorskip("fontTools.ttLib").TTFont
 

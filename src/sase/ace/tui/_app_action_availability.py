@@ -138,6 +138,13 @@ def check_app_action(
 
         if isinstance(getattr(app, "screen", None), ModalScreen):
             return False
+    if action == "choose_agent_view":
+        checker = getattr(app, "_can_open_agent_view_picker", None)
+        if callable(checker):
+            return bool(checker())
+        return app.current_tab == "agents" and not _prompt_input_owns_keys(app)
+    if action in {"toggle_thinking", "toggle_thinking_reverse", "toggle_layout"}:
+        return False
     if action in {"cycle_grouping_mode", "cycle_grouping_mode_reverse"}:
         if app.current_tab == "agents":
             return False
@@ -343,9 +350,6 @@ def check_app_action(
             or contract is None
             or not contract.has(PaneCapability.PROJECT_SCOPE)
         ):
-            return False
-    if action in {"toggle_thinking", "toggle_thinking_reverse", "toggle_layout"}:
-        if app.current_tab != "agents":
             return False
     if action in {
         "next_agent_metadata_section",

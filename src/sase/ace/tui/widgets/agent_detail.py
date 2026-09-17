@@ -521,22 +521,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
 
     def toggle_layout(self) -> None:
         """Toggle between default (30/70) and swapped (70/30) layout."""
-        prompt_scroll = self._active_metadata_scroll()
-
-        self._layout_swapped = not self._layout_swapped
-
-        # Apply layout classes to whichever panel (file or tools) is visible
-        if self.is_tools_visible():
-            secondary_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
-        else:
-            secondary_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
-
-        if self._layout_swapped:
-            prompt_scroll.add_class("layout-priority")
-            secondary_scroll.add_class("layout-secondary")
-        else:
-            prompt_scroll.remove_class("layout-priority")
-            secondary_scroll.remove_class("layout-secondary")
+        super().toggle_layout()
 
     def is_tools_visible(self) -> bool:
         """Check if the tools panel is currently visible.

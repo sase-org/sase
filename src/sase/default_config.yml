@@ -680,7 +680,7 @@ ace:
       hooks_or_collapse_all: "H"
       expand_or_layout: "l"
       expand_all_folds: "L"
-      toggle_layout: "p"
+      choose_agent_view: "p"
       # Marking
       toggle_mark: "m"
       clear_marks: "u"
@@ -703,9 +703,6 @@ ace:
       # Log modal.
       view_agent_metadata: "V"
       open_artifact_files: "a"
-      # Thinking panel
-      toggle_thinking: "right_square_bracket"
-      toggle_thinking_reverse: "left_square_bracket"
       # Attempt history (agents tab)
       toggle_attempt_view: "D"
       # Manual unread marker (agents tab)

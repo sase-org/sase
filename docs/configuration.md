@@ -1306,6 +1306,7 @@ default `/`, and the direct `agents_filters` binding, default `f`. The leader-mo
 | `agents_refresh`                | `r`       | Refresh the Agents tab, or open the Refresh panel while the `refresh_panel` sunset flag is on.  |
 | `agents_retry`                  | `R`       | Retry the selected local or remote agent.                                                       |
 | `choose_agent_grouping`         | `o`       | Open the Agents grouping picker (`p`/`d`/`s`/`m` modes; local `o` toggles split/merged panels). |
+| `choose_agent_view`             | `p`       | Open the Agents view/layout picker (`f` File, `t` Tools, `n` None, `1`/`2` layout, `p` swap).   |
 | `view_agent_metadata`           | `V`       | Open the selected local agent's metadata panel in the SASE pager.                               |
 | `connect_agent_machine`         | `unbound` | Open the Admin Center Machines tab.                                                             |
 | `setup_agent_machine`           | `unbound` | Open the Admin Center Machines tab for enrollment guidance.                                     |
@@ -1313,6 +1314,10 @@ default `/`, and the direct `agents_filters` binding, default `f`. The leader-mo
 | `view_remote_agent_content`     | `unbound` | Fetch bounded remote chat, output, or diff content.                                             |
 | `answer_remote_attention`       | `unbound` | Answer a pending remote question or approve a pending gate.                                     |
 | `check_dispatch_launch_outcome` | `unbound` | Reconcile the selected provisional remote dispatch-launch row with its operation outcome.       |
+
+The former `toggle_layout`, `toggle_thinking`, and `toggle_thinking_reverse` app-key
+settings are retired. Existing overrides for those names are ignored; configure
+`choose_agent_view` instead.
 
 On the Agents tab, `r` refreshes and `R` retries; every other tab keeps `r` for
 `run_workflow` and `R` for `refresh`, which is why those pairs share keys (see the
@@ -1382,6 +1387,7 @@ rejects every other duplicate app binding:
 | `r`                   | `r`                   | `agents_refresh` / `run_workflow`                       | Agents vs Patches/Axe                                  |
 | `R`                   | `R`                   | `agents_retry` / `refresh`                              | Agents vs every other tab                              |
 | `o`                   | `o`                   | `choose_agent_grouping` / `cycle_grouping_mode`         | Agents vs Artifacts                                    |
+| `p`                   | `p`                   | `choose_agent_view` / `pick_artifacts_project`          | Agents vs Artifacts                                    |
 | configurable then `o` | varies                | `choose_agent_grouping` local panel-layout toggle       | Agents picker-local `o`; `oo` with defaults            |
 | configurable          | varies                | `choose_agent_grouping` / `cycle_grouping_mode_reverse` | Agents vs Artifacts                                    |
 

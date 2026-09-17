@@ -139,11 +139,8 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.view_files), "Hint files/tools/commits/clans"),
                 (d(a.view_agent_metadata), "Page metadata, prompts & reply"),
                 ("p (commit view)", "Toggle attached local plan / commit"),
-                (
-                    f"{d(a.toggle_thinking)} / {d(a.toggle_thinking_reverse)}",
-                    "Cycle panels: file → tools → metadata",
-                ),
-                (d(a.toggle_layout), "Toggle file/prompt layout"),
+                (d(a.choose_agent_view), "Choose file/tools/none or layout"),
+                (f"{d(a.choose_agent_view)}p", "Swap detail layout sizes"),
                 (d(a.zoom_panel), "Zoom agent/tribe detail"),
                 (
                     d(a.isolate_panels),

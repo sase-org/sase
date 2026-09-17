@@ -353,10 +353,9 @@ async def _open_tools_panel(page: AcePage) -> AgentToolsPanel:
     await page.expect_state("tab", "agents")
     await page.expect_state("agent_count", 1)
     # Wait for the debounced detail panel update so AgentDetail._current_agent
-    # is populated; without it _next_panel_mode falls back to the short
-    # AUTO -> INFO cycle (because is_agent_entry is checked on _current_agent).
+    # is populated before the view picker applies Tools.
     await wait_for_visual_idle(page)
-    await page.press("right_square_bracket")
+    await page.press("p", "t")
     await _wait_for_tools_loaded(page)
     page.app._refresh_agent_footer_bindings_only()
     await wait_for_visual_idle(page)

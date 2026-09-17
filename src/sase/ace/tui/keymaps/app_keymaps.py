@@ -131,7 +131,7 @@ class AppKeymaps:
     hooks_or_collapse_all: str
     expand_or_layout: str
     expand_all_folds: str
-    toggle_layout: str
+    choose_agent_view: str
     # Marking
     toggle_mark: str
     clear_marks: str
@@ -160,9 +160,6 @@ class AppKeymaps:
     choose_agent_grouping: str
     cycle_grouping_mode: str
     cycle_grouping_mode_reverse: str
-    # Tools panel
-    toggle_thinking: str
-    toggle_thinking_reverse: str
     # Queries. Metadata-search start lives on leader_mode.keys.search_forward.
     edit_query: str
     search_reverse: str

@@ -305,7 +305,7 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
             ),
             description="slow-tool detail-header summary",
         )
-        await page.press("left_square_bracket")
+        await page.press("p", "n")
         await wait_for_svg_contains(page, "SLOW TOOL CALLS")
         await _focus_slow_tool_section(page)
         await wait_for_state(
