@@ -331,6 +331,55 @@ def test_outbox_drain_skips_primary_owned_root(
     assert _git_output(plans, "rev-parse", "HEAD") == before_head
 
 
+def test_outbox_drain_skips_primary_owned_bead_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    primary, _plans, _research = _primary_owned_sidecars(tmp_path, monkeypatch)
+    beads = primary / "sase" / "repos" / "beads"
+    beads.mkdir(parents=True)
+    _init_git_repo(beads)
+    (beads / "README.md").write_text("# Beads\n", encoding="utf-8")
+    _git(beads, "add", ".")
+    _git(beads, "commit", "-m", "seed")
+    store = ArtifactLinkStore(
+        project_key="gh_sase-org__sase",
+        sidecar_roots={},
+        beads_dir=beads,
+    )
+    append_artifact_link_outbox_entry(
+        project_key="gh_sase-org__sase",
+        agent_name="reader",
+        run_id="run-1",
+        row=_row(
+            source="agent:reader",
+            relation="read",
+            target="bead:sase-xx",
+            origin="read",
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.sdd._artifact_link_outbox_drain._entry_is_eligible",
+        lambda _entry: True,
+    )
+    before = _worktree_snapshot(beads)
+
+    report = drain_artifact_link_outbox(
+        store=store,
+        agent_name="reader",
+        drop_stale_terminal=False,
+        push_after_commit=False,
+    )
+
+    assert report.drained == 0
+    assert report.retained == 1
+    assert report.committed is False
+    assert report.skip_diagnostics == (
+        "bead root not machine-writable: resolves to primary #0",
+    )
+    assert len(read_artifact_link_outbox_entries("gh_sase-org__sase")) == 1
+    assert _worktree_snapshot(beads) == before
+
+
 def test_referenced_by_refresh_skips_primary_owned_root(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

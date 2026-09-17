@@ -13,6 +13,7 @@ from tests.sdd._artifact_link_store_helpers import (
     _plan_index,
     _row,
     _store,
+    allow_machine_sidecar_writes,
     write_imported_cutover_marker,
 )
 
@@ -155,6 +156,7 @@ def test_imported_backfill_projects_from_events_without_sidecar_rows(
     from sase.bead.project import BeadProject
 
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    allow_machine_sidecar_writes(monkeypatch)
     with BeadProject.init(tmp_path) as project:
         issue = project.create("Target", IssueType.PLAN)
         store = ArtifactLinkStore(

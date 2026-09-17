@@ -89,6 +89,16 @@ def apply_events_to_beads(
             receipt=False,
             diagnostic="artifact-link bead store is unavailable",
         )
+    authorization_error = _bead_projection_authorization_error(
+        store.beads_dir,
+        mutation_origin=mutation_origin,
+    )
+    if authorization_error is not None:
+        return _ArtifactLinkBeadProjectionResult(
+            changed=False,
+            receipt=False,
+            diagnostic=authorization_error,
+        )
     from sase.sdd.artifact_link_beads import set_bead_endpoint_projection
     from sase.sdd._artifact_link_commit import (
         ArtifactLinkPersistError,
@@ -291,6 +301,22 @@ def _bead_store_has_uncommitted_changes(beads_dir: Path) -> bool:
         check=False,
     )
     return result.returncode != 0 or bool(result.stdout.strip())
+
+
+def _bead_projection_authorization_error(
+    beads_dir: Path, *, mutation_origin: str
+) -> str | None:
+    from sase.workspace_provider.ownership import (
+        WorkspaceOwnershipError,
+        authorize_store_mutation,
+    )
+
+    repo = beads_dir if (beads_dir / ".git").is_dir() else beads_dir.parent
+    try:
+        authorize_store_mutation(repo, mutation_origin=mutation_origin)
+    except WorkspaceOwnershipError as exc:
+        return str(exc)
+    return None
 
 
 def _git_root_for(path: Path) -> Path | None:

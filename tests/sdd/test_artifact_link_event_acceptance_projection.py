@@ -228,9 +228,64 @@ def test_bead_projection_rebuild_repairs_already_receipted_partial_state(
     assert stable.changed is False
 
 
+def test_bead_projection_authorizes_machine_root_before_mutating(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.bead.project import BeadProject
+    from sase.workspace_provider.ownership import WorkspaceOwnershipError
+
+    bead_project = BeadProject.init(tmp_path / "bead-root")
+    tracked_bead = bead_project.create("Unauthorized target", IssueType.PLAN)
+    store = ArtifactLinkStore(
+        project_key=PROJECT_KEY,
+        sidecar_roots={},
+        beads_dir=bead_project.beads_dir,
+    )
+    event = _edge_put(
+        "cccccccccccccccccccccccccccccccc",
+        source="plan:202609/refused.md",
+        relation="implements",
+        target=f"bead:{tracked_bead.id}",
+        description="derived from the plan's `bead_id:` frontmatter field",
+        origin="derived",
+    )
+    item = canonical_artifact_link_event_object(event)
+    before = _file_snapshot(bead_project.beads_dir)
+
+    def _refuse(*_args: object, **_kwargs: object) -> None:
+        raise WorkspaceOwnershipError("machine mutation refused at test beads root")
+
+    monkeypatch.setattr(
+        "sase.workspace_provider.ownership.authorize_store_mutation",
+        _refuse,
+    )
+
+    projection = apply_events_to_beads(
+        store,
+        (item,),
+        mutation_origin="machine",
+        artifacts_dir=None,
+    )
+
+    assert projection.changed is False
+    assert projection.receipt is False
+    assert projection.diagnostic is not None
+    assert "machine mutation refused" in projection.diagnostic
+    assert _file_snapshot(bead_project.beads_dir) == before
+
+
 def _write_event_object(root: Path, event: dict[str, object]) -> Path:
     item = canonical_artifact_link_event_object(event)
     path = root / item.relative_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(item.payload)
     return path
+
+
+def _file_snapshot(root: Path) -> dict[str, bytes]:
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }

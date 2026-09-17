@@ -4,14 +4,14 @@ Background link maintenance (the hourly ``artifact_link_backfill`` chop and
 the agents-sync Referenced By drain) must never write into a primary
 checkout's nested sidecar clones -- see the ``hidden-clone-machine-writes``
 phase this implements. This resolver maps every document sidecar role
-(``plans`` plus any custom role such as ``research``) onto its project's
-hidden host-owned clone (:func:`hidden_sidecar_clone_dir`), following the
-existing ``agents`` sidecar precedent, and freshly integrates each clone from
-its recorded remote before returning the store. Beads and the
-already-hidden ``agents`` sidecar are left at their existing roots as read
-context; only document roots move to the machine lane. Non-split storage has
-no hidden lane and retains the existing resolved store, so the ownership
-gate continues to fail closed there.
+(``plans`` plus any custom role such as ``research``) and the split ``beads``
+role onto its project's hidden host-owned clone
+(:func:`hidden_sidecar_clone_dir`), following the existing ``agents`` sidecar
+precedent, and freshly integrates each clone from its recorded remote before
+returning the store. If the hidden beads clone cannot be prepared, the
+primary beads path is retained as read context and the bead write path refuses
+before mutating it. Non-split storage has no hidden lane and retains the
+existing resolved store, so the ownership gate continues to fail closed there.
 
 The primary checkout's own nested sidecar clones (``<primary>/sase/repos/*``)
 are never touched by this module. They stay human-owned and converge with
@@ -29,6 +29,7 @@ from pathlib import Path
 
 from sase.sdd._artifact_link_store_impl import ArtifactLinkStore
 from sase.sdd._store_types import (
+    BEADS_SIDECAR_ROLE,
     SddMaterializationError,
     SddStore,
     document_sidecar_roles,
@@ -129,20 +130,38 @@ def _hidden_document_store(
             continue
         hidden_dirs[role] = hidden_dir
 
+    hidden_beads_dir: Path | None = None
+    beads_remote_url = store.remote_url_for_kind(BEADS_SIDECAR_ROLE)
+    if store.beads_dir is not None and beads_remote_url is not None:
+        hidden_dir, diagnostic = _ensure_hidden_document_root(
+            project_key,
+            store,
+            BEADS_SIDECAR_ROLE,
+            beads_remote_url,
+            fresh=True,
+            deadline=deadline,
+        )
+        if hidden_dir is None:
+            unresolved_sidecars[BEADS_SIDECAR_ROLE] = (
+                diagnostic or "beads: hidden clone is unavailable"
+            )
+        else:
+            hidden_beads_dir = hidden_dir
+
     plans_dir = hidden_dirs.get("plans", store.sdd_dir)
     document_role_set = frozenset(document_roles)
     sidecar_dirs = {
         **{
             role: root
             for role, root in store.sidecar_dirs.items()
-            if role not in document_role_set
+            if role not in document_role_set and role != BEADS_SIDECAR_ROLE
         },
         **{role: root for role, root in hidden_dirs.items() if role != "plans"},
     }
     sidecar_remote_urls: dict[str, str] = {
         role: remote_url
         for role, remote_url in store.sidecar_remote_urls.items()
-        if role not in document_role_set
+        if role not in document_role_set and role != BEADS_SIDECAR_ROLE
     }
     for role in hidden_dirs:
         if role == "plans":
@@ -150,12 +169,17 @@ def _hidden_document_store(
         remote_url = store.remote_url_for_kind(role)
         if remote_url is not None:
             sidecar_remote_urls[role] = remote_url
+    if hidden_beads_dir is not None and beads_remote_url is not None:
+        sidecar_dirs[BEADS_SIDECAR_ROLE] = hidden_beads_dir
+        sidecar_remote_urls[BEADS_SIDECAR_ROLE] = beads_remote_url
     return replace(
         store,
         sdd_dir=plans_dir,
         repo_root=plans_dir,
         sidecar_dirs=sidecar_dirs,
         sidecar_remote_urls=sidecar_remote_urls,
+        beads_dir=hidden_beads_dir or store.beads_dir,
+        beads_remote_url=beads_remote_url,
         unresolved_sidecars=unresolved_sidecars,
     )
 

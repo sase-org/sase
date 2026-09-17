@@ -19,10 +19,20 @@ import pytest
 import sase._sidecar_auto_sync as sidecar_auto_sync
 from sase._linked_repo_config import _SIDECAR_REMOTE_URL_KEY, _SIDECAR_ROLE_KEY
 from sase._sidecar_auto_sync import auto_sync_roles, sync_primary_sidecar_role
+from sase.bead.model import IssueType
+from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
 from sase.linked_repos import hidden_sidecar_clone_dir
 from sase.sdd._artifact_link_commit import commit_artifact_link_indexes
 from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
 from sase.sdd._artifact_link_store_support import sidecar_index_path
+from sase.sdd.artifact_link_event_publisher import (
+    artifact_link_derived_producer_id,
+    artifact_link_machine_run_id,
+)
+from sase.sdd.artifact_link_outbox import (
+    append_artifact_link_outbox_entry,
+    drain_artifact_link_outbox,
+)
 from sase.sdd.artifact_link_store import resolve_machine_artifact_link_store
 from sase.sdd.store import write_sdd_store_record
 from tests.sdd_store._helpers import clone, commit_all, git, init_bare_repo
@@ -59,6 +69,21 @@ def _seeded_role_remote(tmp_path: Path, role: str) -> Path:
     commit_all(seed, "seed")
     git(["push", "-u", "origin", "main"], seed)
     return remote
+
+
+def _seeded_beads_remote(tmp_path: Path) -> tuple[Path, str]:
+    """Seed a bare beads remote with one plan bead."""
+
+    remote = tmp_path / "beads.git"
+    seed = tmp_path / "beads-seed"
+    init_bare_repo(remote)
+    clone(remote, seed)
+    with BeadProject.init(seed, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+        issue = project.create("Linked plan", IssueType.PLAN)
+        issue_id = issue.id
+    commit_all(seed, "seed beads")
+    git(["push", "-u", "origin", "main"], seed)
+    return remote, issue_id
 
 
 def _write_link_index(
@@ -117,7 +142,7 @@ class TestHiddenCloneWritesConvergeToPrimaryViaAutoSync:
         write_sdd_store_record(
             primary,
             {
-                "schema_version": 2,
+                "schema_version": 3,
                 "storage": "sidecar_repos",
                 "provider": "github",
                 "sidecars": {
@@ -218,3 +243,103 @@ class TestHiddenCloneWritesConvergeToPrimaryViaAutoSync:
         roles = auto_sync_roles(str(primary))
         assert "plans" in roles
         assert "research" in roles
+
+    def test_derived_plan_bead_link_commits_hidden_beads_without_dirtying_primary(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+
+        plans_remote = _seeded_role_remote(tmp_path, "plans")
+        beads_remote, bead_id = _seeded_beads_remote(tmp_path)
+        plans_seed = tmp_path / "plans-seed"
+        linked_plan = plans_seed / "202609" / "linked.md"
+        linked_plan.parent.mkdir(parents=True)
+        linked_plan.write_text(
+            "---\ntier: tale\nbead_id: " + bead_id + "\n---\n\nbody\n",
+            encoding="utf-8",
+        )
+        commit_all(plans_seed, "seed linked plan")
+        git(["push"], plans_seed)
+
+        primary = tmp_path / "primary"
+        primary.mkdir()
+        write_sdd_store_record(
+            primary,
+            {
+                "schema_version": 3,
+                "storage": "sidecar_repos",
+                "provider": "github",
+                "sidecars": {
+                    "plans": {
+                        "repo": "acme/widget--plans",
+                        "remote_url": str(plans_remote),
+                    },
+                    "beads": {
+                        "repo": "acme/widget--beads",
+                        "remote_url": str(beads_remote),
+                    },
+                },
+            },
+        )
+        primary_plans = primary / "sase" / "repos" / "plans"
+        primary_beads = primary / "sase" / "repos" / "beads"
+        clone(plans_remote, primary_plans)
+        clone(beads_remote, primary_beads)
+        primary_beads_head = git(["rev-parse", "HEAD"], primary_beads).stdout.strip()
+        assert git(["status", "--short"], primary_beads).stdout == ""
+
+        monkeypatch.setattr(
+            "sase.bead.workspace.resolve_primary_workspace_for_project",
+            lambda key: primary if key == _PROJECT_KEY else None,
+        )
+
+        hidden_store = resolve_machine_artifact_link_store(_PROJECT_KEY, primary)
+        hidden_beads = hidden_store.beads_dir
+        assert hidden_beads == Path(hidden_sidecar_clone_dir(_PROJECT_KEY, "beads"))
+        assert hidden_beads != primary_beads
+        assert hidden_beads is not None
+
+        producer = artifact_link_derived_producer_id()
+        append_artifact_link_outbox_entry(
+            project_key=_PROJECT_KEY,
+            agent_name=producer,
+            run_id=artifact_link_machine_run_id(),
+            row={
+                "schema_version": 2,
+                "source_ref": "plan:202609/linked.md",
+                "relation": "implements",
+                "target_ref": f"bead:{bead_id}",
+                "description": ("derived from the plan's `bead_id:` frontmatter field"),
+                "origin": "derived",
+                "created_by": producer,
+                "created_at": "1970-01-01T00:00:00Z",
+                "uses": 1,
+            },
+        )
+
+        report = drain_artifact_link_outbox(
+            store=hidden_store,
+            agent_name=producer,
+            drop_stale_terminal=False,
+            push_after_commit=True,
+        )
+
+        assert report.drained == 1
+        assert report.publication_error is None
+        assert report.skip_diagnostics == ()
+        assert git(["status", "--short"], hidden_beads).stdout == ""
+        hidden_beads_head = git(["rev-parse", "HEAD"], hidden_beads).stdout.strip()
+        assert hidden_beads_head != primary_beads_head
+        remote_head = git(["ls-remote", str(beads_remote), "main"], tmp_path).stdout
+        assert hidden_beads_head in remote_head
+
+        with BeadProject(hidden_beads, beads_dirname=BEADS_DIRNAME_ROOT) as project:
+            linked = project.show(bead_id)
+        assert {
+            (link.target_ref, link.relation, link.direction) for link in linked.links
+        } == {("plan:202609/linked.md", "implements", "in")}
+
+        assert git(["rev-parse", "HEAD"], primary_beads).stdout.strip() == (
+            primary_beads_head
+        )
+        assert git(["status", "--short"], primary_beads).stdout == ""

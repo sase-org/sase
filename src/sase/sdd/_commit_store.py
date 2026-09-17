@@ -22,6 +22,7 @@ from sase.sdd._repository_transaction import (
     require_sdd_repository_health,
 )
 from sase.sdd._store_types import (
+    BEADS_SIDECAR_ROLE,
     SDD_STORAGE_SIDECAR_REPOS,
     SDD_STORAGE_SEPARATE_REPO,
 )
@@ -280,6 +281,8 @@ def sdd_commit_targets(
     )
     target_specs: list[tuple[Path, SddStore]] = [(plans_root, plans_store)]
     for role in store.sidecar_dirs:
+        if role == BEADS_SIDECAR_ROLE:
+            continue
         role_root = store.kind_root(role)
         target_specs.append(
             (

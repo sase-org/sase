@@ -21,7 +21,7 @@ from sase.sdd._artifact_link_outbox_types import (
     ArtifactLinkOutboxEntry as _ArtifactLinkOutboxEntry,
     sidecar_refs as _sidecar_refs,
 )
-from sase.sdd._artifact_link_store_support import kind_of_ref
+from sase.sdd._artifact_link_store_support import BEAD_KIND, kind_of_ref
 from sase.sdd.artifact_link_event_publisher import (
     artifact_link_alias_producer_id,
     artifact_link_derived_producer_id,
@@ -189,10 +189,7 @@ def _partition_machine_writable_entries(
     probes: dict[Path, MachineSidecarWritability] = {}
     for entry in entries:
         blocked = False
-        for ref in _sidecar_refs(entry):
-            root = store.sidecar_root_for(ref)
-            if root is None:
-                continue
+        for kind, root in _machine_writable_roots_for_entry(store, entry):
             resolved = root.expanduser().resolve(strict=False)
             probe = probes.get(resolved)
             if probe is None:
@@ -201,7 +198,7 @@ def _partition_machine_writable_entries(
                 if not probe.writable:
                     diagnostics.append(
                         sidecar_root_not_machine_writable_message(
-                            kind_of_ref(ref),
+                            kind,
                             resolved,
                             diagnostic=probe.diagnostic or "not machine-writable",
                         )
@@ -213,6 +210,28 @@ def _partition_machine_writable_entries(
         else:
             writable_entries.append(entry)
     return writable_entries, unauthorized, tuple(dict.fromkeys(diagnostics))
+
+
+def _machine_writable_roots_for_entry(
+    store: ArtifactLinkStore,
+    entry: _ArtifactLinkOutboxEntry,
+) -> tuple[tuple[str, Path], ...]:
+    roots: list[tuple[str, Path]] = []
+    seen: set[tuple[str, Path]] = set()
+    for ref in _sidecar_refs(entry):
+        if not ref:
+            continue
+        kind = kind_of_ref(ref)
+        root = store.beads_dir if kind == BEAD_KIND else store.sidecar_root_for(ref)
+        if root is None:
+            continue
+        resolved = root.expanduser().resolve(strict=False)
+        key = (kind, resolved)
+        if key in seen:
+            continue
+        seen.add(key)
+        roots.append((kind, root))
+    return tuple(roots)
 
 
 def _partition_event_drainable(

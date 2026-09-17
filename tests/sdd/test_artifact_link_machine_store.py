@@ -30,7 +30,7 @@ def _sidecar_repos_primary(
     write_sdd_store_record(
         primary,
         {
-            "schema_version": 2,
+            "schema_version": 3 if "beads" in roles else 2,
             "storage": "sidecar_repos",
             "provider": "github",
             "sidecars": {
@@ -77,7 +77,7 @@ class TestHiddenStorePathMapping:
         )
         assert store.sidecar_roots["plan"] != primary / "sase" / "repos" / "plans"
 
-    def test_beads_and_agents_stay_at_existing_read_context_roots(
+    def test_beads_resolve_to_hidden_clone_while_agents_stay_hidden(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
@@ -112,9 +112,6 @@ class TestHiddenStorePathMapping:
                 },
             },
         )
-        # Beads is only ever read context for the machine store, so it is
-        # never materialized by resolve_machine_artifact_link_store itself;
-        # a real project would already have it cloned here beforehand.
         clone(beads_remote, primary / "sase" / "repos" / "beads")
 
         store = resolve_machine_artifact_link_store("acme_widget", primary)
@@ -127,8 +124,13 @@ class TestHiddenStorePathMapping:
         assert store.sdd_store.sidecar_dirs["agents"] == Path(
             hidden_sidecar_clone_dir("acme_widget", "agents")
         )
-        # beads is left at its existing (primary-anchored) read-context root.
-        assert store.beads_dir == primary / "sase" / "repos" / "beads"
+        hidden_beads = Path(hidden_sidecar_clone_dir("acme_widget", "beads"))
+        assert store.beads_dir == hidden_beads
+        assert store.beads_dir != primary / "sase" / "repos" / "beads"
+        assert store.sdd_store.beads_dir == hidden_beads
+        assert store.sdd_store.sidecar_dirs["beads"] == hidden_beads
+        assert store.sdd_store.sidecar_remote_urls["beads"] == str(beads_remote)
+        assert (hidden_beads / ".git").is_dir()
 
 
 class TestMaterializationAndIntegration:
@@ -376,6 +378,38 @@ class TestMaterializationAndIntegration:
         assert "unpublished commits" in store.sdd_store.unresolved_sidecars["research"]
         assert git(["rev-parse", "HEAD"], hidden_research).stdout.strip() == (
             unpublished_head
+        )
+
+    def test_machine_store_resolution_keeps_primary_beads_when_hidden_clone_fails(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+        plans_remote = _seeded_remote(tmp_path, "plans")
+        beads_remote = _seeded_remote(tmp_path, "beads")
+        primary = _sidecar_repos_primary(
+            tmp_path, roles={"plans": plans_remote, "beads": beads_remote}
+        )
+        primary_beads = primary / "sase" / "repos" / "beads"
+        clone(beads_remote, primary_beads)
+        import sase.sdd._store_link as store_link_mod
+
+        original = store_link_mod.ensure_sidecar_sdd_clone
+
+        def _fail_beads(clone_dir: Path, remote_url: str, **kwargs: Any) -> None:
+            if clone_dir.name == "beads":
+                raise RuntimeError("network unavailable")
+            original(clone_dir, remote_url, **kwargs)
+
+        monkeypatch.setattr(store_link_mod, "ensure_sidecar_sdd_clone", _fail_beads)
+
+        store = resolve_machine_artifact_link_store("acme_widget", primary)
+
+        assert store.beads_dir == primary_beads
+        assert store.sdd_store is not None
+        assert store.sdd_store.beads_dir == primary_beads
+        assert (
+            "beads: hidden clone unavailable"
+            in (store.sdd_store.unresolved_sidecars["beads"])
         )
 
 
