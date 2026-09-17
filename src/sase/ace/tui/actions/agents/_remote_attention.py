@@ -44,6 +44,10 @@ class _FleetAttentionInventoryPollResult:
     polls: int = 0
     cache_polls: int = 0
     network_polls: int = 0
+    duration_ms: float = 0.0
+    modes: tuple[str, ...] = ()
+    outcome: str = "unchanged"
+    coalesced_requests: int = 0
     skipped: bool = False
     error: bool = False
 
@@ -106,25 +110,167 @@ class RemoteAttentionMixin:
         """Launch a non-cache inventory recompute outside the auto-refresh tick."""
         if not self._fleet_attention_inventory_network_due():
             return False
-        if getattr(self, "_fleet_attention_inventory_refresh_running", False):
-            self._fleet_attention_inventory_refresh_pending = True  # type: ignore[attr-defined]
+        return self._schedule_fleet_attention_inventory_refresh(
+            source=source,
+            cache_only=False,
+        )
+
+    def _schedule_fleet_attention_inventory_cache_refresh(
+        self,
+        *,
+        source: str,
+    ) -> bool:
+        """Launch a cache-only inventory refresh outside the auto-refresh tick."""
+        return self._schedule_fleet_attention_inventory_refresh(
+            source=source,
+            cache_only=True,
+        )
+
+    def _schedule_fleet_attention_inventory_refresh(
+        self,
+        *,
+        source: str,
+        cache_only: bool,
+    ) -> bool:
+        """Reserve and launch one coalesced inventory poll."""
+        if getattr(
+            self, "_fleet_attention_inventory_refresh_running", False
+        ) or getattr(
+            self,
+            "_fleet_attention_inventory_refresh_scheduled",
+            False,
+        ):
+            self._coalesce_fleet_attention_inventory_request(cache_only=cache_only)
             return False
+        self._fleet_attention_inventory_refresh_scheduled = True  # type: ignore[attr-defined]
+        self._fleet_attention_inventory_scheduled_cache_only = cache_only  # type: ignore[attr-defined]
+        self._fleet_attention_inventory_pending_cache_only = None  # type: ignore[attr-defined]
+        self._fleet_attention_inventory_coalesced_requests = 0  # type: ignore[attr-defined]
         task = spawn_pump_free_task(
             self,
-            self._poll_fleet_attention_inventory(
-                source=source,
-                cache_only=False,
-            ),
+            self._run_scheduled_fleet_attention_inventory_poll(source=source),
             name="sase-agents-fleet-attention-inventory",
             registry_attr="_agents_fleet_async_tasks",
         )
+        if task is None:
+            self._fleet_attention_inventory_refresh_scheduled = False  # type: ignore[attr-defined]
+            self._fleet_attention_inventory_scheduled_cache_only = True  # type: ignore[attr-defined]
+            self._fleet_attention_inventory_pending_cache_only = None  # type: ignore[attr-defined]
+            return False
+
+        def _release_if_cancelled(completed: asyncio.Task[object]) -> None:
+            if not completed.cancelled():
+                return
+            self._fleet_attention_inventory_refresh_scheduled = False  # type: ignore[attr-defined]
+            self._fleet_attention_inventory_refresh_running = False  # type: ignore[attr-defined]
+            self._fleet_attention_inventory_running_cache_only = None  # type: ignore[attr-defined]
+            self._fleet_attention_inventory_pending_cache_only = None  # type: ignore[attr-defined]
+
+        task.add_done_callback(_release_if_cancelled)
         return task is not None
+
+    async def _run_scheduled_fleet_attention_inventory_poll(
+        self,
+        *,
+        source: str,
+    ) -> _FleetAttentionInventoryPollResult:
+        """Run the reserved inventory poll using the strongest scheduled mode."""
+        try:
+            return await self._poll_fleet_attention_inventory(
+                source=source,
+                cache_only=bool(
+                    getattr(
+                        self,
+                        "_fleet_attention_inventory_scheduled_cache_only",
+                        True,
+                    )
+                ),
+                _reserved=True,
+            )
+        finally:
+            if not getattr(self, "_fleet_attention_inventory_refresh_running", False):
+                self._fleet_attention_inventory_refresh_scheduled = False  # type: ignore[attr-defined]
+
+    def _coalesce_fleet_attention_inventory_request(
+        self,
+        *,
+        cache_only: bool,
+    ) -> None:
+        """Remember a stronger pending request without stacking poll tasks."""
+        self._fleet_attention_inventory_coalesced_requests = (  # type: ignore[attr-defined]
+            int(getattr(self, "_fleet_attention_inventory_coalesced_requests", 0)) + 1
+        )
+        if cache_only:
+            return
+        if getattr(
+            self, "_fleet_attention_inventory_refresh_scheduled", False
+        ) and not getattr(
+            self,
+            "_fleet_attention_inventory_refresh_running",
+            False,
+        ):
+            self._fleet_attention_inventory_scheduled_cache_only = False  # type: ignore[attr-defined]
+            return
+        if getattr(self, "_fleet_attention_inventory_running_cache_only", None) is True:
+            self._fleet_attention_inventory_pending_cache_only = False  # type: ignore[assignment]
+
+    def _record_fleet_attention_inventory_completion(
+        self,
+        result: _FleetAttentionInventoryPollResult,
+    ) -> None:
+        """Store completed poll counters for the next auto-refresh trace span."""
+        if result.skipped:
+            return
+        counters = dict(
+            getattr(self, "_fleet_attention_inventory_completed_counters", {}) or {}
+        )
+        counters["fleet_attention_poll_batches"] = (
+            int(counters.get("fleet_attention_poll_batches", 0)) + 1
+        )
+        counters["fleet_attention_cache_polls"] = (
+            int(counters.get("fleet_attention_cache_polls", 0)) + result.cache_polls
+        )
+        counters["fleet_attention_network_polls"] = (
+            int(counters.get("fleet_attention_network_polls", 0)) + result.network_polls
+        )
+        counters["fleet_attention_changed"] = int(
+            counters.get("fleet_attention_changed", 0)
+        ) + int(result.changed)
+        counters["fleet_attention_errors"] = int(
+            counters.get("fleet_attention_errors", 0)
+        ) + int(result.error)
+        counters["fleet_attention_duration_ms"] = round(
+            float(counters.get("fleet_attention_duration_ms", 0.0))
+            + result.duration_ms,
+            3,
+        )
+        counters["fleet_attention_coalesced_requests"] = (
+            int(counters.get("fleet_attention_coalesced_requests", 0))
+            + result.coalesced_requests
+        )
+        modes = ",".join(result.modes)
+        if modes:
+            previous_modes = str(counters.get("fleet_attention_modes") or "")
+            counters["fleet_attention_modes"] = (
+                f"{previous_modes};{modes}" if previous_modes else modes
+            )
+        counters["fleet_attention_outcome"] = result.outcome
+        self._fleet_attention_inventory_completed_counters = counters  # type: ignore[attr-defined]
+
+    def _consume_fleet_attention_inventory_completed_counters(self) -> dict[str, Any]:
+        """Return and clear completed inventory poll counters for trace emission."""
+        counters = dict(
+            getattr(self, "_fleet_attention_inventory_completed_counters", {}) or {}
+        )
+        self._fleet_attention_inventory_completed_counters = {}  # type: ignore[attr-defined]
+        return counters
 
     async def _poll_fleet_attention_inventory(
         self,
         *,
         source: str,
         cache_only: bool = False,
+        _reserved: bool = False,
     ) -> _FleetAttentionInventoryPollResult:
         """Reconcile global remote attention into the durable inbox.
 
@@ -134,22 +280,45 @@ class RemoteAttentionMixin:
         federation worker facade.
         """
         del source
-        if getattr(self, "_fleet_attention_inventory_refresh_running", False):
-            self._fleet_attention_inventory_refresh_pending = True  # type: ignore[attr-defined]
+        if getattr(self, "_fleet_attention_inventory_refresh_running", False) or (
+            getattr(self, "_fleet_attention_inventory_refresh_scheduled", False)
+            and not _reserved
+        ):
+            self._coalesce_fleet_attention_inventory_request(cache_only=cache_only)
             return _FleetAttentionInventoryPollResult(
                 skipped=True,
                 cache_polls=1 if cache_only else 0,
                 network_polls=0 if cache_only else 1,
+                modes=("cache" if cache_only else "network",),
+                outcome="skipped",
             )
+        if _reserved:
+            cache_only = bool(
+                getattr(
+                    self,
+                    "_fleet_attention_inventory_scheduled_cache_only",
+                    cache_only,
+                )
+            )
+        else:
+            self._fleet_attention_inventory_coalesced_requests = 0  # type: ignore[attr-defined]
+            self._fleet_attention_inventory_pending_cache_only = None  # type: ignore[attr-defined]
+        self._fleet_attention_inventory_refresh_scheduled = False  # type: ignore[attr-defined]
         self._fleet_attention_inventory_refresh_running = True  # type: ignore[attr-defined]
+        self._fleet_attention_inventory_running_cache_only = cache_only  # type: ignore[assignment]
         saw_change = False
         polls = 0
         cache_polls = 0
         network_polls = 0
         saw_error = False
+        cancelled = False
+        modes: list[str] = []
+        started = time.perf_counter()
         try:
             while True:
-                self._fleet_attention_inventory_refresh_pending = False  # type: ignore[attr-defined]
+                self._fleet_attention_inventory_pending_cache_only = None  # type: ignore[attr-defined]
+                self._fleet_attention_inventory_running_cache_only = cache_only  # type: ignore[assignment]
+                modes.append("cache" if cache_only else "network")
                 polls += 1
                 if cache_only:
                     cache_polls += 1
@@ -163,7 +332,7 @@ class RemoteAttentionMixin:
                         fetch_remote_attention_inventory,
                         cache_only=cache_only,
                     )
-                    outcome = await asyncio.to_thread(
+                    reconcile_outcome = await asyncio.to_thread(
                         reconcile_remote_attention_inbox,
                         response,
                     )
@@ -173,7 +342,7 @@ class RemoteAttentionMixin:
                     log.debug("remote attention inventory poll failed", exc_info=True)
                     break
                 self._fleet_attention_inventory_last_error = None  # type: ignore[assignment,attr-defined]
-                if outcome.changed:
+                if reconcile_outcome.changed:
                     saw_change = True
                     self._dirty_notifications = True  # type: ignore[attr-defined]
                     schedule = getattr(
@@ -181,19 +350,43 @@ class RemoteAttentionMixin:
                     )
                     if callable(schedule):
                         schedule()
-                if not getattr(
-                    self, "_fleet_attention_inventory_refresh_pending", False
-                ):
+                pending_cache_only = getattr(
+                    self,
+                    "_fleet_attention_inventory_pending_cache_only",
+                    None,
+                )
+                if pending_cache_only is None:
                     break
+                cache_only = bool(pending_cache_only)
+        except asyncio.CancelledError:
+            cancelled = True
+            raise
         finally:
             self._fleet_attention_inventory_refresh_running = False  # type: ignore[attr-defined]
-        return _FleetAttentionInventoryPollResult(
+            self._fleet_attention_inventory_running_cache_only = None  # type: ignore[attr-defined]
+            self._fleet_attention_inventory_pending_cache_only = None  # type: ignore[attr-defined]
+            self._fleet_attention_inventory_refresh_scheduled = False  # type: ignore[attr-defined]
+            if cancelled:
+                self._fleet_attention_inventory_coalesced_requests = 0  # type: ignore[attr-defined]
+        result_outcome = (
+            "error" if saw_error else "changed" if saw_change else "unchanged"
+        )
+        result = _FleetAttentionInventoryPollResult(
             changed=saw_change,
             polls=polls,
             cache_polls=cache_polls,
             network_polls=network_polls,
+            duration_ms=round((time.perf_counter() - started) * 1000.0, 3),
+            modes=tuple(modes),
+            outcome=result_outcome,
+            coalesced_requests=int(
+                getattr(self, "_fleet_attention_inventory_coalesced_requests", 0)
+            ),
             error=saw_error,
         )
+        self._fleet_attention_inventory_coalesced_requests = 0  # type: ignore[attr-defined]
+        self._record_fleet_attention_inventory_completion(result)
+        return result
 
     def _announce_remote_attention(self, projection: FleetRowsProjection) -> None:
         pending = _pending_attention_rows(projection)

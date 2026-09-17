@@ -198,8 +198,10 @@ async def test_watcher_active_dirty_notifications_polls_completions() -> None:
 
 
 @pytest.mark.asyncio
-async def test_remote_attention_inventory_change_polls_notifications_off_tab() -> None:
-    """Global remote decisions update the badge without entering Agents."""
+async def test_remote_attention_inventory_change_schedules_notifications_off_tab() -> (
+    None
+):
+    """Global remote decisions update the badge without blocking the local tick."""
     app = _FakeApp(watcher_active=True)
     app.current_tab = "artifacts"
     cache_only_values: list[bool] = []
@@ -213,9 +215,44 @@ async def test_remote_attention_inventory_change_polls_notifications_off_tab() -
 
     await app._run_auto_refresh()
 
-    assert app.refresh_calls == ["attention:auto_refresh", "notifications"]
+    assert app.refresh_calls == []
+    assert cache_only_values == []
+    await asyncio.gather(*tuple(app._pump_free_async_tasks))
+    assert app.refresh_calls == ["attention:auto_refresh"]
     assert cache_only_values == [True]
+    assert app._dirty_notifications is True
+
+    await app._run_auto_refresh()
+
+    assert app.refresh_calls == ["attention:auto_refresh", "notifications"]
     assert app._dirty_notifications is False
+
+
+@pytest.mark.asyncio
+async def test_blocked_attention_cache_poll_does_not_delay_agents_refresh() -> None:
+    """A blocked attention cache poll cannot hold the Agents local surface hostage."""
+    app = _FakeApp(watcher_active=True)
+    app._dirty_agents = True
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def poll_attention_inventory(*, source: str, cache_only: bool) -> bool:
+        del source
+        assert cache_only is True
+        entered.set()
+        await release.wait()
+        return False
+
+    app._poll_fleet_attention_inventory = poll_attention_inventory  # type: ignore[attr-defined]
+
+    await app._run_auto_refresh()
+    await entered.wait()
+
+    assert app.refresh_calls == ["agents"]
+    assert app._dirty_agents is False
+
+    release.set()
+    await asyncio.gather(*tuple(app._pump_free_async_tasks))
 
 
 @pytest.mark.asyncio

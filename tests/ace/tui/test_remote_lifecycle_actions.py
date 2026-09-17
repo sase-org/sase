@@ -314,7 +314,13 @@ class _AttentionHarness(RemoteAttentionMixin):
         self.screens: list[tuple[object, object]] = []
         self.notifications: list[str] = []
         self._fleet_attention_inventory_refresh_running = False
+        self._fleet_attention_inventory_refresh_scheduled = False
         self._fleet_attention_inventory_refresh_pending = False
+        self._fleet_attention_inventory_pending_cache_only = None
+        self._fleet_attention_inventory_running_cache_only = None
+        self._fleet_attention_inventory_scheduled_cache_only = True
+        self._fleet_attention_inventory_coalesced_requests = 0
+        self._fleet_attention_inventory_completed_counters = {}
         self._fleet_attention_inventory_last_error = None
         self._dirty_notifications = False
         self.notification_snapshot_refreshes = 0
@@ -455,6 +461,131 @@ async def test_attention_inventory_poll_can_read_cache_only(
     assert result.cache_polls == 1
     assert result.network_polls == 0
     assert cache_only_values == [True]
+
+
+@pytest.mark.asyncio
+async def test_attention_inventory_network_request_survives_cache_poll(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.actions.agents import _remote_attention as remote_attention
+
+    harness = _AttentionHarness(_remote_agent())
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    cache_only_values: list[bool] = []
+
+    async def _to_thread(fn: object, *args: object, **kwargs: object) -> object:
+        if fn is remote_attention.fetch_remote_attention_inventory:
+            cache_only = bool(kwargs["cache_only"])
+            cache_only_values.append(cache_only)
+            if len(cache_only_values) == 1:
+                entered.set()
+                await release.wait()
+            return {"schema_version": 1, "hosts": []}
+        return SimpleNamespace(changed=False)
+
+    monkeypatch.setattr(remote_attention.asyncio, "to_thread", _to_thread)
+
+    cached = asyncio.create_task(
+        harness._poll_fleet_attention_inventory(
+            source="auto_refresh",
+            cache_only=True,
+        )
+    )
+    await entered.wait()
+
+    followup = await harness._poll_fleet_attention_inventory(
+        source="remote_attention",
+        cache_only=False,
+    )
+    release.set()
+    result = await cached
+
+    assert followup.skipped is True
+    assert cache_only_values == [True, False]
+    assert result.cache_polls == 1
+    assert result.network_polls == 1
+    assert result.modes == ("cache", "network")
+    assert result.coalesced_requests == 1
+
+
+@pytest.mark.asyncio
+async def test_attention_inventory_cache_request_does_not_trail_network_poll(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.actions.agents import _remote_attention as remote_attention
+
+    harness = _AttentionHarness(_remote_agent())
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    cache_only_values: list[bool] = []
+
+    async def _to_thread(fn: object, *args: object, **kwargs: object) -> object:
+        if fn is remote_attention.fetch_remote_attention_inventory:
+            cache_only_values.append(bool(kwargs["cache_only"]))
+            entered.set()
+            await release.wait()
+            return {"schema_version": 1, "hosts": []}
+        return SimpleNamespace(changed=False)
+
+    monkeypatch.setattr(remote_attention.asyncio, "to_thread", _to_thread)
+
+    network = asyncio.create_task(
+        harness._poll_fleet_attention_inventory(
+            source="remote_attention",
+            cache_only=False,
+        )
+    )
+    await entered.wait()
+
+    followup = await harness._poll_fleet_attention_inventory(
+        source="auto_refresh",
+        cache_only=True,
+    )
+    release.set()
+    result = await network
+
+    assert followup.skipped is True
+    assert cache_only_values == [False]
+    assert result.cache_polls == 0
+    assert result.network_polls == 1
+    assert result.modes == ("network",)
+    assert result.coalesced_requests == 1
+
+
+@pytest.mark.asyncio
+async def test_attention_inventory_cancel_releases_coalescing_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.actions.agents import _remote_attention as remote_attention
+
+    harness = _AttentionHarness(_remote_agent())
+    entered = asyncio.Event()
+
+    async def _to_thread(fn: object, *args: object, **kwargs: object) -> object:
+        if fn is remote_attention.fetch_remote_attention_inventory:
+            entered.set()
+            await asyncio.Event().wait()
+        return SimpleNamespace(changed=False)
+
+    monkeypatch.setattr(remote_attention.asyncio, "to_thread", _to_thread)
+
+    task = asyncio.create_task(
+        harness._poll_fleet_attention_inventory(
+            source="auto_refresh",
+            cache_only=True,
+        )
+    )
+    await entered.wait()
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    assert harness._fleet_attention_inventory_refresh_running is False
+    assert harness._fleet_attention_inventory_refresh_scheduled is False
+    assert harness._fleet_attention_inventory_pending_cache_only is None
+    assert harness._fleet_attention_inventory_running_cache_only is None
+    assert harness._fleet_attention_inventory_coalesced_requests == 0
 
 
 def test_attention_inventory_network_due_respects_cadence() -> None:

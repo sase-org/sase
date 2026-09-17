@@ -57,7 +57,13 @@ def init_agent_state(self: Any) -> None:
     self._agents_fleet_available = False
     self._agents_fleet_last_error = None
     self._fleet_attention_inventory_refresh_running = False
+    self._fleet_attention_inventory_refresh_scheduled = False
     self._fleet_attention_inventory_refresh_pending = False
+    self._fleet_attention_inventory_pending_cache_only = None
+    self._fleet_attention_inventory_running_cache_only = None
+    self._fleet_attention_inventory_scheduled_cache_only = True
+    self._fleet_attention_inventory_coalesced_requests = 0
+    self._fleet_attention_inventory_completed_counters = {}
     self._fleet_attention_inventory_last_error = None
     self._fleet_attention_inventory_last_network_mono = 0.0
     self._fleet_attention_inventory_network_refresh_seconds = (

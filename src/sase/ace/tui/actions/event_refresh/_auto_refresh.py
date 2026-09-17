@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 from typing import Any
 
@@ -28,6 +29,8 @@ from ._surface_tokens import (
     surface_token_drifted,
 )
 from ._watcher import EventWatcherRefreshMixin
+
+log = logging.getLogger(__name__)
 
 
 class EventAutoRefreshMixin(EventWatcherRefreshMixin):
@@ -148,6 +151,135 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
             tokens = self._last_completed_surface_tokens
         tokens[surface] = token
 
+    def _fallback_record_attention_inventory_completion(
+        self,
+        *,
+        result: Any,
+        cache_only: bool,
+        duration_ms: float,
+        error: bool,
+    ) -> None:
+        """Record completion counters when only a bare poll function exists."""
+        record_completion = getattr(
+            self,
+            "_record_fleet_attention_inventory_completion",
+            None,
+        )
+        if callable(record_completion):
+            return
+        counters = dict(
+            getattr(self, "_fleet_attention_inventory_completed_counters", {}) or {}
+        )
+        counters["fleet_attention_poll_batches"] = (
+            int(counters.get("fleet_attention_poll_batches", 0)) + 1
+        )
+        cache_polls = getattr(result, "cache_polls", None)
+        network_polls = getattr(result, "network_polls", None)
+        counters["fleet_attention_cache_polls"] = int(
+            counters.get("fleet_attention_cache_polls", 0)
+        ) + (
+            cache_polls
+            if isinstance(cache_polls, int) and not isinstance(cache_polls, bool)
+            else int(cache_only)
+        )
+        counters["fleet_attention_network_polls"] = int(
+            counters.get("fleet_attention_network_polls", 0)
+        ) + (
+            network_polls
+            if isinstance(network_polls, int) and not isinstance(network_polls, bool)
+            else int(not cache_only)
+        )
+        changed = bool(result)
+        result_error = bool(getattr(result, "error", False)) or error
+        counters["fleet_attention_changed"] = int(
+            counters.get("fleet_attention_changed", 0)
+        ) + int(changed)
+        counters["fleet_attention_errors"] = int(
+            counters.get("fleet_attention_errors", 0)
+        ) + int(result_error)
+        counters["fleet_attention_duration_ms"] = round(
+            float(counters.get("fleet_attention_duration_ms", 0.0)) + duration_ms,
+            3,
+        )
+        counters["fleet_attention_modes"] = "cache" if cache_only else "network"
+        counters["fleet_attention_outcome"] = (
+            "error" if result_error else "changed" if changed else "unchanged"
+        )
+        self._fleet_attention_inventory_completed_counters = counters  # type: ignore[attr-defined]
+
+    async def _run_fallback_attention_inventory_poll(
+        self,
+        poll_attention_inventory: Any,
+        *,
+        source: str,
+        cache_only: bool,
+    ) -> None:
+        """Run a test-double/bare attention poll without blocking the tick."""
+        self._fleet_attention_inventory_refresh_scheduled = False  # type: ignore[attr-defined]
+        self._fleet_attention_inventory_refresh_running = True  # type: ignore[attr-defined]
+        started = time.perf_counter()
+        result: Any = None
+        error = False
+        try:
+            kwargs: dict[str, Any] = {}
+            if callable_accepts_kwarg(poll_attention_inventory, "source"):
+                kwargs["source"] = source
+            if callable_accepts_kwarg(poll_attention_inventory, "cache_only"):
+                kwargs["cache_only"] = cache_only
+            result = await poll_attention_inventory(**kwargs)
+        except asyncio.CancelledError:
+            raise
+        except Exception:  # noqa: BLE001 - fallback polling must not kill refresh.
+            error = True
+            log.debug("remote attention inventory fallback poll failed", exc_info=True)
+        finally:
+            duration_ms = round((time.perf_counter() - started) * 1000.0, 3)
+            self._fleet_attention_inventory_refresh_running = False  # type: ignore[attr-defined]
+            self._fleet_attention_inventory_refresh_scheduled = False  # type: ignore[attr-defined]
+        if bool(result):
+            self._dirty_notifications = True
+            schedule = getattr(self, "_schedule_notification_snapshot_refresh", None)
+            if callable(schedule):
+                schedule()
+        self._fallback_record_attention_inventory_completion(
+            result=result,
+            cache_only=cache_only,
+            duration_ms=duration_ms,
+            error=error,
+        )
+
+    def _schedule_fallback_attention_inventory_poll(
+        self,
+        poll_attention_inventory: Any,
+        *,
+        source: str,
+        cache_only: bool,
+    ) -> bool:
+        """Schedule a bare attention poll function for narrow test doubles."""
+        if getattr(
+            self, "_fleet_attention_inventory_refresh_running", False
+        ) or getattr(
+            self,
+            "_fleet_attention_inventory_refresh_scheduled",
+            False,
+        ):
+            return False
+        self._fleet_attention_inventory_refresh_scheduled = True  # type: ignore[attr-defined]
+        task = spawn_pump_free_task(
+            self,
+            self._run_fallback_attention_inventory_poll(
+                poll_attention_inventory,
+                source=source,
+                cache_only=cache_only,
+            ),
+            name="sase-agents-fleet-attention-inventory",
+            registry_attr="_pump_free_async_tasks",
+        )
+        if task is None:
+            self._fleet_attention_inventory_refresh_scheduled = False  # type: ignore[attr-defined]
+            return False
+        return True
+
     def _surface_token_drifted(
         self,
         snapshot: SurfaceTokenSnapshot | None,
@@ -172,10 +304,32 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
             "fleet_attention_network_polls": 0,
             "fleet_attention_network_due": 0,
             "fleet_attention_network_scheduled": 0,
+            "fleet_attention_cache_scheduled": 0,
             "fleet_attention_skipped": 0,
             "fleet_attention_changed": 0,
             "fleet_attention_errors": 0,
+            "fleet_attention_duration_ms": 0.0,
+            "fleet_attention_coalesced_requests": 0,
+            "fleet_attention_poll_batches": 0,
+            "fleet_attention_modes": "",
+            "fleet_attention_outcome": "",
         }
+        completed_attention_counters = getattr(
+            self,
+            "_consume_fleet_attention_inventory_completed_counters",
+            None,
+        )
+        if callable(completed_attention_counters):
+            attention_counters.update(completed_attention_counters())
+        else:
+            counters = getattr(
+                self,
+                "_fleet_attention_inventory_completed_counters",
+                None,
+            )
+            if isinstance(counters, dict):
+                attention_counters.update(counters)
+                self._fleet_attention_inventory_completed_counters = {}  # type: ignore[attr-defined]
         with tui_trace("refresh.auto_tick") as extra:
             try:
                 axe_file_opens = await self._run_auto_refresh_surfaces(
@@ -242,6 +396,41 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
                         False,
                     ):
                         attention_counters["fleet_attention_skipped"] += 1
+        if not attention_network_scheduled:
+            attention_cache_scheduled = False
+            schedule_attention_cache = getattr(
+                self,
+                "_schedule_fleet_attention_inventory_cache_refresh",
+                None,
+            )
+            if callable(schedule_attention_cache):
+                attention_cache_scheduled = bool(
+                    schedule_attention_cache(source="auto_refresh")
+                )
+            else:
+                poll_attention_inventory = getattr(
+                    self,
+                    "_poll_fleet_attention_inventory",
+                    None,
+                )
+                if callable(poll_attention_inventory):
+                    attention_cache_scheduled = (
+                        self._schedule_fallback_attention_inventory_poll(
+                            poll_attention_inventory,
+                            source="auto_refresh",
+                            cache_only=True,
+                        )
+                    )
+            if attention_counters is not None:
+                attention_counters["fleet_attention_cache_scheduled"] = int(
+                    attention_cache_scheduled
+                )
+                if not attention_cache_scheduled and getattr(
+                    self,
+                    "_fleet_attention_inventory_refresh_running",
+                    False,
+                ):
+                    attention_counters["fleet_attention_skipped"] += 1
 
         def _should_refresh(flag_name: str, surface: str) -> bool:
             if sanity_due:
@@ -345,44 +534,6 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         # the dirty flag or the sanity-refresh window to elapse.
         new_agent_notification = False
         remote_attention_changed = False
-        poll_attention_inventory = getattr(
-            self, "_poll_fleet_attention_inventory", None
-        )
-        if (
-            callable(poll_attention_inventory)
-            and not attention_network_scheduled
-            and not getattr(self, "_fleet_attention_inventory_refresh_running", False)
-        ):
-            attention_kwargs: dict[str, Any] = {"source": "auto_refresh"}
-            cache_poll_requested = False
-            if callable_accepts_kwarg(poll_attention_inventory, "cache_only"):
-                attention_kwargs["cache_only"] = True
-                cache_poll_requested = True
-            result = await poll_attention_inventory(**attention_kwargs)
-            remote_attention_changed = bool(result)
-            if attention_counters is not None:
-                cache_polls = getattr(result, "cache_polls", None)
-                network_polls = getattr(result, "network_polls", None)
-                skipped = getattr(result, "skipped", None)
-                error = getattr(result, "error", None)
-                if isinstance(cache_polls, int) and not isinstance(cache_polls, bool):
-                    attention_counters["fleet_attention_cache_polls"] += cache_polls
-                elif cache_poll_requested:
-                    attention_counters["fleet_attention_cache_polls"] += 1
-                if isinstance(network_polls, int) and not isinstance(
-                    network_polls, bool
-                ):
-                    attention_counters["fleet_attention_network_polls"] += network_polls
-                elif not cache_poll_requested:
-                    attention_counters["fleet_attention_network_polls"] += 1
-                if skipped:
-                    attention_counters["fleet_attention_skipped"] += 1
-                if error:
-                    attention_counters["fleet_attention_errors"] += 1
-                if remote_attention_changed:
-                    attention_counters["fleet_attention_changed"] += 1
-        elif callable(poll_attention_inventory) and attention_counters is not None:
-            attention_counters["fleet_attention_skipped"] += 1
         if remote_attention_changed or _should_refresh(
             "_dirty_notifications", "notifications"
         ):
