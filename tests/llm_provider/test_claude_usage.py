@@ -412,6 +412,10 @@ def test_claude_rate_limit_event_normalizes_partial_windows() -> None:
             "unifiedWindows": {
                 "five_hour": {"utilization": 0.1, "resetsAt": OBSERVED_AT + 1800},
                 "seven_day": {"utilization": 0.25, "resetsAt": OBSERVED_AT + 3600},
+                "seven_day_overage_included": {
+                    "utilization": 0.81,
+                    "resetsAt": OBSERVED_AT + 3600,
+                },
             },
         },
     }
@@ -426,8 +430,17 @@ def test_claude_rate_limit_event_normalizes_partial_windows() -> None:
     assert observation["source"] == "stream_event"
     assert observation["completeness"] == "partial"
     windows = {window["key"]: window for window in observation["windows"]}
+    assert sorted(windows) == ["session", "weekly", "weekly:claude-fable-5"]
     assert windows["session"]["used_percent"] == 10.0
     assert windows["weekly"]["used_percent"] == 25.0
+    assert windows["weekly:claude-fable-5"]["used_percent"] == 81.0
+    assert windows["weekly:claude-fable-5"]["label"] == "Claude weekly Fable"
+    assert windows["weekly:claude-fable-5"]["resets_at"] == OBSERVED_AT + 3600
+    assert windows["weekly:claude-fable-5"]["source"] == "stream_event"
+    assert windows["weekly:claude-fable-5"]["applicability"] == {
+        "kind": "models",
+        "model_ids": ["claude-fable-5"],
+    }
     assert {window["vendor_state"] for window in windows.values()} == {"allowed"}
 
 
