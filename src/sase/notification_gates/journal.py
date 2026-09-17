@@ -36,10 +36,10 @@ EXECUTION_JOURNAL_FILENAME = "journal.jsonl"
 EXECUTION_JOURNAL_SCHEMA_VERSION = 1
 
 #: Lifecycle events, in the sense design decision 2 (bead ``sase-zr.7.1.1``)
-#: uses the term: the attempt-bound records that decide whether an attempt is
-#: still open. ``option_completed``, ``option_failed``, ``stage_started``,
-#: ``stage_completed``, and ``operation_ran`` are not lifecycle events and
-#: never affect that scoping.
+#: uses the term: the ones :func:`current_execution_failure` scans to decide
+#: whether a pre-response failure is still current. ``option_completed``,
+#: ``option_failed``, ``stage_started``, ``stage_completed``, and
+#: ``operation_ran`` are not lifecycle events and never affect that scoping.
 _LIFECYCLE_EVENTS = frozenset(
     {
         "attempt_started",
@@ -321,6 +321,36 @@ def incomplete_attempt(
     )
 
 
+def current_execution_failure(
+    bundle_path: Path,
+    receipt: Mapping[str, Any] | None,
+    *,
+    response_exists: bool,
+) -> ExecutionFailureFacts | None:
+    """Return the current pre-response failure for *receipt*, or ``None``.
+
+    A pre-response failure is current when the last lifecycle event scoped to
+    the receipt's acceptance id is ``attempt_failed``. A later
+    ``attempt_resumed``, ``attempt_completed``, or ``attempt_superseded``
+    clears it. A published response makes any pre-response failure moot.
+    """
+    if response_exists:
+        return None
+    acceptance_id = _receipt_acceptance_id(receipt)
+    last_lifecycle_event: dict[str, Any] | None = None
+    for record in read_journal_records(bundle_path):
+        if record.get("event") not in _LIFECYCLE_EVENTS:
+            continue
+        if _event_acceptance_id(record) != acceptance_id:
+            continue
+        last_lifecycle_event = record
+    if last_lifecycle_event is None:
+        return None
+    if last_lifecycle_event.get("event") != "attempt_failed":
+        return None
+    return ExecutionFailureFacts._from_record(last_lifecycle_event)
+
+
 def current_post_response_failure(
     bundle_path: Path,
     receipt: Mapping[str, Any] | None,
@@ -382,6 +412,7 @@ __all__ = [
     "ExecutionFailureFacts",
     "IncompleteAttempt",
     "append_journal_event",
+    "current_execution_failure",
     "current_post_response_failure",
     "executed_operations",
     "incomplete_attempt",

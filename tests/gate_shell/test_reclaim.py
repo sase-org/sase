@@ -153,6 +153,8 @@ def test_reclaim_summary_to_dict_omits_error_details() -> None:
         "timed_out": 0,
         "lost": 0,
         "accepted_unfinished": 0,
+        "accepted_failed": 0,
+        "accepted_owner_lost": 0,
         "errors": 1,
     }
     assert "error_details" not in payload

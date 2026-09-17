@@ -14,6 +14,7 @@ acceptance boundary those tests already treat as a black box.
 from __future__ import annotations
 
 import json
+import socket
 import threading
 import time
 from pathlib import Path
@@ -24,8 +25,11 @@ import pytest
 from sase.notification_gates.decision import (
     DECISION_RECEIPT_FILENAME,
     accept_gate_decision,
+    receipt_acceptance_id,
 )
+from sase.notification_gates.durability import atomic_write_json
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
+from sase.notification_gates.journal import append_journal_event
 from sase.notification_gates.models import GateError
 from sase.notification_gates.service import create_gate
 from sase.notifications.store import load_notifications
@@ -170,6 +174,106 @@ def test_conflicting_selection_is_rejected_before_any_command_runs(
     assert replay is not None
     assert replay.already_accepted is True
     assert replay.receipt == accepted.receipt
+
+
+def test_conflicting_selection_over_running_attempt_is_rejected(
+    gate_home: Path,
+) -> None:
+    result = create_gate(_two_branch_spec(request_id="live-attempt-conflict"))
+    accepted = accept_gate_decision(result.bundle_path, ["proceed"], {})
+    assert accepted is not None
+    acceptance_id = receipt_acceptance_id(accepted.receipt)
+
+    append_journal_event(
+        result.bundle_path,
+        attempt_id="attempt-live",
+        request_hash=str(accepted.receipt["request_hash"]),
+        event="attempt_started",
+        selected_option_ids=["proceed"],
+        input_digests={"proceed": "digest"},
+        acceptance_id=acceptance_id,
+    )
+
+    with pytest.raises(GateError) as rejected:
+        accept_gate_decision(result.bundle_path, ["audit"], {})
+    assert rejected.value.code == "gate_decision_conflict"
+
+    receipt = json.loads((result.bundle_path / DECISION_RECEIPT_FILENAME).read_text())
+    assert receipt["selected_option_ids"] == ["proceed"]
+
+
+def test_conflicting_selection_supersedes_after_current_failure(
+    gate_home: Path,
+) -> None:
+    result = create_gate(_two_branch_spec(request_id="failed-attempt-supersede"))
+    accepted = accept_gate_decision(result.bundle_path, ["proceed"], {})
+    assert accepted is not None
+    acceptance_id = receipt_acceptance_id(accepted.receipt)
+
+    append_journal_event(
+        result.bundle_path,
+        attempt_id="",
+        request_hash=str(accepted.receipt["request_hash"]),
+        event="attempt_failed",
+        stage="command",
+        code="feedback_required",
+        message="feedback is required",
+        outcome_id="outcome-1",
+        error_record="errors/outcome-1.json",
+        acceptance_id=acceptance_id,
+    )
+
+    superseded = accept_gate_decision(result.bundle_path, ["audit"], {})
+    assert superseded is not None
+    assert superseded.already_accepted is False
+    assert superseded.receipt["selected_option_ids"] == ["audit"]
+    assert superseded.receipt["acceptance_id"] != acceptance_id
+
+
+def test_cancel_is_permitted_after_current_failure(gate_home: Path) -> None:
+    result = create_gate(gate_spec(request_id="cancel-after-failure"))
+    accepted = accept_gate_decision(result.bundle_path, ["accept"], {})
+    assert accepted is not None
+    acceptance_id = receipt_acceptance_id(accepted.receipt)
+
+    append_journal_event(
+        result.bundle_path,
+        attempt_id="",
+        request_hash=str(accepted.receipt["request_hash"]),
+        event="attempt_failed",
+        stage="command",
+        code="feedback_required",
+        message="feedback is required",
+        outcome_id="outcome-1",
+        error_record="errors/outcome-1.json",
+        acceptance_id=acceptance_id,
+    )
+
+    cancellation = cancel_gate(result.bundle_path)
+    assert cancellation["reason"] == "requester_cancelled"
+
+
+def test_conflicting_selection_supersedes_after_dead_process_owner(
+    gate_home: Path,
+) -> None:
+    result = create_gate(_two_branch_spec(request_id="dead-owner-supersede"))
+    accepted = accept_gate_decision(result.bundle_path, ["proceed"], {})
+    assert accepted is not None
+
+    receipt_path = result.bundle_path / DECISION_RECEIPT_FILENAME
+    receipt = dict(accepted.receipt)
+    receipt["execution_owner"] = {
+        "kind": "process",
+        "host": socket.gethostname(),
+        "pid": 999_999_999,
+        "identity_token": "previous-boot:1",
+    }
+    atomic_write_json(receipt_path, receipt)
+
+    superseded = accept_gate_decision(result.bundle_path, ["audit"], {})
+    assert superseded is not None
+    assert superseded.already_accepted is False
+    assert superseded.receipt["selected_option_ids"] == ["audit"]
 
 
 def test_racing_conflicting_submissions_exactly_one_wins(gate_home: Path) -> None:

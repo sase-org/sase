@@ -19,6 +19,8 @@ from rich.console import Console
 from rich.text import Text
 
 from sase.gate_shell.lifecycle import (
+    DISPOSITION_ACCEPTED_FAILED,
+    DISPOSITION_ACCEPTED_OWNER_LOST,
     DISPOSITION_ACCEPTED_UNFINISHED,
     classify_gate_lifecycle,
     collect_gate_lifecycle_facts,
@@ -53,6 +55,11 @@ _STATUS_PROJECTION = {
     "responded": "answered",
     "cancelled": "cancelled",
     "timed_out": "timeout",
+}
+_ACCEPTED_DISPOSITIONS = {
+    DISPOSITION_ACCEPTED_FAILED,
+    DISPOSITION_ACCEPTED_OWNER_LOST,
+    DISPOSITION_ACCEPTED_UNFINISHED,
 }
 
 
@@ -154,15 +161,26 @@ def _acceptance_payload(
         outcome = classify_gate_lifecycle(facts)
     except ValueError as exc:
         return {"invalid_receipt": str(exc)}
-    if outcome["disposition"] != DISPOSITION_ACCEPTED_UNFINISHED:
+    disposition = str(outcome["disposition"])
+    if disposition not in _ACCEPTED_DISPOSITIONS:
         return None
     receipt = dict(facts.receipt or {})
     errors, _count, _artifact = error_artifacts(bundle_root / "errors")
     latest_error = errors[0] if errors else None
+    current_failure = None
+    if isinstance(facts.execution_facts, Mapping):
+        raw_failure = facts.execution_facts.get("current_failure")
+        if isinstance(raw_failure, Mapping):
+            current_failure = dict(raw_failure)
     return {
+        "can_cancel": bool(outcome.get("can_cancel")),
+        "can_supersede": bool(outcome.get("can_supersede")),
+        "disposition": disposition,
+        "reason": outcome.get("reason"),
         "selected_option_ids": receipt.get("selected_option_ids", []),
         "source": receipt.get("source"),
         "accepted_at_unix": receipt.get("accepted_at_unix"),
+        "execution_failure": current_failure,
         "execution_error": (
             None
             if latest_error is None
@@ -355,11 +373,29 @@ def _print_acceptance(console: Console, acceptance: Mapping[str, Any]) -> None:
         line.append(f" · source {source}", style="dim")
     console.print(line, soft_wrap=True)
     console.print(
-        Text("  execution has not published a response yet", style="dim"),
+        Text(
+            f"  {acceptance.get('reason') or 'execution has not published a response yet'}",
+            style="dim",
+        ),
         soft_wrap=True,
     )
+    failure = acceptance.get("execution_failure")
+    if isinstance(failure, Mapping):
+        console.print(
+            Text(
+                f"  ⚑ current failure ({failure.get('stage')}/{failure.get('code')}): "
+                f"{failure.get('message')}",
+                style="bold yellow",
+            ),
+            soft_wrap=True,
+        )
+    if acceptance.get("can_cancel") or acceptance.get("can_supersede"):
+        console.print(
+            Text("  recovery can cancel or accept a different decision", style="dim"),
+            soft_wrap=True,
+        )
     execution_error = acceptance.get("execution_error")
-    if isinstance(execution_error, Mapping):
+    if failure is None and isinstance(execution_error, Mapping):
         console.print(
             Text(
                 f"  ⚑ recorded execution error ({execution_error.get('code')}): "

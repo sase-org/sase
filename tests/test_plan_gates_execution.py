@@ -364,7 +364,7 @@ def test_commit_gate_archive_failure_leaves_gate_unanswered(gate_home: Path) -> 
     # lost, or completed -- with its original error preserved for
     # inspection.
     from sase.gate_shell.lifecycle import (
-        DISPOSITION_ACCEPTED_UNFINISHED,
+        DISPOSITION_ACCEPTED_FAILED,
         classify_gate_lifecycle,
         collect_gate_lifecycle_facts,
     )
@@ -382,7 +382,7 @@ def test_commit_gate_archive_failure_leaves_gate_unanswered(gate_home: Path) -> 
         gate.bundle_path, envelope, now=time.time(), deadline=None, grace_seconds=0.0
     )
     outcome = classify_gate_lifecycle(facts)
-    assert outcome["disposition"] == DISPOSITION_ACCEPTED_UNFINISHED
+    assert outcome["disposition"] == DISPOSITION_ACCEPTED_FAILED
 
     errors, _count, _artifact = error_artifacts(gate.bundle_path / "errors")
     assert errors, (

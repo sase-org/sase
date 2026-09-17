@@ -21,6 +21,8 @@ from sase.gate_shell.handoff import (
     with_gate_followup_lock,
 )
 from sase.gate_shell.lifecycle import (
+    DISPOSITION_ACCEPTED_FAILED,
+    DISPOSITION_ACCEPTED_OWNER_LOST,
     DISPOSITION_ACCEPTED_UNFINISHED,
     DISPOSITION_ANSWERED,
     DISPOSITION_CANCELLED_LOST,
@@ -70,6 +72,8 @@ class GateShellReclaimSummary:
     timed_out: int = 0
     lost: int = 0
     accepted_unfinished: int = 0
+    accepted_failed: int = 0
+    accepted_owner_lost: int = 0
     errors: int = 0
     error_details: tuple[str, ...] = ()
 
@@ -81,6 +85,8 @@ class GateShellReclaimSummary:
             "timed_out": self.timed_out,
             "lost": self.lost,
             "accepted_unfinished": self.accepted_unfinished,
+            "accepted_failed": self.accepted_failed,
+            "accepted_owner_lost": self.accepted_owner_lost,
             "errors": self.errors,
         }
 
@@ -111,6 +117,8 @@ def reclaim_pending_gate_shells(
         "timed_out": 0,
         "lost": 0,
         "accepted_unfinished": 0,
+        "accepted_failed": 0,
+        "accepted_owner_lost": 0,
         "errors": 0,
     }
     error_details: list[str] = []
@@ -143,6 +151,10 @@ def reclaim_pending_gate_shells(
             counts["lost"] += 1
         elif state == "accepted_unfinished":
             counts["accepted_unfinished"] += 1
+        elif state == "accepted_failed":
+            counts["accepted_failed"] += 1
+        elif state == "accepted_owner_lost":
+            counts["accepted_owner_lost"] += 1
     return GateShellReclaimSummary(**counts, error_details=tuple(error_details))
 
 
@@ -192,6 +204,10 @@ def _reclaim_one(
         # defer, so a concurrently completed response or accepted-but-stuck
         # execution stays visible for `sase gate show`/manual resume.
         return "accepted_unfinished"
+    if disposition == DISPOSITION_ACCEPTED_FAILED:
+        return "accepted_failed"
+    if disposition == DISPOSITION_ACCEPTED_OWNER_LOST:
+        return "accepted_owner_lost"
     if disposition == DISPOSITION_PENDING:
         return None
     if disposition == DISPOSITION_EXPIRED_REVIEW:

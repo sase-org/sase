@@ -17,12 +17,9 @@ execution-complete record slow work still produces, unchanged). A
 resubmission with the exact same selection, input, and feedback replays the
 original receipt instead of re-accepting. A resubmission that names a
 different decision is rejected promptly -- before any option command,
-archive, or launch work runs -- so competing or racing submissions cannot
-both proceed, *unless* the existing receipt's own attempt already failed
-partway (an incomplete ``journal.jsonl`` attempt): that case is a legitimate
-change of mind after a failure, not a race, and supersedes the stale
-receipt exactly as ``executor._begin_attempt`` already supersedes a stale
-incomplete attempt for changed input or selection.
+archive, or launch work runs -- while the existing receipt's owner is live
+or unknown. A current failure outcome or proven-dead owner makes the stale
+receipt supersedable.
 
 The Rust core (``sase_core_rs.decide_gate_decision_acceptance``) owns the
 accept/replay/conflict policy and the receipt's identity fingerprint; this
@@ -34,7 +31,6 @@ command, archive, or launch work itself.
 from __future__ import annotations
 
 import logging
-import os
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -42,7 +38,10 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from sase.core.gate_decision_facade import decide_gate_decision_acceptance
+from sase.core.gate_decision_facade import (
+    claim_gate_decision_execution,
+    decide_gate_decision_acceptance,
+)
 from sase.notification_gates.command_runner import (
     recorded_rejection,
     validate_json_instance,
@@ -53,11 +52,15 @@ from sase.notification_gates.durability import (
     file_lock,
     read_json_object,
 )
+from sase.notification_gates.execution_owner import (
+    collect_gate_execution_facts,
+    current_execution_owner,
+)
 from sase.notification_gates.executor_inputs import resolve_option_inputs
 from sase.notification_gates.feedback_input import apply_feedback_input
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.input_bounds import check_input_bounds
-from sase.notification_gates.journal import incomplete_attempt, value_digest
+from sase.notification_gates.journal import value_digest
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import (
     CANCELLATION_FILENAME,
@@ -112,10 +115,9 @@ def accept_gate_decision(
     idempotent short-circuit handles that case. Raises :class:`GateError`
     (code ``gate_cancelled``) if the gate was already cancelled, or (code
     ``gate_decision_conflict``) if a durable receipt already exists for a
-    different selection, input, or feedback *and* that receipt's own
-    attempt has not failed partway -- a failed/incomplete attempt's receipt
-    is instead superseded, matching the pre-existing rule for resubmitting
-    changed input or selection over an incomplete AND-branch attempt.
+    different selection, input, or feedback while its owner is live or
+    unknown. A current failure outcome or proven-dead owner is instead
+    superseded by the Rust policy.
     """
     bundle_path = assert_owned_bundle(bundle_path)
     response_path = bundle_path / RESPONSE_FILENAME
@@ -178,44 +180,24 @@ def accept_gate_decision(
         }
         if feedback_identity is not None:
             request["feedback_identity"] = feedback_identity
-        execution_owner = os.environ.get("SASE_PROC_ID", "").strip()
-        if execution_owner:
-            request["execution_owner"] = execution_owner
+        request["execution_owner"] = current_execution_owner()
         if existing_receipt is not None:
             request["existing_receipt"] = existing_receipt
+            request["execution_facts"] = collect_gate_execution_facts(
+                bundle_path,
+                existing_receipt,
+                response_exists=False,
+            )
 
-        superseding = False
         try:
             outcome = decide_gate_decision_acceptance(request)
         except ValueError as exc:
-            if existing_receipt is None or (
-                incomplete_attempt(bundle_path, response_exists=False) is None
-            ):
-                raise GateError(
-                    "gate_decision_conflict", str(envelope["request_id"]), str(exc)
-                ) from exc
-            # The existing receipt's own attempt failed partway (or was
-            # otherwise left incomplete) and nothing has durably succeeded
-            # for this gate yet -- response.json does not exist, checked
-            # above. A differing resubmission here legitimately supersedes
-            # it, mirroring ``_begin_attempt``'s own supersede rule for a
-            # changed selection or input over an incomplete attempt: the
-            # newest submission wins and replaces the stale receipt. It gets
-            # its own fresh acceptance id -- the rejected request's id never
-            # reaches a journal or a receipt.
-            superseding = True
-            fresh_request = {
-                key: value
-                for key, value in request.items()
-                if key != "existing_receipt"
-            }
-            fresh_request["acceptance_id"] = uuid4().hex
-            outcome = decide_gate_decision_acceptance(fresh_request)
+            raise _policy_gate_error(exc, str(envelope["request_id"])) from exc
 
         receipt = outcome["receipt"]
         already_accepted = outcome["status"] == "replayed"
         if not already_accepted:
-            if superseding:
+            if outcome["status"] == "superseded":
                 atomic_write_json(receipt_path, receipt, exclusive=False)
             else:
                 try:
@@ -234,6 +216,45 @@ def accept_gate_decision(
         return _GateDecisionAcceptance(
             receipt=receipt, already_accepted=already_accepted
         )
+
+
+def claim_gate_decision_execution_receipt(
+    bundle_path: Path,
+    *,
+    gate_id: str,
+    request_hash: str,
+    acceptance_id: str | None,
+) -> Mapping[str, Any]:
+    """Re-own the still-current receipt immediately before execution."""
+    bundle_path = assert_owned_bundle(bundle_path)
+    receipt_path = bundle_path / DECISION_RECEIPT_FILENAME
+    with file_lock(
+        bundle_path / ACCEPTANCE_LOCK_FILENAME,
+        timeout=ACCEPTANCE_LOCK_TIMEOUT_SECONDS,
+    ):
+        if not receipt_path.exists():
+            raise GateError(
+                "gate_decision_conflict",
+                str(gate_id),
+                "gate decision receipt disappeared before execution",
+            )
+        receipt = read_json_object(receipt_path)
+        request: dict[str, Any] = {
+            "schema_version": GATE_DECISION_WIRE_SCHEMA_VERSION,
+            "gate_id": gate_id,
+            "request_hash": request_hash,
+            "receipt": receipt,
+            "execution_owner": current_execution_owner(),
+        }
+        if acceptance_id is not None:
+            request["acceptance_id"] = acceptance_id
+        try:
+            outcome = claim_gate_decision_execution(request)
+        except ValueError as exc:
+            raise _policy_gate_error(exc, str(gate_id)) from exc
+        claimed = outcome["receipt"]
+        atomic_write_json(receipt_path, claimed, exclusive=False)
+        return claimed
 
 
 def _touch_gate_shell_refresh_pulse(envelope: Mapping[str, Any], gate_id: str) -> None:
@@ -273,10 +294,19 @@ def receipt_acceptance_id(receipt: Mapping[str, Any] | None) -> str | None:
     return value if isinstance(value, str) else None
 
 
+def _policy_gate_error(exc: ValueError, target: str) -> GateError:
+    message = str(exc)
+    code, separator, detail = message.partition(":")
+    if separator and code:
+        return GateError(code.strip(), target, detail.strip() or message)
+    return GateError("gate_decision_conflict", target, message)
+
+
 __all__ = [
     "ACCEPTANCE_LOCK_FILENAME",
     "DECISION_RECEIPT_FILENAME",
     "accept_gate_decision",
+    "claim_gate_decision_execution_receipt",
     "read_current_receipt",
     "receipt_acceptance_id",
 ]

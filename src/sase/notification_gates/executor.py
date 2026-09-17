@@ -10,12 +10,21 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from sase.notification_gates.attempts import begin_attempt, execute_one_option
+from sase.gate_shell.lifecycle import (
+    classify_gate_lifecycle,
+    collect_gate_lifecycle_facts,
+)
+from sase.notification_gates.attempts import (
+    execute_one_option,
+    open_planned_attempt,
+    plan_attempt,
+)
 from sase.notification_gates.command_runner import validate_json_instance
 from sase.notification_gates.decision import (
     ACCEPTANCE_LOCK_FILENAME,
     DECISION_RECEIPT_FILENAME,
     accept_gate_decision,
+    claim_gate_decision_execution_receipt,
     read_current_receipt,
     receipt_acceptance_id,
 )
@@ -226,12 +235,23 @@ def execute_gate_selection(
         input_digests = {
             option.id: value_digest(resolved_inputs[option.id]) for option in selected
         }
-        attempt_id, replayed = begin_attempt(
+        attempt_plan = plan_attempt(
             bundle_path,
             request_hash=request_hash,
             selected=selected,
             input_digests=input_digests,
             retry=retry,
+        )
+        claimed_receipt = claim_gate_decision_execution_receipt(
+            bundle_path,
+            gate_id=str(envelope["request_id"]),
+            request_hash=request_hash,
+            acceptance_id=acceptance_id,
+        )
+        acceptance_id = receipt_acceptance_id(claimed_receipt)
+        attempt_id, replayed = open_planned_attempt(
+            bundle_path,
+            attempt_plan,
             acceptance_id=acceptance_id,
         )
 
@@ -593,15 +613,14 @@ def cancel_gate(
     source: str = "requester",
     lock_timeout_seconds: float | None = CANCEL_LOCK_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
-    """Persist a write-once cancellation if the gate has no accepted decision.
+    """Persist a write-once cancellation if the lifecycle policy allows it.
 
     Waits on ``.acceptance.lock``, the same short, bounded lock acceptance
     itself uses -- never ``.response.lock``, which a running option command
     or archive/launch side effect can hold for its full runtime. A gate
-    whose decision was already durably accepted (``decision_receipt.json``
-    exists, whether or not execution has finished) can no longer be
-    cancelled, matching the plan's requirement that an accepted decision
-    never be silently undone by a late-arriving cancel.
+    whose decision was already durably accepted can only be cancelled after
+    the Rust lifecycle policy says the current execution failed or its owner
+    is proven dead. Live or unknown owners keep raising ``already_answered``.
     ``lock_timeout_seconds`` bounds that wait; it raises :class:`GateError`
     (code ``lock_timeout``) on expiry instead of hanging. Pass ``None`` to
     wait indefinitely, matching the old behaviour.
@@ -616,16 +635,30 @@ def cancel_gate(
             raise GateError(
                 "already_answered", str(response_path), "gate already has a response"
             )
-        receipt_path = bundle_path / DECISION_RECEIPT_FILENAME
-        if receipt_path.exists():
-            raise GateError(
-                "already_answered",
-                str(receipt_path),
-                "gate decision is already accepted",
-            )
         path = bundle_path / CANCELLATION_FILENAME
         if path.exists():
             return read_json_object(path)
+        receipt_path = bundle_path / DECISION_RECEIPT_FILENAME
+        if receipt_path.exists():
+            facts = collect_gate_lifecycle_facts(
+                bundle_path,
+                envelope,
+                now=time.time(),
+                deadline=None,
+                grace_seconds=0.0,
+            )
+            try:
+                lifecycle = classify_gate_lifecycle(facts)
+            except ValueError as exc:
+                raise GateError(
+                    "invalid_gate_decision_receipt", str(receipt_path), str(exc)
+                ) from exc
+            if not bool(lifecycle.get("can_cancel")):
+                raise GateError(
+                    "already_answered",
+                    str(receipt_path),
+                    "gate decision is already accepted",
+                )
         cancellation = {
             "schema_version": GATE_RESPONSE_SCHEMA_VERSION,
             "request_id": envelope["request_id"],

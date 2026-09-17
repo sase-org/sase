@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import subprocess
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 from uuid import uuid4
@@ -34,22 +35,27 @@ from sase.notification_gates.model_options import GateOption
 from sase.notification_gates.models import GateError
 
 
-def begin_attempt(
+@dataclass(frozen=True)
+class _AttemptPlan:
+    """A write-free decision about how the next execution attempt should open."""
+
+    request_hash: str
+    selected_option_ids: tuple[str, ...]
+    input_digests: Mapping[str, str]
+    retry: Literal["resume", "restart"] | None
+    pending: IncompleteAttempt | None
+    matching: bool
+
+
+def plan_attempt(
     bundle_path: Path,
     *,
     request_hash: str,
     selected: tuple[GateOption, ...],
     input_digests: Mapping[str, str],
     retry: Literal["resume", "restart"] | None,
-    acceptance_id: str | None,
-) -> tuple[str, dict[str, Any]]:
-    """Open or continue an attempt and return its id plus any replayed results.
-
-    Called only after :func:`~sase.notification_gates.decision.accept_gate_decision`
-    and only while ``response.json`` does not yet exist, so
-    :func:`~sase.notification_gates.journal.incomplete_attempt` is always
-    scoped with ``response_exists=False`` here.
-    """
+) -> _AttemptPlan:
+    """Validate retry semantics without writing to the execution journal."""
     selected_ids = tuple(option.id for option in selected)
     pending = incomplete_attempt(bundle_path, response_exists=False)
     matching = pending is not None and pending.matches(
@@ -64,14 +70,6 @@ def begin_attempt(
                 "retry",
                 "this submission has no incomplete attempt to resume or restart",
             )
-        if pending is not None:
-            append_journal_event(
-                bundle_path,
-                attempt_id=pending.attempt_id,
-                request_hash=pending.request_hash,
-                event="attempt_superseded",
-                acceptance_id=acceptance_id,
-            )
     elif retry is None:
         assert pending is not None
         raise GateError(
@@ -81,7 +79,33 @@ def begin_attempt(
             f"({pending.describe()}); resume after the failed option or "
             "restart the whole branch",
         )
-    elif retry == "resume":
+    return _AttemptPlan(
+        request_hash=request_hash,
+        selected_option_ids=selected_ids,
+        input_digests=input_digests,
+        retry=retry,
+        pending=pending,
+        matching=matching,
+    )
+
+
+def open_planned_attempt(
+    bundle_path: Path,
+    plan: _AttemptPlan,
+    *,
+    acceptance_id: str | None,
+) -> tuple[str, dict[str, Any]]:
+    """Append the attempt events for a previously validated plan."""
+    pending = plan.pending
+    if not plan.matching and pending is not None:
+        append_journal_event(
+            bundle_path,
+            attempt_id=pending.attempt_id,
+            request_hash=pending.request_hash,
+            event="attempt_superseded",
+            acceptance_id=acceptance_id,
+        )
+    elif plan.retry == "resume":
         assert pending is not None
         append_journal_event(
             bundle_path,
@@ -90,16 +114,16 @@ def begin_attempt(
             event="attempt_resumed",
             acceptance_id=acceptance_id,
         )
-        return pending.attempt_id, _replayed_results(pending, selected_ids)
+        return pending.attempt_id, _replayed_results(pending, plan.selected_option_ids)
 
     attempt_id = uuid4().hex
     append_journal_event(
         bundle_path,
         attempt_id=attempt_id,
-        request_hash=request_hash,
+        request_hash=plan.request_hash,
         event="attempt_started",
-        selected_option_ids=selected_ids,
-        input_digests=input_digests,
+        selected_option_ids=plan.selected_option_ids,
+        input_digests=plan.input_digests,
         acceptance_id=acceptance_id,
     )
     return attempt_id, {}
@@ -248,4 +272,8 @@ def _bind_output_callback(
     return emit
 
 
-__all__ = ["begin_attempt", "execute_one_option"]
+__all__ = [
+    "execute_one_option",
+    "open_planned_attempt",
+    "plan_attempt",
+]

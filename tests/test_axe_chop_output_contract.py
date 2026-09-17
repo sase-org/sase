@@ -36,6 +36,8 @@ def _stub_empty_snapshot(monkeypatch: pytest.MonkeyPatch, script: object) -> Non
 
 
 _COUNTERS_ZERO = {
+    "accepted_failed": 0,
+    "accepted_owner_lost": 0,
     "accepted_unfinished": 0,
     "answered": 0,
     "errors": 0,

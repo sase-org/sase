@@ -240,6 +240,47 @@ def test_show_reports_an_accepted_unfinished_gate_without_changing_status(
     assert "execution has not published a response yet" in out
 
 
+def test_show_reports_an_accepted_failed_gate(
+    gate_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from sase.notification_gates.decision import (
+        accept_gate_decision,
+        receipt_acceptance_id,
+    )
+    from sase.notification_gates.journal import append_journal_event
+
+    del gate_home
+    gate = create_gate(_spec("show-accepted-failed"))
+    accepted = accept_gate_decision(
+        gate.bundle_path, ["abort"], {}, feedback="no thanks"
+    )
+    assert accepted is not None
+    append_journal_event(
+        gate.bundle_path,
+        attempt_id="",
+        request_hash=str(accepted.receipt["request_hash"]),
+        event="attempt_failed",
+        stage="command",
+        code="feedback_required",
+        message="feedback is required",
+        outcome_id="outcome-1",
+        error_record="errors/outcome-1.json",
+        acceptance_id=receipt_acceptance_id(accepted.receipt),
+    )
+
+    assert _run("show", "-i", "show-accepted-failed", "-k", "custom", "-j") == 0
+    payload = json.loads(capsys.readouterr().out)
+    acceptance = payload["acceptance"]
+    assert acceptance["disposition"] == "accepted_failed"
+    assert acceptance["can_cancel"] is True
+    assert acceptance["can_supersede"] is True
+    assert acceptance["execution_failure"]["code"] == "feedback_required"
+
+    assert _run("show", "-i", "show-accepted-failed", "-k", "custom") == 0
+    out = capsys.readouterr().out
+    assert "current failure (command/feedback_required)" in out
+
+
 def test_show_reports_a_missing_bundle(
     gate_home: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

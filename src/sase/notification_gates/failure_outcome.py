@@ -8,9 +8,10 @@ record :func:`~sase.notification_gates.command_runner.record_execution_error`
 already writes, rather than a second parallel store. See design decision 7 in
 ``plan:202609/gate_decision_integrity_1.md``.
 
-Nothing reads these outcomes yet outside this package's own tests: the
-``failure_surfacing`` phase (bead ``sase-zr.7.1.1.4``) is what feeds them to
-``poll_gate`` and a recovery notification.
+Lifecycle, cancel, and gate-show paths read the current outcome to decide
+whether the accepted receipt is recoverable. The ``failure_surfacing`` phase
+(bead ``sase-zr.7.1.1.4``) feeds the same outcomes to ``poll_gate`` and a
+recovery notification.
 """
 
 from __future__ import annotations

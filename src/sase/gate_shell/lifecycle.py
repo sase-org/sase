@@ -21,6 +21,7 @@ from sase.core.gate_decision_facade import (
 )
 from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
 from sase.notification_gates.durability import read_json_object
+from sase.notification_gates.execution_owner import collect_gate_execution_facts
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.paths import CANCELLATION_FILENAME, RESPONSE_FILENAME
 
@@ -29,11 +30,10 @@ DISPOSITION_CANCELLED_TIMEOUT = "cancelled_timeout"
 DISPOSITION_CANCELLED_LOST = "cancelled_lost"
 DISPOSITION_CANCELLED_STOPPED = "cancelled_stopped"
 DISPOSITION_ACCEPTED_UNFINISHED = "accepted_unfinished"
-#: A pre-response failure is current for the receipt. Not yet produced by
-#: :func:`classify_gate_lifecycle`.
+#: A pre-response failure is current for the receipt (see
+#: :func:`sase.notification_gates.journal.current_execution_failure`).
 DISPOSITION_ACCEPTED_FAILED = "accepted_failed"
 #: The receipt's execution owner is proven dead with no current failure.
-#: Same not-yet-produced status as :data:`DISPOSITION_ACCEPTED_FAILED`.
 DISPOSITION_ACCEPTED_OWNER_LOST = "accepted_owner_lost"
 DISPOSITION_PENDING = "pending"
 DISPOSITION_EXPIRED_REVIEW = "expired_review"
@@ -53,6 +53,7 @@ class _GateLifecycleFacts:
     cancellation_reason: str | None
     receipt: Mapping[str, Any] | None
     receipt_unreadable: bool
+    execution_facts: Mapping[str, Any] | None
 
 
 def collect_gate_lifecycle_facts(
@@ -78,6 +79,11 @@ def collect_gate_lifecycle_facts(
     if receipt_path.exists():
         receipt = _read_json_or_none(receipt_path)
         receipt_unreadable = receipt is None
+    execution_facts = (
+        collect_gate_execution_facts(bundle, receipt, response_exists=has_response)
+        if receipt is not None
+        else None
+    )
 
     return _GateLifecycleFacts(
         gate_id=str(envelope["request_id"]),
@@ -89,6 +95,7 @@ def collect_gate_lifecycle_facts(
         cancellation_reason=cancellation_reason,
         receipt=receipt,
         receipt_unreadable=receipt_unreadable,
+        execution_facts=execution_facts,
     )
 
 
@@ -121,6 +128,8 @@ def classify_gate_lifecycle(facts: _GateLifecycleFacts) -> dict[str, Any]:
         request["cancellation_reason"] = facts.cancellation_reason
     if facts.receipt is not None:
         request["receipt"] = dict(facts.receipt)
+    if facts.execution_facts is not None:
+        request["execution_facts"] = dict(facts.execution_facts)
     return decide_gate_lifecycle(request)
 
 
@@ -137,7 +146,12 @@ def resolve_already_answered_race(bundle: Path, gate_id: str) -> str:
         bundle, envelope, now=time.time(), deadline=None, grace_seconds=0.0
     )
     disposition = str(classify_gate_lifecycle(facts)["disposition"])
-    if disposition in (DISPOSITION_ANSWERED, DISPOSITION_ACCEPTED_UNFINISHED):
+    if disposition in (
+        DISPOSITION_ANSWERED,
+        DISPOSITION_ACCEPTED_FAILED,
+        DISPOSITION_ACCEPTED_OWNER_LOST,
+        DISPOSITION_ACCEPTED_UNFINISHED,
+    ):
         return disposition
     raise RuntimeError(
         f"gate {gate_id} raced to unexpected disposition {disposition!r} "
