@@ -95,12 +95,43 @@ def _wrap_line(line: str, *, width: int) -> list[str]:
         if _cell_width(candidate) <= width:
             current = candidate
             continue
+        if atom == "-":
+            backtracked = _wrap_with_backtracked_separator(
+                current,
+                gap,
+                atom,
+                continuation_prefix,
+                leading_spaces,
+            )
+            if backtracked is not None:
+                previous, current = backtracked
+                segments.append(previous)
+                continue
         segments.append(current.rstrip())
         current = f"{continuation_prefix}{atom}"
 
     if current:
         segments.append(f"{current}{trailing_gap}")
     return segments
+
+
+def _wrap_with_backtracked_separator(
+    current: str,
+    gap: str,
+    atom: str,
+    continuation_prefix: str,
+    leading_spaces: str,
+) -> tuple[str, str] | None:
+    if continuation_prefix == leading_spaces:
+        return None
+    split_at = current.rstrip().rfind(" ")
+    if split_at < 0:
+        return None
+    previous = current[:split_at].rstrip()
+    carried = current[split_at + 1 :].strip()
+    if not previous or not carried:
+        return None
+    return previous, f"{continuation_prefix}{carried}{gap}{atom}"
 
 
 def _continuation_prefix(line: str) -> str:

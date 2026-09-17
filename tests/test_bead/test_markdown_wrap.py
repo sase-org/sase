@@ -160,6 +160,24 @@ def test_continuation_prefixes(text: str, expected: str) -> None:
     assert wrap_markdown(text, width=30) == expected
 
 
+def test_list_separator_does_not_become_nested_bullet() -> None:
+    text = (
+        "6. **Expensive Commands Are Recorded Before They Are Admitted** "
+        "(`record-before-admit`) - The sase tool control plane lands its ToolRun "
+        "record first; prediction and admission only ever consume a corpus that "
+        "already exists."
+    )
+
+    wrapped = wrap_markdown(text, width=88)
+
+    assert wrapped == (
+        "6. **Expensive Commands Are Recorded Before They Are Admitted**\n"
+        "   (`record-before-admit`) - The sase tool control plane lands its ToolRun "
+        "record first;\n"
+        "   prediction and admission only ever consume a corpus that already exists."
+    )
+
+
 def test_wide_character_columns_are_measured() -> None:
     text = "界 界 界 界 界 界 界 界 界 界 界"
 

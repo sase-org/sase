@@ -41,26 +41,9 @@ def decide_gate_lifecycle(request: Mapping[str, Any]) -> dict[str, Any]:
     return dict(result)
 
 
-def claim_gate_decision_execution(request: Mapping[str, Any]) -> dict[str, Any]:
-    """Re-own a still-current receipt immediately before executing it.
-
-    Raises ``ValueError`` (code ``gate_decision_conflict``) when the receipt
-    named in *request* was superseded while the caller waited to execute it.
-
-    Consumed by the ``owner_conflict`` phase's claim step
-    (bead ``sase-zr.7.1.1.3``); not called yet.
-    """
-    binding = require_rust_binding("claim_gate_decision_execution")
-    result = binding(dict(request))
-    if not isinstance(result, dict):
-        raise TypeError("claim_gate_decision_execution returned a non-mapping")
-    return dict(result)
-
-
 __all__ = [
     "GATE_DECISION_WIRE_SCHEMA_VERSION",
     "GATE_LIFECYCLE_WIRE_SCHEMA_VERSION",
-    "claim_gate_decision_execution",
     "decide_gate_decision_acceptance",
     "decide_gate_lifecycle",
 ]

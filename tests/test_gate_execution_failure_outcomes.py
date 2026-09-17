@@ -16,7 +16,6 @@ from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.failure_outcome import with_follow_up_stage_tracking
 from sase.notification_gates.journal import (
     append_journal_event,
-    current_execution_failure,
     incomplete_attempt,
     read_journal_records,
 )
@@ -76,13 +75,6 @@ def test_terminal_prepare_failure_then_resume_retries_only_terminal_prepare(
 
     receipt = read_current_receipt(created.bundle_path)
     assert receipt_acceptance_id(receipt) == failure["acceptance_id"]
-    current = current_execution_failure(
-        created.bundle_path, receipt, response_exists=False
-    )
-    assert current is not None
-    assert current.stage == "terminal_prepare"
-    assert current.to_wire()["code"] == "terminal_prepare_failed"
-
     with pytest.raises(GateError) as partial:
         execute_gate_selection(created.bundle_path, ["accept"], {"reviewed": True})
     assert partial.value.code == "partial_attempt"
@@ -107,14 +99,6 @@ def test_terminal_prepare_failure_then_resume_retries_only_terminal_prepare(
         "attempt_failed"
     )
     assert events_after[-1] == "stage_completed"
-    assert (
-        current_execution_failure(
-            created.bundle_path,
-            read_current_receipt(created.bundle_path),
-            response_exists=True,
-        )
-        is None
-    )
 
 
 def test_side_effect_failure_is_recorded_after_attempt_completed_and_resume_reruns_only_it(
@@ -256,61 +240,6 @@ def test_negotiation_errors_never_record_a_failure_outcome(gate_home: Path) -> N
         )
     assert exc.value.code == "no_partial_attempt"
     assert read_journal_records(created.bundle_path) == ()
-
-
-def test_current_execution_failure_is_scoped_to_the_receipts_acceptance_id(
-    tmp_path: Path,
-) -> None:
-    bundle = tmp_path
-    append_journal_event(
-        bundle,
-        attempt_id="a1",
-        request_hash="h",
-        event="attempt_started",
-        acceptance_id="acc-1",
-        selected_option_ids=["accept"],
-        input_digests={"accept": "d"},
-    )
-    append_journal_event(
-        bundle,
-        attempt_id="a1",
-        request_hash="h",
-        event="attempt_failed",
-        acceptance_id="acc-1",
-        stage="command",
-        code="command_failed",
-        message="boom",
-        outcome_id="o1",
-        error_record="errors/o1.json",
-    )
-    # A later, differently-accepted decision supersedes the failed one.
-    append_journal_event(
-        bundle,
-        attempt_id="a1",
-        request_hash="h",
-        event="attempt_superseded",
-        acceptance_id="acc-1",
-    )
-    append_journal_event(
-        bundle,
-        attempt_id="a2",
-        request_hash="h",
-        event="attempt_started",
-        acceptance_id="acc-2",
-        selected_option_ids=["accept"],
-        input_digests={"accept": "d"},
-    )
-
-    current_receipt = {"acceptance_id": "acc-2"}
-    assert (
-        current_execution_failure(bundle, current_receipt, response_exists=False)
-        is None
-    )
-
-    stale_receipt = {"acceptance_id": "acc-1"}
-    assert (
-        current_execution_failure(bundle, stale_receipt, response_exists=False) is None
-    )
 
 
 def test_incomplete_attempt_treats_a_legacy_early_attempt_completed_as_still_open(
