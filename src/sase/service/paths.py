@@ -19,4 +19,9 @@ def service_state_path(sase_home: str | PathLike[str] | None = None) -> Path:
     return service_dir(sase_home) / "state.json"
 
 
-__all__ = ["service_dir", "service_state_path"]
+def service_status_path(sase_home: str | PathLike[str] | None = None) -> Path:
+    """Return the atomic service status snapshot JSON path."""
+    return service_dir(sase_home) / "status.json"
+
+
+__all__ = ["service_dir", "service_state_path", "service_status_path"]
