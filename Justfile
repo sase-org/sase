@@ -391,6 +391,8 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-11y.4(service_state_path)" \
         --epic-symbol "sase-11y.4(set_service_enablement)" \
         --epic-symbol "sase-11y.4(set_service_marker)" \
+        --epic-symbol "sase-zr.7.1.1.3(claim_gate_decision_execution)" \
+        --epic-symbol "sase-zr.7.1.1.3(current_execution_failure)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -339,10 +339,24 @@ def _execute_neutral_plan_approval_response(
         )
         raise PlanApprovalActionError(code, exc.target, str(exc)) from exc
     if gate_shell is not None:
-        settle_gate_shell(
-            gate_shell,
-            gate_state="answered",
-            reason="plan approval answered",
+        from sase.notification_gates.decision import (
+            read_current_receipt,
+            receipt_acceptance_id,
+        )
+        from sase.notification_gates.failure_outcome import (
+            with_follow_up_stage_tracking,
+        )
+
+        acceptance_id = receipt_acceptance_id(read_current_receipt(bundle_path))
+        with_follow_up_stage_tracking(
+            bundle_path,
+            acceptance_id=acceptance_id,
+            source="plan_response",
+            run=lambda: settle_gate_shell(
+                gate_shell,
+                gate_state="answered",
+                reason="plan approval answered",
+            ),
         )
     if execution.already_completed:
         raise PlanApprovalActionError(

@@ -136,7 +136,9 @@ def _describe_partial_attempt(bundle_path: Path) -> _PartialAttempt | None:
     from sase.notification_gates.journal import incomplete_attempt
 
     try:
-        pending = incomplete_attempt(bundle_path)
+        # Only reached after ``execute_gate_selection`` raised
+        # ``partial_attempt``, which happens before ``response.json`` exists.
+        pending = incomplete_attempt(bundle_path, response_exists=False)
     except Exception:
         return None
     if pending is None:

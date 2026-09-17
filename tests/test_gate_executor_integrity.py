@@ -250,8 +250,13 @@ def test_partial_and_branch_offers_resume_and_restart(
     assert _runs(log) == ["first", "second"]
 
     events = [record["event"] for record in _journal(result.bundle_path)]
-    assert events == ["attempt_started", "option_completed", "option_failed"]
-    pending = incomplete_attempt(result.bundle_path)
+    assert events == [
+        "attempt_started",
+        "option_completed",
+        "attempt_failed",
+        "option_failed",
+    ]
+    pending = incomplete_attempt(result.bundle_path, response_exists=False)
     assert pending is not None
     assert pending.completed_option_ids == ("first",)
     assert pending.failed_option_ids == ("second",)
@@ -272,7 +277,7 @@ def test_partial_and_branch_offers_resume_and_restart(
         {"id": "first", "result": {"status": "ok", "option": "first"}},
         {"id": "second", "result": {"status": "ok", "option": "second"}},
     ]
-    assert incomplete_attempt(result.bundle_path) is None
+    assert incomplete_attempt(result.bundle_path, response_exists=True) is None
 
 
 def test_restart_reruns_every_option_in_the_branch(
@@ -292,7 +297,8 @@ def test_restart_reruns_every_option_in_the_branch(
     assert _runs(log) == ["first", "second"]
     events = [record["event"] for record in _journal(result.bundle_path)]
     assert events.count("attempt_started") == 2
-    assert events[-1] == "attempt_completed"
+    assert "attempt_completed" in events
+    assert events[-1] == "stage_completed"
 
 
 def test_changed_input_supersedes_the_incomplete_attempt(
@@ -304,7 +310,7 @@ def test_changed_input_supersedes_the_incomplete_attempt(
 
     with pytest.raises(GateError):
         execute_gate_selection(result.bundle_path, ["first", "second"], {})
-    stale = incomplete_attempt(result.bundle_path)
+    stale = incomplete_attempt(result.bundle_path, response_exists=False)
     assert stale is not None
 
     (fail.parent / "fail.second").unlink()

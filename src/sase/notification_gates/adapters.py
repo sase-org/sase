@@ -84,6 +84,11 @@ class GateAdapter:
     ) -> None:
         """Apply adapter-declared host effects after terminal persistence."""
         if self.kind == "task_triage":
+            if isinstance(response, dict) and response.get("task_launch_task_id"):
+                # A resumed retry: this decision already launched its
+                # successor on a prior attempt, recorded here. Nothing else
+                # in this branch is retried, so there is nothing left to do.
+                return
             from sase.bead.task_gate import (
                 close_task_triage,
                 launch_task_triage,
@@ -122,6 +127,10 @@ class GateAdapter:
                 resnooze_bead_snooze(snooze_decision)
             return
         if self.kind == "flag_triage":
+            if isinstance(response, dict) and response.get("task_launch_task_id"):
+                # See the task_triage guard above: this decision's launch
+                # already happened on a prior attempt.
+                return
             from sase.bead.flag_gate import (
                 close_flag_triage,
                 extend_flag_triage,
@@ -195,7 +204,11 @@ class GateAdapter:
         if plan_action == "epic" and result.get("epic_launch_owner") == "host":
             effective_input = effective_response_input(response, selected_ids[0])
             mode = effective_input.get("epic_launch_mode") or "launch"
-            if mode != "skip":
+            already_launched = isinstance(response, dict) and (
+                response.get("epic_launch_monitor_id")
+                or response.get("epic_launch_task_id")
+            )
+            if mode != "skip" and not already_launched:
                 from sase.plan_approval_actions import (
                     PlanApprovalActionError,
                     durable_plan_file_for_context,

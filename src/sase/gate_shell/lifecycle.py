@@ -29,6 +29,15 @@ DISPOSITION_CANCELLED_TIMEOUT = "cancelled_timeout"
 DISPOSITION_CANCELLED_LOST = "cancelled_lost"
 DISPOSITION_CANCELLED_STOPPED = "cancelled_stopped"
 DISPOSITION_ACCEPTED_UNFINISHED = "accepted_unfinished"
+#: A pre-response failure is current for the receipt (see
+#: :func:`sase.notification_gates.journal.current_execution_failure`). Not
+#: yet produced by :func:`classify_gate_lifecycle` -- the ``owner_conflict``
+#: phase (bead ``sase-zr.7.1.1.3``) wires execution facts into this
+#: classifier so the Rust policy can return it.
+DISPOSITION_ACCEPTED_FAILED = "accepted_failed"
+#: The receipt's execution owner is proven dead with no current failure.
+#: Same not-yet-produced status as :data:`DISPOSITION_ACCEPTED_FAILED`.
+DISPOSITION_ACCEPTED_OWNER_LOST = "accepted_owner_lost"
 DISPOSITION_PENDING = "pending"
 DISPOSITION_EXPIRED_REVIEW = "expired_review"
 DISPOSITION_EXPIRED_GRACE = "expired_grace"
@@ -140,6 +149,8 @@ def resolve_already_answered_race(bundle: Path, gate_id: str) -> str:
 
 
 __all__ = [
+    "DISPOSITION_ACCEPTED_FAILED",
+    "DISPOSITION_ACCEPTED_OWNER_LOST",
     "DISPOSITION_ACCEPTED_UNFINISHED",
     "DISPOSITION_ANSWERED",
     "DISPOSITION_CANCELLED_LOST",

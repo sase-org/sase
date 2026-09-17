@@ -40,6 +40,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from sase.core.gate_decision_facade import decide_gate_decision_acceptance
 from sase.notification_gates.command_runner import (
@@ -171,6 +172,7 @@ def accept_gate_decision(
             "request_hash": request_hash,
             "selected_option_ids": [option.id for option in selected],
             "input_identity": input_identity,
+            "acceptance_id": uuid4().hex,
             "source": source,
             "accepted_at_unix": time.time(),
         }
@@ -186,7 +188,9 @@ def accept_gate_decision(
         try:
             outcome = decide_gate_decision_acceptance(request)
         except ValueError as exc:
-            if existing_receipt is None or incomplete_attempt(bundle_path) is None:
+            if existing_receipt is None or (
+                incomplete_attempt(bundle_path, response_exists=False) is None
+            ):
                 raise GateError(
                     "gate_decision_conflict", str(envelope["request_id"]), str(exc)
                 ) from exc
@@ -196,13 +200,16 @@ def accept_gate_decision(
             # above. A differing resubmission here legitimately supersedes
             # it, mirroring ``_begin_attempt``'s own supersede rule for a
             # changed selection or input over an incomplete attempt: the
-            # newest submission wins and replaces the stale receipt.
+            # newest submission wins and replaces the stale receipt. It gets
+            # its own fresh acceptance id -- the rejected request's id never
+            # reaches a journal or a receipt.
             superseding = True
             fresh_request = {
                 key: value
                 for key, value in request.items()
                 if key != "existing_receipt"
             }
+            fresh_request["acceptance_id"] = uuid4().hex
             outcome = decide_gate_decision_acceptance(fresh_request)
 
         receipt = outcome["receipt"]
@@ -252,8 +259,24 @@ def _touch_gate_shell_refresh_pulse(envelope: Mapping[str, Any], gate_id: str) -
         )
 
 
+def read_current_receipt(bundle_path: Path) -> dict[str, Any] | None:
+    """Return the durable receipt for *bundle_path*'s gate, or ``None``."""
+    receipt_path = bundle_path / DECISION_RECEIPT_FILENAME
+    return read_json_object(receipt_path) if receipt_path.exists() else None
+
+
+def receipt_acceptance_id(receipt: Mapping[str, Any] | None) -> str | None:
+    """Return *receipt*'s acceptance id, or ``None`` for a legacy receipt."""
+    if receipt is None:
+        return None
+    value = receipt.get("acceptance_id")
+    return value if isinstance(value, str) else None
+
+
 __all__ = [
     "ACCEPTANCE_LOCK_FILENAME",
     "DECISION_RECEIPT_FILENAME",
     "accept_gate_decision",
+    "read_current_receipt",
+    "receipt_acceptance_id",
 ]

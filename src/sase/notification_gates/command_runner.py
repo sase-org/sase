@@ -269,9 +269,20 @@ def record_execution_error(
     returncode: int | None = None,
     stdout: str | None = None,
     stderr: str | None = None,
-) -> None:
-    """Write one diagnosable failure record a reviewer can read with ``d``."""
+    stage: str | None = None,
+    attempt_id: str | None = None,
+    outcome_id: str | None = None,
+) -> str:
+    """Write one diagnosable failure record a reviewer can read with ``d``.
+
+    Returns the written file's path relative to *bundle_path*, so a caller
+    that also records a durable failure outcome
+    (:func:`sase.notification_gates.failure_outcome.record_failure_outcome`)
+    can reference this same record as ``error_record`` instead of writing a
+    second one for the same failure.
+    """
     errors = bundle_path / "errors"
+    filename = f"{time.time_ns()}-{uuid4().hex}.json"
     payload = {
         "schema_version": GATE_RESPONSE_SCHEMA_VERSION,
         "option_id": option_id,
@@ -281,9 +292,13 @@ def record_execution_error(
         "returncode": returncode,
         "stdout": stdout,
         "stderr": stderr,
+        "stage": stage,
+        "attempt_id": attempt_id,
+        "outcome_id": outcome_id,
         "created_at_unix": time.time(),
     }
-    atomic_write_json(errors / f"{time.time_ns()}-{uuid4().hex}.json", payload)
+    atomic_write_json(errors / filename, payload)
+    return f"errors/{filename}"
 
 
 @contextmanager

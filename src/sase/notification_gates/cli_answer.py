@@ -34,8 +34,11 @@ from sase.notification_gates.cli_support import (
     resolve_gate_cli_bundle,
     split_assignment,
 )
+from sase.notification_gates.decision import read_current_receipt, receipt_acceptance_id
 from sase.notification_gates.durability import read_json_object
 from sase.notification_gates.executor import execute_gate_selection
+from sase.notification_gates.failure_outcome import with_follow_up_stage_tracking
+from sase.notification_gates.journal import current_post_response_failure
 from sase.notification_gates.model_inputs import GateInputField
 from sase.notification_gates.model_options import GateOption
 from sase.notification_gates.models import GateError
@@ -156,6 +159,7 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
             input_data=input_data,
             option_inputs=option_inputs,
             feedback=feedback,
+            source=source,
         )
     if _effective_detach(args, shell_backed=shell_backed):
         _reject_detached_tty_options(selected)
@@ -188,11 +192,17 @@ def _answer(args: argparse.Namespace) -> dict[str, Any]:
         **execution_kwargs,
     )
     if gate_shell is not None:
-        settle_gate_shell(
-            gate_shell,
-            gate_state="answered",
-            reason="gate answered",
-            resume=retry == "resume",
+        acceptance_id = receipt_acceptance_id(read_current_receipt(bundle.root))
+        with_follow_up_stage_tracking(
+            bundle.root,
+            acceptance_id=acceptance_id,
+            source=source,
+            run=lambda: settle_gate_shell(
+                gate_shell,
+                gate_state="answered",
+                reason="gate answered",
+                resume=retry == "resume",
+            ),
         )
     return _answered_payload(bundle, execution.response, execution.already_completed)
 
@@ -204,6 +214,7 @@ def _resume_answered_shell(
     input_data: object | None,
     option_inputs: Mapping[str, object] | None,
     feedback: str | None,
+    source: str,
 ) -> dict[str, Any]:
     """Resume an unfinished coder handoff using the persisted answer."""
     existing = read_json_object(bundle.response_path)
@@ -228,16 +239,42 @@ def _resume_answered_shell(
         raise GateCliError(
             "answered-gate --resume --input does not match the stored answer"
         )
+    receipt = read_current_receipt(bundle.root)
+    if (
+        current_post_response_failure(bundle.root, receipt, stage="side_effects")
+        is not None
+    ):
+        # A prior attempt persisted response.json but its side effects (a
+        # successor launch, a bead action) failed -- rerun only those,
+        # skipping any launch response.json already recorded, before
+        # settling the shell so the handoff resumes against a launch that
+        # actually happened.
+        execution = execute_gate_selection(
+            bundle.root,
+            selected_ids,
+            input_data,
+            feedback=feedback,
+            source=source,
+            retry="resume",
+            option_inputs=option_inputs,
+        )
+        existing = execution.response
+        receipt = read_current_receipt(bundle.root)
     gate_shell = find_gate_shell_by_gate_id(None, bundle.request_id)
     if gate_shell is None:
         raise GateCliError(
             "answered-gate --resume requires the original gate-shell member"
         )
-    settled = settle_gate_shell(
-        gate_shell,
-        gate_state="answered",
-        reason="gate answered",
-        resume=True,
+    settled = with_follow_up_stage_tracking(
+        bundle.root,
+        acceptance_id=receipt_acceptance_id(receipt),
+        source=source,
+        run=lambda: settle_gate_shell(
+            gate_shell,
+            gate_state="answered",
+            reason="gate answered",
+            resume=True,
+        ),
     )
     payload = _answered_payload(bundle, existing, True)
     payload["followup_agent"] = settled.followup_agent

@@ -35,7 +35,25 @@ from sase.notification_gates.durability import (
 EXECUTION_JOURNAL_FILENAME = "journal.jsonl"
 EXECUTION_JOURNAL_SCHEMA_VERSION = 1
 
-_TERMINAL_EVENTS = frozenset({"attempt_completed", "attempt_superseded"})
+#: Lifecycle events, in the sense design decision 2 (bead ``sase-zr.7.1.1``)
+#: uses the term: the ones :func:`current_execution_failure` scans to decide
+#: whether a pre-response failure is still current. ``option_completed``,
+#: ``option_failed``, ``stage_started``, ``stage_completed``, and
+#: ``operation_ran`` are not lifecycle events and never affect that scoping.
+_LIFECYCLE_EVENTS = frozenset(
+    {
+        "attempt_started",
+        "attempt_resumed",
+        "attempt_failed",
+        "attempt_completed",
+        "attempt_superseded",
+    }
+)
+
+#: Stages a post-response failure can be recorded for. Distinct from the pre-
+#: response ``command``/``terminal_prepare`` stages an attempt still open
+#: under ``.response.lock`` can fail at.
+_POST_RESPONSE_STAGES = ("side_effects", "follow_up")
 
 
 @dataclass(frozen=True)
@@ -49,6 +67,8 @@ class IncompleteAttempt:
     completed_option_ids: tuple[str, ...] = ()
     failed_option_ids: tuple[str, ...] = ()
     results: Mapping[str, Any] = field(default_factory=dict)
+    acceptance_id: str | None = None
+    failed_stage: str | None = None
 
     def matches(
         self,
@@ -66,9 +86,77 @@ class IncompleteAttempt:
 
     def describe(self) -> str:
         """Render the completed and failed option ids for an operator message."""
+        if self.failed_stage == "terminal_prepare" and not self.failed_option_ids:
+            return "all options completed; terminal preparation failed"
         completed = ", ".join(self.completed_option_ids) or "none"
         failed = ", ".join(self.failed_option_ids) or "none"
         return f"completed: {completed}; failed: {failed}"
+
+
+@dataclass(frozen=True)
+class ExecutionFailureFacts:
+    """One redacted failure outcome read back from the journal.
+
+    Matches the shape of the Rust wire ``GateDecisionFailureOutcomeWire`` this
+    project will eventually feed (bead ``sase-zr.7.1.1.3`` and later), even
+    though nothing sends it there yet: :func:`to_wire` is exercised today only
+    by :mod:`sase.notification_gates.failure_outcome` reading its own writes
+    back for tests.
+    """
+
+    outcome_id: str
+    acceptance_id: str | None
+    attempt_id: str
+    stage: str
+    code: str
+    message: str
+    at_unix: float
+    error_record: str
+
+    def to_wire(self) -> dict[str, Any]:
+        """Return this failure as a ``GateDecisionFailureOutcomeWire`` JSON dict."""
+        wire: dict[str, Any] = {
+            "outcome_id": self.outcome_id,
+            "attempt_id": self.attempt_id,
+            "stage": self.stage,
+            "code": self.code,
+            "message": self.message,
+            "at_unix": self.at_unix,
+            "error_record": self.error_record,
+        }
+        if self.acceptance_id is not None:
+            wire["acceptance_id"] = self.acceptance_id
+        return wire
+
+    @classmethod
+    def _from_record(cls, record: Mapping[str, Any]) -> ExecutionFailureFacts:
+        acceptance_id = record.get("acceptance_id")
+        return cls(
+            outcome_id=str(record.get("outcome_id") or ""),
+            acceptance_id=acceptance_id if isinstance(acceptance_id, str) else None,
+            attempt_id=str(record.get("attempt_id") or ""),
+            stage=str(record.get("stage") or ""),
+            code=str(record.get("code") or ""),
+            message=str(record.get("message") or ""),
+            at_unix=(
+                float(record["at_unix"])
+                if isinstance(record.get("at_unix"), (int, float))
+                else 0.0
+            ),
+            error_record=str(record.get("error_record") or ""),
+        )
+
+
+def _receipt_acceptance_id(receipt: Mapping[str, Any] | None) -> str | None:
+    if receipt is None:
+        return None
+    value = receipt.get("acceptance_id")
+    return value if isinstance(value, str) else None
+
+
+def _event_acceptance_id(record: Mapping[str, Any]) -> str | None:
+    value = record.get("acceptance_id")
+    return value if isinstance(value, str) else None
 
 
 def value_digest(value: object) -> str:
@@ -90,6 +178,11 @@ def append_journal_event(
     selected_option_ids: Sequence[str] | None = None,
     input_digests: Mapping[str, str] | None = None,
     code: str | None = None,
+    acceptance_id: str | None = None,
+    stage: str | None = None,
+    message: str | None = None,
+    outcome_id: str | None = None,
+    error_record: str | None = None,
 ) -> None:
     """Append one attempt-boundary record; never raises into the caller's path."""
     record: dict[str, Any] = {
@@ -102,6 +195,11 @@ def append_journal_event(
         "input_digest": input_digest,
         "result_digest": result_digest,
         "code": code,
+        "acceptance_id": acceptance_id,
+        "stage": stage,
+        "message": message,
+        "outcome_id": outcome_id,
+        "error_record": error_record,
         "at_unix": time.time(),
     }
     if selected_option_ids is not None:
@@ -149,8 +247,18 @@ def read_journal_records(bundle_path: Path) -> tuple[dict[str, Any], ...]:
     return tuple(events)
 
 
-def incomplete_attempt(bundle_path: Path) -> IncompleteAttempt | None:
-    """Return the newest started attempt that never reached a terminal event."""
+def incomplete_attempt(
+    bundle_path: Path, *, response_exists: bool
+) -> IncompleteAttempt | None:
+    """Return the newest started attempt that never reached a terminal event.
+
+    ``attempt_completed`` is terminal only when ``response_exists`` -- a
+    legacy bundle journaled it before archive/terminal preparation ran (the
+    old stage order), so an early-completed journal with no
+    ``response.json`` on disk must still read back as incomplete, or a retry
+    would silently re-run commands that already succeeded.
+    ``attempt_superseded`` is always terminal.
+    """
     events = read_journal_records(bundle_path)
     started: dict[str, dict[str, Any]] = {}
     order: list[str] = []
@@ -161,7 +269,9 @@ def incomplete_attempt(bundle_path: Path) -> IncompleteAttempt | None:
         if event == "attempt_started":
             started[attempt_id] = record
             order.append(attempt_id)
-        elif event in _TERMINAL_EVENTS:
+        elif event == "attempt_superseded":
+            terminal.add(attempt_id)
+        elif event == "attempt_completed" and response_exists:
             terminal.add(attempt_id)
     open_ids = [
         attempt_id
@@ -175,9 +285,13 @@ def incomplete_attempt(bundle_path: Path) -> IncompleteAttempt | None:
     completed: list[str] = []
     failed: list[str] = []
     results: dict[str, Any] = {}
+    failed_stage: str | None = None
     for record in events:
         if str(record["attempt_id"]) != attempt_id:
             continue
+        if record.get("event") == "attempt_failed":
+            stage = record.get("stage")
+            failed_stage = stage if isinstance(stage, str) else None
         option_id = record.get("option_id")
         if not isinstance(option_id, str):
             continue
@@ -205,7 +319,71 @@ def incomplete_attempt(bundle_path: Path) -> IncompleteAttempt | None:
         completed_option_ids=tuple(completed),
         failed_option_ids=tuple(failed),
         results=results,
+        acceptance_id=_event_acceptance_id(start),
+        failed_stage=failed_stage,
     )
+
+
+def current_execution_failure(
+    bundle_path: Path,
+    receipt: Mapping[str, Any] | None,
+    *,
+    response_exists: bool,
+) -> ExecutionFailureFacts | None:
+    """Return the current pre-response failure for *receipt*, or ``None``.
+
+    Design decision 2 (bead ``sase-zr.7.1.1``): a pre-response failure is
+    current when the last lifecycle event scoped to the receipt's acceptance
+    id (``None`` for a legacy receipt, matched only against legacy events
+    that also carry no acceptance id) is ``attempt_failed``. A later
+    ``attempt_resumed``, ``attempt_completed``, or ``attempt_superseded``
+    clears it. A published response makes any pre-response failure moot, so
+    callers that already know ``response_exists`` is true should not call
+    this -- the parameter exists only so callers can pass through the same
+    fact set they gathered for :func:`incomplete_attempt`.
+    """
+    if response_exists:
+        return None
+    acceptance_id = _receipt_acceptance_id(receipt)
+    last_lifecycle_event: dict[str, Any] | None = None
+    for record in read_journal_records(bundle_path):
+        if record.get("event") not in _LIFECYCLE_EVENTS:
+            continue
+        if _event_acceptance_id(record) != acceptance_id:
+            continue
+        last_lifecycle_event = record
+    if last_lifecycle_event is None or last_lifecycle_event.get("event") != (
+        "attempt_failed"
+    ):
+        return None
+    return ExecutionFailureFacts._from_record(last_lifecycle_event)
+
+
+def current_post_response_failure(
+    bundle_path: Path,
+    receipt: Mapping[str, Any] | None,
+    *,
+    stage: str,
+) -> ExecutionFailureFacts | None:
+    """Return the current failure for one post-response *stage*, or ``None``.
+
+    Design decision 2: a post-response failure is current when no later
+    ``stage_completed`` for the same stage and acceptance id exists.
+    ``stage`` is one of :data:`_POST_RESPONSE_STAGES` (``side_effects`` or
+    ``follow_up``).
+    """
+    acceptance_id = _receipt_acceptance_id(receipt)
+    for record in reversed(read_journal_records(bundle_path)):
+        if record.get("stage") != stage:
+            continue
+        if _event_acceptance_id(record) != acceptance_id:
+            continue
+        event = record.get("event")
+        if event == "stage_completed":
+            return None
+        if event == "attempt_failed":
+            return ExecutionFailureFacts._from_record(record)
+    return None
 
 
 def executed_operations(bundle_path: Path) -> tuple[dict[str, Any], ...]:
@@ -239,8 +417,11 @@ def executed_operations(bundle_path: Path) -> tuple[dict[str, Any], ...]:
 __all__ = [
     "EXECUTION_JOURNAL_FILENAME",
     "EXECUTION_JOURNAL_SCHEMA_VERSION",
+    "ExecutionFailureFacts",
     "IncompleteAttempt",
     "append_journal_event",
+    "current_execution_failure",
+    "current_post_response_failure",
     "executed_operations",
     "incomplete_attempt",
     "read_journal_records",

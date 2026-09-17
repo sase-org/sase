@@ -7,7 +7,7 @@ otherwise create an import cycle (``model_options`` imports ``model_inputs``).
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from sase.notification_gates.model_options import GateOption
@@ -176,9 +176,44 @@ def _scrub(value: Any, secrets: tuple[str, ...]) -> Any:
     return value
 
 
+def scrub_submitted_secrets(
+    selected: Sequence[GateOption],
+    resolved_inputs: Mapping[str, Any] | None,
+    message: str,
+) -> str:
+    """Return *message*, or a fixed placeholder if it echoes a submitted secret.
+
+    A durable failure outcome's message (see
+    :mod:`sase.notification_gates.failure_outcome`) can quote an exception
+    string built from a command's own output, and a command is free to echo
+    its input back -- the same risk :func:`redact_secrets_in_result` guards
+    against for a command result. Wraps :func:`_submitted_secret_strings` to
+    collect every selected option's submitted secret values and the same
+    whole-value :func:`_scrub` a command result gets: a message containing
+    any of them is replaced in full rather than spliced, so no partial
+    boundary of the secret survives redaction.
+    """
+    secrets = tuple(
+        value
+        for option in selected
+        for value in _submitted_secret_strings(
+            option, (resolved_inputs or {}).get(option.id)
+        )
+    )
+    if not secrets:
+        return message
+    scrubbed = _scrub(message, secrets)
+    return (
+        scrubbed
+        if isinstance(scrubbed, str)
+        else "<redacted: message echoed submitted secret input>"
+    )
+
+
 __all__ = [
     "redact_option_inputs",
     "redact_secrets_in_result",
     "redact_shared_input",
     "resolve_option_inputs",
+    "scrub_submitted_secrets",
 ]

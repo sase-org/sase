@@ -1,0 +1,232 @@
+"""Redacted, durable failure-outcome recording for gate execution.
+
+An accepted gate decision must never look silently stuck: every failure past
+acceptance -- an option command, terminal (archive) preparation, a host side
+effect, or a shell's follow-up settlement -- gets one durable, redacted
+``attempt_failed`` journal event referencing the existing ``errors/*.json``
+record :func:`~sase.notification_gates.command_runner.record_execution_error`
+already writes, rather than a second parallel store. See design decision 7 in
+``plan:202609/gate_decision_integrity_1.md``.
+
+Nothing reads these outcomes yet outside this package's own tests: the
+``failure_surfacing`` phase (bead ``sase-zr.7.1.1.4``) is what feeds them to
+``poll_gate`` and a recovery notification.
+"""
+
+from __future__ import annotations
+
+import time
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
+from pathlib import Path
+from typing import Any
+from uuid import uuid4
+
+from sase.notification_gates.command_runner import record_execution_error
+from sase.notification_gates.executor_inputs import scrub_submitted_secrets
+from sase.notification_gates.journal import ExecutionFailureFacts, append_journal_event
+from sase.notification_gates.model_options import GateOption
+from sase.notification_gates.models import GateError
+
+#: Design decision 7: a message this long is still useful to a reviewer, and
+#: bounding it keeps one verbose exception from bloating the journal.
+_MESSAGE_LIMIT = 1000
+
+#: For these two codes the message is a fixed summary naming the option and
+#: (for ``command_failed``) its exit status -- never stdout or stderr, which
+#: a reviewer already reads through ``errors/*.json`` via ``d``.
+_FIXED_SUMMARY_CODES = frozenset({"command_failed", "invalid_command_output"})
+
+
+def record_failure_outcome(
+    bundle_path: Path,
+    *,
+    acceptance_id: str | None,
+    attempt_id: str,
+    stage: str,
+    error: BaseException,
+    selected: Sequence[GateOption] = (),
+    resolved_inputs: Mapping[str, Any] | None = None,
+    source: str,
+    request_hash: str = "",
+    returncode: int | None = None,
+    stdout: str | None = None,
+    stderr: str | None = None,
+    default_code: str = "execution_interrupted",
+) -> ExecutionFailureFacts:
+    """Record one durable, redacted failure outcome and return it.
+
+    Writes exactly one ``errors/*.json`` record (via the now stage/attempt/
+    outcome-tagged :func:`record_execution_error`) and one ``attempt_failed``
+    journal event referencing it -- callers must not also call
+    :func:`record_execution_error` themselves for the same failure.
+
+    ``stage`` is one of ``command``, ``terminal_prepare``, ``side_effects``,
+    or ``follow_up``. Pre-attempt revalidation failures (before an attempt id
+    exists) use ``stage="command"`` and ``attempt_id=""``, per design
+    decision 7. ``default_code`` names *error* when it is not a
+    :class:`GateError` -- ``execution_interrupted`` for a true interruption
+    (a ``BaseException`` escaping option-command or stage execution), or
+    ``adapter_rejected`` for an adapter's own non-``GateError`` rejection
+    type, matching :func:`sase.notification_gates.command_runner.recorded_rejection`.
+    """
+    code = error.code if isinstance(error, GateError) else default_code
+    option_id = selected[0].id if selected else ""
+    message = _redacted_message(code, error, selected, resolved_inputs, returncode)
+    outcome_id = uuid4().hex
+    error_record = record_execution_error(
+        bundle_path,
+        option_id=option_id,
+        code=code,
+        message=str(error),
+        source=source,
+        returncode=returncode,
+        stdout=stdout,
+        stderr=stderr,
+        stage=stage,
+        attempt_id=attempt_id,
+        outcome_id=outcome_id,
+    )
+    at_unix = time.time()
+    append_journal_event(
+        bundle_path,
+        attempt_id=attempt_id,
+        request_hash=request_hash,
+        event="attempt_failed",
+        code=code,
+        stage=stage,
+        message=message,
+        outcome_id=outcome_id,
+        error_record=error_record,
+        acceptance_id=acceptance_id,
+    )
+    return ExecutionFailureFacts(
+        outcome_id=outcome_id,
+        acceptance_id=acceptance_id,
+        attempt_id=attempt_id,
+        stage=stage,
+        code=code,
+        message=message,
+        at_unix=at_unix,
+        error_record=error_record,
+    )
+
+
+@contextmanager
+def recorded_attempt_failure(
+    bundle_path: Path,
+    *,
+    acceptance_id: str | None,
+    attempt_id: str = "",
+    stage: str = "command",
+    selected: Sequence[GateOption] = (),
+    resolved_inputs: Mapping[str, Any] | None,
+    source: str,
+) -> Iterator[None]:
+    """Record one failure outcome for an exception raised in the block.
+
+    Pre-attempt revalidation (feedback normalization, input resolution,
+    bounds and schema checks) happens after acceptance but before an attempt
+    id exists, so it uses ``stage="command"`` and ``attempt_id=""`` by
+    default -- design decision 7. Combines what
+    :func:`sase.notification_gates.command_runner.recorded_rejection` does
+    for a pre-acceptance rejection with the journal's ``attempt_failed``
+    event in one write, so a caller past acceptance never records two
+    outcomes for the same failure.
+    """
+    try:
+        yield
+    except BaseException as exc:
+        default_code = (
+            "adapter_rejected"
+            if isinstance(exc, Exception)
+            else "execution_interrupted"
+        )
+        record_failure_outcome(
+            bundle_path,
+            acceptance_id=acceptance_id,
+            attempt_id=attempt_id,
+            stage=stage,
+            error=exc,
+            selected=selected,
+            resolved_inputs=resolved_inputs,
+            source=source,
+            default_code=default_code,
+        )
+        raise
+
+
+def with_follow_up_stage_tracking[T](
+    bundle_path: Path,
+    *,
+    acceptance_id: str | None,
+    source: str,
+    run: Callable[[], T],
+) -> T:
+    """Run *run* (a shell settlement) bracketed by ``follow_up`` stage events.
+
+    The ``follow_up`` stage covers ``settle_gate_shell`` itself raising --
+    not the follow-up launch failures it already records in
+    ``gate_followup_error`` metadata and tolerates internally. Used by
+    :mod:`sase.notification_gates.cli_answer` and
+    :mod:`sase.plan_approval_actions` around their own ``settle_gate_shell``
+    calls, since a gate answered through either surface can hit this stage.
+    """
+    append_journal_event(
+        bundle_path,
+        attempt_id="",
+        request_hash="",
+        event="stage_started",
+        stage="follow_up",
+        acceptance_id=acceptance_id,
+    )
+    try:
+        result = run()
+    except BaseException as exc:
+        default_code = (
+            "adapter_rejected"
+            if isinstance(exc, Exception)
+            else "execution_interrupted"
+        )
+        record_failure_outcome(
+            bundle_path,
+            acceptance_id=acceptance_id,
+            attempt_id="",
+            stage="follow_up",
+            error=exc,
+            source=source,
+            default_code=default_code,
+        )
+        raise
+    append_journal_event(
+        bundle_path,
+        attempt_id="",
+        request_hash="",
+        event="stage_completed",
+        stage="follow_up",
+        acceptance_id=acceptance_id,
+    )
+    return result
+
+
+def _redacted_message(
+    code: str,
+    error: BaseException,
+    selected: Sequence[GateOption],
+    resolved_inputs: Mapping[str, Any] | None,
+    returncode: int | None,
+) -> str:
+    option_id = selected[0].id if selected else ""
+    if code in _FIXED_SUMMARY_CODES:
+        if code == "command_failed" and returncode is not None:
+            return f"option {option_id} failed with exit status {returncode}"
+        return f"option {option_id} failed: {code}"
+    scrubbed = scrub_submitted_secrets(selected, resolved_inputs, str(error))
+    return scrubbed[:_MESSAGE_LIMIT]
+
+
+__all__ = [
+    "record_failure_outcome",
+    "recorded_attempt_failure",
+    "with_follow_up_stage_tracking",
+]
