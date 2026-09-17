@@ -98,6 +98,28 @@ def _auth_failed_ledger(
     }
 
 
+def _runner_error_ledger(
+    manifest: dict[str, Any], manifest_sha256: str
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "request_id": manifest["request_id"],
+        "manifest_sha256": manifest_sha256,
+        "outcome": "runner_error",
+        "entries": [
+            {
+                "id": command["id"],
+                "status": "skipped",
+                "exit_code": None,
+                "duration_seconds": 0.0,
+                "output_tail": "",
+            }
+            for command in manifest["commands"]
+        ],
+        "diagnostic": "failed to start sudo command in cwd /missing",
+    }
+
+
 def _runner_receipt(envelope: dict[str, Any]) -> dict[str, Any]:
     sudo_payload = envelope["payload"]["sudo"]
     manifest = sudo_payload["manifest"]
@@ -475,6 +497,45 @@ def test_sudo_answer_runs_reviewed_command_subset(
     )
 
 
+def test_sudo_answer_preserves_reviewed_cwd_in_runner_manifest(
+    gate_home: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    cwd = tmp_path / "review cwd"
+    cwd.mkdir()
+    request = _request()
+    request["cwd"] = str(cwd)
+    with override_flags(agent_sudo_requests=True):
+        gate = create_gate(build_sudo_gate_request(request))
+    parser = argparse.ArgumentParser(prog="sase")
+    register_sudo_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(["sudo", "answer", gate.request_id, "--run", "--json"])
+    monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
+    monkeypatch.setattr(
+        "sase.notification_gates.executor.has_controlling_tty",
+        lambda: True,
+    )
+    captured_manifest: dict[str, Any] = {}
+
+    def fake_runner(
+        manifest: dict[str, Any],
+        *,
+        manifest_sha256: str,
+        **_kwargs: Any,
+    ) -> dict[str, Any]:
+        captured_manifest.update(manifest)
+        return _runner_ledger(manifest, manifest_sha256)
+
+    monkeypatch.setattr("sase.sudo.cli.run_sudo_runner", fake_runner)
+
+    with override_flags(agent_sudo_requests=True):
+        assert handle_sudo_command(args) == 0
+
+    assert captured_manifest["cwd"] == str(cwd)
+
+
 def test_sudo_answer_command_option_does_not_clobber_root_command() -> None:
     args = create_parser().parse_args(
         [
@@ -520,6 +581,38 @@ def test_sudo_answer_json_auth_failure_reports_pending_gate(
     assert output["status"] == "pending"
     assert output["settled"] is False
     assert output["outcome"] == "authentication_failed"
+    assert not gate.response_path.exists()
+    assert not (gate.bundle_path / DECISION_RECEIPT_FILENAME).exists()
+
+
+def test_sudo_runner_error_ledger_leaves_gate_pending(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    del gate_home
+    with override_flags(agent_sudo_requests=True):
+        gate = create_gate(build_sudo_gate_request(_request()))
+    parser = argparse.ArgumentParser(prog="sase")
+    register_sudo_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(["sudo", "answer", gate.request_id, "--run", "--json"])
+    monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
+    monkeypatch.setattr(
+        "sase.sudo.cli.run_sudo_runner",
+        lambda manifest, **kwargs: _runner_error_ledger(
+            manifest,
+            str(kwargs["manifest_sha256"]),
+        ),
+    )
+
+    with override_flags(agent_sudo_requests=True):
+        assert handle_sudo_command(args) == 1
+
+    output = json.loads(capsys.readouterr().out)
+    assert output["status"] == "pending"
+    assert output["settled"] is False
+    assert output["outcome"] == "runner_error"
+    assert output["code"] == "runner_failed"
     assert not gate.response_path.exists()
     assert not (gate.bundle_path / DECISION_RECEIPT_FILENAME).exists()
 

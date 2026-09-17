@@ -64,6 +64,14 @@ root is needed.
 | `timeout_seconds`      | none              | Default per-command timeout; also the review window when `gate_timeout_seconds` is unset. |
 | `next.prompt`          | none              | Prompt for the successor that receives the ledger after approval.                         |
 
+The working directory must be an existing absolute directory when the request is
+created. At execution time, the runner changes the sudo child process into that
+directory before invoking `/usr/bin/sudo`; it does not pass sudo's `-D` or `--chdir`
+option. The directory must be accessible on the execution host to the user who is
+authenticating. Normally the approved command inherits that directory, but sudoers
+`CWD`/`runcwd` policy remains authoritative. SASE does not fall back to the runner's
+directory or use root privileges to enter root-only directories.
+
 The review window is short by default. A request nobody answers within
 `gate_timeout_seconds` settles as timed out and launches no follow-up, so set a longer
 window when the reviewer may not be at a terminal.
@@ -258,6 +266,13 @@ could not be found, the gate remains pending. Re-run:
 ```bash
 sase sudo answer <id> --run
 ```
+
+If a ledger shows sudo rejected `-D` or `--chdir`, the host ran an old sudo runner. The
+reviewed command never reached the package manager or other target executable. Changing
+or omitting `cwd` in a new request does not repair that old runner, because request
+normalization always supplies a cwd and the old runner always translated it to sudo
+`-D`. After installing a fixed runner, create a new reviewed sudo request for any
+already-settled failed approval instead of trying to reuse the old gate.
 
 Every approval runs the full selected command set again. If a run was interrupted
 partway, for example by the runner timeout, no ledger is recorded and some commands may

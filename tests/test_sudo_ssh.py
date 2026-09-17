@@ -13,7 +13,11 @@ from sase.sudo.ssh import run_remote_sudo
 
 
 def test_run_remote_sudo_stages_executes_fetches_and_cleans() -> None:
-    manifest = {"schema_version": 1, "request_id": "sudo-1"}
+    manifest = {
+        "schema_version": 1,
+        "request_id": "sudo-1",
+        "cwd": "/tmp/remote cwd",
+    }
     ledger = {
         "schema_version": 1,
         "request_id": "sudo-1",
@@ -36,6 +40,9 @@ def test_run_remote_sudo_stages_executes_fetches_and_cleans() -> None:
             assert (
                 kwargs["input"]
                 == json.dumps(manifest, sort_keys=True).encode("utf-8") + b"\n"
+            )
+            assert json.loads(kwargs["input"].decode("utf-8"))["cwd"] == (
+                "/tmp/remote cwd"
             )
             return subprocess.CompletedProcess(argv, 0)
         if argv[:3] == ["ssh", "-t", "target"]:
