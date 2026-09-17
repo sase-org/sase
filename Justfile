@@ -351,7 +351,7 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-123.3(render_svg_to_png)" \
+        --epic-symbol "sase-123.4(render_svg_to_png)" \
         --epic-symbol "sase-11y.4(ServiceConfigComposition)" \
         --epic-symbol "sase-11y.4(ServiceConfigError)" \
         --epic-symbol "sase-11y.4(ServiceEnablementSource)" \
