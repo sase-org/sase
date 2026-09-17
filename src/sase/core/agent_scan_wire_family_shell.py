@@ -205,19 +205,24 @@ _GATE_SPECIFIC_KEYS: dict[str, str] = {
     "gate_claim_holder_pid": "claim_holder_pid",
 }
 
+_MONITOR_FLAT_KEYS = frozenset(_MONITOR_SHARED_KEYS) | frozenset(_MONITOR_SPECIFIC_KEYS)
+_GATE_FLAT_KEYS = frozenset(_GATE_SHARED_KEYS) | frozenset(_GATE_SPECIFIC_KEYS)
+
 
 def _project(data: Mapping[str, Any], key_map: dict[str, str]) -> dict[str, Any]:
     return {new: data[old] for old, new in key_map.items() if old in data}
 
 
+def _has_any_key(data: Mapping[str, Any], keys: frozenset[str]) -> bool:
+    if isinstance(data, dict):
+        return not data.keys().isdisjoint(keys)
+    return any(key in data for key in keys)
+
+
 def _family_shell_from_flat_keys(data: Mapping[str, Any]) -> FamilyShellWire | None:
     """Build a ``FamilyShellWire`` from flat legacy ``monitor_*`` / ``gate_*`` keys."""
-    has_monitor = any(k in data for k in _MONITOR_SHARED_KEYS) or any(
-        k in data for k in _MONITOR_SPECIFIC_KEYS
-    )
-    has_gate = any(k in data for k in _GATE_SHARED_KEYS) or any(
-        k in data for k in _GATE_SPECIFIC_KEYS
-    )
+    has_monitor = _has_any_key(data, _MONITOR_FLAT_KEYS)
+    has_gate = _has_any_key(data, _GATE_FLAT_KEYS)
     if has_monitor and has_gate:
         # A family shell is either a monitor or a gate, never both,
         # because the two are independent inheritance chains keyed off

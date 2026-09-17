@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from dataclasses import fields
 
 from sase.core.agent_scan_wire import (
@@ -333,6 +334,62 @@ def test_agent_meta_plan_committed_preserves_true_false_and_absent() -> None:
         record.agent_meta.plan_committed  # type: ignore[union-attr]
         for record in snapshot.records
     ] == [True, False, None, None]
+
+
+def test_scan_wire_rehydration_does_not_mutate_source_payload() -> None:
+    payload = {
+        "schema_version": AGENT_SCAN_WIRE_SCHEMA_VERSION,
+        "projects_root": "/tmp/projects",
+        "records": [
+            {
+                "project_name": "myproj",
+                "project_dir": "/tmp/projects/myproj",
+                "project_file": "/tmp/projects/myproj/myproj.sase",
+                "workflow_dir_name": "ace-run",
+                "artifact_dir": "/tmp/projects/myproj/artifacts/ace-run/20260601010101",
+                "timestamp": "20260601010101",
+                "agent_meta": {
+                    "name": "producer",
+                    "tag": "legacy",
+                    "cl_name": "patch-a",
+                    "wait_runners": 2,
+                    "wait_runners_explicit": True,
+                    "agent_family": "clan-a",
+                    "agent_family_role": "phase",
+                    "agent_family_parallel": True,
+                    "plan_committed": "false",
+                },
+                "done": {"cl_name": "patch-b"},
+                "waiting": {
+                    "cl_name": "patch-c",
+                    "wait_runners": 1,
+                    "wait_runners_explicit": True,
+                },
+                "prompt_steps": [],
+                "has_done_marker": True,
+            }
+        ],
+    }
+    original = copy.deepcopy(payload)
+
+    snapshot = agent_scan_wire_from_dict(payload)
+
+    assert payload == original
+    record = snapshot.records[0]
+    assert record.agent_meta is not None
+    assert record.agent_meta.tribe == "legacy"
+    assert record.agent_meta.patch_name == "patch-a"
+    assert record.agent_meta.queue_capacity == 2
+    assert record.agent_meta.queue_capacity_explicit is True
+    assert record.agent_meta.agent_clan == "clan-a"
+    assert record.agent_meta.agent_family is None
+    assert record.agent_meta.agent_family_role is None
+    assert record.agent_meta.plan_committed is None
+    assert record.done is not None
+    assert record.done.patch_name == "patch-b"
+    assert record.waiting is not None
+    assert record.waiting.patch_name == "patch-c"
+    assert record.waiting.queue_capacity == 1
 
 
 def test_rehydration_ignores_unknown_marker_keys() -> None:

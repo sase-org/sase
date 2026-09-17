@@ -7,8 +7,8 @@ sibling pattern used elsewhere in :mod:`sase.core`.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from dataclasses import asdict
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import MISSING, asdict, fields
 from typing import Any
 
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
@@ -66,9 +66,96 @@ def agent_scan_wire_to_json_dict(record: Any) -> Any:
 
 def _dual_patch_name_payload(data: dict[str, Any]) -> dict[str, Any]:
     """Populate canonical Patch names and stable legacy aliases together."""
+    if data.keys().isdisjoint(_PATCH_METADATA_KEYS) or not any(
+        isinstance(data.get(key), str) and data.get(key) for key in _PATCH_METADATA_KEYS
+    ):
+        return data
     payload = dict(data)
     canonicalize_patch_metadata(payload)
     return payload
+
+
+_PATCH_METADATA_KEYS = frozenset(
+    {
+        "patch_name",
+        "changespec_name",
+        "cl_name",
+        "commit_patch_name",
+        "commit_changespec_name",
+        "stitch_id",
+        "commit_entry_id",
+        "entry_id",
+    }
+)
+_QUEUE_CAPACITY_KEYS = frozenset(
+    {
+        "queue_capacity",
+        "queue_capacity_explicit",
+        "wait_runners",
+        "wait_runners_explicit",
+    }
+)
+_resolve_authored_queue_capacity: (
+    Callable[[Mapping[str, Any]], tuple[int | None, bool]] | None
+) = None
+_UNKNOWN_FIELD = object()
+_REQUIRED_FIELD = object()
+_DEFAULT_LIST = object()
+_DEFAULT_DICT = object()
+_FIELD_DEFAULTS: dict[type[Any], dict[str, object]] = {}
+
+
+def _resolve_queue_capacity(data: Mapping[str, Any]) -> tuple[int | None, bool]:
+    global _resolve_authored_queue_capacity
+    if _resolve_authored_queue_capacity is None:
+        from sase.xprompt.queue_directive import resolve_authored_queue_capacity
+
+        _resolve_authored_queue_capacity = resolve_authored_queue_capacity
+    return _resolve_authored_queue_capacity(data)
+
+
+def _field_defaults(cls: type[Any]) -> dict[str, object]:
+    defaults = _FIELD_DEFAULTS.get(cls)
+    if defaults is not None:
+        return defaults
+    defaults = {}
+    for field in fields(cls):
+        if field.default is not MISSING:
+            defaults[field.name] = field.default
+            continue
+        if field.default_factory is list:  # type: ignore[misc]
+            defaults[field.name] = _DEFAULT_LIST
+        elif field.default_factory is dict:  # type: ignore[misc]
+            defaults[field.name] = _DEFAULT_DICT
+        else:
+            defaults[field.name] = _REQUIRED_FIELD
+    _FIELD_DEFAULTS[cls] = defaults
+    return defaults
+
+
+def _non_default_field_kwargs(
+    cls: type[Any],
+    data: Mapping[str, Any],
+) -> dict[str, Any]:
+    defaults = _field_defaults(cls)
+    kwargs: dict[str, Any] = {}
+    for key, value in data.items():
+        default = defaults.get(key, _UNKNOWN_FIELD)
+        if default is _UNKNOWN_FIELD:
+            continue
+        if default is _REQUIRED_FIELD:
+            kwargs[key] = value
+            continue
+        if default is _DEFAULT_LIST:
+            if value == []:
+                continue
+        elif default is _DEFAULT_DICT:
+            if value == {}:
+                continue
+        elif value == default:
+            continue
+        kwargs[key] = value
+    return kwargs
 
 
 def _options_from_dict(data: dict[str, Any]) -> AgentArtifactScanOptionsWire:
@@ -259,7 +346,7 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
         if isinstance(waiting, dict)
         else None,
         pending_question=PendingQuestionMarkerWire(
-            **known_field_kwargs(PendingQuestionMarkerWire, pending_question)
+            **_non_default_field_kwargs(PendingQuestionMarkerWire, pending_question)
         )
         if isinstance(pending_question, dict)
         else None,
@@ -269,17 +356,19 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
             else None
         ),
         plan_path=PlanPathMarkerWire(
-            **known_field_kwargs(PlanPathMarkerWire, plan_path)
+            **_non_default_field_kwargs(PlanPathMarkerWire, plan_path)
         )
         if isinstance(plan_path, dict)
         else None,
         prompt_steps=[
-            PromptStepMarkerWire(**known_field_kwargs(PromptStepMarkerWire, step))
+            PromptStepMarkerWire(
+                **_non_default_field_kwargs(PromptStepMarkerWire, step)
+            )
             for step in data.get("prompt_steps") or []
         ],
         raw_prompt_snippet=data.get("raw_prompt_snippet"),
         used_xprompts=[
-            UsedXPromptWire(**known_field_kwargs(UsedXPromptWire, used))
+            UsedXPromptWire(**_non_default_field_kwargs(UsedXPromptWire, used))
             for used in data.get("used_xprompts") or []
             if isinstance(used, dict)
         ],
@@ -289,39 +378,41 @@ def _record_from_dict(data: dict[str, Any]) -> AgentArtifactRecordWire:
 
 
 def _agent_meta_from_dict(data: dict[str, Any]) -> AgentMetaWire:
-    payload = canonicalize_agent_tribe_metadata(
-        _queue_capacity_alias_payload(_dual_patch_name_payload(data))
-    )
+    payload = _queue_capacity_alias_payload(_dual_patch_name_payload(data))
+    if "tag" in payload or isinstance(payload.get("tribe"), str):
+        payload = canonicalize_agent_tribe_metadata(dict(payload))
+    kwargs = _non_default_field_kwargs(AgentMetaWire, payload)
     if bool(payload.get("agent_family_parallel", False)):
-        if not payload.get("agent_clan"):
-            payload["agent_clan"] = payload.get("agent_family")
-        payload["agent_family"] = None
-        payload["agent_family_role"] = None
-    raw_plan_committed = payload.get("plan_committed")
-    payload["plan_committed"] = (
-        raw_plan_committed if type(raw_plan_committed) is bool else None
-    )
-    kwargs = known_field_kwargs(AgentMetaWire, payload)
-    kwargs["family_shell"] = family_shell_from_mapping(payload)
+        if not kwargs.get("agent_clan"):
+            kwargs["agent_clan"] = payload.get("agent_family")
+        kwargs["agent_family"] = None
+        kwargs["agent_family_role"] = None
+    if "plan_committed" in payload and type(payload.get("plan_committed")) is not bool:
+        kwargs["plan_committed"] = None
+    family_shell = family_shell_from_mapping(payload)
+    if family_shell is not None:
+        kwargs["family_shell"] = family_shell
     return AgentMetaWire(**kwargs)
 
 
 def _done_marker_from_dict(data: dict[str, Any]) -> DoneMarkerWire:
     payload = _dual_patch_name_payload(data)
-    kwargs = known_field_kwargs(DoneMarkerWire, payload)
-    kwargs["family_shell"] = family_shell_from_mapping(payload)
+    kwargs = _non_default_field_kwargs(DoneMarkerWire, payload)
+    family_shell = family_shell_from_mapping(payload)
+    if family_shell is not None:
+        kwargs["family_shell"] = family_shell
     return DoneMarkerWire(**kwargs)
 
 
 def _running_marker_from_dict(data: dict[str, Any]) -> RunningMarkerWire:
     return RunningMarkerWire(
-        **known_field_kwargs(RunningMarkerWire, _dual_patch_name_payload(data))
+        **_non_default_field_kwargs(RunningMarkerWire, _dual_patch_name_payload(data))
     )
 
 
 def _waiting_marker_from_dict(data: dict[str, Any]) -> WaitingMarkerWire:
     return WaitingMarkerWire(
-        **known_field_kwargs(
+        **_non_default_field_kwargs(
             WaitingMarkerWire,
             _queue_capacity_alias_payload(_dual_patch_name_payload(data)),
         )
@@ -329,10 +420,16 @@ def _waiting_marker_from_dict(data: dict[str, Any]) -> WaitingMarkerWire:
 
 
 def _queue_capacity_alias_payload(data: dict[str, Any]) -> dict[str, Any]:
+    if data.keys().isdisjoint(_QUEUE_CAPACITY_KEYS) or (
+        data.get("queue_capacity") is None
+        and data.get("wait_runners") is None
+        and not data.get("queue_capacity_explicit")
+        and not data.get("wait_runners_explicit")
+    ):
+        return data
     payload = dict(data)
-    from sase.xprompt.queue_directive import resolve_authored_queue_capacity
 
-    capacity, explicit = resolve_authored_queue_capacity(payload)
+    capacity, explicit = _resolve_queue_capacity(payload)
     payload["queue_capacity"] = capacity
     payload["queue_capacity_explicit"] = explicit
     payload["wait_runners"] = capacity
@@ -343,10 +440,10 @@ def _queue_capacity_alias_payload(data: dict[str, Any]) -> dict[str, Any]:
 def _workflow_state_from_dict(data: dict[str, Any]) -> WorkflowStateWire:
     raw_steps = data.get("steps") or []
     steps = [
-        WorkflowStepStateWire(**known_field_kwargs(WorkflowStepStateWire, step))
+        WorkflowStepStateWire(**_non_default_field_kwargs(WorkflowStepStateWire, step))
         for step in raw_steps
     ]
-    payload = known_field_kwargs(WorkflowStateWire, data)
+    payload = _non_default_field_kwargs(WorkflowStateWire, data)
     payload.pop("steps", None)
     return WorkflowStateWire(steps=steps, **payload)
 

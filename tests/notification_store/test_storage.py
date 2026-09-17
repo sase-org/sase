@@ -152,6 +152,27 @@ class TestLoadNotifications:
         assert len(loaded) == 1
         assert loaded[0].tags == []
 
+    def test_cache_hit_returns_fresh_top_level_notification(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        append_notification(
+            make_notification(
+                id="cached",
+                notes=["initial"],
+                action_data={"kind": "demo"},
+            )
+        )
+
+        first = load_notifications()
+        second = load_notifications()
+
+        assert first[0] is not second[0]
+        first[0].read = True
+        assert load_notifications()[0].read is False
+
+        first[0].notes.append("nested-shallow-copy")
+        assert load_notifications()[0].notes == ["initial", "nested-shallow-copy"]
+
 
 class TestRewriteNotifications:
     """Tests for rewrite_notifications()."""

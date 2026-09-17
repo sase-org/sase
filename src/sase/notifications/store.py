@@ -1,6 +1,5 @@
 """Rust-backed JSONL notification storage."""
 
-import dataclasses
 import logging
 import os
 from collections.abc import Iterable
@@ -57,8 +56,32 @@ def _ensure_notifications_dir() -> None:
     os.makedirs(_notifications_dir(), exist_ok=True)
 
 
+def _clone_notification(notification: Notification) -> Notification:
+    return Notification(
+        id=notification.id,
+        timestamp=notification.timestamp,
+        sender=notification.sender,
+        icon=notification.icon,
+        color=notification.color,
+        notes=notification.notes,
+        files=notification.files,
+        tags=notification.tags,
+        action=notification.action,
+        action_data=notification.action_data,
+        read=notification.read,
+        dismissed=notification.dismissed,
+        silent=notification.silent,
+        muted=notification.muted,
+        snooze_until=notification.snooze_until,
+        resurfaced_at=notification.resurfaced_at,
+        plus_ones=notification.plus_ones,
+        plus_ones_dropped=notification.plus_ones_dropped,
+        dedup_key=notification.dedup_key,
+    )
+
+
 def _clone_notifications(notifications: list[Notification]) -> list[Notification]:
-    return [dataclasses.replace(n) for n in notifications]
+    return [_clone_notification(n) for n in notifications]
 
 
 def _rust_append_notification(path: Path, notification: Notification) -> Any:
@@ -244,7 +267,7 @@ def load_notifications(include_dismissed: bool = False) -> list[Notification]:
     key = (st.st_size, st.st_mtime_ns, st.st_ino, include_dismissed)
     cached = _LOAD_CACHE.get(key)
     if cached is not None:
-        return [dataclasses.replace(n) for n in cached]
+        return _clone_notifications(cached)
 
     snapshot = _rust_read_notifications_snapshot(path, include_dismissed)
     notifications = snapshot.notifications
@@ -252,7 +275,7 @@ def load_notifications(include_dismissed: bool = False) -> list[Notification]:
     # Drop any prior entries — only the latest stat is interesting and
     # this keeps the cache size bounded across long-running processes.
     _LOAD_CACHE.clear()
-    _LOAD_CACHE[key] = _clone_notifications(notifications)
+    _LOAD_CACHE[key] = notifications
     return _clone_notifications(notifications)
 
 
