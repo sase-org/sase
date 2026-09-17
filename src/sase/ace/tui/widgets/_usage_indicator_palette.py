@@ -18,16 +18,16 @@ from __future__ import annotations
 import math
 
 _DARK_BUCKET_COLORS: tuple[str, ...] = (
-    "#FF5F6D",  # 0-<10%: nearly exhausted, red
-    "#FF805F",  # 10-<20%: low, coral
-    "#FFA552",  # 20-<30%: limited, orange
-    "#EBC04F",  # 30-<40%: watchful, amber
-    "#CED44C",  # 40-<50%: midrange, yellow
-    "#AADC64",  # 50-<60%: comfortable, yellow-green
-    "#78DB8D",  # 60-<70%: healthy, green
-    "#4CD4B0",  # 70-<80%: ample, teal
-    "#48CCD0",  # 80-<90%: abundant, cyan
-    "#65C3ED",  # 90-100%: nearly full, blue
+    "#FF5F6D",  # 1-10%: nearly exhausted, red; also 0/<1% fallback
+    "#FF805F",  # 11-20%: low, coral
+    "#FFA552",  # 21-30%: limited, orange
+    "#EBC04F",  # 31-40%: watchful, amber
+    "#CED44C",  # 41-50%: midrange, yellow
+    "#AADC64",  # 51-60%: comfortable, yellow-green
+    "#78DB8D",  # 61-70%: healthy, green
+    "#4CD4B0",  # 71-80%: ample, teal
+    "#48CCD0",  # 81-90%: abundant, cyan
+    "#65C3ED",  # 91-100%: nearly full, blue
 )
 
 _LIGHT_BUCKET_COLORS: tuple[str, ...] = (
@@ -54,11 +54,16 @@ REJECTED_LIGHT_COLOR = "#A22534"
 
 
 def _usage_percent_bucket(remaining_percent: float) -> int:
-    """Return the 0-9 capacity bucket for a clamped remaining percentage."""
+    """Return the 0-9 bucket for the displayed positive whole percentage.
+
+    Exact zero is painted specially by the caller, but it still uses bucket zero
+    as its exhausted background. Subpercent values that display as ``<1%`` also
+    fall back to bucket zero as a normal foreground color.
+    """
     if not math.isfinite(remaining_percent):
         remaining_percent = 0.0
     clamped = max(0.0, min(100.0, remaining_percent))
-    return min(9, int(clamped // 10))
+    return max(0, min(9, (math.floor(clamped) - 1) // 10))
 
 
 def usage_percent_color(remaining_percent: float, *, dark: bool) -> str:

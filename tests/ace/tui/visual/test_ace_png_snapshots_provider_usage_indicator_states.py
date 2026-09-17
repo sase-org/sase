@@ -46,6 +46,7 @@ async def _snapshot_top_bar(
     name: str,
     title: str,
     theme: str | None = None,
+    expected_visible_usage_windows: int | None = None,
 ) -> None:
     """Render the artifacts top bar and assert one usage indicator golden."""
     async with AcePage(query='"visual"', patches=patches(), size=size) as page:
@@ -60,6 +61,14 @@ async def _snapshot_top_bar(
             ProviderUsageIndicator,
         )
         usage_indicator._apply_content(now=FROZEN_NOW)
+        if expected_visible_usage_windows is not None:
+            content = usage_indicator._build_content(
+                usage_indicator._usage_groups,
+                usage_budget=usage_indicator._usage_budget,
+                dark=usage_indicator._current_dark_theme(),
+            )
+            assert "+" not in content.plain
+            assert content.plain.count("%") == expected_visible_usage_windows
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
         await wait_for_visual_idle(page)
@@ -419,12 +428,12 @@ async def test_top_bar_usage_collector_failure_png_snapshot(
         (
             "textual-dark",
             "top_bar_usage_palette_dark_240x24",
-            "ACE top bar ten-bucket usage palette - dark theme",
+            "ACE top bar eleven-style usage palette - dark theme",
         ),
         (
             "textual-light",
             "top_bar_usage_palette_light_240x24",
-            "ACE top bar ten-bucket usage palette - light theme",
+            "ACE top bar eleven-style usage palette - light theme",
         ),
     ],
 )
@@ -435,23 +444,23 @@ async def test_top_bar_usage_palette_png_snapshot(
     snapshot_name: str,
     title: str,
 ) -> None:
-    """Exact zero plus other remaining-percent buckets stay distinct in both themes."""
+    """Exact zero plus all ten positive buckets stay distinct in both themes."""
     patch_startup_loaders(monkeypatch)
     quiet_top_bar(monkeypatch)
 
-    deciles = tuple(
+    palette_entries = tuple(
         entry(
-            provider=f"p{index}",
+            provider=chr(ord("a") + index),
             window_key="weekly",
-            remaining_percent=0.0 if index == 0 else index * 10.0 + 5.0,
+            remaining_percent=float(index * 10),
             reset_state="unknown",
             seconds_until_reset=None,
             resets_at=None,
         )
-        for index in range(10)
+        for index in range(11)
     )
 
-    patch_projection(monkeypatch, _entries_projection(*deciles))
+    patch_projection(monkeypatch, _entries_projection(*palette_entries))
 
     await _snapshot_top_bar(
         ace_png_visual,
@@ -459,6 +468,7 @@ async def test_top_bar_usage_palette_png_snapshot(
         name=snapshot_name,
         title=title,
         theme=theme,
+        expected_visible_usage_windows=11,
     )
 
 

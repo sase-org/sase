@@ -8,6 +8,8 @@ overflow, and projection integration live in
 
 from __future__ import annotations
 
+import math
+
 import pytest
 from rich.style import Style
 
@@ -27,35 +29,148 @@ from tests._provider_usage_indicator_presentation_helpers import (
     FROZEN_NOW,
     _assert_style_run,
     _contrast_ratio,
+    _dot_styles,
     _entry,
     _groups,
-    _dot_styles,
     _scope,
     _style_at_offset,
     _style_at_token,
     _style_for,
 )
 
+_BUCKET_RANGE_CASES = (
+    (range(1, 11), "#FF5F6D", "#A22534"),
+    (range(11, 21), "#FF805F", "#A03620"),
+    (range(21, 31), "#FFA552", "#8C480E"),
+    (range(31, 41), "#EBC04F", "#775800"),
+    (range(41, 51), "#CED44C", "#5F6500"),
+    (range(51, 61), "#AADC64", "#456C1B"),
+    (range(61, 71), "#78DB8D", "#206F3C"),
+    (range(71, 81), "#4CD4B0", "#006E56"),
+    (range(81, 91), "#48CCD0", "#006C6C"),
+    (range(91, 101), "#65C3ED", "#006381"),
+)
 
-def test_ten_bucket_percent_boundaries_use_the_documented_palettes() -> None:
-    expected_dark = (
-        "#FF5F6D",
-        "#FF805F",
-        "#FFA552",
-        "#EBC04F",
-        "#CED44C",
-        "#AADC64",
-        "#78DB8D",
-        "#4CD4B0",
-        "#48CCD0",
-        "#65C3ED",
+
+def _theme_bucket_colors(*, dark: bool) -> tuple[str, ...]:
+    return tuple(
+        dark_color if dark else light_color
+        for _integers, dark_color, light_color in _BUCKET_RANGE_CASES
     )
-    for decile, color in enumerate(expected_dark):
-        assert usage_percent_color(decile * 10, dark=True) == color
-        assert usage_percent_color(decile * 10 + 9.99, dark=True) == color
-    assert usage_percent_color(100, dark=True) == expected_dark[9]
-    assert usage_percent_color(0, dark=False) == "#A22534"
-    assert usage_percent_color(95, dark=False) == "#006381"
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_positive_integer_percentages_fill_each_documented_bucket(
+    dark: bool,
+) -> None:
+    expected_colors = _theme_bucket_colors(dark=dark)
+
+    for integers, dark_color, light_color in _BUCKET_RANGE_CASES:
+        expected_color = dark_color if dark else light_color
+        for percent in integers:
+            assert usage_percent_color(float(percent), dark=dark) == expected_color
+
+    sampled = [
+        usage_percent_color(float(percent), dark=dark) for percent in range(1, 101)
+    ]
+    assert len(set(sampled)) == 10
+    assert [sampled.count(color) for color in expected_colors] == [10] * 10
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_percent_color_boundaries_follow_the_displayed_integer(dark: bool) -> None:
+    colors = _theme_bucket_colors(dark=dark)
+    cases = (
+        (9.0, colors[0]),
+        (10.0, colors[0]),
+        (10.99, colors[0]),
+        (11.0, colors[1]),
+        (20.0, colors[1]),
+        (20.99, colors[1]),
+        (21.0, colors[2]),
+        (30.0, colors[2]),
+        (30.99, colors[2]),
+        (31.0, colors[3]),
+        (40.0, colors[3]),
+        (40.99, colors[3]),
+        (41.0, colors[4]),
+        (50.0, colors[4]),
+        (50.99, colors[4]),
+        (51.0, colors[5]),
+        (60.0, colors[5]),
+        (60.99, colors[5]),
+        (61.0, colors[6]),
+        (70.0, colors[6]),
+        (70.99, colors[6]),
+        (71.0, colors[7]),
+        (80.0, colors[7]),
+        (80.99, colors[7]),
+        (81.0, colors[8]),
+        (90.0, colors[8]),
+        (90.99, colors[8]),
+        (91.0, colors[9]),
+    )
+
+    for remaining_percent, expected_color in cases:
+        assert usage_percent_color(remaining_percent, dark=dark) == expected_color
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_percent_color_handles_zero_subpercent_clamping_and_nonfinite(
+    dark: bool,
+) -> None:
+    colors = _theme_bucket_colors(dark=dark)
+
+    cases = (
+        (0.0, colors[0]),
+        (-3.0, colors[0]),
+        (0.4, colors[0]),
+        (100.0, colors[9]),
+        (130.0, colors[9]),
+        (math.nan, colors[0]),
+        (math.inf, colors[0]),
+        (-math.inf, colors[0]),
+    )
+
+    for remaining_percent, expected_color in cases:
+        assert usage_percent_color(remaining_percent, dark=dark) == expected_color
+
+
+@pytest.mark.parametrize("dark", [True, False])
+@pytest.mark.parametrize(
+    ("remaining_percent", "percent_token", "bucket_index"),
+    [
+        pytest.param(10.0, "10%", 0, id="ten"),
+        pytest.param(10.99, "10%", 0, id="ten-fraction"),
+        pytest.param(11.0, "11%", 1, id="eleven"),
+    ],
+)
+def test_rendered_positive_boundary_uses_displayed_percent_color(
+    dark: bool,
+    remaining_percent: float,
+    percent_token: str,
+    bucket_index: int,
+) -> None:
+    entry = _entry(
+        window_key="weekly:claude-fable-5",
+        weekly_all=False,
+        scope=_scope(kind="product", product="claude", model_ids=("claude-fable-5",)),
+        remaining_percent=remaining_percent,
+        seconds_until_reset=115_200.0,
+        resets_at=FROZEN_NOW + 115_200.0,
+    )
+    segment = build_usage_indicator_segment(_groups(entry, dark=dark), dark=dark)
+    expected_color = _theme_bucket_colors(dark=dark)[bucket_index]
+    badge_surface = _usage_badge_surface_color(dark=dark)
+
+    assert segment.plain.strip() == f"🎭 fable {percent_token} 1d8h"
+    for token in ("fable", percent_token, "1d8h"):
+        style = _style_at_token(segment, token)
+        assert style.bold is True
+        assert style.color is not None
+        assert style.color.get_truecolor().hex == expected_color.lower()
+        assert style.bgcolor is not None
+        assert style.bgcolor.get_truecolor().hex == badge_surface.lower()
 
 
 @pytest.mark.parametrize("dark", [True, False])
@@ -397,10 +512,18 @@ def test_neutral_final_window_colors_dividers_neutral() -> None:
 def test_defined_colors_meet_minimum_contrast_on_badge_surface() -> None:
     for dark in (True, False):
         badge_surface = _usage_badge_surface_color(dark=dark)
-        colors = [usage_percent_color(decile * 10.0, dark=dark) for decile in range(10)]
-        colors.append(usage_neutral_color(dark=dark))
-        colors.append(usage_rejected_style(dark=dark).rsplit(" ", 1)[-1])
-        for color in colors:
+        sampled_bucket_colors = [
+            usage_percent_color(float(percent), dark=dark)
+            for percent in range(10, 101, 10)
+        ]
+        assert len(set(sampled_bucket_colors)) == 10
+
+        checked_colors = [
+            *sampled_bucket_colors,
+            usage_neutral_color(dark=dark),
+            usage_rejected_style(dark=dark).rsplit(" ", 1)[-1],
+        ]
+        for color in checked_colors:
             assert _contrast_ratio(color, badge_surface) >= 4.5, (dark, color)
 
 
