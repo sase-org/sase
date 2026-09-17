@@ -57,6 +57,8 @@ class AgentInfoPanel(Static):
         self._search_query_match_count: tuple[int, int] | None = None
         self._search_query_partial_history: bool = False
         self._search_query_click_span: tuple[int, int] | None = None
+        self._countdown_text_span: tuple[int, int] | None = None
+        self._countdown_render_template: tuple[Text, Text] | None = None
         self._loading: bool = False
         self._registry = load_keymap_registry({})
 
@@ -324,14 +326,31 @@ class AgentInfoPanel(Static):
         """Refresh countdown without rebuilding stable panel content.
 
         Returns early when the rendered countdown text is unchanged.
-        Otherwise emits a ``layout=False`` repaint, since the info panel
-        is always one line and its size cannot change.
+        Otherwise patches the cached stable Rich text and emits a
+        ``layout=False`` repaint, since the info panel is always one line and
+        its size cannot change.
         """
         if self._countdown == countdown and self._interval == interval:
             return
+        needs_countdown = interval > 0
+        had_countdown = self._interval > 0
         self._countdown = countdown
         self._interval = interval
-        self._render_panel_text(layout=False)
+        if not needs_countdown or not had_countdown:
+            self._render_panel_text(layout=False)
+            return
+        template = self._countdown_render_template
+        if template is None:
+            self._render_panel_text(layout=False)
+            return
+        prefix, suffix = template
+        text = prefix.copy()
+        text.append(f"{self._countdown}s", style="bold #FFD700")
+        text.append_text(suffix.copy())
+        try:
+            self.update(text, layout=False)
+        except TypeError:
+            self.update(text)
 
     _VIEW_MODE_STYLES: dict[str, str] = {
         "file": "bold green",
@@ -501,8 +520,12 @@ class AgentInfoPanel(Static):
         if self._interval > 0:
             text.append("   ")
             text.append("(auto-refresh in ", style="dim")
+            countdown_start = len(text.plain)
             text.append(f"{self._countdown}s", style="bold #FFD700")
+            self._countdown_text_span = (countdown_start, len(text.plain))
             text.append(")", style="dim")
+        else:
+            self._countdown_text_span = None
         return text
 
     def _render_panel_text(self, *, layout: bool) -> None:
@@ -515,6 +538,10 @@ class AgentInfoPanel(Static):
         default behavior.
         """
         text = self._build_display_text()
+        span = self._countdown_text_span
+        self._countdown_render_template = (
+            (text[: span[0]], text[span[1] :]) if span is not None else None
+        )
         try:
             self.update(text, layout=layout)
         except TypeError:

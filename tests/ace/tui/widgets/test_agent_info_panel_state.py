@@ -48,6 +48,31 @@ def test_update_countdown_only_passes_layout_false() -> None:
     assert "4s" in calls[0]["text"].plain  # type: ignore[union-attr]
 
 
+def test_update_countdown_only_uses_cached_template() -> None:
+    """Countdown ticks should patch the cached countdown span only."""
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.update_state(**stable_state_kwargs(countdown=5))  # type: ignore[arg-type]
+
+    calls: list[dict[str, object]] = []
+
+    def fake_update(text: Text, **kwargs: object) -> None:
+        calls.append({"text": text, **kwargs})
+
+    with (
+        patch.object(panel, "_build_display_text") as full_builder,
+        patch.object(panel, "update", side_effect=fake_update),
+    ):
+        panel.update_countdown_only(4, 5)
+
+    full_builder.assert_not_called()
+    assert len(calls) == 1
+    assert calls[0]["layout"] is False
+    plain = calls[0]["text"].plain  # type: ignore[union-attr]
+    assert "auto-refresh in 4s" in plain
+    assert "auto-refresh in 5s" not in plain
+
+
 def test_update_countdown_only_returns_early_when_unchanged() -> None:
     """No update is emitted when the countdown text would not change."""
     panel = AgentInfoPanel()

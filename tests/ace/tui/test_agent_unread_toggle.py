@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from unittest.mock import Mock
 
 import pytest
@@ -34,6 +35,23 @@ def _completion_notification(agent, *, notification_id: str) -> Notification:
             "raw_suffix": agent.raw_suffix or "",
         },
     )
+
+
+class _PendingUnreadStoreApp(UnreadJumpApp):
+    def __init__(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        super().__init__(*args, **kwargs)
+        self.worker_calls: list[Callable[[], None]] = []
+        self.notifications: list[tuple[str, str | None]] = []
+
+    def run_worker(self, work: Callable[[], None], **_kwargs: object) -> object:
+        self.worker_calls.append(work)
+        return object()
+
+    def call_from_thread(self, callback: Callable[[], None]) -> None:
+        callback()
+
+    def notify(self, message: str, *, severity: str | None = None) -> None:
+        self.notifications.append((message, severity))
 
 
 def test_toggle_agent_unread_marks_selected_row_without_moving(
@@ -119,6 +137,54 @@ def test_navigation_back_to_armed_manual_unread_acknowledges_it() -> None:
     assert app.current_idx == 0
     assert first.identity not in app._unread_completed_agent_ids
     assert app.patch_calls == [first]
+
+
+def test_acknowledge_agent_unread_patches_before_store_write(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
+    agent = make_agent(status="DONE")
+    app = _PendingUnreadStoreApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+
+    assert app._acknowledge_agent_unread(agent)
+
+    assert agent.identity not in app._unread_completed_agent_ids
+    assert app.patch_calls == [agent]
+    notification_dismiss.assert_not_called()
+    assert app.notification_count_refresh_calls == 0
+
+    [work] = app.worker_calls
+    work()
+
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
+    )
+    assert app.notification_count_refresh_calls == 1
+
+
+def test_acknowledge_agent_unread_failure_restores_marker(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.side_effect = RuntimeError("store unavailable")
+    agent = make_agent(status="DONE")
+    app = _PendingUnreadStoreApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+
+    assert app._acknowledge_agent_unread(agent)
+    assert agent.identity not in app._unread_completed_agent_ids
+
+    [work] = app.worker_calls
+    work()
+
+    assert agent.identity in app._unread_completed_agent_ids
+    assert app.patch_calls == [agent, agent]
+    assert app.notifications == [
+        (
+            "Could not mark agent notification read; restored unread marker",
+            "error",
+        )
+    ]
 
 
 def test_keyboard_navigation_onto_clan_never_acknowledges_member() -> None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 from enum import Enum
+import logging
 from typing import TYPE_CHECKING, Any, cast
 
 from ...models.agent_nodes import (
@@ -18,6 +19,8 @@ from ...models.agent_status import is_unread_completed_status
 if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
+
+log = logging.getLogger(__name__)
 
 
 class BulkUnreadToggleOutcome(Enum):
@@ -36,6 +39,17 @@ class _BulkUnreadToggleResult:
     count: int = 0
 
 
+@dataclass(frozen=True)
+class _UnreadNotificationDismissal:
+    """Notification-store dismissal that follows an optimistic unread ack."""
+
+    agents: tuple[Agent, ...]
+    keys: tuple[AgentCompletionKey, ...]
+    identities: frozenset[tuple[AgentType, str, str | None]]
+    restore_manual_ids: frozenset[tuple[AgentType, str, str | None]]
+    prior_pending_bulk_read_ids: frozenset[tuple[AgentType, str, str | None]] | None
+
+
 class AgentUnreadStateMixin:
     """Mixin providing unread state mutation and notification cleanup."""
 
@@ -44,6 +58,16 @@ class AgentUnreadStateMixin:
     _manual_unread_agent_ids: set[tuple[AgentType, str, str | None]]
     _pending_bulk_read_agent_ids: set[tuple[AgentType, str, str | None]] | None
     _agent_info_metrics_cache: tuple[Any, ...] | None
+
+    def _notification_key_dicts_from_keys(
+        self,
+        keys: Iterable[AgentCompletionKey],
+    ) -> list[dict[str, str | None]]:
+        """Return notification API key dicts for precomputed completion keys."""
+        return [
+            {"cl_name": cl_name, "raw_suffix": raw_suffix}
+            for cl_name, raw_suffix in keys
+        ]
 
     def _notification_keys_for_agents(
         self,
@@ -81,10 +105,9 @@ class AgentUnreadStateMixin:
         agents: Iterable[Agent],
     ) -> list[dict[str, str | None]]:
         """Return notification API key dicts for agent nodes."""
-        return [
-            {"cl_name": cl_name, "raw_suffix": raw_suffix}
-            for cl_name, raw_suffix in self._notification_keys_for_agents(agents)
-        ]
+        return self._notification_key_dicts_from_keys(
+            self._notification_keys_for_agents(agents)
+        )
 
     def _repaint_changed_unread_rows(
         self,
@@ -154,6 +177,8 @@ class AgentUnreadStateMixin:
             return _BulkUnreadToggleResult(BulkUnreadToggleOutcome.NOOP)
 
         before_unread = set(unread_ids)
+        before_manual = set(self._manual_unread_ids())
+        before_pending = getattr(self, "_pending_bulk_read_agent_ids", None)
         target_identities = {agent.identity for agent in target_agents}
         self._pending_bulk_read_agent_ids = set(target_identities)
         unread_ids.difference_update(target_identities)
@@ -161,21 +186,17 @@ class AgentUnreadStateMixin:
         if hasattr(self, "_agent_info_metrics_cache"):
             self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
 
-        agent_keys = self._notification_key_dicts_for_agents(target_agents)
-
-        from sase.notifications import (
-            dismiss_agent_completion_notifications_matching_agents,
+        self._schedule_unread_notification_dismissal(
+            _UnreadNotificationDismissal(
+                agents=tuple(target_agents),
+                keys=tuple(self._notification_keys_for_agents(target_agents)),
+                identities=frozenset(target_identities),
+                restore_manual_ids=frozenset(before_manual & target_identities),
+                prior_pending_bulk_read_ids=(
+                    frozenset(before_pending) if before_pending is not None else None
+                ),
+            )
         )
-
-        dismissed_count = dismiss_agent_completion_notifications_matching_agents(
-            agent_keys
-        )
-        self._remove_agent_completion_notifications_from_cache(target_agents)
-        if dismissed_count:
-            refresh_count = getattr(self, "_refresh_notification_count", None)
-            if callable(refresh_count):
-                refresh_count()
-
         self._repaint_changed_unread_rows(before_unread)
         return _BulkUnreadToggleResult(
             BulkUnreadToggleOutcome.MARKED_READ,
@@ -354,6 +375,112 @@ class AgentUnreadStateMixin:
             self._repaint_changed_unread_rows(before_unread)
         return dismissed_count
 
+    def _schedule_unread_notification_dismissal(
+        self,
+        request: _UnreadNotificationDismissal,
+    ) -> None:
+        """Persist an optimistic read-side notification dismissal off-thread."""
+
+        def work() -> None:
+            dismissed_count = 0
+            error: Exception | None = None
+            try:
+                from sase.notifications import (
+                    dismiss_agent_completion_notifications_matching_agents,
+                )
+
+                dismissed_count = (
+                    dismiss_agent_completion_notifications_matching_agents(
+                        self._notification_key_dicts_from_keys(request.keys)
+                    )
+                )
+            except Exception as exc:
+                error = exc
+                log.exception("Failed to dismiss acknowledged agent notification")
+
+            complete = lambda: self._complete_unread_notification_dismissal(  # noqa: E731
+                request,
+                dismissed_count=dismissed_count,
+                error=error,
+            )
+            call_from_thread = getattr(self, "call_from_thread", None)
+            if callable(call_from_thread):
+                call_from_thread(complete)
+                return
+            complete()
+
+        run_worker = getattr(self, "run_worker", None)
+        if not callable(run_worker):
+            work()
+            return
+
+        try:
+            run_worker(
+                work,
+                thread=True,
+                name="agents-unread-ack",
+                group="agents",
+                exit_on_error=False,
+            )
+        except TypeError:
+            run_worker(work, thread=True)
+        except Exception:
+            log.exception("Failed to schedule acknowledged-agent notification write")
+            self._restore_unread_notification_dismissal(request)
+
+    def _complete_unread_notification_dismissal(
+        self,
+        request: _UnreadNotificationDismissal,
+        *,
+        dismissed_count: int,
+        error: Exception | None,
+    ) -> None:
+        """Reconcile the off-thread notification write outcome on the UI thread."""
+        if error is not None:
+            self._restore_unread_notification_dismissal(request)
+            notify = getattr(self, "notify", None)
+            if callable(notify):
+                notify(
+                    "Could not mark agent notification read; restored unread marker",
+                    severity="error",
+                )
+            return
+
+        removed_count = self._remove_agent_completion_notifications_from_cache(
+            list(request.agents)
+        )
+        if dismissed_count or removed_count:
+            refresh_count = getattr(self, "_refresh_notification_count", None)
+            if callable(refresh_count):
+                refresh_count()
+
+    def _restore_unread_notification_dismissal(
+        self,
+        request: _UnreadNotificationDismissal,
+    ) -> None:
+        """Restore optimistic unread state after a store-write failure."""
+        unread_ids = getattr(self, "_unread_completed_agent_ids", None)
+        if unread_ids is None:
+            unread_ids = set()
+            self._unread_completed_agent_ids = unread_ids  # type: ignore[attr-defined]
+        before_unread = set(unread_ids)
+        unread_ids.update(request.identities)
+
+        manual_ids = self._manual_unread_ids()
+        manual_ids.update(request.restore_manual_ids)
+
+        current_pending = getattr(self, "_pending_bulk_read_agent_ids", None)
+        if current_pending == set(request.identities):
+            self._pending_bulk_read_agent_ids = (
+                set(request.prior_pending_bulk_read_ids)
+                if request.prior_pending_bulk_read_ids is not None
+                else None
+            )  # type: ignore[attr-defined]
+
+        if hasattr(self, "_agent_info_metrics_cache"):
+            self._agent_info_metrics_cache = None  # type: ignore[attr-defined]
+        self._repaint_changed_unread_rows(before_unread)
+
     def _clear_agent_unread_and_dismiss_notification(self, agent: Agent) -> bool:
         """Clear unread state for *agent* and dismiss its matching notification.
 
@@ -380,18 +507,15 @@ class AgentUnreadStateMixin:
         if not is_unread_completed_status(agent.status):
             return True
 
-        from sase.notifications import (
-            dismiss_agent_completion_notifications_matching_agents,
+        self._schedule_unread_notification_dismissal(
+            _UnreadNotificationDismissal(
+                agents=(agent,),
+                keys=tuple(self._notification_keys_for_agents([agent])),
+                identities=frozenset({agent.identity}),
+                restore_manual_ids=frozenset(),
+                prior_pending_bulk_read_ids=None,
+            )
         )
-
-        dismissed_count = dismiss_agent_completion_notifications_matching_agents(
-            self._notification_key_dicts_for_agents([agent])
-        )
-        self._remove_agent_completion_notifications_from_cache([agent])
-        if dismissed_count:
-            refresh_count = getattr(self, "_refresh_notification_count", None)
-            if callable(refresh_count):
-                refresh_count()
         return True
 
     def _acknowledge_agent_unread(self, agent: Agent) -> bool:
