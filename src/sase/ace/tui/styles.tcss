@@ -4584,6 +4584,64 @@ PropertyPickerModal.-generic #axe-script-footer {
     text-align: center;
 }
 
+AgentGroupingModal {
+    align: center middle;
+}
+
+AgentGroupingModal #agent-grouping-container {
+    width: 66;
+    max-width: 94%;
+    height: auto;
+    max-height: 90%;
+    border: double $primary;
+    background: $surface;
+    padding: 1 2;
+}
+
+AgentGroupingModal #agent-grouping-title {
+    height: 1;
+    text-align: center;
+    text-style: bold;
+    color: $primary;
+}
+
+AgentGroupingModal #agent-grouping-guidance {
+    height: auto;
+    color: $text-muted;
+    margin: 0 0 1 0;
+}
+
+AgentGroupingModal #agent-grouping-list {
+    height: auto;
+    max-height: 14;
+    scrollbar-gutter: stable;
+}
+
+AgentGroupingModal .agent-grouping-row {
+    height: auto;
+    min-height: 2;
+    padding: 0 1;
+}
+
+AgentGroupingModal .agent-grouping-row.focused {
+    background: $primary 20%;
+    border-left: thick $primary;
+    padding: 0 1 0 0;
+}
+
+AgentGroupingModal .agent-grouping-row.current {
+    border-right: thick $success;
+}
+
+AgentGroupingModal #agent-grouping-footer {
+    height: auto;
+    color: $text-muted;
+    border-top: solid $primary;
+    margin-top: 1;
+    padding-top: 1;
+    text-align: center;
+}
+
 AxeNewEntryIdentityModal {
     align: center middle;
 }

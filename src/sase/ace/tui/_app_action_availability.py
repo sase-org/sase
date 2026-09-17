@@ -131,6 +131,16 @@ def check_app_action(
         return False
     if action == "agents_retry" and app.current_tab != "agents":
         return False
+    if action == "choose_agent_grouping":
+        if app.current_tab != "agents" or _prompt_input_owns_keys(app):
+            return False
+        from textual.screen import ModalScreen
+
+        if isinstance(getattr(app, "screen", None), ModalScreen):
+            return False
+    if action in {"cycle_grouping_mode", "cycle_grouping_mode_reverse"}:
+        if app.current_tab == "agents":
+            return False
     if selected_agent_remote and action == "kill_agent":
         return _remote_lifecycle_available(selected_agent, "lifecycle.stop")
     if selected_agent_remote and action == "agents_retry":

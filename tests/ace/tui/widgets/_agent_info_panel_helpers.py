@@ -10,7 +10,7 @@ from sase.ace.tui.keymaps import key_display_name, load_keymap_registry
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 
 DEFAULT_GROUPING_KEY = key_display_name(
-    load_keymap_registry({}).app.cycle_grouping_mode
+    load_keymap_registry({}).app.choose_agent_grouping
 )
 DEFAULT_NEIGHBOR_KEY = key_display_name(load_keymap_registry({}).app.start_sibling_mode)
 

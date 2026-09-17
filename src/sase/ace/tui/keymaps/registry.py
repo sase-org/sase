@@ -108,6 +108,10 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         # Tab-disjoint: Agents refresh/retry vs Artifacts/Axe run/refresh.
         frozenset({"agents_refresh", "run_workflow"}),
         frozenset({"agents_retry", "refresh"}),
+        # Tab-disjoint: Agents opens a direct picker; Artifacts panes keep
+        # forward/reverse grouping cycles.
+        frozenset({"choose_agent_grouping", "cycle_grouping_mode"}),
+        frozenset({"choose_agent_grouping", "cycle_grouping_mode_reverse"}),
     }
 )
 

@@ -16,13 +16,20 @@ from sase.ace.tui.commands.types import AppCommandMeta
 
 
 DISPLAY_COMMAND_META: tuple[AppCommandMeta, ...] = (
-    # Grouping (grouping-capable Artifacts panes + Agents)
-    ("cycle_grouping_mode", "Cycle grouping mode", "Grouping", CL_AGENTS, ()),
+    # Grouping
+    (
+        "choose_agent_grouping",
+        "Choose agent grouping",
+        "Grouping",
+        AGENTS_ONLY,
+        ("grouping", "group by", "project", "date", "status", "machine"),
+    ),
+    ("cycle_grouping_mode", "Cycle grouping mode", "Grouping", CL_ONLY, ()),
     (
         "cycle_grouping_mode_reverse",
         "Cycle grouping mode (reverse)",
         "Grouping",
-        CL_AGENTS,
+        CL_ONLY,
         (),
     ),
     # Tools panel

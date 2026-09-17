@@ -912,12 +912,12 @@ stored size; launch routing uses the same `@small` fallback.
 | `{` / `}`                 | Narrow / widen the shared Artifacts list panel (with wraparound)                             |
 | `Ctrl+J` / `Ctrl+K`       | Load `ace.page_size` more rows / unload that page (rewrites the host `limit:` cap)           |
 
-> **Note:** `o`/`O` cycle the L0 grouping bucket forward / reverse on the Agents tab and
-> on every Artifacts pane that has a grouping mode (each surface keeps its own
-> in-session mode). Beads has no grouping modes, and a provider document pane has them
-> only when it declares `ref.grouping`, so the keys are a silent no-op on panes without
-> modes; the same is true on the AXE tab. The Artifacts open-externally verb moved to
-> `E`; bang-mode `!o` still marks PR origin. See
+> **Note:** `o` opens a direct grouping picker on the Agents tab. `o`/`O` cycle the L0
+> grouping bucket forward / reverse on Artifacts panes that have a grouping mode (each
+> surface keeps its own in-session mode). Beads has no grouping modes, and a provider
+> document pane has them only when it declares `ref.grouping`, so the keys are a silent
+> no-op on panes without modes; the same is true on the AXE tab. The Artifacts
+> open-externally verb moved to `E`; bang-mode `!o` still marks PR origin. See
 > [PR Grouping and Folding](#pr-grouping-and-folding) and the Agents-tab
 > [Grouping Modes](#grouping-modes) below.
 
@@ -1206,21 +1206,21 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 | `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                         |
 | `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                       |
 | `0`–`9`                   | Jump from a selected clan, agent node, family member, or whole-panel roster to its numbered member or neighbor                                              |
-| `o` / `O`                 | Cycle grouping mode forward / reverse (`STANDARD` ↔ `BY_DATE` ↔ `BY_STATUS` ↔ `BY_MACHINE`)                                                                 |
+| `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                     |
 | `~`                       | Jump among agent-node-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)                                                              |
 | `g`                       | Scroll to top (file, tools, or metadata panel)                                                                                                              |
 | `G`                       | Scroll to bottom (file, tools, or metadata panel)                                                                                                           |
 | `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                                                                                 |
 | `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                                                                               |
 
-> **Note:** `o`/`O` cycle the L0 grouping bucket forward / reverse on the Agents tab and
-> on every Artifacts pane that has a grouping mode (each surface keeps its own
-> in-session mode). Beads has no grouping modes, and a provider document pane has them
-> only when it declares `ref.grouping`, so the keys are a silent no-op on panes without
-> modes; the same is true on the AXE tab. The Artifacts open-externally verb moved to
-> `E`; bang-mode `!o` still marks PR origin. `g`/`G` keep their conventional vim-style
-> scroll-to-top/bottom meaning on every tab. See [Grouping Modes](#grouping-modes)
-> below.
+> **Note:** `o` opens a direct grouping picker on the Agents tab. `o`/`O` still cycle
+> the L0 grouping bucket forward / reverse on Artifacts panes that have a grouping mode
+> (each surface keeps its own in-session mode). Beads has no grouping modes, and a
+> provider document pane has them only when it declares `ref.grouping`, so the keys are
+> a silent no-op on panes without modes; the same is true on the AXE tab. The Artifacts
+> open-externally verb moved to `E`; bang-mode `!o` still marks PR origin. `g`/`G` keep
+> their conventional vim-style scroll-to-top/bottom meaning on every tab. See
+> [Grouping Modes](#grouping-modes) below.
 
 On the Agents tab, `~` uses dotted agent-name relationships rather than Patch sibling
 families. Relations are keyed on the name a row presents as its **sase agent** name, so
@@ -2142,9 +2142,10 @@ tree.
 
 ### Grouping Modes
 
-Press `o` on the Agents tab to cycle the L0 grouping bucket through four modes, or `O`
-to cycle it in reverse. The Agents tab shows a brief toast (`Grouping: by project` /
-`by date` / `by status` / `by machine`) on each cycle:
+Press `o` on the Agents tab to open the grouping picker, then choose `p` Project, `d`
+Date, `s` Status, or `m` Machine. The Agents tab shows a brief toast
+(`Grouping: by project` / `by date` / `by status` / `by machine`) when the chosen mode
+changes:
 
 | Mode         | L0 buckets                                                                    | Notes                                                                                                                                                                               |
 | ------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

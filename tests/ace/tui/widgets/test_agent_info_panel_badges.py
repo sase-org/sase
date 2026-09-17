@@ -82,6 +82,21 @@ def test_grouping_badge_renders_by_date_label() -> None:
     assert f"[group: by date ({DEFAULT_GROUPING_KEY})]" in plain
 
 
+def test_grouping_badge_omits_unbound_key_hint() -> None:
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.set_keymap_registry(
+            load_keymap_registry(
+                {"keymaps": {"app": {"choose_agent_grouping": "unbound"}}}
+            )
+        )
+
+    plain = collect_text(panel)
+
+    assert "[group: by project]" in plain
+    assert "[group: by project ()]" not in plain
+
+
 def test_summary_view_badge_is_visible_and_gold() -> None:
     panel = AgentInfoPanel()
     panel._view_mode = "summary"

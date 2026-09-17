@@ -715,9 +715,11 @@ ace:
       # Tribe-driven side panels (agents tab)
       focus_next_agent_panel: "J"
       focus_prev_agent_panel: "K"
-      # Grouping mode cycle: o/O on every surface with a grouping mode. The
-      # Artifacts open-externally verb (beads_open_bug, files_open_external)
-      # shares E. Bang-mode !o still owns mark_pr_origin.
+      # Agents grouping picker. Artifacts panes with grouping still cycle with
+      # o/O; the shared o key is resolved by tab availability. The Artifacts
+      # open-externally verb (beads_open_bug, files_open_external) shares E.
+      # Bang-mode !o still owns mark_pr_origin.
+      choose_agent_grouping: "o"
       cycle_grouping_mode: "o"
       cycle_grouping_mode_reverse: "O"
       # Queries. Bare `/` edits the structured query on Agents and Artifacts.

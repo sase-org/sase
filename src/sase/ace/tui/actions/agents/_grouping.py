@@ -1,7 +1,7 @@
-"""Grouping-mode cycle action shared by the Agents and Patches tabs.
+"""Grouping actions shared by the Agents and Artifacts tabs.
 
-The cycle key (``o`` by default) advances per-tab grouping state and
-re-renders that tab.  Per-mode fold registries are kept in
+The Agents tab uses a direct grouping picker. Artifacts panes with grouping
+support keep the cycle actions. Per-mode fold registries are kept in
 :attr:`_group_fold_registries` (Agents) and
 :attr:`_patch_group_fold_registries` (Patches) so a mode-specific
 collapse layout is restored when the user cycles back to a
@@ -69,7 +69,7 @@ _PATCH_MODE_LABELS: dict[str, str] = {
 
 
 class AgentGroupingMixin:
-    """Mixin providing the ``cycle_grouping_mode`` action."""
+    """Mixin providing Agents grouping picker and Artifacts cycle actions."""
 
     current_tab: TabName
     current_idx: int
@@ -195,13 +195,22 @@ class AgentGroupingMixin:
 
         async def _runner() -> None:
             active_mode = self._grouping_mode_save_active[target]
+            failed = False
             try:
-                await asyncio.to_thread(
+                saved = await asyncio.to_thread(
                     self._save_grouping_mode_now, target, active_mode
                 )
+                failed = saved is False
             except Exception:
+                failed = True
                 log.exception("Grouping mode save failed for %s", target)
             finally:
+                if (
+                    failed
+                    and target == "agents"
+                    and self._grouping_mode_save_pending.get(target) is active_mode
+                ):
+                    self._notify_agents_grouping_save_failed()
                 self._grouping_mode_save_inflight.discard(target)
                 self._grouping_mode_save_active.pop(target, None)
                 if self._grouping_mode_save_pending.get(target) is not active_mode:
@@ -251,18 +260,45 @@ class AgentGroupingMixin:
             return save_changespec_grouping_mode(mode)  # legacy compatibility alias
         return save_patch_grouping_mode(mode)
 
+    def _notify_agents_grouping_save_failed(self) -> None:
+        try:
+            self.notify(  # type: ignore[attr-defined]
+                "Could not save Agents grouping preference",
+                severity="warning",
+                timeout=3.0,
+            )
+        except Exception:
+            pass
+
+    def action_choose_agent_grouping(self) -> None:
+        """Open the Agents grouping picker."""
+        if self.current_tab != "agents":
+            return
+        from textual.screen import ModalScreen
+
+        from ...modals.agent_grouping_modal import AgentGroupingModal
+        from ...models.agent_groups import GroupingMode
+
+        if isinstance(getattr(self, "screen", None), ModalScreen):
+            return
+        mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+
+        def _on_choice(chosen: GroupingMode | None) -> None:
+            if chosen is None or self.current_tab != "agents":
+                return
+            self._set_agents_grouping_mode(chosen)
+
+        self.push_screen(AgentGroupingModal(mode), _on_choice)  # type: ignore[attr-defined]
+
     def action_cycle_grouping_mode(self) -> None:
         """Advance the focused tab's grouping mode by one step.
 
-        On Agents and Patches the active mode advances and the tab is
-        refreshed.  On other Artifacts subtabs (Beads, Files, Plans/
-        Documents, Stitches) the active pane's own declared grouping mode
-        advances instead.  On AXE (which has no grouping model) the action
-        is a silent no-op.
+        On Patches the active mode advances and the tab is refreshed. On
+        other Artifacts subtabs (Beads, Files, Plans/Documents, Stitches) the
+        active pane's own declared grouping mode advances instead. Agents has
+        a direct picker now, so stale cycle invocations are no-ops there.
         """
-        if self.current_tab == "agents":
-            self._cycle_agents_grouping_mode()
-        elif self.current_tab in {  # legacy compatibility alias
+        if self.current_tab in {  # legacy compatibility alias
             "patches",
             "changespecs",  # legacy compatibility alias
         }:
@@ -272,9 +308,7 @@ class AgentGroupingMixin:
 
     def action_cycle_grouping_mode_reverse(self) -> None:
         """Advance the focused tab's grouping mode by one step in reverse."""
-        if self.current_tab == "agents":
-            self._cycle_agents_grouping_mode(reverse=True)
-        elif self.current_tab in {  # legacy compatibility alias
+        if self.current_tab in {  # legacy compatibility alias
             "patches",
             "changespecs",  # legacy compatibility alias
         }:
@@ -295,27 +329,31 @@ class AgentGroupingMixin:
         if callable(method):
             method(reverse=reverse)
 
-    def _cycle_agents_grouping_mode(self, *, reverse: bool = False) -> None:
-        next_mode = self._next_grouping_mode(reverse=reverse)
-        if next_mode is self._grouping_mode:
+    def _set_agents_grouping_mode(self, mode: GroupingMode) -> None:
+        """Apply an explicit Agents grouping mode."""
+        if mode is self._grouping_mode:
             return
-        self._grouping_mode = next_mode
+        self._grouping_mode = mode
         # Swap the active fold registry so existing call sites (loading,
         # folding, display) continue to read ``_group_fold_registry``.
-        self._group_fold_registry = self._ensure_mode_registry(next_mode)
+        self._group_fold_registry = self._ensure_mode_registry(mode)
         # Banner focus from the previous mode keys a different tree;
         # snap back to agent focus so the renderer doesn't try to
         # highlight a missing banner.
         self._current_group_key = None
-        self._schedule_grouping_mode_save("agents", next_mode)
+        self._schedule_grouping_mode_save("agents", mode)
         try:
-            label = _MODE_LABELS.get(next_mode.name, next_mode.name)
+            label = _MODE_LABELS.get(mode.name, mode.name)
             self.notify(  # type: ignore[attr-defined]
                 f"Grouping: {label}", timeout=1.5
             )
         except Exception:
             pass
         self._refilter_agents()  # type: ignore[attr-defined]
+
+    def _cycle_agents_grouping_mode(self, *, reverse: bool = False) -> None:
+        next_mode = self._next_grouping_mode(reverse=reverse)
+        self._set_agents_grouping_mode(next_mode)
 
     def _cycle_patch_grouping_mode(self, *, reverse: bool = False) -> None:
         next_mode = self._next_patch_grouping_mode(reverse=reverse)

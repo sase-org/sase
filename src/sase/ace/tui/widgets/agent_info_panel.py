@@ -10,6 +10,7 @@ from textual.widgets import Static
 
 from ..agent_count_chip import AGENT_COUNT_CHIP_QUEUED_STYLE
 from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
+from ..keymaps.key_validation import is_unbound_key
 from ..models.agent_runner_slots import format_capacity_value
 
 
@@ -514,8 +515,10 @@ class AgentInfoPanel(Static):
             grouping_label,
             style=self._GROUPING_MODE_STYLES.get(grouping_label, "dim"),
         )
-        key = key_display_name(self._registry.app.cycle_grouping_mode)
-        text.append(f" ({key})", style="dim")
+        grouping_key = self._registry.app.choose_agent_grouping
+        if not is_unbound_key(grouping_key):
+            key = key_display_name(grouping_key)
+            text.append(f" ({key})", style="dim")
         text.append("]", style="dim")
         if self._interval > 0:
             text.append("   ")

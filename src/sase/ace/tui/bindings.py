@@ -36,6 +36,7 @@ DEFAULT_BINDINGS: list[BindingType] = [
     ),
     Binding("f", "patches_filters", "Patch Filters", show=False),
     Binding("F", "edit_hooks", "Edit Hooks", show=False),
+    Binding("o", "choose_agent_grouping", "Choose Grouping", show=False),
     Binding("o", "cycle_grouping_mode", "Cycle Grouping", show=False),
     Binding("O", "cycle_grouping_mode_reverse", "Cycle Grouping Rev", show=False),
     Binding("z", "start_fold_mode", "Fold", show=False),

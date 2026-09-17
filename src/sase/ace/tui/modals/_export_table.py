@@ -14,6 +14,7 @@ _LAZY_EXPORTS = {
     "AgentCleanupResult": (".agent_cleanup_modal", "AgentCleanupResult"),
     "AgentCleanupTribeModal": (".agent_cleanup_modal", "AgentCleanupTribeModal"),
     "AgentCleanupTribeResult": (".agent_cleanup_modal", "AgentCleanupTribeResult"),
+    "AgentGroupingModal": (".agent_grouping_modal", "AgentGroupingModal"),
     "AgentNameModal": (".agent_name_modal", "AgentNameModal"),
     "AgentNeighborChoice": (".agent_neighbor_modal", "AgentNeighborChoice"),
     "AgentNeighborModal": (".agent_neighbor_modal", "AgentNeighborModal"),

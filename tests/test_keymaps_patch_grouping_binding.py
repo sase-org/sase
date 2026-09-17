@@ -1,9 +1,9 @@
-"""Regression coverage for grouping-cycle vs Artifacts open-externally keys.
+"""Regression coverage for Agents grouping picker and Artifacts grouping keys.
 
-``o`` / ``O`` cycle the grouping strategy on every surface that has a grouping
-mode. The two Artifacts open-externally actions (``beads_open_bug``,
-``files_open_external``) share ``E``. Bang-mode ``!o`` still owns
-``mark_pr_origin``.
+``o`` opens the Agents grouping picker and cycles grouping on Artifacts panes
+that have a grouping mode. ``O`` remains the Artifacts reverse cycle. The two
+Artifacts open-externally actions (``beads_open_bug``, ``files_open_external``)
+share ``E``. Bang-mode ``!o`` still owns ``mark_pr_origin``.
 """
 
 from __future__ import annotations
@@ -31,6 +31,7 @@ def test_unbound_app_command_has_no_key_display() -> None:
 
 def test_mark_pr_origin_defaults_to_bang_mode() -> None:
     reg = load_keymap_registry({})
+    assert reg.app.choose_agent_grouping == "o"
     assert reg.app.mark_pr_origin == "unbound"
     assert reg.app.cycle_grouping_mode == "o"
     assert reg.app.cycle_grouping_mode_reverse == "O"
@@ -42,6 +43,7 @@ def test_mark_pr_origin_defaults_to_bang_mode() -> None:
         binding.action for binding in build_app_bindings(reg.app) if binding.key == "o"
     ]
     assert "mark_pr_origin" not in o_actions
+    assert "choose_agent_grouping" in o_actions
     assert "cycle_grouping_mode" in o_actions
 
     e_actions = [
@@ -69,6 +71,24 @@ def test_patch_pane_o_reaches_grouping_not_mark_pr_origin() -> None:
         and _action_enabled(binding.action, tab=ARTIFACTS_TAB, pane="patches")
     ]
     assert o_rev_actions == ["cycle_grouping_mode_reverse"]
+
+
+def test_agents_tab_o_reaches_picker_not_grouping_cycle() -> None:
+    o_actions = [
+        binding.action
+        for binding in build_app_bindings(load_keymap_registry({}).app)
+        if binding.key == "o"
+        and _action_enabled(binding.action, tab="agents", pane=None)
+    ]
+    assert o_actions == ["choose_agent_grouping"]
+
+    o_rev_actions = [
+        binding.action
+        for binding in build_app_bindings(load_keymap_registry({}).app)
+        if binding.key == "O"
+        and _action_enabled(binding.action, tab="agents", pane=None)
+    ]
+    assert o_rev_actions == []
 
 
 @pytest.mark.parametrize(

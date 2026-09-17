@@ -7,8 +7,7 @@ Covers Phase 3 of the Patches-tab Patch grouping feature
 * Per-mode fold-state preservation across cycles, with no leakage from
   the Agents-tab fold registries.
 * Banner focus is reset on every cycle.
-* Non-Patch tabs (Agents / AXE) ignore the PR cycle helper, and AXE is a
-  silent no-op for the public action even if the focused tab.
+* Non-Patch tabs (Agents / AXE) ignore the PR cycle helper.
 * Cycling schedules per-tab grouping-mode persistence.
 """
 
@@ -172,13 +171,13 @@ def test_cycle_on_axe_tab_is_silent_noop() -> None:
 
 
 def test_cycle_on_agents_tab_does_not_touch_cl_state() -> None:
-    """Agents cycle leaves the Patch grouping mode untouched, and vice versa."""
+    """The retired Agents cycle route leaves both grouping modes untouched."""
     app = _StubApp(current_tab="agents")
     app.action_cycle_grouping_mode()
-    assert app._grouping_mode is GroupingMode.BY_DATE
+    assert app._grouping_mode is GroupingMode.STANDARD
     assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT
     assert app.refresh_calls == 0
-    assert app.refilter_calls == 1
+    assert app.refilter_calls == 0
 
 
 def test_cycle_on_cls_tab_does_not_touch_agents_state() -> None:
@@ -249,7 +248,7 @@ def test_rapid_patch_cycles_save_latest_mode() -> None:
 
 
 def test_cycle_emits_cl_grouping_toast() -> None:
-    """The toast distinguishes the PR cycle from the Agents cycle."""
+    """The toast names the PR grouping surface."""
     app = _StubApp()
     app.action_cycle_grouping_mode()
     assert app.notifications == ["PR grouping: by date"]

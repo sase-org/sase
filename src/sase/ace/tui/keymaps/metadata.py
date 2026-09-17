@@ -163,6 +163,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("edit_agent_tribe", "Edit Agent Tribe", False),
     ("focus_next_agent_panel", "Next Panel", False),
     ("focus_prev_agent_panel", "Prev Panel", False),
+    ("choose_agent_grouping", "Choose Grouping", False),
     ("cycle_grouping_mode", "Cycle Grouping", False),
     ("cycle_grouping_mode_reverse", "Cycle Grouping Rev", False),
     ("show_agent_run_log", "Agent Run Log", False),

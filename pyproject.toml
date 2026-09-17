@@ -298,6 +298,8 @@ warn_unused_ignores = false
 
 [[tool.mypy.overrides]]
 module = [
+    "resvg_py",
+    "resvg_py.*",
     "schedule.*",
     "rapidfuzz.*",
     "ruamel.*",

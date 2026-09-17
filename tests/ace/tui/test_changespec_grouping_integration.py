@@ -274,8 +274,8 @@ def test_collapse_then_filter_reload_does_not_resurrect_stale_collapse(
 # ---------------------------------------------------------------------------
 
 
-def test_agents_cycle_does_not_swap_cl_widget_render(monkeypatch: Any) -> None:
-    """Pressing ``o`` while the Agents tab owns focus must not redraw Patches."""
+def test_agents_cycle_action_does_not_swap_cl_widget_render(monkeypatch: Any) -> None:
+    """The retired Agents cycle action must not redraw Patches."""
     widget, _ = _wire_widget(monkeypatch)
     app = _IntegrationApp(widget, _three_project_specs(), current_tab="agents")
 
@@ -283,9 +283,12 @@ def test_agents_cycle_does_not_swap_cl_widget_render(monkeypatch: Any) -> None:
     assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT
     assert widget.option_count == 0
 
-    app.action_cycle_grouping_mode()  # Agents-side cycle.
+    app.action_cycle_grouping_mode()
+    assert app._grouping_mode is GroupingMode.STANDARD
 
-    # Agents grouping advanced; Patches untouched.
+    app._set_agents_grouping_mode(GroupingMode.BY_DATE)
+
+    # Agents grouping changed; Patches untouched.
     assert app._grouping_mode is GroupingMode.BY_DATE
     assert app._patch_grouping_mode is PatchGroupingMode.BY_PROJECT
     assert widget.option_count == 0  # No PR refresh happened.
@@ -295,8 +298,8 @@ def test_tab_switch_preserves_each_tabs_grouping_mode(monkeypatch: Any) -> None:
     """Switching between Agents and Patches must not bleed grouping state.
 
     After a Patches cycle the Agents mode stays at its own default; after
-    flipping focus to Agents and cycling there, the Patches mode stays at
-    the value the user picked.
+    flipping focus to Agents and choosing a mode there, the Patches mode stays
+    at the value the user picked.
     """
     widget, _ = _wire_widget(monkeypatch)
     app = _IntegrationApp(widget, _three_project_specs())
@@ -306,9 +309,9 @@ def test_tab_switch_preserves_each_tabs_grouping_mode(monkeypatch: Any) -> None:
     assert app._patch_grouping_mode is PatchGroupingMode.BY_DATE
     assert app._grouping_mode is GroupingMode.STANDARD
 
-    # User flips to Agents and cycles there.
+    # User flips to Agents and chooses a mode there.
     app.current_tab = "agents"  # type: ignore[assignment]
-    app.action_cycle_grouping_mode()
+    app._set_agents_grouping_mode(GroupingMode.BY_DATE)
     assert app._grouping_mode is GroupingMode.BY_DATE
     # PR state untouched.
     assert app._patch_grouping_mode is PatchGroupingMode.BY_DATE

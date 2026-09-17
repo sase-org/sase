@@ -175,6 +175,7 @@ def test_show_help_palette_entry_is_available_across_tabs_and_artifacts() -> Non
 
 def test_grouping_cycle_palette_commands_follow_grouping_capability() -> None:
     catalog = _catalog_by_id()
+    chooser = catalog["app.choose_agent_grouping"]
     forward = catalog["app.cycle_grouping_mode"]
     reverse = catalog["app.cycle_grouping_mode_reverse"]
 
@@ -186,8 +187,12 @@ def test_grouping_cycle_palette_commands_follow_grouping_capability() -> None:
     plans = CommandContext(tab="artifacts", artifacts_subtab="ref:plan")
     axe = CommandContext(tab="axe")
 
+    assert is_command_available(chooser, agents)
+    assert not is_command_available(chooser, patches)
+    assert not is_command_available(chooser, axe)
+
     for spec in (forward, reverse):
-        assert is_command_available(spec, agents)
+        assert not is_command_available(spec, agents)
         assert is_command_available(spec, patches)
         assert is_command_available(spec, stitches)
         assert is_command_available(spec, files)

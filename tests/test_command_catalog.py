@@ -209,17 +209,23 @@ def test_patch_sync_commands_use_patch_labels() -> None:
     assert by_id["app.start_rewind"].label == "Rewind Patch / Revive agent"
 
 
-def test_cycle_grouping_mode_commands_cover_artifacts_and_agents() -> None:
+def test_grouping_mode_commands_cover_agents_picker_and_artifacts_cycles() -> None:
     by_id = {c.id: c for c in iter_app_commands(_registry())}
+    chooser = by_id["app.choose_agent_grouping"]
     forward = by_id["app.cycle_grouping_mode"]
     reverse = by_id["app.cycle_grouping_mode_reverse"]
 
+    assert chooser.label == "Choose agent grouping"
+    assert chooser.category == "Grouping"
+    assert chooser.tabs == ("agents",)
+    assert chooser.key_sequence == ("o",)
+    assert "machine" in chooser.aliases
     assert forward.label == "Cycle grouping mode"
     assert reverse.label == "Cycle grouping mode (reverse)"
     assert forward.category == "Grouping"
     assert reverse.category == "Grouping"
-    assert forward.tabs == ("artifacts", "agents")
-    assert reverse.tabs == ("artifacts", "agents")
+    assert forward.tabs == ("artifacts",)
+    assert reverse.tabs == ("artifacts",)
 
 
 def test_bulk_change_status_command_is_patch_only() -> None:

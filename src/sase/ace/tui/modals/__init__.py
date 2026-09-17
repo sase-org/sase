@@ -117,6 +117,7 @@ __all__ = [
     "AgentCleanupResult",
     "AgentCleanupTribeModal",
     "AgentCleanupTribeResult",
+    "AgentGroupingModal",
     "AgentRunLogModal",
     "AgentTribeModal",
     "AgentTribeModalResult",
