@@ -358,8 +358,10 @@ def merge_incomplete_load_after_complete_history(
         for _, cl_name, raw_suffix in dismissed
         if raw_suffix is not None
     }
-    deleted_artifact_dirs = set(
-        getattr(load_state, "deleted_artifact_dirs", frozenset())
+    deleted_artifact_dirs = (
+        set(getattr(load_state, "deleted_artifact_dirs", frozenset()))
+        if is_artifact_delta
+        else set()
     )
     deleted_suffixes = {
         Path(path).name
@@ -372,6 +374,8 @@ def merge_incomplete_load_after_complete_history(
             return False
         if agent.identity in dismissed:
             return True
+        if is_bounded_partial and not is_artifact_delta:
+            return False
         if agent.raw_suffix is None:
             return False
         if agent.status == "RUNNING":

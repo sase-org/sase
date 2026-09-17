@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from sase.ace.tui.actions.agents._loading_compute import (
     PreparedApplyData,
@@ -11,6 +12,7 @@ from sase.ace.tui.actions.agents._loading_compute import (
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent_panels import panel_keys_for
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_loader import AgentLoadState
 
 from tests._agents_tab_incomplete_merge_helpers import (
     _bounded_prefix_load_state,
@@ -353,6 +355,101 @@ def test_bounded_prefix_shadow_without_shell_state_does_not_clobber_cached_row()
     assert _gate_rows(rows) == [cached_gate]
     assert shadow not in rows
     assert cached_gate.gate_state == "pending"
+
+
+def test_bounded_prefix_exact_dismissal_removes_cached_row() -> None:
+    """Dismissed identities remain authoritative during a bounded prefix patch."""
+    cached = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="dismissed",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 9, 15, 9, 30, 0),
+        raw_suffix="20260915093000",
+    )
+    prep = PreparedApplyData(
+        filtered_agents=[],
+        has_always_visible=False,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+    )
+    snapshot = _incomplete_tier1_snapshot(
+        [cached],
+        load_state=_bounded_prefix_load_state(),
+    )
+    snapshot.dismissed_agents.add(cached.identity)
+
+    merge_incomplete_load_after_complete_history(prep, snapshot)
+
+    assert prep.filtered_agents == []
+
+
+def test_bounded_prefix_suffix_only_dismissal_does_not_remove_cached_row() -> None:
+    """A bounded prefix cannot broaden dismissal evidence to omitted rows."""
+    cached = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="kept",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 9, 15, 9, 31, 0),
+        raw_suffix="20260915093100",
+    )
+    prep = PreparedApplyData(
+        filtered_agents=[],
+        has_always_visible=False,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+    )
+    snapshot = _incomplete_tier1_snapshot(
+        [cached],
+        load_state=_bounded_prefix_load_state(),
+    )
+    snapshot.dismissed_agents.add((AgentType.RUNNING, "other-row", cached.raw_suffix))
+
+    merge_incomplete_load_after_complete_history(prep, snapshot)
+
+    assert prep.filtered_agents == [cached]
+
+
+def test_bounded_prefix_deleted_dir_metadata_does_not_remove_cached_row() -> None:
+    """Only exact artifact-delta tombstones can delete cached rows."""
+    artifact_dir = Path("/tmp/projects/sase/artifacts/ace-run/20260915093200")
+    cached = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="kept",
+        project_file="/tmp/test.sase",
+        status="DONE",
+        start_time=datetime(2026, 9, 15, 9, 32, 0),
+        raw_suffix="20260915093200",
+        artifacts_dir=str(artifact_dir),
+    )
+    prep = PreparedApplyData(
+        filtered_agents=[],
+        has_always_visible=False,
+        hidden_count=0,
+        hideable_agents=[],
+        dismissed_agent_objects=[],
+    )
+    snapshot = _incomplete_tier1_snapshot(
+        [cached],
+        load_state=AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+            bounded_prefix=True,
+            requested_limit=1,
+            returned_count=1,
+            has_more=True,
+            deleted_artifact_dirs=frozenset({str(artifact_dir)}),
+        ),
+    )
+
+    merge_incomplete_load_after_complete_history(prep, snapshot)
+
+    assert prep.filtered_agents == [cached]
 
 
 def test_bounded_prefix_type_changed_monitor_settlement_replaces_running_row() -> None:

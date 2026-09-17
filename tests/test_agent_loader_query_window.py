@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -18,6 +19,7 @@ from sase.core.agent_scan_facade import (
     rebuild_agent_artifact_index,
     scan_agent_artifacts,
 )
+from sase.core.agent_scan_wire import AgentArtifactIndexCompletenessWire
 from sase.feature_flags import override_flags
 from tests._agent_loader_helpers import _empty_artifact_snapshot
 from tests._agents_tab_query_helpers import _make_agent
@@ -458,7 +460,13 @@ def test_full_history_index_loader_uses_pure_revalidated_history_wire(
 ) -> None:
     index_path = tmp_path / "agent_artifact_index.sqlite"
     index_path.touch()
-    snapshot = _empty_artifact_snapshot()
+    snapshot = replace(
+        _empty_artifact_snapshot(),
+        index_completeness=AgentArtifactIndexCompletenessWire(
+            complete_history=True,
+            source_reconciled=True,
+        ),
+    )
     mock_query = Mock(return_value=snapshot)
 
     loaded_snapshot, state = query_artifact_index_for_loader(
@@ -494,6 +502,70 @@ def test_full_history_index_loader_uses_pure_revalidated_history_wire(
         "field": "provider",
         "value": "codex",
     }
+
+
+def test_full_history_incomplete_index_result_falls_back_to_source_scan(
+    tmp_path: Path,
+) -> None:
+    index_path = tmp_path / "agent_artifact_index.sqlite"
+    index_path.touch()
+    indexed_snapshot = replace(
+        _empty_artifact_snapshot(),
+        index_completeness=AgentArtifactIndexCompletenessWire(
+            complete_history=False,
+            source_reconciled=False,
+        ),
+    )
+    source_snapshot = _empty_artifact_snapshot()
+    mock_scan = Mock(return_value=source_snapshot)
+
+    loaded_snapshot, state = query_artifact_index_for_loader(
+        full_history=True,
+        default_index_path=lambda: index_path,
+        projects_root=lambda: tmp_path / "projects",
+        query_index=Mock(return_value=indexed_snapshot),
+        scan_artifacts=mock_scan,
+    )
+
+    assert loaded_snapshot is source_snapshot
+    assert state.tier == "tier2"
+    assert state.complete_history is True
+    assert state.artifact_source == "source_scan"
+    assert state.used_artifact_index is False
+    assert state.repair_reason == "artifact_index_incomplete_full_history_fallback"
+    mock_scan.assert_called_once_with()
+
+
+def test_full_history_facade_rejects_incomplete_index_state() -> None:
+    indexed_snapshot = _empty_artifact_snapshot()
+    source_snapshot = _empty_artifact_snapshot()
+    mock_scan = Mock(return_value=source_snapshot)
+    mock_load_index = Mock(
+        return_value=(
+            indexed_snapshot,
+            AgentLoadState(
+                tier="tier2",
+                complete_history=False,
+                artifact_source="artifact_index",
+                used_artifact_index=True,
+            ),
+        )
+    )
+
+    loaded_snapshot, state = artifact_snapshot_for_tui_load(
+        full_history=True,
+        use_artifact_index=True,
+        scan_artifacts=mock_scan,
+        load_tier1_index=mock_load_index,
+    )
+
+    assert loaded_snapshot is source_snapshot
+    assert state.tier == "tier2"
+    assert state.complete_history is True
+    assert state.artifact_source == "source_scan"
+    assert state.used_artifact_index is False
+    mock_load_index.assert_called_once()
+    mock_scan.assert_called_once_with()
 
 
 def test_full_history_missing_index_falls_back_to_source_scan(

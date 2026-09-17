@@ -389,13 +389,24 @@ def query_artifact_index_for_loader(
 
     index_window = snapshot.index_window
     completeness = snapshot.index_completeness
-    if completeness is None:
-        # Source-scan-shaped mocks and older snapshots have no completeness
-        # envelope. Real index queries always populate it.
-        complete_history = full_history
-    else:
-        complete_history = (
-            bool(completeness.complete_history) if full_history else False
+    complete_history = (
+        bool(completeness is not None and completeness.complete_history)
+        if full_history
+        else False
+    )
+    if full_history and not complete_history:
+        fallback_snapshot = scan_artifacts()
+        return (
+            fallback_snapshot,
+            AgentLoadState(
+                tier="tier2",
+                complete_history=True,
+                complete_visible_inbox=True,
+                artifact_source="source_scan",
+                used_artifact_index=False,
+                repair_reason="artifact_index_incomplete_full_history_fallback",
+                record_count=len(fallback_snapshot.records),
+            ),
         )
     stats = snapshot.stats
     state = AgentLoadState(
@@ -453,7 +464,7 @@ def artifact_snapshot_for_tui_load(
                 requested_limit=None,
                 candidate_filter=candidate_filter,
             )
-            if indexed is not None:
+            if indexed is not None and indexed[1].complete_history:
                 return indexed
 
         full_snapshot = scan_artifacts()

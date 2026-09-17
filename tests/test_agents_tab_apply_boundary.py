@@ -15,7 +15,9 @@ from sase.ace.tui.actions.agents._loading_compute import (
     prepare_loaded_agents_worker_boundary,
 )
 from sase.ace.tui.models.agent import AgentType
+from sase.ace.tui.models.agent_live_query_engine import agents_history_query_key
 from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.ace.tui.models.agent_panels import panel_keys_for
 from sase.ace.tui.models.agent_runner_slots import RunnerCapacitySnapshot
 from sase.ace.tui.models.agent_proc_shells import merge_proc_shell_agents
 from sase.feature_flags import override_flags
@@ -183,6 +185,98 @@ def test_bounded_prefix_apply_patches_over_cached_history() -> None:
 
     assert app._agents_with_children == [fresh, cached_old]
     assert app._agents == [fresh, cached_old]
+
+
+def test_same_query_bounded_prefix_preserves_visible_roster_and_panels() -> None:
+    """After Tier 2, a same-query bounded prefix patches without rearming."""
+    query = "cl:focus"
+    query_key = agents_history_query_key(query, use_unified_query=False)
+    broad = [
+        _make_agent(
+            cl_name="focus-chop",
+            status="RUNNING",
+            raw_suffix="20260917090100",
+            tribe="chop",
+        ),
+        _make_agent(
+            cl_name="focus-epic",
+            status="RUNNING",
+            raw_suffix="20260917090200",
+            tribe="epic",
+        ),
+        _make_agent(
+            cl_name="focus-tale",
+            status="RUNNING",
+            raw_suffix="20260917090300",
+            tribe="tale",
+        ),
+    ]
+    refreshed_epic = _make_agent(
+        cl_name="focus-epic",
+        status="RUNNING",
+        raw_suffix="20260917090200",
+        tribe="epic",
+    )
+    app = FakeAgentApp(query=query)
+
+    app._apply_loaded_agents_prepared(
+        PreparedApplyData(
+            filtered_agents=list(broad),
+            has_always_visible=True,
+            hidden_count=0,
+            hideable_agents=[],
+            dismissed_agent_objects=[],
+        ),
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=AgentLoadState(
+            tier="tier2",
+            complete_history=True,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+            history_query_key=query_key,
+        ),
+        persist_dismissed_changes=False,
+    )
+
+    expected_identities = [agent.identity for agent in app._agents]
+    expected_panel_keys = panel_keys_for(app._agents)
+    assert expected_panel_keys == ["chop", "epic", "tale"]
+
+    app._agents_history_reconcile_pending = False
+    app._agents_history_reconcile_armed_mono = 0.0
+    app._apply_loaded_agents_prepared(
+        PreparedApplyData(
+            filtered_agents=[refreshed_epic],
+            has_always_visible=True,
+            hidden_count=0,
+            hideable_agents=[],
+            dismissed_agent_objects=[],
+        ),
+        on_agents_tab=False,
+        selected_identity=None,
+        load_state=AgentLoadState(
+            tier="tier1",
+            complete_history=False,
+            complete_visible_inbox=True,
+            artifact_source="artifact_index",
+            used_artifact_index=True,
+            bounded_prefix=True,
+            requested_limit=1,
+            returned_count=1,
+            has_more=True,
+            query_incomplete=True,
+            history_query_key=query_key,
+        ),
+        persist_dismissed_changes=False,
+    )
+
+    assert [agent.identity for agent in app._agents] == expected_identities
+    assert panel_keys_for(app._agents) == expected_panel_keys
+    assert app._agents_complete_history_query_key == query_key
+    assert app._agents_seen_complete_history is True
+    assert app._agents_history_reconcile_pending is False
+    assert app._agents_history_reconcile_armed_mono == 0.0
 
 
 def _apply_bounded_prefix_over_cache(
