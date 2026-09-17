@@ -239,6 +239,46 @@ def test_canonical_routine_job_config_projects_public_names(
     assert runtime.lumberjacks["checks"].chops[0].script == "sase_job_release"
 
 
+def test_lumberjack_job_timeout_edit_targets_existing_legacy_source(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "sase.yml"
+    target.write_text(
+        "# keep\n"
+        "axe:\n"
+        "  lumberjacks:\n"
+        "    checks:\n"
+        "      description: Run checks\n"
+        "      interval: 10\n"
+        "      chop_timeout: 123s\n"
+        "      wait_runners: 1\n",
+        encoding="utf-8",
+    )
+    layer = ConfigLayer(
+        name="user",
+        path=str(target),
+        exists=True,
+        list_strategy="replace",
+        data=yaml.safe_load(target.read_text(encoding="utf-8")),
+    )
+    composition = compose_axe_config([layer])
+    plan = plan_axe_entry_edit(
+        composition,
+        AxeEntrySelector.lumberjack_entry("checks"),
+        "user",
+        [AxeFieldOperation.set_value(("job_timeout",), "234s")],
+        schema={"type": "object"},
+        use_chezmoi=False,
+    )
+
+    assert plan.is_valid
+    assert "# keep" in plan.new_text
+    data = yaml.safe_load(plan.new_text)
+    routine = data["axe"]["lumberjacks"]["checks"]
+    assert routine["chop_timeout"] == "234s"
+    assert "job_timeout" not in routine
+
+
 def test_public_projection_obeys_contract_flag(tmp_path: Path) -> None:
     target = tmp_path / "sase.yml"
     layer = _layers(target)[0]

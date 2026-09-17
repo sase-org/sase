@@ -57,6 +57,9 @@ def write_agent_meta_atomic(
             update_agent_artifact_index_for_marker_mutation(str(artifacts_path))
         else:
             index_updater(str(artifacts_path))
+    from sase.core.agent_tribe_evidence import invalidate_agent_tribe_evidence_cache
+
+    invalidate_agent_tribe_evidence_cache()
 
 
 __all__ = ["write_agent_meta_atomic"]

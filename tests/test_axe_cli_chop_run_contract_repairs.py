@@ -17,10 +17,12 @@ from unittest.mock import patch
 import pytest
 import yaml
 
+from sase.ace.agent_tribes import resolve_agent_tribe_assignment
 from sase.axe.cli import handle_axe_chop_list, handle_axe_chop_run
 from sase.axe.run_agent_phases import extract_directives_and_write_meta
 from sase.axe.run_agent_wait_deps import initial_dependencies_resolved
 from sase.config.core import ConfigLayer
+from sase.core.agent_types import AgentType
 from sase.core.agent_artifact_paths import iter_agent_artifact_dirs
 from sase.core.wait_dependency_resolution import (
     WaitDependencyIndex,
@@ -172,6 +174,108 @@ def test_clan_only_job_alias_agrees_across_wait_fast_path_and_fork(
     fork_source = resolve_tribe_fork_source("@job")
     assert fork_source.kind == "clan"
     assert fork_source.name == "review"
+
+
+@pytest.mark.parametrize("clan_only", [False, True])
+def test_metadata_only_cross_project_job_evidence_blocks_local_chop_alias(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    clan_only: bool,
+) -> None:
+    """Metadata/clan-only ``job`` evidence must inform every identity decision.
+
+    The runner fast path still scans only the local project for candidates, so
+    it must keep waiting rather than releasing against a completed local
+    ``chop``. The all-project wait/fork paths and launch-time identity
+    mutation see the same independent ``job`` evidence without a redundant
+    assignment-store entry.
+    """
+    sase_home = tmp_path / "home" / ".sase"
+    projects_dir = sase_home / "projects"
+    project_dir = projects_dir / "proj"
+    workspace_dir = tmp_path / "workspace"
+    waiter_timestamp = "20260917010000"
+    local_chop_timestamp = "20260917020000"
+    other_job_timestamp = "20260917015000"
+    fresh_timestamp = "20260917030000"
+    waiter_dir = project_dir / "artifacts" / "ace-run" / waiter_timestamp
+    local_chop_dir = project_dir / "artifacts" / "ace-run" / local_chop_timestamp
+    other_job_dir = (
+        projects_dir / "other-project" / "artifacts" / "ace-run" / other_job_timestamp
+    )
+    fresh_dir = project_dir / "artifacts" / "ace-run" / fresh_timestamp
+    for path in (workspace_dir, waiter_dir, local_chop_dir, other_job_dir, fresh_dir):
+        path.mkdir(parents=True)
+    monkeypatch.setenv("SASE_HOME", str(sase_home))
+    monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
+
+    (local_chop_dir / "agent_meta.json").write_text(
+        json.dumps({"name": "builtin", "tribe": "chop"}),
+        encoding="utf-8",
+    )
+    (local_chop_dir / "done.json").write_text(
+        json.dumps({"outcome": "completed"}),
+        encoding="utf-8",
+    )
+    other_meta = (
+        {
+            "name": "historic.one",
+            "agent_clan": "historic",
+            "agent_clan_generation": other_job_timestamp,
+            "clan_tribe": "job",
+        }
+        if clan_only
+        else {"name": "historic", "tribe": "job"}
+    )
+    (other_job_dir / "agent_meta.json").write_text(
+        json.dumps(other_meta),
+        encoding="utf-8",
+    )
+
+    assert not (sase_home / "agent_tribes.json").exists()
+    assert not initial_dependencies_resolved(
+        ["@job"],
+        [],
+        project_name="proj",
+        artifacts_dir=str(waiter_dir),
+    )
+
+    cross_project_index = _cross_project_index(projects_dir)
+    assert "job" in cross_project_index.stored_tribe_names()
+    status = dependency_resolution_status(
+        cross_project_index,
+        ["@job"],
+        self_artifact_dir=waiter_dir,
+    )
+    assert not status.resolved
+
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(waiter_dir))
+    with pytest.raises(RuntimeError, match="No completed @job entity"):
+        resolve_tribe_fork_source("@job")
+
+    identity = (AgentType.WORKFLOW, "fresh", fresh_timestamp)
+    assert resolve_agent_tribe_assignment(identity, "job", layers=[]) == "job"
+
+    with (
+        patch(
+            "sase.llm_provider.temporary_override."
+            "resolve_effective_default_provider_model",
+            return_value=("codex", "gpt-5"),
+        ),
+        patch("sase.vcs_provider._registry.detect_vcs", return_value=None),
+        patch("sase.config.inventory.discover_layer_inputs", return_value=[]),
+        patch("sase.agent.names.claim_agent_name"),
+    ):
+        info = extract_directives_and_write_meta(
+            "%id(fresh, tribe=job)\nDo work",
+            str(workspace_dir),
+            str(fresh_dir),
+            cl_name="fresh",
+        )
+
+    assert info.tribe == "job"
+    meta = json.loads((fresh_dir / "agent_meta.json").read_text(encoding="utf-8"))
+    assert meta["tribe"] == "job"
 
 
 def test_job_result_validation_error_uses_canonical_wording(

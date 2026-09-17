@@ -50,6 +50,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
     tribes: dict[str, list[ArtifactCandidate]]
     effective_clan_tribes: dict[tuple[str, str], str]
     agent_tribes: dict[RawAgentTribeIdentity, str]
+    global_stored_tribes: tuple[str, ...]
     artifacts: dict[tuple[str, str], ArtifactCandidate]
     artifacts_by_dir: dict[str, ArtifactCandidate]
     _artifacts_by_dir_key_cache: dict[str, ArtifactCandidate] | None = field(
@@ -71,6 +72,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         *,
         agent_tribes_path: Path | str | None = None,
         legacy_agent_tags_path: Path | str | None = None,
+        global_stored_tribes: tuple[str, ...] = (),
     ) -> WaitDependencyIndex:
         return cls(
             named={},
@@ -83,6 +85,7 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
                 agent_tribes_path,
                 legacy_path=legacy_agent_tags_path,
             ),
+            global_stored_tribes=global_stored_tribes,
             artifacts={},
             artifacts_by_dir={},
         )
@@ -95,10 +98,12 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         projects_root: Path | str | None = None,
         agent_tribes_path: Path | str | None = None,
         legacy_agent_tags_path: Path | str | None = None,
+        global_stored_tribes: tuple[str, ...] = (),
     ) -> WaitDependencyIndex:
         index = cls.empty(
             agent_tribes_path=agent_tribes_path,
             legacy_agent_tags_path=legacy_agent_tags_path,
+            global_stored_tribes=global_stored_tribes,
         )
         artifacts = []
         for artifact_dir in iter_agent_artifact_dirs(
@@ -408,10 +413,12 @@ def build_wait_dependency_index(
     projects_root: Path | str | None = None,
     agent_tribes_path: Path | str | None = None,
     legacy_agent_tags_path: Path | str | None = None,
+    global_stored_tribes: tuple[str, ...] = (),
 ) -> WaitDependencyIndex:
     return WaitDependencyIndex.build(
         project_name,
         projects_root=projects_root,
         agent_tribes_path=agent_tribes_path,
         legacy_agent_tags_path=legacy_agent_tags_path,
+        global_stored_tribes=global_stored_tribes,
     )

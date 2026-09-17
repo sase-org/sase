@@ -7,6 +7,8 @@ from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import patch
 
+import yaml
+
 from sase.ace.tui.actions.axe_config_actions import AxeConfigActionsMixin
 from sase.ace.tui.actions.axe_config_actions._backend import (
     AxeAppliedConfigOutcome,
@@ -21,6 +23,7 @@ from sase.ace.tui.modals import (
     AxeEntryMutationRequest,
     SchemaFieldOperation,
 )
+from sase.ace.tui.modals.axe_entry_editor_types import build_axe_entry_form
 from sase.ace.tui.widgets.bgcmd_list import ChopItem, LumberjackItem
 from sase.axe.chop_inventory import ChopInventory
 from sase.axe.config_backend import (
@@ -171,6 +174,53 @@ def test_edit_seed_maps_exact_scopes_contributions_and_provenance(
     assert seed.status == "disabled"
     assert seed.identity.generated_instance == "lint.rule[project=sase]"
     assert axe_base_chop_identities(composition) == {("checks.main", "lint.rule")}
+
+
+def test_lumberjack_editor_seed_projects_legacy_timeout_as_canonical_field(
+    tmp_path: Path,
+) -> None:
+    target = tmp_path / "sase.yml"
+    target.write_text(
+        "axe:\n"
+        "  lumberjacks:\n"
+        "    checks:\n"
+        "      description: Run checks\n"
+        "      interval: 5\n"
+        "      chop_timeout: 123s\n",
+        encoding="utf-8",
+    )
+    composition = compose_axe_config(
+        [
+            ConfigLayer(
+                name="user",
+                path=str(target),
+                exists=True,
+                list_strategy="replace",
+                data=yaml.safe_load(target.read_text(encoding="utf-8")),
+            )
+        ]
+    )
+    inventory = AxeConfigActionInventory(
+        composition,
+        load_config_schema(),
+        _empty_chop_inventory(),
+        False,
+    )
+
+    seed = _build_axe_editor_seed(
+        inventory,
+        AxeEntrySelector.lumberjack_entry("checks"),
+    )
+    form = build_axe_entry_form(seed, target="user")
+    timeout = form.field("job_timeout")
+
+    assert timeout.has_effective
+    assert timeout.effective_value == "123s"
+    assert timeout.has_target
+    assert timeout.target_value == "123s"
+    assert timeout.draft_value == "123s"
+    assert len(timeout.provenance) == 1
+    assert timeout.provenance[0].startswith("user:")
 
 
 def test_new_entry_seed_marks_only_intentional_initial_values(tmp_path: Path) -> None:

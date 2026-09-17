@@ -17,6 +17,7 @@ from sase.core.wait_dependency_resolution import (
     build_wait_dependency_index,
     dependency_resolution_status,
 )
+from sase.core.agent_tribe_evidence import stored_tribe_names_for_resolution
 
 
 def mark_bead_wait_sync_hint(project_name: str | None) -> None:
@@ -58,6 +59,7 @@ def initial_dependencies_resolved(
 
     try:
         dependency_index = build_wait_dependency_index(project_name)
+        dependency_index.global_stored_tribes = stored_tribe_names_for_resolution()
     except Exception:
         return False
     wait_bead_items = tuple(wait_beads)

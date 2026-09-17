@@ -287,6 +287,9 @@ def _patch_agent_meta(artifacts_path: Path, patch: AgentMetaPatch) -> bool:
         return False
     _write_json_file(meta_path, meta)
     update_agent_artifact_index_for_marker_mutation(str(artifacts_path))
+    from sase.core.agent_tribe_evidence import invalidate_agent_tribe_evidence_cache
+
+    invalidate_agent_tribe_evidence_cache()
     return True
 
 

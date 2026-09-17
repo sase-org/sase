@@ -61,11 +61,11 @@ def prepare_chop_proposals(
         )
         raw_tribe = str(normalized.get("tribe") or "chop")
         if raw_tribe == "job" and (tribe_layers is None or stored_tribes is None):
-            from sase.ace.agent_tribes import load_agent_tribes
             from sase.config.inventory import discover_layer_inputs
+            from sase.core.agent_tribe_evidence import stored_tribe_names_for_resolution
 
             tribe_layers = discover_layer_inputs()
-            stored_tribes = tuple(load_agent_tribes().values())
+            stored_tribes = stored_tribe_names_for_resolution()
         tribe = _resolve_proposal_tribe(
             raw_tribe,
             layers=tribe_layers or (),

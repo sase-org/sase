@@ -75,9 +75,9 @@ def _metadata_tribe(metadata: dict[str, Any], key: str) -> str | None:
 
 
 def _stored_tribes_for_resolution() -> tuple[str, ...]:
-    from sase.ace.agent_tribes import load_agent_tribes
+    from sase.core.agent_tribe_evidence import stored_tribe_names_for_resolution
 
-    return tuple(load_agent_tribes().values())
+    return stored_tribe_names_for_resolution()
 
 
 def _resolve_launch_tribe_directives(

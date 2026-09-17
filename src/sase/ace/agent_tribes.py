@@ -23,6 +23,10 @@ from sase.core.agent_tribe import (
     load_raw_agent_tribes,
     validate_tribe_name,
 )
+from sase.core.agent_tribe_evidence import (
+    invalidate_agent_tribe_evidence_cache,
+    stored_tribe_names_for_resolution,
+)
 from sase.core.agent_types import AgentType
 
 _AGENT_TRIBES_FILE: Path | None = None
@@ -82,6 +86,7 @@ def save_agent_tribes(
             except OSError:
                 pass
             return False
+        invalidate_agent_tribe_evidence_cache()
         return True
     except OSError:
         return False
@@ -119,7 +124,18 @@ def update_agent_tribe(
     try:
         with _agent_tribes_file_lock():
             store = load_agent_tribes()
-            set_tribe(store, identity, tribe, layers=layers)
+            stored_tribes = stored_tribe_names_for_resolution(
+                agent_tribes_path=_agent_tribes_file(),
+                legacy_store_path=_legacy_agent_tags_file(),
+                extra_tribes=tuple(store.values()),
+            )
+            set_tribe(
+                store,
+                identity,
+                tribe,
+                layers=layers,
+                stored_tribes=stored_tribes,
+            )
             return save_agent_tribes(store)
     except OSError:
         return False
@@ -142,7 +158,18 @@ def update_agent_tribe_assignment(
             if tribe is None:
                 unset_tribe(store, identity)
             else:
-                set_tribe(store, identity, tribe, layers=layers)
+                stored_tribes = stored_tribe_names_for_resolution(
+                    agent_tribes_path=_agent_tribes_file(),
+                    legacy_store_path=_legacy_agent_tags_file(),
+                    extra_tribes=tuple(store.values()),
+                )
+                set_tribe(
+                    store,
+                    identity,
+                    tribe,
+                    layers=layers,
+                    stored_tribes=stored_tribes,
+                )
             if store.get(identity) == before:
                 return False
             return save_agent_tribes(store)
@@ -159,10 +186,15 @@ def resolve_agent_tribe_assignment(
     """Return the stored identity a mutation would write without changing state."""
     with _agent_tribes_file_lock():
         store = load_agent_tribes()
+        stored_tribes = stored_tribe_names_for_resolution(
+            agent_tribes_path=_agent_tribes_file(),
+            legacy_store_path=_legacy_agent_tags_file(),
+            extra_tribes=tuple(store.values()),
+        )
         return canonicalize_public_tribe_name(
             tribe,
             layers=layers,
-            stored_tribes=tuple(store.values()),
+            stored_tribes=stored_tribes,
             current_tribe=store.get(identity),
         )
 
@@ -173,6 +205,7 @@ def set_tribe(
     tribe: str,
     *,
     layers: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
+    stored_tribes: list[str] | tuple[str, ...] = (),
 ) -> str:
     """Set *identity* to a validated tribe, replacing its prior value.
 
@@ -183,7 +216,7 @@ def set_tribe(
     tribe = canonicalize_public_tribe_name(
         tribe,
         layers=layers,
-        stored_tribes=tuple(tribes_by_identity.values()),
+        stored_tribes=tuple({*tribes_by_identity.values(), *stored_tribes}),
         current_tribe=tribes_by_identity.get(identity),
     )
     tribes_by_identity[identity] = tribe

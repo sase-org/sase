@@ -413,6 +413,47 @@ def test_tribe_binding_resolves_independent_stored_job_identity() -> None:
     assert binding.name == "independent-job"
 
 
+def test_tribe_binding_uses_effective_clan_job_identity_stably() -> None:
+    """A clan-only ``job`` identity must not depend on unrelated direct rows."""
+    waiter = make_agent(
+        status="WAITING",
+        waiting_for=["@job"],
+        raw_suffix="20260712120000",
+    )
+    clan_member = make_agent(
+        agent_name="historic.one",
+        raw_suffix="20260712130000",
+        status="RUNNING",
+        agent_clan="historic",
+        agent_clan_generation="20260712130000",
+        clan_tribe="job",
+    )
+    local_chop = make_agent(
+        agent_name="builtin",
+        raw_suffix="20260712140000",
+        status="DONE",
+        tribe="chop",
+    )
+    unrelated_job = make_agent(
+        agent_name="unrelated",
+        raw_suffix="20260712110000",
+        status="DONE",
+        tribe="job",
+    )
+
+    first = collect_agent_wait_status_maps([waiter, clan_member, local_chop])
+    second = collect_agent_wait_status_maps(
+        [waiter, clan_member, local_chop, unrelated_job]
+    )
+
+    for maps in (first, second):
+        binding = maps.tribe_bindings[(waiter.identity, "@job")]
+        assert binding.state == "pending"
+        assert binding.kind == "clan"
+        assert binding.name == "historic"
+        assert binding.timestamp == "20260712130000"
+
+
 def test_bead_status_tokens_are_semantically_readable() -> None:
     unknown = WAIT_UNKNOWN_GLYPH
     rendered_unknown = _format_wait_dependency_status_counts(

@@ -169,11 +169,11 @@ def _resolve_tribe_payload(
         return result
 
     from sase.ace.agent_tribes import (
-        load_agent_tribes,
         resolve_agent_tribe_assignment,
     )
     from sase.config.inventory import discover_layer_inputs
     from sase.core.agent_tribe import canonicalize_public_tribe_name
+    from sase.core.agent_tribe_evidence import stored_tribe_names_for_resolution
 
     layers = discover_layer_inputs()
     tribe_payload = result.get("tribe")
@@ -192,7 +192,7 @@ def _resolve_tribe_payload(
         resolved = canonicalize_public_tribe_name(
             raw_tribe,
             layers=layers,
-            stored_tribes=tuple(load_agent_tribes().values()),
+            stored_tribes=stored_tribe_names_for_resolution(),
             current_tribe=_current_meta_tribe(
                 artifacts_dir,
                 clan=_payload_sets_clan_tribe(result),

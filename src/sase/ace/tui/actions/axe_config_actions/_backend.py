@@ -178,7 +178,10 @@ def _raw_values_by_scope(
         if not contribution.writable or not contribution.has_value:
             continue
         if isinstance(contribution.value, Mapping):
-            result[contribution.layer] = dict(contribution.value)
+            result[contribution.layer] = _project_editor_field_aliases(
+                dict(contribution.value),
+                entry=entry,
+            )
     return result
 
 
@@ -194,7 +197,35 @@ def _field_provenance(entry: AxeInventoryEntry | None) -> dict[str, tuple[str, .
         sources = result.setdefault(relative[0], [])
         if item.layer not in sources:
             sources.append(item.layer)
-    return {name: tuple(sources) for name, sources in result.items()}
+    return _project_editor_provenance_aliases(
+        {name: tuple(sources) for name, sources in result.items()},
+        entry=entry,
+    )
+
+
+def _project_editor_field_aliases(
+    values: dict[str, Any],
+    *,
+    entry: AxeInventoryEntry | None,
+) -> dict[str, Any]:
+    """Expose canonical routine editor fields while preserving source keys."""
+    if entry is None or entry.selector.kind != "lumberjack":
+        return values
+    if "job_timeout" not in values and "chop_timeout" in values:
+        values["job_timeout"] = values["chop_timeout"]
+    return values
+
+
+def _project_editor_provenance_aliases(
+    provenance: dict[str, tuple[str, ...]],
+    *,
+    entry: AxeInventoryEntry | None,
+) -> dict[str, tuple[str, ...]]:
+    if entry is None or entry.selector.kind != "lumberjack":
+        return provenance
+    if "job_timeout" not in provenance and "chop_timeout" in provenance:
+        provenance["job_timeout"] = provenance["chop_timeout"]
+    return provenance
 
 
 def _build_axe_editor_seed(
@@ -222,7 +253,7 @@ def _build_axe_editor_seed(
         effective = dict(initial_values or {})
     else:
         assert entry is not None
-        effective = dict(entry.effective)
+        effective = _project_editor_field_aliases(dict(entry.effective), entry=entry)
     raw = dict(by_scope.get(target or "", {}))
     kind: Literal["lumberjack", "chop"] = (
         "chop" if selector.kind == "chop" else "lumberjack"

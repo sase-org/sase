@@ -35,6 +35,7 @@ class WaitDependencyIndexQueries(
     tribes: dict[str, list[ArtifactCandidate]]
     effective_clan_tribes: dict[tuple[str, str], str]
     agent_tribes: dict[RawAgentTribeIdentity, str]
+    global_stored_tribes: tuple[str, ...]
     named: dict[str, WaitCandidate]
     artifacts_by_dir: dict[str, ArtifactCandidate]
     _tribe_member_rows_cache: list[TribeMemberRow] | None
@@ -55,6 +56,7 @@ class WaitDependencyIndexQueries(
                 *self.tribes,
                 *self.effective_clan_tribes.values(),
                 *self.agent_tribes.values(),
+                *self.global_stored_tribes,
             }
         )
 

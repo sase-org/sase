@@ -229,7 +229,14 @@ def collect_agent_wait_status_maps(
         )
 
     tribe_rows = _collect_tribe_member_rows(all_agents)
-    stored_tribes = tuple({row.tribe for row in tribe_rows if row.tribe})
+    stored_tribes = tuple(
+        {
+            tribe
+            for row in tribe_rows
+            for tribe in (row.tribe, row.effective_clan_tribe)
+            if tribe
+        }
+    )
     tribe_bindings: dict[tuple[object, str], TribeWaitBinding] = {}
     for agent in all_agents:
         wait_agent = wait_display_agent(agent)
