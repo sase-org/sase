@@ -54,7 +54,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "SASE_HOME/cache/rust-prebuild, not agent artifact directories."
         ),
     ),
-    "src/sase/agents_sync/v2_io.py:apply_payload_atomic": DirOpReview(
+    "src/sase/agents_sync/v2_io.py:_cleanup_transaction_dirs": DirOpReview(
         exemption=(
             "Atomically promotes validated owner-sharded payload files inside "
             "an agents sidecar and removes only its task-owned staging and "

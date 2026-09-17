@@ -7,6 +7,7 @@ from pathlib import Path
 from sase.ace.tui.actions.event_refresh._artifact_paths import (
     artifact_dir_from_known_marker_path,
     artifact_path_affects_agents,
+    artifact_path_is_project_refresh_pulse,
 )
 
 
@@ -22,8 +23,26 @@ def test_refresh_pulse_under_artifacts_affects_agents(tmp_path: Path) -> None:
 
     assert artifact_path_affects_agents(project_pulse) is True
     assert artifact_path_affects_agents(month_pulse) is True
+    assert artifact_path_is_project_refresh_pulse(project_pulse) is True
+    assert artifact_path_is_project_refresh_pulse(month_pulse) is True
     assert artifact_dir_from_known_marker_path(project_pulse) is None
     assert artifact_dir_from_known_marker_path(month_pulse) is None
+
+
+def test_agent_directory_refresh_pulse_is_not_project_level(tmp_path: Path) -> None:
+    path = (
+        tmp_path
+        / "proj"
+        / "artifacts"
+        / "ace-run"
+        / "202608"
+        / "28"
+        / "20260828120000"
+        / ".ace_refresh_pulse"
+    )
+
+    assert artifact_path_affects_agents(path) is True
+    assert artifact_path_is_project_refresh_pulse(path) is False
 
 
 def test_unrelated_file_under_artifacts_does_not_affect_agents(tmp_path: Path) -> None:

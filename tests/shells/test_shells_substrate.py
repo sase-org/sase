@@ -117,7 +117,8 @@ def test_allocate_shell_suffix_uses_first_suffix_then_template_allocator() -> No
 def test_write_shell_pending_marker_adds_payload_and_refresh_pulse(
     tmp_path: Path,
 ) -> None:
-    artifacts_dir = tmp_path / "artifacts" / "ace-run" / "202608" / "12"
+    artifacts_root = tmp_path / ".sase" / "projects" / "demo" / "artifacts"
+    artifacts_dir = artifacts_root / "ace-run" / "202608" / "12" / "20260812120000"
     artifacts_dir.mkdir(parents=True)
 
     marker = write_shell_pending_marker(
@@ -132,7 +133,8 @@ def test_write_shell_pending_marker_adds_payload_and_refresh_pulse(
         "member_agent_name": "acme--gate",
         "timestamp": 123.0,
     }
-    assert (tmp_path / "artifacts" / "ace-run" / ".ace_refresh_pulse").exists()
+    assert (artifacts_root / ".ace_refresh_pulse").exists()
+    assert not (artifacts_root / "ace-run" / "202608" / ".ace_refresh_pulse").exists()
     assert will_handoff_shell_to_agent_runner({"SASE_AGENT": "1"}) is True
     assert will_handoff_shell_to_agent_runner({}) is False
 

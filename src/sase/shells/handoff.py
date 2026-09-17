@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import os
-import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
-from collections.abc import Callable
 
 from sase.agent.pending_handoff_write import (
     PendingHandoffError,
@@ -80,19 +78,20 @@ def write_shell_pending_marker(
     except (OSError, PendingHandoffError) as exc:
         raise ShellHandoffError(f"could not write shell handoff marker: {exc}") from exc
 
-    _touch_agent_artifacts_refresh_pulse(artifacts_dir)
+    _touch_shell_refresh_pulse_for_artifacts_dir(artifacts_dir)
     return marker_path
 
 
-def _touch_agent_artifacts_refresh_pulse(artifacts_dir: str) -> None:
+def _touch_shell_refresh_pulse_for_artifacts_dir(artifacts_dir: str) -> None:
     """Nudge artifact watchers after a pending handoff marker mutation."""
     try:
-        pulse_path = Path(artifacts_dir).parents[1] / ".ace_refresh_pulse"
-    except IndexError:
-        return
-    try:
-        pulse_path.write_text(str(time.time()), encoding="utf-8")
-    except OSError:
+        from sase.shells.settlement import (
+            project_name_from_artifacts_dir,
+            touch_shell_refresh_pulse,
+        )
+
+        touch_shell_refresh_pulse(project_name_from_artifacts_dir(artifacts_dir))
+    except Exception:  # noqa: BLE001 - a refresh pulse must never fail the handoff.
         pass
 
 

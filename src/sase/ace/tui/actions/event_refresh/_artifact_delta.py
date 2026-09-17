@@ -17,6 +17,7 @@ from ._artifact_paths import (
     artifact_dir_from_directory_path,
     artifact_dir_from_known_marker_path,
     artifact_path_affects_agents,
+    artifact_path_is_project_refresh_pulse,
 )
 from ._constants import (
     AGENT_ARTIFACT_DELTA_QUEUE_LIMIT,
@@ -71,6 +72,8 @@ class EventArtifactDeltaMixin(EventHandlersBase):
             if not affects_agents:
                 continue
             if artifact_dir is None:
+                if artifact_path_is_project_refresh_pulse(path):
+                    continue
                 unmapped_agents_path = True
                 continue
             artifact_dirs.append(artifact_dir)

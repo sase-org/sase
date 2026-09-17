@@ -26,7 +26,8 @@ def _sandbox_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_write_monitor_pending_marker_pulses_artifacts_root(tmp_path: Path) -> None:
-    artifacts_dir = tmp_path / "artifacts" / "ace-run" / "202608" / "12"
+    artifacts_root = tmp_path / ".sase" / "projects" / "demo" / "artifacts"
+    artifacts_dir = artifacts_root / "ace-run" / "202608" / "12" / "20260812120000"
     artifacts_dir.mkdir(parents=True)
     record = MonitorRecord(
         monitor_id="m123",
@@ -65,7 +66,8 @@ def test_write_monitor_pending_marker_pulses_artifacts_root(tmp_path: Path) -> N
         / checkpoint_ref.removeprefix("local:continuation/")
     )
     assert checkpoint_path.exists()
-    assert (tmp_path / "artifacts" / "ace-run" / ".ace_refresh_pulse").exists()
+    assert (artifacts_root / ".ace_refresh_pulse").exists()
+    assert not (artifacts_root / "ace-run" / "202608" / ".ace_refresh_pulse").exists()
 
 
 def test_maybe_handoff_monitor_from_agent_writes_marker_and_kills_runner(

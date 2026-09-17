@@ -91,6 +91,20 @@ def artifact_path_affects_agents(path: Path) -> bool:
     return False
 
 
+def artifact_path_is_project_refresh_pulse(path: Path) -> bool:
+    """Return True for project-level refresh pulses that carry no exact row."""
+    relative_parts = _artifact_relative_parts(path)
+    if relative_parts == (".ace_refresh_pulse",):
+        return True
+    return (
+        relative_parts is not None
+        and len(relative_parts) == 3
+        and relative_parts[0] == "ace-run"
+        and _is_month_shard(relative_parts[1])
+        and relative_parts[2] == ".ace_refresh_pulse"
+    )
+
+
 def artifact_dir_from_known_marker_path(path: Path) -> Path | None:
     """Return the exact artifact dir for loader-visible marker writes."""
     relative_parts = _artifact_relative_parts(path)

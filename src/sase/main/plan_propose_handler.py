@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import sys
-import time
 from pathlib import Path
 from typing import NoReturn, cast
 
@@ -35,6 +34,19 @@ def _read_agent_meta_associations(artifacts_dir: str) -> dict[str, str]:
         if isinstance(value, str) and (stripped := value.strip()):
             associations[key] = stripped
     return associations
+
+
+def _touch_shell_refresh_pulse_for_artifacts_dir(artifacts_dir: str) -> None:
+    """Nudge artifact watchers after a plan handoff marker mutation."""
+    try:
+        from sase.shells.settlement import (
+            project_name_from_artifacts_dir,
+            touch_shell_refresh_pulse,
+        )
+
+        touch_shell_refresh_pulse(project_name_from_artifacts_dir(artifacts_dir))
+    except Exception:  # noqa: BLE001 - a refresh pulse must never fail the handoff.
+        pass
 
 
 def handle_plan_propose_command(plan_file: str) -> NoReturn:
@@ -230,17 +242,10 @@ def handle_plan_propose_command(plan_file: str) -> NoReturn:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    # Pulse a file at a path the TUI inotify watcher actually sees.
-    # ``ArtifactWatcher`` is non-recursive and only watches direct children of
-    # ``<project>/artifacts/``; the marker write three levels deeper never
-    # wakes it, so the Agents tab waits up to ``FULL_SANITY_REFRESH_SECONDS``
-    # to reflect ``PLAN``.  Touching this pulse fires ``IN_MODIFY`` /
-    # ``IN_CREATE`` and triggers an async refresh within the coalesce window.
-    pulse_path = Path(artifacts_dir).parents[1] / ".ace_refresh_pulse"
-    try:
-        pulse_path.write_text(str(time.time()), encoding="utf-8")
-    except OSError:
-        pass
+    # Pulse a file at a path the TUI inotify watcher and surface-token probe
+    # both see. The marker write deeper in the artifact tree does not reliably
+    # wake Agents-tab refreshes, especially for sharded ace-run layouts.
+    _touch_shell_refresh_pulse_for_artifacts_dir(artifacts_dir)
 
     # Kill the agent runner's process group (which includes the claude
     # subprocess). We cannot use our own process group because Claude Code

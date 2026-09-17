@@ -81,6 +81,43 @@ def test_plan_command_writes_refresh_pulse(
     # it is a direct child of a path the ACE inotify watcher actually sees.
 
 
+def test_plan_command_sharded_artifacts_dir_pulses_artifacts_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Sharded ace-run handoffs pulse ``artifacts/``, not the month shard."""
+    sase_home = tmp_path / ".sase"
+    redirect_sase_home(monkeypatch, sase_home)
+
+    project_artifacts_root = sase_home / "projects" / "demo" / "artifacts"
+    artifacts_dir = (
+        project_artifacts_root / "ace-run" / "202608" / "12" / "20260812120000"
+    )
+    artifacts_dir.mkdir(parents=True)
+
+    plan_file = tmp_path / "my_plan.md"
+    plan_file.write_text(VALID_TALE, encoding="utf-8")
+
+    monkeypatch.setenv("SASE_AGENT", "agent-x")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(artifacts_dir))
+
+    with (
+        patch(
+            "sase.main.plan_propose_handler.kill_agent_runner_group",
+        ) as kill_mock,
+        patch(
+            "sase.file_references.format_with_prettier",
+            side_effect=lambda raw: raw,
+        ),
+    ):
+        kill_mock.side_effect = SystemExit(0)
+        assert _invoke_plan(plan_file) == 0
+
+    assert (project_artifacts_root / ".ace_refresh_pulse").is_file()
+    assert not (
+        project_artifacts_root / "ace-run" / "202608" / ".ace_refresh_pulse"
+    ).exists()
+
+
 def test_plan_command_pulse_mtime_advances(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
