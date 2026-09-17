@@ -36,6 +36,11 @@ from sase.agent.launch_admission_runtime import (
     UnitDispatcher,
     WaitResolver,
 )
+from sase.agent.launch_hold import (
+    LaunchHoldError,
+    pre_arm_typed_plan_holds,
+    reanchor_pending_unit_holds,
+)
 from sase.agent.launch_admission_store import (
     ADMISSION_DIRNAME,
     COORDINATOR_ENV,
@@ -61,6 +66,7 @@ from sase.core.agent_launch_wire import (
     ProcUnitWire,
 )
 from sase.core.atomic_json import write_json_marker_atomic
+from sase.agent.launch_request_types import LaunchRequestError
 
 
 def dispatch_typed_launch_request(
@@ -89,6 +95,10 @@ def dispatch_typed_launch_request(
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
         try:
             write_sidecar(root, data, plan)
+            try:
+                pre_arm_typed_plan_holds(root, plan, request_id)
+            except LaunchHoldError as exc:
+                raise LaunchRequestError("invalid_request", "hold", str(exc)) from exc
             engine = AdmissionEngine(
                 plan=plan,
                 admission_dir=root,
@@ -134,11 +144,13 @@ def run_coordinator_in_bundle(
     with lock_path.open("a+", encoding="utf-8") as lock_file:
         fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
         try:
+            request_id = str(data.get("request_id") or "")
+            reanchor_pending_unit_holds(root, plan, request_id, pid=os.getpid())
             write_json_marker_atomic(
                 root / STARTED_FILENAME,
                 {
                     "pid": os.getpid(),
-                    "request_id": str(data.get("request_id") or ""),
+                    "request_id": request_id,
                     "plan_digest": plan.content_digest,
                     "started_at_unix": time.time(),
                 },

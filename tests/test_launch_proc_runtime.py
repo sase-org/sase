@@ -12,8 +12,13 @@ from unittest.mock import patch
 import pytest
 
 from sase.agent.launch_admission import dispatch_typed_launch_request
+from sase.agent.launch_hold import LaunchHoldError
 from sase.agent.launch_proc_runtime import dispatch_proc_unit
 from sase.agent.launch_types import AgentLaunchResult
+from sase.core.agent_hold_facade import (
+    arm_agent_hold,
+    list_agent_holds_without_liveness,
+)
 from sase.core.agent_launch_facade import (
     parse_proc_duration_seconds,
     resolve_proc_execution_cwd,
@@ -24,6 +29,7 @@ from sase.core.agent_launch_facade import (
 )
 from sase.core.agent_launch_wire import (
     AgentUnitWire,
+    HoldFieldsWire,
     LaunchPlanWire,
     LaunchUnitWire,
     ProcUnitWire,
@@ -31,6 +37,12 @@ from sase.core.agent_launch_wire import (
     agent_launch_wire_to_json_dict,
 )
 from sase.procs import wait_for_proc
+from sase.procs.models import (
+    DETACHED_PROC_KIND,
+    PROC_LIFECYCLE_PROC_SHELL,
+    XPROMPT_PROC_ORIGIN,
+    Proc,
+)
 from sase.procs.runtime import proc_runtime_dir
 from sase.xprompt.code_value import make_code_value
 
@@ -73,6 +85,7 @@ def _proc_unit(
     timeout: str | None = None,
     logical_id: str = "unit-1",
     selected_project: str | None = None,
+    hold: HoldFieldsWire | None = None,
 ) -> LaunchUnitWire:
     return LaunchUnitWire(
         logical_id=logical_id,
@@ -85,7 +98,52 @@ def _proc_unit(
             label=label,
             timeout=timeout,
             selected_project=selected_project,
+            hold=hold,
         ),
+    )
+
+
+def _launch_hold_armer(
+    *,
+    key: str = "launch:req-proc-hold/unit-1",
+    project: str = "sase",
+    done_marker_path: str = "/tmp/launch-receipt.json",
+) -> dict[str, object]:
+    return {
+        "kind": "launch",
+        "key": key,
+        "display": "proc launch",
+        "project": project,
+        "agent_name": None,
+        "family": None,
+        "clan": None,
+        "pid": os.getpid(),
+        "done_marker_path": done_marker_path,
+    }
+
+
+def _proc_row(
+    *,
+    proc_id: str,
+    status: str = "running",
+    shell_name: str = "checks",
+    project: str | None = "sase",
+    xprompt_proc: dict[str, Any] | None = None,
+) -> Proc:
+    return Proc(
+        proc_id=proc_id,
+        label=shell_name,
+        kind=DETACHED_PROC_KIND,
+        status=status,
+        command=["bash", "script.sh"],
+        cwd="/tmp",
+        origin=XPROMPT_PROC_ORIGIN,
+        created_at="2026-09-17T00:00:00+00:00",
+        log_path="/tmp/proc.log",
+        lifecycle=PROC_LIFECYCLE_PROC_SHELL,
+        project=project,
+        shell_name=shell_name,
+        xprompt_proc=xprompt_proc or {"code_digest": "digest"},
     )
 
 
@@ -162,6 +220,140 @@ def test_bash_proc_runs_without_agent_artifacts(
     assert not (proc_runtime_dir(finished.proc_id) / "script.sh").exists()
     artifacts = tmp_path / "home" / "projects"
     assert not any(artifacts.rglob("done.json")) if artifacts.exists() else True
+
+
+def test_proc_dispatch_rebinds_launch_hold_and_settlement_releases_it(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    key = "launch:req-proc-hold/unit-1"
+    arm_agent_hold(
+        armer=_launch_hold_armer(
+            key=key,
+            done_marker_path=str(
+                tmp_path / "bundle" / "launch_admission" / "receipt.json"
+            ),
+        ),
+        future=True,
+        scope="project",
+        ttl_seconds=60.0,
+    )
+    unit = _proc_unit(
+        "sleep 1",
+        cwd=str(tmp_path),
+        shell_name="held-proc",
+        hold=HoldFieldsWire(future=True),
+    )
+
+    ok, identity, message, spawned = dispatch_proc_unit(
+        unit,
+        "fp-proc-hold",
+        {
+            "request_id": "req-proc-hold",
+            "selected_project": "sase",
+            "source_cwd": str(tmp_path),
+            "python_executable": sys.executable,
+        },
+    )
+
+    assert ok, message
+    assert spawned == []
+    assert identity is not None
+    holds = list_agent_holds_without_liveness()
+    assert [hold["armer"]["key"] for hold in holds] == [f"proc:{identity}"]
+    assert holds[0]["armer"]["kind"] == "proc"
+    assert holds[0]["armer"]["project"] == "sase"
+    finished = wait_for_proc(identity, timeout=10)
+    assert finished.status == "success", finished.message
+    assert list_agent_holds_without_liveness() == []
+
+
+def test_proc_dispatch_releases_launch_hold_when_rebind_fails(
+    tmp_path: Path,
+) -> None:
+    unit = _proc_unit(
+        "echo held",
+        cwd=str(tmp_path),
+        shell_name="held-proc",
+        hold=HoldFieldsWire(future=True),
+    )
+    proc = _proc_row(proc_id="proc-rebind-fails")
+    released: list[tuple[str, str, str | None]] = []
+
+    with (
+        patch("sase.agent.launch_proc_runtime._submit_unit", return_value=proc),
+        patch("sase.agent.launch_proc_runtime.get_proc", return_value=proc),
+        patch(
+            "sase.agent.launch_hold.rebind_hold",
+            side_effect=LaunchHoldError("%hold: boom"),
+        ),
+        patch(
+            "sase.agent.launch_hold.release_hold_best_effort",
+            side_effect=lambda key, *, reason, display=None: (
+                released.append((key, reason, display)) or True
+            ),
+        ),
+    ):
+        ok, identity, message, spawned = dispatch_proc_unit(
+            unit,
+            "fp-proc-rebind-fails",
+            {"request_id": "req-proc-rebind-fails", "selected_project": "sase"},
+        )
+
+    assert ok is True
+    assert identity == "proc-rebind-fails"
+    assert message is None
+    assert spawned == []
+    assert released == [
+        (
+            "launch:req-proc-rebind-fails/unit-1",
+            "launch proc hold rebind failed",
+            "unit-1",
+        )
+    ]
+
+
+def test_proc_dispatch_releases_rebound_hold_when_proc_is_already_terminal(
+    tmp_path: Path,
+) -> None:
+    unit = _proc_unit(
+        "echo held",
+        cwd=str(tmp_path),
+        shell_name="held-proc",
+        hold=HoldFieldsWire(future=True),
+    )
+    proc = _proc_row(proc_id="proc-terminal", status="success")
+    released: list[tuple[str, str, str | None]] = []
+
+    with (
+        patch("sase.agent.launch_proc_runtime._submit_unit", return_value=proc),
+        patch("sase.agent.launch_proc_runtime.get_proc", return_value=proc),
+        patch("sase.agent.launch_hold.rebind_hold", return_value={"armer": {}}),
+        patch(
+            "sase.agent.launch_hold.release_hold_best_effort",
+            side_effect=lambda key, *, reason, display=None: (
+                released.append((key, reason, display)) or True
+            ),
+        ),
+    ):
+        ok, identity, message, spawned = dispatch_proc_unit(
+            unit,
+            "fp-proc-terminal",
+            {"request_id": "req-proc-terminal", "selected_project": "sase"},
+        )
+
+    assert ok is True
+    assert identity == "proc-terminal"
+    assert message is None
+    assert spawned == []
+    assert released == [
+        (
+            "proc:proc-terminal",
+            "proc completed before launch hold settlement",
+            "proc-terminal",
+        )
+    ]
 
 
 def _write_fake_just(bin_dir: Path, marker: Path) -> None:

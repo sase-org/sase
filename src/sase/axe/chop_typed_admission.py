@@ -42,6 +42,7 @@ def make_axe_chop_agent_dispatcher(
     metadata = _unit_metadata(data)
     if not metadata:
         return None
+    request_id = str(data.get("request_id") or "") or None
     admission_root: Path | None = None
     if bundle_dir is not None:
         admission_root = admission_dir(bundle_dir)
@@ -79,7 +80,14 @@ def make_axe_chop_agent_dispatcher(
         if prompt_error is not None:
             return False, None, prompt_error, []
         assert prompt is not None
-        extra_env = _unit_dispatch_env(unit_meta, prompt, unit.logical_id, fingerprint)
+        extra_env = _unit_dispatch_env(
+            unit_meta,
+            prompt,
+            unit.logical_id,
+            fingerprint,
+            unit=unit,
+            request_id=request_id,
+        )
         launch = launch_agents_from_cwd_fn
         if launch is None:
             from sase.agent import launcher as launcher_mod
@@ -403,6 +411,9 @@ def _unit_dispatch_env(
     prompt: str,
     logical_id: str,
     fingerprint: str,
+    *,
+    unit: LaunchUnitWire | None = None,
+    request_id: str | None = None,
 ) -> dict[str, str]:
     raw_env = metadata.get("env")
     env = (
@@ -428,6 +439,10 @@ def _unit_dispatch_env(
             proposal_id=_str_or_none(metadata.get("proposal_id")),
         )
     )
+    if unit is not None:
+        from sase.agent.launch_hold import launch_hold_dispatch_env
+
+        env.update(launch_hold_dispatch_env(unit, request_id))
     return env
 
 

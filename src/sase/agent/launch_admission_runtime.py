@@ -102,6 +102,7 @@ def dispatch_agent_unit(
     *,
     selected_project: str | None = None,
     source_cwd: str | None = None,
+    request_id: str | None = None,
 ) -> DispatchResultWithExtra:
     """Dispatch one eligible agent through the established launch path."""
 
@@ -112,7 +113,21 @@ def dispatch_agent_unit(
         "SASE_LAUNCH_DISPATCH_FINGERPRINT": fingerprint,
         "SASE_LAUNCH_LOGICAL_ID": unit.logical_id,
     }
+    from sase.agent.launch_hold import (
+        LAUNCH_HOLD_RELEASE_REASON,
+        launch_hold_dispatch_env,
+        release_hold_best_effort,
+    )
+
+    hold_env = launch_hold_dispatch_env(unit, request_id)
     if unit.payload.dispatch_target:
+        hold_key = hold_env.get("SASE_LAUNCH_HOLD_KEY")
+        if hold_key:
+            release_hold_best_effort(
+                hold_key,
+                reason=LAUNCH_HOLD_RELEASE_REASON,
+                display=unit.logical_id,
+            )
         return _dispatch_remote_agent_unit(
             unit,
             prompt,
@@ -120,6 +135,7 @@ def dispatch_agent_unit(
             selected_project=selected_project,
             source_cwd=source_cwd,
         )
+    extra_env.update(hold_env)
     from sase.agent import launcher as launcher_mod
 
     results = launcher_mod.launch_agents_from_cwd(prompt, extra_env=extra_env)
@@ -140,6 +156,7 @@ def make_approved_agent_dispatcher(
 
     selected = data.get("selected_project")
     selected_project = str(selected) if isinstance(selected, str) else None
+    request_id = str(data.get("request_id") or "") or None
     dispatch = data.get("dispatch")
     source_cwd = None
     if isinstance(dispatch, Mapping) and dispatch.get("cwd"):
@@ -154,6 +171,7 @@ def make_approved_agent_dispatcher(
             fingerprint,
             selected_project=selected_project,
             source_cwd=source_cwd,
+            request_id=request_id,
         )
 
     return _dispatch
@@ -272,7 +290,7 @@ def _remote_dispatch_payload(
         "request_id": fingerprint,
         "follow": True,
     }
-    project = _resolve_unit_project(agent, selected_project)
+    project = resolve_agent_unit_project(agent, selected_project)
     if isinstance(project, str) and project.strip() and project != "home":
         payload["project"] = project
     else:
@@ -285,7 +303,7 @@ def _remote_dispatch_payload(
     return payload
 
 
-def _resolve_unit_project(
+def resolve_agent_unit_project(
     agent: AgentUnitWire,
     selected_project: str | None,
 ) -> str | None:

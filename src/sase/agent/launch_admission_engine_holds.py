@@ -17,6 +17,7 @@ def proc_hold_blocks(
     plan: LaunchPlanWire,
     states: Mapping[str, Mapping[str, Any]],
     *,
+    request_id: str,
     now_seconds: float,
 ) -> list[dict[str, Any]]:
     """Return active hold blocks for pre-dispatch proc units.
@@ -49,6 +50,7 @@ def proc_hold_blocks(
                 plan,
                 unit,
                 states.get(unit.logical_id) or {},
+                request_id=request_id,
                 now_seconds=now_seconds,
             )
             for hold in active_holds:
@@ -66,6 +68,7 @@ def _proc_hold_candidate(
     unit: LaunchUnitWire,
     state: Mapping[str, Any],
     *,
+    request_id: str,
     now_seconds: float,
 ) -> dict[str, Any]:
     payload = unit.payload
@@ -76,6 +79,15 @@ def _proc_hold_candidate(
     }
     if isinstance(payload, ProcUnitWire) and payload.shell_name:
         candidate["proc_shell"] = payload.shell_name
+    if isinstance(payload, ProcUnitWire) and payload.hold is not None and request_id:
+        try:
+            from sase.agent.launch_hold import unit_hold_key
+
+            candidate["armer_key"] = unit_hold_key(request_id, unit.logical_id)
+        except Exception as exc:  # noqa: BLE001 - hold checks fail open.
+            LOGGER.warning(
+                "proc hold armer key failed open for %s: %s", unit.logical_id, exc
+            )
     return candidate
 
 

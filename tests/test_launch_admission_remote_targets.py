@@ -11,12 +11,16 @@ import pytest
 from sase.agent.launch_admission import dispatch_typed_launch_request
 from sase.agent.launch_admission_runtime import dispatch_agent_unit
 from sase.agent.launch_cwd_common import _KnownProjectVcsLaunchRef
+from sase.core.agent_hold_facade import list_agent_holds_without_liveness
 from sase.core.agent_launch_facade import (
     agent_unit_dispatch_prompt,
     plan_typed_launch_units,
 )
 from sase.core.agent_launch_wire import (
     AgentUnitWire,
+    HoldFieldsWire,
+    LaunchPlanWire,
+    LaunchUnitWire,
     agent_launch_wire_to_json_dict,
 )
 from sase.dispatch.launch import (
@@ -213,6 +217,69 @@ def test_approved_remote_unit_does_not_spawn_locally(
         (response_dir / "launch_admission" / "receipt.json").read_text(encoding="utf-8")
     )
     assert receipt["units"][0]["dispatch_target"] == "apollo"
+
+
+def test_remote_dispatch_releases_prearmed_launch_hold(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    known = _known_sase(tmp_path)
+    monkeypatch.setattr(
+        "sase.agent.launch_cwd_common.resolve_known_project_vcs_launch_ref",
+        lambda prompt: known,
+    )
+    monkeypatch.setattr(
+        "sase.agent.launcher.launch_agents_from_cwd",
+        lambda *args, **kwargs: pytest.fail("remote hold unit spawned locally"),
+    )
+    monkeypatch.setattr(
+        "sase.dispatch.launch.maybe_dispatch_launch",
+        lambda query, *, payload, **kwargs: _settled_result(
+            target="apollo",
+            operation_id=str(payload.get("request_id") or "op"),
+            agent_id="remote-reviewer",
+        ),
+    )
+    unit = LaunchUnitWire(
+        logical_id="unit-1",
+        source_order=0,
+        payload=AgentUnitWire(
+            prompt="Review remotely.",
+            identity="remote-reviewer",
+            identity_explicit=True,
+            workspace_reference="#gh:sase",
+            dispatch_target="apollo",
+            hold=HoldFieldsWire(future=True),
+        ),
+    )
+    plan = LaunchPlanWire(
+        schema_version=1,
+        launch_kind="multi_prompt",
+        selected_project="gh_sase-org__sase",
+        content_digest="d" * 64,
+        units=[unit],
+        approval_preview=["LaunchPlan v1"],
+    )
+    response_dir = tmp_path / "bundle"
+    response_dir.mkdir()
+
+    with override_flags(agent_holds=True):
+        result = dispatch_typed_launch_request(
+            response_dir,
+            {
+                "request_id": "remote-hold",
+                "selected_project": "gh_sase-org__sase",
+                "typed_plan": agent_launch_wire_to_json_dict(plan),
+                "dispatch": {"cwd": str(tmp_path), "prompt": "Review remotely."},
+            },
+            spawn_coordinator=False,
+        )
+
+    assert result.summary is not None
+    assert result.summary.launched == 1
+    assert list_agent_holds_without_liveness() == []
 
 
 def test_mixed_local_and_remote_units_route_independently(

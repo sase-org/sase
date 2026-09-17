@@ -351,14 +351,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-11l.5.1.2.1(LaunchHoldError)" \
-        --epic-symbol "sase-11l.5.1.2.1(arm_hold_for_fields)" \
-        --epic-symbol "sase-11l.5.1.2.1(hold_fields_for)" \
-        --epic-symbol "sase-11l.5.1.2.1(launch_unit_armer)" \
-        --epic-symbol "sase-11l.5.1.2.1(rebind_hold)" \
-        --epic-symbol "sase-11l.5.1.2.1(release_hold_best_effort)" \
-        --epic-symbol "sase-11l.5.1.2.1(runner_anchor_armer)" \
-        --epic-symbol "sase-11l.5.1.2.1(unit_hold_key)" \
         --epic-symbol "sase-123.3(render_svg_to_png)" \
         --epic-symbol "sase-11y.4(ServiceConfigComposition)" \
         --epic-symbol "sase-11y.4(ServiceConfigError)" \

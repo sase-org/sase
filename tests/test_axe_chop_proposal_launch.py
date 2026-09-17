@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.agent.launch_hold import LAUNCH_HOLD_KEY_ENV
 from sase.agent.launch_request_types import LaunchRequestError
 from sase.axe.chop_proposal_launch import launch_chop_proposals
 from sase.axe.chop_proposals import prepare_chop_proposals
@@ -16,7 +17,7 @@ from sase.axe.chop_runner import run_configured_chop_once
 from sase.axe.chop_typed_admission import make_axe_chop_agent_dispatcher
 from sase.axe.config import ChopConfig
 from sase.axe.state import chop_run_log_path, read_chop_run
-from sase.core.agent_launch_wire import AgentUnitWire, LaunchUnitWire
+from sase.core.agent_launch_wire import AgentUnitWire, HoldFieldsWire, LaunchUnitWire
 from sase.feature_flags import override_flags
 from sase.xprompt import extract_vcs_workflow_tag
 
@@ -148,6 +149,52 @@ def test_typed_chop_dispatch_fails_closed_without_workspace_metadata() -> None:
     assert identity is None
     assert message == "missing AXE job workspace for unit-1"
     assert results == []
+
+
+def test_typed_chop_dispatch_carries_launch_hold_key() -> None:
+    unit = LaunchUnitWire(
+        logical_id="unit-1",
+        source_order=0,
+        payload=AgentUnitWire(
+            prompt="Review docs.",
+            identity="refresh",
+            identity_explicit=True,
+            hold=HoldFieldsWire(future=True),
+        ),
+    )
+    calls: list[dict[str, str]] = []
+
+    def _launch(prompt: str, *, extra_env: dict[str, str]) -> list[SimpleNamespace]:
+        del prompt
+        calls.append(dict(extra_env))
+        return [SimpleNamespace(pid=501, agent_name="refresh")]
+
+    dispatcher = make_axe_chop_agent_dispatcher(
+        {
+            "request_id": "req-axe-hold",
+            "unit_dispatch_metadata": {
+                "unit-1": {
+                    "logical_id": "unit-1",
+                    "lumberjack_name": "docs",
+                    "chop_name": "docs",
+                    "run_id": "run-hold",
+                    "workspace": "git:sase",
+                    "env": {},
+                }
+            },
+        },
+        launch_agents_from_cwd_fn=_launch,
+    )
+    assert dispatcher is not None
+
+    with override_flags(agent_holds=True):
+        ok, identity, message, results = dispatcher(unit, "fp-axe-hold")
+
+    assert ok is True
+    assert identity == "refresh"
+    assert message is None
+    assert len(results) == 1
+    assert calls[0][LAUNCH_HOLD_KEY_ENV] == "launch:req-axe-hold/unit-1"
 
 
 def test_typed_chop_proposal_flag_off_rejects_before_launch(

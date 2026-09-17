@@ -28,6 +28,10 @@ from sase.agent.launch_admission_engine_helpers import (
     unpack_agent_dispatch,
 )
 from sase.agent.launch_admission_engine_holds import proc_hold_blocks
+from sase.agent.launch_hold import (
+    reanchor_dispatched_agent_hold,
+    release_unit_hold_if_terminal,
+)
 from sase.agent.launch_admission_request_data import (
     request_project_file,
     request_safe_inputs,
@@ -141,6 +145,8 @@ class AdmissionEngine(AdmissionConditionMixin):
         if not units_dir.is_dir():
             return states
         for path in units_dir.glob("*.json"):
+            if path.name.endswith(".hold.json"):
+                continue
             try:
                 receipt = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
@@ -181,7 +187,12 @@ class AdmissionEngine(AdmissionConditionMixin):
         )
 
     def _hold_blocks(self, states: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
-        return proc_hold_blocks(self.plan, states, now_seconds=self.clock())
+        return proc_hold_blocks(
+            self.plan,
+            states,
+            request_id=self.request_id,
+            now_seconds=self.clock(),
+        )
 
     def _apply_action(self, action: Mapping[str, Any]) -> str | None:
         kind = str(action.get("kind") or "")
@@ -241,7 +252,13 @@ class AdmissionEngine(AdmissionConditionMixin):
             elif self.agent_dispatcher is None:
                 self._journal(logical_id, "dispatching", fingerprint=fingerprint)
                 ok, identity, message, spawned, extra = unpack_agent_dispatch(
-                    dispatch_agent_unit(unit, fingerprint)
+                    dispatch_agent_unit(
+                        unit,
+                        fingerprint,
+                        selected_project=self.plan.selected_project,
+                        source_cwd=self.source_cwd,
+                        request_id=self.request_id,
+                    )
                 )
             else:
                 self._journal(logical_id, "dispatching", fingerprint=fingerprint)
@@ -250,6 +267,12 @@ class AdmissionEngine(AdmissionConditionMixin):
                 )
             self.results.extend(spawned)
             if ok:
+                reanchor_dispatched_agent_hold(
+                    self.admission_dir,
+                    unit,
+                    self.request_id,
+                    list(spawned),
+                )
                 write_unit_receipt(
                     self.admission_dir,
                     logical_id=logical_id,
@@ -337,6 +360,7 @@ class AdmissionEngine(AdmissionConditionMixin):
     ) -> dict[str, Any]:
         return {
             "logical_unit": unit.logical_id,
+            "request_id": self.request_id,
             "selected_project": self.plan.selected_project,
             "source_cwd": self.source_cwd,
             "admission_dir": str(self.admission_dir),
@@ -393,6 +417,9 @@ class AdmissionEngine(AdmissionConditionMixin):
         message: str | None = None,
         extra: Mapping[str, Any] | None = None,
     ) -> None:
+        if phase in {"skipped", "condition_error", "launch_error", "cancelled"}:
+            unit = unit_by_logical_id(self.plan, logical_id)
+            release_unit_hold_if_terminal(unit, self.request_id)
         entry: dict[str, Any] = {
             "schema_version": LAUNCH_ADMISSION_JOURNAL_SCHEMA_VERSION,
             "seq": self._next_seq,

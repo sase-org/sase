@@ -75,7 +75,9 @@ def dispatch_proc_unit(
         return False, current.proc_id, "proc_origin_is_not_xprompt_proc", []
     from sase.procs.models import TERMINAL_PROC_STATUSES
 
+    _rebind_launch_hold_to_proc(unit, current, ctx)
     if current.status in TERMINAL_PROC_STATUSES:
+        _release_terminal_proc_hold(current.proc_id)
         prepared = bool((current.xprompt_proc or {}).get("code_digest"))
         if current.status == "success" or prepared:
             return True, current.proc_id, current.message, []
@@ -282,6 +284,69 @@ def _submit_unit(
         after_spawn=lambda _supervisor: _raise_if_cancelled(context, cancel_path),
         after_ack=lambda _proc: _raise_if_cancelled(context, cancel_path),
     )
+
+
+def _rebind_launch_hold_to_proc(
+    unit: LaunchUnitWire,
+    proc: Proc,
+    context: Mapping[str, Any],
+) -> None:
+    payload = unit.payload
+    if not isinstance(payload, ProcUnitWire) or payload.hold is None:
+        return
+    request_id = str(context.get("request_id") or "")
+    if not request_id:
+        return
+    from sase.agent.launch_hold import (
+        LaunchHoldError,
+        rebind_hold,
+        release_hold_best_effort,
+        unit_hold_key,
+    )
+
+    key = unit_hold_key(request_id, unit.logical_id)
+    armer = {
+        "kind": "proc",
+        "key": f"proc:{proc.proc_id}",
+        "display": proc.shell_name or payload.label or proc.proc_id,
+        "project": _proc_hold_project(payload, context),
+        "proc_id": proc.proc_id,
+    }
+    try:
+        rebind_hold(key, armer)
+    except LaunchHoldError:
+        release_hold_best_effort(
+            key,
+            reason="launch proc hold rebind failed",
+            display=unit.logical_id,
+        )
+
+
+def _release_terminal_proc_hold(proc_id: str) -> None:
+    from sase.agent.launch_hold import release_hold_best_effort
+
+    release_hold_best_effort(
+        f"proc:{proc_id}",
+        reason="proc completed before launch hold settlement",
+        display=proc_id,
+    )
+
+
+def _proc_hold_project(payload: ProcUnitWire, context: Mapping[str, Any]) -> str:
+    if payload.selected_project:
+        return payload.selected_project
+    selected = context.get("selected_project")
+    if isinstance(selected, str) and selected:
+        return selected
+    try:
+        from sase.bead.project_name import infer_project_name_from_cwd
+
+        project = infer_project_name_from_cwd()
+        if project:
+            return project
+    except Exception:  # noqa: BLE001 - host-scoped holds can still match.
+        pass
+    return "unknown"
 
 
 def _acquire_lease(proc: Proc, meta: Mapping[str, Any]) -> Any:

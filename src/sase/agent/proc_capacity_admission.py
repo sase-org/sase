@@ -12,6 +12,7 @@ from typing import Any
 from sase.core.agent_launch_wire import LaunchUnitWire, ProcUnitWire
 from sase.core.runner_slots import (
     DEFAULT_WAIT_PRIORITY,
+    HOLD_ARMER_WAIT_PRIORITY,
     runner_capacity_snapshot,
     runner_slot_candidate_record,
 )
@@ -70,6 +71,8 @@ def evaluate_proc_capacity_admission(
     priority = (
         payload.wait_priority
         if type(payload.wait_priority) is int and payload.wait_priority >= 0
+        else HOLD_ARMER_WAIT_PRIORITY
+        if payload.hold is not None
         else DEFAULT_WAIT_PRIORITY
     )
     queue_weight = (

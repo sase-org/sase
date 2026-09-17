@@ -89,6 +89,14 @@ def list_current_agent_holds(
     return after
 
 
+def list_agent_holds_without_liveness(
+    *,
+    now: datetime | float | None = None,
+) -> list[dict[str, Any]]:
+    """Return validated holds without applying per-armer liveness facts."""
+    return validated_holds(list_holds({}, now=now))
+
+
 def find_agent_hold(
     armer_key: str,
     *,
@@ -499,6 +507,7 @@ __all__ = [
     "current_armer_wire",
     "find_agent_hold",
     "format_pending_capture",
+    "list_agent_holds_without_liveness",
     "list_current_agent_holds",
     "preview_pending_capture",
     "reconcile_agent_holds_for_artifact",

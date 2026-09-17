@@ -11,13 +11,13 @@ import pytest
 from sase.agent.launch_hold import (
     LAUNCH_HOLD_RELEASE_REASON,
     LaunchHoldError,
+    _arm_hold_for_fields,
+    _hold_fields_for,
+    _launch_unit_armer,
+    _runner_anchor_armer,
     arm_bootstrap_hold,
-    arm_hold_for_fields,
-    hold_fields_for,
-    launch_unit_armer,
     rebind_hold,
     release_hold_best_effort,
-    runner_anchor_armer,
     unit_hold_key,
 )
 from sase.core.agent_hold_facade import list_current_agent_holds
@@ -54,7 +54,7 @@ def test_unit_hold_key_format() -> None:
 def test_hold_fields_for_reads_hold_fields_wire_from_dataclass_payload() -> None:
     payload = AgentUnitWire(prompt="hi", hold=HoldFieldsWire(names=["a"], future=True))
 
-    fields = hold_fields_for(payload)
+    fields = _hold_fields_for(payload)
 
     assert fields == HoldFields(names=("a",), future=True)
 
@@ -62,21 +62,21 @@ def test_hold_fields_for_reads_hold_fields_wire_from_dataclass_payload() -> None
 def test_hold_fields_for_reads_directive_mapping() -> None:
     payload = {"hold": {"names": ["b"], "pending": True}}
 
-    fields = hold_fields_for(payload)
+    fields = _hold_fields_for(payload)
 
     assert fields == HoldFields(names=("b",), pending=True)
 
 
 def test_hold_fields_for_returns_none_without_hold() -> None:
-    assert hold_fields_for(AgentUnitWire(prompt="hi")) is None
-    assert hold_fields_for({}) is None
+    assert _hold_fields_for(AgentUnitWire(prompt="hi")) is None
+    assert _hold_fields_for({}) is None
 
 
 def test_arm_hold_for_fields_arms_and_returns_result() -> None:
     armer = _launch_armer()
     fields = HoldFields(future=True)
 
-    result = arm_hold_for_fields(fields, armer=armer)
+    result = _arm_hold_for_fields(fields, armer=armer)
 
     assert result.record["armer"]["kind"] == "launch"
     assert result.record["selectors"]["future"] is True
@@ -87,7 +87,7 @@ def test_arm_hold_for_fields_wraps_errors_with_hold_prefix() -> None:
     fields = HoldFields()  # no selector -> the Rust arm call rejects it.
 
     with pytest.raises(LaunchHoldError, match=r"^%hold: "):
-        arm_hold_for_fields(fields, armer=armer)
+        _arm_hold_for_fields(fields, armer=armer)
 
 
 def test_rebind_hold_returns_none_for_missing_key() -> None:
@@ -96,7 +96,7 @@ def test_rebind_hold_returns_none_for_missing_key() -> None:
 
 def test_rebind_hold_round_trips_an_armed_record() -> None:
     armer = _launch_armer(key="launch:req2/u1")
-    result = arm_hold_for_fields(HoldFields(future=True), armer=armer)
+    result = _arm_hold_for_fields(HoldFields(future=True), armer=armer)
     old_key = result.record["armer"]["key"]
 
     new_armer = dict(armer)
@@ -109,7 +109,7 @@ def test_rebind_hold_round_trips_an_armed_record() -> None:
 
 def test_rebind_hold_wraps_kin_rejection_with_hold_prefix() -> None:
     armer = _launch_armer(key="launch:req3/u1", agent_name="not-foo")
-    result = arm_hold_for_fields(HoldFields(names=("foo",)), armer=armer)
+    result = _arm_hold_for_fields(HoldFields(names=("foo",)), armer=armer)
     old_key = result.record["armer"]["key"]
 
     kin_armer = dict(armer)
@@ -121,7 +121,7 @@ def test_rebind_hold_wraps_kin_rejection_with_hold_prefix() -> None:
 
 def test_release_hold_best_effort_returns_true_on_success() -> None:
     armer = _launch_armer(key="launch:req4/u1")
-    result = arm_hold_for_fields(HoldFields(future=True), armer=armer)
+    result = _arm_hold_for_fields(HoldFields(future=True), armer=armer)
     key = result.record["armer"]["key"]
 
     assert release_hold_best_effort(key, reason=LAUNCH_HOLD_RELEASE_REASON) is True
@@ -149,7 +149,7 @@ def test_launch_unit_armer_for_agent_unit_sets_identity() -> None:
         ),
     )
 
-    armer = launch_unit_armer(
+    armer = _launch_unit_armer(
         unit,
         request_id="req6",
         project="proj1",
@@ -182,7 +182,7 @@ def test_launch_unit_armer_for_proc_unit_sets_no_identity() -> None:
         ),
     )
 
-    armer = launch_unit_armer(
+    armer = _launch_unit_armer(
         unit,
         request_id="req7",
         project="proj1",
@@ -201,7 +201,7 @@ def test_launch_unit_armer_for_proc_unit_sets_no_identity() -> None:
 def test_runner_anchor_armer_replaces_pid_and_done_marker_path() -> None:
     armer = _launch_armer()
 
-    anchored = runner_anchor_armer(armer, pid=555, artifacts_dir="/a/artifacts")
+    anchored = _runner_anchor_armer(armer, pid=555, artifacts_dir="/a/artifacts")
 
     assert anchored["pid"] == 555
     assert anchored["done_marker_path"] == "/a/artifacts/done.json"
@@ -220,7 +220,7 @@ def test_arm_bootstrap_hold_arms_fresh_agent_hold() -> None:
             "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts",
             return_value=armer,
         ) as armer_for_artifacts,
-        patch("sase.agent.launch_hold.arm_hold_for_fields") as arm,
+        patch("sase.agent.launch_hold._arm_hold_for_fields") as arm,
         patch("sase.agent.launch_hold.rebind_hold") as rebind,
     ):
         arm_bootstrap_hold(state, info, None, None)
@@ -247,7 +247,7 @@ def test_arm_bootstrap_hold_rebinds_prearmed_key() -> None:
         patch(
             "sase.agent.launch_hold.rebind_hold", return_value={"armer": armer}
         ) as rebind,
-        patch("sase.agent.launch_hold.arm_hold_for_fields") as arm,
+        patch("sase.agent.launch_hold._arm_hold_for_fields") as arm,
     ):
         arm_bootstrap_hold(state, info, None, "launch:req/u1")
 
@@ -308,6 +308,36 @@ def test_arm_bootstrap_hold_skips_refresh_pass(monkeypatch: pytest.MonkeyPatch) 
 
     with (
         patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=True),
+        patch(
+            "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts"
+        ) as armer_for_artifacts,
+    ):
+        arm_bootstrap_hold(state, info, None, "launch:req/u1")
+
+    armer_for_artifacts.assert_not_called()
+
+
+def test_arm_bootstrap_hold_skips_retry_handoff() -> None:
+    state = SimpleNamespace(artifacts_dir="/tmp/artifacts")
+    info = SimpleNamespace(hold=HoldFields(future=True))
+
+    with (
+        patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=True),
+        patch(
+            "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts"
+        ) as armer_for_artifacts,
+    ):
+        arm_bootstrap_hold(state, info, object(), "launch:req/u1")
+
+    armer_for_artifacts.assert_not_called()
+
+
+def test_arm_bootstrap_hold_skips_when_flag_disabled() -> None:
+    state = SimpleNamespace(artifacts_dir="/tmp/artifacts")
+    info = SimpleNamespace(hold=HoldFields(future=True))
+
+    with (
+        patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=False),
         patch(
             "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts"
         ) as armer_for_artifacts,

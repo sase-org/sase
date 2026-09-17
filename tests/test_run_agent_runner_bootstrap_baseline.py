@@ -266,6 +266,114 @@ def test_bootstrap_pops_launch_hold_key_before_setup(
     assert LAUNCH_HOLD_KEY_ENV not in os.environ
 
 
+def test_bootstrap_arms_launch_hold_before_dependency_wait_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv(LAUNCH_HOLD_KEY_ENV, "launch:req/u1")
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    state = run_agent_runner_bootstrap.RunnerRunState(
+        cl_name="bootstrap-hold",
+        project_file="/tmp/projects/sase/sase.sase",
+        prompt_file=str(tmp_path / "prompt.md"),
+        output_path=str(tmp_path / "output.log"),
+        workflow_name="ace(run)-260701_010202",
+        timestamp="260701_010202",
+        update_target="",
+        is_home_mode=False,
+        workspace_dir=str(tmp_path / "workspace"),
+        workspace_num=7,
+        project_name="sase",
+        artifacts_timestamp="20260701_010202",
+        artifacts_dir=str(artifacts_dir),
+    )
+    info = SimpleNamespace(
+        name="bootstrap.agent",
+        bead_id="sase-1",
+        wait_names=["dependency"],
+        wait_identity_deps=[],
+        wait_fork_sources=[],
+        wait_beads=[],
+        wait_duration=None,
+        wait_until=None,
+        wait_runners=None,
+        wait_priority=None,
+        queue_weight_explicit=False,
+        model=None,
+        llm_provider=None,
+        vcs_provider=None,
+        hidden=False,
+        hold=object(),
+        meta={"agent_name": "bootstrap.agent"},
+    )
+    events: list[str] = []
+
+    def load_prompt(current: object) -> None:
+        current.prompt = "Do work"
+        current.submitted_xprompt = "Do work"
+
+    with (
+        patch.object(
+            run_agent_runner_bootstrap,
+            "install_workspace_release_sigterm_handler",
+        ),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "setup_artifacts_directory",
+            return_value=("sase", "20260701010202", str(artifacts_dir)),
+        ),
+        patch.object(run_agent_runner_bootstrap, "_write_bootstrap_agent_meta"),
+        patch.object(run_agent_runner_bootstrap, "_load_submitted_prompt", load_prompt),
+        patch.object(run_agent_runner_bootstrap, "init_telemetry"),
+        patch.object(run_agent_runner_bootstrap, "register_flush_on_exit"),
+        patch.object(run_agent_runner_bootstrap, "print_agent_start_banner"),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "preprocess_prompt_xprompts",
+            return_value=("Do work", None, "Do work"),
+        ),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "load_retry_handoff_from_env",
+            return_value=None,
+        ),
+        patch.object(run_agent_runner_bootstrap, "enter_agent_workspace"),
+        patch.object(run_agent_runner_bootstrap, "_capture_commit_finalizer_baseline"),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "extract_directives_and_write_meta",
+            return_value=info,
+        ),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "arm_bootstrap_hold",
+            side_effect=lambda *args: events.append("arm"),
+        ) as arm,
+        patch.object(
+            run_agent_runner_bootstrap,
+            "_force_reuse_bead_association_for_run",
+            return_value=None,
+        ),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "apply_retry_chain_to_meta",
+            return_value=dict(info.meta),
+        ),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "_claim_bead_before_wait",
+            side_effect=lambda *args, **kwargs: events.append("claim"),
+        ),
+    ):
+        bootstrap = run_agent_runner_bootstrap.bootstrap_agent_run(state)
+
+    assert bootstrap.has_wait is True
+    assert events == ["arm", "claim"]
+    arm.assert_called_once_with(state, info, None, "launch:req/u1")
+    assert LAUNCH_HOLD_KEY_ENV not in os.environ
+
+
 def test_bootstrap_captures_baseline_after_entering_the_real_workspace(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

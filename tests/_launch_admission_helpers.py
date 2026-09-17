@@ -9,6 +9,7 @@ from sase.agent.launch_admission import dispatch_typed_launch_request
 from sase.agent.launch_types import AgentLaunchResult
 from sase.core.agent_launch_wire import (
     AgentUnitWire,
+    HoldFieldsWire,
     LaunchPlanWire,
     LaunchUnitWire,
     ProcUnitWire,
@@ -77,12 +78,16 @@ def agent_unit(
     source_order: int = 0,
     waits: list[WaitTargetWire] | None = None,
     condition: Any = None,
+    hold: HoldFieldsWire | None = None,
 ) -> LaunchUnitWire:
     return LaunchUnitWire(
         logical_id=logical_id,
         source_order=source_order,
         payload=AgentUnitWire(
-            prompt="Do work", identity="reviewer", identity_explicit=True
+            prompt="Do work",
+            identity="reviewer",
+            identity_explicit=True,
+            hold=hold,
         ),
         waits=list(waits or []),
         condition=condition,
@@ -94,12 +99,14 @@ def proc_unit(
     cwd: Path,
     *,
     source_order: int = 0,
+    waits: list[WaitTargetWire] | None = None,
     shell_name: str | None = None,
     condition: Any = None,
     queue_capacity: int | None = None,
     wait_priority: int | None = None,
     queue_weight: float | None = None,
     queue_weight_explicit: bool = False,
+    hold: HoldFieldsWire | None = None,
 ) -> LaunchUnitWire:
     return LaunchUnitWire(
         logical_id=logical_id,
@@ -113,6 +120,8 @@ def proc_unit(
             wait_priority=wait_priority,
             queue_weight=queue_weight,
             queue_weight_explicit=queue_weight_explicit,
+            hold=hold,
         ),
+        waits=list(waits or []),
         condition=condition,
     )
