@@ -38,8 +38,19 @@ def pin_agents_visual_now(monkeypatch: pytest.MonkeyPatch, now: datetime) -> Non
 
 def assert_page_svg_contains(page: AcePage, text: str) -> None:
     svg = page.export_svg(title="ACE visual assertion")
-    svg_plain = svg.replace("&#160;", " ")
+    svg_plain = _page_svg_text(svg)
     assert text in svg_plain
+
+
+def _page_svg_text(svg: str) -> str:
+    """Return decoded text content from the exported SVG."""
+    root = ElementTree.fromstring(svg)
+    text_nodes = (
+        "".join(element.itertext())
+        for element in root.iter()
+        if element.tag.rsplit("}", 1)[-1] == "text"
+    )
+    return "\n".join(text_nodes).replace("\xa0", " ")
 
 
 def _page_svg_compact_styled_text(page: AcePage) -> str:
@@ -50,13 +61,7 @@ def _page_svg_compact_styled_text(page: AcePage) -> str:
     token stream with all spaces removed.
     """
     svg = page.export_svg(title="ACE visual assertion")
-    root = ElementTree.fromstring(svg)
-    svg_plain = "".join(
-        "".join(element.itertext())
-        for element in root.iter()
-        if element.tag.rsplit("}", 1)[-1] == "text"
-    ).replace("\xa0", " ")
-    return svg_plain.replace(" ", "")
+    return _page_svg_text(svg).replace(" ", "").replace("\n", "")
 
 
 def assert_page_svg_styled_text_contains(page: AcePage, text: str) -> None:

@@ -30,8 +30,9 @@ DISPOSITION_CANCELLED_TIMEOUT = "cancelled_timeout"
 DISPOSITION_CANCELLED_LOST = "cancelled_lost"
 DISPOSITION_CANCELLED_STOPPED = "cancelled_stopped"
 DISPOSITION_ACCEPTED_UNFINISHED = "accepted_unfinished"
-#: A pre-response failure is current for the receipt (see
-#: :func:`sase.notification_gates.journal.current_execution_failure`).
+#: A pre-response failure is current for the receipt. The host supplies it via
+#: :func:`sase.notification_gates.journal.current_execution_failure` so
+#: :func:`classify_gate_lifecycle` can pass it to the Rust policy.
 DISPOSITION_ACCEPTED_FAILED = "accepted_failed"
 #: The receipt's execution owner is proven dead with no current failure.
 DISPOSITION_ACCEPTED_OWNER_LOST = "accepted_owner_lost"

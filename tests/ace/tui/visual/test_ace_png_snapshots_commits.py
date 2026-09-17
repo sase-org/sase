@@ -95,7 +95,7 @@ async def _commit_filter_query(
 ) -> None:
     values = parse_commit_filter_query(query)
     await page.press("slash")
-    await wait_for_state(page, lambda: bar.display, description="commit filter bar")
+    await _wait_for_open_commit_filter(page, bar)
     bar.query_one("#commit-filter-input", SingleLineVimTextArea).load_text(query)
     await wait_for_state(
         page,
@@ -113,6 +113,29 @@ async def _commit_filter_query(
         description="commits timeline focus",
     )
     assert bar.display is True
+
+
+async def _wait_for_open_commit_filter(
+    page: AcePage,
+    bar: CommitFilterBar,
+    text: str | None = None,
+) -> None:
+    def _ready() -> bool:
+        editor = bar.query_one("#commit-filter-input", SingleLineVimTextArea)
+        display = bar.query_one("#commit-filter-display", Static)
+        return (
+            bar.display
+            and editor.display
+            and editor.has_focus
+            and (text is None or editor.text == text)
+            and not display.display
+        )
+
+    await wait_for_state(
+        page,
+        _ready,
+        description="open commit filter editor",
+    )
 
 
 async def test_commits_timeline_and_detail_png_snapshot(
@@ -445,13 +468,7 @@ async def test_commits_filter_bar_prefilled_png_snapshot(
         await _commit_filter_query(page, pane, bar, query)
         await page.press("slash")
         canonical = to_query_string(parse_commit_filter_query(query))
-        await page.wait_for(
-            lambda _state: (
-                bar.display
-                and bar.query_one("#commit-filter-input", SingleLineVimTextArea).text
-                == canonical
-            )
-        )
+        await _wait_for_open_commit_filter(page, bar, canonical)
         await page.wait_for(
             lambda _state: (
                 bar.query_one("#commit-filter-status").content.plain == "exact"

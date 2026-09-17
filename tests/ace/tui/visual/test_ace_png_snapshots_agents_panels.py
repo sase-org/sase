@@ -37,7 +37,7 @@ pytestmark = pytest.mark.visual
 
 
 def _panel_collapse_agents() -> list[Agent]:
-    """Three panels where ``@chop`` owns the widest rendered rows."""
+    """Three panels where stored ``chop`` owns the widest rendered rows."""
     project_file = "/workspace/sase/visual_project.sase"
     started = datetime(2026, 7, 15, 10, 0, 0)
     return [
@@ -103,7 +103,7 @@ def _all_tribes_collapse_agents() -> list[Agent]:
 
 
 def _panel_auto_expand_agents() -> list[Agent]:
-    """Collapsed ``@chop`` panel with an unread target after its first row."""
+    """Collapsed stored ``chop`` panel with an unread target after its first row."""
     agents = _panel_collapse_agents()
     target = agents[2]
     target.status = "DONE"
@@ -127,7 +127,7 @@ def _sole_default_panel_agent() -> Agent:
 
 
 def _assert_collapsed_panel_summary(page: AcePage) -> None:
-    """Assert the right pane represents ``@chop``, not its hidden first row."""
+    """Assert the right pane represents ``@job``, not its hidden first row."""
     detail = page.app.query_one("#agent-detail-panel", AgentDetail)
     prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
     info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
@@ -137,10 +137,10 @@ def _assert_collapsed_panel_summary(page: AcePage) -> None:
     assert page.app._get_selected_agent() is None
     snapshot = page.app._focused_tribe_summary()
     assert snapshot is not None
-    assert snapshot.label == "† @chop"
+    assert snapshot.label == "† @job"
     rendered = prompt.content.plain
     assert "TRIBE\n" in rendered
-    assert "Name: † @chop" in rendered
+    assert "Name: † @job" in rendered
     assert "Panel:" not in rendered
     assert "Fold: 1/4" in rendered
     assert "[R1 W1]" in rendered
@@ -257,7 +257,7 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert collapsed_widget.styles.height.value == 2.0
         assert (
             Text.from_markup(collapsed_widget.border_title).plain
-            == "▸ † @chop · 2 [R1 W1]"
+            == "▸ † @job · 2 [R1 W1]"
         )
         _assert_collapsed_panel_summary(page)
         assert_page_svg_contains(page, "▸ ")
@@ -278,7 +278,7 @@ async def test_agents_collapsed_panel_png_snapshot(
         await page.expect_modal("ConfirmDismissAllModal")
         modal = page.app.screen
         assert isinstance(modal, ConfirmDismissAllModal)
-        assert "Panel: @chop" in modal.agent_description
+        assert "Panel: @job" in modal.agent_description
         assert "Dismiss: 2 sase agents" in modal.agent_description
         assert (
             "visual.collapse.primary.with.a.deliberately.wide.row"
@@ -307,7 +307,7 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert collapsed_widget._requested_width == normal_width + 4
         assert (
             Text.from_markup(collapsed_widget.border_title).plain
-            == f"[{collapsed_jump_hint}] ▸ † @chop · 2 [R1 W1]"
+            == f"[{collapsed_jump_hint}] ▸ † @job · 2 [R1 W1]"
         )
         _assert_collapsed_panel_summary(page)
 

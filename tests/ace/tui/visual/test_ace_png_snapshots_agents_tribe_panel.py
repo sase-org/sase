@@ -242,7 +242,7 @@ async def test_tribe_panel_display_config_png_snapshot(
             "◆ @pinned",
             "@research",
             "◉ @review",
-            "▸ † @chop",
+            "▸ † @job",
         ):
             assert any(label in title.plain for title in titles)
 
@@ -252,7 +252,7 @@ async def test_tribe_panel_display_config_png_snapshot(
             ("epic", "▲ ", "@epic", "#AF87FF"),
             ("pinned", "◆ ", "@pinned", "#FFD75F"),
             ("review", "◉ ", "@review", "#FFD75F"),
-            ("chop", "† ", "@chop", "#FFAF5F"),
+            ("chop", "† ", "@job", "#FFAF5F"),
         ):
             title = titles_by_key[key]
             _assert_title_identity_color(title, text=icon, color=color)

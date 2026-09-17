@@ -11,6 +11,9 @@ from textual.widgets import Button, Input, TextArea
 
 from sase.ace.testing import AcePage
 from sase.ace.tui import AceApp
+from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
+    assert_page_svg_contains,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     _pending_visual_work,
     assert_visual_frame_converged,
@@ -70,6 +73,15 @@ class _Animator:
         self._scheduled = scheduled or {}
 
 
+class _StaticSvgPage:
+    def __init__(self, svg: str) -> None:
+        self.svg = svg
+
+    def export_svg(self, title: str | None = None, simplify: bool = True) -> str:
+        del title, simplify
+        return self.svg
+
+
 class _DelayedPaintPage:
     def __init__(self) -> None:
         self.worker = _Worker()
@@ -90,6 +102,16 @@ class _DelayedPaintPage:
         del title, simplify
         self.export_count += 1
         return self.frame
+
+
+def test_assert_page_svg_contains_decodes_entities() -> None:
+    page = _StaticSvgPage(
+        "<svg xmlns='http://www.w3.org/2000/svg'>"
+        "<text>Welcome&#160;to&#160;sase&apos;s&#160;TUI</text>"
+        "</svg>"
+    )
+
+    assert_page_svg_contains(cast(AcePage, page), "Welcome to sase's TUI")
 
 
 class _ChangingPage:

@@ -52,6 +52,7 @@ _CANONICAL_VISUAL_TRACEBACK = """Traceback (most recent call last):
   File "/workspace/sase/src/sase/llm_provider/_plugin_manager.py", line 31, in invoke
     return plugin.invoke(query, options)
 sase.llm_provider.errors.LLMInvocationError: temporary fakey outage"""
+_CANONICAL_VISUAL_TMP_ROOT = "/var/tmp/sase-visual"
 
 
 @dataclass(frozen=True)
@@ -366,6 +367,38 @@ class FakeyRetryHarness:
         # real runner PID in the snapshot, so live visual rows load as
         # FAILED or disappear entirely.
         update_agent_artifact_index_for_marker_mutation(target_dir)
+        self._canonicalize_visual_artifact_file_index_paths()
+
+    def _canonicalize_visual_artifact_file_index_paths(self) -> None:
+        """Mask pytest temp roots in artifact-file labels shown by visual tests."""
+        index_path = self.home / "artifacts" / "index.jsonl"
+        if not index_path.is_file():
+            return
+
+        root_prefix = str(self.root.resolve(strict=False))
+        lines: list[str] = []
+        changed = False
+        for line in index_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                lines.append(line)
+                continue
+            row = json.loads(line)
+            artifact = row.get("artifact")
+            if isinstance(artifact, dict):
+                path = artifact.get("path")
+                if isinstance(path, str) and path.startswith(root_prefix):
+                    artifact["workspace_dir"] = root_prefix
+                    changed = True
+                source_path = artifact.get("source_path")
+                if isinstance(source_path, str) and source_path.startswith(root_prefix):
+                    artifact["source_path"] = (
+                        _CANONICAL_VISUAL_TMP_ROOT + source_path[len(root_prefix) :]
+                    )
+                    changed = True
+            lines.append(json.dumps(row, sort_keys=True))
+
+        if changed:
+            index_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     def run_spawn_retry_chain(
         self,
