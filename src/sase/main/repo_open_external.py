@@ -28,6 +28,7 @@ from sase.main.repo_handler_common import record_belongs_to_host_project
 from sase.main.workspace_handler_context import ProjectContext
 from sase.repo_inventory import RepoInventory
 from sase.workspace_provider import clone_external_repo, get_external_repo_schemes
+from sase.workspace_provider._utils_git import non_interactive_git_env
 
 
 class ExternalRepoOpenError(ValueError):
@@ -55,6 +56,15 @@ class _ExternalRepoOpenResult:
 
 
 @dataclass(frozen=True)
+class ExternalProjectReference:
+    """Resolved registered-project source facts for external repo decisions."""
+
+    canonical_name: str
+    source_dir: str
+    remote_urls: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class _ExternalRepoTarget:
     canonical_name: str
     dest_dir: str
@@ -70,6 +80,7 @@ def open_external_repo(
     inventory: RepoInventory,
     reason: str,
     resolve_checkout: _CheckoutResolver,
+    project_reference: ExternalProjectReference | None = None,
 ) -> _ExternalRepoOpenResult:
     """Resolve, materialize, and marker-record an external repository."""
 
@@ -83,6 +94,7 @@ def open_external_repo(
         host_ctx=host_ctx,
         host_checkout=host_checkout,
         inventory=inventory,
+        project_reference=project_reference,
     )
     path = _materialize_external_repo(target)
     record_opened_external_repo(
@@ -116,18 +128,18 @@ def _resolve_external_repo_target(
     host_ctx: ProjectContext,
     host_checkout: str,
     inventory: RepoInventory,
+    project_reference: ExternalProjectReference | None = None,
 ) -> _ExternalRepoTarget:
     """Resolve tier 2 (registered project) then tier 3 (provider ref)."""
 
     requested = name.strip()
-    project_record = _resolve_external_project_record(requested, host_ctx=host_ctx)
-    if project_record is not None:
-        canonical_name = effective_project_name(project_record)
-        source = (project_record.workspace_dir or "").strip()
-        if not source or not Path(source).expanduser().is_dir():
-            raise ExternalRepoOpenError(
-                f"Project '{canonical_name}' has no available primary checkout."
-            )
+    if project_reference is None:
+        project_reference = resolve_external_project_reference(
+            requested,
+            host_ctx=host_ctx,
+        )
+    if project_reference is not None:
+        canonical_name = project_reference.canonical_name
         try:
             clone_parts = external_repo_clone_parts_from_name(canonical_name)
             dest_dir = external_repo_clone_dir(
@@ -142,7 +154,7 @@ def _resolve_external_repo_target(
         return _ExternalRepoTarget(
             canonical_name=canonical_name,
             dest_dir=dest_dir,
-            project_source_dir=str(Path(source).expanduser().resolve(strict=False)),
+            project_source_dir=project_reference.source_dir,
         )
 
     try:
@@ -162,6 +174,31 @@ def _resolve_external_repo_target(
         canonical_name=provider_ref.canonical_name,
         dest_dir=dest_dir,
         provider_ref=provider_ref,
+    )
+
+
+def resolve_external_project_reference(
+    requested: str,
+    *,
+    host_ctx: ProjectContext,
+) -> ExternalProjectReference | None:
+    """Resolve one registered external project without preparing a clone."""
+
+    project_record = _resolve_external_project_record(requested, host_ctx=host_ctx)
+    if project_record is None:
+        return None
+
+    canonical_name = effective_project_name(project_record)
+    source = (project_record.workspace_dir or "").strip()
+    if not source or not Path(source).expanduser().is_dir():
+        raise ExternalRepoOpenError(
+            f"Project '{canonical_name}' has no available primary checkout."
+        )
+    source_dir = str(Path(source).expanduser().resolve(strict=False))
+    return ExternalProjectReference(
+        canonical_name=canonical_name,
+        source_dir=source_dir,
+        remote_urls=tuple(_project_remote_urls(source_dir)),
     )
 
 
@@ -223,6 +260,26 @@ def _project_record_is_host(
         effective_project_name(record),
         *record.aliases,
     }
+
+
+def _project_remote_urls(source_dir: str) -> list[str]:
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=source_dir,
+            capture_output=True,
+            text=True,
+            check=False,
+            env=non_interactive_git_env(),
+            stdin=subprocess.DEVNULL,
+            timeout=2.0,
+        )
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return []
+    if result.returncode != 0:
+        return []
+    origin = result.stdout.strip()
+    return [origin] if origin else []
 
 
 def _unknown_repo_error(
@@ -406,5 +463,7 @@ def _remove_clone_staging_path(path: Path) -> None:
 
 __all__ = [
     "ExternalRepoOpenError",
+    "ExternalProjectReference",
     "open_external_repo",
+    "resolve_external_project_reference",
 ]

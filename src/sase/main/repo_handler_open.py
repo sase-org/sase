@@ -6,8 +6,9 @@ import argparse
 from collections.abc import Callable
 import os
 from pathlib import Path
+import shlex
 import sys
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from sase.repo_inventory import (
     RepoInventory,
@@ -22,11 +23,15 @@ from .repo_handler_common import (
     InventoryCollector,
     MarkerFinder,
     ProjectContextResolver,
+    RepoMatchResolution,
     RepoOpenResolutionError,
     clone_for_workspace,
     is_relative_to,
 )
 from .workspace_handler_context import ConfigLoader, ProjectContext
+
+if TYPE_CHECKING:
+    from .repo_open_external import ExternalProjectReference
 
 
 class _CheckoutResolver(Protocol):
@@ -39,10 +44,16 @@ class _CheckoutResolver(Protocol):
     ) -> str: ...
 
 
-MatchRepo = Callable[..., RepoRecord | None]
+MatchRepo = Callable[..., RepoMatchResolution]
 RecordRepoOpen = Callable[..., None]
 ResolveWorkspaceNum = Callable[[ProjectContext, int | None], int]
 TargetContext = Callable[[ProjectContext, RepoRecord], ProjectContext]
+
+_LINKED_REDIRECT_REASONS = {
+    "remote_identity",
+    "external_project_path",
+    "external_project_remote",
+}
 
 
 def handle_open_command(
@@ -56,7 +67,12 @@ def handle_open_command(
     target_context: TargetContext,
     record_repo_open: RecordRepoOpen,
 ) -> int:
-    from .repo_open_external import ExternalRepoOpenError, open_external_repo
+    from .repo_open_external import (
+        ExternalProjectReference,
+        ExternalRepoOpenError,
+        open_external_repo,
+        resolve_external_project_reference,
+    )
     from .workspace_handler_list import (
         normalize_repo_open_reason,
         prepare_opened_checkout,
@@ -75,8 +91,9 @@ def handle_open_command(
             getattr(args, "workspace", None),
         )
         inventory = collect_inventory(project=host_ctx.project_name)
-        repo = match_repo(
-            getattr(args, "repo", ""),
+        requested_repo = getattr(args, "repo", "")
+        resolution = match_repo(
+            requested_repo,
             host_ctx=host_ctx,
             inventory=inventory,
             workspace_num=workspace_num,
@@ -85,15 +102,42 @@ def handle_open_command(
         print(str(exc), file=sys.stderr)
         return 2
 
+    project_reference: ExternalProjectReference | None = None
+    repo = resolution.record
+    if repo is None:
+        try:
+            project_reference = resolve_external_project_reference(
+                requested_repo,
+                host_ctx=host_ctx,
+            )
+        except ExternalRepoOpenError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
+
+        if project_reference is not None:
+            try:
+                resolution = match_repo(
+                    requested_repo,
+                    host_ctx=host_ctx,
+                    inventory=inventory,
+                    workspace_num=workspace_num,
+                    external_project=_external_project_payload(project_reference),
+                )
+            except RepoOpenResolutionError as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            repo = resolution.record
+
     if repo is None:
         try:
             external = open_external_repo(
-                getattr(args, "repo", ""),
+                requested_repo,
                 host_ctx=host_ctx,
                 workspace_num=workspace_num,
                 inventory=inventory,
                 reason=reason,
                 resolve_checkout=resolve_checkout,
+                project_reference=project_reference,
             )
         except ExternalRepoOpenError as exc:
             print(str(exc), file=sys.stderr)
@@ -135,8 +179,60 @@ def handle_open_command(
         path=path,
         reason=reason,
     )
+    _print_linked_redirect_notice(
+        resolution,
+        repo=repo,
+        host_ctx=host_ctx,
+        path=path,
+    )
     print(path)
     return 0
+
+
+def _external_project_payload(
+    reference: ExternalProjectReference,
+) -> dict[str, object]:
+    return {
+        "canonical_name": reference.canonical_name,
+        "primary_path": reference.source_dir,
+        "remote_urls": list(reference.remote_urls),
+    }
+
+
+def _print_linked_redirect_notice(
+    resolution: RepoMatchResolution,
+    *,
+    repo: RepoRecord,
+    host_ctx: ProjectContext,
+    path: str,
+) -> None:
+    if repo.kind != "linked" or resolution.match_reason not in _LINKED_REDIRECT_REASONS:
+        return
+    reason = _linked_redirect_reason_text(resolution.match_reason)
+    suggestion = f'sase repo open {shlex.quote(repo.name)} -r "<reason>"'
+    print(
+        f"Info: {resolution.requested!r} matches linked repo {repo.name!r} "
+        f"in project {host_ctx.project_name!r}. Opened its configured checkout "
+        f"at {path} so edits and repo tracking use the project's linked repo; "
+        f"{reason}. Next time, use `{suggestion}`.",
+        file=sys.stderr,
+    )
+    if resolution.external_collision_paths:
+        collision_paths = ", ".join(resolution.external_collision_paths)
+        print(
+            "Warning: An external checkout of this repo also exists at "
+            f"{collision_paths}. It was left untouched. Continue in the linked "
+            "checkout printed on stdout; any work in the external copy remains there.",
+            file=sys.stderr,
+        )
+
+
+def _linked_redirect_reason_text(match_reason: str | None) -> str:
+    if match_reason == "external_project_path":
+        return "the registered project's primary checkout is that linked repo"
+    if match_reason == "external_project_remote":
+        return "the registered project's primary checkout has the same supported remote identity"
+    return "the requested reference has the same supported remote identity"
 
 
 def resolve_open_workspace_num(

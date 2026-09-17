@@ -5268,6 +5268,13 @@ sase's TUI and the commit finalizer, and appends an event to
 the host project and workspace. Reopening a valid external clone preserves its current
 contents and records a new open event.
 
+When a supported provider ref or another registered SASE project corresponds to a
+configured linked repo in the host project, `sase repo open` opens the linked checkout
+instead of cloning or reopening an external copy. Stdout remains exactly the linked
+path; stderr explains the redirect and suggests the configured linked name for next
+time. If a previous external checkout of the same repo exists, it is left untouched and
+reported as a warning so any work already there remains visible.
+
 | Open argument / flag | Description                                                                             |
 | -------------------- | --------------------------------------------------------------------------------------- |
 | `REPO`               | Inventory name, registered project name, `gh:owner/repo`, `owner/repo`, or record path. |

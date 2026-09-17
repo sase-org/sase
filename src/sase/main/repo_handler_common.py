@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 import subprocess
 
@@ -29,6 +30,17 @@ ProjectContextResolver = Callable[[str | None], ProjectContext]
 
 class RepoOpenResolutionError(ValueError):
     """Raised when a repository or workspace context cannot be resolved."""
+
+
+@dataclass(frozen=True)
+class RepoMatchResolution:
+    """Configured repository match plus open-time presentation facts."""
+
+    record: RepoRecord | None
+    requested: str
+    match_reason: str | None = None
+    requested_identity: dict[str, object] | None = None
+    external_collision_paths: tuple[str, ...] = ()
 
 
 _CONFIGURED_REPO_KINDS = {"primary", "sidecar", "linked"}
@@ -110,6 +122,24 @@ def match_repo_record(
     inventory: RepoInventory,
     workspace_num: int = 0,
 ) -> RepoRecord | None:
+    """Return a configured inventory match without guessing."""
+
+    return resolve_repo_record(
+        name,
+        host_ctx=host_ctx,
+        inventory=inventory,
+        workspace_num=workspace_num,
+    ).record
+
+
+def resolve_repo_record(
+    name: str,
+    *,
+    host_ctx: ProjectContext,
+    inventory: RepoInventory,
+    workspace_num: int = 0,
+    external_project: Mapping[str, object] | None = None,
+) -> RepoMatchResolution:
     """Return a configured inventory match without guessing.
 
     Materialized external rows are intentionally excluded: they re-enter the
@@ -146,42 +176,63 @@ def match_repo_record(
         records_by_id=records_by_id,
     )
     if exact_match is not None:
-        return exact_match
-    if exact_decision.get("requested_identity") is None:
-        return None
+        return RepoMatchResolution(
+            record=exact_match,
+            requested=requested,
+            match_reason=_match_reason(exact_decision),
+            requested_identity=_requested_identity(exact_decision),
+        )
+    if exact_decision.get("requested_identity") is None and external_project is None:
+        return RepoMatchResolution(record=None, requested=requested)
 
-    remote_decision = resolve_repository_reference(
-        {
-            "requested": requested,
-            "candidates": [
-                _repo_resolution_candidate(
-                    record,
-                    record_id=str(index),
-                    host_ctx=host_ctx,
-                    workspace_num=workspace_num,
-                    include_remotes=True,
-                )
-                for index, record in enumerate(configured)
-            ],
-        }
-    )
+    remote_request: dict[str, object] = {
+        "requested": requested,
+        "candidates": [
+            _repo_resolution_candidate(
+                record,
+                record_id=str(index),
+                host_ctx=host_ctx,
+                workspace_num=workspace_num,
+                include_remotes=True,
+            )
+            for index, record in enumerate(configured)
+        ],
+    }
+    if external_project is not None:
+        remote_request["external_project"] = _external_project_wire(external_project)
+
+    remote_decision = resolve_repository_reference(remote_request)
     remote_match = _record_from_resolution(
         requested,
         remote_decision,
         records_by_id=records_by_id,
     )
     if remote_match is not None:
-        _ensure_no_external_collision(
+        collision_paths = _external_collision_paths(
             requested,
             remote_decision,
             configured_repo=remote_match,
             inventory=inventory,
             host_ctx=host_ctx,
             workspace_num=workspace_num,
+            external_project=external_project,
         )
-        return remote_match
+        if collision_paths and remote_match.kind != "linked":
+            raise _external_collision_error(
+                requested,
+                configured_repo=remote_match,
+                workspace_num=workspace_num,
+                collision_paths=collision_paths,
+            )
+        return RepoMatchResolution(
+            record=remote_match,
+            requested=requested,
+            match_reason=_match_reason(remote_decision),
+            requested_identity=_requested_identity(remote_decision),
+            external_collision_paths=collision_paths,
+        )
 
-    return None
+    return RepoMatchResolution(record=None, requested=requested)
 
 
 def _record_from_resolution(
@@ -211,6 +262,35 @@ def _record_from_resolution(
         ]
         raise ambiguous_repo_error(requested, matches)
     return None
+
+
+def _match_reason(decision: Mapping[str, object]) -> str | None:
+    reason = decision.get("match_reason")
+    return reason if isinstance(reason, str) and reason else None
+
+
+def _requested_identity(
+    decision: Mapping[str, object],
+) -> dict[str, object] | None:
+    identity = decision.get("requested_identity")
+    return identity if isinstance(identity, dict) else None
+
+
+def _external_project_wire(
+    external_project: Mapping[str, object],
+) -> dict[str, object]:
+    remote_urls = external_project.get("remote_urls", ())
+    if isinstance(remote_urls, str | bytes | bytearray):
+        remote_values: Sequence[object] = ()
+    elif isinstance(remote_urls, Sequence):
+        remote_values = remote_urls
+    else:
+        remote_values = ()
+    primary_path = external_project.get("primary_path")
+    return {
+        "primary_path": str(primary_path) if primary_path is not None else None,
+        "remote_urls": [str(remote_url) for remote_url in remote_values],
+    }
 
 
 def _repo_resolution_candidate(
@@ -292,7 +372,7 @@ def _git_origin_url(path: str) -> str | None:
     return result.stdout.strip() or None
 
 
-def _ensure_no_external_collision(
+def _external_collision_paths(
     requested: str,
     decision: dict[str, object],
     *,
@@ -300,42 +380,119 @@ def _ensure_no_external_collision(
     inventory: RepoInventory,
     host_ctx: ProjectContext,
     workspace_num: int,
-) -> None:
+    external_project: Mapping[str, object] | None = None,
+) -> tuple[str, ...]:
+    canonical = _collision_canonical_identity(
+        requested,
+        decision,
+        external_project=external_project,
+    )
+
+    configured_path = _selected_repo_path(configured_repo, workspace_num)
+    collision_paths: set[str] = set()
+    if canonical:
+        collision_paths.update(
+            _matching_external_paths(
+                canonical,
+                inventory=inventory,
+                host_ctx=host_ctx,
+                workspace_num=workspace_num,
+                configured_path=configured_path,
+            )
+        )
+        standard = _standard_external_path(
+            canonical,
+            inventory=inventory,
+            host_ctx=host_ctx,
+            workspace_num=workspace_num,
+        )
+        if (
+            standard is not None
+            and _is_valid_git_repo(Path(standard))
+            and not _same_path(standard, configured_path)
+        ):
+            collision_paths.add(standard)
+
+    if external_project is not None:
+        external_name = external_project.get("canonical_name")
+        if isinstance(external_name, str) and external_name:
+            collision_paths.update(
+                _matching_named_external_paths(
+                    external_name,
+                    inventory=inventory,
+                    host_ctx=host_ctx,
+                    workspace_num=workspace_num,
+                    configured_path=configured_path,
+                )
+            )
+            project_standard = _standard_external_path(
+                external_name,
+                inventory=inventory,
+                host_ctx=host_ctx,
+                workspace_num=workspace_num,
+            )
+            if (
+                project_standard is not None
+                and _is_valid_git_repo(Path(project_standard))
+                and not _same_path(project_standard, configured_path)
+            ):
+                collision_paths.add(project_standard)
+
+    return tuple(sorted(collision_paths))
+
+
+def _collision_canonical_identity(
+    requested: str,
+    decision: Mapping[str, object],
+    *,
+    external_project: Mapping[str, object] | None,
+) -> str | None:
     identity = decision.get("requested_identity")
     if not isinstance(identity, dict):
         identity = canonical_repository_identity(requested)
+    if not isinstance(identity, dict) and external_project is not None:
+        remote_urls = external_project.get("remote_urls", ())
+        if not isinstance(remote_urls, str | bytes | bytearray) and isinstance(
+            remote_urls,
+            Sequence,
+        ):
+            for remote_url in remote_urls:
+                identity = canonical_repository_identity(str(remote_url))
+                if isinstance(identity, dict):
+                    break
     if not isinstance(identity, dict):
-        return
+        return None
     canonical = identity.get("canonical")
-    if not isinstance(canonical, str) or not canonical:
-        return
+    return canonical if isinstance(canonical, str) and canonical else None
 
+
+def _external_collision_error(
+    requested: str,
+    *,
+    configured_repo: RepoRecord,
+    workspace_num: int,
+    collision_paths: Sequence[str],
+) -> RepoOpenResolutionError:
     configured_path = _selected_repo_path(configured_repo, workspace_num)
-    collision_paths = set(
-        _matching_external_paths(
-            canonical,
-            inventory=inventory,
-            workspace_num=workspace_num,
+    collisions = ", ".join(sorted(collision_paths))
+    return RepoOpenResolutionError(
+        _external_collision_message(
+            requested,
+            configured_repo=configured_repo,
             configured_path=configured_path,
+            collisions=collisions,
         )
     )
-    standard = _standard_external_path(
-        canonical,
-        inventory=inventory,
-        host_ctx=host_ctx,
-        workspace_num=workspace_num,
-    )
-    if (
-        standard is not None
-        and _is_valid_git_repo(Path(standard))
-        and not _same_path(standard, configured_path)
-    ):
-        collision_paths.add(standard)
 
-    if not collision_paths:
-        return
-    collisions = ", ".join(sorted(collision_paths))
-    raise RepoOpenResolutionError(
+
+def _external_collision_message(
+    requested: str,
+    *,
+    configured_repo: RepoRecord,
+    configured_path: str,
+    collisions: str,
+) -> str:
+    return (
         f"Repo reference '{requested}' matches configured {configured_repo.kind} "
         f"repo '{configured_repo.name}' at {configured_path}, but an existing "
         f"external checkout for the same repository is already present at "
@@ -348,6 +505,7 @@ def _matching_external_paths(
     canonical: str,
     *,
     inventory: RepoInventory,
+    host_ctx: ProjectContext,
     workspace_num: int,
     configured_path: str,
 ) -> list[str]:
@@ -355,15 +513,53 @@ def _matching_external_paths(
     for record in inventory.records:
         if record.kind != "external":
             continue
+        if not record_belongs_to_host_project(record, host_ctx):
+            continue
         identity = canonical_repository_identity(record.name)
         if identity is None or identity.get("canonical") != canonical:
             continue
-        clone = record.clone_for_workspace(workspace_num)
-        path = clone.path if clone is not None else record.path
-        exists = clone.exists if clone is not None else Path(path).is_dir()
+        selected = _external_record_selected_path(record, workspace_num)
+        if selected is None:
+            continue
+        path, exists = selected
         if exists and not _same_path(path, configured_path):
             paths.append(path)
     return paths
+
+
+def _matching_named_external_paths(
+    name: str,
+    *,
+    inventory: RepoInventory,
+    host_ctx: ProjectContext,
+    workspace_num: int,
+    configured_path: str,
+) -> list[str]:
+    paths: list[str] = []
+    for record in inventory.records:
+        if record.kind != "external" or record.name != name:
+            continue
+        if not record_belongs_to_host_project(record, host_ctx):
+            continue
+        selected = _external_record_selected_path(record, workspace_num)
+        if selected is None:
+            continue
+        path, exists = selected
+        if exists and not _same_path(path, configured_path):
+            paths.append(path)
+    return paths
+
+
+def _external_record_selected_path(
+    record: RepoRecord,
+    workspace_num: int,
+) -> tuple[str, bool] | None:
+    clone = record.clone_for_workspace(workspace_num)
+    if clone is not None:
+        return clone.path, clone.exists
+    if workspace_num == 0:
+        return record.path, record.exists or Path(record.path).is_dir()
+    return None
 
 
 def _standard_external_path(

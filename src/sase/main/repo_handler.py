@@ -21,6 +21,7 @@ from .repo_handler_common import (
     clone_for_workspace,
     is_relative_to,
     match_repo_record,
+    resolve_repo_record,
     resolve_list_workspace_num,
     validate_workspace_context,
 )
@@ -56,6 +57,7 @@ _inventory_json_payload = inventory_json_payload
 _is_relative_to = is_relative_to
 _match_repo_path_record = match_repo_path_record
 _match_repo_record = match_repo_record
+_resolve_repo_record = resolve_repo_record
 _print_human = print_human
 _print_inventory_issues_stderr = print_inventory_issues_stderr
 _repo_panel = repo_panel
@@ -149,7 +151,7 @@ def _handle_open(args: argparse.Namespace) -> int:
         resolve_project_context=workspace_commands._resolve_project_context,
         resolve_checkout=workspace_commands._resolve_checkout_path,
         resolve_workspace_num=_resolve_open_workspace_num,
-        match_repo=_match_repo_record,
+        match_repo=_resolve_repo_record,
         target_context=_repo_target_context,
         record_repo_open=_record_repo_open,
     )
