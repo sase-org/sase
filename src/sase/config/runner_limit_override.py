@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from sase.core.paths import sase_home
 from sase.core.rust import require_rust_binding
 
 RUNNER_LIMIT_OVERRIDE_WIRE_SCHEMA_VERSION = 1
+RUNNER_LIMIT_OVERRIDE_FILENAME = "max_running_agents_override.json"
 
 
 class RunnerLimitOverrideStateError(RuntimeError):
@@ -133,6 +135,12 @@ def get_active_runner_limit_override(
     return TemporaryRunnerLimitOverride.from_wire(payload)
 
 
+def runner_limit_override_path(root: str | Path | None = None) -> Path:
+    """Return the machine-wide temporary runner-limit override state path."""
+    base = sase_home() if root is None else Path(root)
+    return base / RUNNER_LIMIT_OVERRIDE_FILENAME
+
+
 def set_runner_limit_override(
     limit: int,
     duration_seconds: float | None,
@@ -169,11 +177,13 @@ def clear_runner_limit_override() -> bool:
 
 __all__ = [
     "RUNNER_LIMIT_OVERRIDE_WIRE_SCHEMA_VERSION",
+    "RUNNER_LIMIT_OVERRIDE_FILENAME",
     "EffectiveRunnerLimitSnapshot",
     "RunnerLimitOverrideStateError",
     "TemporaryRunnerLimitOverride",
     "clear_runner_limit_override",
     "get_active_runner_limit_override",
+    "runner_limit_override_path",
     "set_runner_limit_override",
     "set_runner_limit_override_until",
 ]

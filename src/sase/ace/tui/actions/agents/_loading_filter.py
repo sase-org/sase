@@ -10,17 +10,123 @@ from typing import TYPE_CHECKING, Any, cast
 from ._loading_compute import PreparedFinalizePlan
 from ._loading_finalize import finalize_agent_list, get_or_parse_agent_query
 from ._loading_state import AgentLoadingStateMixin
+from ...util.pump_tasks import spawn_pump_free_task
 
 if TYPE_CHECKING:
     from ....agent_query import QueryExpr
     from ...models import Agent
     from ...models.agent import AgentType
+    from ...models.agent_runner_slots import RunnerCapacitySnapshot
 
 log = logging.getLogger(__name__)
 
 
 class AgentLoadingFilterMixin(AgentLoadingStateMixin):
     """Methods that re-run in-memory filtering without a disk reload."""
+
+    def _bump_agents_capacity_generation(self) -> int:
+        """Advance the generation guarding runner-capacity input snapshots."""
+        generation = int(getattr(self, "_agents_capacity_generation", 0)) + 1
+        self._agents_capacity_generation = generation  # type: ignore[attr-defined]
+        return generation
+
+    def _schedule_agents_capacity_refresh_from_roster(
+        self,
+        *,
+        source: str = "unknown",
+    ) -> None:
+        """Refresh the capacity strip from cached rows without a disk load."""
+        if not getattr(self, "_agents_first_load_done", False):
+            return
+        if not getattr(self, "_agents_with_children", None):
+            return
+
+        generation = self._bump_agents_capacity_generation()
+        if getattr(self, "_agents_capacity_refresh_running", False):
+            self._agents_capacity_refresh_pending = True  # type: ignore[attr-defined]
+            self._agents_capacity_refresh_pending_source = source  # type: ignore[attr-defined]
+            return
+
+        self._agents_capacity_refresh_running = True  # type: ignore[attr-defined]
+        task = spawn_pump_free_task(
+            self,
+            self._run_agents_capacity_refresh_from_roster(
+                generation=generation,
+                source=source,
+            ),
+            name="sase-agents-capacity-refresh",
+            registry_attr="_agents_capacity_refresh_async_tasks",
+        )
+        if task is None:
+            self._agents_capacity_refresh_running = False  # type: ignore[attr-defined]
+
+    async def _run_agents_capacity_refresh_from_roster(
+        self,
+        *,
+        generation: int,
+        source: str,
+    ) -> None:
+        """Worker body for cached-roster runner-capacity refreshes."""
+        del source
+        try:
+            roster = list(getattr(self, "_agents_with_children", ()) or ())
+            if not roster:
+                return
+
+            def _compute() -> RunnerCapacitySnapshot:
+                from sase.config.core import get_max_running_agents
+                from sase.core.agent_hold_facade import active_agent_hold_records
+
+                from ...models.agent_runner_slots import refresh_runner_slot_context
+
+                agent_copies = [copy(agent) for agent in roster]
+                return refresh_runner_slot_context(
+                    agent_copies,
+                    effective_limit=get_max_running_agents(),
+                    capacity_agents=list(agent_copies),
+                    active_holds=tuple(active_agent_hold_records()),
+                )
+
+            snapshot = await asyncio.to_thread(_compute)
+            self._apply_agents_capacity_snapshot(
+                snapshot,
+                generation=generation,
+            )
+        finally:
+            self._agents_capacity_refresh_running = False  # type: ignore[attr-defined]
+            if getattr(self, "_agents_capacity_refresh_pending", False):
+                pending_source = getattr(
+                    self,
+                    "_agents_capacity_refresh_pending_source",
+                    "unknown",
+                )
+                self._agents_capacity_refresh_pending = False  # type: ignore[attr-defined]
+                self._agents_capacity_refresh_pending_source = "unknown"  # type: ignore[attr-defined]
+                self._schedule_agents_capacity_refresh_from_roster(
+                    source=pending_source,
+                )
+
+    def _apply_agents_capacity_snapshot(
+        self,
+        snapshot: RunnerCapacitySnapshot,
+        *,
+        generation: int,
+    ) -> bool:
+        """Install a cached-roster capacity snapshot if it is still current."""
+        current_generation = int(getattr(self, "_agents_capacity_generation", 0))
+        if generation != current_generation:
+            return False
+        if generation < int(getattr(self, "_agents_capacity_applied_generation", 0)):
+            return False
+        self._agent_runner_capacity = snapshot  # type: ignore[attr-defined]
+        self._agents_capacity_applied_generation = generation  # type: ignore[attr-defined]
+        if hasattr(self, "_agent_info_metrics_cache"):
+            self._agent_info_metrics_cache = None
+        if getattr(self, "current_tab", None) == "agents":
+            update_info = getattr(self, "_update_agents_info_panel", None)
+            if callable(update_info):
+                update_info()
+        return True
 
     def _snapshot_agents_for_local_display(self) -> list[Agent]:
         """Return shallow row snapshots for local display diffs."""

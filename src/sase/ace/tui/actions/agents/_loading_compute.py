@@ -236,6 +236,7 @@ def prepare_loaded_agents_apply_boundary(
         ),
         selection=snapshot.selection,
         runner_capacity=runner_capacity,
+        capacity_generation=snapshot.capacity_generation,
     )
 
 
@@ -396,6 +397,7 @@ def _prepare_loaded_agents_worker_prep(
         selection=snapshot.selection,
         capacity_agents_with_children=snapshot.capacity_agents_with_children,
         agent_panels_grouped=snapshot.agent_panels_grouped,
+        capacity_generation=snapshot.capacity_generation,
     )
     with tui_trace(
         "agents.incomplete_load_merge",

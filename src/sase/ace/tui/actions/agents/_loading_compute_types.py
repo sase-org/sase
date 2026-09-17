@@ -91,6 +91,7 @@ class PreparedApplySnapshot:
     )
     grouping_mode: GroupingMode | None = None
     agent_panels_grouped: bool = False
+    capacity_generation: int = 0
     # Snapshot of completion-notification unread ids for the ``unread:``
     # agents-live query field (sase-zf.2). Captured at request time; the
     # notification-store reconcile that follows finalize may drift by one
@@ -119,4 +120,5 @@ class PreparedApplyBoundary:
     runner_capacity: RunnerCapacitySnapshot = field(
         default_factory=RunnerCapacitySnapshot
     )
+    capacity_generation: int = 0
     finalize: PreparedFinalizePlan | None = None

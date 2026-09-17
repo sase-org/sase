@@ -34,6 +34,7 @@ from sase.core.agent_hold_pending import (
     preview_pending_capture,
 )
 from sase.core.agent_hold_store import (
+    agent_hold_store_path,
     epoch_seconds,
     list_holds,
     mapping_payload,
@@ -502,6 +503,7 @@ __all__ = [
     "active_agent_hold_records",
     "agent_armer_wire_for_artifacts",
     "agent_hold_blocks_candidate",
+    "agent_hold_store_path",
     "arm_agent_hold",
     "candidate_created_at_from_timestamp",
     "current_armer_wire",

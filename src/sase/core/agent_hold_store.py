@@ -13,6 +13,13 @@ from sase.core.paths import sase_home
 from sase.core.rust import require_rust_binding
 
 LOGGER = logging.getLogger(__name__)
+AGENT_HOLD_STORE_FILENAME = "agent_holds.json"
+
+
+def agent_hold_store_path(root: str | Path | None = None) -> Path:
+    """Return the durable agent-holds store path."""
+    base = sase_home() if root is None else Path(root)
+    return base / AGENT_HOLD_STORE_FILENAME
 
 
 def read_json_mapping(path: Path) -> dict[str, Any]:

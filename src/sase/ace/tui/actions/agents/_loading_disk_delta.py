@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -45,6 +46,7 @@ class AgentLoadingDiskDeltaMixin(AgentLoadingStateMixin):
         from ....patch import find_all_patches_cached
 
         source = normalize_refresh_source(source)
+        capacity_generation = int(getattr(self, "_agents_capacity_generation", 0))
         merge_result = await asyncio.to_thread(
             self._external_dismissal_merge_result, set(self._dismissed_agents)
         )
@@ -116,6 +118,10 @@ class AgentLoadingDiskDeltaMixin(AgentLoadingStateMixin):
             on_agents_tab=on_agents_tab,
             selected_identity=selected_identity,
             load_state=load_result.load_state,
+        )
+        worker_snapshot = replace(
+            worker_snapshot,
+            capacity_generation=capacity_generation,
         )
 
         prep_start = time.perf_counter()

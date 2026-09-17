@@ -64,6 +64,12 @@ class AgentLoadingStateMixin:
     _agents_with_children: list[Agent]
     _agents_capacity_with_children: list[Agent]
     _agent_runner_capacity: RunnerCapacitySnapshot
+    _agents_capacity_generation: int
+    _agents_capacity_applied_generation: int
+    _agents_capacity_refresh_running: bool
+    _agents_capacity_refresh_pending: bool
+    _agents_capacity_refresh_pending_source: str
+    _agents_capacity_refresh_async_tasks: set[asyncio.Task[None]]
     _agents_last_idx: int
     _agents_last_identity: tuple[AgentType, str, str | None] | None
     _has_always_visible: bool
@@ -89,6 +95,7 @@ class AgentLoadingStateMixin:
     _unread_completed_agent_ids: set[tuple[AgentType, str, str | None]]
     _manual_unread_agent_ids: set[tuple[AgentType, str, str | None]]
     _agent_display_status_by_identity: dict[tuple[AgentType, str, str | None], str]
+    _agent_info_metrics_cache: tuple[Any, ...] | None
 
     # Transient status overrides for optimistic response state.
     _agent_status_overrides: dict[tuple[AgentType, str, str | None], str]

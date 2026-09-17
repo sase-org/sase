@@ -90,10 +90,14 @@ class SurfaceTokenRoots:
     procs_path: Path
     beads_dir: Path | None = None
     agent_index_path: Path | None = None
+    runner_limit_override_path: Path | None = None
+    agent_hold_store_path: Path | None = None
 
 
 def live_surface_token_roots(*, beads_dir: Path | None = None) -> SurfaceTokenRoots:
     """Return the process's live ACE/proc token roots."""
+    from sase.config.runner_limit_override import runner_limit_override_path
+    from sase.core.agent_hold_facade import agent_hold_store_path
     from sase.axe.state import axe_state_dir
     from sase.core.agent_scan_facade import default_agent_artifact_index_path
     from sase.core.paths import sase_projects_dir
@@ -103,6 +107,8 @@ def live_surface_token_roots(*, beads_dir: Path | None = None) -> SurfaceTokenRo
     return SurfaceTokenRoots(
         projects_root=sase_projects_dir(),
         agent_index_path=default_agent_artifact_index_path(),
+        runner_limit_override_path=runner_limit_override_path(),
+        agent_hold_store_path=agent_hold_store_path(),
         axe_root=axe_state_dir(),
         notifications_path=notifications_file_path(),
         procs_path=proc_store_path(),
@@ -119,6 +125,8 @@ def probe_surface_tokens(
         agents=_probe_agents_token(
             resolved.projects_root,
             agent_index_path=resolved.agent_index_path,
+            runner_limit_override_path=resolved.runner_limit_override_path,
+            agent_hold_store_path=resolved.agent_hold_store_path,
         ),
         axe=_probe_axe_token(resolved.axe_root),
         notifications=_probe_notifications_token(resolved.notifications_path),
@@ -134,11 +142,17 @@ def _probe_agents_token(
     projects_root: Path,
     *,
     agent_index_path: Path | None = None,
+    runner_limit_override_path: Path | None = None,
+    agent_hold_store_path: Path | None = None,
 ) -> SurfaceToken:
     """Token project membership, artifacts roots, and refresh pulses."""
     collected, children, ok = _open_membership(projects_root)
     if agent_index_path is not None:
         ok = _extend_stat(collected, agent_index_path, ok=ok)
+    if runner_limit_override_path is not None:
+        ok = _extend_stat(collected, runner_limit_override_path, ok=ok)
+    if agent_hold_store_path is not None:
+        ok = _extend_stat(collected, agent_hold_store_path, ok=ok)
     if children is None:
         return _token("agents", collected, ok=False)
     for entry in children:

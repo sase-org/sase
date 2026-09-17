@@ -9,13 +9,37 @@ from typing import Any
 import pytest
 
 from sase.ace.tui.models.agent import Agent
+from sase.ace.tui.actions.agents._display_detail_info import AgentInfoDisplayMixin
+from sase.ace.tui.models.agent_panel_index import build_agent_panel_index
+from sase.ace.tui.models.agent_runner_slots import RunnerCapacitySnapshot
 from sase.ace.tui.models.agent_content_search import AgentContentSearchCache
+from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.models.agent_live_query_engine import agents_history_query_key
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from sase.ace.tui.util.nav_gate import NavigationGate
 from sase.feature_flags import override_flags
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
+
+
+class _InfoMetricsHarness(AgentInfoDisplayMixin):
+    def __init__(self, agents: list[Agent]) -> None:
+        self.current_idx = 0
+        self.refresh_interval = 10
+        self._agents = agents
+        self._unread_completed_agent_ids = set()
+        self._agent_search_query = ""
+        self._agent_search_query_seeded = False
+        self._grouping_mode = GroupingMode.STANDARD
+        self._current_group_key = None
+        self._countdown_remaining = 10
+        self._agent_info_metrics_cache = None
+        self._agent_runner_capacity = RunnerCapacitySnapshot()
+        self._agent_panel_index_cache = None
+        self._agent_panels_grouped = False
+
+    def _agent_panel_index(self):
+        return build_agent_panel_index(self._agents, dismissable_statuses=())
 
 
 @pytest.fixture(autouse=True)
@@ -73,6 +97,68 @@ def test_refilter_can_defer_structural_display_refresh() -> None:
 
     assert app._agents == [agent]
     assert refresh_calls == []
+
+
+@pytest.mark.asyncio
+async def test_capacity_refresh_from_cached_roster_updates_info_panel(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    running = _make_agent(
+        status="RUNNING",
+        cl_name="runner",
+        raw_suffix="20260917120000",
+        artifacts_dir="/tmp/projects/demo/artifacts/ace-run/20260917120000",
+        pid=100,
+        runner_is_live=True,
+    )
+    waiter = _make_agent(
+        status="WAITING",
+        cl_name="waiter",
+        raw_suffix="20260917120100",
+        artifacts_dir="/tmp/projects/demo/artifacts/ace-run/20260917120100",
+        pid=101,
+        slot_requested_at="2026-09-17T12:01:00-04:00",
+        wait_runners=0,
+        wait_runners_explicit=False,
+    )
+    app = FakeAgentApp(query="")
+    app.current_tab = "agents"
+    app._agents = [running, waiter]
+    app._agents_with_children = [running, waiter]
+    app._agent_runner_capacity = RunnerCapacitySnapshot()
+    app._agents_capacity_generation = 1
+    app._agents_capacity_applied_generation = 0
+    updates: list[str] = []
+    app._update_agents_info_panel = lambda: updates.append("panel")  # type: ignore[method-assign]
+
+    monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 1)
+    monkeypatch.setattr(
+        "sase.core.agent_hold_facade.active_agent_hold_records",
+        lambda: [],
+    )
+
+    await app._run_agents_capacity_refresh_from_roster(
+        generation=1,
+        source="test",
+    )
+
+    assert app._agent_runner_capacity.effective_limit == 1
+    assert app._agent_runner_capacity.slots_in_use == 1
+    assert app._agent_runner_capacity.queued_count == 1
+    assert updates == ["panel"]
+
+
+def test_agent_info_metrics_cache_tracks_in_place_status_mutations() -> None:
+    agent = _make_agent(status="RUNNING", cl_name="active")
+    app = _InfoMetricsHarness([agent])
+
+    first = app._agent_info_metrics()
+    agent.status = "DONE"
+    second = app._agent_info_metrics()
+
+    assert first[2] == 1
+    assert second[2] == 0
+    assert second[5] == 1
 
 
 @pytest.mark.asyncio

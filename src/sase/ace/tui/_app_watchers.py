@@ -126,6 +126,13 @@ class AppWatchersMixin:
             # when there is pending work to consume.
             if not self._mounting:
                 self._refilter_agents()
+                refresh_capacity = getattr(
+                    self,
+                    "_schedule_agents_capacity_refresh_from_roster",
+                    None,
+                )
+                if callable(refresh_capacity):
+                    refresh_capacity(source="tab_switch")
                 update_agents_header = getattr(self, "_update_agents_header", None)
                 if callable(update_agents_header):
                     update_agents_header()

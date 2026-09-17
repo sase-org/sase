@@ -220,6 +220,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             agent_status_overrides=dict(getattr(self, "_agent_status_overrides", {})),
             grouping_mode=grouping_mode,
             agent_panels_grouped=bool(getattr(self, "_agent_panels_grouped", False)),
+            capacity_generation=int(getattr(self, "_agents_capacity_generation", 0)),
             unread_agent_ids=frozenset(
                 getattr(self, "_unread_completed_agent_ids", ()) or ()
             ),
@@ -389,23 +390,35 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             if current_fold_levels == precomputed_fold_levels:
                 boundary = precomputed_boundary
 
+        recompute_stale_capacity = False
+        if boundary is not None and boundary.capacity_generation < int(
+            getattr(self, "_agents_capacity_generation", 0)
+        ):
+            recompute_stale_capacity = True
+            boundary = None
+
         if boundary is None:
             boundary_limit: float | None = (
                 float(effective_runner_limit)
                 if effective_runner_limit is not None
                 else None
             )
+            if recompute_stale_capacity:
+                from sase.config.core import get_max_running_agents
+
+                boundary_limit = float(get_max_running_agents())
             if boundary_limit is None and precomputed_boundary is not None:
                 precomputed_limit = precomputed_boundary.runner_capacity.effective_limit
                 if precomputed_limit > 0:
                     boundary_limit = precomputed_limit
+            snapshot = self._make_prepared_apply_snapshot(
+                on_agents_tab=on_agents_tab,
+                selected_identity=selected_identity,
+                load_state=load_state,
+            )
             boundary = prepare_loaded_agents_apply_boundary(
                 prep,
-                self._make_prepared_apply_snapshot(
-                    on_agents_tab=on_agents_tab,
-                    selected_identity=selected_identity,
-                    load_state=load_state,
-                ),
+                snapshot,
                 merge_incomplete=False,
                 effective_runner_limit=boundary_limit,
             )
@@ -457,6 +470,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         previous_agents_with_children = list(getattr(self, "_agents_with_children", []))
         previous_agents = list(self._agents)
         self._agent_runner_capacity = boundary.runner_capacity
+        self._agents_capacity_applied_generation = boundary.capacity_generation
         self._agents_capacity_with_children = list(
             boundary.prep.capacity_agents or boundary.fold.unfiltered_agents
         )

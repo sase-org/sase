@@ -226,6 +226,55 @@ def test_apply_carries_live_hint_before_finalize_and_schedules_revalidation() ->
     assert app.capacity_at_finalize == [RunnerCapacitySnapshot(10, 1, 2)]
 
 
+def test_apply_recomputes_stale_capacity_generation_with_current_limit() -> None:
+    app = _ApplyHarness()
+    app._agents_capacity_generation = 2
+    app._agents_capacity_applied_generation = 0
+    fresh = _agent("feat", "20260706080000")
+    prep = PreparedApplyData(
+        filtered_agents=[fresh],
+        has_always_visible=False,
+        hidden_count=0,
+        hideable_agents=[fresh],
+        dismissed_agent_objects=[],
+    )
+    boundary = PreparedApplyBoundary(
+        prep=prep,
+        fold=PreparedFoldFiltering(
+            unfiltered_agents=[fresh],
+            visible_agents=[fresh],
+            fold_counts={},
+        ),
+        selection=PreparedApplySelectionInputs(
+            on_agents_tab=False,
+            selected_identity=None,
+            prior_visual_row=None,
+        ),
+        runner_capacity=RunnerCapacitySnapshot(1, 0, 0),
+        capacity_generation=1,
+        finalize=None,
+    )
+
+    with (
+        patch("sase.config.core.get_max_running_agents", return_value=7),
+        patch("sase.core.agent_hold_facade.active_agent_hold_records", return_value=[]),
+    ):
+        app._apply_loaded_agents_prepared_inner(
+            prep,
+            on_agents_tab=False,
+            selected_identity=None,
+            persist_dismissed_changes=False,
+            incomplete_merge_already_applied=True,
+            precomputed_boundary=boundary,
+            precomputed_fold_levels=None,
+        )
+
+    assert app.finalize_calls == 1
+    assert app.capacity_at_finalize[0] is not None
+    assert app.capacity_at_finalize[0].effective_limit == 7
+    assert app._agents_capacity_applied_generation == 2
+
+
 def test_apply_carry_over_tolerates_missing_prior_unfiltered_list() -> None:
     app = _ApplyHarness()
     previous = _agent("feat", "20260706090000")

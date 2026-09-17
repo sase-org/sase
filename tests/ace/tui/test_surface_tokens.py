@@ -118,6 +118,25 @@ def test_agent_artifact_index_updates_agents_token(tmp_path: Path) -> None:
     assert first != second
 
 
+def test_runner_limit_and_hold_state_update_agents_token(tmp_path: Path) -> None:
+    roots = _roots(tmp_path)
+    first = probe_surface_tokens(roots).agents
+    limit_path = roots.runner_limit_override_path
+    hold_path = roots.agent_hold_store_path
+    assert limit_path is not None
+    assert hold_path is not None
+
+    _write(limit_path, '{"limit":2}')
+    os.utime(limit_path, ns=(1, 2))
+    after_limit = probe_surface_tokens(roots).agents
+    assert after_limit != first
+
+    _write(hold_path, '{"holds":[]}')
+    os.utime(hold_path, ns=(3, 4))
+    after_holds = probe_surface_tokens(roots).agents
+    assert after_holds != after_limit
+
+
 def test_nested_agent_archive_is_ignored(tmp_path: Path) -> None:
     projects = tmp_path / "projects"
     artifacts = projects / "demo" / "artifacts"
@@ -288,4 +307,6 @@ def _roots(tmp_path: Path) -> SurfaceTokenRoots:
         notifications_path=tmp_path / "notifications.jsonl",
         procs_path=tmp_path / "procs.jsonl",
         beads_dir=tmp_path / "beads",
+        runner_limit_override_path=tmp_path / "max_running_agents_override.json",
+        agent_hold_store_path=tmp_path / "agent_holds.json",
     )

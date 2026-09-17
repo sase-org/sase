@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import replace
 from typing import TYPE_CHECKING, Literal
 
 from ...util.trace import tui_trace
@@ -168,6 +169,7 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
         from ....patch import find_all_patches_cached
 
         source = normalize_refresh_source(source)
+        capacity_generation = int(getattr(self, "_agents_capacity_generation", 0))
         complete_prefix = bool(
             getattr(self, "_agents_refresh_active_prefix_completion", False)
         )
@@ -292,6 +294,10 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
             on_agents_tab=on_agents_tab,
             selected_identity=selected_identity,
             load_state=load_result.load_state,
+        )
+        worker_snapshot = replace(
+            worker_snapshot,
+            capacity_generation=capacity_generation,
         )
 
         prep_start = time.perf_counter()

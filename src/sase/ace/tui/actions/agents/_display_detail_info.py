@@ -45,7 +45,14 @@ class AgentInfoDisplayMixin:
         unread_ids: set[tuple[AgentType, str, str | None]] = getattr(
             self, "_unread_completed_agent_ids", set()
         )
-        cache_key = (id(self._agents), frozenset(unread_ids))
+        status_key = tuple(
+            (self._agents[i].identity, self._agents[i].status)
+            for i in (
+                *panel_index.non_child_indices,
+                *panel_index.hidden_starting_indices,
+            )
+        )
+        cache_key = (id(self._agents), frozenset(unread_ids), status_key)
         cached = getattr(self, "_agent_info_metrics_cache", None)
         if cached is not None and cached[0] == cache_key:
             return cached[1]  # type: ignore[return-value]

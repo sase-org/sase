@@ -156,7 +156,12 @@ class EventAutoRefreshMixin(EventWatcherRefreshMixin):
         if snapshot is None:
             return True
         last = getattr(self, "_last_completed_surface_tokens", {}).get(surface)
-        return surface_token_drifted(snapshot.token_for(surface), last)
+        drifted = surface_token_drifted(snapshot.token_for(surface), last)
+        if drifted and surface == "agents":
+            bump_capacity = getattr(self, "_bump_agents_capacity_generation", None)
+            if callable(bump_capacity):
+                bump_capacity()
+        return drifted
 
     async def _run_auto_refresh_body(self) -> None:
         """Refresh dirty surfaces; always called from a pump-free task."""
