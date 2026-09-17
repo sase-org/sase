@@ -31,3 +31,8 @@ class PromptDisplayItem:
     marker: str  # " " or "x"
     summary: PromptListSummary | None = None
     display_text: str | None = None
+
+
+def display_text_for_item(item: PromptDisplayItem) -> str:
+    """Return the humanized prompt text for display and user-facing actions."""
+    return item.display_text if item.display_text is not None else item.entry.text
