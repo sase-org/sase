@@ -31,6 +31,10 @@ class _ApplyHarness(AgentLoadingApplyMixin):
         self._has_always_visible = False
         self._hidden_count = 0
         self._hideable_agents: list[Agent] = []
+        self._agents_capacity_with_children: list[Agent] = []
+        self._agent_runner_capacity = RunnerCapacitySnapshot()
+        self._agents_capacity_generation = 0
+        self._agents_capacity_applied_generation = 0
         self._dismissed_agents: set[tuple[AgentType, str, str | None]] = set()
         self._dismissed_agent_objects: list[Agent] = []
         self._revived_agent_raw_suffixes: set[str] = set()
@@ -49,6 +53,18 @@ class _ApplyHarness(AgentLoadingApplyMixin):
         self.capacity_at_finalize: list[RunnerCapacitySnapshot | None] = []
         self.maintenance_calls: list[dict[str, object]] = []
         self.live_hint_refresh_sources: list[str] = []
+        self.capacity_refresh_sources: list[str] = []
+
+    def _bump_agents_capacity_generation(self) -> int:
+        self._agents_capacity_generation += 1
+        return self._agents_capacity_generation
+
+    def _schedule_agents_capacity_refresh_from_roster(
+        self,
+        *,
+        source: str = "unknown",
+    ) -> None:
+        self.capacity_refresh_sources.append(source)
 
     def _finalize_agent_list(self, *args: object, **kwargs: object) -> None:
         del args, kwargs
@@ -226,10 +242,11 @@ def test_apply_carries_live_hint_before_finalize_and_schedules_revalidation() ->
     assert app.capacity_at_finalize == [RunnerCapacitySnapshot(10, 1, 2)]
 
 
-def test_apply_recomputes_stale_capacity_generation_with_current_limit() -> None:
+def test_apply_keeps_stale_capacity_display_and_schedules_offthread_refresh() -> None:
     app = _ApplyHarness()
     app._agents_capacity_generation = 2
-    app._agents_capacity_applied_generation = 0
+    app._agents_capacity_applied_generation = 2
+    app._agent_runner_capacity = RunnerCapacitySnapshot(9, 2, 0)
     fresh = _agent("feat", "20260706080000")
     prep = PreparedApplyData(
         filtered_agents=[fresh],
@@ -256,8 +273,14 @@ def test_apply_recomputes_stale_capacity_generation_with_current_limit() -> None
     )
 
     with (
-        patch("sase.config.core.get_max_running_agents", return_value=7),
-        patch("sase.core.agent_hold_facade.active_agent_hold_records", return_value=[]),
+        patch(
+            "sase.config.core.get_max_running_agents",
+            side_effect=AssertionError("config reads stay off the UI thread"),
+        ),
+        patch(
+            "sase.core.agent_hold_facade.active_agent_hold_records",
+            side_effect=AssertionError("hold reads stay off the UI thread"),
+        ),
     ):
         app._apply_loaded_agents_prepared_inner(
             prep,
@@ -270,9 +293,15 @@ def test_apply_recomputes_stale_capacity_generation_with_current_limit() -> None
         )
 
     assert app.finalize_calls == 1
-    assert app.capacity_at_finalize[0] is not None
-    assert app.capacity_at_finalize[0].effective_limit == 7
+    assert app.capacity_at_finalize == [RunnerCapacitySnapshot(9, 2, 0)]
+    assert app._agents_capacity_with_children == [fresh]
     assert app._agents_capacity_applied_generation == 2
+    assert app._agents_capacity_generation == 3
+    assert app.capacity_refresh_sources == ["apply_stale_capacity"]
+
+
+def test_apply_recomputes_stale_capacity_generation_with_current_limit() -> None:
+    test_apply_keeps_stale_capacity_display_and_schedules_offthread_refresh()
 
 
 def test_apply_carry_over_tolerates_missing_prior_unfiltered_list() -> None:

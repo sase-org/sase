@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from dataclasses import replace
 from typing import TYPE_CHECKING, cast
 
 from ...models.agent import AgentType
@@ -390,24 +391,25 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             if current_fold_levels == precomputed_fold_levels:
                 boundary = precomputed_boundary
 
-        recompute_stale_capacity = False
-        if boundary is not None and boundary.capacity_generation < int(
+        current_capacity_generation = int(
             getattr(self, "_agents_capacity_generation", 0)
-        ):
-            recompute_stale_capacity = True
-            boundary = None
+        )
+        capacity_inputs_stale = (
+            precomputed_boundary is not None
+            and precomputed_boundary.capacity_generation < current_capacity_generation
+        )
 
         if boundary is None:
             boundary_limit: float | None = (
                 float(effective_runner_limit)
-                if effective_runner_limit is not None
+                if effective_runner_limit is not None and not capacity_inputs_stale
                 else None
             )
-            if recompute_stale_capacity:
-                from sase.config.core import get_max_running_agents
-
-                boundary_limit = float(get_max_running_agents())
-            if boundary_limit is None and precomputed_boundary is not None:
+            if (
+                boundary_limit is None
+                and precomputed_boundary is not None
+                and not capacity_inputs_stale
+            ):
                 precomputed_limit = precomputed_boundary.runner_capacity.effective_limit
                 if precomputed_limit > 0:
                     boundary_limit = precomputed_limit
@@ -469,8 +471,28 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         self._hideable_agents = prep.hideable_agents
         previous_agents_with_children = list(getattr(self, "_agents_with_children", []))
         previous_agents = list(self._agents)
-        self._agent_runner_capacity = boundary.runner_capacity
-        self._agents_capacity_applied_generation = boundary.capacity_generation
+        previous_capacity = getattr(self, "_agent_runner_capacity", None)
+        previous_capacity_generation = int(
+            getattr(self, "_agents_capacity_applied_generation", 0)
+        )
+        bump_capacity = getattr(self, "_bump_agents_capacity_generation", None)
+        if callable(bump_capacity):
+            roster_capacity_generation = int(bump_capacity())
+        else:
+            roster_capacity_generation = (
+                int(getattr(self, "_agents_capacity_generation", 0)) + 1
+            )
+            self._agents_capacity_generation = roster_capacity_generation
+        if capacity_inputs_stale and previous_capacity is not None:
+            self._agent_runner_capacity = previous_capacity
+            self._agents_capacity_applied_generation = previous_capacity_generation
+        else:
+            boundary = replace(
+                boundary,
+                capacity_generation=roster_capacity_generation,
+            )
+            self._agent_runner_capacity = boundary.runner_capacity
+            self._agents_capacity_applied_generation = roster_capacity_generation
         self._agents_capacity_with_children = list(
             boundary.prep.capacity_agents or boundary.fold.unfiltered_agents
         )
@@ -492,6 +514,14 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         self._agents_with_children = unfiltered_agents
         rearm_live_agent_watch_coverage(self)
         self._agents = visible_agents
+        if capacity_inputs_stale:
+            schedule_capacity_refresh = getattr(
+                self,
+                "_schedule_agents_capacity_refresh_from_roster",
+                None,
+            )
+            if callable(schedule_capacity_refresh):
+                schedule_capacity_refresh(source="apply_stale_capacity")
         carry_over_live_hints(
             [*previous_agents_with_children, *previous_agents],
             [*self._agents_with_children, *self._agents],

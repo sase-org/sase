@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Iterator
 from types import SimpleNamespace
 from typing import Any
@@ -146,6 +147,230 @@ async def test_capacity_refresh_from_cached_roster_updates_info_panel(
     assert app._agent_runner_capacity.slots_in_use == 1
     assert app._agent_runner_capacity.queued_count == 1
     assert updates == ["panel"]
+
+
+@pytest.mark.asyncio
+async def test_capacity_refresh_uses_canonical_roster_including_hidden_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    visible = _make_agent(
+        status="RUNNING",
+        cl_name="visible",
+        raw_suffix="20260917120000",
+        artifacts_dir="/tmp/projects/demo/artifacts/ace-run/20260917120000",
+        pid=100,
+        runner_is_live=True,
+    )
+    hidden = _make_agent(
+        status="RUNNING",
+        cl_name="hidden",
+        raw_suffix="20260917120001",
+        artifacts_dir="/tmp/projects/demo/artifacts/ace-run/20260917120001",
+        pid=101,
+        runner_is_live=True,
+        hidden=True,
+    )
+    app = FakeAgentApp(query="")
+    app.current_tab = "agents"
+    app._agents = [visible]
+    app._agents_with_children = [visible]
+    app._agents_capacity_with_children = [visible, hidden]
+    app._agent_runner_capacity = RunnerCapacitySnapshot()
+    app._agents_capacity_generation = 1
+    app._agents_capacity_applied_generation = 0
+
+    monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 8)
+    monkeypatch.setattr(
+        "sase.core.agent_hold_facade.active_agent_hold_records",
+        lambda: [],
+    )
+
+    await app._run_agents_capacity_refresh_from_roster(
+        generation=1,
+        source="test",
+    )
+
+    assert app._agent_runner_capacity.slots_in_use == 2
+
+
+@pytest.mark.asyncio
+async def test_capacity_refresh_ignores_remote_display_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    local = _make_agent(
+        status="RUNNING",
+        cl_name="local",
+        raw_suffix="20260917120000",
+        artifacts_dir="/tmp/projects/demo/artifacts/ace-run/20260917120000",
+        pid=100,
+        runner_is_live=True,
+    )
+    remote = _make_agent(
+        status="RUNNING",
+        cl_name="remote",
+        raw_suffix="20260917120001",
+        artifacts_dir="/fleet/apollo/demo/20260917120001",
+        pid=101,
+        runner_is_live=True,
+        fleet_origin_alias="apollo",
+    )
+    app = FakeAgentApp(query="")
+    app.current_tab = "agents"
+    app._agents = [local, remote]
+    app._agents_with_children = [local, remote]
+    app._agents_capacity_with_children = [local]
+    app._agent_runner_capacity = RunnerCapacitySnapshot()
+    app._agents_capacity_generation = 1
+    app._agents_capacity_applied_generation = 0
+
+    monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 8)
+    monkeypatch.setattr(
+        "sase.core.agent_hold_facade.active_agent_hold_records",
+        lambda: [],
+    )
+
+    await app._run_agents_capacity_refresh_from_roster(
+        generation=1,
+        source="test",
+    )
+
+    assert app._agent_runner_capacity.slots_in_use == 1
+
+
+@pytest.mark.asyncio
+async def test_capacity_refresh_accepts_empty_canonical_roster(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FakeAgentApp(query="")
+    app.current_tab = "agents"
+    app._agents = []
+    app._agents_with_children = []
+    app._agents_capacity_with_children = []
+    app._agent_runner_capacity = RunnerCapacitySnapshot(effective_limit=1)
+    app._agents_capacity_generation = 1
+    app._agents_capacity_applied_generation = 0
+
+    monkeypatch.setattr("sase.config.core.get_max_running_agents", lambda: 7)
+    monkeypatch.setattr(
+        "sase.core.agent_hold_facade.active_agent_hold_records",
+        lambda: [],
+    )
+
+    await app._run_agents_capacity_refresh_from_roster(
+        generation=1,
+        source="test",
+    )
+
+    assert app._agent_runner_capacity.effective_limit == 7
+    assert app._agent_runner_capacity.slots_in_use == 0
+
+
+def test_capacity_scheduler_accepts_empty_loaded_roster(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FakeAgentApp(query="")
+    app._agents = []
+    app._agents_with_children = []
+    app._agents_capacity_with_children = []
+    app._agent_runner_capacity = RunnerCapacitySnapshot(effective_limit=1)
+    app._agents_capacity_generation = 0
+    app._agents_capacity_applied_generation = 0
+    app._agents_capacity_refresh_running = False
+    app._agents_capacity_refresh_pending = False
+    app._agents_capacity_refresh_pending_source = "unknown"
+    spawned: list[str] = []
+
+    def _fail_broad_load(**_kwargs: object) -> None:
+        raise AssertionError("capacity refresh must not schedule a broad agents load")
+
+    def _fake_spawn(_app: object, coro: Any, **kwargs: object) -> None:
+        spawned.append(str(kwargs.get("name")))
+        coro.close()
+        return None
+
+    app._schedule_agents_async_refresh = _fail_broad_load  # type: ignore[method-assign]
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._loading_filter.spawn_pump_free_task",
+        _fake_spawn,
+    )
+
+    app._schedule_agents_capacity_refresh_from_roster(source="tab_switch")
+
+    assert spawned == ["sase-agents-capacity-refresh"]
+    assert app._agents_capacity_generation == 1
+
+
+def test_capacity_scheduler_coalesces_rapid_tab_switches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FakeAgentApp(query="")
+    app._agents_capacity_with_children = [_make_agent(status="RUNNING")]
+    app._agents_capacity_generation = 0
+    app._agents_capacity_applied_generation = 0
+    app._agents_capacity_refresh_running = False
+    app._agents_capacity_refresh_pending = False
+    app._agents_capacity_refresh_pending_source = "unknown"
+    spawned: list[Any] = []
+
+    def _fake_spawn(_app: object, coro: Any, **_kwargs: object) -> object:
+        spawned.append(coro)
+        return object()
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._loading_filter.spawn_pump_free_task",
+        _fake_spawn,
+    )
+
+    app._schedule_agents_capacity_refresh_from_roster(source="tab_switch")
+    app._schedule_agents_capacity_refresh_from_roster(source="tab_switch_again")
+    for coro in spawned:
+        coro.close()
+
+    assert len(spawned) == 1
+    assert app._agents_capacity_generation == 2
+    assert app._agents_capacity_refresh_pending is True
+    assert app._agents_capacity_refresh_pending_source == "tab_switch_again"
+
+
+@pytest.mark.asyncio
+async def test_stale_capacity_refresh_same_generation_cannot_overwrite_newer_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FakeAgentApp(query="")
+    app.current_tab = "agents"
+    app._agents_capacity_generation = 1
+    app._agents_capacity_applied_generation = 0
+    app._agents_capacity_with_children = [_make_agent(status="RUNNING")]
+    app._agent_runner_capacity = RunnerCapacitySnapshot(effective_limit=8)
+    entered = asyncio.Event()
+    release = asyncio.Event()
+
+    async def _delayed_to_thread(_fn: object, *args: object, **kwargs: object) -> Any:
+        del args, kwargs
+        entered.set()
+        await release.wait()
+        return RunnerCapacitySnapshot(effective_limit=8, slots_in_use=1)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._loading_filter.asyncio.to_thread",
+        _delayed_to_thread,
+    )
+
+    stale = asyncio.create_task(
+        app._run_agents_capacity_refresh_from_roster(
+            generation=1,
+            source="tab_switch",
+        )
+    )
+    await entered.wait()
+    assert app._apply_agents_capacity_snapshot(
+        RunnerCapacitySnapshot(effective_limit=8, slots_in_use=2),
+        generation=1,
+    )
+    release.set()
+    await stale
+
+    assert app._agent_runner_capacity.slots_in_use == 2
 
 
 def test_agent_info_metrics_cache_tracks_in_place_status_mutations() -> None:

@@ -38,8 +38,6 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         """Refresh the capacity strip from cached rows without a disk load."""
         if not getattr(self, "_agents_first_load_done", False):
             return
-        if not getattr(self, "_agents_with_children", None):
-            return
 
         generation = self._bump_agents_capacity_generation()
         if getattr(self, "_agents_capacity_refresh_running", False):
@@ -69,9 +67,13 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         """Worker body for cached-roster runner-capacity refreshes."""
         del source
         try:
-            roster = list(getattr(self, "_agents_with_children", ()) or ())
-            if not roster:
+            current_generation = int(getattr(self, "_agents_capacity_generation", 0))
+            if generation != current_generation:
                 return
+            if hasattr(self, "_agents_capacity_with_children"):
+                roster = list(getattr(self, "_agents_capacity_with_children", ()))
+            else:
+                roster = list(getattr(self, "_agents_with_children", ()) or ())
 
             def _compute() -> RunnerCapacitySnapshot:
                 from sase.config.core import get_max_running_agents
@@ -88,6 +90,8 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
                 )
 
             snapshot = await asyncio.to_thread(_compute)
+            if generation != int(getattr(self, "_agents_capacity_generation", 0)):
+                return
             self._apply_agents_capacity_snapshot(
                 snapshot,
                 generation=generation,
@@ -116,7 +120,7 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         current_generation = int(getattr(self, "_agents_capacity_generation", 0))
         if generation != current_generation:
             return False
-        if generation < int(getattr(self, "_agents_capacity_applied_generation", 0)):
+        if generation <= int(getattr(self, "_agents_capacity_applied_generation", 0)):
             return False
         self._agent_runner_capacity = snapshot  # type: ignore[attr-defined]
         self._agents_capacity_applied_generation = generation  # type: ignore[attr-defined]
