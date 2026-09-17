@@ -9,6 +9,11 @@ import shutil
 import subprocess
 import sys
 
+from sase.ace.tui.screenshot_export import (
+    SASE_TUI_SCREENSHOT_DIR_ENV,
+    screenshot_request_dir,
+)
+
 _AGENTS_SESSION = "sase_ace_agents"
 _WINDOW_PREFIX = "sase_tmux_"
 _MAX_WINDOW_ATTEMPTS = 1000
@@ -40,12 +45,12 @@ def launch_ace_in_tmux(args: argparse.Namespace) -> None:
         _require_tmux_binary()
         session = _resolve_or_create_session()
         relaunch_cmd = _build_relaunch_cmd()
-        window_name, pane_pid = _claim_window(session, relaunch_cmd)
+        window_name, pane_pid, screenshot_dir = _claim_window(session, relaunch_cmd)
     except _TmuxLaunchError as exc:
         print(f"sase tui --tmux: {exc}", file=sys.stderr)
         sys.exit(2)
 
-    _print_target(session, window_name, pane_pid)
+    _print_target(session, window_name, pane_pid, screenshot_dir)
 
 
 def _require_tmux_binary() -> None:
@@ -146,27 +151,35 @@ def _build_relaunch_cmd() -> str:
     return "exec " + shlex.join([sys.executable, "-m", "sase", *forwarded])
 
 
-def _profiling_env_args() -> list[str]:
-    """Return ``-e KEY=VAL`` args for ``tmux new-window`` so the spawned TUI
-    runs with profiling instrumentation enabled. Pass-through any value the
-    caller has already set, so ``SASE_TUI_TRACE=0 sase tui --tmux …`` opts
-    out cleanly.
+def _tmux_env_args(session: str, window_name: str) -> list[str]:
+    """Return ``-e KEY=VAL`` args for ``tmux new-window``.
+
+    Profiling env vars pass through caller-provided values so
+    ``SASE_TUI_TRACE=0 sase tui --tmux ...`` opts out cleanly. The screenshot
+    request dir is always derived from the claimed tmux session/window so
+    later automation can reconstruct it without inspecting process env.
     """
     args: list[str] = []
     for key, default in _PROFILING_ENV_DEFAULTS.items():
         value = os.environ.get(key, default)
         args.extend(["-e", f"{key}={value}"])
+    args.extend(
+        [
+            "-e",
+            f"{SASE_TUI_SCREENSHOT_DIR_ENV}={screenshot_request_dir(session, window_name)}",
+        ]
+    )
     return args
 
 
-def _claim_window(session: str, relaunch_cmd: str) -> tuple[str, int]:
+def _claim_window(session: str, relaunch_cmd: str) -> tuple[str, int, str]:
     """Create a uniquely-named ``sase_tmux_<N>`` window in ``session``.
 
     Uses tmux's own refusal to create duplicate window names as the
     arbiter, avoiding any TOCTOU race against parallel ``--tmux`` invocations.
 
-    Returns ``(window_name, pane_pid)`` where ``pane_pid`` is the PID of the
-    process tmux launched in the new window's pane.
+    Returns ``(window_name, pane_pid, screenshot_dir)`` where ``pane_pid`` is
+    the PID of the process tmux launched in the new window's pane.
     """
     for n in range(1, _MAX_WINDOW_ATTEMPTS + 1):
         window_name = f"{_WINDOW_PREFIX}{n}"
@@ -175,7 +188,7 @@ def _claim_window(session: str, relaunch_cmd: str) -> tuple[str, int]:
                 "tmux",
                 "new-window",
                 "-d",
-                *_profiling_env_args(),
+                *_tmux_env_args(session, window_name),
                 "-n",
                 window_name,
                 "-t",
@@ -203,7 +216,8 @@ def _claim_window(session: str, relaunch_cmd: str) -> tuple[str, int]:
                 raise _TmuxLaunchError(
                     f"tmux returned non-integer pane pid: {pid_str!r}"
                 ) from exc
-            return window_name, pane_pid
+            screenshot_dir = str(screenshot_request_dir(session, window_name))
+            return window_name, pane_pid, screenshot_dir
 
         if _window_name_in_use(session, window_name):
             continue
@@ -229,7 +243,13 @@ def _window_name_in_use(session: str, window_name: str) -> bool:
     return window_name in result.stdout.splitlines()
 
 
-def _print_target(session: str, window_name: str, pane_pid: int) -> None:
+def _print_target(
+    session: str,
+    window_name: str,
+    pane_pid: int,
+    screenshot_dir: str,
+) -> None:
     print(f"sase_tmux_window={window_name}")
     print(f"sase_tmux_session={session}")
     print(f"sase_tmux_pid={pane_pid}")
+    print(f"sase_screenshot_dir={screenshot_dir}")

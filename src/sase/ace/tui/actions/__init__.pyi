@@ -22,6 +22,7 @@ from .post_update_toast import PostUpdateToastMixin as PostUpdateToastMixin
 from .proposal_rebase import ProposalRebaseMixin as ProposalRebaseMixin
 from .rename import RenameMixin as RenameMixin
 from .repro import ReproActionsMixin as ReproActionsMixin
+from .screenshot_export import ScreenshotExportMixin as ScreenshotExportMixin
 from .startup import StartupMixin as StartupMixin
 from .status import StatusActionsMixin as StatusActionsMixin
 from .sync import SyncMixin as SyncMixin

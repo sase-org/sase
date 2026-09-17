@@ -92,6 +92,7 @@ def test_returns_sase_tmux_1_on_fresh_session(capsys, monkeypatch) -> None:
     assert "sase_tmux_window=sase_tmux_1" in out
     assert "sase_tmux_session=agent-session-7" in out
     assert "sase_tmux_target" not in out
+    assert "sase_screenshot_dir=" in out
     # The PID reported must be the fake pane pid (first window → base + 1),
     # not the parent process's PID. This locks in that we surface the child.
     assert f"sase_tmux_pid={fake.pane_pid_base + 1}" in out
@@ -308,6 +309,31 @@ def test_sets_profiling_env_vars_by_default(monkeypatch) -> None:
     ]
     assert "SASE_TUI_TRACE=1" in e_values
     assert "SASE_TUI_PERF=1" in e_values
+    assert any(value.startswith("SASE_TUI_SCREENSHOT_DIR=") for value in e_values)
+
+
+def test_sets_screenshot_env_to_printed_request_dir(capsys, monkeypatch) -> None:
+    monkeypatch.setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+    fake = _FakeTmux(in_tmux=True)
+    with (
+        patch("sase.main.ace_tmux.shutil.which", return_value="/usr/bin/tmux"),
+        patch("sase.main.ace_tmux.subprocess.run", side_effect=fake),
+        patch.object(sys, "argv", ["sase", "tui"]),
+    ):
+        ace_tmux.launch_ace_in_tmux(_args())
+
+    out = capsys.readouterr().out
+    screenshot_dir = next(
+        line.partition("=")[2]
+        for line in out.splitlines()
+        if line.startswith("sase_screenshot_dir=")
+    )
+    new_window_call = next(c for c in fake.calls if c[1] == "new-window")
+    e_values = [
+        new_window_call[i + 1] for i, tok in enumerate(new_window_call) if tok == "-e"
+    ]
+    assert f"SASE_TUI_SCREENSHOT_DIR={screenshot_dir}" in e_values
+    assert screenshot_dir
 
 
 def test_respects_explicit_profiling_env_var(monkeypatch) -> None:

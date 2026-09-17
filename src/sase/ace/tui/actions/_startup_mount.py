@@ -39,6 +39,11 @@ class StartupMountMixin:
             from ..util.trace import set_trace_context
 
             set_trace_context(current_tab=self.current_tab)
+            install_screenshot_export = getattr(
+                self, "_install_screenshot_export_signal_handler", None
+            )
+            if callable(install_screenshot_export):
+                install_screenshot_export()
 
             # Wire keymap registry to widgets.
             footer = self.query_one("#keybinding-footer", KeybindingFooter)

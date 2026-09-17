@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import signal
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -63,6 +65,52 @@ def test_ace_cli_paints_patch_in_real_pty(tmp_path: Path) -> None:
     assert "Traceback" not in screen_output
 
 
+def test_ace_cli_exports_svg_after_sigusr2_in_real_pty(tmp_path: Path) -> None:
+    """Launch `sase tui` in a PTY and trigger the live SVG export handler."""
+    if not hasattr(signal, "SIGUSR2"):
+        pytest.skip("SIGUSR2 is not available on this platform")
+    pexpect = pytest.importorskip("pexpect")
+
+    request_dir = tmp_path / "screens"
+    _write_project(tmp_path, name="terminal_screenshot_feature")
+    env = _terminal_env(tmp_path)
+    env["SASE_TUI_SCREENSHOT_DIR"] = str(request_dir)
+    child = pexpect.spawn(
+        sys.executable,
+        [
+            "-m",
+            "sase",
+            "ace",
+            '"terminal"',
+            "-x",
+            "-r",
+            "0",
+        ],
+        cwd=str(_REPO_ROOT),
+        dimensions=(40, 120),
+        encoding="utf-8",
+        codec_errors="replace",
+        env=env,
+        timeout=20,
+    )
+
+    try:
+        child.expect("terminal_screenshot_feature")
+        os.kill(child.pid, signal.SIGUSR2)
+        _wait_for_path(request_dir / "screen_1.done")
+        child.send("q")
+        child.expect(pexpect.EOF, timeout=10)
+    finally:
+        if child.isalive():
+            child.terminate(force=True)
+        child.close()
+
+    assert child.exitstatus == 0
+    svg = (request_dir / "screen_1.svg").read_text(encoding="utf-8")
+    assert "<svg" in svg
+    assert "terminal_screenshot_feature" in svg
+
+
 def _terminal_env(home: Path) -> dict[str, str]:
     env = os.environ.copy()
     pythonpath = str(_REPO_ROOT / "src")
@@ -98,3 +146,12 @@ STATUS: Ready
 ---
 """
     )
+
+
+def _wait_for_path(path: Path, *, timeout: float = 10.0) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if path.exists():
+            return
+        time.sleep(0.05)  # sase-test-wait: real PTY cross-process file export
+    raise AssertionError(f"timed out waiting for {path}")

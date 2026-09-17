@@ -119,6 +119,10 @@ def init_runtime_state(
     self._automatic_update_check_timer = None
     self._heap_sampler_timer = None
     self._heap_sampler_async_tasks = set()
+    self._screenshot_export_previous_sigusr2_handler = None
+    self._screenshot_export_signal_loop = None
+    self._screenshot_export_request_dir = None
+    self._screenshot_export_async_tasks = set()
     # Deferred live-workspace pencil-hint scan coalescing. The expensive
     # per-agent live VCS diff is computed in a background worker after the
     # first agents load applies (never on the startup-critical loader

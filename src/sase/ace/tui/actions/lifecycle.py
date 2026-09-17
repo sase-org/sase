@@ -87,6 +87,11 @@ class LifecycleMixin:
         )
         if restore_artifact_signal is not None:
             restore_artifact_signal()
+        restore_screenshot_signal = getattr(
+            self, "_restore_screenshot_export_signal_handler", None
+        )
+        if restore_screenshot_signal is not None:
+            restore_screenshot_signal()
 
     def _read_unread_notification_ids(self) -> set[str]:
         """Read active-unread (non-silent, non-muted) notification ids from disk.
@@ -358,6 +363,13 @@ class LifecycleMixin:
             if restore_artifact_signal is not None:
                 restore_artifact_signal()
 
+        def restore_screenshot_export_signal_handler() -> None:
+            restore_screenshot_signal = getattr(
+                self, "_restore_screenshot_export_signal_handler", None
+            )
+            if restore_screenshot_signal is not None:
+                restore_screenshot_signal()
+
         try:
             cleanup(self._save_current_selection)
             cleanup(self._stop_tui_stall_watchdog)
@@ -372,6 +384,7 @@ class LifecycleMixin:
             cleanup(shutdown_loader_executor)
             cleanup(restore_artifact_file_tmux_decoration)
             cleanup(restore_artifact_file_viewer_signal_handler)
+            cleanup(restore_screenshot_export_signal_handler)
         finally:
             self.exit()  # type: ignore[attr-defined]
 
