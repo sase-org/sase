@@ -363,11 +363,34 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-11y.4(ServiceConfigComposition)" \
         --epic-symbol "sase-11y.4(ServiceConfigError)" \
         --epic-symbol "sase-11y.4(ServiceEnablementSource)" \
+        --epic-symbol "sase-11y.4(ServiceEnablementOverride)" \
         --epic-symbol "sase-11y.4(ServiceFieldProvenance)" \
+        --epic-symbol "sase-11y.4(ServiceExit)" \
+        --epic-symbol "sase-11y.4(ServiceHostRecord)" \
         --epic-symbol "sase-11y.4(ServiceLauncher)" \
+        --epic-symbol "sase-11y.4(ServiceMarker)" \
         --epic-symbol "sase-11y.4(ServiceProcConfig)" \
+        --epic-symbol "sase-11y.4(ServiceRestartDecision)" \
+        --epic-symbol "sase-11y.4(ServiceRestartHistory)" \
+        --epic-symbol "sase-11y.4(ServiceRestartTuning)" \
+        --epic-symbol "sase-11y.4(ServiceState)" \
+        --epic-symbol "sase-11y.4(ServiceStateMutationOutcome)" \
+        --epic-symbol "sase-11y.4(ServiceStateSnapshot)" \
+        --epic-symbol "sase-11y.4(ServiceStop)" \
+        --epic-symbol "sase-11y.4(clear_service_enablement)" \
+        --epic-symbol "sase-11y.4(clear_service_host)" \
+        --epic-symbol "sase-11y.4(clear_service_marker)" \
+        --epic-symbol "sase-11y.4(clear_service_stop)" \
         --epic-symbol "sase-11y.4(compose_service_config)" \
+        --epic-symbol "sase-11y.4(decide_service_restart)" \
         --epic-symbol "sase-11y.4(load_service_config)" \
+        --epic-symbol "sase-11y.4(read_service_state)" \
+        --epic-symbol "sase-11y.4(record_service_host)" \
+        --epic-symbol "sase-11y.4(record_service_stop)" \
+        --epic-symbol "sase-11y.4(service_dir)" \
+        --epic-symbol "sase-11y.4(service_state_path)" \
+        --epic-symbol "sase-11y.4(set_service_enablement)" \
+        --epic-symbol "sase-11y.4(set_service_marker)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)
