@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import asdict
 import time
 from typing import Any, Literal
 
@@ -213,6 +214,7 @@ def _benchmark_refresh_session(
         ("full_history_upgrade", True),
         *(("ordinary_refresh", False) for _ in range(refreshes)),
     ]
+    loader_artifacts._ARTIFACT_SNAPSHOT_CACHE.clear()
     with _temporary_sase_home(fixture.sase_home):
         for stage, full_history in plan:
             elapsed_ms, state = _timed_production_load(
@@ -229,10 +231,15 @@ def _benchmark_refresh_session(
     return {
         "refreshes": refreshes,
         "full_history_reads": full_history_reads,
+        "first_load_ms": stage_samples["first_paint"][0],
+        "unchanged_refresh_ms": _summarize(stage_samples["ordinary_refresh"]),
         "stage_timing_ms": {
             stage: _summarize(samples) for stage, samples in stage_samples.items()
         },
         "counters": totals,
+        "artifact_snapshot_cache": asdict(
+            loader_artifacts._ARTIFACT_SNAPSHOT_CACHE.stats()
+        ),
         "total_ms": total_ms,
         "modeled_source_scan_session_ms": baseline_ms,
         "speedup_vs_source_scan_session": _speedup(baseline_ms, total_ms),

@@ -132,6 +132,7 @@ def test_schedule_noop_before_first_load() -> None:
 @pytest.mark.asyncio
 async def test_schedule_spawns_worker_after_first_load() -> None:
     app = _FakeApp()
+    app._agents = [_agent()]
 
     app._schedule_bead_confirmation_warmup(source="apply")
 
@@ -146,6 +147,7 @@ async def test_schedule_spawns_worker_after_first_load() -> None:
 @pytest.mark.asyncio
 async def test_schedule_collapses_to_one_detached_worker() -> None:
     app = _FakeApp()
+    app._agents = [_agent()]
 
     app._schedule_bead_confirmation_warmup(source="apply")
     app._schedule_bead_confirmation_warmup(source="auto_refresh")
@@ -156,12 +158,23 @@ async def test_schedule_collapses_to_one_detached_worker() -> None:
 
 def test_schedule_marks_pending_while_running() -> None:
     app = _FakeApp()
+    app._agents = [_agent()]
     app._bead_warmup_scan_running = True
 
     app._schedule_bead_confirmation_warmup(source="beads_watcher")
 
     assert app._bead_warmup_scan_pending is True
     assert app._scheduled == []
+
+
+def test_schedule_skips_empty_candidate_scan() -> None:
+    app = _FakeApp()
+    app._agents = [_agent(agent_name="reviewer")]
+
+    app._schedule_bead_confirmation_warmup(source="apply")
+
+    assert app._bead_warmup_scan_scheduled is False
+    assert app._bead_warmup_async_tasks == set()
 
 
 # --- candidate scope ---------------------------------------------------------
@@ -565,7 +578,9 @@ async def test_run_missing_candidate_stays_silent(
 
 
 @pytest.mark.asyncio
-async def test_run_rearms_when_pending(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_run_suppresses_pending_when_caches_are_fresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     app = _FakeApp()
     agent = _agent(agent_name="sase-x.3", cl_name="feat", raw_suffix="1")
     app._agents = [agent]
@@ -577,8 +592,7 @@ async def test_run_rearms_when_pending(monkeypatch: pytest.MonkeyPatch) -> None:
     await app._run_bead_confirmation_warmup()
 
     assert app._bead_warmup_scan_pending is False
-    assert len(app._bead_warmup_async_tasks) == 1
-    await next(iter(app._bead_warmup_async_tasks))
+    assert app._bead_warmup_async_tasks == set()
 
 
 @pytest.mark.asyncio

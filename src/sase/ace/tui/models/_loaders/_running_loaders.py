@@ -22,10 +22,12 @@ pending gate shell's claim, which carries its killed creator's PID by design
 and is held until the shell settles.
 """
 
+from collections import OrderedDict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from threading import RLock
 from typing import Literal
 
 from sase.core.agent_artifact_index_lifecycle import (
@@ -67,6 +69,8 @@ from .._timestamps import (
 from ..agent import Agent, AgentType
 
 RunningAgentOrigin = Literal["local", "remote"]
+_RUNNING_CLAIMS_CACHE_MAX_ENTRIES = 512
+_ProjectFileSignature = tuple[str, int, int]
 
 
 @dataclass(frozen=True)
@@ -131,6 +135,60 @@ class ResolvedRunningHomeAgentRecord:
                 )
 
 
+class _RunningClaimsCache:
+    """Cache parsed RUNNING claims, leaving liveness checks uncached."""
+
+    def __init__(self, *, max_entries: int) -> None:
+        self._max_entries = max_entries
+        self._entries: OrderedDict[
+            _ProjectFileSignature,
+            tuple[WorkspaceClaim, ...],
+        ] = OrderedDict()
+        self._lock = RLock()
+
+    def get(self, project_file: str) -> list[WorkspaceClaim]:
+        signature = _project_file_signature(project_file)
+        if signature is None:
+            return get_claimed_workspaces(project_file)
+        with self._lock:
+            cached = self._entries.get(signature)
+            if cached is not None:
+                self._entries.move_to_end(signature)
+                return list(cached)
+        claims = tuple(get_claimed_workspaces(project_file))
+        with self._lock:
+            self._entries[signature] = claims
+            self._entries.move_to_end(signature)
+            while len(self._entries) > self._max_entries:
+                self._entries.popitem(last=False)
+        return list(claims)
+
+    def invalidate(self, project_file: str) -> None:
+        path = str(Path(project_file).expanduser())
+        with self._lock:
+            for key in tuple(self._entries):
+                if key[0] == path:
+                    del self._entries[key]
+
+    def clear(self) -> None:
+        with self._lock:
+            self._entries.clear()
+
+
+_RUNNING_CLAIMS_CACHE = _RunningClaimsCache(
+    max_entries=_RUNNING_CLAIMS_CACHE_MAX_ENTRIES
+)
+
+
+def _project_file_signature(project_file: str) -> _ProjectFileSignature | None:
+    path = Path(project_file).expanduser()
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return (str(path), stat.st_mtime_ns, stat.st_size)
+
+
 def _is_review_agent_workflow_claim(workflow: str | None) -> bool:
     if not workflow:
         return False
@@ -152,6 +210,7 @@ def _release_stale_running_claim(project_file: str, claim: WorkspaceClaim) -> No
     if bool(getattr(claim, "pinned", False)):
         return
     try:
+        _RUNNING_CLAIMS_CACHE.invalidate(project_file)
         release_workspace(
             project_file,
             claim.workspace_num,
@@ -159,6 +218,7 @@ def _release_stale_running_claim(project_file: str, claim: WorkspaceClaim) -> No
             claim.cl_name,
             caller_tag="ace-agents-loader",
         )
+        _RUNNING_CLAIMS_CACHE.invalidate(project_file)
     except Exception:
         pass
 
@@ -252,7 +312,7 @@ def resolve_running_field_claims(
     """Resolve local RUNNING claims, including owner-side stale cleanup."""
     records: list[ResolvedRunningFieldClaim] = []
     for project_file in project_files:
-        claims = get_claimed_workspaces(project_file)
+        claims = _RUNNING_CLAIMS_CACHE.get(project_file)
         for claim in claims:
             if not _claim_pid_is_live(claim.pid):
                 if _stale_claim_is_releasable(project_file, claim):

@@ -25,6 +25,10 @@ class BeadIssueLookupSession:
     def __init__(self) -> None:
         self._stack = ExitStack()
         self._projects: dict[Path, BeadProject | None] = {}
+        self._issue_indexes: dict[
+            Path,
+            tuple[dict[str, Issue], dict[str, Issue | None]] | None,
+        ] = {}
 
     def __enter__(self) -> BeadIssueLookupSession:
         return self
@@ -52,13 +56,47 @@ class BeadIssueLookupSession:
             project = self._projects[key]
             if project is None:
                 continue
-            try:
-                return project.show(bead_id)
-            except KeyError:
+            if key not in self._issue_indexes:
+                self._issue_indexes[key] = _issue_index_for_project(project)
+            index = self._issue_indexes[key]
+            if index is None:
                 continue
-            except Exception:
+            issue = _lookup_issue_in_index(bead_id, index)
+            if issue is None:
                 continue
+            return issue
         return None
+
+
+def _issue_index_for_project(
+    project: BeadProject,
+) -> tuple[dict[str, Issue], dict[str, Issue | None]] | None:
+    """Materialize one issue snapshot for all lookups in a session."""
+    try:
+        issues = project.list_issues()
+    except Exception:
+        return None
+
+    by_id: dict[str, Issue] = {}
+    by_suffix: dict[str, Issue | None] = {}
+    for issue in issues:
+        by_id[issue.id] = issue
+        suffix = issue.id.rsplit("-", 1)[-1]
+        if suffix == issue.id:
+            continue
+        by_suffix[suffix] = None if suffix in by_suffix else issue
+    return by_id, by_suffix
+
+
+def _lookup_issue_in_index(
+    bead_id: str,
+    index: tuple[dict[str, Issue], dict[str, Issue | None]],
+) -> Issue | None:
+    by_id, by_suffix = index
+    issue = by_id.get(bead_id)
+    if issue is not None:
+        return issue
+    return by_suffix.get(bead_id)
 
 
 def _normalized_agent_name(agent_name: str | None) -> str | None:

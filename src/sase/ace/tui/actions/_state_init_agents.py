@@ -90,6 +90,10 @@ def init_agent_state(self: Any) -> None:
     self._monitor_reconcile_running = False
     self._monitor_reconcile_pending = False
     self._monitor_reconcile_pending_source = "unknown"
+    self._monitor_reconcile_scheduled_signature = None
+    self._monitor_reconcile_inflight_signature = None
+    self._monitor_reconcile_completed_signature = None
+    self._monitor_reconcile_completed_mono = 0.0
     self._monitor_reconcile_async_tasks = set()
     self._startup_telemetry_async_tasks = set()
     self._agents_refresh_debounce_armed = False

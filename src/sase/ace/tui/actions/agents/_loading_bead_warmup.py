@@ -119,6 +119,8 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
         """
         if not self._agents_first_load_done:
             return
+        if not self._bead_warmup_candidates():
+            return
         if self._bead_warmup_scan_running:
             self._bead_warmup_scan_pending = True
             return

@@ -131,6 +131,11 @@ def init_runtime_state(
     self._live_hints_scan_running = False
     self._live_hints_scan_pending = False
     self._live_hints_scan_source = "unknown"
+    self._live_hints_scan_scheduled_signature = None
+    self._live_hints_scan_pending_signature = None
+    self._live_hints_inflight_signature = None
+    self._live_hints_completed_signature = None
+    self._live_hints_completed_mono = 0.0
     self._pump_free_async_tasks = set()
     self._auto_refresh_scheduled = False
     self._auto_refresh_running = False

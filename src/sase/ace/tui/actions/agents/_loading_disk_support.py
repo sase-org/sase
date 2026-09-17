@@ -24,6 +24,8 @@ from ._loading_state import AgentLoadingStateMixin
 _DEFAULT_SLOW_LOADER_STAGE_THRESHOLD_SECONDS = 2.0
 _ENV_SLOW_LOADER_STAGE_THRESHOLD_SECONDS = "SASE_TUI_LOADER_LOG_THRESHOLD_SECONDS"
 MONITOR_RECONCILE_REFRESH_SOURCE = "monitor_reconcile"
+_MONITOR_RECONCILE_BACKSTOP_SECONDS = 30.0
+_MonitorReconcileSignature = tuple[tuple[object, ...], ...]
 
 
 def _slow_loader_stage_threshold_seconds() -> float:
@@ -118,6 +120,11 @@ def _reconcile_dead_monitor_supervisors_for_tui() -> list[object]:
 
 class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
     """Search indexing, dismissal merging, cleanup, and load telemetry."""
+
+    _monitor_reconcile_scheduled_signature: _MonitorReconcileSignature | None
+    _monitor_reconcile_inflight_signature: _MonitorReconcileSignature | None
+    _monitor_reconcile_completed_signature: _MonitorReconcileSignature | None
+    _monitor_reconcile_completed_mono: float
 
     def _prepare_agent_content_search_index_sync(
         self,
@@ -243,12 +250,30 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
         # Incomplete test harnesses skip; AceApp always initializes these flags.
         if not hasattr(self, "_monitor_reconcile_running"):
             return
+        signature = self._monitor_reconcile_signature()
+        now = time.monotonic()
+        completed_signature = getattr(
+            self,
+            "_monitor_reconcile_completed_signature",
+            None,
+        )
+        completed_mono = float(getattr(self, "_monitor_reconcile_completed_mono", 0.0))
+        if (
+            signature == completed_signature
+            and now - completed_mono < _MONITOR_RECONCILE_BACKSTOP_SECONDS
+        ):
+            return
         self._monitor_reconcile_pending_source = source
         if self._monitor_reconcile_running:
+            if signature == getattr(
+                self, "_monitor_reconcile_inflight_signature", None
+            ):
+                return
             self._monitor_reconcile_pending = True
             return
         self._monitor_reconcile_running = True
         self._monitor_reconcile_pending = False
+        self._monitor_reconcile_scheduled_signature = signature
         self._spawn_monitor_reconcile_task()
 
     def _spawn_monitor_reconcile_task(self) -> None:
@@ -271,8 +296,13 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
             delay = nav_gate.time_until_idle() + 0.05
             self.set_timer(delay, self._spawn_monitor_reconcile_task)  # type: ignore[attr-defined]
             return
+        if getattr(self, "_agents_loading", False):
+            self.set_timer(0.05, self._spawn_monitor_reconcile_task)  # type: ignore[attr-defined]
+            return
 
         source = getattr(self, "_monitor_reconcile_pending_source", "unknown")
+        signature = self._monitor_reconcile_signature()
+        self._monitor_reconcile_inflight_signature = signature
         self._monitor_reconcile_pending = False
         reconcile_start = time.perf_counter()
         try:
@@ -296,15 +326,40 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
                 refresh = getattr(self, "_schedule_agents_async_refresh", None)
                 if callable(refresh):
                     refresh(source=MONITOR_RECONCILE_REFRESH_SOURCE)
+            self._monitor_reconcile_completed_signature = signature
+            self._monitor_reconcile_completed_mono = time.monotonic()
         except Exception:
             log.exception("Agents monitor reconcile failed")
         finally:
             has_followup = bool(getattr(self, "_monitor_reconcile_pending", False))
             self._monitor_reconcile_running = False
+            self._monitor_reconcile_inflight_signature = None
             if has_followup:
                 self._monitor_reconcile_pending = False
                 self._monitor_reconcile_running = True
                 self._spawn_monitor_reconcile_task()
+
+    def _monitor_reconcile_signature(self) -> _MonitorReconcileSignature:
+        """Return a memory-only signature of monitor rows in the roster."""
+        rows = []
+        for agent in getattr(self, "_agents", ()):
+            if not getattr(agent, "is_monitor", False) and not getattr(
+                agent,
+                "monitor_id",
+                None,
+            ):
+                continue
+            rows.append(
+                (
+                    getattr(agent, "identity", None),
+                    getattr(agent, "monitor_id", None),
+                    getattr(agent, "monitor_state", None),
+                    getattr(agent, "monitor_start_status", None),
+                    getattr(agent, "monitor_stop_status", None),
+                    getattr(agent, "stop_time", None),
+                )
+            )
+        return tuple(rows)
 
     async def _run_loader_cleanup(self) -> None:
         """Run one cleanup request and coalesce any burst into one trailing pass."""

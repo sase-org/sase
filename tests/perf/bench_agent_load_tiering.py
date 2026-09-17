@@ -138,6 +138,8 @@ def test_bench_agent_load_tiering_smoke(tmp_path: Path) -> None:
     assert session["refreshes"] == 3
     assert session["full_history_reads"] == 1
     assert session["stage_timing_ms"]["ordinary_refresh"]["count"] == 3.0
+    assert session["artifact_snapshot_cache"]["hits"] >= 1
+    assert "p50_ms" in session["unchanged_refresh_ms"]
 
 
 def _argparser() -> argparse.ArgumentParser:

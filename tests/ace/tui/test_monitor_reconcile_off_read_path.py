@@ -6,6 +6,7 @@ import asyncio
 import json
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -44,8 +45,13 @@ class _ReconcileApp(AgentLoadingDiskSupportMixin):
         self._monitor_reconcile_running = False
         self._monitor_reconcile_pending = False
         self._monitor_reconcile_pending_source = "unknown"
+        self._monitor_reconcile_scheduled_signature = None
+        self._monitor_reconcile_inflight_signature = None
+        self._monitor_reconcile_completed_signature = None
+        self._monitor_reconcile_completed_mono = 0.0
         self._monitor_reconcile_async_tasks: set[asyncio.Task[None]] = set()
         self._nav_gate = _IdleNavigationGate()
+        self._agents: list[object] = []
         self.refresh_sources: list[str] = []
 
     def set_timer(self, _delay: float, _callback: object) -> None:
@@ -211,7 +217,7 @@ def test_followup_refresh_source_does_not_reschedule_reconcile() -> None:
 
 
 @pytest.mark.asyncio
-async def test_monitor_reconcile_burst_runs_one_trailing_pass() -> None:
+async def test_monitor_reconcile_burst_suppresses_unchanged_trailing_pass() -> None:
     app = _ReconcileApp()
     started = threading.Event()
     release = threading.Event()
@@ -233,6 +239,57 @@ async def test_monitor_reconcile_burst_runs_one_trailing_pass() -> None:
         await asyncio.wait_for(asyncio.to_thread(started.wait, 1.0), 1.5)
         app._schedule_monitor_reconcile(source="two")
         app._schedule_monitor_reconcile(source="three")
+        release.set()
+        await _drain_monitor_reconcile(app)
+
+    assert calls == ["pass"]
+    assert app.refresh_sources == []
+
+
+@pytest.mark.asyncio
+async def test_monitor_reconcile_changed_roster_runs_trailing_pass() -> None:
+    app = _ReconcileApp()
+    app._agents = [
+        SimpleNamespace(
+            is_monitor=True,
+            identity=("monitor", "one", None),
+            monitor_id="m1",
+            monitor_state="running",
+            monitor_start_status=None,
+            monitor_stop_status=None,
+            stop_time=None,
+        )
+    ]
+    started = threading.Event()
+    release = threading.Event()
+    calls: list[str] = []
+
+    def fake_reconcile() -> list[object]:
+        calls.append("pass")
+        if len(calls) == 1:
+            started.set()
+            release.wait(timeout=2.0)
+        return []
+
+    with patch(
+        "sase.ace.tui.actions.agents._loading_disk_support."
+        "_reconcile_dead_monitor_supervisors_for_tui",
+        side_effect=fake_reconcile,
+    ):
+        app._schedule_monitor_reconcile(source="one")
+        await asyncio.wait_for(asyncio.to_thread(started.wait, 1.0), 1.5)
+        app._agents = [
+            SimpleNamespace(
+                is_monitor=True,
+                identity=("monitor", "one", None),
+                monitor_id="m1",
+                monitor_state="lost",
+                monitor_start_status=None,
+                monitor_stop_status=None,
+                stop_time=None,
+            )
+        ]
+        app._schedule_monitor_reconcile(source="two")
         release.set()
         await _drain_monitor_reconcile(app)
 

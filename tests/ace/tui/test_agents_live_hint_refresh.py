@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import threading
 from datetime import datetime
+import time
 from typing import Any
 
 import pytest
@@ -34,6 +35,11 @@ class _FakeApp(AgentLiveHintMixin):
         self._live_hints_scan_running = False
         self._live_hints_scan_pending = False
         self._live_hints_scan_source = "unknown"
+        self._live_hints_scan_scheduled_signature = None
+        self._live_hints_scan_pending_signature = None
+        self._live_hints_inflight_signature = None
+        self._live_hints_completed_signature = None
+        self._live_hints_completed_mono = 0.0
         self._agents: list[Agent] = []
         self._agents_with_children: list[Agent] = []
         self._nav_gate = NavigationGate(window_s=0.25)
@@ -132,6 +138,7 @@ def test_schedule_noop_before_first_load() -> None:
 
 def test_schedule_queues_worker_after_first_load() -> None:
     app = _FakeApp()
+    app._agents = [_agent()]
 
     app._schedule_live_hint_refresh(source="apply")
 
@@ -142,6 +149,7 @@ def test_schedule_queues_worker_after_first_load() -> None:
 
 def test_schedule_collapses_to_one_queued_worker() -> None:
     app = _FakeApp()
+    app._agents = [_agent()]
 
     app._schedule_live_hint_refresh(source="apply")
     app._schedule_live_hint_refresh(source="auto_refresh")
@@ -152,12 +160,26 @@ def test_schedule_collapses_to_one_queued_worker() -> None:
 
 def test_schedule_marks_pending_while_running() -> None:
     app = _FakeApp()
+    app._agents = [_agent()]
     app._live_hints_scan_running = True
 
     app._schedule_live_hint_refresh(source="artifact_watcher")
 
     assert app._live_hints_scan_pending is True
     assert app._scheduled == []
+
+
+def test_schedule_skips_fresh_unchanged_candidate_signature() -> None:
+    app = _FakeApp()
+    app._agents = [_agent()]
+    signature = app._live_hint_signature(app._live_hint_candidates())
+    app._live_hints_completed_signature = signature
+    app._live_hints_completed_mono = time.monotonic()
+
+    app._schedule_live_hint_refresh(source="apply")
+
+    assert app._scheduled == []
+    assert app._live_hints_scan_scheduled is False
 
 
 # --- candidate scope ---------------------------------------------------------
@@ -444,7 +466,7 @@ async def test_run_computes_applies_and_clears_running(monkeypatch: Any) -> None
 
 
 @pytest.mark.asyncio
-async def test_run_rearms_when_pending(monkeypatch: Any) -> None:
+async def test_run_suppresses_pending_when_signature_is_fresh(monkeypatch: Any) -> None:
     app = _FakeApp()
     agent = _agent()
     app._agents = [agent]
@@ -459,9 +481,9 @@ async def test_run_rearms_when_pending(monkeypatch: Any) -> None:
 
     await app._run_live_hint_refresh()
 
-    # Trailing request consumed and a fresh worker queued.
+    # Trailing request consumed; the just-finished identical pass is fresh.
     assert app._live_hints_scan_pending is False
-    assert app._scheduled == [app._run_live_hint_refresh]
+    assert app._scheduled == []
 
 
 @pytest.mark.asyncio

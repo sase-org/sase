@@ -1,8 +1,11 @@
 """Artifact snapshot selection and path helpers for the agent loader."""
 
+from collections import OrderedDict
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import asdict, dataclass, field, replace
+import json
 from pathlib import Path
+from threading import RLock
 from typing import Literal, Protocol
 
 from sase.core.agent_artifact_paths import resolve_agent_artifact_timestamp_path
@@ -40,6 +43,23 @@ _PLAN_LIVE_FALLBACK_SCAN_OPTIONS = replace(
     max_records=_TIER1_RECENT_COMPLETED_LIMIT,
     newest_first=True,
 )
+_ARTIFACT_SNAPSHOT_CACHE_MAX_ENTRIES = 8
+
+_IndexFileStat = tuple[str, int | None, int | None]
+_IndexSignature = tuple[_IndexFileStat, _IndexFileStat]
+_ArtifactSnapshotCacheKey = tuple[str, str, str, str]
+
+
+@dataclass(frozen=True)
+class _ArtifactSnapshotCacheStats:
+    """Process-local diagnostics for the TUI artifact snapshot cache."""
+
+    hits: int = 0
+    misses: int = 0
+    stores: int = 0
+    mutation_refusals: int = 0
+    evictions: int = 0
+    bypasses: int = 0
 
 
 @dataclass(frozen=True)
@@ -111,6 +131,129 @@ class _Tier1IndexLoader(Protocol):
     ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None: ...
 
 
+class _ArtifactSnapshotCache:
+    """Small mtime/size-guarded cache for warm bounded index snapshots."""
+
+    def __init__(self, *, max_entries: int) -> None:
+        self._max_entries = max_entries
+        self._entries: OrderedDict[
+            _ArtifactSnapshotCacheKey,
+            tuple[_IndexSignature, AgentArtifactScanWire, AgentLoadState],
+        ] = OrderedDict()
+        self._stats = _ArtifactSnapshotCacheStats()
+        self._lock = RLock()
+
+    def get(
+        self,
+        key: _ArtifactSnapshotCacheKey,
+        signature: _IndexSignature,
+    ) -> tuple[AgentArtifactScanWire, AgentLoadState] | None:
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None:
+                self._stats = replace(self._stats, misses=self._stats.misses + 1)
+                return None
+            cached_signature, snapshot, state = entry
+            if cached_signature != signature:
+                del self._entries[key]
+                self._stats = replace(self._stats, misses=self._stats.misses + 1)
+                return None
+            self._entries.move_to_end(key)
+            self._stats = replace(self._stats, hits=self._stats.hits + 1)
+            return snapshot, _cache_hit_load_state(state)
+
+    def put(
+        self,
+        key: _ArtifactSnapshotCacheKey,
+        signature: _IndexSignature,
+        snapshot: AgentArtifactScanWire,
+        state: AgentLoadState,
+    ) -> None:
+        with self._lock:
+            self._entries[key] = (signature, snapshot, state)
+            self._entries.move_to_end(key)
+            stats = replace(self._stats, stores=self._stats.stores + 1)
+            while len(self._entries) > self._max_entries:
+                self._entries.popitem(last=False)
+                stats = replace(stats, evictions=stats.evictions + 1)
+            self._stats = stats
+
+    def record_mutation_refusal(self) -> None:
+        with self._lock:
+            self._stats = replace(
+                self._stats,
+                mutation_refusals=self._stats.mutation_refusals + 1,
+            )
+
+    def record_bypass(self) -> None:
+        with self._lock:
+            self._stats = replace(self._stats, bypasses=self._stats.bypasses + 1)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._entries.clear()
+            self._stats = _ArtifactSnapshotCacheStats()
+
+    def stats(self) -> _ArtifactSnapshotCacheStats:
+        with self._lock:
+            return self._stats
+
+
+_ARTIFACT_SNAPSHOT_CACHE = _ArtifactSnapshotCache(
+    max_entries=_ARTIFACT_SNAPSHOT_CACHE_MAX_ENTRIES
+)
+
+
+def _stat_index_file(path: Path) -> _IndexFileStat:
+    try:
+        stat = path.stat()
+    except OSError:
+        return (str(path), None, None)
+    return (str(path), stat.st_mtime_ns, stat.st_size)
+
+
+def _artifact_index_signature(index_path: Path) -> _IndexSignature:
+    return (
+        _stat_index_file(index_path),
+        _stat_index_file(index_path.with_name(f"{index_path.name}-wal")),
+    )
+
+
+def _json_key(value: object) -> str:
+    return json.dumps(
+        value,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
+
+
+def _artifact_snapshot_cache_key(
+    *,
+    index_path: Path,
+    projects_root: Path,
+    query: AgentArtifactIndexQueryWire,
+    options: AgentArtifactScanOptionsWire,
+) -> _ArtifactSnapshotCacheKey:
+    return (
+        str(index_path),
+        str(projects_root),
+        _json_key(asdict(query)),
+        _json_key(asdict(options)),
+    )
+
+
+def _cache_hit_load_state(state: AgentLoadState) -> AgentLoadState:
+    return replace(
+        state,
+        marker_signatures_checked=0,
+        rows_repaired=0,
+        rows_discovered=0,
+        rows_removed=0,
+        record_json_decoded=0,
+    )
+
+
 def query_artifact_index_for_loader(
     *,
     full_history: bool,
@@ -173,10 +316,28 @@ def query_artifact_index_for_loader(
         window_limit=None if full_history else requested_limit,
         candidate_filter=candidate_filter,
     )
+    root = projects_root()
+    cacheable = not full_history and query_freshness == "cached"
+    cache_key: _ArtifactSnapshotCacheKey | None = None
+    before_signature: _IndexSignature | None = None
+    if cacheable:
+        before_signature = _artifact_index_signature(index_path)
+        cache_key = _artifact_snapshot_cache_key(
+            index_path=index_path,
+            projects_root=root,
+            query=query,
+            options=_TUI_SCAN_OPTIONS,
+        )
+        cached = _ARTIFACT_SNAPSHOT_CACHE.get(cache_key, before_signature)
+        if cached is not None:
+            return cached
+    else:
+        _ARTIFACT_SNAPSHOT_CACHE.record_bypass()
+
     try:
         snapshot = query_index(
             index_path,
-            projects_root(),
+            root,
             query=query,
             options=_TUI_SCAN_OPTIONS,
         )
@@ -237,30 +398,39 @@ def query_artifact_index_for_loader(
             bool(completeness.complete_history) if full_history else False
         )
     stats = snapshot.stats
-    return (
-        snapshot,
-        AgentLoadState(
-            tier="tier2" if full_history else "tier1",
-            complete_history=complete_history,
-            complete_visible_inbox=True,
-            artifact_source="artifact_index",
-            used_artifact_index=True,
-            record_count=len(snapshot.records),
-            bounded_prefix=not full_history and index_window is not None,
-            requested_limit=(
-                None if index_window is None else index_window.requested_limit
-            ),
-            returned_count=(
-                None if index_window is None else index_window.returned_record_count
-            ),
-            has_more=False if index_window is None else index_window.has_more,
-            marker_signatures_checked=stats.marker_signatures_checked,
-            rows_repaired=stats.rows_repaired,
-            rows_discovered=stats.rows_discovered,
-            rows_removed=stats.rows_removed,
-            record_json_decoded=stats.record_json_decoded,
+    state = AgentLoadState(
+        tier="tier2" if full_history else "tier1",
+        complete_history=complete_history,
+        complete_visible_inbox=True,
+        artifact_source="artifact_index",
+        used_artifact_index=True,
+        record_count=len(snapshot.records),
+        bounded_prefix=not full_history and index_window is not None,
+        requested_limit=(
+            None if index_window is None else index_window.requested_limit
         ),
+        returned_count=(
+            None if index_window is None else index_window.returned_record_count
+        ),
+        has_more=False if index_window is None else index_window.has_more,
+        marker_signatures_checked=stats.marker_signatures_checked,
+        rows_repaired=stats.rows_repaired,
+        rows_discovered=stats.rows_discovered,
+        rows_removed=stats.rows_removed,
+        record_json_decoded=stats.record_json_decoded,
     )
+    if cache_key is not None and before_signature is not None:
+        after_signature = _artifact_index_signature(index_path)
+        if after_signature == before_signature:
+            _ARTIFACT_SNAPSHOT_CACHE.put(
+                cache_key,
+                after_signature,
+                snapshot,
+                state,
+            )
+        else:
+            _ARTIFACT_SNAPSHOT_CACHE.record_mutation_refusal()
+    return (snapshot, state)
 
 
 def artifact_snapshot_for_tui_load(

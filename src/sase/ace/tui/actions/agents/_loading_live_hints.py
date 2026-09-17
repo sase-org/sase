@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from typing import TYPE_CHECKING
 
 from sase.agent.status_buckets import agent_status_bucket
@@ -34,6 +35,8 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 log = logging.getLogger(__name__)
+_LIVE_HINT_REFRESH_FRESH_SECONDS = 5.0
+_LiveHintSignature = tuple[tuple[object, ...], ...]
 
 
 def _agent_allows_live_hint(agent: Agent) -> bool:
@@ -88,6 +91,11 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
     _live_hints_scan_running: bool
     _live_hints_scan_pending: bool
     _live_hints_scan_source: str
+    _live_hints_scan_scheduled_signature: _LiveHintSignature | None
+    _live_hints_scan_pending_signature: _LiveHintSignature | None
+    _live_hints_inflight_signature: _LiveHintSignature | None
+    _live_hints_completed_signature: _LiveHintSignature | None
+    _live_hints_completed_mono: float
 
     def _schedule_live_hint_refresh(self, *, source: str = "unknown") -> None:
         """Queue a coalesced live-hint scan once the first load has applied.
@@ -100,12 +108,30 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
         """
         if not self._agents_first_load_done:
             return
+        candidates = self._live_hint_candidates()
+        if not candidates:
+            return
+        signature = self._live_hint_signature(candidates)
+        now = time.monotonic()
+        completed_signature = getattr(self, "_live_hints_completed_signature", None)
+        completed_mono = float(getattr(self, "_live_hints_completed_mono", 0.0))
+        if (
+            signature == completed_signature
+            and now - completed_mono < _LIVE_HINT_REFRESH_FRESH_SECONDS
+        ):
+            return
         if self._live_hints_scan_running:
+            if signature == getattr(self, "_live_hints_inflight_signature", None):
+                return
             self._live_hints_scan_pending = True
+            self._live_hints_scan_pending_signature = signature
             return
         if self._live_hints_scan_scheduled:
+            self._live_hints_scan_scheduled_signature = signature
+            self._live_hints_scan_source = source
             return
         self._live_hints_scan_scheduled = True
+        self._live_hints_scan_scheduled_signature = signature
         self._live_hints_scan_source = source
         self._spawn_live_hint_refresh_task()
 
@@ -134,11 +160,16 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
             # only invoke the synchronous spawner.
             self.set_timer(delay, self._spawn_live_hint_refresh_task)  # type: ignore[attr-defined]
             return
+        if getattr(self, "_agents_loading", False):
+            self.set_timer(0.05, self._spawn_live_hint_refresh_task)  # type: ignore[attr-defined]
+            return
         self._live_hints_scan_scheduled = False
         candidates = self._live_hint_candidates()
         if not candidates:
             return
+        signature = self._live_hint_signature(candidates)
         self._live_hints_scan_running = True
+        self._live_hints_inflight_signature = signature
         try:
             with tui_trace(
                 "agents.live_hint_refresh",
@@ -148,11 +179,14 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
                 results = await asyncio.to_thread(_compute_live_hints, candidates)
             # Re-match against the current agent objects after the await; an
             # interleaved refresh may have rebuilt the list while VCS ran.
-            self._apply_live_hint_results(results)
+            if self._apply_live_hint_results(results, signature=signature):
+                self._live_hints_completed_signature = signature
+                self._live_hints_completed_mono = time.monotonic()
         except Exception:
             log.exception("Live workspace hint refresh failed")
         finally:
             self._live_hints_scan_running = False
+            self._live_hints_inflight_signature = None
             if self._live_hints_scan_pending:
                 self._live_hints_scan_pending = False
                 self._schedule_live_hint_refresh(source="live_hint_followup")
@@ -183,10 +217,35 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
             candidates.append(agent)
         return candidates
 
+    def _live_hint_signature(
+        self,
+        candidates: list[Agent],
+    ) -> _LiveHintSignature:
+        """Return a memory-only input signature for one live-hint pass."""
+        from sase.ace.tui.widgets.file_panel._diff import resolve_agent_diff_source
+
+        signature: list[tuple[object, ...]] = []
+        for agent in candidates:
+            source = resolve_agent_diff_source(agent)
+            signature.append(
+                (
+                    agent.identity,
+                    source.identity,
+                    source.status,
+                    source.workspace_dir,
+                    source.diff_path,
+                    source.project_file,
+                    source.raw_suffix,
+                )
+            )
+        return tuple(signature)
+
     def _apply_live_hint_results(
         self,
         results: dict[tuple[AgentType, str, str | None], bool | None],
-    ) -> None:
+        *,
+        signature: _LiveHintSignature | None = None,
+    ) -> bool:
         """Apply computed hints on the UI thread and patch changed rows.
 
         Matches results back to the *current* agent objects by identity (the
@@ -195,8 +254,12 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
         off the Agents tab, but the in-memory hint still feeds the next full
         render.
         """
+        if signature is not None:
+            candidates = self._live_hint_candidates()
+            if self._live_hint_signature(candidates) != signature:
+                return False
         if not results:
-            return
+            return True
         current_by_identity: dict[tuple[AgentType, str, str | None], Agent] = {}
         for agent in self._agents_with_children:
             current_by_identity.setdefault(agent.identity, agent)
@@ -213,6 +276,7 @@ class AgentLiveHintMixin(AgentLoadingStateMixin):
                 continue
             target.live_file_change_hint = hint
             self._try_patch_agent_row(target)  # type: ignore[attr-defined]
+        return True
 
 
 def _compute_live_hints(
