@@ -34,9 +34,10 @@ def wait_for_launch_approval(
     except GateError as exc:
         raise LaunchRequestError(exc.code, exc.target, str(exc)) from exc
     if result.status != "responded":
-        status: LaunchRequestStatus = (
-            "timed_out" if result.status == "timed_out" else "cancelled"
-        )
+        if result.status == "failed":
+            status: LaunchRequestStatus = "failed"
+        else:
+            status = "timed_out" if result.status == "timed_out" else "cancelled"
         return LaunchRequestOutcome(
             status=status,
             request_id=request.request_id,
@@ -45,7 +46,11 @@ def wait_for_launch_approval(
             message=(
                 "Launch approval timed out"
                 if status == "timed_out"
-                else "Launch approval cancelled"
+                else (
+                    "Launch approval execution failed"
+                    if status == "failed"
+                    else "Launch approval cancelled"
+                )
             ),
             response=result.payload,
         )
@@ -79,7 +84,8 @@ def _wait_for_terminal_gate(bundle_path: Path, poll_interval: float) -> Any:
                 response = poll_gate(bundle_path)
                 if response is not None:
                     return response
-                raise
+                deadline = None
+                continue
             return GatePollResult("timed_out", payload)
         sleep_for = poll_interval
         if deadline is not None:

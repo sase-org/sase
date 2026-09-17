@@ -379,6 +379,55 @@ def current_post_response_failure(
     return None
 
 
+def current_gate_execution_failure(
+    bundle_path: Path,
+    receipt: Mapping[str, Any] | None,
+    *,
+    response_exists: bool,
+) -> ExecutionFailureFacts | None:
+    """Return the current failure outcome visible to gate requesters.
+
+    Pre-response failures block response publication, while post-response
+    failures mean the durable response exists but host side effects or shell
+    follow-up still need recovery. ``poll_gate`` reports either kind as a
+    failed terminal observation until a later retry clears it.
+    """
+    failure = current_execution_failure(
+        bundle_path, receipt, response_exists=response_exists
+    )
+    if failure is not None:
+        return failure
+    if not response_exists:
+        return None
+    for stage in _POST_RESPONSE_STAGES:
+        failure = current_post_response_failure(bundle_path, receipt, stage=stage)
+        if failure is not None:
+            return failure
+    return None
+
+
+def current_execution_stage(
+    bundle_path: Path,
+    receipt: Mapping[str, Any] | None,
+) -> tuple[str, str]:
+    """Return ``(stage, attempt_id)`` for a lost owner failure outcome.
+
+    Owner death is recorded against the last started execution stage, defaulting
+    to the command stage when no stage marker exists yet.
+    """
+    acceptance_id = _receipt_acceptance_id(receipt)
+    for record in reversed(read_journal_records(bundle_path)):
+        if _event_acceptance_id(record) != acceptance_id:
+            continue
+        if record.get("event") == "stage_started":
+            stage = record.get("stage")
+            if isinstance(stage, str) and stage:
+                return stage, str(record.get("attempt_id") or "")
+        if record.get("event") in {"attempt_started", "attempt_resumed"}:
+            return "command", str(record.get("attempt_id") or "")
+    return "command", ""
+
+
 def executed_operations(bundle_path: Path) -> tuple[dict[str, Any], ...]:
     """Return every ``operation_ran`` record, oldest first.
 
@@ -413,7 +462,9 @@ __all__ = [
     "ExecutionFailureFacts",
     "IncompleteAttempt",
     "append_journal_event",
+    "current_execution_stage",
     "current_execution_failure",
+    "current_gate_execution_failure",
     "current_post_response_failure",
     "executed_operations",
     "incomplete_attempt",

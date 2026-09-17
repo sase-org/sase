@@ -3,12 +3,24 @@
 from __future__ import annotations
 
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
 from sase.notification_gates.durability import read_json_object
+from sase.notification_gates.failure_outcome import record_owner_lost_outcome
+from sase.notification_gates.journal import (
+    ExecutionFailureFacts,
+    current_gate_execution_failure,
+)
+from sase.gate_shell.lifecycle import (
+    DISPOSITION_ACCEPTED_FAILED,
+    DISPOSITION_ACCEPTED_OWNER_LOST,
+    classify_gate_lifecycle,
+    collect_gate_lifecycle_facts,
+)
+from sase.notification_gates.decision import read_current_receipt
 from sase.notification_gates.executor import cancel_gate
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.models import GateError
@@ -18,7 +30,7 @@ from sase.notification_gates.paths import (
     assert_owned_bundle,
 )
 
-GatePollStatus = Literal["responded", "cancelled", "timed_out"]
+GatePollStatus = Literal["responded", "cancelled", "timed_out", "failed"]
 
 
 @dataclass(frozen=True)
@@ -29,27 +41,27 @@ class GatePollResult:
     payload: dict[str, Any]
     selected_option_ids: tuple[str, ...] = ()
     feedback: str | None = None
+    failure: dict[str, Any] | None = None
 
 
 def poll_gate(bundle_path: Path) -> GatePollResult | None:
     """Return the current terminal state without waiting."""
     bundle_path = assert_owned_bundle(bundle_path)
     response_path = bundle_path / RESPONSE_FILENAME
+    receipt = read_current_receipt(bundle_path)
     if response_path.exists():
         payload = read_json_object(response_path)
-        raw_option_ids = payload.get("selected_option_ids", [])
-        selected_option_ids = (
-            tuple(raw_option_ids)
-            if isinstance(raw_option_ids, list)
-            and all(isinstance(option_id, str) for option_id in raw_option_ids)
-            else ()
+        selected_option_ids, feedback = _response_projection(payload)
+        failure = current_gate_execution_failure(
+            bundle_path, receipt, response_exists=True
         )
-        feedback = payload.get("feedback")
+        if failure is not None:
+            return _failed_result(failure, selected_option_ids, feedback)
         return GatePollResult(
             "responded",
             payload,
             selected_option_ids=selected_option_ids,
-            feedback=feedback if isinstance(feedback, str) else None,
+            feedback=feedback,
         )
     cancellation_path = bundle_path / CANCELLATION_FILENAME
     if cancellation_path.exists():
@@ -58,7 +70,81 @@ def poll_gate(bundle_path: Path) -> GatePollResult | None:
             "timed_out" if payload.get("reason") == "timeout" else "cancelled"
         )
         return GatePollResult(status, payload)
+    if receipt is not None:
+        failure = current_gate_execution_failure(
+            bundle_path, receipt, response_exists=False
+        )
+        if failure is not None:
+            return _failed_result(failure)
+        failure = _record_owner_lost_if_needed(bundle_path, receipt)
+        if failure is not None:
+            return _failed_result(failure)
     return None
+
+
+def _response_projection(
+    payload: Mapping[str, Any],
+) -> tuple[tuple[str, ...], str | None]:
+    raw_option_ids = payload.get("selected_option_ids", [])
+    selected_option_ids = (
+        tuple(raw_option_ids)
+        if isinstance(raw_option_ids, list)
+        and all(isinstance(option_id, str) for option_id in raw_option_ids)
+        else ()
+    )
+    feedback = payload.get("feedback")
+    return selected_option_ids, feedback if isinstance(feedback, str) else None
+
+
+def _record_owner_lost_if_needed(
+    bundle_path: Path, receipt: Mapping[str, Any]
+) -> ExecutionFailureFacts | None:
+    try:
+        envelope, _adapter = load_and_verify_bundle(bundle_path)
+        facts = collect_gate_lifecycle_facts(
+            bundle_path,
+            envelope,
+            now=time.time(),
+            deadline=_deadline(envelope),
+            grace_seconds=0.0,
+        )
+        disposition = classify_gate_lifecycle(facts)["disposition"]
+    except Exception:
+        return None
+    if disposition == DISPOSITION_ACCEPTED_FAILED:
+        return current_gate_execution_failure(
+            bundle_path, receipt, response_exists=False
+        )
+    if disposition != DISPOSITION_ACCEPTED_OWNER_LOST:
+        return None
+    return record_owner_lost_outcome(
+        bundle_path,
+        receipt=receipt,
+        source="gate_poller",
+    )
+
+
+def _deadline(envelope: Mapping[str, Any]) -> float | None:
+    created = envelope.get("created_at_unix")
+    timeout_seconds = envelope.get("gate_timeout_seconds")
+    if isinstance(created, (int, float)) and isinstance(timeout_seconds, (int, float)):
+        return float(created) + float(timeout_seconds)
+    return None
+
+
+def _failed_result(
+    failure: ExecutionFailureFacts,
+    selected_option_ids: tuple[str, ...] = (),
+    feedback: str | None = None,
+) -> GatePollResult:
+    payload = {"failure": failure.to_wire()}
+    return GatePollResult(
+        "failed",
+        payload,
+        selected_option_ids=selected_option_ids,
+        feedback=feedback,
+        failure=failure.to_wire(),
+    )
 
 
 def wait_for_gate(
@@ -108,7 +194,8 @@ def wait_for_gate(
                 response = poll_gate(bundle_path)
                 if response is not None:
                     return response
-                raise
+                cancelled = None
+                continue
             return GatePollResult("cancelled", payload)
         if on_poll is not None:
             on_poll()
@@ -126,7 +213,8 @@ def wait_for_gate(
                 response = poll_gate(bundle_path)
                 if response is not None:
                     return response
-                raise
+                deadline = None
+                continue
             return GatePollResult("timed_out", payload)
         sleep_for = poll_interval
         if deadline is not None:

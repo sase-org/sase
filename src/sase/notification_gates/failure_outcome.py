@@ -25,7 +25,14 @@ from uuid import uuid4
 
 from sase.notification_gates.command_runner import record_execution_error
 from sase.notification_gates.executor_inputs import scrub_submitted_secrets
-from sase.notification_gates.journal import ExecutionFailureFacts, append_journal_event
+from sase.notification_gates.failure_notifications import publish_gate_execution_failed
+from sase.notification_gates.hashing import load_and_verify_bundle
+from sase.notification_gates.journal import (
+    ExecutionFailureFacts,
+    append_journal_event,
+    current_execution_stage,
+    current_gate_execution_failure,
+)
 from sase.notification_gates.model_options import GateOption
 from sase.notification_gates.models import GateError
 
@@ -101,7 +108,7 @@ def record_failure_outcome(
         error_record=error_record,
         acceptance_id=acceptance_id,
     )
-    return ExecutionFailureFacts(
+    failure = ExecutionFailureFacts(
         outcome_id=outcome_id,
         acceptance_id=acceptance_id,
         attempt_id=attempt_id,
@@ -110,6 +117,46 @@ def record_failure_outcome(
         message=message,
         at_unix=at_unix,
         error_record=error_record,
+    )
+    _publish_failure_notification(
+        bundle_path,
+        failure,
+        source=source,
+    )
+    return failure
+
+
+def record_owner_lost_outcome(
+    bundle_path: Path,
+    *,
+    receipt: Mapping[str, Any] | None,
+    source: str,
+) -> ExecutionFailureFacts | None:
+    """Record the current accepted execution owner as lost, idempotently."""
+    response_exists = (bundle_path / "response.json").exists()
+    current = current_gate_execution_failure(
+        bundle_path,
+        receipt,
+        response_exists=response_exists,
+    )
+    if current is not None:
+        _publish_failure_notification(bundle_path, current, source=source)
+        return current
+    acceptance_id = _receipt_acceptance_id(receipt)
+    stage, attempt_id = current_execution_stage(bundle_path, receipt)
+    request_hash = str((receipt or {}).get("request_hash") or "")
+    return record_failure_outcome(
+        bundle_path,
+        acceptance_id=acceptance_id,
+        attempt_id=attempt_id,
+        stage=stage,
+        error=GateError(
+            "execution_owner_lost",
+            "execution_owner",
+            "gate execution owner appears to have stopped",
+        ),
+        source=source,
+        request_hash=request_hash,
     )
 
 
@@ -210,6 +257,31 @@ def with_follow_up_stage_tracking[T](
     return result
 
 
+def _publish_failure_notification(
+    bundle_path: Path,
+    failure: ExecutionFailureFacts,
+    *,
+    source: str,
+) -> None:
+    try:
+        envelope, _adapter = load_and_verify_bundle(bundle_path)
+    except Exception:
+        return
+    publish_gate_execution_failed(
+        bundle_path,
+        envelope,
+        failure,
+        source=source,
+    )
+
+
+def _receipt_acceptance_id(receipt: Mapping[str, Any] | None) -> str | None:
+    if receipt is None:
+        return None
+    value = receipt.get("acceptance_id")
+    return value if isinstance(value, str) else None
+
+
 def _redacted_message(
     code: str,
     error: BaseException,
@@ -228,6 +300,7 @@ def _redacted_message(
 
 __all__ = [
     "record_failure_outcome",
+    "record_owner_lost_outcome",
     "recorded_attempt_failure",
     "with_follow_up_stage_tracking",
 ]

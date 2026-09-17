@@ -55,6 +55,7 @@ _STATUS_PROJECTION = {
     "responded": "answered",
     "cancelled": "cancelled",
     "timed_out": "timeout",
+    "failed": "failed",
 }
 _ACCEPTED_DISPOSITIONS = {
     DISPOSITION_ACCEPTED_FAILED,
@@ -132,7 +133,7 @@ def _show(kind: str, request_id: str) -> dict[str, Any]:
         "shell": _shell_payload(bundle.envelope),
         "status": "pending" if poll is None else _STATUS_PROJECTION[poll.status],
     }
-    if poll is None:
+    if poll is None or poll.status == "failed":
         acceptance = _acceptance_payload(bundle.root, bundle.envelope)
         if acceptance is not None:
             payload["acceptance"] = acceptance
@@ -479,6 +480,7 @@ def _status_style(status: str) -> str:
         "answered": "bold green",
         "cancelled": "bold yellow",
         "timeout": "bold yellow",
+        "failed": "bold red",
     }[status]
 
 

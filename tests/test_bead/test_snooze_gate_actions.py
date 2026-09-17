@@ -18,6 +18,7 @@ from sase.bead.snooze_gate import (
 )
 from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
 from sase.notification_gates.executor import execute_gate_selection
+from sase.notification_gates.failure_notifications import GATE_EXECUTION_FAILED_ACTION
 from sase.notification_gates.models import GateError
 from sase.notification_gates.service import create_gate
 from sase.notifications.store import load_notifications
@@ -200,10 +201,15 @@ def test_bead_snooze_rejects_an_unparsable_duration_after_acceptance_records_err
     assert recorded["option_id"] == "snooze"
     assert "accepted forms" in recorded["stderr"]
     assert (gate.bundle_path / DECISION_RECEIPT_FILENAME).is_file()
-    [notification] = load_notifications(include_dismissed=True)
+    notifications = load_notifications(include_dismissed=True)
+    notification = next(
+        item for item in notifications if item.id == gate.notification_id
+    )
     assert notification.snooze_until is None
     assert notification.dismissed is True
-    assert load_notifications() == []
+    [failure] = load_notifications()
+    assert failure.action == GATE_EXECUTION_FAILED_ACTION
+    assert failure.action_data["request_id"] == "bead-snooze-typo"
 
 
 @pytest.mark.parametrize(

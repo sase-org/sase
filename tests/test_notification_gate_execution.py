@@ -13,6 +13,7 @@ import pytest
 
 from sase.notification_gates.durability import file_lock, request_sha256
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
+from sase.notification_gates.failure_notifications import GATE_EXECUTION_FAILED_ACTION
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.models import GateError
 from sase.notification_gates.poller import poll_gate
@@ -161,6 +162,64 @@ def test_cancel_gate_dismisses_notification(gate_home: Path) -> None:
     assert notification.id == created.notification_id
     assert notification.dismissed is True
     assert load_notifications() == []
+
+
+def test_execution_failure_polls_failed_and_dedupes_recovery_notification(
+    gate_home: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fail_sentinel = tmp_path / "fail"
+    fail_sentinel.write_text("1", encoding="utf-8")
+    monkeypatch.setenv("GATE_TEST_FAIL_SENTINEL", str(fail_sentinel))
+    command = (
+        "#!/usr/bin/env python3\n"
+        "import json, os, sys\n"
+        "json.load(sys.stdin)\n"
+        "if os.path.exists(os.environ['GATE_TEST_FAIL_SENTINEL']):\n"
+        "    sys.stderr.write('nope')\n"
+        "    raise SystemExit(7)\n"
+        "print(json.dumps({'status': 'ok'}))\n"
+    )
+    created = create_gate(gate_spec(request_id="failure-notify", command=command))
+
+    with pytest.raises(GateError) as failed:
+        execute_gate_selection(created.bundle_path, ["accept"], {})
+    assert failed.value.code == "command_failed"
+
+    first = poll_gate(created.bundle_path)
+    second = poll_gate(created.bundle_path)
+    assert first is not None
+    assert first.status == "failed"
+    assert first.failure is not None
+    assert first.failure["code"] == "command_failed"
+    assert second is not None
+    assert second.status == "failed"
+
+    failures = [
+        notification
+        for notification in load_notifications()
+        if notification.action == GATE_EXECUTION_FAILED_ACTION
+    ]
+    assert len(failures) == 1
+    failure = failures[0]
+    assert failure.action_data["request_id"] == "failure-notify"
+    assert failure.action_data["stage"] == "command"
+    assert failure.action_data["recovery_actions"] == "resume,restart,cancel"
+
+    fail_sentinel.unlink()
+    recovered = execute_gate_selection(
+        created.bundle_path, ["accept"], {}, retry="restart"
+    )
+    assert recovered.response["selected_option_ids"] == ["accept"]
+
+    rows = load_notifications(include_dismissed=True)
+    [failure_after_success] = [
+        notification
+        for notification in rows
+        if notification.action == GATE_EXECUTION_FAILED_ACTION
+    ]
+    assert failure_after_success.dismissed is True
 
 
 def test_cancel_gate_does_not_block_behind_a_running_command_response_lock(

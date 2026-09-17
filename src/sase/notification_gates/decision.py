@@ -58,6 +58,9 @@ from sase.notification_gates.execution_owner import (
 )
 from sase.notification_gates.executor_inputs import resolve_option_inputs
 from sase.notification_gates.feedback_input import apply_feedback_input
+from sase.notification_gates.failure_notifications import (
+    dismiss_gate_execution_failed,
+)
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.input_bounds import check_input_bounds
 from sase.notification_gates.journal import value_digest
@@ -199,6 +202,10 @@ def accept_gate_decision(
         if not already_accepted:
             if outcome["status"] == "superseded":
                 atomic_write_json(receipt_path, receipt, exclusive=False)
+                dismiss_gate_execution_failed(
+                    bundle_path=bundle_path,
+                    envelope=envelope,
+                )
             else:
                 try:
                     atomic_write_json(receipt_path, receipt, exclusive=True)

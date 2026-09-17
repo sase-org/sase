@@ -44,6 +44,7 @@ from sase.gate_shell.store import (
     read_gate_shell_marker,
 )
 from sase.notification_gates.executor import cancel_gate
+from sase.notification_gates.failure_outcome import record_owner_lost_outcome
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.models import GateError
 
@@ -207,6 +208,11 @@ def _reclaim_one(
     if disposition == DISPOSITION_ACCEPTED_FAILED:
         return "accepted_failed"
     if disposition == DISPOSITION_ACCEPTED_OWNER_LOST:
+        record_owner_lost_outcome(
+            bundle,
+            receipt=facts.receipt,
+            source="gate_shell_reclaim",
+        )
         return "accepted_owner_lost"
     if disposition == DISPOSITION_PENDING:
         return None

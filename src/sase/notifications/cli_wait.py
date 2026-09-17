@@ -18,11 +18,12 @@ from sase.notification_gates.paths import bundle_paths
 from sase.notification_gates.poller import GatePollResult, wait_for_gate
 from sase.notification_gates.hashing import load_and_verify_bundle
 
-_EXIT_CODES = {"answered": 0, "cancelled": 3, "timeout": 4}
+_EXIT_CODES = {"answered": 0, "cancelled": 3, "timeout": 4, "failed": 5}
 _STATUS_PROJECTION = {
     "responded": "answered",
     "cancelled": "cancelled",
     "timed_out": "timeout",
+    "failed": "failed",
 }
 
 
@@ -84,7 +85,7 @@ def _terminal_payload(
     execution journal and is reported regardless of how the gate ended.
     """
     responded = result.status == "responded"
-    return {
+    payload: dict[str, object] = {
         "status": _STATUS_PROJECTION[result.status],
         "selected_option_ids": list(result.selected_option_ids),
         "feedback": result.feedback,
@@ -98,6 +99,9 @@ def _terminal_payload(
         ),
         "operations": list(executed_operations(bundle_path)),
     }
+    if result.failure is not None:
+        payload["failure"] = result.failure
+    return payload
 
 
 def _print_human_summary(
@@ -111,6 +115,7 @@ def _print_human_summary(
         "answered": ("✓", "answered", "bold green"),
         "cancelled": ("⊘", "cancelled", "bold yellow"),
         "timeout": ("⌛", "timed out", "bold yellow"),
+        "failed": ("!", "failed", "bold red"),
     }[status]
     summary = Text()
     summary.append(symbol, style=style)
@@ -126,6 +131,15 @@ def _print_human_summary(
     if feedback is not None:
         summary.append(" · feedback ", style="dim")
         summary.append(str(feedback))
+    failure = payload.get("failure")
+    if isinstance(failure, dict):
+        code = failure.get("code")
+        stage = failure.get("stage")
+        if stage or code:
+            summary.append(" · ", style="dim")
+            summary.append(str(stage or "execution"), style="bold red")
+            if code:
+                summary.append(f": {code}", style="bold red")
 
     console = Console()
     console.print(summary, soft_wrap=True)

@@ -50,6 +50,7 @@ LaunchRequestStatus = Literal[
     "dispatch_failed",
     "cancelled",
     "timed_out",
+    "failed",
 ]
 
 

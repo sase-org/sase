@@ -45,6 +45,9 @@ from sase.notification_gates.failure_outcome import (
     recorded_attempt_failure,
 )
 from sase.notification_gates.feedback_input import apply_feedback_input
+from sase.notification_gates.failure_notifications import (
+    dismiss_gate_execution_failed,
+)
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.input_bounds import check_input_bounds
 from sase.notification_gates.journal import (
@@ -184,7 +187,15 @@ def execute_gate_selection(
                     source=source,
                 )
                 existing_response = read_json_object(response_path)
+                dismiss_gate_execution_failed(
+                    bundle_path=bundle_path,
+                    envelope=envelope,
+                )
             settle_gate_notification(envelope, existing_response, source=source)
+            dismiss_gate_execution_failed(
+                bundle_path=bundle_path,
+                envelope=envelope,
+            )
             return GateExecutionResult(
                 response=existing_response,
                 already_completed=True,
@@ -431,6 +442,10 @@ def execute_gate_selection(
             stage="side_effects",
             acceptance_id=acceptance_id,
         )
+        dismiss_gate_execution_failed(
+            bundle_path=bundle_path,
+            envelope=envelope,
+        )
         return GateExecutionResult(response=response)
 
 
@@ -669,6 +684,10 @@ def cancel_gate(
         }
         atomic_write_json(path, cancellation, exclusive=True)
         settle_gate_notification(envelope, {}, source=source, action="cancelled")
+        dismiss_gate_execution_failed(
+            bundle_path=bundle_path,
+            envelope=envelope,
+        )
         return cancellation
 
 

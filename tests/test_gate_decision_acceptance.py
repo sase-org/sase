@@ -29,8 +29,10 @@ from sase.notification_gates.decision import (
 )
 from sase.notification_gates.durability import atomic_write_json
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
+from sase.notification_gates.failure_notifications import GATE_EXECUTION_FAILED_ACTION
 from sase.notification_gates.journal import append_journal_event
 from sase.notification_gates.models import GateError
+from sase.notification_gates.poller import poll_gate
 from sase.notification_gates.service import create_gate
 from sase.notifications.store import load_notifications
 from tests._notification_gates_fixtures import custom_gate_spec, gate_spec
@@ -274,6 +276,37 @@ def test_conflicting_selection_supersedes_after_dead_process_owner(
     assert superseded is not None
     assert superseded.already_accepted is False
     assert superseded.receipt["selected_option_ids"] == ["audit"]
+
+
+def test_poll_gate_records_dead_owner_as_failed_execution(gate_home: Path) -> None:
+    result = create_gate(gate_spec(request_id="dead-owner-poll"))
+    accepted = accept_gate_decision(result.bundle_path, ["accept"], {})
+    assert accepted is not None
+
+    receipt_path = result.bundle_path / DECISION_RECEIPT_FILENAME
+    receipt = dict(accepted.receipt)
+    receipt["execution_owner"] = {
+        "kind": "process",
+        "host": socket.gethostname(),
+        "pid": 999_999_999,
+        "identity_token": "previous-boot:1",
+    }
+    atomic_write_json(receipt_path, receipt)
+
+    polled = poll_gate(result.bundle_path)
+
+    assert polled is not None
+    assert polled.status == "failed"
+    assert polled.failure is not None
+    assert polled.failure["code"] == "execution_owner_lost"
+    assert polled.failure["stage"] == "command"
+    failures = [
+        notification
+        for notification in load_notifications()
+        if notification.action == GATE_EXECUTION_FAILED_ACTION
+    ]
+    assert len(failures) == 1
+    assert failures[0].action_data["request_id"] == "dead-owner-poll"
 
 
 def test_racing_conflicting_submissions_exactly_one_wins(gate_home: Path) -> None:

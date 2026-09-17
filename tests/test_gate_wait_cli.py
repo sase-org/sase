@@ -183,6 +183,37 @@ def test_cancelled_gate_has_empty_answer_fields_but_still_reports_operations(
     assert [op["operation_id"] for op in payload["operations"]] == ["show_diff"]
 
 
+def test_failed_gate_reports_failure_payload(
+    gate_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    request_id = "wait-failed"
+    raw = _spec(request_id)
+    raw["resources"][0]["content"] = (
+        "#!/usr/bin/env python3\n"
+        "import json, sys\n"
+        "json.load(sys.stdin)\n"
+        "sys.stderr.write('boom')\n"
+        "raise SystemExit(9)\n"
+    )
+    gate = create_gate(raw)
+    with pytest.raises(GateError):
+        execute_gate_selection(
+            gate.bundle_path,
+            ["deploy"],
+            option_inputs={"deploy": {"target_env": "prod"}},
+        )
+
+    code, payload = _wait_json(gate_home, capsys, request_id)
+
+    assert code == 5
+    assert payload["status"] == "failed"
+    assert payload["input"] is None
+    assert payload["option_inputs"] == {}
+    assert payload["option_results"] == []
+    assert payload["failure"]["code"] == "command_failed"
+    assert payload["failure"]["stage"] == "command"
+
+
 def test_agent_gate_wait_refuses_shell_gate(
     gate_home: Path,
     capsys: pytest.CaptureFixture[str],
