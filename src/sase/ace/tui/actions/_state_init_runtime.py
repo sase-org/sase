@@ -234,9 +234,9 @@ def init_runtime_state(
     self._last_completed_surface_tokens = {}
     self._prompt_editor_suspended = False
     self._last_agents_load_mono = 0.0
-    # Per-STARTING-agent agent_meta.json/waiting.json (mtime_ns, size)
-    # cache used by the countdown-tick STARTING-transition poll. Each
-    # tuple slot is ``None`` when that marker was absent on the previous
-    # tick so a subsequent file appearance still triggers a refresh
-    # nudge.
-    self._starting_poll_meta_cache = {}
+    # Per-in-flight-agent marker (mtime_ns, size) cache used by the
+    # countdown-tick status-transition poll. Each tuple slot is ``None``
+    # when that marker was absent on the previous poll so a subsequent
+    # file appearance still triggers an exact refresh nudge.
+    self._inflight_poll_marker_cache = {}
+    self._inflight_poll_scheduled = False

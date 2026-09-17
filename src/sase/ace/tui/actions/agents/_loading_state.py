@@ -200,14 +200,14 @@ class AgentLoadingStateMixin:
     _dismissed_index_sync_pending_after_schema_rebuild: bool
     _dirty_agent_artifact_dirs: tuple[Path, ...]
     _dirty_agent_artifact_fallback_reason: str | None
-    # Per-STARTING-agent ``agent_meta.json`` and ``waiting.json`` (mtime_ns,
-    # size) cache used by the countdown-tick STARTING-transition poll.
-    # Each tuple slot is ``None`` when that marker was absent on the
-    # previous tick.
-    _starting_poll_meta_cache: dict[
-        tuple[AgentType, str, str | None],
-        tuple[tuple[int, int] | None, tuple[int, int] | None],
+    # Per-in-flight-agent marker (mtime_ns, size) cache used by the
+    # countdown-tick status-transition poll. Each tuple slot is ``None`` when
+    # that marker was absent on the previous poll.
+    _inflight_poll_marker_cache: dict[
+        tuple[tuple[AgentType, str, str | None], str],
+        tuple[tuple[int, int] | None, ...],
     ]
+    _inflight_poll_scheduled: bool
 
     # Navigation gate (set up in startup.py). Used to defer the post-await
     # apply/render leg of `_run_agents_async_refresh` while the user is

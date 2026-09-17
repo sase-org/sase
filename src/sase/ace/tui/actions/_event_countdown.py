@@ -40,7 +40,7 @@ class EventCountdownMixin(EventHandlersBase):
         if self.current_tab == "artifacts":
             self._update_info_panel()  # type: ignore[attr-defined]
         elif self.current_tab == "agents":
-            # The cosmetic countdown/runtime repaint and STARTING-marker poll
+            # The cosmetic countdown/runtime repaint and in-flight marker poll
             # are not urgent enough to contend with a j/k burst or prompt
             # typing. In particular, patching every live row on the one-second
             # boundary produces a periodic key-to-paint outlier on populated
