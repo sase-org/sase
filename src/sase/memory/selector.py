@@ -43,7 +43,7 @@ from sase.memory.read_log import (
     read_memory_content,
     validate_memory_read_path,
 )
-from sase.memory.render import ResolvedMemoryNote
+from sase.memory.render import ResolvedMemoryNote, ResolvedMemoryNoteLink
 from sase.memory.web import (
     MemoryStrand,
     MemoryWeb,
@@ -94,6 +94,31 @@ class _MemoryWebReadLink:
 
     target: MemoryLinkTarget
     kind: Literal["inline", "reference"]
+
+
+@dataclass(frozen=True, slots=True)
+class _ResolvedNoteLinks:
+    """Authored flat-note links split into render and reference targets."""
+
+    links: tuple[ResolvedMemoryNoteLink, ...]
+    inline_notes: tuple[ResolvedMemoryNote, ...]
+    references: tuple[MemoryLinkTarget, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class _PendingNoteStrandRoot:
+    """One flat-note inline link to a web strand awaiting section rendering."""
+
+    source_note: MemoryNote
+    target: MemoryStrandLinkTarget
+    link: MemoryLink
+
+
+@dataclass(slots=True)
+class _NoteInlineContext:
+    """Mutable cross-batch state for flat-note inline resolution."""
+
+    pending_strand_roots: list[_PendingNoteStrandRoot]
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,6 +208,11 @@ def resolve_memory_selector_batch(
 
     link_notes, scoped_webs = _discover_link_universe(project_root, resolved_home_root)
 
+    note_items = [item for item in classified if isinstance(item, _NoteSelector)]
+    requested_note_keys = _requested_note_keys(
+        note_items, project_root=project_root, home_root=resolved_home_root
+    )
+    note_inline_context = _NoteInlineContext(pending_strand_roots=[])
     notes = tuple(
         _resolve_note_selector(
             item,
@@ -191,9 +221,11 @@ def resolve_memory_selector_batch(
             project_name=project_name,
             notes=link_notes,
             scoped_webs=scoped_webs,
+            depth=depth,
+            seen_note_paths=requested_note_keys,
+            note_inline_context=note_inline_context,
         )
-        for item in classified
-        if isinstance(item, _NoteSelector)
+        for item in note_items
     )
 
     web_sections, extra_notes = _resolve_web_sections(
@@ -204,12 +236,19 @@ def resolve_memory_selector_batch(
         depth=depth,
         notes=link_notes,
         scoped_webs=scoped_webs,
+        note_inline_context=note_inline_context,
     )
     known_note_paths = {note.content.path.canonical_path for note in notes}
     notes = notes + tuple(
         note
         for note in extra_notes
         if note.content.path.canonical_path not in known_note_paths
+    )
+
+    web_sections = _apply_note_strand_roots(
+        web_sections,
+        note_inline_context.pending_strand_roots,
+        scoped_webs=scoped_webs,
     )
 
     return ResolvedMemorySelectorBatch(
@@ -257,6 +296,49 @@ def _discover_link_universe(
     return tuple(by_path.values()), scoped_webs
 
 
+def _requested_note_keys(
+    items: list[_NoteSelector],
+    *,
+    project_root: Path,
+    home_root: Path,
+) -> frozenset[str]:
+    """Return identity keys for top-level note selectors in the batch."""
+    keys: set[str] = set()
+    for item in items:
+        try:
+            validated_path = validate_memory_read_path(
+                item.path,
+                project_root=project_root,
+                home_root=home_root,
+            )
+        except MemoryReadPathError as exc:
+            raise _MemorySelectorError(_note_selector_error(item, exc)) from exc
+        keys.update(
+            _validated_note_keys(validated_path.canonical_path, validated_path.note)
+        )
+    return frozenset(keys)
+
+
+def _validated_note_keys(canonical_path: str, note: MemoryNote) -> frozenset[str]:
+    """Return equivalent path keys that identify one flat memory note."""
+    return frozenset({canonical_path, note.relative_path})
+
+
+def _note_target_keys(target: MemoryNoteLinkTarget) -> frozenset[str]:
+    """Return equivalent path keys that identify a note link target."""
+    return frozenset({target.address, target.note.relative_path})
+
+
+def _note_tree_keys(view: ResolvedMemoryNote) -> frozenset[str]:
+    """Return identity keys for every note rendered by *view*."""
+    keys: set[str] = set(
+        _validated_note_keys(view.content.path.canonical_path, view.content.path.note)
+    )
+    for inline_note in view.inline_notes:
+        keys.update(_note_tree_keys(inline_note))
+    return frozenset(keys)
+
+
 def _resolve_note_selector(
     item: _NoteSelector,
     *,
@@ -265,6 +347,9 @@ def _resolve_note_selector(
     project_name: str,
     notes: tuple[MemoryNote, ...],
     scoped_webs: tuple[ScopedMemoryWeb, ...],
+    depth: int | None,
+    seen_note_paths: frozenset[str] = frozenset(),
+    note_inline_context: _NoteInlineContext | None = None,
 ) -> ResolvedMemoryNote:
     try:
         validated_path = validate_memory_read_path(
@@ -281,18 +366,30 @@ def _resolve_note_selector(
     origin: Literal["home", "project"] = (
         "home" if content.path.content_root == resolved_home_root else "project"
     )
-    resolved_links = _resolve_note_links(
+    current_seen = set(seen_note_paths)
+    current_seen.update(
+        _validated_note_keys(content.path.canonical_path, content.path.note)
+    )
+    resolved = _resolve_note_links(
         content.body,
         source_note=content.path.note,
         notes=notes,
         scoped_webs=scoped_webs,
+        depth=depth,
+        project_root=project_root,
+        home_root=home_root,
+        project_name=project_name,
+        seen_note_paths=frozenset(current_seen),
+        note_inline_context=note_inline_context,
     )
     return ResolvedMemoryNote(
         content=content,
         children=children,
         origin=origin,
         project_name=project_name,
-        resolved_links=resolved_links,
+        resolved_links=resolved.references,
+        links=resolved.links,
+        inline_notes=resolved.inline_notes,
     )
 
 
@@ -322,17 +419,33 @@ def _resolve_note_links(
     source_note: MemoryNote,
     notes: tuple[MemoryNote, ...],
     scoped_webs: tuple[ScopedMemoryWeb, ...],
-) -> tuple[MemoryLinkTarget, ...]:
+    depth: int | None,
+    project_root: Path,
+    home_root: Path,
+    project_name: str,
+    seen_note_paths: frozenset[str],
+    note_inline_context: _NoteInlineContext | None,
+) -> _ResolvedNoteLinks:
     """Scan and resolve *source_note*'s authored links.
 
-    Flat notes have no established closure/BFS walk to feed, so every
-    resolved (or unresolved) link renders as a reference entry regardless of
-    the ``!`` prefix or the note's own ``link_rendering``.
+    ``-d 0`` prints only the requested note, so every link is classified as
+    a reference at depth zero rather than expanded.
     """
     if source_note.link_reference == "none":
-        return ()
-    resolved: list[MemoryLinkTarget] = []
-    seen: set[str] = set()
+        return _ResolvedNoteLinks(links=(), inline_notes=(), references=())
+    links: list[ResolvedMemoryNoteLink] = []
+    inline_notes: list[ResolvedMemoryNote] = []
+    references: list[MemoryLinkTarget] = []
+    seen_references: set[str] = set()
+    seen_rendered_notes = set(seen_note_paths)
+
+    def add_reference(target: MemoryLinkTarget) -> None:
+        key = _link_target_key(target)
+        if key in seen_references:
+            return
+        seen_references.add(key)
+        references.append(target)
+
     for link in scan_memory_links(body):
         target = resolve_memory_link_target(
             link.target,
@@ -342,12 +455,54 @@ def _resolve_note_links(
         )
         if target is None:
             continue
-        key = _link_target_key(target)
-        if key in seen:
+        inline = depth != 0 and (link.inline or source_note.link_rendering == "inline")
+        if inline and _always_reference_target(target):
+            inline = False
+        kind: Literal["inline", "reference"] = "inline" if inline else "reference"
+        links.append(ResolvedMemoryNoteLink(target=target, kind=kind))
+
+        if isinstance(target, MemoryNoteLinkTarget):
+            target_keys = _note_target_keys(target)
+            if target_keys & seen_rendered_notes:
+                continue
+            if inline:
+                inline_note = _resolve_extra_note(
+                    target,
+                    project_root=project_root,
+                    home_root=home_root,
+                    project_name=project_name,
+                    notes=notes,
+                    scoped_webs=scoped_webs,
+                    depth=None if depth is None else depth - 1,
+                    seen_note_paths=frozenset(seen_rendered_notes | set(target_keys)),
+                    note_inline_context=note_inline_context,
+                )
+                if inline_note is not None:
+                    inline_notes.append(inline_note)
+                    seen_rendered_notes.update(_note_tree_keys(inline_note))
+                    for reference in inline_note.resolved_links:
+                        add_reference(reference)
+                    continue
+            add_reference(target)
             continue
-        seen.add(key)
-        resolved.append(target)
-    return tuple(resolved)
+
+        if inline and isinstance(target, MemoryStrandLinkTarget):
+            if note_inline_context is not None:
+                note_inline_context.pending_strand_roots.append(
+                    _PendingNoteStrandRoot(
+                        source_note=source_note,
+                        target=target,
+                        link=link,
+                    )
+                )
+            continue
+
+        add_reference(target)
+    return _ResolvedNoteLinks(
+        links=tuple(links),
+        inline_notes=tuple(inline_notes),
+        references=tuple(references),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -424,6 +579,7 @@ def _resolve_web_sections(
     depth: int | None,
     notes: tuple[MemoryNote, ...],
     scoped_webs: tuple[ScopedMemoryWeb, ...],
+    note_inline_context: _NoteInlineContext,
 ) -> tuple[tuple[MemoryWebReadSection, ...], tuple[ResolvedMemoryNote, ...]]:
     web_items = [
         item for item in classified if isinstance(item, (_WebSelector, _StrandSelector))
@@ -553,6 +709,9 @@ def _resolve_web_sections(
             project_name=project_name,
             notes=notes,
             scoped_webs=scoped_webs,
+            depth=depth,
+            seen_note_paths=frozenset(_note_target_keys(note_target)),
+            note_inline_context=note_inline_context,
         )
         if note is None:
             continue
@@ -605,6 +764,61 @@ def _apply_cross_web_root(
     )
 
 
+def _apply_note_strand_roots(
+    sections: tuple[MemoryWebReadSection, ...],
+    roots: list[_PendingNoteStrandRoot],
+    *,
+    scoped_webs: tuple[ScopedMemoryWeb, ...],
+) -> tuple[MemoryWebReadSection, ...]:
+    """Return *sections* plus related roots from flat-note inline strand links."""
+    if not roots:
+        return sections
+    by_slug = {scoped.slug: scoped for scoped in scoped_webs}
+    merged = list(sections)
+    for root in roots:
+        _apply_note_strand_root(merged, by_slug, root)
+    return tuple(merged)
+
+
+def _apply_note_strand_root(
+    sections: list[MemoryWebReadSection],
+    by_slug: dict[str, ScopedMemoryWeb],
+    root: _PendingNoteStrandRoot,
+) -> None:
+    """Add a flat-note inline strand target as an extra related root."""
+    target = root.target
+    node = MemoryWebReadNode(
+        strand=target.strand,
+        scope=target.scope,
+        origin="related",
+        depth=_EXTRA_ROOT_DEPTH,
+        referrer=(root.source_note.relative_path, root.link.raw, "link"),
+        also_referenced_by=(),
+    )
+    for index, section in enumerate(sections):
+        if section.web.slug != target.web.slug:
+            continue
+        if any(
+            existing.strand.slug == target.strand.slug for existing in section.nodes
+        ):
+            return
+        sections[index] = replace(section, nodes=section.nodes + (node,))
+        return
+
+    scoped = by_slug.get(target.web.slug)
+    if scoped is None:
+        return
+    merged_web = replace(scoped.web, strands=scoped.strands)
+    sections.append(
+        MemoryWebReadSection(
+            web=merged_web,
+            nodes=(node,),
+            depth_limit=None,
+            truncated=False,
+        )
+    )
+
+
 def _resolve_extra_note(
     target: MemoryNoteLinkTarget,
     *,
@@ -613,6 +827,9 @@ def _resolve_extra_note(
     project_name: str,
     notes: tuple[MemoryNote, ...],
     scoped_webs: tuple[ScopedMemoryWeb, ...],
+    depth: int | None,
+    seen_note_paths: frozenset[str],
+    note_inline_context: _NoteInlineContext | None,
 ) -> ResolvedMemoryNote | None:
     """Resolve a cross-unit inline note target as its own read unit.
 
@@ -629,6 +846,9 @@ def _resolve_extra_note(
             project_name=project_name,
             notes=notes,
             scoped_webs=scoped_webs,
+            depth=depth,
+            seen_note_paths=seen_note_paths,
+            note_inline_context=note_inline_context,
         )
     except MemoryReadError:
         return None

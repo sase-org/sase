@@ -35,6 +35,14 @@ _ACCENT = SECTION_COLOR
 
 
 @dataclass(frozen=True, slots=True)
+class ResolvedMemoryNoteLink:
+    """One authored link from a flat note, classified for output."""
+
+    target: MemoryLinkTarget
+    kind: Literal["inline", "reference"]
+
+
+@dataclass(frozen=True, slots=True)
 class ResolvedMemoryNote:
     """A validated reference memory note plus the context show/read print."""
 
@@ -43,6 +51,8 @@ class ResolvedMemoryNote:
     origin: Literal["home", "project"]
     project_name: str
     resolved_links: tuple[MemoryLinkTarget, ...] = ()
+    links: tuple[ResolvedMemoryNoteLink, ...] = ()
+    inline_notes: tuple[ResolvedMemoryNote, ...] = ()
 
 
 def render_memory_note(
@@ -69,7 +79,9 @@ def render_memory_note(
 # --- shared -----------------------------------------------------------
 
 
-def _note_children(view: ResolvedMemoryNote) -> tuple[MemoryNote, ...]:
+def _note_children(
+    view: ResolvedMemoryNote, *, exclude_paths: frozenset[str] = frozenset()
+) -> tuple[MemoryNote, ...]:
     """Return *view*'s children, filtered from the discovered notes."""
     parent_keys = {
         view.content.path.canonical_path,
@@ -78,9 +90,29 @@ def _note_children(view: ResolvedMemoryNote) -> tuple[MemoryNote, ...]:
     children = (
         note
         for note in view.children
-        if note.type == "reference" and note.parent in parent_keys
+        if note.type == "reference"
+        and note.parent in parent_keys
+        and note.relative_path not in exclude_paths
     )
     return tuple(sorted(children, key=lambda note: note.relative_path))
+
+
+def _inline_note_reference_paths(view: ResolvedMemoryNote) -> frozenset[str]:
+    """Return relative paths for every note rendered inline under *view*."""
+    paths: set[str] = set()
+    for note in view.inline_notes:
+        paths.add(note.content.path.note.relative_path)
+        paths.update(_inline_note_reference_paths(note))
+    return frozenset(paths)
+
+
+def _memory_note_link_items(
+    view: ResolvedMemoryNote,
+) -> tuple[tuple[MemoryLinkTarget, Literal["inline", "reference"]], ...]:
+    """Return per-note links, preserving old reference-only defaults."""
+    if view.links:
+        return tuple((link.target, link.kind) for link in view.links)
+    return tuple((target, "reference") for target in view.resolved_links)
 
 
 # --- markdown -----------------------------------------------------------
@@ -88,9 +120,23 @@ def _note_children(view: ResolvedMemoryNote) -> tuple[MemoryNote, ...]:
 
 def _memory_note_markdown(view: ResolvedMemoryNote) -> str:
     """Render *view* as the plain Markdown ``sase memory read`` prints today."""
-    children_section = render_children_section(view.children, view.content.path.note)
+    inline_paths = _inline_note_reference_paths(view)
+    body = _memory_note_body_markdown(view)
+    children_section = render_children_section(
+        view.children,
+        view.content.path.note,
+        exclude_paths=inline_paths,
+    )
     linked_section = linked_references_markdown(view.resolved_links)
-    return append_memory_sections(view.content.body, children_section, linked_section)
+    return append_memory_sections(body, children_section, linked_section)
+
+
+def _memory_note_body_markdown(view: ResolvedMemoryNote) -> str:
+    """Return a note body plus the bodies of any inline note closure."""
+    return append_memory_sections(
+        view.content.body,
+        *(_memory_note_body_markdown(note) for note in view.inline_notes),
+    )
 
 
 def memory_note_markdown(view: ResolvedMemoryNote) -> str:
@@ -116,12 +162,23 @@ def _memory_note_json_payload(view: ResolvedMemoryNote) -> dict[str, object]:
             "body": view.content.body,
             "byte_count": view.content.byte_count,
             "frontmatter_stripped": view.content.frontmatter_stripped,
-            "links": memory_links_json(
-                [(link, "reference") for link in view.resolved_links]
-            ),
+            "links": memory_links_json(_memory_note_link_items(view)),
+            "inline_notes": [_inline_note_json(note) for note in view.inline_notes],
         },
         "children": [_child_json(child) for child in _note_children(view)],
         "linked_references": linked_references_json(view.resolved_links),
+    }
+
+
+def _inline_note_json(view: ResolvedMemoryNote) -> dict[str, object]:
+    note = view.content.path.note
+    return {
+        "path": note.relative_path,
+        "canonical_path": view.content.path.canonical_path,
+        "description": note.description,
+        "body": view.content.body,
+        "links": memory_links_json(_memory_note_link_items(view)),
+        "inline_notes": [_inline_note_json(child) for child in view.inline_notes],
     }
 
 
@@ -139,8 +196,11 @@ def _memory_note_renderable(view: ResolvedMemoryNote) -> Group:
         blocks.append(Text(note.description, style="dim"))
     blocks.append(Text(""))
     blocks.append(Markdown(view.content.body))
+    for inline_note in view.inline_notes:
+        blocks.append(Text(""))
+        blocks.append(Markdown(_memory_note_body_markdown(inline_note)))
 
-    children = _note_children(view)
+    children = _note_children(view, exclude_paths=_inline_note_reference_paths(view))
     if children:
         blocks.append(Text(""))
         blocks.append(_build_children_block(children))
@@ -153,6 +213,7 @@ def _memory_note_renderable(view: ResolvedMemoryNote) -> Group:
 
 def _build_header(view: ResolvedMemoryNote) -> RenderableType:
     note = view.content.path.note
+    inline_paths = _inline_note_reference_paths(view)
     grid = Table.grid(expand=True, padding=(0, 0, 0, 2))
     grid.add_column(ratio=1, overflow="fold")
     grid.add_column(justify="right", no_wrap=True)
@@ -163,7 +224,7 @@ def _build_header(view: ResolvedMemoryNote) -> RenderableType:
     left.append(note.relative_path, style=f"bold {PATH_COLOR}")
 
     parts = [view.origin, note.type or "reference"]
-    child_count = len(_note_children(view))
+    child_count = len(_note_children(view, exclude_paths=inline_paths))
     if child_count:
         word = "child" if child_count == 1 else "children"
         parts.append(f"{child_count} {word}")
@@ -186,6 +247,7 @@ def _build_children_block(children: tuple[MemoryNote, ...]) -> RenderableType:
 __all__ = [
     "MemoryShowFormat",
     "ResolvedMemoryNote",
+    "ResolvedMemoryNoteLink",
     "memory_note_markdown",
     "render_memory_note",
 ]

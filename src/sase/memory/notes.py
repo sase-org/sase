@@ -632,9 +632,17 @@ def render_long_memory_entries(notes: Iterable[MemoryNote]) -> str:
 def render_children_section(
     notes: Iterable[MemoryNote],
     parent: MemoryNote | str | Path,
+    *,
+    exclude_paths: Iterable[str] = (),
 ) -> str:
     """Render a ``## Children`` section for ``parent`` or return ``""``."""
-    references = _render_memory_note_references(_children_of(notes, parent))
+    excluded = set(exclude_paths)
+    children = (
+        note
+        for note in _children_of(notes, parent)
+        if note.relative_path not in excluded
+    )
+    references = _render_memory_note_references(children)
     if not references:
         return ""
     return (

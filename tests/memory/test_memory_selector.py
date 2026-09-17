@@ -431,18 +431,34 @@ def test_cross_web_inline_link_adds_extra_root_section(tmp_path: Path) -> None:
     assert node.referrer[2] == "link"
 
 
-def test_flat_note_links_are_always_collected_as_references(tmp_path: Path) -> None:
-    _write(tmp_path / "sase" / "memory" / "decisions.md", _link_descriptor())
-    _write(
-        tmp_path / "sase" / "memory" / "decisions" / "single-turn-agents.md",
-        "---\nkeyword: Agents Are Single-Turn\nsummary: Turn summary.\n---\n"
-        "A run is one turn.\n",
-    )
+def test_flat_note_inline_link_expands_note_target(tmp_path: Path) -> None:
+    _write(tmp_path / "sase" / "memory" / "child.md", _note("# Child\n"))
     _write(
         tmp_path / "sase" / "memory" / "foo.md",
-        _note(
-            body="# Body\n"
-            "See ![[decisions:single-turn-agents]] and [[does-not-exist]].\n"
+        _note(body="# Body\nSee ![[child]] and [[does-not-exist]].\n"),
+    )
+
+    batch = resolve_memory_selector_batch(
+        ["foo.md"], project_root=tmp_path, home_root=tmp_path / "home"
+    )
+
+    (note,) = batch.notes
+    (inline_note,) = note.inline_notes
+    assert inline_note.content.path.canonical_path == "child.md"
+    kinds = {link.target.raw: link.kind for link in note.links}
+    assert kinds == {"child": "inline", "does-not-exist": "reference"}
+    assert [link.kind for link in note.resolved_links] == ["unresolved"]
+
+
+def test_flat_note_link_rendering_inline_expands_plain_note_links(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "sase" / "memory" / "child.md", _note("# Child\n"))
+    _write(
+        tmp_path / "sase" / "memory" / "foo.md",
+        _note(body="# Body\nSee [[child]].\n").replace(
+            "description: A note.\n",
+            "description: A note.\nlink_rendering: inline\n",
         ),
     )
 
@@ -451,5 +467,62 @@ def test_flat_note_links_are_always_collected_as_references(tmp_path: Path) -> N
     )
 
     (note,) = batch.notes
-    kinds = {link.kind for link in note.resolved_links}
-    assert kinds == {"strand", "unresolved"}
+    assert [inline.content.path.canonical_path for inline in note.inline_notes] == [
+        "child.md"
+    ]
+    assert [(link.target.raw, link.kind) for link in note.links] == [
+        ("child", "inline")
+    ]
+    assert note.resolved_links == ()
+
+
+def test_flat_note_inline_link_to_strand_adds_related_web_section(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "sase" / "memory" / "decisions.md", _link_descriptor())
+    _write(
+        tmp_path / "sase" / "memory" / "decisions" / "single-turn-agents.md",
+        "---\nkeyword: Agents Are Single-Turn\nsummary: Turn summary.\n---\n"
+        "A run is one turn.\n",
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "foo.md",
+        _note(body="# Body\nSee ![[decisions:single-turn-agents]].\n"),
+    )
+
+    batch = resolve_memory_selector_batch(
+        ["foo.md"], project_root=tmp_path, home_root=tmp_path / "home"
+    )
+
+    (note,) = batch.notes
+    assert [(link.target.address, link.kind) for link in note.links] == [
+        ("decisions:single-turn-agents", "inline")
+    ]
+    assert note.resolved_links == ()
+    (section,) = batch.web_sections
+    assert section.web.slug == "decisions"
+    (node,) = section.nodes
+    assert node.origin == "related"
+    assert node.strand.slug == "single-turn-agents"
+
+
+def test_flat_note_inline_note_cycle_is_guarded(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "alpha.md",
+        _note("# Alpha\nSee ![[beta]].\n"),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "beta.md",
+        _note("# Beta\nSee ![[alpha]].\n"),
+    )
+
+    batch = resolve_memory_selector_batch(
+        ["alpha.md"], project_root=tmp_path, home_root=tmp_path / "home"
+    )
+
+    (alpha,) = batch.notes
+    (beta,) = alpha.inline_notes
+    assert beta.content.path.canonical_path == "beta.md"
+    assert beta.inline_notes == ()
+    assert alpha.resolved_links == ()
+    assert beta.resolved_links == ()

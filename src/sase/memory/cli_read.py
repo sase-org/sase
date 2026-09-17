@@ -10,6 +10,7 @@ from rich.console import Console
 
 from sase.agent.identity import AgentIdentity
 from sase.memory.cli_show import emit_memory_view, resolve_memory_view
+from sase.memory.render import ResolvedMemoryNote
 from sase.memory.read_log import (
     AgentIdentityError,
     MemoryReadError,
@@ -49,7 +50,7 @@ def build_memory_read_event_for_view(
 ) -> MemoryReadEvent:
     """Build the audited read event for a resolved memory selector view."""
     cwd_path = cwd or Path.cwd()
-    if view.is_single_note:
+    if view.is_single_note and not view.notes[0].inline_notes:
         return build_memory_read_event(
             view.notes[0].content,
             reason=reason,
@@ -59,12 +60,16 @@ def build_memory_read_event_for_view(
         )
 
     resolved_targets, included_targets, scope_origin = _batch_targets(view)
-    byte_count = sum(note.content.byte_count for note in view.notes) + sum(
+    byte_count = sum(
+        note.content.byte_count for note in _notes_with_inline(view)
+    ) + sum(
         len(node.strand.body.encode("utf-8"))
         for section in view.web_sections
         for node in section.nodes
     )
-    frontmatter_stripped = any(note.content.frontmatter_stripped for note in view.notes)
+    frontmatter_stripped = any(
+        note.content.frontmatter_stripped for note in _notes_with_inline(view)
+    )
     return build_memory_read_batch_event(
         kind=view.kind,
         selectors=view.selectors,
@@ -87,6 +92,11 @@ def _batch_targets(
     resolved: list[str] = [note.content.path.canonical_path for note in view.notes]
     included: list[str] = []
     scope_origin: list[tuple[str, str]] = []
+    for note in view.notes:
+        included.extend(
+            inline_note.content.path.canonical_path
+            for inline_note in _inline_notes(note)
+        )
     for section in view.web_sections:
         for node in section.nodes:
             target = f"{section.web.slug}:{node.strand.slug}"
@@ -96,6 +106,26 @@ def _batch_targets(
                 included.append(target)
             scope_origin.append((target, node.scope))
     return tuple(resolved), tuple(included), tuple(scope_origin)
+
+
+def _notes_with_inline(
+    view: ResolvedMemorySelectorBatch,
+) -> tuple[ResolvedMemoryNote, ...]:
+    """Return requested notes plus inline note descendants in render order."""
+    notes: list[ResolvedMemoryNote] = []
+    for note in view.notes:
+        notes.append(note)
+        notes.extend(_inline_notes(note))
+    return tuple(notes)
+
+
+def _inline_notes(note: ResolvedMemoryNote) -> tuple[ResolvedMemoryNote, ...]:
+    """Return inline note descendants in render order."""
+    notes: list[ResolvedMemoryNote] = []
+    for inline_note in note.inline_notes:
+        notes.append(inline_note)
+        notes.extend(_inline_notes(inline_note))
+    return tuple(notes)
 
 
 __all__ = ["build_memory_read_event_for_view", "handle_memory_read_command"]

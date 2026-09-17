@@ -242,6 +242,64 @@ def test_note_markdown_lists_unresolved_targets_last(tmp_path: Path) -> None:
     )
 
 
+def test_note_markdown_renders_inline_child_without_children_listing(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "parent.md",
+        _note("# Parent\n![[child]]\n"),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "child.md",
+        _note("# Child\n", description="A child note.").replace(
+            "parent: AGENTS.md", "parent: parent.md"
+        ),
+    )
+
+    output = memory_selector_batch_markdown(_resolve(tmp_path, ["parent.md"]))
+
+    assert "# Parent" in output
+    assert "# Child" in output
+    assert "## Children" not in output
+    assert "## Linked References" not in output
+
+
+def test_depth_zero_lists_flat_note_inline_link_as_a_reference(
+    tmp_path: Path,
+) -> None:
+    _write(tmp_path / "sase" / "memory" / "child.md", _note("# Child\n"))
+    _write(
+        tmp_path / "sase" / "memory" / "parent.md",
+        _note("# Parent\n![[child]]\n"),
+    )
+
+    output = memory_selector_batch_markdown(_resolve(tmp_path, ["parent.md"], depth=0))
+
+    assert "# Child" not in output
+    assert "### 1. `child.md`" in output
+    assert "**Child**" in output
+
+
+def test_truncated_flat_note_inline_chain_lists_leaf_as_reference(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "alpha.md",
+        _note("# Alpha\n![[beta]]\n"),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "beta.md",
+        _note("# Beta\n![[gamma]]\n"),
+    )
+    _write(tmp_path / "sase" / "memory" / "gamma.md", _note("# Gamma\n"))
+
+    output = memory_selector_batch_markdown(_resolve(tmp_path, ["alpha.md"], depth=1))
+
+    assert "# Beta" in output
+    assert "# Gamma" not in output
+    assert "### 1. `gamma.md`" in output
+
+
 def test_note_markdown_omits_section_when_there_are_no_reference_links(
     tmp_path: Path,
 ) -> None:
@@ -442,6 +500,30 @@ def test_note_json_payload_includes_links_and_linked_references(
             "target": "missing",
         },
     ]
+
+
+def test_note_json_payload_includes_inline_note_links(tmp_path: Path) -> None:
+    _write(tmp_path / "sase" / "memory" / "child.md", _note("# Child\n"))
+    _write(
+        tmp_path / "sase" / "memory" / "foo.md",
+        _note("# Body\nSee ![[child]].\n"),
+    )
+
+    payload = _json_payload(_resolve(tmp_path, ["foo.md"]))
+
+    assert payload["note"]["links"] == [
+        {
+            "address": "child.md",
+            "kind": "inline",
+            "label": "Child",
+            "resolved": True,
+            "summary": "A note.",
+            "target": "child",
+        }
+    ]
+    (inline_note,) = payload["note"]["inline_notes"]
+    assert inline_note["canonical_path"] == "child.md"
+    assert payload["linked_references"] == []
 
 
 def test_web_json_payload_includes_section_listings_and_node_links(

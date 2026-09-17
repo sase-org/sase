@@ -325,6 +325,30 @@ def test_create_round_trip_passes_init_reachability(tmp_path: Path) -> None:
     }
 
 
+def test_parented_inline_child_passes_init_reachability(tmp_path: Path) -> None:
+    seed_scope(tmp_path)
+    create_note(
+        tmp_path,
+        "hub",
+        description="Reachable hub.",
+        body="# Hub\n\n![[child]]\n",
+    )
+    (tmp_path / "AGENTS.md").write_text(
+        "@sase/memory/hub.md\n",
+        encoding="utf-8",
+    )
+    create_note(
+        tmp_path,
+        "child",
+        parent="sase/memory/hub.md",
+        description="Inline child.",
+        body="# Child\n",
+    )
+
+    assert memory_parent_blockers_for_init(tmp_path) == ()
+    assert unreferenced_memory_files_for_init(tmp_path) == ()
+
+
 def test_update_legacy_source_preserves_legacy_path(tmp_path: Path) -> None:
     write_file(tmp_path / "AGENTS.md", "# Agents\n")
     write_file(

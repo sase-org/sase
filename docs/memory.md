@@ -322,8 +322,10 @@ their body are detected and rendered:
   escape hatch for a note that discusses the syntax itself.
 - `link_rendering: reference | inline` (default `reference`) controls how a detected
   link renders: as a listing in a `## Linked References` section, or expanded inline in
-  the closure the way `glossary` mentions are today. `![[target]]` always forces that
-  one link inline regardless of the strategy; `[[target]]` defers to `link_rendering`.
+  the read output. Flat-note inline links append the target note body at the bottom of
+  the note read, while strand inline links expand through the web-section renderer the
+  way `glossary` mentions are today. `![[target]]` always forces that one link inline
+  regardless of the strategy; `[[target]]` defers to `link_rendering`.
 
 A strand's own frontmatter overrides its web descriptor's, which overrides the built-in
 default; a flat note uses its own frontmatter or the default. The legacy web-descriptor
@@ -353,8 +355,9 @@ resolved reference-rendering link, each showing the target's selector, label, an
 summary or description. A target that is always-loaded context — a `type: core` note or
 a web descriptor — is marked `(always-loaded core memory — already in your context)`
 instead of a read suggestion, because `sase memory read` refuses those targets. A target
-the same unit already prints — the requested strand itself, or one an inline link
-expanded into the section — is never listed, so a back-link between two strands rendered
-together adds no entry. The `json` format carries the same data as `linked_references`
-on the note or web-section payload, plus a per-node `links` list distinguishing `inline`
-from `reference` targets. A unit with no reference-rendering links emits no section.
+the same unit already prints — the requested note or strand itself, a flat child note
+rendered inline, or a strand an inline link expanded into the section — is never listed,
+so a back-link between rendered targets adds no entry. The `json` format carries the
+same data as `linked_references` on the note or web-section payload, plus per-note and
+per-node `links` lists distinguishing `inline` from `reference` targets. A unit with no
+reference-rendering links emits no section.

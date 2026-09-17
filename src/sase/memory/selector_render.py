@@ -93,8 +93,10 @@ def _note_json(note: ResolvedMemoryNote) -> dict[str, object]:
         "byte_count": note.content.byte_count,
         "origin": note.origin,
         "links": memory_links_json(
-            [(link, "reference") for link in note.resolved_links]
+            [(link.target, link.kind) for link in note.links]
+            or [(link, "reference") for link in note.resolved_links]
         ),
+        "inline_notes": [_note_json(inline_note) for inline_note in note.inline_notes],
         "linked_references": linked_references_json(note.resolved_links),
     }
 
