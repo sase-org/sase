@@ -84,9 +84,12 @@ Pass `--host` to run the live TUI and SVG export on an enrolled machine alias or
 SSH destination, then fetch the SVG and rasterize it locally. Enrollment only supplies a
 convenient `ssh_target`; SSH itself is full shell access and uses your normal SSH trust
 boundary, not gateway-scoped credentials. Remote screenshots show that machine's
-installed `sase` and state, not your local working tree; check the printed
-`remote_sase_version=` line when comparing results. A remote host needs `sase`, `tmux`,
-and SSH access, but it does not need the local visual rasterizer dependencies.
+installed `sase` and state, not your local working tree. The remote `sase` commands run
+through the account's noninteractive login shell so tools installed under login-profile
+paths such as `~/.local/bin` can be found without allocating a terminal. Check the
+printed `remote_sase_version=sase <version>` line when comparing results; it is read
+from `sase version --json` on the remote host. A remote host needs `sase`, `tmux`, and
+SSH access, but it does not need the local visual rasterizer dependencies.
 
 ### Clipboard Transports
 

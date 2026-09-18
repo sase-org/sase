@@ -22,11 +22,14 @@ from sase.screenshot.local import (
     ScreenshotOptions,
     render_png_from_svg_file,
 )
+from sase.version.inventory import HOST_DISTRIBUTION_NAME
 
 _REMOTE_BASE = "/tmp"
 _SSH_CONNECT_TIMEOUT_SECONDS = 5
 _SSH_OPERATION_TIMEOUT_SECONDS = 10.0
 _REMOTE_CAPTURE_TIMEOUT_OVERHEAD_SECONDS = 10.0
+_REMOTE_OUTPUT_DETAIL_LIMIT = 1200
+_VERSION_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True)
@@ -142,7 +145,7 @@ def _probe_contract(
     runner: CommandRunner,
     deadline: _Deadline,
 ) -> None:
-    completed = _run_ssh(
+    completed = _run_remote_sase(
         target,
         ["sase", "screenshot", "--contract"],
         runner=runner,
@@ -150,15 +153,39 @@ def _probe_contract(
         action="probe remote screenshot contract",
     )
     if completed.returncode != 0:
-        raise ScreenshotCaptureError(_upgrade_message(target.host))
+        raise ScreenshotCaptureError(
+            _remote_sase_failure(
+                "probe remote screenshot contract", target.host, completed
+            )
+        )
     try:
         payload = json.loads(completed.stdout)
     except json.JSONDecodeError as exc:
-        raise ScreenshotCaptureError(_upgrade_message(target.host)) from exc
-    if not isinstance(payload, Mapping) or payload.get("schema_version") != (
-        SCREENSHOT_CONTRACT_SCHEMA_VERSION
-    ):
-        raise ScreenshotCaptureError(_upgrade_message(target.host))
+        raise ScreenshotCaptureError(
+            _remote_protocol_error(
+                "remote screenshot contract",
+                target.host,
+                "expected JSON object",
+                completed,
+            )
+        ) from exc
+    if not isinstance(payload, Mapping):
+        raise ScreenshotCaptureError(
+            _remote_protocol_error(
+                "remote screenshot contract",
+                target.host,
+                "expected JSON object",
+                completed,
+            )
+        )
+    schema_version = payload.get("schema_version")
+    if schema_version != SCREENSHOT_CONTRACT_SCHEMA_VERSION:
+        raise ScreenshotCaptureError(
+            f"remote screenshot contract on {target.host!r} reported unsupported "
+            f"schema_version={schema_version!r}; expected "
+            f"{SCREENSHOT_CONTRACT_SCHEMA_VERSION}; upgrade the remote `sase` "
+            "installation"
+        )
 
 
 def _run_remote_svg_capture(
@@ -170,7 +197,7 @@ def _run_remote_svg_capture(
     deadline: _Deadline,
 ) -> _RemoteScreenshotMetadata:
     argv = _remote_screenshot_argv(remote_svg, options)
-    completed = _run_ssh(
+    completed = _run_remote_sase(
         target,
         argv,
         runner=runner,
@@ -179,10 +206,10 @@ def _run_remote_svg_capture(
         action="run remote screenshot capture",
     )
     if completed.returncode != 0:
-        detail = completed.stderr.strip() or completed.stdout.strip()
         raise ScreenshotCaptureError(
-            f"remote screenshot capture on {target.host!r} failed"
-            + (f": {detail}" if detail else "")
+            _remote_sase_failure(
+                "run remote screenshot capture", target.host, completed
+            )
         )
     return _parse_remote_metadata(completed.stdout, host=target.host)
 
@@ -280,10 +307,8 @@ def _fetch_remote_svg(
         action="fetch remote SVG",
     )
     if completed.returncode != 0:
-        detail = completed.stderr.strip() or completed.stdout.strip()
         raise ScreenshotCaptureError(
-            f"failed to fetch remote SVG from {target.host!r}"
-            + (f": {detail}" if detail else "")
+            _remote_command_failure("fetch remote SVG", target.host, completed)
         )
     return completed.stdout
 
@@ -294,25 +319,100 @@ def _remote_sase_version(
     runner: CommandRunner,
     deadline: _Deadline,
 ) -> str:
-    completed = _run_ssh(
+    completed = _run_remote_sase(
         target,
-        ["sase", "--version"],
+        ["sase", "version", "--json"],
         runner=runner,
         deadline=deadline,
-        action="read remote sase version",
+        action="query remote sase version",
     )
     if completed.returncode != 0:
-        detail = completed.stderr.strip() or completed.stdout.strip()
         raise ScreenshotCaptureError(
-            f"failed to read remote sase version from {target.host!r}"
-            + (f": {detail}" if detail else "")
+            _remote_sase_failure("query remote sase version", target.host, completed)
         )
-    version = completed.stdout.strip()
-    if not version:
+    return _parse_remote_sase_version(completed, host=target.host)
+
+
+def _parse_remote_sase_version(
+    completed: subprocess.CompletedProcess[str],
+    *,
+    host: str,
+) -> str:
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
         raise ScreenshotCaptureError(
-            f"remote sase version from {target.host!r} was empty"
+            _remote_protocol_error(
+                "remote version query",
+                host,
+                "expected JSON from `sase version --json`",
+                completed,
+            )
+        ) from exc
+
+    if not isinstance(payload, Mapping):
+        raise ScreenshotCaptureError(
+            _remote_protocol_error(
+                "remote version query",
+                host,
+                "expected JSON object from `sase version --json`",
+                completed,
+            )
         )
-    return version
+    if payload.get("schema_version") != _VERSION_SCHEMA_VERSION:
+        raise ScreenshotCaptureError(
+            _remote_protocol_error(
+                "remote version query",
+                host,
+                f"unsupported schema_version={payload.get('schema_version')!r}",
+                completed,
+            )
+        )
+    packages = payload.get("packages")
+    if not isinstance(packages, list):
+        raise ScreenshotCaptureError(
+            _remote_protocol_error(
+                "remote version query",
+                host,
+                "expected packages list",
+                completed,
+            )
+        )
+
+    for record in packages:
+        if not isinstance(record, Mapping):
+            raise ScreenshotCaptureError(
+                _remote_protocol_error(
+                    "remote version query",
+                    host,
+                    "expected each package record to be an object",
+                    completed,
+                )
+            )
+        if (
+            record.get("name") == HOST_DISTRIBUTION_NAME
+            and record.get("role") == "host"
+        ):
+            display_version = record.get("display_version")
+            if not isinstance(display_version, str) or not display_version.strip():
+                raise ScreenshotCaptureError(
+                    _remote_protocol_error(
+                        "remote version query",
+                        host,
+                        "host package has missing display_version",
+                        completed,
+                    )
+                )
+            return f"{HOST_DISTRIBUTION_NAME} {display_version.strip()}"
+
+    raise ScreenshotCaptureError(
+        _remote_protocol_error(
+            "remote version query",
+            host,
+            "missing host package named `sase`",
+            completed,
+        )
+    )
 
 
 def _cleanup_remote_svg(
@@ -341,13 +441,14 @@ def _run_ssh(
     deadline: _Deadline,
     action: str,
     operation_timeout: float | None = _SSH_OPERATION_TIMEOUT_SECONDS,
+    login_shell: bool = False,
 ) -> subprocess.CompletedProcess[str]:
     try:
         timeout = deadline.remaining
         if operation_timeout is not None:
             timeout = min(timeout, operation_timeout)
         completed = runner.run(
-            _ssh_argv(target.host, remote_argv),
+            _ssh_argv(target.host, remote_argv, login_shell=login_shell),
             capture_output=True,
             text=True,
             check=False,
@@ -368,6 +469,26 @@ def _run_ssh(
         ) from exc
 
 
+def _run_remote_sase(
+    target: RemoteSshTarget,
+    remote_argv: Sequence[str],
+    *,
+    runner: CommandRunner,
+    deadline: _Deadline,
+    action: str,
+    operation_timeout: float | None = _SSH_OPERATION_TIMEOUT_SECONDS,
+) -> subprocess.CompletedProcess[str]:
+    return _run_ssh(
+        target,
+        remote_argv,
+        runner=runner,
+        deadline=deadline,
+        action=action,
+        operation_timeout=operation_timeout,
+        login_shell=True,
+    )
+
+
 def _raise_for_ssh_transport_failure(
     completed: subprocess.CompletedProcess[str],
     *,
@@ -383,14 +504,32 @@ def _raise_for_ssh_transport_failure(
     )
 
 
-def _ssh_argv(host: str, remote_argv: Sequence[str]) -> list[str]:
+def _ssh_argv(
+    host: str,
+    remote_argv: Sequence[str],
+    *,
+    login_shell: bool = False,
+) -> list[str]:
+    command_argv = (
+        _remote_login_shell_argv(remote_argv) if login_shell else list(remote_argv)
+    )
     return [
         "ssh",
         "-o",
         f"ConnectTimeout={_SSH_CONNECT_TIMEOUT_SECONDS}",
         "--",
         host,
-        shlex.join(remote_argv),
+        shlex.join(command_argv),
+    ]
+
+
+def _remote_login_shell_argv(remote_argv: Sequence[str]) -> list[str]:
+    return [
+        "sh",
+        "-c",
+        'shell="${SHELL:-/bin/sh}"; exec "$shell" -lc "$1"',
+        "sase-login-shell",
+        "exec " + shlex.join(remote_argv),
     ]
 
 
@@ -405,8 +544,73 @@ def _output_path(output: Path | None, *, suffix: str) -> Path:
     return directory / f"sase_tui_{generate_timestamp()}{suffix}"
 
 
-def _upgrade_message(host: str) -> str:
-    return f"sase on {host!r} is missing or too old for `sase screenshot`; upgrade it"
+def _remote_sase_failure(
+    action: str,
+    host: str,
+    completed: subprocess.CompletedProcess[str],
+) -> str:
+    return _remote_command_failure(
+        action,
+        host,
+        completed,
+        hint=_missing_sase_hint(completed),
+    )
+
+
+def _remote_command_failure(
+    action: str,
+    host: str,
+    completed: subprocess.CompletedProcess[str],
+    *,
+    hint: str | None = None,
+) -> str:
+    message = f"failed to {action} on {host!r} (exit {completed.returncode})"
+    detail = _stdio_detail(completed)
+    if detail:
+        message += f": {detail}"
+    if hint:
+        message += f"; {hint}"
+    return message
+
+
+def _remote_protocol_error(
+    action: str,
+    host: str,
+    problem: str,
+    completed: subprocess.CompletedProcess[str],
+) -> str:
+    message = f"{action} on {host!r} returned malformed protocol data: {problem}"
+    detail = _stdio_detail(completed)
+    if detail:
+        message += f"; {detail}"
+    return message
+
+
+def _missing_sase_hint(completed: subprocess.CompletedProcess[str]) -> str | None:
+    output = "\n".join((completed.stderr, completed.stdout)).lower()
+    if (
+        completed.returncode == 127
+        or "command not found" in output
+        or "sase: not found" in output
+        or "exec: sase: not found" in output
+    ):
+        return "check that `sase` is installed in the remote login environment"
+    return None
+
+
+def _stdio_detail(completed: subprocess.CompletedProcess[str]) -> str:
+    parts = []
+    for label, output in (("stderr", completed.stderr), ("stdout", completed.stdout)):
+        text = output.strip()
+        if text:
+            parts.append(f"{label}: {_bounded_output(text)!r}")
+    return "; ".join(parts)
+
+
+def _bounded_output(text: str) -> str:
+    if len(text) <= _REMOTE_OUTPUT_DETAIL_LIMIT:
+        return text
+    return text[:_REMOTE_OUTPUT_DETAIL_LIMIT] + "...<truncated>"
 
 
 class _Deadline:

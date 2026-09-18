@@ -247,6 +247,7 @@ def test_parser_accepts_local_screenshot_surface() -> None:
     assert args.press == ["j"]
     assert args.settle_ms == 25
     assert args.size == (90, 30)
+    assert args.timeout == screenshot_local.DEFAULT_TIMEOUT_SECONDS
     assert args.wait_for == ["Ready"]
     assert args.tui_args == ["--", "-t", "axe"]
 
