@@ -36,12 +36,13 @@ FOREIGN_ENTRY_PATTERNS: tuple[str, ...] = (
     ".XIM-unix",
     ".font-unix",
     ".org.chromium.*",
-    # Agent-launch and ACE-profile scratch in the shared managed temp root
-    # (see also "ace-profiles", "launch-prompts", "sase_ace_prompt_*"). Live
-    # sase processes elsewhere on this host launch agents and profile the TUI
-    # while the suite runs, and they write straight into the same root the
-    # developer configured. The suite itself can no longer produce these,
-    # because get_sase_managed_tmpdir() sandboxes its root under pytest.
+    # Agent-launch, usage-probe, and ACE-profile scratch in the shared managed
+    # temp root (see also "ace-profiles", "launch-prompts",
+    # "sase_ace_prompt_*", "usage-probes"). Live sase processes elsewhere on
+    # this host launch agents, profile the TUI, and probe usage while the suite
+    # runs, and they write straight into the same root the developer
+    # configured. The suite itself can no longer produce these, because
+    # get_sase_managed_tmpdir() sandboxes its root under pytest.
     "ace-profiles",
     "ace_profile_*",
     "check.log",
@@ -66,6 +67,7 @@ FOREIGN_ENTRY_PATTERNS: tuple[str, ...] = (
     # puts a dot after its "tmp" prefix, so this cannot mask a suite leak.
     "tmp.*",
     "tmux-*",
+    "usage-probes",  # see "ace_profile_*"
 )
 
 _MAX_REPORTED_ENTRIES = 20

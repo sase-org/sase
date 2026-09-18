@@ -450,31 +450,9 @@ tests/ace/tui/widgets/test_vim_normal_key_containment.py::test_other_main_screen
 # passes in isolation; later full-run evidence was added to the existing task.
 tests/test_agent_load_tiering_production_oracle.py::test_production_machine_query_oracle_repairs_owner_after_index
 #
-# sase-126.4: exact pinned-core verification surfaced current full-run flake
-# debt from retained selection-health records while repairing the service-status
-# core pin and related compatibility fallout. Phase workers cannot file task
-# beads directly; a PROPOSED FOLLOW-UP note on sase-126.4 asks the land agent to
-# triage these promoted nodes into owner tasks or retire them after focused
-# fixes.
-tests/ace/tui/test_agents_fleet_refresh_laziness.py::test_fleet_refresh_apply_defers_behind_active_navigation
-tests/ace/tui/test_commits_pane_rendering.py::test_commits_renderer_builds_compact_single_line_rows
-tests/ace/tui/test_feature_flags_pane.py::test_confirmed_toggle_restarts_axe_and_suppresses_duplicates
-tests/ace/tui/test_visual_fixture_host_paths.py::test_visual_fixtures_embed_no_host_home_paths
-tests/completion/test_build.py::test_mutex_groups_found
-tests/fakey/test_monitor_capacity_e2e.py::test_weight_two_land_family_retains_one_claim_through_real_dispatch_and_delayed_child_bootstrap
-tests/main/test_init_skills_sources.py::test_shipped_skill_source_is_discoverable_for_all_skill_providers[sase_questions-expected_phrases11]
-tests/sdd/test_git_identity_fixture.py::test_sdd_git_identity_survives_empty_home_subprocess
-tests/shells/test_shells_substrate.py::test_shell_done_marker_writers_stamp_finished_at_through_shared_helper
-tests/test_agent_artifact_dismissed_save_audit.py::test_dismissed_agent_save_sites_are_reviewed
-tests/test_agent_artifact_dismissed_save_audit.py::test_reviewed_dismissed_agent_save_sites_sync_projection
-tests/test_agent_hold_service.py::test_rebind_agent_hold_round_trips_and_keeps_created_at
-tests/test_artifact_capture_policy.py::test_capture_config_default_and_schema
-tests/test_bead/test_claimed_status.py::test_show_explains_claim_owner
-tests/test_command_availability_scope.py::test_grouping_cycle_palette_commands_follow_grouping_capability
-tests/test_gate_cli_show.py::test_show_reports_an_accepted_failed_gate
-tests/test_gate_decision_acceptance.py::test_cancel_is_permitted_after_current_failure
-tests/test_gate_decision_acceptance.py::test_conflicting_selection_supersedes_after_current_failure
-tests/test_justfile_lint.py::test_rust_dev_install_disables_cargo_incremental_cache
-tests/test_managed_tmp_reaper.py::test_every_literal_managed_tmpdir_bucket_has_a_horizon
-tests/test_suite_gate_lease.py::test_default_automatic_range_keeps_room_for_a_peer_full_run
-tests/test_suite_gate_scoped_integration.py::test_scoped_run_takes_no_token_while_the_pool_is_exhausted
+# sase-zr.7.1.1.5: gate-contract records promoted by retained selection-health
+# evidence were already routed to the active gate epic and fixed by df0090f040
+# when failure fixtures gained nonempty attempt IDs.
+# fixed-at: 2026-09-18T02:21:29Z tests/test_gate_cli_show.py::test_show_reports_an_accepted_failed_gate
+# fixed-at: 2026-09-18T02:21:29Z tests/test_gate_decision_acceptance.py::test_cancel_is_permitted_after_current_failure
+# fixed-at: 2026-09-18T02:21:29Z tests/test_gate_decision_acceptance.py::test_conflicting_selection_supersedes_after_current_failure
