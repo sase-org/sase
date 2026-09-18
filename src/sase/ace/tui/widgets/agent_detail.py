@@ -21,6 +21,7 @@ from ..models.agent_tribe_summary import (
 )
 from ._agent_detail_panels import (
     AgentDetailPanelMixin,
+    DetailLayoutMode,
     DetailPanelMode,
 )
 from .file_panel import AgentFilePanel
@@ -64,7 +65,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the agent detail view."""
         super().__init__(**kwargs)
-        self._layout_swapped: bool = False
+        self._detail_layout_mode: DetailLayoutMode = DetailLayoutMode.SECONDARY_LARGER
         self._panel_mode: DetailPanelMode = DetailPanelMode.AUTO
         self._current_agent: Agent | None = None
         self._current_tribe_identity: TribePanelIdentity | None = None
@@ -293,8 +294,11 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         # INFO mode: only update prompt, hide both secondary panels
         if self._panel_mode == DetailPanelMode.INFO:
             file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
+            llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
             prompt_scroll = self._active_metadata_scroll()
             file_scroll.add_class("hidden")
+            llm_calls_scroll.add_class("hidden")
+            self._clear_detail_layout_classes()
             prompt_scroll.add_class("expanded")
             return
 
@@ -445,6 +449,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
         file_scroll.add_class("hidden")
         llm_calls_scroll.add_class("hidden")
+        self._clear_detail_layout_classes()
         prompt_scroll.add_class("expanded")
         self._panel_mode = DetailPanelMode.AUTO
         self._has_file_content = False
@@ -478,8 +483,8 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
         file_scroll.add_class("hidden")
         llm_calls_scroll.add_class("hidden")
+        self._clear_detail_layout_classes()
         prompt_scroll.add_class("expanded")
-        prompt_scroll.remove_class("layout-priority")
         self._has_file_content = False
         self._has_llm_calls_content = False
         prompt_scroll.border_subtitle = ""
@@ -522,7 +527,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         message.stop()
 
     def toggle_layout(self) -> None:
-        """Toggle between default (30/70) and swapped (70/30) layout."""
+        """Cycle to the next saved detail layout."""
         super().toggle_layout()
 
     def is_llm_calls_visible(self) -> bool:
@@ -618,14 +623,6 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             return None
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
         return file_panel.get_current_image_path()
-
-    def is_layout_swapped(self) -> bool:
-        """Check if the layout is currently swapped.
-
-        Returns:
-            True if prompt has priority (70/30), False if default (30/70).
-        """
-        return self._layout_swapped
 
     @property
     def attempt_view_mode(self) -> str:

@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
 from ...llm_calls import supports_slow_tool_sources
-from ...widgets._agent_detail_panels import DetailLayoutMode, DetailPanelMode
+from ...widgets._agent_detail_panels import (
+    DetailLayoutMode,
+    DetailPanelMode,
+    next_detail_layout_mode,
+)
 from ._panel_types import TabName
 
 if TYPE_CHECKING:
@@ -226,7 +230,7 @@ class AgentViewPickerMixin:
                 disabled_reason=capabilities.llm_calls_reason,
             ),
             AgentViewChoice(
-                "n",
+                "0",
                 "None",
                 "Metadata fills the detail area",
                 "view",
@@ -240,17 +244,19 @@ class AgentViewPickerMixin:
         layout_badge_kind: Literal["Current", "Saved"] = (
             "Current" if capabilities.layout_enabled else "Saved"
         )
-        larger_label = capabilities.secondary_label
+        secondary_label = capabilities.secondary_label
         if current_mode == DetailPanelMode.AUTO:
-            larger_label = "File"
+            secondary_label = "File"
         elif current_mode == DetailPanelMode.LLM_CALLS:
-            larger_label = "LLM Calls"
+            secondary_label = "LLM Calls"
+        next_layout = next_detail_layout_mode(saved_layout, direction=1)
+        previous_layout = next_detail_layout_mode(saved_layout, direction=-1)
         choices.extend(
             [
                 AgentViewChoice(
                     "1",
                     "Metadata larger",
-                    f"Metadata 70% / {capabilities.secondary_label} 30%",
+                    f"Metadata 70% / {secondary_label} 30%",
                     "layout",
                     AgentViewResult.layout_choice(DetailLayoutMode.METADATA_LARGER),
                     enabled=capabilities.layout_enabled,
@@ -262,9 +268,23 @@ class AgentViewPickerMixin:
                     disabled_reason=capabilities.layout_reason,
                 ),
                 AgentViewChoice(
+                    "=",
+                    "Equal split",
+                    f"Metadata 50% / {secondary_label} 50%",
+                    "layout",
+                    AgentViewResult.layout_choice(DetailLayoutMode.EQUAL),
+                    enabled=capabilities.layout_enabled,
+                    badge=(
+                        layout_badge_kind
+                        if saved_layout is DetailLayoutMode.EQUAL
+                        else None
+                    ),
+                    disabled_reason=capabilities.layout_reason,
+                ),
+                AgentViewChoice(
                     "2",
-                    f"{larger_label} larger",
-                    f"Metadata 30% / {capabilities.secondary_label} 70%",
+                    f"{secondary_label} larger",
+                    f"Metadata 30% / {secondary_label} 70%",
                     "layout",
                     AgentViewResult.layout_choice(DetailLayoutMode.SECONDARY_LARGER),
                     enabled=capabilities.layout_enabled,
@@ -277,13 +297,23 @@ class AgentViewPickerMixin:
                 ),
                 AgentViewChoice(
                     "p",
-                    "Swap sizes",
-                    self._agent_view_swap_subtitle(
-                        saved_layout,
-                        capabilities.secondary_label,
+                    "Next layout",
+                    self._agent_view_cycle_subtitle(
+                        saved_layout, next_layout, secondary_label
                     ),
                     "layout",
-                    AgentViewResult.swap(),
+                    AgentViewResult.cycle(1),
+                    enabled=capabilities.layout_enabled,
+                    disabled_reason=capabilities.layout_reason,
+                ),
+                AgentViewChoice(
+                    "P",
+                    "Previous layout",
+                    self._agent_view_cycle_subtitle(
+                        saved_layout, previous_layout, secondary_label
+                    ),
+                    "layout",
+                    AgentViewResult.cycle(-1),
                     enabled=capabilities.layout_enabled,
                     disabled_reason=capabilities.layout_reason,
                 ),
@@ -291,20 +321,33 @@ class AgentViewPickerMixin:
         )
         return tuple(choices)
 
-    def _agent_view_swap_subtitle(
+    def _agent_view_cycle_subtitle(
         self,
-        saved_layout: DetailLayoutMode,
+        old_layout: DetailLayoutMode,
+        new_layout: DetailLayoutMode,
         secondary_label: str,
     ) -> str:
-        if saved_layout is DetailLayoutMode.METADATA_LARGER:
-            return f"Metadata larger -> {secondary_label} larger"
-        return f"{secondary_label} larger -> Metadata larger"
+        return (
+            f"{self._agent_view_layout_name(old_layout, secondary_label)} -> "
+            f"{self._agent_view_layout_name(new_layout, secondary_label)}"
+        )
+
+    def _agent_view_layout_name(
+        self,
+        layout: DetailLayoutMode,
+        secondary_label: str,
+    ) -> str:
+        if layout is DetailLayoutMode.METADATA_LARGER:
+            return "Metadata larger"
+        if layout is DetailLayoutMode.EQUAL:
+            return "Equal split"
+        return f"{secondary_label} larger"
 
     def _agent_view_selected_key(self, mode: DetailPanelMode) -> str:
         return {
             DetailPanelMode.AUTO: "f",
             DetailPanelMode.LLM_CALLS: "t",
-            DetailPanelMode.INFO: "n",
+            DetailPanelMode.INFO: "0",
         }[mode]
 
     def _apply_agent_view_result(
@@ -337,8 +380,8 @@ class AgentViewPickerMixin:
             self._apply_agent_view_mode_result(agent_detail, capabilities, result)
         elif result.kind == "layout":
             self._apply_agent_layout_result(agent_detail, capabilities, result)
-        elif result.kind == "swap":
-            self._apply_agent_layout_swap(agent_detail, capabilities)
+        elif result.kind == "cycle":
+            self._apply_agent_layout_cycle(agent_detail, capabilities, result)
 
     def _apply_agent_view_mode_result(
         self,
@@ -400,10 +443,11 @@ class AgentViewPickerMixin:
         agent_detail.set_detail_layout(layout)
         self._refresh_agent_view_surfaces()
 
-    def _apply_agent_layout_swap(
+    def _apply_agent_layout_cycle(
         self,
         agent_detail: AgentDetail,
         capabilities: _AgentViewCapabilities,
+        result: AgentViewResult,
     ) -> None:
         if not capabilities.layout_enabled:
             self.notify(  # type: ignore[attr-defined]
@@ -411,8 +455,11 @@ class AgentViewPickerMixin:
                 severity="warning",
             )
             return
-        agent_detail.toggle_layout()
-        self._refresh_agent_view_surfaces()
+        direction = result.cycle_direction
+        if direction is None:
+            return
+        if agent_detail.cycle_detail_layout(direction=direction):
+            self._refresh_agent_view_surfaces()
 
     def _refresh_agent_view_surfaces(self) -> None:
         update_info = getattr(self, "_update_agents_info_panel", None)

@@ -1316,8 +1316,9 @@ somewhere stale.
 | `t`                 | Open the focused agent's tmux target; agents with opened linked-workspace context show a workspace chooser     |
 | `T`                 | Open tmux window in the agent's primary project workspace                                                      |
 | `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it)     |
-| `p`                 | Open Agent view picker: `f` file, `t` LLM Calls, `n` none, `1`/`2` layout sizes, `p` swap sizes                |
-| `pp`                | Swap detail layout sizes                                                                                       |
+| `p`                 | Open Agent view picker: `f` file, `t` LLM Calls, `0` metadata only, `1`/`=`/`2` layout sizes                   |
+| `pp`                | Next detail layout in the picker-local cycle                                                                   |
+| `pP`                | Previous detail layout in the picker-local cycle                                                               |
 | `z`                 | Start metadata fold mode for clan, agent node (family or single agent), or selected whole-tribe detail panels  |
 | `Z`                 | Zoom the active agent or tribe detail panel                                                                    |
 | `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                |
@@ -4825,20 +4826,24 @@ skips legacy dismissal-prefixed candidates so it anchors on a live, visible agen
 
 Press `p` on an agent row to choose the detail view without cycling through hidden
 panels. Inside the picker, `f` shows the selected file, `t` shows the LLM Calls
-timeline, and `n` shows metadata only. `1` makes metadata larger, `2` makes the file/LLM
-Calls side larger, and `p` swaps those two sizes once, so `pp` keeps the old quick
-layout-swap workflow.
+timeline, and `0` shows metadata only. `1` makes metadata larger, `=` makes metadata and
+the selected secondary panel equal height, and `2` makes the file/LLM Calls side larger.
+The picker-local `p` key moves to the next layout and `P` moves to the previous layout
+in the circular order metadata-larger -> equal -> secondary-larger -> metadata-larger.
+With the default secondary-larger split, `pp` selects metadata-larger and `pP` selects
+equal.
 
 The layout choice is session-local and independent from the view mode: switching between
-file and LLM Calls keeps the same split. Layout options are disabled when there is no
-visible secondary panel to resize, such as metadata-only view, a file view with no
-selected file content, summaries, or pinned historical attempts. Bare `[` and `]` no
-longer change the Agents detail view; their existing uses in help, zoom, and other
-surface-local panels are unchanged.
+file, LLM Calls, and metadata-only keeps the same saved split for the next visible
+secondary panel. Layout options are disabled when there is no visible secondary panel to
+resize, such as metadata-only view, a file view with no selected file content,
+summaries, or pinned historical attempts. Bare `[` and `]` no longer change the Agents
+detail view; their existing uses in help, zoom, and other surface-local panels are
+unchanged.
 
 ## Agents Tab Metadata Panel
 
-The Agents tab metadata panel (choose `n` from the Agent view picker) shows structured
+The Agents tab metadata panel (choose `0` from the Agent view picker) shows structured
 information about the selected agent:
 
 Pressing `V` on any local Agents-tab row (running or done) opens that same agent's

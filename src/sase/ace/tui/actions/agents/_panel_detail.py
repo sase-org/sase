@@ -251,12 +251,14 @@ class AgentPanelDetailMixin:
     def _zoom_target_for_detail(self, agent_detail: Any) -> Any:
         """Choose the initial zoom target from the base Agents detail state."""
         from ...modals import ZoomPanelTarget
+        from ...widgets._agent_detail_panels import DetailLayoutMode
 
         if getattr(self, "current_attempt_number", None) is not None:
             return ZoomPanelTarget.METADATA
         if agent_detail.is_info_mode():
             return ZoomPanelTarget.METADATA
-        if agent_detail.is_layout_swapped():
+        layout_mode = agent_detail.detail_layout_mode
+        if layout_mode is DetailLayoutMode.METADATA_LARGER:
             return ZoomPanelTarget.METADATA
         if agent_detail.is_llm_calls_visible():
             return ZoomPanelTarget.LLM_CALLS

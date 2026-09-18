@@ -42,7 +42,7 @@ async def test_agents_p_opens_picker_and_direct_mode_choice_applies(
         await page.pause()
         assert page.app.screen is first_screen
 
-        await page.press("n")
+        await page.press("0")
         await page.expect_no_modal()
 
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
@@ -66,7 +66,7 @@ async def test_agents_brackets_are_inert_on_agents_tab(
         assert not isinstance(page.app.screen, AgentViewModal)
 
 
-async def test_agents_pp_swaps_visible_file_layout_once(
+async def test_agents_pp_cycles_visible_file_layout_next(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -93,11 +93,126 @@ async def test_agents_pp_swaps_visible_file_layout_once(
         await page.expect_modal("AgentViewModal")
         modal = page.app.screen
         assert isinstance(modal, AgentViewModal)
-        assert not modal.query_one("#agent-view-row-5").has_class("disabled")
+        assert not modal.query_one("#agent-view-row-6").has_class("disabled")
         await page.press("p")
         await page.expect_no_modal()
 
-        assert detail.is_layout_swapped()
+        assert detail.detail_layout_mode is DetailLayoutMode.METADATA_LARGER
+
+
+async def test_agents_p_upper_p_cycles_visible_file_layout_previous(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    file_path = tmp_path / "notes.md"
+    file_path.write_text("# Notes\n\nready\n")
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[_make_agent(status="DONE", extra_files=[str(file_path)])],
+    )
+
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        await page.wait_for(
+            lambda _screen: (
+                detail.panel_mode is DetailPanelMode.AUTO
+                and detail.is_file_visible()
+                and detail._has_file_content
+            )
+        )
+        detail.set_detail_layout(DetailLayoutMode.SECONDARY_LARGER)
+
+        await page.press("p")
+        await page.expect_modal("AgentViewModal")
+        await page.press("P")
+        await page.expect_no_modal()
+
+        assert detail.detail_layout_mode is DetailLayoutMode.EQUAL
+
+
+async def test_agents_picker_direct_layout_choices_apply_all_three(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    file_path = tmp_path / "notes.md"
+    file_path.write_text("# Notes\n\nready\n")
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[_make_agent(status="DONE", extra_files=[str(file_path)])],
+    )
+
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        await page.wait_for(
+            lambda _screen: (
+                detail.panel_mode is DetailPanelMode.AUTO
+                and detail.is_file_visible()
+                and detail._has_file_content
+            )
+        )
+
+        for key, expected in (
+            ("1", DetailLayoutMode.METADATA_LARGER),
+            ("=", DetailLayoutMode.EQUAL),
+            ("2", DetailLayoutMode.SECONDARY_LARGER),
+        ):
+            await page.press("p")
+            await page.expect_modal("AgentViewModal")
+            await page.press(key)
+            await page.expect_no_modal()
+            assert detail.detail_layout_mode is expected
+
+
+async def test_agents_equal_layout_survives_view_changes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    file_path = tmp_path / "notes.md"
+    file_path.write_text("# Notes\n\nready\n")
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[_make_agent(status="DONE", extra_files=[str(file_path)])],
+    )
+
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        await page.wait_for(
+            lambda _screen: (
+                detail.panel_mode is DetailPanelMode.AUTO
+                and detail.is_file_visible()
+                and detail._has_file_content
+            )
+        )
+
+        await page.press("p")
+        await page.expect_modal("AgentViewModal")
+        await page.press("=")
+        await page.expect_no_modal()
+        assert detail.detail_layout_mode is DetailLayoutMode.EQUAL
+
+        await page.press("p")
+        await page.expect_modal("AgentViewModal")
+        await page.press("0")
+        await page.expect_no_modal()
+        assert detail.panel_mode is DetailPanelMode.INFO
+        assert detail.detail_layout_mode is DetailLayoutMode.EQUAL
+
+        await page.press("p")
+        await page.expect_modal("AgentViewModal")
+        await page.press("t")
+        await page.expect_no_modal()
+        assert detail.panel_mode is DetailPanelMode.LLM_CALLS
+        assert detail.detail_layout_mode is DetailLayoutMode.EQUAL
+
+        await page.press("p")
+        await page.expect_modal("AgentViewModal")
+        await page.press("f")
+        await page.expect_no_modal()
+        assert detail.panel_mode is DetailPanelMode.AUTO
+        assert detail.detail_layout_mode is DetailLayoutMode.EQUAL
 
 
 def test_agent_view_keymap_catalog_and_retired_overrides() -> None:

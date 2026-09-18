@@ -18,6 +18,7 @@ from sase.ace.tui.models.agent_tribe_summary import (
     AgentTribeSummarySnapshot,
     build_agent_tribe_summary_snapshot,
 )
+from sase.ace.tui.widgets._agent_detail_panels import DetailLayoutMode
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 
 
@@ -79,14 +80,14 @@ class _FakeDetail:
         info: bool = False,
         file_visible: bool = True,
         llm_calls_visible: bool = False,
-        layout_swapped: bool = False,
+        layout_mode: DetailLayoutMode = DetailLayoutMode.SECONDARY_LARGER,
         has_file: bool = True,
         has_llm_calls: bool = False,
     ) -> None:
         self._info = info
         self._file_visible = file_visible
         self._llm_calls_visible = llm_calls_visible
-        self._layout_swapped = layout_swapped
+        self._layout_mode = layout_mode
         self._has_file_content = has_file
         self._has_llm_calls_content = has_llm_calls
         self.attempt_view_mode = "current-only"
@@ -106,8 +107,9 @@ class _FakeDetail:
     def is_llm_calls_visible(self) -> bool:
         return self._llm_calls_visible
 
-    def is_layout_swapped(self) -> bool:
-        return self._layout_swapped
+    @property
+    def detail_layout_mode(self) -> DetailLayoutMode:
+        return self._layout_mode
 
     def query_one(self, selector: str, *_: Any) -> Any:
         return {

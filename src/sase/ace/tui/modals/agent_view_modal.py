@@ -22,9 +22,10 @@ AgentViewSection = Literal["view", "layout"]
 class AgentViewResult:
     """A selected detail-view operation."""
 
-    kind: Literal["mode", "layout", "swap"]
+    kind: Literal["mode", "layout", "cycle"]
     mode: DetailPanelMode | None = None
     layout: DetailLayoutMode | None = None
+    cycle_direction: Literal[-1, 1] | None = None
 
     @classmethod
     def mode_choice(cls, mode: DetailPanelMode) -> AgentViewResult:
@@ -35,8 +36,8 @@ class AgentViewResult:
         return cls("layout", layout=layout)
 
     @classmethod
-    def swap(cls) -> AgentViewResult:
-        return cls("swap")
+    def cycle(cls, direction: Literal[-1, 1]) -> AgentViewResult:
+        return cls("cycle", cycle_direction=direction)
 
 
 @dataclass(frozen=True)
@@ -59,10 +60,12 @@ class AgentViewModal(ModalScreen[AgentViewResult | None]):
     BINDINGS = [
         Binding("f", "choose('f')", "File", show=False),
         Binding("t", "choose('t')", "LLM Calls", show=False),
-        Binding("n", "choose('n')", "None", show=False),
+        Binding("0", "choose('0')", "None", show=False),
         Binding("1", "choose('1')", "Metadata Larger", show=False),
+        Binding("=", "choose('=')", "Equal Split", show=False),
         Binding("2", "choose('2')", "Secondary Larger", show=False),
-        Binding("p", "choose('p')", "Swap Sizes", show=False),
+        Binding("p", "choose('p')", "Next Layout", show=False),
+        Binding("P", "choose('P')", "Previous Layout", show=False),
         Binding("escape", "cancel", "Cancel", show=False),
         Binding("q", "cancel", "Cancel", show=False),
         Binding("enter", "select_current", "Select", show=False),
@@ -147,11 +150,21 @@ class AgentViewModal(ModalScreen[AgentViewResult | None]):
             self.action_cancel()
             return
 
-        character = event.character.lower() if event.character else ""
+        character = event.character if event.character else ""
         if character in self._key_to_index:
             event.prevent_default()
             event.stop()
             self._select_index(self._key_to_index[character])
+            return
+        folded_character = character.lower()
+        if (
+            folded_character
+            and folded_character not in {"p"}
+            and folded_character in self._key_to_index
+        ):
+            event.prevent_default()
+            event.stop()
+            self._select_index(self._key_to_index[folded_character])
             return
         if event.character and event.character.isprintable():
             event.prevent_default()
@@ -280,7 +293,7 @@ class AgentViewModal(ModalScreen[AgentViewResult | None]):
 AGENT_VIEW_MODE_CHOICES: Final[tuple[tuple[str, str, DetailPanelMode], ...]] = (
     ("f", "File", DetailPanelMode.AUTO),
     ("t", "LLM Calls", DetailPanelMode.LLM_CALLS),
-    ("n", "None", DetailPanelMode.INFO),
+    ("0", "None", DetailPanelMode.INFO),
 )
 
 

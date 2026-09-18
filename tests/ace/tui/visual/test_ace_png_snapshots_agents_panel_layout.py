@@ -3,23 +3,34 @@
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 from textual.css.scalar import Unit
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.widgets import AgentInfoPanel, AgentList
+from sase.ace.tui.widgets import AgentDetail, AgentInfoPanel, AgentList
+from sase.ace.tui.widgets._agent_detail_panels import DetailLayoutMode
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 
 pytestmark = pytest.mark.visual
+
+_VISUAL_LAYOUT_DIR = Path("/tmp/sase-ace-visual-agents")
+
+
+def _write_visual_file(path: Path, content: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    return path
 
 
 def _done_agents() -> list[Agent]:
@@ -112,6 +123,22 @@ def _overflowing_panel_agents() -> list[Agent]:
     return rows
 
 
+def _file_detail_agent(file_path: Path) -> Agent:
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-detail",
+        project_file="/workspace/sase/visual_project.sase",
+        status="DONE",
+        start_time=datetime(2026, 5, 9, 10, 30, 0),
+        stop_time=datetime(2026, 5, 9, 10, 35, 0),
+        raw_suffix="20260509-103000-detail",
+        agent_name="detail-layout",
+        llm_provider="codex",
+        model="gpt-5",
+        extra_files=[str(file_path)],
+    )
+
+
 async def test_agents_overflowing_panel_uses_full_height_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -174,4 +201,88 @@ async def test_agents_unread_highlight_png_snapshot(
             page,
             "agents_unread_highlight_120x40",
             title="ACE agents unread highlight",
+        )
+
+
+async def test_agents_view_picker_three_layouts_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    file_path = _write_visual_file(
+        _VISUAL_LAYOUT_DIR / "view-picker-layout-notes.md",
+        "# Layout notes\n\nThe secondary pane has content.\n",
+    )
+    patch_startup_loaders(monkeypatch, agents=[_file_detail_agent(file_path)])
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        await wait_for_state(
+            page,
+            lambda: detail.is_file_visible() and detail._has_file_content,
+            description="file detail visible",
+        )
+
+        await page.press("p")
+        await wait_for_svg_contains(page, "Equal split")
+        await wait_for_svg_contains(page, "Previous layout")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_view_picker_three_layouts_120x40",
+            title="ACE agents view picker three layouts",
+        )
+
+
+async def test_agents_equal_file_layout_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    file_path = _write_visual_file(
+        _VISUAL_LAYOUT_DIR / "equal-layout-notes.md",
+        "# Layout notes\n\n"
+        "- Metadata should keep its own half.\n"
+        "- File content should keep the other half.\n"
+        "- Neither panel should dominate the frame.\n",
+    )
+    patch_startup_loaders(monkeypatch, agents=[_file_detail_agent(file_path)])
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        await wait_for_state(
+            page,
+            lambda: detail.is_file_visible() and detail._has_file_content,
+            description="file detail visible",
+        )
+
+        await page.press("p")
+        await wait_for_svg_contains(page, "Equal split")
+        await page.press("=")
+        await wait_for_state(
+            page,
+            lambda: detail.detail_layout_mode is DetailLayoutMode.EQUAL,
+            description="equal detail layout",
+        )
+        await wait_for_state(
+            page,
+            lambda: (
+                detail.query_one("#agent-prompt-scroll").region.height
+                == detail.query_one("#agent-file-scroll").region.height
+            ),
+            description="equal visible scroll heights",
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_equal_file_layout_120x40",
+            title="ACE agents equal file layout",
         )

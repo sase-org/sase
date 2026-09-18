@@ -45,6 +45,7 @@ _LLM_CALLS_FOOTER_RE = re.compile(
     r'<text[^>]*clip-path="url\(#terminal-\d+-line-35\)">'
     r"[●○]&#160;llm&#160;calls</text>"
 )
+_VISUAL_SLOW_TOOLS_DIR = Path("/tmp/sase-ace-visual-slow-tools")
 
 
 class _FixedDateTime(datetime):
@@ -155,7 +156,7 @@ def _populate_slow_tool_calls(artifacts_dir: Path) -> None:
         }
     )
 
-    artifacts_dir.mkdir(parents=True)
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
     (artifacts_dir / "tool_calls.jsonl").write_text(
         "".join(f"{json.dumps(record, sort_keys=True)}\n" for record in records),
         encoding="utf-8",
@@ -253,6 +254,13 @@ def _metadata_viewport_top_section(
     return panel.resolve_section_at_row(document_row, width=panel.size.width)
 
 
+async def _settle_slow_tool_snapshot(page: AcePage, panel: AgentPromptPanel) -> None:
+    scroll = page.query_one_widget("#agent-prompt-scroll", VerticalScroll)
+    scroll.show_vertical_scrollbar = False
+    assert await _slow_tool_section_top_aligned(page, panel)
+    await wait_for_visual_idle(page, timeout=_SLOW_TOOLS_VISUAL_IDLE_TIMEOUT)
+
+
 def _slow_tool_section_ready(panel: AgentPromptPanel) -> bool:
     return panel.active_section_identity == "slow-tool-calls"
 
@@ -268,7 +276,6 @@ def _rendered_llm_calls_footer(page: AcePage) -> bool:
 async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
-    tmp_path: Path,
 ) -> None:
     monkeypatch.setattr(_agent_display_header, "DateTime", _FixedDateTime)
     monkeypatch.setattr(
@@ -278,7 +285,7 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
     )
     pin_agents_visual_now(monkeypatch, _NOW.replace(tzinfo=None))
     tools_cache_module.tools_cache.clear()
-    artifacts_dir = tmp_path / "visual-slow-tools"
+    artifacts_dir = _VISUAL_SLOW_TOOLS_DIR
     _populate_slow_tool_calls(artifacts_dir)
     agent = _slow_tool_agent(artifacts_dir)
     # This snapshot covers fold rendering, not asynchronous artifact discovery.
@@ -305,7 +312,9 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
             ),
             description="slow-tool detail-header summary",
         )
-        await page.press("p", "n")
+        await page.press("p")
+        await wait_for_svg_contains(page, "Agent view")
+        await page.press("0")
         await wait_for_svg_contains(page, "SLOW TOOL CALLS")
         await _focus_slow_tool_section(page)
         await wait_for_state(
@@ -318,7 +327,7 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
             lambda: _rendered_llm_calls_footer(page),
             description="llm calls footer",
         )
-        await wait_for_visual_idle(page, timeout=_SLOW_TOOLS_VISUAL_IDLE_TIMEOUT)
+        await _settle_slow_tool_snapshot(page, panel)
 
         assert page.app.panel_fold_level is FoldLevel.COLLAPSED
         ace_png_visual.assert_page_png(
@@ -335,8 +344,7 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
             lambda: _slow_tool_section_ready(panel),
             description="expanded slow-tool section",
         )
-        await wait_for_visual_idle(page)
-        assert await _slow_tool_section_top_aligned(page, panel)
+        await _settle_slow_tool_snapshot(page, panel)
         ace_png_visual.assert_page_png(
             page,
             "agents_slow_tool_calls_level_2_120x40",

@@ -3999,6 +3999,13 @@ HintInputBar #hint-escape-hint {
     height: 3fr;
 }
 
+#agent-prompt-scroll.layout-equal,
+#agent-search-scroll.layout-equal,
+#agent-file-scroll.layout-equal,
+#agent-llm-calls-scroll.layout-equal {
+    height: 1fr;
+}
+
 #agent-llm-calls-scroll {
     height: 7fr;
     border: solid #87D7FF;

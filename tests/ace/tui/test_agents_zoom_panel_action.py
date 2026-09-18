@@ -9,6 +9,7 @@ from sase.ace.tui.app import AceApp
 from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelTarget
+from sase.ace.tui.widgets._agent_detail_panels import DetailLayoutMode
 from sase.ace.tui.widgets.llm_calls_panel import ToolDetailLevel
 
 from tests.ace.tui._agents_zoom_panel_helpers import (
@@ -34,10 +35,22 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
         ),
         (
             _FakeDetail(
-                layout_swapped=True, llm_calls_visible=True, has_llm_calls=True
+                layout_mode=DetailLayoutMode.METADATA_LARGER,
+                llm_calls_visible=True,
+                has_llm_calls=True,
             ),
             None,
             ZoomPanelTarget.METADATA,
+        ),
+        (
+            _FakeDetail(
+                layout_mode=DetailLayoutMode.EQUAL,
+                llm_calls_visible=True,
+                file_visible=False,
+                has_llm_calls=True,
+            ),
+            None,
+            ZoomPanelTarget.LLM_CALLS,
         ),
         (_FakeDetail(info=True, file_visible=False), None, ZoomPanelTarget.METADATA),
         (_FakeDetail(file_visible=True), 2, ZoomPanelTarget.METADATA),

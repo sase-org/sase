@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import Enum
+from typing import Final
 
 from rich.text import Text
 from textual.containers import VerticalScroll
@@ -28,10 +29,18 @@ class DetailPanelMode(Enum):
 
 
 class DetailLayoutMode(Enum):
-    """Existing vertical detail-layout proportions."""
+    """Saved vertical detail-layout proportions."""
 
-    SECONDARY_LARGER = "secondary_larger"  # Metadata 30% / File/LLM Calls 70%
     METADATA_LARGER = "metadata_larger"  # Metadata 70% / File/LLM Calls 30%
+    EQUAL = "equal"  # Metadata 50% / File/LLM Calls 50%
+    SECONDARY_LARGER = "secondary_larger"  # Metadata 30% / File/LLM Calls 70%
+
+
+DETAIL_LAYOUT_CYCLE: Final[tuple[DetailLayoutMode, ...]] = (
+    DetailLayoutMode.METADATA_LARGER,
+    DetailLayoutMode.EQUAL,
+    DetailLayoutMode.SECONDARY_LARGER,
+)
 
 
 _MODE_LABELS: dict[DetailPanelMode, str] = {
@@ -39,6 +48,14 @@ _MODE_LABELS: dict[DetailPanelMode, str] = {
     DetailPanelMode.LLM_CALLS: "llm calls",
     DetailPanelMode.INFO: "none",
 }
+
+
+def next_detail_layout_mode(
+    layout: DetailLayoutMode, *, direction: int = 1
+) -> DetailLayoutMode:
+    """Return the next saved detail layout in the canonical circular order."""
+    index = DETAIL_LAYOUT_CYCLE.index(layout)
+    return DETAIL_LAYOUT_CYCLE[(index + direction) % len(DETAIL_LAYOUT_CYCLE)]
 
 
 class AgentDetailPanelMixin(Static):
@@ -59,7 +76,7 @@ class AgentDetailPanelMixin(Static):
     _has_file_content: bool
     _has_llm_calls_content: bool
     _current_agent: Agent | None
-    _layout_swapped: bool
+    _detail_layout_mode: DetailLayoutMode
     _file_count: int
     _file_index: int
     _file_visible_lines: int
@@ -80,10 +97,8 @@ class AgentDetailPanelMixin(Static):
         prompt_scroll = self._active_metadata_scroll()
         file_scroll.add_class("hidden")
         llm_calls_scroll.add_class("hidden")
-        file_scroll.remove_class("layout-secondary")
-        llm_calls_scroll.remove_class("layout-secondary")
+        self._clear_detail_layout_classes()
         prompt_scroll.add_class("expanded")
-        prompt_scroll.remove_class("layout-priority")
 
     @property
     def panel_mode_label(self) -> str:
@@ -102,9 +117,7 @@ class AgentDetailPanelMixin(Static):
     @property
     def detail_layout_mode(self) -> DetailLayoutMode:
         """Return the saved detail layout preference."""
-        if self._layout_swapped:
-            return DetailLayoutMode.METADATA_LARGER
-        return DetailLayoutMode.SECONDARY_LARGER
+        return self._detail_layout_mode
 
     def set_detail_layout(self, layout: DetailLayoutMode) -> bool:
         """Set the saved layout and apply it to the visible secondary panel.
@@ -112,29 +125,41 @@ class AgentDetailPanelMixin(Static):
         Returns True when the saved preference changed.
         """
         old = self.detail_layout_mode
-        self._layout_swapped = layout is DetailLayoutMode.METADATA_LARGER
+        self._detail_layout_mode = layout
         self._apply_detail_layout_classes()
         return old is not layout
 
-    def toggle_layout(self) -> None:
-        """Toggle between default (30/70) and swapped (70/30) layout."""
-        target = (
-            DetailLayoutMode.SECONDARY_LARGER
-            if self._layout_swapped
-            else DetailLayoutMode.METADATA_LARGER
+    def cycle_detail_layout(self, *, direction: int = 1) -> bool:
+        """Cycle the saved layout in the canonical order."""
+        return self.set_detail_layout(
+            next_detail_layout_mode(self._detail_layout_mode, direction=direction)
         )
-        self.set_detail_layout(target)
+
+    def toggle_layout(self) -> None:
+        """Retained compatibility alias for cycling to the next layout."""
+        self.cycle_detail_layout(direction=1)
+
+    def _clear_detail_layout_classes(self) -> None:
+        """Remove all saved-layout sizing classes from detail scroll containers."""
+        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        search_scroll = self.query_one("#agent-search-scroll", VerticalScroll)
+        file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
+        llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
+        for metadata_scroll in (prompt_scroll, search_scroll):
+            metadata_scroll.remove_class("layout-priority")
+            metadata_scroll.remove_class("layout-equal")
+        for secondary_scroll in (file_scroll, llm_calls_scroll):
+            secondary_scroll.remove_class("layout-secondary")
+            secondary_scroll.remove_class("layout-equal")
 
     def _apply_detail_layout_classes(self) -> None:
         """Apply the saved layout to the currently visible secondary panel."""
         prompt_scroll = self._active_metadata_scroll()
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
-        file_scroll.remove_class("layout-secondary")
-        llm_calls_scroll.remove_class("layout-secondary")
+        self._clear_detail_layout_classes()
 
         if self._panel_mode == DetailPanelMode.INFO:
-            prompt_scroll.remove_class("layout-priority")
             return
 
         secondary_scroll = None
@@ -149,14 +174,15 @@ class AgentDetailPanelMixin(Static):
             secondary_scroll = file_scroll
 
         if secondary_scroll is None:
-            prompt_scroll.remove_class("layout-priority")
             return
 
-        if self._layout_swapped:
+        prompt_scroll.remove_class("expanded")
+        if self._detail_layout_mode is DetailLayoutMode.METADATA_LARGER:
             prompt_scroll.add_class("layout-priority")
             secondary_scroll.add_class("layout-secondary")
-        else:
-            prompt_scroll.remove_class("layout-priority")
+        elif self._detail_layout_mode is DetailLayoutMode.EQUAL:
+            prompt_scroll.add_class("layout-equal")
+            secondary_scroll.add_class("layout-equal")
 
     def set_panel_mode(
         self,
@@ -196,7 +222,6 @@ class AgentDetailPanelMixin(Static):
         if mode == DetailPanelMode.LLM_CALLS:
             # Show LLM Calls, hide file.
             file_scroll.add_class("hidden")
-            file_scroll.remove_class("layout-secondary")
             llm_calls_scroll.remove_class("hidden")
             prompt_scroll.remove_class("expanded")
 
@@ -208,10 +233,8 @@ class AgentDetailPanelMixin(Static):
             # Hide both secondary panels, prompt at 100%
             file_scroll.add_class("hidden")
             llm_calls_scroll.add_class("hidden")
-            file_scroll.remove_class("layout-secondary")
-            llm_calls_scroll.remove_class("layout-secondary")
+            self._clear_detail_layout_classes()
             prompt_scroll.add_class("expanded")
-            prompt_scroll.remove_class("layout-priority")
 
             self._panel_mode = DetailPanelMode.INFO
 
@@ -220,7 +243,6 @@ class AgentDetailPanelMixin(Static):
             self._panel_mode = DetailPanelMode.AUTO
             prompt_scroll.remove_class("expanded")
             llm_calls_scroll.add_class("hidden")
-            llm_calls_scroll.remove_class("layout-secondary")
             file_scroll.remove_class("hidden")
             self._apply_detail_layout_classes()
             # Invalidate file_panel state so the next dispatch skips the
