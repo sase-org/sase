@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from sase.gate_shell.state import gate_member_status_bucket, gate_state_is_terminal
 from sase.gate_shell.status import gate_status_pair
 
@@ -119,6 +121,23 @@ def apply_gate_meta(
         return
     agent.status = pair.stop if gate_state_is_terminal(state) else pair.start
     agent.status_bucket = gate_member_status_bucket(state, agent.status)
+    _apply_sudo_execution_projection(agent)
+
+
+def _apply_sudo_execution_projection(agent: Agent) -> None:
+    """Project live detached sudo execution state onto one gate row."""
+    if agent.gate_kind != "sudo" or not agent.gate_bundle_path:
+        return
+    try:
+        from sase.sudo.execution import project_execution
+
+        projection = project_execution(Path(agent.gate_bundle_path))
+    except Exception:
+        return
+    agent.gate_execution_active = projection.executing
+    agent.gate_finalize_proc_id = projection.finalize_proc_id
+    if projection.executing and agent.stop_time is None:
+        agent.status_bucket = "Running"
 
 
 def apply_gate_done(

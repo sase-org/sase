@@ -187,6 +187,10 @@ def _gate_field_parts(
     text.append(_field_label("State:"), style=COLOR_SUMMARY)
     text.append_text(_state_text(agent.gate_state))
     text.append("\n")
+    if agent.gate_execution_active:
+        text.append(_field_label("Executing:"), style=COLOR_SUMMARY)
+        proc_id = agent.gate_finalize_proc_id or "unknown"
+        text.append(f"background proc {proc_id}\n", style=COLOR_REASON)
 
     if agent.gate_elapsed_seconds is not None:
         text.append(_field_label("Elapsed:"), style=COLOR_SUMMARY)

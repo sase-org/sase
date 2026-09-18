@@ -226,6 +226,8 @@ class AgentState:
     gate_creator_agent: str | None = None
     gate_request_fingerprint: str | None = None
     gate_workspace_policy: str | None = None
+    gate_execution_active: bool = False
+    gate_finalize_proc_id: str | None = None
     gate_next_action: str | None = None
     gate_next_fork: str | None = None
     gate_next_output: str | None = None

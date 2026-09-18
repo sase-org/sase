@@ -29,7 +29,9 @@ class ConcreteAgentStatus:
 def agent_row_is_in_flight(agent: Agent) -> bool:
     """Return whether one row represents work that is still executing."""
     if agent.is_gate:
-        return agent.gate_state == "settling" and agent.stop_time is None
+        return (
+            agent.gate_state == "settling" or agent.gate_execution_active
+        ) and agent.stop_time is None
     if agent.is_monitor:
         return agent.monitor_state == "running" and agent.stop_time is None
     return agent_is_active(agent.status) and agent.stop_time is None

@@ -87,6 +87,8 @@ _SHELL_STATUS_PRESENTATION_FIELDS: tuple[str, ...] = (
     "gate_stop_status",
     "gate_state",
     "gate_accent",
+    "gate_execution_active",
+    "gate_finalize_proc_id",
 )
 
 
@@ -98,6 +100,9 @@ def aggregate_clan_status(statuses: Iterable[str]) -> str | None:
 def _copy_shell_status_presentation(target: Agent, source: Agent | None) -> None:
     """Copy or clear the monitor/gate fields that style a clan status label."""
     for field_name in _SHELL_STATUS_PRESENTATION_FIELDS:
+        if source is None and field_name == "gate_execution_active":
+            setattr(target, field_name, False)
+            continue
         setattr(
             target,
             field_name,

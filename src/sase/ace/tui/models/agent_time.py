@@ -156,7 +156,9 @@ def runtime_suffix_ticks(
         return False
     if agent.is_monitor and agent.monitor_state == "running":
         return agent.run_start_time is not None
-    if agent.is_gate and agent.gate_state == "settling":
+    if agent.is_gate and (
+        agent.gate_state == "settling" or agent.gate_execution_active
+    ):
         return agent.run_start_time is not None
     if agent.status in APPROVED_PLAN_STATUSES and agent.plan_times:
         return False

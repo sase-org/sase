@@ -111,6 +111,26 @@ def test_gate_row_renders_gate_section_fields(tmp_path: Path) -> None:
     assert "AGENT REPLY" not in text
 
 
+def test_sudo_gate_section_renders_execution_proc(tmp_path: Path) -> None:
+    agent = _gate_agent(
+        tmp_path,
+        status="SUDO",
+        gate_kind="sudo",
+        gate_start_status="SUDO",
+        gate_stop_status="SUDOED",
+    )
+    agent.gate_execution_active = True
+    agent.gate_finalize_proc_id = "proc-detach-1"
+
+    section_text = "".join(
+        part.plain if hasattr(part, "plain") else str(part)
+        for part in build_gate_section(agent)
+    )
+
+    assert "Executing:" in section_text
+    assert "background proc proc-detach-1" in section_text
+
+
 def test_gate_row_no_output_shows_placeholder(tmp_path: Path) -> None:
     rendered = _render(_gate_agent(tmp_path))
     text = "\n".join(_console_lines(rendered))

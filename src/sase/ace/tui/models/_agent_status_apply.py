@@ -52,11 +52,15 @@ def _mirror_root_from_child(parent: Agent, child: Agent) -> None:
         parent.gate_start_status = None
         parent.gate_stop_status = None
         parent.gate_state = None
+        parent.gate_execution_active = False
+        parent.gate_finalize_proc_id = None
     elif child.is_gate:
         parent.gate_start_status = child.gate_start_status
         parent.gate_stop_status = child.gate_stop_status
         parent.gate_state = child.gate_state
         parent.gate_accent = child.gate_accent
+        parent.gate_execution_active = child.gate_execution_active
+        parent.gate_finalize_proc_id = child.gate_finalize_proc_id
         parent.monitor_start_status = None
         parent.monitor_stop_status = None
         parent.monitor_state = None
@@ -70,6 +74,8 @@ def _mirror_root_from_child(parent: Agent, child: Agent) -> None:
         parent.gate_start_status = None
         parent.gate_stop_status = None
         parent.gate_state = None
+        parent.gate_execution_active = False
+        parent.gate_finalize_proc_id = None
 
 
 def _is_active_root_mirror_candidate(parent: Agent, agent: Agent) -> bool:

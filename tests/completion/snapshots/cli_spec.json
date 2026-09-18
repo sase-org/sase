@@ -9586,7 +9586,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "628fc20d00d4006d",
+            "description_digest": "cc714e1a66102977",
             "hidden": false,
             "mutex_groups": [],
             "name": "refresh",
@@ -23656,7 +23656,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "f4df981fff4d6a6d",
+        "description_digest": "6bcf5894238dee75",
         "hidden": false,
         "mutex_groups": [],
         "name": "screenshot",

@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from sase.ace.tui.models._loaders._done_loaders import (
     _load_done_agent_for_dir,
@@ -153,6 +156,55 @@ def test_filesystem_gate_meta_projects_detail_fields(tmp_path: Path) -> None:
     assert agent.gate_elapsed_seconds == 12.5
     assert agent.gate_notification_id == "n123"
     assert agent.get_live_reply_content() == "gate output\n"
+
+
+def test_filesystem_sudo_gate_meta_projects_live_execution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    (tmp_path / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "alpha--gate",
+                "gate_id": "sudo-123",
+                "gate_kind": "sudo",
+                "gate_state": "pending",
+                "gate_start_status": "SUDO",
+                "gate_stop_status": "SUDOED",
+                "gate_bundle_path": str(bundle),
+                "agent_family": "alpha",
+                "agent_family_role": "gate",
+                "role_suffix": "--gate",
+            }
+        ),
+        encoding="utf-8",
+    )
+    seen: list[Path] = []
+
+    def fake_project_execution(path: Path) -> SimpleNamespace:
+        seen.append(path)
+        return SimpleNamespace(
+            executing=True,
+            finalize_proc_id="proc-detach-1",
+        )
+
+    monkeypatch.setattr(
+        "sase.sudo.execution.project_execution",
+        fake_project_execution,
+    )
+    agent = _base_agent()
+
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert seen == [bundle]
+    assert agent.is_gate is True
+    assert agent.gate_state == "pending"
+    assert agent.status == "SUDO"
+    assert agent.status_bucket == "Running"
+    assert agent.gate_execution_active is True
+    assert agent.gate_finalize_proc_id == "proc-detach-1"
 
 
 def test_terminal_gate_done_projects_stop_label_and_followup_fields() -> None:

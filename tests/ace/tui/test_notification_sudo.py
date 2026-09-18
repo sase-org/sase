@@ -12,6 +12,7 @@ import pytest
 from textual.app import SuspendNotSupported
 
 from sase.ace.tui.actions.agents._notification_sudo import (
+    _SudoExecutionStatus,
     _load_sudo_request_modal_data,
     _run_sudo_terminal_handoff,
     _sudo_cli_message,
@@ -174,7 +175,9 @@ async def test_sudo_run_uses_terminal_handoff_not_durable_proc(
         return subprocess.CompletedProcess(
             argv,
             0,
-            stdout=json.dumps({"status": "answered", "outcome": "completed"}),
+            stdout=json.dumps(
+                {"status": "execution_started", "proc_id": "proc-detach-1"}
+            ),
         )
 
     monkeypatch.setattr(
@@ -192,6 +195,7 @@ async def test_sudo_run_uses_terminal_handoff_not_durable_proc(
         "answer",
         notification.action_data["request_id"],
         "--run",
+        "--detach",
         "--json",
         "--command",
         "refresh",
@@ -208,9 +212,47 @@ async def test_sudo_run_uses_terminal_handoff_not_durable_proc(
     assert app.durable_calls == []
     assert app.suspend_recorder.enters == 1
     assert app.suspend_recorder.exits == 1
-    assert app.notifications == [("Sudo request completed", "information")]
+    assert app.notifications == [
+        (
+            "Sudo authenticated; commands running in background proc proc-detach-1",
+            "information",
+        )
+    ]
     assert app.refresh_count == 1
     assert app.agent_refreshes == [(("notification",), {"latest_only": True})]
+
+
+async def test_sudo_request_while_executing_shows_status_instead_of_modal(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    with override_flags(agent_sudo_requests=True):
+        create_gate(build_sudo_gate_request(_sudo_request()))
+    notification = load_notifications()[0]
+    app = _SudoActionApp(None)
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_sudo._sudo_execution_status",
+        lambda _notification: _SudoExecutionStatus(True, "proc-running-1"),
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_sudo.subprocess.run",
+        lambda *_args, **_kwargs: pytest.fail("executing gate must not re-run sudo"),
+    )
+
+    assert handle_sudo_request(app, notification) is True
+    [task] = app._sudo_request_open_tasks
+    await task
+
+    assert app.screen is None
+    assert app.notifications == [
+        (
+            "Sudo authenticated; commands running in background proc proc-running-1",
+            "information",
+        )
+    ]
+    assert app.refresh_count == 1
 
 
 async def test_sudo_deny_uses_headless_durable_gate_executor(
@@ -282,6 +324,31 @@ def test_sudo_terminal_handoff_reports_auth_failure_and_keeps_gate_pending(
         ("Sudo authentication failed; gate remains pending", "warning")
     ]
     assert app.refresh_count == 1
+
+
+def test_sudo_cli_message_reports_execution_started() -> None:
+    message = _sudo_cli_message(
+        0,
+        {"status": "execution_started", "proc_id": "proc-detach-1"},
+    )
+
+    assert message.text == (
+        "Sudo authenticated; commands running in background proc proc-detach-1"
+    )
+    assert message.severity == "information"
+
+
+def test_sudo_cli_message_reports_synchronous_detach_fallback() -> None:
+    message = _sudo_cli_message(
+        0,
+        {"status": "answered", "outcome": "completed"},
+    )
+
+    assert message.text == (
+        "Sudo request completed synchronously; "
+        "terminal was held until commands finished"
+    )
+    assert message.severity == "information"
 
 
 def test_sudo_cli_message_reports_feature_disabled_detail() -> None:

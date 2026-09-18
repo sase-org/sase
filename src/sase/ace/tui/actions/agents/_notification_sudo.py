@@ -35,12 +35,27 @@ class _SudoCliMessage:
     severity: str = "information"
 
 
+@dataclass(frozen=True)
+class _SudoExecutionStatus:
+    executing: bool
+    proc_id: str | None = None
+
+
 def handle_sudo_request(app: object, notification: Notification) -> bool:
     """Load a verified sudo bundle off-pump and open the typed review modal."""
     from ...util.pump_tasks import spawn_pump_free_task
 
     async def load_and_open() -> None:
         try:
+            status = await asyncio.to_thread(_sudo_execution_status, notification)
+            if status.executing:
+                _notify(
+                    app,
+                    _sudo_executing_message(status.proc_id),
+                    severity="information",
+                )
+                _refresh_after_sudo(app, notification)
+                return
             data = await asyncio.to_thread(_load_sudo_request_modal_data, notification)
         except Exception as exc:
             app.notify(  # type: ignore[attr-defined]
@@ -85,6 +100,30 @@ def handle_sudo_request(app: object, notification: Notification) -> bool:
         app.notify("Sudo request loading is unavailable", severity="error")  # type: ignore[attr-defined]
         return False
     return True
+
+
+def _sudo_execution_status(notification: Notification) -> _SudoExecutionStatus:
+    """Return the live detached-execution state for this sudo notification."""
+    from sase.notification_gates.hashing import load_and_verify_bundle
+    from sase.notification_gates.models import GateError
+    from sase.notification_gates.paths import resolve_notification_bundle
+    from sase.sudo.execution import project_execution
+
+    bundle = resolve_notification_bundle(notification)
+    if bundle is None or bundle.legacy:
+        return _SudoExecutionStatus(False)
+    envelope, adapter = load_and_verify_bundle(bundle.root)
+    if adapter.kind != "sudo" or envelope.get("kind") != "sudo":
+        raise GateError(
+            "missing_gate",
+            notification.id,
+            "notification does not reference a sudo gate",
+        )
+    projection = project_execution(bundle.root)
+    return _SudoExecutionStatus(
+        projection.executing,
+        projection.finalize_proc_id,
+    )
 
 
 def _load_sudo_request_modal_data(notification: Notification) -> SudoRequestModalData:
@@ -202,7 +241,7 @@ def _run_sudo_terminal_handoff(
 
 
 def _sudo_answer_argv(request_id: str, command_ids: tuple[str, ...]) -> list[str]:
-    argv = sase_argv("sudo", "answer", request_id, "--run", "--json")
+    argv = sase_argv("sudo", "answer", request_id, "--run", "--detach", "--json")
     for command_id in command_ids:
         argv.extend(["--command", command_id])
     return argv
@@ -220,6 +259,14 @@ def _sudo_cli_message(
     returncode: int,
     payload: Mapping[str, Any] | None,
 ) -> _SudoCliMessage:
+    if (
+        returncode == 0
+        and payload is not None
+        and payload.get("status") == "execution_started"
+    ):
+        return _SudoCliMessage(
+            _sudo_executing_message(_optional_str(payload.get("proc_id")))
+        )
     if returncode == 0 and payload is not None and payload.get("status") == "answered":
         outcome = str(payload.get("outcome") or "")
         if outcome == "command_failed":
@@ -227,7 +274,9 @@ def _sudo_cli_message(
                 "Sudo authentication completed, but a selected command failed",
                 "warning",
             )
-        return _SudoCliMessage("Sudo request completed")
+        return _SudoCliMessage(
+            "Sudo request completed synchronously; terminal was held until commands finished"
+        )
 
     outcome = str(payload.get("outcome") or "") if payload is not None else ""
     code = str(payload.get("code") or "") if payload is not None else ""
@@ -249,6 +298,16 @@ def _sudo_cli_message(
             "Another sudo authentication handoff is active; gate remains pending",
             "warning",
         )
+    if outcome == "execution_in_progress":
+        return _SudoCliMessage(
+            "Sudo commands are already running in a background proc; gate remains pending",
+            "warning",
+        )
+    if outcome == "detach_unsupported":
+        return _SudoCliMessage(
+            "Detached sudo execution is unavailable for this target; gate remains pending",
+            "warning",
+        )
     if outcome == "missing_tty":
         return _SudoCliMessage(
             "No trusted terminal was available for sudo; gate remains pending",
@@ -258,6 +317,12 @@ def _sudo_cli_message(
         suffix = message or code
         return _SudoCliMessage(f"Sudo handoff failed: {suffix}", "error")
     return _SudoCliMessage("Sudo handoff failed; gate remains pending", "error")
+
+
+def _sudo_executing_message(proc_id: str | None) -> str:
+    if proc_id:
+        return f"Sudo authenticated; commands running in background proc {proc_id}"
+    return "Sudo authenticated; commands running in a background proc"
 
 
 def _refresh_after_sudo(app: object, notification: Notification) -> None:

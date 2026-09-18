@@ -88,4 +88,7 @@ def copy_missing_display_metadata(parent: Agent, child: Agent) -> None:
             parent.gate_state = child.gate_state
         if parent.gate_accent is None:
             parent.gate_accent = child.gate_accent
+        if child.gate_execution_active:
+            parent.gate_execution_active = True
+            parent.gate_finalize_proc_id = child.gate_finalize_proc_id
     copy_missing_plan_metadata(parent, child)
