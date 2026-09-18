@@ -27,6 +27,7 @@ class PromptWaitDirective:
     priority: int | None = None
     weight: float | None = None
     beads: tuple[str, ...] = ()
+    hoods: tuple[str, ...] = ()
 
     def __bool__(self) -> bool:
         return bool(
@@ -36,6 +37,7 @@ class PromptWaitDirective:
             or self.priority is not None
             or self.weight is not None
             or self.beads
+            or self.hoods
         )
 
 
@@ -126,6 +128,9 @@ def _format_wait_directive(
     directives = [f"%wait({', '.join(parts)})"] if parts else []
     directives.extend(
         f"%wait(bead={format_directive_arg(bead)})" for bead in wait_spec.beads
+    )
+    directives.extend(
+        f"%wait(hood={format_directive_arg(hood)})" for hood in wait_spec.hoods
     )
     return "\n".join(directives)
 

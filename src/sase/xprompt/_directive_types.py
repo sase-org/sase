@@ -145,6 +145,7 @@ class PromptDirectives:
         wait_units: Logical launch unit IDs from %wait(unit=...) keywords.
         wait_procs: Proc IDs or shell names from %wait(proc=...) keywords.
         wait_beads: Ordered, deduplicated bead IDs from %wait(bead=...) keywords.
+        wait_hoods: Ordered, deduplicated hood names from %wait(hood=...) keywords.
         wait_duration: Duration in seconds from the %wait(time=...) keyword.
         wait_until: Absolute target datetime from the %wait(time=...) keyword.
         queue_capacity: Authored ``%queue(capacity=...)`` budget. Writers
@@ -205,6 +206,7 @@ class PromptDirectives:
     wait_units: list[str] = field(default_factory=list)
     wait_procs: list[str] = field(default_factory=list)
     wait_beads: list[str] = field(default_factory=list)
+    wait_hoods: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None
     queue_capacity: int | None = None

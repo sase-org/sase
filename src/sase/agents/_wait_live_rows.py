@@ -158,16 +158,39 @@ def terminal_blocker_warnings(
             if record is None:
                 continue
             waiting_for = _wait_for_names(record)
-            if not waiting_for:
+            wait_for_hoods = _wait_for_hoods(record)
+            if not waiting_for and not wait_for_hoods:
                 continue
             status = dependency_resolution_status(
                 index,
                 waiting_for,
+                wait_hoods=wait_for_hoods,
                 self_artifact_dir=record.artifact_dir,
             )
             if status.resolved:
                 continue
+            waiter_launch_cutoff = Path(record.artifact_dir).name
+            for hood in wait_for_hoods:
+                label = f"hood={hood}"
+                if label not in status.blocked_on:
+                    continue
+                for blocker in index.terminal_blocking_artifacts_for_hood(
+                    hood,
+                    exclude_artifact_dir=record.artifact_dir,
+                    launched_at_or_before=waiter_launch_cutoff,
+                ):
+                    if not blocker.is_failed:
+                        continue
+                    text = (
+                        f"{member.name} waits on {label}, which FAILED"
+                        " — it will not start"
+                    )
+                    if text not in seen:
+                        seen.add(text)
+                        warnings.append(text)
             for name in status.blocked_on:
+                if name.startswith("hood="):
+                    continue
                 for blocker in index.terminal_blocking_artifacts_for_name(
                     name,
                     exclude_artifact_dir=record.artifact_dir,
@@ -429,6 +452,16 @@ def _wait_for_beads(record: AgentArtifactRecordWire) -> tuple[str, ...]:
     meta = record.agent_meta
     if meta is not None and meta.wait_for_beads:
         return tuple(meta.wait_for_beads)
+    return ()
+
+
+def _wait_for_hoods(record: AgentArtifactRecordWire) -> tuple[str, ...]:
+    waiting = record.waiting
+    if waiting is not None and waiting.wait_for_hoods:
+        return tuple(waiting.wait_for_hoods)
+    meta = record.agent_meta
+    if meta is not None and meta.wait_for_hoods:
+        return tuple(meta.wait_for_hoods)
     return ()
 
 

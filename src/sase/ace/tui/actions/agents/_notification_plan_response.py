@@ -77,6 +77,8 @@ def _add_optional_wait_fields(
         response_data["wait_agents"] = list(wait_spec.agents)
     if wait_spec.beads:
         response_data["wait_beads"] = list(wait_spec.beads)
+    if wait_spec.hoods:
+        response_data["wait_hoods"] = list(wait_spec.hoods)
 
 
 def plan_approval_protocol_fields(

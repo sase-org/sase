@@ -88,6 +88,7 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
     }
     assert tale_approve["result_schema"]["properties"]["wait_agents"] == wait_names
     assert tale_approve["result_schema"]["properties"]["wait_beads"] == wait_names
+    assert tale_approve["result_schema"]["properties"]["wait_hoods"] == wait_names
     epic_approve = epic_request["options"][0]
     assert epic_approve["id"] == "approve"
     assert epic_approve["label"] == "Epic"
@@ -117,6 +118,7 @@ def test_authored_tier_routes_to_distinct_typed_actions(gate_home: Path) -> None
             "epic_launch_owner": {"const": "host"},
             "wait_agents": wait_names,
             "wait_beads": wait_names,
+            "wait_hoods": wait_names,
             "capacity": capacity_schema,
         },
         "additionalProperties": False,

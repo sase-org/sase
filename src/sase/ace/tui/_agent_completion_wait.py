@@ -373,7 +373,7 @@ def wait_dependencies_satisfied(
     from sase.ace.tui.models.agent_time import wait_display_agent
 
     wait_agent = wait_display_agent(agent)
-    if wait_agent.waiting_for_beads:
+    if wait_agent.waiting_for_beads or wait_agent.waiting_for_hoods:
         return False
     if not wait_agent.waiting_for:
         return True
@@ -447,7 +447,11 @@ def wait_dependency_status_counts(
     from sase.ace.tui.models.agent_time import wait_display_agent
 
     wait_agent = wait_display_agent(agent)
-    if not wait_agent.waiting_for and not wait_agent.waiting_for_beads:
+    if (
+        not wait_agent.waiting_for
+        and not wait_agent.waiting_for_beads
+        and not wait_agent.waiting_for_hoods
+    ):
         return ZERO_WAIT_DEPENDENCY_STATUS_COUNTS
 
     agent_tally = dict.fromkeys((*AGENT_STATUS_BUCKETS, "unknown"), 0)

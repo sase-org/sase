@@ -181,6 +181,9 @@ class Agent(AgentState):
         self.waiting_for = [
             present_agent_name(name, snapshot) for name in self.waiting_for
         ]
+        self.waiting_for_hoods = [
+            present_agent_name(name, snapshot) for name in self.waiting_for_hoods
+        ]
 
     @property
     def effective_workspace_num(self) -> int | None:

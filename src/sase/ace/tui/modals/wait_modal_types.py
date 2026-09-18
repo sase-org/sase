@@ -38,6 +38,7 @@ class WaitModalResult:
     priority: int | None = None
     update_priority: bool = False
     beads: list[str] = field(default_factory=list)
+    hoods: list[str] = field(default_factory=list)
     run_now: bool = False
 
 

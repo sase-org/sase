@@ -48,6 +48,7 @@ class AgentMetadataInputs:
     wait_identity_deps: list[dict[str, Any]]
     wait_fork_sources: list[dict[str, str]]
     wait_beads: list[str]
+    wait_hoods: list[str]
     model: str | None
     llm_provider: str | None
     reasoning_effort: str | None
@@ -215,6 +216,8 @@ def build_agent_meta(
         agent_meta["wait_for_fork_sources"] = inputs.wait_fork_sources
     if inputs.wait_beads:
         agent_meta["wait_for_beads"] = inputs.wait_beads
+    if inputs.wait_hoods:
+        agent_meta["wait_for_hoods"] = inputs.wait_hoods
     if directives.wait_duration is not None:
         agent_meta["wait_duration"] = directives.wait_duration
     if directives.wait_until is not None:

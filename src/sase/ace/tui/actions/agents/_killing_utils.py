@@ -15,6 +15,7 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_cleanup_execution import try_delete_agent_artifacts
+from sase.core.agent_identity_facade import agent_name_in_hood
 from sase.core.wait_dependency_resolution._artifact_state import artifact_dir_key
 from sase.core.wait_dependency_resolution import (
     WaitDependencyIndex,
@@ -120,9 +121,13 @@ def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:
         wait_for_beads = waiting_data.get("wait_for_beads")
         if not isinstance(wait_for_beads, list):
             wait_for_beads = []
+        wait_for_hoods = waiting_data.get("wait_for_hoods")
+        if not isinstance(wait_for_hoods, list):
+            wait_for_hoods = []
         if not _waiting_marker_references_deleted_dependency(
             waiting_for=waiting_for,
             wait_for_artifacts=wait_for_artifacts,
+            wait_for_hoods=wait_for_hoods,
             deleted_name=deleted_name,
             project_name=project_name,
             timestamp=timestamp,
@@ -142,6 +147,7 @@ def _resolve_waiters_before_artifact_delete(artifacts_dir: str) -> None:
             waiting_for=waiting_for,
             wait_for_artifacts=wait_for_artifacts,
             wait_for_beads=wait_for_beads,
+            wait_for_hoods=wait_for_hoods,
             closed_bead_ids=closed_bead_ids,
             resolved_deps=resolved_deps,
             waiter_dir=waiter_dir,
@@ -181,6 +187,7 @@ def _ready_data_for_completed_dependency(
     waiting_for: list[str],
     wait_for_artifacts: list[object],
     wait_for_beads: list[object],
+    wait_for_hoods: list[object],
     closed_bead_ids: frozenset[str] | None,
     resolved_deps: list[object],
     waiter_dir: Path,
@@ -194,6 +201,7 @@ def _ready_data_for_completed_dependency(
         wait_for_artifacts,
         resolved_deps,
         wait_beads=wait_for_beads,
+        wait_hoods=wait_for_hoods,
         closed_bead_ids=closed_bead_ids,
         self_artifact_dir=waiter_dir,
     )
@@ -300,6 +308,7 @@ def _waiting_marker_references_deleted_dependency(
     *,
     waiting_for: list[str],
     wait_for_artifacts: list[object],
+    wait_for_hoods: list[object],
     deleted_name: str | None,
     project_name: str,
     timestamp: str,
@@ -307,6 +316,15 @@ def _waiting_marker_references_deleted_dependency(
 ) -> bool:
     if deleted_name is not None and deleted_name in waiting_for:
         return True
+    if deleted_name is not None:
+        for hood in wait_for_hoods:
+            if not isinstance(hood, str):
+                continue
+            try:
+                if agent_name_in_hood(deleted_name, hood):
+                    return True
+            except Exception:
+                continue
     return any(
         isinstance(dependency, dict)
         and _identity_dependency_matches(

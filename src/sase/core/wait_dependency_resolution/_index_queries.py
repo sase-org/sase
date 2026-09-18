@@ -21,6 +21,7 @@ from ._types import (
     TribeCandidate,
     WAIT_SUCCESS_OUTCOMES,
     WaitCandidate,
+    WaitDependencyStatus,
 )
 
 
@@ -319,6 +320,27 @@ class WaitDependencyIndexQueries(
             and latest.is_done
         )
 
+    def hood_status(
+        self,
+        hood: str,
+        *,
+        launched_at_or_before: str | None,
+        exclude_artifact_dir: str | Path | None = None,
+    ) -> WaitDependencyStatus:
+        entity = self._hood_entity(
+            hood,
+            launched_at_or_before=launched_at_or_before,
+            exclude_artifact_dir=exclude_artifact_dir,
+        )
+        if entity is None:
+            return WaitDependencyStatus(
+                "resolved",
+                diagnostics=(f"%wait(hood={hood}) matched no current hood members",),
+            )
+        if entity.is_resolved and entity.is_done:
+            return WaitDependencyStatus("resolved")
+        return WaitDependencyStatus("waiting", (f"hood={hood}",))
+
     def terminal_blocking_artifacts_for_name(
         self,
         name: str,
@@ -349,6 +371,28 @@ class WaitDependencyIndexQueries(
         return tuple(
             member
             for member in latest.members
+            if member.has_done_marker
+            and member.outcome is not None
+            and member.outcome not in WAIT_SUCCESS_OUTCOMES
+        )
+
+    def terminal_blocking_artifacts_for_hood(
+        self,
+        hood: str,
+        *,
+        exclude_artifact_dir: str | Path | None = None,
+        launched_at_or_before: str | None = None,
+    ) -> tuple[ArtifactCandidate, ...]:
+        entity = self._hood_entity(
+            hood,
+            launched_at_or_before=launched_at_or_before,
+            exclude_artifact_dir=exclude_artifact_dir,
+        )
+        if entity is None or (entity.is_resolved and entity.is_done):
+            return ()
+        return tuple(
+            member
+            for member in entity.members
             if member.has_done_marker
             and member.outcome is not None
             and member.outcome not in WAIT_SUCCESS_OUTCOMES

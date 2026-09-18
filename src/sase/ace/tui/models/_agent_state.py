@@ -316,6 +316,9 @@ class AgentState:
     # Bead IDs this agent is waiting to reach closed status.
     waiting_for_beads: list[str] = field(default_factory=list)
 
+    # Hood names whose current members this agent is waiting for.
+    waiting_for_hoods: list[str] = field(default_factory=list)
+
     # Duration wait in seconds (from %wait(time=5m) directive)
     wait_duration: float | None = None
 

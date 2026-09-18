@@ -189,6 +189,7 @@ class AgentMetaWire:
     plan_committed: bool | None = None
     wait_for: list[str] = field(default_factory=list)
     wait_for_beads: list[str] = field(default_factory=list)
+    wait_for_hoods: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None
     queue_capacity: int | None = None
@@ -262,6 +263,7 @@ class WaitingMarkerWire:
     cl_name: str | None = None
     waiting_for: list[str] = field(default_factory=list)
     wait_for_beads: list[str] = field(default_factory=list)
+    wait_for_hoods: list[str] = field(default_factory=list)
     wait_duration: float | None = None
     wait_until: str | None = None
     queue_capacity: int | None = None

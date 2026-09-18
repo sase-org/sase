@@ -138,7 +138,9 @@ def append_agent_row_status(
         wait_agent = wait_display_agent(agent)
         single_bead_id = (
             wait_agent.waiting_for_beads[0]
-            if not wait_agent.waiting_for and len(wait_agent.waiting_for_beads) == 1
+            if not wait_agent.waiting_for
+            and not wait_agent.waiting_for_hoods
+            and len(wait_agent.waiting_for_beads) == 1
             else None
         )
         count_text = format_wait_dependency_summary(
@@ -155,9 +157,13 @@ def append_agent_row_status(
                 style=_UNRESOLVABLE_WAIT_TARGET_GLYPH_STYLE,
             )
         deps_satisfied = (
-            not wait_agent.waiting_for and not wait_agent.waiting_for_beads
+            not wait_agent.waiting_for
+            and not wait_agent.waiting_for_beads
+            and not wait_agent.waiting_for_hoods
             if wait_deps_satisfied is None
-            else wait_deps_satisfied and not wait_agent.waiting_for_beads
+            else wait_deps_satisfied
+            and not wait_agent.waiting_for_beads
+            and not wait_agent.waiting_for_hoods
         )
         wait_remaining = wait_remaining_seconds(agent, now=now)
         if wait_remaining is not None and wait_remaining > 0 and deps_satisfied:
@@ -166,7 +172,11 @@ def append_agent_row_status(
                 style="#AF87FF",
             )
         elif (
-            (wait_agent.waiting_for or wait_agent.waiting_for_beads)
+            (
+                wait_agent.waiting_for
+                or wait_agent.waiting_for_beads
+                or wait_agent.waiting_for_hoods
+            )
             and wait_agent.wait_duration is not None
             and not wait_agent.wait_until
         ):

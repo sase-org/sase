@@ -40,8 +40,12 @@ from tests._plan_gate_fixtures import (
 )
 from tests.plan_validation_helpers import VALID_EPIC_PLAN, VALID_TALE_PLAN
 
-_WAIT_SPEC = "sase-s7.2,bead=sase-64.3"
-_WAIT_DIRECTIVE = PromptWaitDirective(agents=("sase-s7.2",), beads=("sase-64.3",))
+_WAIT_SPEC = "sase-s7.2,bead=sase-64.3,hood=sase-11l"
+_WAIT_DIRECTIVE = PromptWaitDirective(
+    agents=("sase-s7.2",),
+    beads=("sase-64.3",),
+    hoods=("sase-11l",),
+)
 
 
 def _run_gate(*argv: str) -> int:
@@ -88,6 +92,7 @@ def test_execute_plan_gate_command_accepts_a_valid_wait_spec(
     result = json.loads(stdout)
     assert result["wait_agents"] == ["sase-s7.2"]
     assert result["wait_beads"] == ["sase-64.3"]
+    assert result["wait_hoods"] == ["sase-11l"]
 
 
 def test_execute_plan_gate_command_exits_2_on_an_invalid_wait_spec(
@@ -128,9 +133,11 @@ def test_tale_gate_selection_translates_wait_into_runner_protocol(
 
     assert translated["wait_agents"] == ["sase-s7.2"]
     assert translated["wait_beads"] == ["sase-64.3"]
+    assert translated["wait_hoods"] == ["sase-11l"]
     primary = execution.response["option_results"][0]["result"]
     assert primary["wait_agents"] == ["sase-s7.2"]
     assert primary["wait_beads"] == ["sase-64.3"]
+    assert primary["wait_hoods"] == ["sase-11l"]
 
 
 def test_commit_only_selection_drops_wait_from_the_translated_response(
@@ -154,7 +161,10 @@ def test_commit_only_selection_drops_wait_from_the_translated_response(
 
     assert "wait_agents" not in translated
     assert "wait_beads" not in translated
+    assert "wait_hoods" not in translated
     assert "wait_agents" not in execution.response["option_results"][0]["result"]
+    assert "wait_beads" not in execution.response["option_results"][0]["result"]
+    assert "wait_hoods" not in execution.response["option_results"][0]["result"]
 
 
 def test_invalid_wait_fails_the_option_command(
@@ -193,6 +203,7 @@ def test_epic_adapter_forwards_wait_onto_the_launch_argv(gate_home: Path) -> Non
                     "epic_launch_owner": "host",
                     "wait_agents": ["sase-s7.2"],
                     "wait_beads": ["sase-64.3"],
+                    "wait_hoods": ["sase-11l"],
                 },
             }
         ],
@@ -265,6 +276,7 @@ def test_neutral_approval_puts_raw_wait_in_shared_input(
     translated = translate_plan_gate_response(gate.bundle_path, result.response_json)
     assert translated["wait_agents"] == ["sase-s7.2"]
     assert translated["wait_beads"] == ["sase-64.3"]
+    assert translated["wait_hoods"] == ["sase-11l"]
 
 
 def test_invalid_wait_is_rejected_before_the_gate_is_consumed(
@@ -310,6 +322,7 @@ def test_legacy_approval_emits_parsed_wait_fields(gate_home: Path) -> None:
 
     assert result.response_json["wait_agents"] == ["sase-s7.2"]
     assert result.response_json["wait_beads"] == ["sase-64.3"]
+    assert result.response_json["wait_hoods"] == ["sase-11l"]
 
 
 def test_plan_response_json_drops_wait_on_commit_only() -> None:
@@ -325,6 +338,7 @@ def test_plan_response_json_drops_wait_on_commit_only() -> None:
 
     assert "wait_agents" not in result
     assert "wait_beads" not in result
+    assert "wait_hoods" not in result
 
 
 def test_pre_upgrade_plan_gate_rejects_wait_set_with_ordinary_error(
@@ -372,6 +386,7 @@ def test_tale_gate_wait_stamps_coder_successor_prompt(gate_home: Path) -> None:
     assert approval is not None
     assert approval.wait_agents == ("sase-s7.2",)
     assert approval.wait_beads == ("sase-64.3",)
+    assert approval.wait_hoods == ("sase-11l",)
 
     coder_root = gate_home / "coder-workspace"
     coder_root.mkdir()
@@ -385,9 +400,11 @@ def test_tale_gate_wait_stamps_coder_successor_prompt(gate_home: Path) -> None:
 
     assert "%wait(sase-s7.2)" in state.current_prompt
     assert "%wait(bead=sase-64.3)" in state.current_prompt
+    assert "%wait(hood=sase-11l)" in state.current_prompt
     _, directives = extract_prompt_directives(state.current_prompt)
     assert directives.wait == ["sase-s7.2"]
     assert directives.wait_beads == ["sase-64.3"]
+    assert directives.wait_hoods == ["sase-11l"]
     assert "%model:@small" in state.current_prompt
     assert "#gh:sase" in state.current_prompt
     assert f"@{approval.plan_file}" in state.current_prompt

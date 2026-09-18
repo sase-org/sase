@@ -99,6 +99,7 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
         meta_patch = wait_meta_patch_for_token(
             wait_names=tuple(wait.get("names") or ()),
             wait_beads=tuple(wait.get("beads") or ()),
+            wait_hoods=tuple(wait.get("hoods") or ()),
             time_token=wait.get("time_token")
             if isinstance(wait.get("time_token"), str)
             else None,
@@ -117,6 +118,7 @@ def _spec_from_payload(payload: Mapping[str, Any], *, artifacts_dir: str) -> Any
         waiting = waiting_marker_patch_for_token(
             wait_names=tuple(waiting_payload.get("names") or ()),
             wait_beads=tuple(waiting_payload.get("beads") or ()),
+            wait_hoods=tuple(waiting_payload.get("hoods") or ()),
             time_token=waiting_payload.get("time_token")
             if isinstance(waiting_payload.get("time_token"), str)
             else None,
@@ -327,6 +329,7 @@ def _prompt_mutator_from_spec(spec: object) -> Any:
             priority=wait.get("priority"),
             weight=wait.get("weight"),
             beads=tuple(wait.get("beads") or ()),
+            hoods=tuple(wait.get("hoods") or ()),
         )
         return lambda prompt: set_prompt_wait_and_queue(prompt, directive)
     if kind == "set_queue":

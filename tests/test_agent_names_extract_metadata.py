@@ -162,16 +162,18 @@ class TestExtractDirectivesMetadata:
         assert result["meta"]["queue_weight"] == 2.0
         assert result["meta"]["queue_weight_explicit"] is False
 
-    def test_persists_wait_beads_metadata(self, tmp_path: Path) -> None:
+    def test_persists_wait_beads_and_hoods_metadata(self, tmp_path: Path) -> None:
         result = run_extract(
             tmp_path,
             env_auto_dismiss=True,
-            prompt="%wait(bead=sase-87.2)\ndo stuff",
+            prompt="%wait(bead=sase-87.2)\n%wait(hood=sase-11l)\ndo stuff",
         )
 
         assert result["info"].wait_beads == ["sase-87.2"]
+        assert result["info"].wait_hoods == ["sase-11l"]
         assert result["info"].wait_names == []
         assert result["meta"]["wait_for_beads"] == ["sase-87.2"]
+        assert result["meta"]["wait_for_hoods"] == ["sase-11l"]
         assert "wait_for" not in result["meta"]
 
     def test_batch_predecessor_context_binds_bare_wait(

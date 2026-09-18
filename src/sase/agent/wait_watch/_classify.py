@@ -237,11 +237,16 @@ def _waiting_slot_requested(record: AgentArtifactRecordWire) -> bool:
 
 def _wait_dependencies(record: AgentArtifactRecordWire) -> bool:
     if record.waiting is not None and (
-        record.waiting.waiting_for or record.waiting.wait_for_beads
+        record.waiting.waiting_for
+        or record.waiting.wait_for_beads
+        or record.waiting.wait_for_hoods
     ):
         return True
     meta = record.agent_meta
-    return bool(meta is not None and (meta.wait_for or meta.wait_for_beads))
+    return bool(
+        meta is not None
+        and (meta.wait_for or meta.wait_for_beads or meta.wait_for_hoods)
+    )
 
 
 def _has_plan_path(record: AgentArtifactRecordWire) -> bool:

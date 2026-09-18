@@ -67,13 +67,14 @@ def _context(
         ),
         (
             "tale",
-            {"wait": "sase-s7.2,bead=sase-64.3"},
+            {"wait": "sase-s7.2,bead=sase-64.3,hood=sase-11l"},
             {
                 "action": "approve",
                 "commit_plan": True,
                 "run_coder": True,
                 "wait_agents": ["sase-s7.2"],
                 "wait_beads": ["sase-64.3"],
+                "wait_hoods": ["sase-11l"],
             },
             "Tale approved",
         ),

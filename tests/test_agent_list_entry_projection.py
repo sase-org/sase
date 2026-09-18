@@ -63,11 +63,13 @@ def test_wait_info_prefers_waiting_marker_and_computes_remaining_seconds() -> No
             agent_meta=AgentMetaWire(
                 wait_for=["meta-dep"],
                 wait_for_beads=["meta-bead"],
+                wait_for_hoods=["meta-hood"],
                 wait_duration=999.0,
             ),
             waiting=WaitingMarkerWire(
                 waiting_for=["dep"],
                 wait_for_beads=["sase-87.2"],
+                wait_for_hoods=["sase-11l"],
                 wait_until=(now + timedelta(minutes=5)).isoformat(),
             ),
         ),
@@ -78,6 +80,7 @@ def test_wait_info_prefers_waiting_marker_and_computes_remaining_seconds() -> No
     assert entry.status_bucket == "Waiting"
     assert entry.wait.wait_for == ("dep",)
     assert entry.wait.wait_for_beads == ("sase-87.2",)
+    assert entry.wait.wait_for_hoods == ("sase-11l",)
     assert entry.wait.wait_until is not None
     assert entry.wait.remaining_seconds == 300
 

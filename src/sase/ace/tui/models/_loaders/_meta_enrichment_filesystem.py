@@ -172,6 +172,8 @@ def enrich_agent_from_meta(
         agent.waiting_for = data["wait_for"]
     if data.get("wait_for_beads"):
         agent.waiting_for_beads = data["wait_for_beads"]
+    if data.get("wait_for_hoods"):
+        agent.waiting_for_hoods = data["wait_for_hoods"]
     _apply_queue_weight_fields(agent, data)
     raw_auto_action = data.get("auto_approve_plan_action")
     auto_action = (
@@ -341,6 +343,8 @@ def enrich_agent_from_meta(
                     agent.waiting_for = waiting_data["waiting_for"]
                 if waiting_data.get("wait_for_beads"):
                     agent.waiting_for_beads = waiting_data["wait_for_beads"]
+                if waiting_data.get("wait_for_hoods"):
+                    agent.waiting_for_hoods = waiting_data["wait_for_hoods"]
                 # Read wait_duration from waiting.json (preferred source)
                 raw_dur = waiting_data.get("wait_duration")
                 if raw_dur is not None:

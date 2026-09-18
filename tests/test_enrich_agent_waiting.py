@@ -145,13 +145,14 @@ def test_waiting_json_with_agents_and_duration(tmp_path: Path) -> None:
 
 def test_waiting_json_carries_bead_dependencies(tmp_path: Path) -> None:
     (tmp_path / "agent_meta.json").write_text(
-        json.dumps({"wait_for_beads": ["meta-bead"]})
+        json.dumps({"wait_for_beads": ["meta-bead"], "wait_for_hoods": ["meta-hood"]})
     )
     (tmp_path / "waiting.json").write_text(
         json.dumps(
             {
                 "waiting_for": [],
                 "wait_for_beads": ["sase-87.2", "sase-87.3"],
+                "wait_for_hoods": ["sase-11l"],
             }
         )
     )
@@ -161,6 +162,7 @@ def test_waiting_json_carries_bead_dependencies(tmp_path: Path) -> None:
 
     assert agent.status == "WAITING"
     assert agent.waiting_for_beads == ["sase-87.2", "sase-87.3"]
+    assert agent.waiting_for_hoods == ["sase-11l"]
 
 
 def test_waiting_json_preserves_tribe_reference_for_display(tmp_path: Path) -> None:
@@ -271,13 +273,14 @@ def test_waiting_marker_wire_carries_bead_dependencies() -> None:
     agent = make_agent(status="STARTING")
     enrich_agent_from_meta_wire(
         agent,
-        AgentMetaWire(wait_for_beads=["meta-bead"]),
-        WaitingMarkerWire(wait_for_beads=["sase-87.2"]),
+        AgentMetaWire(wait_for_beads=["meta-bead"], wait_for_hoods=["meta-hood"]),
+        WaitingMarkerWire(wait_for_beads=["sase-87.2"], wait_for_hoods=["sase-11l"]),
         None,
     )
 
     assert agent.status == "WAITING"
     assert agent.waiting_for_beads == ["sase-87.2"]
+    assert agent.waiting_for_hoods == ["sase-11l"]
 
 
 def test_run_started_at_wire_promotes_starting_to_running() -> None:

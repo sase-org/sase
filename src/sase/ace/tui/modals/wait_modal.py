@@ -354,9 +354,11 @@ class WaitModal(WaitModalCompletionScreen):
 
         agents = parse_agents_value(self.query_one("#agents-input", WaitInput).value)
         beads = beads_validation.bead_ids
+        hoods = list(self._current_waiting_for_hoods)
         run_now = (
             not agents
             and not beads
+            and not hoods
             and validation.token is None
             and capacity_validation.value is None
             and priority_validation.value is None
@@ -371,6 +373,7 @@ class WaitModal(WaitModalCompletionScreen):
                     priority_validation.value != self._current_wait_priority
                 ),
                 beads=beads,
+                hoods=hoods,
                 run_now=run_now,
             )
         )

@@ -49,6 +49,7 @@ def initial_dependencies_resolved(
     *,
     wait_fork_sources: Iterable[object] = (),
     wait_beads: Iterable[object] = (),
+    wait_hoods: Iterable[object] = (),
     resolved_deps: Iterable[object] = (),
     project_name: str | None,
     artifacts_dir: str,
@@ -78,6 +79,7 @@ def initial_dependencies_resolved(
         resolved_deps,
         wait_fork_sources=wait_fork_sources,
         wait_beads=wait_bead_items,
+        wait_hoods=wait_hoods,
         closed_bead_ids=closed_bead_ids,
         self_artifact_dir=artifacts_dir,
     )
@@ -119,6 +121,7 @@ def waiting_marker_dependencies_resolved(
     wait_identity_deps = waiting_data.get("wait_for_artifacts", [])
     wait_fork_sources = waiting_data.get("wait_for_fork_sources", [])
     wait_beads = waiting_data.get("wait_for_beads", [])
+    wait_hoods = waiting_data.get("wait_for_hoods", [])
     resolved_deps = waiting_data.get("resolved_deps", [])
     if not isinstance(wait_names, list):
         return False
@@ -128,9 +131,17 @@ def waiting_marker_dependencies_resolved(
         wait_fork_sources = []
     if not isinstance(wait_beads, list):
         wait_beads = []
+    if not isinstance(wait_hoods, list):
+        wait_hoods = []
     if not isinstance(resolved_deps, list):
         resolved_deps = []
-    if not (wait_names or wait_identity_deps or wait_fork_sources or wait_beads):
+    if not (
+        wait_names
+        or wait_identity_deps
+        or wait_fork_sources
+        or wait_beads
+        or wait_hoods
+    ):
         return False
 
     return initial_dependencies_resolved(
@@ -138,6 +149,7 @@ def waiting_marker_dependencies_resolved(
         wait_identity_deps,
         wait_fork_sources=wait_fork_sources,
         wait_beads=wait_beads,
+        wait_hoods=wait_hoods,
         resolved_deps=resolved_deps,
         project_name=project_name,
         artifacts_dir=artifacts_dir,

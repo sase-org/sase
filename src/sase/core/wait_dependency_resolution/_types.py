@@ -79,6 +79,7 @@ class FamilyCandidate:
 class WaitDependencyStatus:
     state: str
     blocked_on: tuple[str, ...] = ()
+    diagnostics: tuple[str, ...] = ()
 
     @property
     def resolved(self) -> bool:

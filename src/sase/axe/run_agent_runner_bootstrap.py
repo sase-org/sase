@@ -186,6 +186,7 @@ def _wait_flags(info: AgentInfo) -> tuple[bool, bool]:
         or bool(info.wait_identity_deps)
         or bool(info.wait_fork_sources)
         or bool(info.wait_beads)
+        or bool(info.wait_hoods)
         or info.wait_duration is not None
         or info.wait_until is not None
     )

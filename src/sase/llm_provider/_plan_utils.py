@@ -23,6 +23,7 @@ class PlanApprovalResult:
     coder_model: str | None = None
     wait_agents: tuple[str, ...] = ()
     wait_beads: tuple[str, ...] = ()
+    wait_hoods: tuple[str, ...] = ()
     auto_approved: bool = field(default=False, compare=False)
     epic_launch_owner: Literal["host"] | None = field(default=None, compare=False)
     saved_plan_path: str | None = None
@@ -233,6 +234,7 @@ def plan_approval_result_from_gate_response(
         )
         wait_agents = _nonempty_string_tuple(response_data.get("wait_agents"))
         wait_beads = _nonempty_string_tuple(response_data.get("wait_beads"))
+        wait_hoods = _nonempty_string_tuple(response_data.get("wait_hoods"))
         return PlanApprovalResult(
             action=action,
             plan_file=str(reviewed_plan),
@@ -242,6 +244,7 @@ def plan_approval_result_from_gate_response(
             coder_model=coder_model,
             wait_agents=wait_agents,
             wait_beads=wait_beads,
+            wait_hoods=wait_hoods,
             auto_approved=auto_resolved,
             epic_launch_owner=epic_launch_owner,
             saved_plan_path=saved_plan_path,

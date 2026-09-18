@@ -240,6 +240,7 @@ class GateAdapter:
                         wait_spec=wait_spec_from_name_lists(
                             result.get("wait_agents"),
                             result.get("wait_beads"),
+                            result.get("wait_hoods"),
                         ),
                         capacity=_capacity_from_launch_result(result),
                     )

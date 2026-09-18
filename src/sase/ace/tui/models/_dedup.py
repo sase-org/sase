@@ -108,6 +108,8 @@ def _merge_agent_fields(target: Agent, source: Agent) -> None:
         target.waiting_for = source.waiting_for
     if not target.waiting_for_beads and source.waiting_for_beads:
         target.waiting_for_beads = source.waiting_for_beads
+    if not target.waiting_for_hoods and source.waiting_for_hoods:
+        target.waiting_for_hoods = source.waiting_for_hoods
     if target.queue_capacity is None and (
         source.queue_capacity is not None or source.wait_runners is not None
     ):

@@ -43,6 +43,7 @@ class _WaitingMarkerPatch:
 
     waiting_for: tuple[str, ...] = ()
     wait_for_beads: tuple[str, ...] = ()
+    wait_for_hoods: tuple[str, ...] = ()
     wait_duration: float | None = None
     wait_until: str | None = None
     update_wait_runners: bool = False
@@ -139,6 +140,7 @@ def wait_meta_patch_for_token(
     *,
     wait_names: tuple[str, ...] = (),
     wait_beads: tuple[str, ...] = (),
+    wait_hoods: tuple[str, ...] = (),
     time_token: str | None = None,
     update_wait_runners: bool = False,
     wait_runners: int | None = None,
@@ -150,11 +152,19 @@ def wait_meta_patch_for_token(
 ) -> AgentMetaPatch:
     """Build an ``agent_meta.json`` patch for a wait directive payload."""
     set_values: dict[str, object] = {}
-    remove_keys = ["wait_for", "wait_for_beads", "wait_duration", "wait_until"]
+    remove_keys = [
+        "wait_for",
+        "wait_for_beads",
+        "wait_for_hoods",
+        "wait_duration",
+        "wait_until",
+    ]
     if wait_names:
         set_values["wait_for"] = list(_durable_wait_names(wait_names))
     if wait_beads:
         set_values["wait_for_beads"] = list(wait_beads)
+    if wait_hoods:
+        set_values["wait_for_hoods"] = list(wait_hoods)
     if time_token:
         duration = parse_duration(time_token)
         if duration is not None:
@@ -191,6 +201,7 @@ def waiting_marker_patch_for_token(
     *,
     wait_names: tuple[str, ...] = (),
     wait_beads: tuple[str, ...] = (),
+    wait_hoods: tuple[str, ...] = (),
     time_token: str | None = None,
     update_wait_runners: bool = False,
     wait_runners: int | None = None,
@@ -210,6 +221,7 @@ def waiting_marker_patch_for_token(
     return _WaitingMarkerPatch(
         waiting_for=_durable_wait_names(wait_names),
         wait_for_beads=wait_beads,
+        wait_for_hoods=wait_hoods,
         wait_duration=wait_duration,
         wait_until=wait_until,
         update_wait_runners=update_wait_runners,
@@ -312,6 +324,7 @@ def _write_waiting_marker(artifacts_path: Path, patch: _WaitingMarkerPatch) -> N
         for condition_key in (
             "waiting_for",
             "wait_for_beads",
+            "wait_for_hoods",
             "wait_duration",
             "wait_until",
         ):
@@ -319,6 +332,8 @@ def _write_waiting_marker(artifacts_path: Path, patch: _WaitingMarkerPatch) -> N
         existing["waiting_for"] = list(patch.waiting_for)
         if patch.wait_for_beads:
             existing["wait_for_beads"] = list(patch.wait_for_beads)
+        if patch.wait_for_hoods:
+            existing["wait_for_hoods"] = list(patch.wait_for_hoods)
         if patch.wait_duration is not None:
             existing["wait_duration"] = patch.wait_duration
         if patch.wait_until is not None:

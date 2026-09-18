@@ -206,6 +206,7 @@ def test_handle_plan_approval_approve_with_options(
     assert result.coder_prompt == "#review+"
     assert result.wait_agents == ()
     assert result.wait_beads == ()
+    assert result.wait_hoods == ()
 
 
 def _approve_with_translated(
@@ -238,12 +239,13 @@ def test_handle_plan_approval_parses_wait_input_into_result_fields(
         str(plan),
         "wait-input-session",
         "approve",
-        input_data={"wait": "sase-s7.2,bead=sase-64.3"},
+        input_data={"wait": "sase-s7.2,bead=sase-64.3,hood=sase-11l"},
     )
 
     assert result is not None
     assert result.wait_agents == ("sase-s7.2",)
     assert result.wait_beads == ("sase-64.3",)
+    assert result.wait_hoods == ("sase-11l",)
 
 
 def test_handle_plan_approval_reads_wait_agents_and_beads(
@@ -255,32 +257,72 @@ def test_handle_plan_approval_reads_wait_agents_and_beads(
         {
             "wait_agents": ["sase-s7.2", "sase-vs.1"],
             "wait_beads": ["sase-64.3"],
+            "wait_hoods": ["sase-11l"],
         },
     )
 
     assert result is not None
     assert result.wait_agents == ("sase-s7.2", "sase-vs.1")
     assert result.wait_beads == ("sase-64.3",)
+    assert result.wait_hoods == ("sase-11l",)
 
 
 @pytest.mark.parametrize(
-    ("extra", "expected_agents", "expected_beads"),
+    ("extra", "expected_agents", "expected_beads", "expected_hoods"),
     [
-        ({"wait_agents": ["sase-s7.2"]}, ("sase-s7.2",), ()),
-        ({"wait_beads": ["sase-64.3"]}, (), ("sase-64.3",)),
-        ({"wait_agents": [], "wait_beads": []}, (), ()),
-        ({"wait_agents": "sase-s7.2", "wait_beads": "sase-64.3"}, (), ()),
-        ({"wait_agents": [""], "wait_beads": ["sase-64.3"]}, (), ("sase-64.3",)),
-        ({"wait_agents": ["sase-s7.2"], "wait_beads": [""]}, ("sase-s7.2",), ()),
-        ({"wait_agents": [1], "wait_beads": ["sase-64.3"]}, (), ("sase-64.3",)),
-        ({"wait_agents": ["sase-s7.2"], "wait_beads": [None]}, ("sase-s7.2",), ()),
-        ({"wait_agents": ("sase-s7.2",), "wait_beads": ("sase-64.3",)}, (), ()),
+        ({"wait_agents": ["sase-s7.2"]}, ("sase-s7.2",), (), ()),
+        ({"wait_beads": ["sase-64.3"]}, (), ("sase-64.3",), ()),
+        ({"wait_hoods": ["sase-11l"]}, (), (), ("sase-11l",)),
+        ({"wait_agents": [], "wait_beads": [], "wait_hoods": []}, (), (), ()),
+        (
+            {
+                "wait_agents": "sase-s7.2",
+                "wait_beads": "sase-64.3",
+                "wait_hoods": "sase-11l",
+            },
+            (),
+            (),
+            (),
+        ),
+        (
+            {"wait_agents": [""], "wait_beads": ["sase-64.3"]},
+            (),
+            ("sase-64.3",),
+            (),
+        ),
+        (
+            {"wait_agents": ["sase-s7.2"], "wait_beads": [""]},
+            ("sase-s7.2",),
+            (),
+            (),
+        ),
+        (
+            {"wait_agents": [1], "wait_beads": ["sase-64.3"]},
+            (),
+            ("sase-64.3",),
+            (),
+        ),
+        (
+            {"wait_agents": ["sase-s7.2"], "wait_beads": [None]},
+            ("sase-s7.2",),
+            (),
+            (),
+        ),
+        (
+            {"wait_agents": ("sase-s7.2",), "wait_beads": ("sase-64.3",)},
+            (),
+            (),
+            (),
+        ),
+        ({"wait_hoods": [""]}, (), (), ()),
+        ({"wait_hoods": [None]}, (), (), ()),
     ],
 )
 def test_handle_plan_approval_accepts_only_nonempty_string_wait_lists(
     extra: dict[str, Any],
     expected_agents: tuple[str, ...],
     expected_beads: tuple[str, ...],
+    expected_hoods: tuple[str, ...],
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -289,3 +331,4 @@ def test_handle_plan_approval_accepts_only_nonempty_string_wait_lists(
     assert result is not None
     assert result.wait_agents == expected_agents
     assert result.wait_beads == expected_beads
+    assert result.wait_hoods == expected_hoods

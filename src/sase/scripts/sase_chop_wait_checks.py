@@ -149,6 +149,7 @@ def _run(
         wait_for_artifacts = data.get("wait_for_artifacts", [])
         wait_for_fork_sources = data.get("wait_for_fork_sources", [])
         wait_for_beads = data.get("wait_for_beads", [])
+        wait_for_hoods = data.get("wait_for_hoods", [])
         resolved_deps = data.get("resolved_deps", [])
         if not isinstance(wait_for_artifacts, list):
             wait_for_artifacts = []
@@ -156,6 +157,8 @@ def _run(
             wait_for_fork_sources = []
         if not isinstance(wait_for_beads, list):
             wait_for_beads = []
+        if not isinstance(wait_for_hoods, list):
+            wait_for_hoods = []
         if not isinstance(resolved_deps, list):
             resolved_deps = []
         if not isinstance(waiting_for, list) or (
@@ -163,6 +166,7 @@ def _run(
             and not wait_for_artifacts
             and not wait_for_fork_sources
             and not wait_for_beads
+            and not wait_for_hoods
         ):
             skipped_invalid += 1
             continue
@@ -185,15 +189,21 @@ def _run(
             resolved_deps,
             wait_fork_sources=wait_for_fork_sources,
             wait_beads=wait_for_beads,
+            wait_hoods=wait_for_hoods,
             closed_bead_ids=closed_bead_ids,
             self_artifact_dir=waiting_marker.waiting_path.parent,
         )
+        for diagnostic in status.diagnostics:
+            runtime.log(f"[wait_checks] {diagnostic}")
         if status.resolved:
             cl_name = data.get("cl_name", "unknown")
             waited_on = ", ".join(waiting_for)
             if wait_for_beads:
                 bead_wait = f"beads: {', '.join(wait_for_beads)}"
                 waited_on = f"{waited_on}; {bead_wait}" if waited_on else bead_wait
+            if wait_for_hoods:
+                hood_wait = f"hoods: {', '.join(wait_for_hoods)}"
+                waited_on = f"{waited_on}; {hood_wait}" if waited_on else hood_wait
             runtime.log(
                 f"[wait_checks] Dependencies satisfied for {cl_name}, "
                 f"waited on: {waited_on}",
@@ -215,6 +225,7 @@ def _run(
                 dependency_index,
                 waiting_for,
                 wait_for_artifacts,
+                wait_for_hoods,
                 status.blocked_on,
                 self_artifact_dir=waiting_marker.waiting_path.parent,
             )
@@ -303,6 +314,7 @@ def _terminal_blockers(
     dependency_index: WaitDependencyIndex,
     waiting_for: list[object],
     wait_for_artifacts: list[object],
+    wait_for_hoods: list[object],
     blocked_on: tuple[str, ...],
     *,
     self_artifact_dir: Path,
@@ -333,6 +345,26 @@ def _terminal_blockers(
             )
 
     waiter_launch_cutoff = self_artifact_dir.name
+    for hood in wait_for_hoods:
+        if not isinstance(hood, str):
+            continue
+        label = f"hood={hood}"
+        if label not in blocked_labels:
+            continue
+        for candidate in dependency_index.terminal_blocking_artifacts_for_hood(
+            hood,
+            exclude_artifact_dir=self_artifact_dir,
+            launched_at_or_before=waiter_launch_cutoff,
+        ):
+            assert candidate.outcome is not None
+            blockers.append(
+                _TerminalBlocker(
+                    dependency=label,
+                    artifact_dir=candidate.artifact_dir,
+                    outcome=candidate.outcome,
+                )
+            )
+
     for name in waiting_for:
         if not isinstance(name, str) or name in identity_names:
             continue

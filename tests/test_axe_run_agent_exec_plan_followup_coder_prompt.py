@@ -134,6 +134,7 @@ def _approve_coder_prompt(
     *,
     wait_agents: tuple[str, ...] = (),
     wait_beads: tuple[str, ...] = (),
+    wait_hoods: tuple[str, ...] = (),
 ) -> str:
     tmp_path.mkdir(parents=True, exist_ok=True)
     plan_file = write_plan_file(tmp_path)
@@ -142,6 +143,7 @@ def _approve_coder_prompt(
         plan_file=plan_file,
         wait_agents=wait_agents,
         wait_beads=wait_beads,
+        wait_hoods=wait_hoods,
     )
     _, state, _ = run_plan_approval(
         tmp_path,
@@ -173,29 +175,36 @@ class TestPlanFollowupCoderWait:
         assert prompt.startswith("%model:@small\n")
 
     @pytest.mark.parametrize(
-        ("wait_agents", "wait_beads"),
+        ("wait_agents", "wait_beads", "wait_hoods"),
         [
-            (("sase-s7.2",), ()),
-            ((), ("sase-64.3",)),
-            (("sase-s7.2", "sase-vs.1"), ("sase-64.3",)),
+            (("sase-s7.2",), (), ()),
+            ((), ("sase-64.3",), ()),
+            ((), (), ("sase-11l",)),
+            (("sase-s7.2", "sase-vs.1"), ("sase-64.3",), ("sase-11l",)),
         ],
-        ids=("agents", "beads", "mixed"),
+        ids=("agents", "beads", "hoods", "mixed"),
     )
     def test_wait_fields_stamp_canonical_wait_directive(
         self,
         tmp_path,
         wait_agents: tuple[str, ...],
         wait_beads: tuple[str, ...],
+        wait_hoods: tuple[str, ...],
     ) -> None:
         empty_prompt = _approve_coder_prompt(tmp_path / "empty")
         waited_prompt = _approve_coder_prompt(
             tmp_path / "waited",
             wait_agents=wait_agents,
             wait_beads=wait_beads,
+            wait_hoods=wait_hoods,
         )
         expected = set_prompt_wait(
             empty_prompt,
-            PromptWaitDirective(agents=wait_agents, beads=wait_beads),
+            PromptWaitDirective(
+                agents=wait_agents,
+                beads=wait_beads,
+                hoods=wait_hoods,
+            ),
         )
 
         assert waited_prompt == expected
@@ -204,3 +213,4 @@ class TestPlanFollowupCoderWait:
         _, directives = extract_prompt_directives(waited_prompt)
         assert directives.wait == list(wait_agents)
         assert directives.wait_beads == list(wait_beads)
+        assert directives.wait_hoods == list(wait_hoods)

@@ -59,6 +59,8 @@ def wait_spec_label(result: WaitModalResult) -> str:
         dependency_parts.append(", ".join(result.agents))
     if result.beads:
         dependency_parts.append("beads " + ", ".join(result.beads))
+    if result.hoods:
+        dependency_parts.append("hoods " + ", ".join(result.hoods))
     if dependency_parts:
         label = f"waiting for {' and '.join(dependency_parts)}"
         if result.time_token:
@@ -72,12 +74,13 @@ def wait_spec_label(result: WaitModalResult) -> str:
     else:
         return "running now"
     if result.capacity is not None and (
-        result.agents or result.beads or result.time_token
+        result.agents or result.beads or result.hoods or result.time_token
     ):
         label = f"{label}, with capacity budget {result.capacity}"
     if result.priority is not None and (
         result.agents
         or result.beads
+        or result.hoods
         or result.time_token
         or result.capacity is not None
     ):
@@ -106,6 +109,7 @@ def prompt_wait_spec(result: WaitModalResult) -> PromptWaitDirective | None:
         capacity=result.capacity,
         priority=result.priority,
         beads=tuple(result.beads),
+        hoods=tuple(result.hoods),
     )
 
 

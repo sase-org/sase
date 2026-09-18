@@ -448,6 +448,8 @@ def _waiting_digest(row: Agent) -> tuple[str, ...]:
         parts.append("for " + ", ".join(row.waiting_for))
     if row.waiting_for_beads:
         parts.append("for beads " + ", ".join(row.waiting_for_beads))
+    if row.waiting_for_hoods:
+        parts.append("for hoods " + ", ".join(row.waiting_for_hoods))
     if row.wait_duration is not None:
         parts.append(f"{row.wait_duration:g}s")
     if row.wait_until:

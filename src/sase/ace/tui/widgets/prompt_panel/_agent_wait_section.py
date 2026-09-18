@@ -42,6 +42,7 @@ _WAIT_TAG_STYLES: dict[str, str] = {
     "agents": "dim #AF87FF",
     "tribes": "dim #FFD75F",
     "beads": "dim #FFAF00",
+    "hoods": "dim #5FD7D7",
     "time": "dim #87D7FF",
     "capacity": f"dim {QUEUED_STATUS_COLOR}",
 }
@@ -221,6 +222,13 @@ def build_wait_lanes(
                     statuses_by_id.get(bead_id),
                 )
         lanes.append(("beads", value))
+
+    if wait_agent.waiting_for_hoods:
+        value = Text(
+            ", ".join(wait_agent.waiting_for_hoods),
+            style=_WAITING_VALUE_STYLE,
+        )
+        lanes.append(("hoods", value))
 
     time_part: str | None = None
     if wait_agent.wait_until:

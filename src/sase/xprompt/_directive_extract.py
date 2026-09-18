@@ -118,6 +118,9 @@ def extract_prompt_directives(
         "proc", [process_references(arg) for arg in collected.wait_proc_args]
     )
     wait_beads = resolve_wait_bead_args(collected.wait_bead_args)
+    wait_hoods = resolve_wait_identifier_args(
+        "hood", [process_references(arg) for arg in collected.wait_hood_args]
+    )
     wait_duration, wait_until = resolve_wait_time_args(collected.wait_time_args)
     wait_runners: int | None = None
     wait_priority: int | None = None
@@ -286,6 +289,7 @@ def extract_prompt_directives(
         wait_units=wait_units,
         wait_procs=wait_procs,
         wait_beads=wait_beads,
+        wait_hoods=wait_hoods,
         wait_duration=wait_duration,
         wait_until=wait_until,
         queue_capacity=wait_runners,

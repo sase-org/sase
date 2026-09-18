@@ -36,6 +36,7 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
             waiting=WaitingMarkerWire(
                 waiting_for=["phase"],
                 wait_for_beads=["sase-87.2"],
+                wait_for_hoods=["sase-11l"],
                 wait_runners=0,
                 wait_runners_explicit=True,
                 wait_priority=3,
@@ -82,6 +83,7 @@ def test_agent_list_json_exposes_runner_slot_fields() -> None:
 
     assert payload["waiting_for"] == ["phase"]
     assert payload["wait_for_beads"] == ["sase-87.2"]
+    assert payload["wait_for_hoods"] == ["sase-11l"]
     assert payload["wait_runners"] == 0
     assert payload["wait_runners_explicit"] is True
     assert payload["wait_priority"] == 3

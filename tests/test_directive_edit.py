@@ -345,6 +345,18 @@ def test_set_prompt_wait_formats_and_round_trips_bead_only_conditions() -> None:
     assert directives.wait_beads == ["sase-87.1", "sase-87.2"]
 
 
+def test_set_prompt_wait_formats_and_round_trips_hood_only_conditions() -> None:
+    rewritten = set_prompt_wait(
+        "Do work",
+        PromptWaitDirective(hoods=("sase-11l", "ship")),
+    )
+
+    assert rewritten == ("%wait(hood=sase-11l)\n%wait(hood=ship)\nDo work")
+    _, directives = extract_prompt_directives(rewritten)
+    assert directives.wait == []
+    assert directives.wait_hoods == ["sase-11l", "ship"]
+
+
 def test_set_prompt_wait_formats_mixed_conditions_and_ignores_queue_fields() -> None:
     rewritten = set_prompt_wait(
         "%w(bead=old)\nDo work",
@@ -353,15 +365,21 @@ def test_set_prompt_wait_formats_mixed_conditions_and_ignores_queue_fields() -> 
             time_token="5m",
             capacity=1,
             beads=("sase-87.1", "sase-87.2"),
+            hoods=("sase-11l",),
         ),
     )
 
     assert rewritten == (
-        "%wait(dep, time=5m)\n%wait(bead=sase-87.1)\n%wait(bead=sase-87.2)\nDo work"
+        "%wait(dep, time=5m)\n"
+        "%wait(bead=sase-87.1)\n"
+        "%wait(bead=sase-87.2)\n"
+        "%wait(hood=sase-11l)\n"
+        "Do work"
     )
     _, directives = extract_prompt_directives(rewritten)
     assert directives.wait == ["dep"]
     assert directives.wait_beads == ["sase-87.1", "sase-87.2"]
+    assert directives.wait_hoods == ["sase-11l"]
     assert directives.wait_duration == 300.0
     assert directives.wait_runners is None
 

@@ -278,6 +278,61 @@ def test_bead_only_wait_writes_marker_and_names_only_beads(
     assert "agents:" not in output
 
 
+def test_hood_only_wait_writes_marker_and_names_only_hoods(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    make_agent(
+        tmp_path,
+        "proj",
+        "20260720110000",
+        "sase-11l.member",
+        done=False,
+    )
+    waiter_dir = _make_waiter(tmp_path)
+    ready_path = waiter_dir / "ready.json"
+    marker_snapshots: list[dict[str, object]] = []
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    def publish_ready_after_poll(_seconds: float) -> None:
+        marker_snapshots.append(
+            json.loads((waiter_dir / "waiting.json").read_text(encoding="utf-8"))
+        )
+        ready_path.write_text("{}", encoding="utf-8")
+
+    with (
+        patch("sase.axe.run_agent_wait.was_killed", return_value=False),
+        patch(
+            "sase.axe.run_agent_wait.time.sleep",
+            side_effect=publish_ready_after_poll,
+        ),
+    ):
+        blocked = wait_for_dependencies(
+            [],
+            str(waiter_dir),
+            "cl",
+            "20260720120000",
+            {"pid": 123},
+            project_name="proj",
+            wait_hoods=["sase-11l"],
+        )
+
+    assert blocked is True
+    assert marker_snapshots == [
+        {
+            "waiting_for": [],
+            "patch_name": "cl",
+            "cl_name": "cl",
+            "timestamp": "20260720120000",
+            "wait_for_hoods": ["sase-11l"],
+        }
+    ]
+    output = capsys.readouterr().out
+    assert "Waiting for hoods: sase-11l" in output
+    assert "agents:" not in output
+
+
 def test_unresolved_named_wait_opportunistically_ensures_axe(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

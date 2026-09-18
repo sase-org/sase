@@ -134,6 +134,7 @@ class AgentWaitActionsMixin:
             WaitModal(
                 current_waiting_for=agent.waiting_for,
                 current_waiting_for_beads=agent.waiting_for_beads,
+                current_waiting_for_hoods=agent.waiting_for_hoods,
                 current_wait_duration=agent.wait_duration,
                 current_wait_until=agent.wait_until,
                 current_wait_runners=(
@@ -190,6 +191,7 @@ class AgentWaitActionsMixin:
             not result.run_now
             and agent.slot_requested_at
             and not result.agents
+            and not result.hoods
             and not result.time_token
         ):
             self._apply_live_runner_wait(artifacts_dir, agent, result)
@@ -202,7 +204,8 @@ class AgentWaitActionsMixin:
 
         wait_names = list(result.agents)
         wait_beads = list(result.beads)
-        if wait_names or wait_beads or result.priority is not None:
+        wait_hoods = list(result.hoods)
+        if wait_names or wait_beads or wait_hoods or result.priority is not None:
             update_wait_priority = result.priority is not None or result.update_priority
             effective_priority = (
                 result.priority
@@ -215,9 +218,11 @@ class AgentWaitActionsMixin:
                 agents=tuple(wait_names),
                 priority=effective_priority,
                 beads=tuple(wait_beads),
+                hoods=tuple(wait_hoods),
             )
             prior_waiting_for = list(agent.waiting_for)
             prior_waiting_for_beads = list(agent.waiting_for_beads)
+            prior_waiting_for_hoods = list(agent.waiting_for_hoods)
             prior_wait_duration = agent.wait_duration
             prior_wait_until = agent.wait_until
             prior_priority = agent.wait_priority
@@ -235,6 +240,7 @@ class AgentWaitActionsMixin:
                     return
                 agent.waiting_for = prior_waiting_for
                 agent.waiting_for_beads = prior_waiting_for_beads
+                agent.waiting_for_hoods = prior_waiting_for_hoods
                 agent.wait_duration = prior_wait_duration
                 agent.wait_until = prior_wait_until
                 agent.wait_priority = prior_priority
@@ -256,17 +262,20 @@ class AgentWaitActionsMixin:
                         "wait": {
                             "agents": list(wait_spec.agents),
                             "beads": list(wait_spec.beads),
+                            "hoods": list(wait_spec.hoods),
                             "priority": wait_spec.priority,
                         },
                     },
                     "wait": {
                         "beads": wait_beads,
+                        "hoods": wait_hoods,
                         "names": wait_names,
                         "update_wait_priority": update_wait_priority,
                         "wait_priority": result.priority,
                     },
                     "waiting": {
                         "beads": wait_beads,
+                        "hoods": wait_hoods,
                         "names": wait_names,
                         "update_wait_priority": update_wait_priority,
                         "wait_priority": result.priority,
@@ -280,6 +289,7 @@ class AgentWaitActionsMixin:
                 return
             agent.waiting_for = wait_names
             agent.waiting_for_beads = wait_beads
+            agent.waiting_for_hoods = wait_hoods
             agent.wait_duration = None
             agent.wait_until = None
             if update_wait_priority:
@@ -288,6 +298,8 @@ class AgentWaitActionsMixin:
             wait_label_parts = [", ".join(wait_names)] if wait_names else []
             if wait_beads:
                 wait_label_parts.append("beads: " + ", ".join(wait_beads))
+            if wait_hoods:
+                wait_label_parts.append("hoods: " + ", ".join(wait_hoods))
             if result.priority is not None:
                 wait_label_parts.append(f"priority: {result.priority}")
             wait_label = "; ".join(wait_label_parts)
@@ -338,6 +350,7 @@ class AgentWaitActionsMixin:
                 return
             agent.waiting_for = []
             agent.waiting_for_beads = []
+            agent.waiting_for_hoods = []
             agent.wait_duration = None
             agent.wait_until = None
             agent.set_queue_capacity(None, explicit=False)
@@ -371,6 +384,7 @@ class AgentWaitActionsMixin:
         prior_explicit = agent.queue_capacity_explicit
         prior_waiting_for = list(agent.waiting_for)
         prior_waiting_for_beads = list(agent.waiting_for_beads)
+        prior_waiting_for_hoods = list(agent.waiting_for_hoods)
         prior_wait_duration = agent.wait_duration
         prior_wait_until = agent.wait_until
         prior_priority = agent.wait_priority
@@ -389,6 +403,7 @@ class AgentWaitActionsMixin:
             agent.set_queue_capacity(prior_runners, explicit=prior_explicit)
             agent.waiting_for = prior_waiting_for
             agent.waiting_for_beads = prior_waiting_for_beads
+            agent.waiting_for_hoods = prior_waiting_for_hoods
             agent.wait_duration = prior_wait_duration
             agent.wait_until = prior_wait_until
             agent.wait_priority = prior_priority
@@ -406,6 +421,7 @@ class AgentWaitActionsMixin:
             wait_payload = {
                 "agents": list(wait_spec.agents),
                 "beads": list(wait_spec.beads),
+                "hoods": list(wait_spec.hoods),
                 "priority": wait_spec.priority,
                 "capacity": wait_spec.capacity,
                 "time_token": wait_spec.time_token,
@@ -417,6 +433,8 @@ class AgentWaitActionsMixin:
                 "prompt": {"kind": "set_wait", "wait": wait_payload},
                 "wait": {
                     "beads": list(result.beads),
+                    "hoods": list(result.hoods),
+                    "names": list(result.agents),
                     "update_wait_priority": update_wait_priority,
                     "update_wait_runners": True,
                     "wait_priority": result.priority,
@@ -424,6 +442,8 @@ class AgentWaitActionsMixin:
                 },
                 "waiting": {
                     "beads": list(result.beads),
+                    "hoods": list(result.hoods),
+                    "names": list(result.agents),
                     "update_wait_priority": update_wait_priority,
                     "update_wait_runners": True,
                     "wait_priority": result.priority,
@@ -438,6 +458,7 @@ class AgentWaitActionsMixin:
             return
         agent.waiting_for = list(result.agents)
         agent.waiting_for_beads = list(result.beads)
+        agent.waiting_for_hoods = list(result.hoods)
         agent.wait_duration = None
         agent.wait_until = None
         agent.set_queue_capacity(result.capacity, explicit=result.capacity is not None)

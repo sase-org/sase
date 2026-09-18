@@ -146,7 +146,13 @@ def test_persist_agent_directive_update_writes_waiting_marker_and_meta(
     artifacts.mkdir()
     (artifacts / "raw_xprompt.md").write_text("%w:old\nDo work", encoding="utf-8")
     (artifacts / "agent_meta.json").write_text(
-        json.dumps({"wait_for": ["old"], "wait_duration": 300.0}),
+        json.dumps(
+            {
+                "wait_for": ["old"],
+                "wait_for_hoods": ["old-hood"],
+                "wait_duration": 300.0,
+            }
+        ),
         encoding="utf-8",
     )
 
@@ -155,13 +161,21 @@ def test_persist_agent_directive_update_writes_waiting_marker_and_meta(
             artifacts_dir=artifacts,
             prompt_mutator=lambda prompt: set_prompt_wait(
                 prompt,
-                PromptWaitDirective(agents=("dep",), time_token=None),
+                PromptWaitDirective(agents=("dep",), hoods=("sase-11l",)),
             ),
             meta_patch=AgentMetaPatch(
-                set_values={"wait_for": ["dep"]},
-                remove_keys=("wait_for", "wait_duration", "wait_until"),
+                set_values={"wait_for": ["dep"], "wait_for_hoods": ["sase-11l"]},
+                remove_keys=(
+                    "wait_for",
+                    "wait_for_hoods",
+                    "wait_duration",
+                    "wait_until",
+                ),
             ),
-            waiting_marker=waiting_marker_patch_for_token(wait_names=("dep",)),
+            waiting_marker=waiting_marker_patch_for_token(
+                wait_names=("dep",),
+                wait_hoods=("sase-11l",),
+            ),
         )
     )
 
@@ -169,14 +183,15 @@ def test_persist_agent_directive_update_writes_waiting_marker_and_meta(
     assert result.meta_updated is True
     assert result.waiting_updated is True
     assert (artifacts / "raw_xprompt.md").read_text(encoding="utf-8") == (
-        "%wait(dep)\nDo work"
+        "%wait(dep)\n%wait(hood=sase-11l)\nDo work"
     )
     assert json.loads((artifacts / "agent_meta.json").read_text()) == {
-        "wait_for": ["dep"]
+        "wait_for": ["dep"],
+        "wait_for_hoods": ["sase-11l"],
     }
-    assert json.loads((artifacts / "waiting.json").read_text())["waiting_for"] == [
-        "dep"
-    ]
+    waiting = json.loads((artifacts / "waiting.json").read_text())
+    assert waiting["waiting_for"] == ["dep"]
+    assert waiting["wait_for_hoods"] == ["sase-11l"]
 
 
 def test_waiting_marker_edit_preserves_priority_unless_explicitly_updated(

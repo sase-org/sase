@@ -455,7 +455,7 @@ def test_plan_approve_can_include_wait_spec(tmp_path: Path) -> None:
     result = _approve_plan_from_cli(
         selector="abcdef12",
         kind="approve",
-        wait="sase-s7.2,bead=sase-64.3,sase-s7.2",
+        wait="sase-s7.2,bead=sase-64.3,hood=sase-11l,sase-s7.2",
     )
 
     assert result.response_json == {
@@ -464,12 +464,16 @@ def test_plan_approve_can_include_wait_spec(tmp_path: Path) -> None:
         "run_coder": True,
         "wait_agents": ["sase-s7.2"],
         "wait_beads": ["sase-64.3"],
+        "wait_hoods": ["sase-11l"],
         "plan_archive_owner": "none",
         "plan_archive_state": "not_requested",
     }
     assert json.loads((response_dir / "plan_response.json").read_text())[
         "wait_beads"
     ] == ["sase-64.3"]
+    assert json.loads((response_dir / "plan_response.json").read_text())[
+        "wait_hoods"
+    ] == ["sase-11l"]
 
 
 def test_plan_approve_bad_wait_spec_exits_2_before_resolving_plan(

@@ -272,6 +272,17 @@ def test_ace_and_lsp_hold_hood_rows_match_when_enabled(
     assert [row.insertion for row in ace_rows] == ["sase-11l", "ship"]
 
 
+def test_ace_and_lsp_wait_hood_rows_match(
+    tmp_path: Path,
+) -> None:
+    ace_rows = _ace_clause_rows("%wait(hood=s")
+    with LspSession(tmp_path) as lsp:
+        lsp_rows = lsp.complete("%wait(hood=s")
+
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    assert [row.insertion for row in ace_rows] == ["sase-11l", "ship"]
+
+
 def test_ace_and_lsp_queue_argument_rows_keep_zero_when_budget_off(
     tmp_path: Path,
 ) -> None:
@@ -293,6 +304,7 @@ def test_wait_keywords_exclude_queue_fields(
 
     insertions = {row.insertion for row in ace_rows}
     assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    assert "hood=" in insertions
     assert "runners=" not in insertions
     assert "capacity=" not in insertions
     assert "priority=" not in insertions
@@ -341,6 +353,7 @@ def test_failure_degradation_retains_static_directive_rows(tmp_path: Path) -> No
     assert [row.insertion for row in rows] == [
         "agent=",
         "bead=",
+        "hood=",
         "proc=",
         "time=",
         "unit=",

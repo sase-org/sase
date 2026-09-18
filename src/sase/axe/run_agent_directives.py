@@ -41,6 +41,7 @@ class AgentInfo(NamedTuple):
     wait_identity_deps: list[dict[str, Any]]
     wait_fork_sources: list[dict[str, str]]
     wait_beads: list[str]
+    wait_hoods: list[str]
     wait_duration: float | None
     wait_until: str | None
     wait_runners: int | None
@@ -334,6 +335,7 @@ def extract_directives_and_write_meta(
             )
     wait_fork_sources: list[dict[str, str]] = []
     wait_beads = list(directives.wait_beads)
+    wait_hoods = list(directives.wait_hoods)
     from sase.core.agent_tribe import (
         is_reserved_tribe_name,
         parse_tribe_reference,
@@ -509,6 +511,7 @@ def extract_directives_and_write_meta(
         wait_identity_deps=wait_identity_deps,
         wait_fork_sources=wait_fork_sources,
         wait_beads=wait_beads,
+        wait_hoods=wait_hoods,
         model=agent_model,
         llm_provider=agent_llm_provider,
         reasoning_effort=agent_reasoning_effort,
@@ -608,6 +611,7 @@ def extract_directives_and_write_meta(
         wait_identity_deps=wait_identity_deps,
         wait_fork_sources=wait_fork_sources,
         wait_beads=wait_beads,
+        wait_hoods=wait_hoods,
         wait_duration=directives.wait_duration,
         wait_until=directives.wait_until,
         wait_runners=directives.wait_runners,

@@ -52,6 +52,7 @@ class WaitModalCompletionScreen(ModalScreen[WaitModalResult | None]):
         self,
         current_waiting_for: list[str] | None = None,
         current_waiting_for_beads: list[str] | None = None,
+        current_waiting_for_hoods: list[str] | None = None,
         current_wait_duration: float | None = None,
         current_wait_until: str | None = None,
         current_wait_runners: int | None = None,
@@ -66,6 +67,7 @@ class WaitModalCompletionScreen(ModalScreen[WaitModalResult | None]):
         super().__init__()
         self._current_waiting_for = current_waiting_for or []
         self._current_waiting_for_beads = current_waiting_for_beads or []
+        self._current_waiting_for_hoods = current_waiting_for_hoods or []
         self._bead_prefill = ", ".join(self._current_waiting_for_beads)
         self._time_prefill = prefill_time_token(
             current_wait_duration,

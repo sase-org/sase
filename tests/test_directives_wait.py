@@ -316,7 +316,7 @@ def test_wait_bead_keywords_mix_and_deduplicate_in_source_order() -> None:
 
 
 def test_wait_typed_keywords_are_preserved() -> None:
-    prompt = "%wait(agent=reviewer, proc=build, unit=unit-2)\nDo work"
+    prompt = "%wait(agent=reviewer, proc=build, unit=unit-2, hood=sase-11l)\nDo work"
 
     cleaned, directives = extract_prompt_directives(prompt)
 
@@ -324,6 +324,7 @@ def test_wait_typed_keywords_are_preserved() -> None:
     assert directives.wait == ["reviewer"]
     assert directives.wait_procs == ["build"]
     assert directives.wait_units == ["unit-2"]
+    assert directives.wait_hoods == ["sase-11l"]
 
 
 def test_wait_bead_value_does_not_resolve_agent_name_template() -> None:
@@ -334,6 +335,16 @@ def test_wait_bead_value_does_not_resolve_agent_name_template() -> None:
         _, directives = extract_prompt_directives("%wait(bead=sase-@)\nDo work")
 
     assert directives.wait_beads == ["sase-@"]
+
+
+def test_wait_hood_value_does_not_resolve_agent_name_template() -> None:
+    with patch(
+        "sase.agent.names.is_agent_name_template",
+        side_effect=AssertionError("hood names are not agent-name templates"),
+    ):
+        _, directives = extract_prompt_directives("%wait(hood=sase-@)\nDo work")
+
+    assert directives.wait_hoods == ["sase-@"]
 
 
 @pytest.mark.parametrize("value", ["", '"two words"', "two words"])
@@ -395,7 +406,7 @@ def test_wait_unknown_keyword_raises() -> None:
         DirectiveError,
         match=(
             r"Unsupported keyword on %wait: foo=\. "
-            r"Use unit=, agent=, proc=, bead=, or time=\. "
+            r"Use unit=, agent=, proc=, bead=, hood=, or time=\. "
             r"Queue controls belong on %queue\."
         ),
     ):

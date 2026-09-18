@@ -412,7 +412,7 @@ def test_neutral_plan_submission_forwards_modal_wait_spec(
         run_coder=True,
         choice="tale",
         selected_option_ids=("approve", "commit"),
-        wait_spec="sase-s7.2,bead=sase-64.3",
+        wait_spec="sase-s7.2,bead=sase-64.3,hood=sase-11l",
     )
     app = _TrackedPlanApp()
 
@@ -421,13 +421,18 @@ def test_neutral_plan_submission_forwards_modal_wait_spec(
     assert submitted is True
     assert getattr(app.completion, "success", False) is True
     response = json.loads(gate.response_path.read_text(encoding="utf-8"))
-    assert response["option_inputs"]["approve"]["wait"] == ("sase-s7.2,bead=sase-64.3")
-    assert response["option_inputs"]["commit"]["wait"] == ("sase-s7.2,bead=sase-64.3")
+    assert response["option_inputs"]["approve"]["wait"] == (
+        "sase-s7.2,bead=sase-64.3,hood=sase-11l"
+    )
+    assert response["option_inputs"]["commit"]["wait"] == (
+        "sase-s7.2,bead=sase-64.3,hood=sase-11l"
+    )
     approve_result = next(
         item for item in response["option_results"] if item["id"] == "approve"
     )
     assert approve_result["result"]["wait_agents"] == ["sase-s7.2"]
     assert approve_result["result"]["wait_beads"] == ["sase-64.3"]
+    assert approve_result["result"]["wait_hoods"] == ["sase-11l"]
 
 
 def test_neutral_plan_submission_forwards_modal_capacity(

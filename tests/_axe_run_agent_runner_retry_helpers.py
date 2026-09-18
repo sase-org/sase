@@ -33,6 +33,7 @@ AGENT_INFO = AgentInfo(
     wait_identity_deps=[],
     wait_fork_sources=[],
     wait_beads=[],
+    wait_hoods=[],
     wait_duration=None,
     wait_until=None,
     wait_runners=None,

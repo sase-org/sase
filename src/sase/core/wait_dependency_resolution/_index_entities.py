@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from sase.core.agent_identity_facade import agent_name_in_hood
+
 from ._artifact_state import artifact_dir_key
 from ._types import ArtifactCandidate, WAIT_SUCCESS_OUTCOMES, WaitCandidate
 
@@ -197,6 +199,68 @@ class WaitDependencyEntityQueries:
             is_done=candidate.is_done,
             members=members,
         )
+
+    def _hood_entity(
+        self,
+        hood: str,
+        *,
+        launched_at_or_before: str | None,
+        exclude_artifact_dir: str | Path | None = None,
+    ) -> WaitEntity | None:
+        members = tuple(
+            sorted(
+                self._hood_candidates(
+                    hood,
+                    launched_at_or_before=launched_at_or_before,
+                    exclude_artifact_dir=exclude_artifact_dir,
+                ),
+                key=lambda candidate: candidate.timestamp,
+            )
+        )
+        if not members:
+            return None
+        return WaitEntity(
+            timestamp=max(member.timestamp for member in members),
+            is_resolved=all(member.is_resolved for member in members),
+            is_done=all(member.is_done for member in members),
+            members=members,
+        )
+
+    def _hood_candidates(
+        self,
+        hood: str,
+        *,
+        launched_at_or_before: str | None,
+        exclude_artifact_dir: str | Path | None = None,
+    ) -> tuple[ArtifactCandidate, ...]:
+        exclude_key = (
+            artifact_dir_key(str(exclude_artifact_dir))
+            if exclude_artifact_dir is not None
+            else None
+        )
+        members_by_name: dict[str, ArtifactCandidate] = {}
+        for candidate in self.artifacts_by_dir.values():
+            if (
+                launched_at_or_before is not None
+                and candidate.timestamp > launched_at_or_before
+            ):
+                continue
+            if (
+                exclude_key is not None
+                and artifact_dir_key(candidate.artifact_dir) == exclude_key
+            ):
+                continue
+            if not candidate.name:
+                continue
+            try:
+                in_hood = agent_name_in_hood(candidate.name, hood)
+            except Exception:
+                in_hood = False
+            if in_hood:
+                previous = members_by_name.get(candidate.name)
+                if previous is None or candidate.timestamp > previous.timestamp:
+                    members_by_name[candidate.name] = candidate
+        return tuple(members_by_name.values())
 
     def _excluded_member_name(
         self,

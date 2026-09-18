@@ -19,6 +19,7 @@ def dependency_resolution_status(
     *,
     wait_fork_sources: Iterable[object] = (),
     wait_beads: Iterable[object] = (),
+    wait_hoods: Iterable[object] = (),
     closed_bead_ids: Collection[str] | None = None,
     self_artifact_dir: str | Path | None = None,
 ) -> WaitDependencyStatus:
@@ -27,6 +28,7 @@ def dependency_resolution_status(
         Path(self_artifact_dir).name if self_artifact_dir is not None else None
     )
     blocked_on: list[str] = []
+    diagnostics: list[str] = []
     identity_names: set[str] = set()
     for dependency in wait_identity_deps:
         if not isinstance(dependency, Mapping):
@@ -77,6 +79,21 @@ def dependency_resolution_status(
         ):
             _append_blocked_dependency(blocked_on, name)
 
+    for hood in wait_hoods:
+        if not isinstance(hood, str) or not hood:
+            _append_blocked_dependency(blocked_on, _dependency_label(hood))
+            continue
+        status = index.hood_status(
+            hood,
+            launched_at_or_before=waiter_launch_cutoff,
+            exclude_artifact_dir=self_artifact_dir,
+        )
+        for diagnostic in status.diagnostics:
+            if diagnostic not in diagnostics:
+                diagnostics.append(diagnostic)
+        if not status.resolved:
+            _append_blocked_dependency(blocked_on, f"hood={hood}")
+
     wait_bead_items = tuple(wait_beads)
     for bead_id in wait_bead_items:
         if not isinstance(bead_id, str) or not bead_id:
@@ -90,8 +107,8 @@ def dependency_resolution_status(
             if isinstance(bead_id, str) and bead_id and bead_id not in closed_bead_ids:
                 _append_blocked_dependency(blocked_on, bead_id)
     if blocked_on:
-        return WaitDependencyStatus("waiting", tuple(blocked_on))
-    return WaitDependencyStatus("resolved")
+        return WaitDependencyStatus("waiting", tuple(blocked_on), tuple(diagnostics))
+    return WaitDependencyStatus("resolved", diagnostics=tuple(diagnostics))
 
 
 def _identity_dependency_is_memoized(

@@ -404,6 +404,8 @@ class ArtifactRestorationMixin:
             ]
         if agent.waiting_for_beads:
             data["wait_for_beads"] = agent.waiting_for_beads
+        if agent.waiting_for_hoods:
+            data["wait_for_hoods"] = agent.waiting_for_hoods
         if agent.wait_duration is not None:
             data["wait_duration"] = agent.wait_duration
         if agent.wait_until:

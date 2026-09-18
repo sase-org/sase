@@ -90,6 +90,7 @@ def wait_for_dependencies(
     wait_identity_deps: list[dict[str, Any]] | None = None,
     wait_fork_sources: list[dict[str, str]] | None = None,
     wait_beads: list[str] | None = None,
+    wait_hoods: list[str] | None = None,
     duration: float | None = None,
     wait_until: str | None = None,
 ) -> bool:
@@ -133,8 +134,13 @@ def wait_for_dependencies(
     wait_identity_deps = list(wait_identity_deps or [])
     wait_fork_sources = list(wait_fork_sources or [])
     wait_beads = list(wait_beads or [])
+    wait_hoods = list(wait_hoods or [])
     has_dependencies = bool(
-        wait_names or wait_identity_deps or wait_fork_sources or wait_beads
+        wait_names
+        or wait_identity_deps
+        or wait_fork_sources
+        or wait_beads
+        or wait_hoods
     )
     dependencies_already_resolved = (
         initial_dependencies_resolved(
@@ -142,6 +148,7 @@ def wait_for_dependencies(
             wait_identity_deps,
             wait_fork_sources=wait_fork_sources,
             wait_beads=wait_beads,
+            wait_hoods=wait_hoods,
             project_name=project_name,
             artifacts_dir=artifacts_dir,
         )
@@ -181,6 +188,8 @@ def wait_for_dependencies(
             waiting_data["wait_for_fork_sources"] = wait_fork_sources
         if wait_beads:
             waiting_data["wait_for_beads"] = wait_beads
+        if wait_hoods:
+            waiting_data["wait_for_hoods"] = wait_hoods
         if duration is not None:
             waiting_data["wait_duration"] = duration
         if wait_until is not None:
@@ -197,6 +206,8 @@ def wait_for_dependencies(
             )
         if wait_beads:
             parts.append(f"beads: {', '.join(wait_beads)}")
+        if wait_hoods:
+            parts.append(f"hoods: {', '.join(wait_hoods)}")
         if duration is not None:
             parts.append(f"duration: {duration:.0f}s")
         if wait_until is not None:
