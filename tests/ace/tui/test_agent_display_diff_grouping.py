@@ -96,6 +96,98 @@ def test_by_status_badge_only_change_patches_in_place(monkeypatch: Any) -> None:
     assert app._agents_refresh_trace_records[-1].fallback_reason is None
 
 
+def test_by_status_finalize_same_bucket_change_patches_incrementally(
+    monkeypatch: Any,
+) -> None:
+    old_agent = _agent("alpha", tribe=None, suffix="a1", status="RUNNING")
+    new_agent = replace(old_agent, activity="still running")
+    app = _by_status_app([old_agent], monkeypatch)
+    widget = app._widgets["#agent-list-panel"]
+    widget.update_list_calls = 0
+    app._agents_refresh_trace_records.clear()
+
+    app._agents = [new_agent]
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[old_agent],
+        defer_detail=True,
+    )
+
+    assert widget.update_list_calls == 0
+    assert widget._agents[0].activity == "still running"
+    assert app.full_rebuilds == 0
+    costs = _display_costs(app)
+    assert "row_patch" in costs
+    assert "display_full_rebuild" not in costs
+    assert [
+        record.fallback_reason
+        for record in app._agents_refresh_trace_records
+        if record.fallback_reason == "unsupported_grouping"
+    ] == []
+
+
+def test_by_status_finalize_bucket_move_uses_status_membership_fallback(
+    monkeypatch: Any,
+) -> None:
+    old_agent = _agent("alpha", tribe=None, suffix="a1", status="RUNNING")
+    new_agent = replace(old_agent, status="DONE")
+    app = _by_status_app([old_agent], monkeypatch)
+    app._agents_refresh_trace_records.clear()
+
+    app._agents = [new_agent]
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[old_agent],
+        defer_detail=True,
+    )
+
+    assert app.full_rebuilds == 1
+    assert app._agents_refresh_trace_records[0].fallback_reason == (
+        "status_membership_change"
+    )
+    assert "display_full_rebuild" in _display_costs(app)
+
+
+def test_by_status_finalize_bucket_appearance_uses_status_membership_fallback(
+    monkeypatch: Any,
+) -> None:
+    running = _agent("alpha", tribe=None, suffix="a1", status="RUNNING")
+    done = _agent("beta", tribe=None, suffix="b1", status="DONE")
+    app = _by_status_app([running], monkeypatch)
+    app._agents_refresh_trace_records.clear()
+
+    app._agents = [running, done]
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[running],
+        defer_detail=True,
+    )
+
+    assert app.full_rebuilds == 1
+    assert app._agents_refresh_trace_records[0].fallback_reason == (
+        "status_membership_change"
+    )
+    assert "display_full_rebuild" in _display_costs(app)
+
+
+def test_by_status_finalize_subgroup_collapse_uses_status_membership_fallback(
+    monkeypatch: Any,
+) -> None:
+    first = _agent("alpha.one", tribe=None, suffix="a1", status="RUNNING")
+    second = _agent("alpha.two", tribe=None, suffix="a2", status="RUNNING")
+    app = _by_status_app([first, second], monkeypatch)
+    app._agents_refresh_trace_records.clear()
+
+    app._agents = [first]
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[first, second],
+        defer_detail=True,
+    )
+
+    assert app.full_rebuilds == 1
+    assert app._agents_refresh_trace_records[0].fallback_reason == (
+        "status_membership_change"
+    )
+    assert "display_full_rebuild" in _display_costs(app)
+
+
 def test_by_status_status_bucket_move_refuses_row_patch(monkeypatch: Any) -> None:
     old_agent = _agent("alpha", tribe=None, suffix="a1", status="RUNNING")
     app = _by_status_app([old_agent], monkeypatch)
@@ -108,7 +200,7 @@ def test_by_status_status_bucket_move_refuses_row_patch(monkeypatch: Any) -> Non
     # and leave the caller to rebuild the affected panel.
     assert app._try_patch_agent_row(new_agent) is False
     assert app._agents_refresh_trace_records[-1].fallback_reason == (
-        "unsupported_grouping"
+        "status_membership_change"
     )
 
 
@@ -125,7 +217,7 @@ def test_by_status_launch_anchor_change_refuses_row_patch(monkeypatch: Any) -> N
 
     assert app._try_patch_agent_row(new_agent) is False
     assert app._agents_refresh_trace_records[-1].fallback_reason == (
-        "unsupported_grouping"
+        "status_membership_change"
     )
 
 
@@ -143,7 +235,7 @@ def test_by_machine_status_bucket_move_refuses_row_patch(monkeypatch: Any) -> No
 
     assert app._try_patch_agent_row(new_agent) is False
     assert app._agents_refresh_trace_records[-1].fallback_reason == (
-        "unsupported_grouping"
+        "status_membership_change"
     )
 
 
@@ -177,7 +269,7 @@ def test_by_machine_origin_move_refuses_row_patch(monkeypatch: Any) -> None:
 
     assert app._try_patch_agent_row(new_agent) is False
     assert app._agents_refresh_trace_records[-1].fallback_reason == (
-        "unsupported_grouping"
+        "status_membership_change"
     )
 
 

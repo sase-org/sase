@@ -78,6 +78,7 @@ def test_refresh_trace_taxonomy_covers_phase_one_terms() -> None:
         "delta_read_failure",
         "active_search",
         "unsupported_grouping",
+        "status_membership_change",
         "width_growth",
         "panel_membership_change",
         "workflow_tree_change",

@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from ...models.agent_panels import AgentPanelGroup, PanelKey
     from ..navigation.jump_hints import BannerJumpTarget, PanelJumpTarget
 
-from ...models.agent_groups import GroupingMode
+from ...models.agent_groups import GroupingMode, status_grouping_signature
 from ...util.debounce import DetailPanelDebouncer
 from ...util.trace import tui_trace
 from ._display_diff import (
@@ -29,6 +29,7 @@ from ._display_diff import (
     build_agent_display_diff,
     changed_same_position_panel_membership_keys,
     diff_touches_workflow_tree,
+    grouping_tree_keys_for_display,
     panel_keys_for_display,
     rendered_panel_key_by_identity,
 )
@@ -256,8 +257,10 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         if current_search_query != last_search_query:
             self._record_display_full_rebuild_fallback("search_query_changed")
             return False
-        if getattr(self, "_grouping_mode", GroupingMode.STANDARD) not in {
+        grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        if grouping_mode not in {
             GroupingMode.STANDARD,
+            GroupingMode.BY_STATUS,
             GroupingMode.BY_MACHINE,
         }:
             self._record_display_full_rebuild_fallback("unsupported_grouping")
@@ -296,6 +299,12 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         if diff.duplicate_identity:
             self._record_display_full_rebuild_fallback("panel_membership_change")
             return False
+        if (
+            grouping_mode is GroupingMode.BY_STATUS
+            and self._by_status_display_membership_changed(previous_agents)
+        ):
+            self._record_display_full_rebuild_fallback("status_membership_change")
+            return False
         if diff_touches_workflow_tree(diff, previous_agents, self._agents):
             self._record_display_full_rebuild_fallback("workflow_tree_change")
             return False
@@ -316,6 +325,33 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
                 defer_detail=defer_detail,
                 merge_tribe_panels=merge_tribe_panels,
             )
+
+    def _by_status_display_membership_changed(
+        self,
+        previous_agents: list[Agent],
+    ) -> bool:
+        """Return True when BY_STATUS grouping structure would move rows."""
+        previous_by_id = {agent.identity: agent for agent in previous_agents}
+        next_by_id = {agent.identity: agent for agent in self._agents}
+        for identity in previous_by_id.keys() & next_by_id.keys():
+            if status_grouping_signature(
+                previous_by_id[identity]
+            ) != status_grouping_signature(next_by_id[identity]):
+                return True
+
+        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
+        collapsed_panel_keys = effective_panel_collapses(self)
+        return grouping_tree_keys_for_display(
+            previous_agents,
+            mode=GroupingMode.BY_STATUS,
+            merge_tribe_panels=merge_tribe_panels,
+            collapsed_panel_keys=collapsed_panel_keys,
+        ) != grouping_tree_keys_for_display(
+            self._agents,
+            mode=GroupingMode.BY_STATUS,
+            merge_tribe_panels=merge_tribe_panels,
+            collapsed_panel_keys=collapsed_panel_keys,
+        )
 
     def _agent_display_widgets_match_grouping_mode(self) -> bool:
         """Return True when every rendered ``AgentList`` matches the app mode.

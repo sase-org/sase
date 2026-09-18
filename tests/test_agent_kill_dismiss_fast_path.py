@@ -204,16 +204,37 @@ def test_kill_falls_back_under_search(monkeypatch: Any) -> None:
     assert app.refresh_calls == [(True, True)]
 
 
-def test_kill_falls_back_under_non_standard_grouping(monkeypatch: Any) -> None:
-    """A non-STANDARD grouping mode disables the fast path."""
+def test_kill_by_status_uses_fast_path_when_group_tree_stays_stable(
+    monkeypatch: Any,
+) -> None:
+    """BY_STATUS can use the fast path when removal preserves group banners."""
+    panel = _wire_agent_list(monkeypatch)
+    a = _agent(cl_name="alpha", raw_suffix="r1")
+    b = _agent(cl_name="beta", raw_suffix="r2")
+    c = _agent(cl_name="gamma", raw_suffix="r3")
+    panel.update_list([a, b, c], current_idx=1, grouping_mode=GroupingMode.BY_STATUS)
+    app = _build_kill_app(panel)
+    app._agents = [a, b, c]
+    app._agents_with_children = [a, b, c]
+    app._grouping_mode = GroupingMode.BY_STATUS
+
+    with patch("sase.ace.tui.actions.agents._killing.os.killpg"):
+        app._do_kill_agent(b)
+
+    assert app.refresh_calls == [(False, True)]
+    assert b.identity not in {agent.identity for agent in panel._agents}
+
+
+def test_kill_falls_back_under_unsupported_grouping(monkeypatch: Any) -> None:
+    """Unsupported grouping modes still disable the fast path."""
     panel = _wire_agent_list(monkeypatch)
     a = _agent(raw_suffix="r1")
     b = _agent(raw_suffix="r2")
-    panel.update_list([a, b], current_idx=0, grouping_mode=GroupingMode.BY_STATUS)
+    panel.update_list([a, b], current_idx=0, grouping_mode=GroupingMode.BY_DATE)
     app = _build_kill_app(panel)
     app._agents = [a, b]
     app._agents_with_children = [a, b]
-    app._grouping_mode = GroupingMode.BY_STATUS
+    app._grouping_mode = GroupingMode.BY_DATE
 
     with patch("sase.ace.tui.actions.agents._killing.os.killpg"):
         app._do_kill_agent(a)
@@ -288,7 +309,10 @@ def _build_dismiss_app(panel_widget: AgentList | None) -> Any:
                 return False
             if self._agent_search_query:
                 return False
-            if self._grouping_mode is not GroupingMode.STANDARD:
+            if self._grouping_mode not in {
+                GroupingMode.STANDARD,
+                GroupingMode.BY_STATUS,
+            }:
                 return False
             return panel_widget.try_remove_rows(removed_identities)
 

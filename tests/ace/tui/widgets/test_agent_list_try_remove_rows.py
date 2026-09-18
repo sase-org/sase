@@ -74,10 +74,49 @@ def test_try_remove_rows_returns_true_for_unknown_identity(monkeypatch: Any) -> 
     assert widget.option_count == options_before
 
 
-def test_try_remove_rows_bails_when_grouping_not_standard(monkeypatch: Any) -> None:
+def test_try_remove_rows_allows_by_status_when_group_tree_stays_stable(
+    monkeypatch: Any,
+) -> None:
+    widget = _wire(monkeypatch)
+    agents = [
+        _agent(agent_name="alpha", raw_suffix="a1"),
+        _agent(agent_name="beta", raw_suffix="a2"),
+        _agent(agent_name="gamma", raw_suffix="a3"),
+    ]
+    widget.update_list(agents, current_idx=0, grouping_mode=GroupingMode.BY_STATUS)
+    initial_options = widget.option_count
+
+    ok = widget.try_remove_rows({agents[1].identity})
+
+    assert ok is True
+    assert widget.option_count == initial_options - 1
+    assert [agent.identity for agent in widget._agents] == [
+        agents[0].identity,
+        agents[2].identity,
+    ]
+
+
+def test_try_remove_rows_bails_when_by_status_group_banner_would_collapse(
+    monkeypatch: Any,
+) -> None:
+    widget = _wire(monkeypatch)
+    agents = [
+        _agent(agent_name="alpha.one", raw_suffix="a1"),
+        _agent(agent_name="alpha.two", raw_suffix="a2"),
+    ]
+    widget.update_list(agents, current_idx=0, grouping_mode=GroupingMode.BY_STATUS)
+    options_before = widget.option_count
+
+    ok = widget.try_remove_rows({agents[0].identity})
+
+    assert ok is False
+    assert widget.option_count == options_before
+
+
+def test_try_remove_rows_bails_when_grouping_unsupported(monkeypatch: Any) -> None:
     widget = _wire(monkeypatch)
     agents = [_agent(raw_suffix=f"a{i}") for i in range(3)]
-    widget.update_list(agents, current_idx=0, grouping_mode=GroupingMode.BY_STATUS)
+    widget.update_list(agents, current_idx=0, grouping_mode=GroupingMode.BY_DATE)
     options_before = widget.option_count
 
     ok = widget.try_remove_rows({agents[0].identity})

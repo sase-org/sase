@@ -7,7 +7,7 @@ from typing import Any
 
 from ..agent_completion import WaitDependencyStatusCounts
 from ..models.agent import AgentType
-from ..models.agent_groups import GroupRow, GroupingMode
+from ..models.agent_groups import GroupRow, GroupingMode, rendered_group_keys
 from ..models.agent_nodes import is_agents_tab_agent_node
 from ._agent_list_rendering import assemble_padded_option, cached_format_agent_option
 from ._agent_list_styling import _BANNER_ROW
@@ -32,8 +32,9 @@ def try_remove_rows(
     Returns ``False`` (caller falls back to a full ``update_list`` rebuild)
     when any conservative gate makes the in-place path unsafe:
 
-    - grouping mode is neither :data:`GroupingMode.STANDARD` nor
-      :data:`GroupingMode.BY_MACHINE`;
+    - grouping mode is not one of :data:`GroupingMode.STANDARD`,
+      :data:`GroupingMode.BY_STATUS`, or :data:`GroupingMode.BY_MACHINE`;
+    - a ``BY_STATUS`` removal would add/remove a status bucket or group banner;
     - a removed agent is a workflow/clan parent with visible folded children
       (orphan child rows would be left behind);
     - the panel's per-row trackers don't have an entry for an identity we
@@ -42,7 +43,11 @@ def try_remove_rows(
     Banner chip counts are not refreshed on the fast path - they heal on
     the next full refresh.
     """
-    if widget._grouping_mode not in {GroupingMode.STANDARD, GroupingMode.BY_MACHINE}:
+    if widget._grouping_mode not in {
+        GroupingMode.STANDARD,
+        GroupingMode.BY_STATUS,
+        GroupingMode.BY_MACHINE,
+    }:
         return False
 
     rows_to_remove: list[tuple[int, int]] = []
@@ -63,6 +68,18 @@ def try_remove_rows(
 
     if not rows_to_remove:
         return True
+
+    if widget._grouping_mode is GroupingMode.BY_STATUS:
+        remaining_agents = [
+            agent
+            for agent in widget._agents
+            if agent.identity not in removed_identities
+        ]
+        if rendered_group_keys(
+            widget._agents,
+            GroupingMode.BY_STATUS,
+        ) != rendered_group_keys(remaining_agents, GroupingMode.BY_STATUS):
+            return False
 
     # Parent gate: a parent with visible children would leave orphan rows
     # behind. Defense-in-depth: the caller should also gate.

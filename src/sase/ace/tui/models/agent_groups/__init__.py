@@ -92,6 +92,7 @@ from ._tree import (
     compute_banner_summary,
     enumerate_group_keys,
     find_visible_ancestor_banner,
+    rendered_group_keys,
 )
 
 NO_CHANGESPEC_LABEL = NO_PATCH_LABEL  # legacy compatibility alias
@@ -126,6 +127,7 @@ __all__ = [
     "grouping_keys_for_agents",
     "machine_grouping_signature",
     "panel_uses_patch_level",
+    "rendered_group_keys",
     "status_bucket_for",
     "status_grouping_signature",
 ]

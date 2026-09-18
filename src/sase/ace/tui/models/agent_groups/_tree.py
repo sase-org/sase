@@ -246,6 +246,19 @@ def enumerate_group_keys(
     return out
 
 
+def rendered_group_keys(
+    agents: list[Agent],
+    mode: GroupingMode = GroupingMode.STANDARD,
+    now: datetime | None = None,
+) -> tuple[GroupKey, ...]:
+    """Return the visible banner keys emitted by the grouped tree builder."""
+    return tuple(
+        entry.group.group_key
+        for entry in build_agent_tree(agents, mode=mode, now=now)
+        if entry.kind == "group" and entry.group is not None
+    )
+
+
 def build_agent_tree(
     agents: list[Agent],
     fold_registry: GroupFoldView | None = None,

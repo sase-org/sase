@@ -7,10 +7,12 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, cast
 
 from ...models.agent import AgentType
+from ...models.agent_groups import GroupingMode, rendered_group_keys
 from ...models.agent_panels import (
     AgentPanelGroup,
     PanelKey,
     agent_is_rendered_in_agents_panel,
+    agents_for_panel,
     panel_key_per_agent,
 )
 
@@ -104,6 +106,34 @@ def panel_keys_for_display(
             merge_tribe_panels=merge_tribe_panels,
             collapsed_panel_keys=collapsed_panel_keys,
         ).panel_keys
+    )
+
+
+def grouping_tree_keys_for_display(
+    agents: list[Agent],
+    *,
+    mode: GroupingMode,
+    merge_tribe_panels: bool,
+    collapsed_panel_keys: Collection[PanelKey] = (),
+) -> tuple[tuple[PanelKey, tuple[tuple[str, ...], ...]], ...]:
+    """Return visible grouping-banner keys for each rendered Agents panel."""
+    return tuple(
+        (
+            key,
+            rendered_group_keys(
+                agents_for_panel(
+                    agents,
+                    key,
+                    merge_tribe_panels=merge_tribe_panels,
+                ),
+                mode,
+            ),
+        )
+        for key in panel_keys_for_display(
+            agents,
+            merge_tribe_panels=merge_tribe_panels,
+            collapsed_panel_keys=collapsed_panel_keys,
+        )
     )
 
 

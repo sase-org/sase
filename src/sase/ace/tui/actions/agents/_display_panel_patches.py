@@ -9,6 +9,7 @@ from sase.core.time import local_now
 from ...models.agent_groups import (
     GroupingMode,
     machine_grouping_signature,
+    rendered_group_keys,
     status_bucket_for,
     status_grouping_signature,
 )
@@ -67,6 +68,18 @@ def _clan_row_patch_preserves_order(old_agent: Agent, new_agent: Agent) -> bool:
     return status_bucket_for(old_agent) == status_bucket_for(new_agent)
 
 
+def _by_status_remove_preserves_group_tree(
+    agents: list[Agent],
+    removed_identities: set[tuple[AgentType, str, str | None]],
+) -> bool:
+    """Whether removing identities leaves BY_STATUS banner topology intact."""
+    remaining = [agent for agent in agents if agent.identity not in removed_identities]
+    return rendered_group_keys(
+        agents,
+        GroupingMode.BY_STATUS,
+    ) == rendered_group_keys(remaining, GroupingMode.BY_STATUS)
+
+
 class PanelPatchMixin:
     """Fast paths for in-place row removal and single-row refreshes."""
 
@@ -118,6 +131,7 @@ class PanelPatchMixin:
             return False
         if getattr(self, "_grouping_mode", GroupingMode.STANDARD) not in {
             GroupingMode.STANDARD,
+            GroupingMode.BY_STATUS,
             GroupingMode.BY_MACHINE,
         }:
             self._record_display_patch_trace(
@@ -184,6 +198,21 @@ class PanelPatchMixin:
                     )
                     return False
             return True
+
+        grouping_mode = getattr(self, "_grouping_mode", GroupingMode.STANDARD)
+        if (
+            grouping_mode is GroupingMode.BY_STATUS
+            and not _by_status_remove_preserves_group_tree(
+                target_widget._agents,
+                removed_identities,
+            )
+        ):
+            self._record_display_patch_trace(
+                display_cost="row_remove",
+                fallback_reason="status_membership_change",
+                count=len(removed_identities),
+            )
+            return False
 
         target_identities = {agent.identity for agent in target_widget._agents}
         if target_widget.has_class("-collapsed-panel") or (
@@ -327,7 +356,7 @@ class PanelPatchMixin:
             # hierarchy, or recency change requires a panel rebuild.
             self._record_display_patch_trace(
                 display_cost="row_patch",
-                fallback_reason="unsupported_grouping",
+                fallback_reason="status_membership_change",
                 count=1,
             )
             return False
@@ -336,7 +365,7 @@ class PanelPatchMixin:
         ):
             self._record_display_patch_trace(
                 display_cost="row_patch",
-                fallback_reason="unsupported_grouping",
+                fallback_reason="status_membership_change",
                 count=1,
             )
             return False
