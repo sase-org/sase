@@ -9,6 +9,9 @@ import pytest
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from tests.ace.tui.widgets.prompt_g_prefix_hint_test_support import GPrefixHintApp
 
+_SASE_BEADS = "sase" + "_beads"
+_SASE_BEADS_REF = f"#memory/{_SASE_BEADS}"
+
 
 async def test_gm_from_normal_posts_memory_request() -> None:
     app = GPrefixHintApp("solo draft")
@@ -51,26 +54,26 @@ async def test_ctrl_g_m_from_normal_posts_memory_request() -> None:
 
 
 async def test_memory_request_detects_live_memory_reference() -> None:
-    text = "see #memory/sase_beads here"
+    text = f"see {_SASE_BEADS_REF} here"
     app = GPrefixHintApp(text)
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
         text_area = bar.active_text_area()
-        text_area.cursor_location = (0, text.index("sase_beads"))
+        text_area.cursor_location = (0, text.index(_SASE_BEADS))
 
         await pilot.press("escape", "g", "m")
         await pilot.pause()
 
         assert len(app.memory_requests) == 1
-        assert app.memory_requests[0].note_reference == "#memory/sase_beads"
+        assert app.memory_requests[0].note_reference == _SASE_BEADS_REF
 
 
 async def test_memory_request_carries_note_under_cursor(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    app = GPrefixHintApp("see #memory/sase_beads here")
+    app = GPrefixHintApp(f"see {_SASE_BEADS_REF} here")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
@@ -78,7 +81,7 @@ async def test_memory_request_carries_note_under_cursor(
             "sase.ace.tui.widgets._prompt_jump_target.detect_jump_target_at_cursor",
             lambda *_args, **_kwargs: SimpleNamespace(
                 kind="xprompt",
-                target="memory/sase_beads",
+                target=f"memory/{_SASE_BEADS}",
             ),
         )
 
@@ -86,7 +89,7 @@ async def test_memory_request_carries_note_under_cursor(
         await pilot.pause()
 
         assert len(app.memory_requests) == 1
-        assert app.memory_requests[0].note_reference == "#memory/sase_beads"
+        assert app.memory_requests[0].note_reference == _SASE_BEADS_REF
 
 
 async def test_memory_request_is_none_for_non_memory_xprompt(

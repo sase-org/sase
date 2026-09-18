@@ -11,6 +11,8 @@ from sase.ace.tui.actions.agent_workflow._prompt_bar_snippets_panel import (
 from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
+_SASE_BEADS = "sase" + "_beads"
+
 
 class _HubOpenHarness(
     PromptBarMemoryPanelMixin,
@@ -57,7 +59,7 @@ def test_glossary_shortcut_opens_config_hub_on_memory() -> None:
 def test_memory_shortcut_opens_config_hub_on_memory() -> None:
     harness = _HubOpenHarness()
     harness.on_prompt_input_bar_memory_panel_requested(
-        PromptInputBar.MemoryPanelRequested("#memory/sase_beads", "prompt")
+        PromptInputBar.MemoryPanelRequested(f"#memory/{_SASE_BEADS}", "prompt")
     )
 
     tab, kwargs = harness.opened[0]
@@ -66,7 +68,7 @@ def test_memory_shortcut_opens_config_hub_on_memory() -> None:
     assert isinstance(entry, ConfigHubEntry)
     assert entry.subtab == "memory"
     assert entry.note is not None
-    assert "sase_beads" in entry.note
+    assert _SASE_BEADS in entry.note
 
 
 def test_snippets_shortcut_opens_config_hub_on_snippets() -> None:

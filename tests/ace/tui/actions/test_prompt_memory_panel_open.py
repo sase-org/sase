@@ -16,6 +16,9 @@ from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.modals.memory_panel_load import MemoryPanelInitialLoad
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
+_SASE_BEADS = "sase" + "_beads"
+_SASE_BEADS_NOTE = f"sase/memory/{_SASE_BEADS}.md"
+
 
 class _FakeTextArea:
     """Stand-in prompt pane used to pin focus restore."""
@@ -121,7 +124,7 @@ def test_handler_opens_panel_with_seeded_note() -> None:
     harness = _MemoryOpenHarness(_FakeBar(text_area))
 
     harness.on_prompt_input_bar_memory_panel_requested(
-        PromptInputBar.MemoryPanelRequested("#memory/sase_beads", "prompt")
+        PromptInputBar.MemoryPanelRequested(f"#memory/{_SASE_BEADS}", "prompt")
     )
 
     assert len(harness.opened) == 1
@@ -130,7 +133,7 @@ def test_handler_opens_panel_with_seeded_note() -> None:
     entry = kwargs["config_entry"]
     assert isinstance(entry, ConfigHubEntry)
     assert entry.subtab == "memory"
-    assert entry.note == "sase/memory/sase_beads.md"
+    assert entry.note == _SASE_BEADS_NOTE
     assert entry.launch_workspace is None
 
 

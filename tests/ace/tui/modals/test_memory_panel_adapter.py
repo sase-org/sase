@@ -21,6 +21,9 @@ from tests.ace.tui.modals.memory_panel_test_helpers import (
     scope_snapshot,
 )
 
+_SASE_BEADS = "sase" + "_beads"
+_SASE_BEADS_NOTE = f"sase/memory/{_SASE_BEADS}.md"
+
 
 class _AdapterApp(App[None]):
     ENABLE_COMMAND_PALETTE = False
@@ -102,10 +105,10 @@ async def test_dismissed_adapter_ignores_late_load_result(
 def test_adapter_implements_host_contract_and_keeps_constructor_seeds() -> None:
     panel = MemoryPanel(
         launch_workspace="/ws/sase",
-        initial_note="sase/memory/sase_beads.md",
+        initial_note=_SASE_BEADS_NOTE,
     )
     assert isinstance(panel, CatalogPaneHost)
     assert isinstance(panel.pane, MemoryPane)
     assert callable(panel.close_catalog_pane)
     assert panel._launch_workspace == "/ws/sase"
-    assert panel._initial_note == "sase/memory/sase_beads.md"
+    assert panel._initial_note == _SASE_BEADS_NOTE

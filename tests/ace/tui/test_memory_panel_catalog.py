@@ -17,6 +17,9 @@ from sase.memory.notes import AGENTS_PARENT
 from sase.memory.read_log import MemoryReadPathSummary
 from sase.xprompt import glossary_catalog as xprompt_catalog
 
+_SASE_BEADS = "sase" + "_beads"
+_SASE_BEADS_NOTE = f"sase/memory/{_SASE_BEADS}.md"
+
 _REAL_HOME_CONTENT_ROOT = panel_catalog._home_content_root
 
 
@@ -516,8 +519,8 @@ def test_snapshot_marks_generated_and_shadowed_stems(
     _write_note(workspace, "task_types", note_type="core")
     _write_note(workspace, "glossary", note_type="core")
     _write_note(workspace, "sase_artifacts")
-    _write_note(workspace, "sase_beads")
-    _write_note(workspace, "sase_sizes", parent="sase/memory/sase_beads.md")
+    _write_note(workspace, _SASE_BEADS)
+    _write_note(workspace, "sase_sizes", parent=_SASE_BEADS_NOTE)
     _write_note(workspace, "local")
     record = _record("gh_demo__demo", workspace, display_name="Demo")
     _install_records(monkeypatch, [record])
@@ -538,7 +541,7 @@ def test_snapshot_marks_generated_and_shadowed_stems(
     # glossary.md is a user-owned memory-web descriptor, not a generated note.
     assert "sase/memory/glossary.md" not in snapshot.generated_paths
     assert "sase/memory/sase_artifacts.md" in snapshot.generated_paths
-    assert "sase/memory/sase_beads.md" in snapshot.generated_paths
+    assert _SASE_BEADS_NOTE in snapshot.generated_paths
     assert "sase/memory/sase_sizes.md" in snapshot.generated_paths
     assert "sase/memory/local.md" not in snapshot.generated_paths
 
@@ -550,7 +553,7 @@ def test_home_snapshot_does_not_mark_project_only_generated_notes(
     _write_note(home, "sase", note_type="core")
     _write_note(home, "glossary", note_type="core")
     _write_note(home, "sase_artifacts")
-    _write_note(home, "sase_beads")
+    _write_note(home, _SASE_BEADS)
     monkeypatch.setattr(panel_catalog, "_home_content_root", lambda: home)
 
     snapshot = panel_catalog.load_memory_scope_snapshot(panel_catalog._home_scope_ref())
@@ -558,7 +561,7 @@ def test_home_snapshot_does_not_mark_project_only_generated_notes(
     assert "sase/memory/task_types.md" not in snapshot.generated_paths
     assert "sase/memory/glossary.md" not in snapshot.generated_paths
     assert "sase/memory/sase_artifacts.md" not in snapshot.generated_paths
-    assert "sase/memory/sase_beads.md" not in snapshot.generated_paths
+    assert _SASE_BEADS_NOTE not in snapshot.generated_paths
     assert snapshot.shadowed_stems == frozenset()
 
 

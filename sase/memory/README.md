@@ -216,7 +216,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: Read before changing the SASE TUI, its live screenshot tooling, visual
   snapshots, or performance-sensitive UI paths.
 - Lines: 17
-- Approx. tokens: 110
+- Approx. tokens: 109
 
 ### `sase/memory/tui_perf.md`
 
@@ -253,7 +253,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Reference notes: 12
 - Web descriptor notes: 3
 - Total lines: 1215
-- Total approx. tokens: 15631
+- Total approx. tokens: 15630
 
 ## Commands
 
