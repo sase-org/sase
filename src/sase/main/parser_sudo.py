@@ -132,9 +132,11 @@ def _register_exec(subparsers: argparse._SubParsersAction) -> None:
         description="Internal target-side sudo execution entrypoint.",
     )
     parser.add_argument("--contract", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--manifest", metavar="PATH", help=argparse.SUPPRESS)
+    parser.add_argument("--detach", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--expected-sha256", metavar="SHA256", help=argparse.SUPPRESS)
+    parser.add_argument("--handshake", metavar="PATH", help=argparse.SUPPRESS)
     parser.add_argument("--ledger", metavar="PATH", help=argparse.SUPPRESS)
+    parser.add_argument("--manifest", metavar="PATH", help=argparse.SUPPRESS)
 
 
 def _register_request(subparsers: argparse._SubParsersAction) -> None:

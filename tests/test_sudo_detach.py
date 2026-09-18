@@ -190,7 +190,7 @@ def test_sudo_answer_detach_falls_back_for_old_runner(
     assert gate.response_path.is_file()
 
 
-def test_sudo_answer_detach_refuses_remote_target(
+def test_sudo_answer_detach_remote_old_target_falls_back(
     gate_home: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -205,7 +205,11 @@ def test_sudo_answer_detach_refuses_remote_target(
     )
     monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
     monkeypatch.setattr(
-        "sase.sudo.cli.runner_supports_detached_execution", lambda: True
+        "sase.notification_gates.executor.has_controlling_tty",
+        lambda: True,
+    )
+    monkeypatch.setattr(
+        "sase.sudo.cli.remote_supports_detached_execution", lambda _host: False
     )
     original = sudo_cli._sudo_payload
 
@@ -215,15 +219,154 @@ def test_sudo_answer_detach_refuses_remote_target(
         return payload
 
     monkeypatch.setattr("sase.sudo.cli._sudo_payload", remote_payload)
+    monkeypatch.setattr(
+        "sase.sudo.cli.run_remote_sudo",
+        lambda _host, manifest, **kwargs: _runner_ledger(
+            manifest, str(kwargs["manifest_sha256"])
+        ),
+    )
 
     with override_flags(agent_sudo_requests=True):
-        assert handle_sudo_command(args) == 2
+        assert handle_sudo_command(args) == 0
+
+    captured = capsys.readouterr()
+    output = json.loads(captured.out)
+    assert output["status"] == "answered"
+    assert "detached_execution" in captured.err
+    assert gate.response_path.exists()
+
+
+def test_sudo_answer_detach_remote_starts_finalize_proc(
+    gate_home: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    del gate_home
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    with override_flags(agent_sudo_requests=True):
+        gate = create_gate(build_sudo_gate_request(_request()))
+    parser = argparse.ArgumentParser(prog="sase")
+    register_sudo_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(
+        ["sudo", "answer", gate.request_id, "--run", "--detach", "--json"]
+    )
+    monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
+    monkeypatch.setattr(
+        "sase.sudo.cli.remote_supports_detached_execution", lambda _host: True
+    )
+    _patch_handshake(monkeypatch)
+    original = sudo_cli._sudo_payload
+
+    def remote_payload(envelope: dict[str, Any]) -> dict[str, Any]:
+        payload = original(envelope)
+        payload["target"] = {"remote": True, "host": "other-host"}
+        return payload
+
+    captured: dict[str, Any] = {}
+
+    def fake_remote_detached(
+        host: str,
+        manifest: dict[str, Any],
+        *,
+        manifest_sha256: str,
+        **_kwargs: Any,
+    ) -> tuple[dict[str, Any], dict[str, str]]:
+        del manifest
+        captured["host"] = host
+        return (
+            _handshake_for(manifest_sha256),
+            {
+                "directory": "/tmp/sase-sudo-test",
+                "handshake": "/tmp/sase-sudo-test/handshake.json",
+                "ledger": "/tmp/sase-sudo-test/ledger.json",
+                "log": "/tmp/sase-sudo-test/output.log",
+                "manifest": "/tmp/sase-sudo-test/manifest.json",
+                "stop": "/tmp/sase-sudo-test/stop",
+            },
+        )
+
+    def fake_submit(request: Any) -> Any:
+        captured["request"] = request
+        return argparse.Namespace(proc_id="proc-remote")
+
+    monkeypatch.setattr("sase.sudo.cli._sudo_payload", remote_payload)
+    monkeypatch.setattr(
+        "sase.sudo.detach.run_remote_sudo_detached", fake_remote_detached
+    )
+    monkeypatch.setattr("sase.sudo.detach.submit_proc_request", fake_submit)
+
+    with override_flags(agent_sudo_requests=True):
+        assert handle_sudo_command(args) == 0
 
     output = json.loads(capsys.readouterr().out)
-    assert output["status"] == "pending"
-    assert output["code"] == "detach_unsupported"
-    assert "without --detach" in output["message"]
+    request = captured["request"]
+    assert output["status"] == "execution_started"
+    assert output["proc_id"] == "proc-remote"
+    assert captured["host"] == "other-host"
+    assert request.operation_payload["remote"]["host"] == "other-host"
+    assert request.operation_payload["remote"]["paths"]["ledger"].endswith(
+        "/ledger.json"
+    )
     assert not gate.response_path.exists()
+
+
+def test_sudo_exec_contract_advertises_detached_runner(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    parser = argparse.ArgumentParser(prog="sase")
+    register_sudo_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(["sudo", "exec", "--contract"])
+    monkeypatch.setattr(
+        "sase.sudo.cli.runner_supports_detached_execution", lambda: True
+    )
+
+    with override_flags(agent_sudo_requests=True):
+        assert handle_sudo_command(args) == 0
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["schema_version"] == 1
+    assert payload["capabilities"] == ["detached_execution"]
+
+
+def test_sudo_exec_detach_writes_handshake_file(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    ledger_path = tmp_path / "ledger.json"
+    handshake_path = tmp_path / "handshake.json"
+    manifest_path.write_text('{"schema_version":1}\n', encoding="utf-8")
+    handshake = _handshake_for("abc")
+    parser = argparse.ArgumentParser(prog="sase")
+    register_sudo_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(
+        [
+            "sudo",
+            "exec",
+            "--detach",
+            "--manifest",
+            str(manifest_path),
+            "--expected-sha256",
+            "abc",
+            "--handshake",
+            str(handshake_path),
+            "--ledger",
+            str(ledger_path),
+        ]
+    )
+    monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
+    monkeypatch.setattr(
+        "sase.sudo.cli.run_sudo_runner_detached",
+        lambda *_args, **_kwargs: handshake,
+    )
+
+    with override_flags(agent_sudo_requests=True):
+        assert handle_sudo_command(args) == 0
+
+    assert json.loads(handshake_path.read_text(encoding="utf-8")) == handshake
+    assert not ledger_path.exists()
 
 
 def test_sudo_answer_detach_rejects_live_duplicate(

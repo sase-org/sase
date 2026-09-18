@@ -61,6 +61,28 @@ def test_sudo_finalize_is_hidden_but_parseable() -> None:
     assert args.json is True
 
 
+def test_sudo_exec_detach_args_are_parseable() -> None:
+    args = _parse(
+        "exec",
+        "--detach",
+        "--manifest",
+        "/tmp/manifest.json",
+        "--expected-sha256",
+        "abc",
+        "--handshake",
+        "/tmp/handshake.json",
+        "--ledger",
+        "/tmp/ledger.json",
+    )
+
+    assert args.sudo_subcommand == "exec"
+    assert args.detach is True
+    assert args.manifest == "/tmp/manifest.json"
+    assert args.expected_sha256 == "abc"
+    assert args.handshake == "/tmp/handshake.json"
+    assert args.ledger == "/tmp/ledger.json"
+
+
 def test_sudo_answer_help_documents_detach() -> None:
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))

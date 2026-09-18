@@ -60,6 +60,11 @@ from sase.sudo.gate import APPROVE_OPTION_ID
 from sase.sudo.lease import sudo_auth_lease
 from sase.sudo.manifest import selected_sudo_manifest
 from sase.sudo.runner import run_sudo_runner_detached
+from sase.sudo.ssh import (
+    cleanup_remote_sudo,
+    run_remote_sudo_detached,
+    wait_for_remote_sudo_ledger,
+)
 
 SUDO_ANSWER_DETACH_ORIGIN = "sudo-answer-detach"
 _EXECUTOR_DEATH_GRACE_SECONDS = 1.0
@@ -149,6 +154,91 @@ def approve_detached(
     }
 
 
+def approve_remote_detached(
+    bundle: Any,
+    host: str,
+    manifest: Mapping[str, Any],
+    *,
+    selected_command_ids: tuple[str, ...],
+    manifest_sha256: str,
+    feedback: str | None,
+    retry: Literal["resume", "restart"] | None,
+) -> dict[str, Any]:
+    """Authenticate over SSH, start a remote executor, and submit finalize."""
+    gate_id = bundle.request_id
+    runner_payload: dict[str, Any] | None = None
+    remote_paths: dict[str, Any] | None = None
+    with sudo_auth_lease(
+        request_id=gate_id,
+        run_as=str(manifest.get("run_as") or "root"),
+        cwd=str(manifest.get("cwd") or ""),
+        command_ids=selected_command_ids,
+    ):
+        with execution_lock(bundle.root):
+            existing = claim_execution_record(bundle.root, gate_id=gate_id)
+            if existing is not None:
+                raise live_execution_error(existing)
+            handoff = create_handoff_dir(gate_id, manifest)
+            state = SudoExecutionState(
+                gate_id=gate_id,
+                selected_command_ids=selected_command_ids,
+                manifest_sha256=manifest_sha256,
+                handoff_dir=str(handoff),
+            )
+            write_execution_state(bundle.root, state)
+        try:
+            runner_payload, remote_paths = run_remote_sudo_detached(
+                host,
+                manifest,
+                manifest_sha256=manifest_sha256,
+                timeout_seconds=runner_timeout_seconds(manifest),
+            )
+            if handshake_from_runner_payload(runner_payload):
+                handshake = DEFAULT_SUDO_CORE.validate_handshake(
+                    runner_payload, dict(manifest)
+                )
+            else:
+                recover_dead_attempt(bundle.root)
+                return apply_approved_receipt(
+                    bundle,
+                    runner_payload,
+                    selected_command_ids=selected_command_ids,
+                    manifest=manifest,
+                    manifest_sha256=manifest_sha256,
+                    feedback=feedback,
+                    retry=retry,
+                )
+        except Exception:
+            _preserve_or_recover_attempt(bundle.root, runner_payload=runner_payload)
+            raise
+        with execution_lock(bundle.root):
+            state = load_execution_state(bundle.root) or state
+            state = replace(state, handshake=dict(handshake))
+            write_execution_state(bundle.root, state)
+            try:
+                proc = _submit_finalize_proc(
+                    bundle,
+                    manifest,
+                    state=state,
+                    handshake=handshake,
+                    feedback=feedback,
+                    retry=retry,
+                    remote={"host": host, "paths": dict(remote_paths or {})},
+                )
+            except Exception:
+                write_execution_state(bundle.root, state)
+                raise
+            state = replace(state, finalize_proc_id=proc.proc_id)
+            write_execution_state(bundle.root, state)
+    return {
+        "kind": bundle.kind,
+        "proc_id": proc.proc_id,
+        "request_id": gate_id,
+        "selected_command_ids": list(selected_command_ids),
+        "status": "execution_started",
+    }
+
+
 def finalize(args: argparse.Namespace) -> int:
     """Internal ``sase sudo finalize`` handler."""
     gate_id = str(getattr(args, "gate_ref", "") or "sudo")
@@ -205,6 +295,7 @@ def _submit_finalize_proc(
     handshake: Mapping[str, Any],
     feedback: str | None,
     retry: Literal["resume", "restart"] | None,
+    remote: Mapping[str, Any] | None = None,
 ) -> Any:
     payload: dict[str, Any] = {
         "gate_id": state.gate_id,
@@ -217,6 +308,8 @@ def _submit_finalize_proc(
         payload["feedback"] = feedback
     if retry is not None:
         payload["retry"] = retry
+    if remote is not None:
+        payload["remote"] = dict(remote)
     shell = find_gate_shell_by_gate_id(None, state.gate_id)
     try:
         return submit_proc_request(
@@ -293,11 +386,20 @@ def _run_finalize(args: argparse.Namespace) -> dict[str, Any]:
             "finalize sidecar manifest digest does not match the execution record",
         )
     try:
-        receipt = _wait_for_executor_ledger(
-            handoff,
-            handshake=handshake,
-            timeout_seconds=runner_timeout_seconds(manifest),
-        )
+        remote = _finalize_remote(payload)
+        if remote is None:
+            receipt = _wait_for_executor_ledger(
+                handoff,
+                handshake=handshake,
+                timeout_seconds=runner_timeout_seconds(manifest),
+            )
+        else:
+            receipt = wait_for_remote_sudo_ledger(
+                remote["host"],
+                remote["paths"],
+                handshake=handshake,
+                timeout_seconds=runner_timeout_seconds(manifest),
+            )
         result = apply_approved_receipt(
             bundle,
             receipt,
@@ -311,6 +413,8 @@ def _run_finalize(args: argparse.Namespace) -> dict[str, Any]:
         _record_finalize_failure(bundle.root, exc)
         recover_dead_attempt(bundle.root)
         raise
+    if remote is not None:
+        cleanup_remote_sudo(remote["host"], remote["paths"])
     with execution_lock(bundle.root):
         cleanup_handoff(handoff)
         clear_execution_state(bundle.root)
@@ -416,6 +520,33 @@ def _finalize_feedback(payload: Mapping[str, Any]) -> str | None:
     if feedback is None:
         return None
     return str(feedback)
+
+
+def _finalize_remote(payload: Mapping[str, Any]) -> dict[str, Any] | None:
+    remote = payload.get("remote")
+    if remote is None:
+        return None
+    if not isinstance(remote, Mapping):
+        raise GateError(
+            "invalid_sudo_finalize",
+            "remote",
+            "finalize sidecar remote metadata must be an object",
+        )
+    host = remote.get("host")
+    paths = remote.get("paths")
+    if not isinstance(host, str) or not host:
+        raise GateError(
+            "invalid_sudo_finalize",
+            "remote.host",
+            "finalize sidecar remote host is required",
+        )
+    if not isinstance(paths, Mapping):
+        raise GateError(
+            "invalid_sudo_finalize",
+            "remote.paths",
+            "finalize sidecar remote paths must be an object",
+        )
+    return {"host": host, "paths": dict(paths)}
 
 
 def _wait_for_executor_ledger(
@@ -526,5 +657,6 @@ def _sudo_run_label(manifest: Mapping[str, Any], gate_id: str) -> str:
 __all__ = [
     "SUDO_ANSWER_DETACH_ORIGIN",
     "approve_detached",
+    "approve_remote_detached",
     "finalize",
 ]

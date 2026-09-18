@@ -34,23 +34,28 @@ from sase.sudo.answer_ops import (
 from sase.sudo.detach import (
     SUDO_ANSWER_DETACH_ORIGIN,
     approve_detached,
+    approve_remote_detached,
     finalize,
 )
-from sase.sudo.execution import project_execution
+from sase.sudo.execution import handshake_from_runner_payload, project_execution
 from sase.sudo.feature import require_sudo_requests_enabled
 from sase.sudo.gate import DENY_OPTION_ID, build_sudo_gate_request
 from sase.sudo.lease import sudo_auth_lease
 from sase.sudo.manifest import selected_sudo_manifest
 from sase.sudo.runner import (
     run_sudo_runner,
+    run_sudo_runner_detached,
     run_sudo_runner_file,
     runner_supports_detached_execution,
 )
-from sase.sudo.ssh import run_remote_sudo
+from sase.sudo.ssh import remote_supports_detached_execution, run_remote_sudo
 
 _DETACH_FALLBACK_NOTICE = (
     "installed sase_sudo_runner does not advertise detached_execution; "
     "running synchronously"
+)
+_REMOTE_DETACH_FALLBACK_NOTICE = (
+    "target sudo exec does not advertise detached_execution; running synchronously"
 )
 
 
@@ -90,8 +95,15 @@ def handle_sudo_command(args: argparse.Namespace) -> int:
 def _exec(args: argparse.Namespace) -> int:
     """Target-side manifest execution entrypoint for SSH handoffs."""
     if bool(getattr(args, "contract", False)):
+        capabilities: list[str] = []
+        try:
+            if runner_supports_detached_execution():
+                capabilities.append("detached_execution")
+        except GateError:
+            pass
         emit_json(
             {
+                "capabilities": capabilities,
                 "schema_version": 1,
                 "kind": "sase_sudo_exec",
                 "sudo_manifest_schema_version": 1,
@@ -102,11 +114,19 @@ def _exec(args: argparse.Namespace) -> int:
     manifest_path = getattr(args, "manifest", None)
     expected_sha256 = getattr(args, "expected_sha256", None)
     ledger_path = getattr(args, "ledger", None)
+    detach = bool(getattr(args, "detach", False))
+    handshake_path = getattr(args, "handshake", None)
     if not manifest_path or not expected_sha256 or not ledger_path:
         raise GateError(
             "invalid_sudo_exec",
             "sudo.exec",
             "--manifest, --expected-sha256, and --ledger are required",
+        )
+    if detach and not handshake_path:
+        raise GateError(
+            "invalid_sudo_exec",
+            "sudo.exec",
+            "--handshake is required with --detach",
         )
     if not has_controlling_tty():
         raise GateError(
@@ -114,13 +134,22 @@ def _exec(args: argparse.Namespace) -> int:
             "sudo.exec",
             "sudo target execution requires a controlling TTY",
         )
+    if detach:
+        runner_payload = run_sudo_runner_detached(
+            Path(str(manifest_path)),
+            manifest_sha256=str(expected_sha256),
+            detach_dir=Path(str(manifest_path)).parent,
+        )
+        if handshake_from_runner_payload(runner_payload):
+            _write_json_file(Path(str(handshake_path)), runner_payload)
+            return 0
+        _write_json_file(Path(str(ledger_path)), runner_payload)
+        return _exec_exit_code_for_payload(runner_payload)
     ledger = run_sudo_runner_file(
         Path(str(manifest_path)),
         manifest_sha256=str(expected_sha256),
     )
-    destination = Path(str(ledger_path))
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(ledger, sort_keys=True) + "\n", encoding="utf-8")
+    _write_json_file(Path(str(ledger_path)), ledger)
     return 0
 
 
@@ -238,14 +267,20 @@ def _approve(
     remote = isinstance(target, Mapping) and bool(target.get("remote"))
     if detach and remote:
         assert isinstance(target, Mapping)
-        host = str(target.get("host") or "remote")
-        raise GateError(
-            "detach_unsupported",
-            host,
-            "detached sudo execution is local-only for this phase; "
-            "retry without --detach",
-        )
-    if detach and not runner_supports_detached_execution():
+        host = str(target.get("host") or "")
+        if remote_supports_detached_execution(host):
+            return approve_remote_detached(
+                bundle,
+                host,
+                manifest,
+                selected_command_ids=selected_command_ids,
+                manifest_sha256=manifest_sha256,
+                feedback=feedback,
+                retry=retry,
+            )
+        print(f"sase sudo: {_REMOTE_DETACH_FALLBACK_NOTICE}", file=sys.stderr)
+        detach = False
+    if detach and not remote and not runner_supports_detached_execution():
         print(f"sase sudo: {_DETACH_FALLBACK_NOTICE}", file=sys.stderr)
         detach = False
     if detach:
@@ -439,6 +474,20 @@ def _read_stdin_object() -> dict[str, Any]:
     if not isinstance(value, dict):
         raise GateError("invalid_sudo_request", "stdin", "stdin JSON must be an object")
     return value
+
+
+def _write_json_file(path: Path, payload: Mapping[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(dict(payload), sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _exec_exit_code_for_payload(payload: Mapping[str, Any]) -> int:
+    return {
+        "auth_failed": 10,
+        "cancelled": 11,
+        "tty_unavailable": 12,
+        "runner_error": 14,
+    }.get(str(payload.get("outcome") or ""), 0)
 
 
 __all__ = ["SUDO_ANSWER_DETACH_ORIGIN", "handle_sudo_command"]
