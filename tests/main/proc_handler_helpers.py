@@ -10,6 +10,7 @@ import pytest
 from sase.main.proc_handler import handle_proc_command
 from tests.main.parser_cli_helpers import parse_sase_args
 from sase.procs import Proc, append_proc, proc_log_path
+from sase.procs.service_meta import ProcServiceBlock
 from sase.sessions import SessionIdentity
 
 
@@ -60,6 +61,7 @@ def stored(
     pid: int | None = None,
     command: list[str] | None = None,
     kind: str = "command",
+    service: ProcServiceBlock | None = None,
     shell_name: str | None = None,
 ) -> Proc:
     """Append and return a proc with concise test-friendly defaults."""
@@ -76,6 +78,7 @@ def stored(
         origin="cli",
         tags=tags or [],
         pid=pid,
+        service=service,
         shell_name=shell_name,
         exit_code=exit_code,
         created_at=created_at,

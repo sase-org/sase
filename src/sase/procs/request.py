@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from .models import COMMAND_PROC_KIND, STORE_LOG_OWNER
+from .service_meta import ProcServiceBlock
 
 
 @dataclass(frozen=True)
@@ -52,6 +53,7 @@ class ProcSubmitRequest:
     workspace_claim: Mapping[str, Any] | None = None
     followup: Mapping[str, Any] | None = None
     xprompt_proc: Mapping[str, Any] | None = None
+    service: ProcServiceBlock | None = None
 
 
 def proc_request_fingerprint(
@@ -130,6 +132,7 @@ def request_sidecar_payload(
         "xprompt_proc": (
             dict(request.xprompt_proc) if request.xprompt_proc is not None else None
         ),
+        "service": (request.service.to_dict() if request.service is not None else None),
     }
 
 

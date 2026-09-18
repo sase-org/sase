@@ -218,7 +218,7 @@ def _handle_status(args: argparse.Namespace) -> None:
     sys.exit(snapshot.exit_code)
 
 
-def _load_axe_config_with_overrides(args: argparse.Namespace) -> AxeConfig:
+def load_axe_config_with_overrides(args: argparse.Namespace) -> AxeConfig:
     """Load the effective axe config with CLI runner/query/timeout overrides applied."""
     from dataclasses import replace
 
@@ -279,7 +279,7 @@ def _handle_start(args: argparse.Namespace) -> None:
     os.chdir(os.path.expanduser("~"))
 
     try:
-        config = _load_axe_config_with_overrides(args)
+        config = load_axe_config_with_overrides(args)
     except AxeConfigError as exc:
         print(str(exc), file=sys.stderr)
         sys.exit(2)
@@ -316,7 +316,7 @@ def _handle_restart(
     verify_timeout = float(getattr(args, "verify_timeout", 15.0))
 
     try:
-        config = _load_axe_config_with_overrides(args)
+        config = load_axe_config_with_overrides(args)
     except AxeConfigError as exc:
         print(str(exc), file=sys.stderr)
         sys.exit(2)

@@ -351,34 +351,18 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-11y.4(ServiceConfigError)" \
-        --epic-symbol "sase-11y.4(ServiceEnablement)" \
-        --epic-symbol "sase-11y.4(ServiceFieldProvenance)" \
-        --epic-symbol "sase-11y.4(ServiceHostObservation)" \
-        --epic-symbol "sase-11y.4(ServiceProcLastExit)" \
-        --epic-symbol "sase-11y.4(ServiceProcObservation)" \
-        --epic-symbol "sase-11y.4(ServiceProcReportedStatus)" \
-        --epic-symbol "sase-11y.4(ServiceStateMutationOutcome)" \
-        --epic-symbol "sase-11y.4(ServiceStatusHost)" \
-        --epic-symbol "sase-11y.4(ServiceStatusProc)" \
-        --epic-symbol "sase-11y.4(ServiceStatusSnapshot)" \
-        --epic-symbol "sase-11y.4(build_service_status)" \
-        --epic-symbol "sase-11y.4(clear_service_enablement)" \
-        --epic-symbol "sase-11y.4(clear_service_host)" \
-        --epic-symbol "sase-11y.4(clear_service_marker)" \
-        --epic-symbol "sase-11y.4(clear_service_stop)" \
-        --epic-symbol "sase-11y.4(compose_service_config)" \
-        --epic-symbol "sase-11y.4(load_service_config)" \
-        --epic-symbol "sase-11y.4(read_service_status)" \
-        --epic-symbol "sase-11y.4(read_service_state)" \
-        --epic-symbol "sase-11y.4(record_service_host)" \
-        --epic-symbol "sase-11y.4(record_service_stop)" \
-        --epic-symbol "sase-11y.4(resolve_service_enablement)" \
-        --epic-symbol "sase-11y.4(service_dir)" \
-        --epic-symbol "sase-11y.4(service_state_path)" \
-        --epic-symbol "sase-11y.4(set_service_enablement)" \
-        --epic-symbol "sase-11y.4(set_service_marker)" \
-        --epic-symbol "sase-11y.4(write_service_status)" \
+        --epic-symbol "sase-11y.5(clear_service_marker)" \
+        --epic-symbol "sase-11y.5(service_dir)" \
+        --epic-symbol "sase-11y.5(service_state_path)" \
+        --epic-symbol "sase-11y.5(set_service_marker)" \
+        --epic-symbol "sase-11y.7(ServiceEnablement)" \
+        --epic-symbol "sase-11y.7(ServiceFieldProvenance)" \
+        --epic-symbol "sase-11y.7(ServiceStateMutationOutcome)" \
+        --epic-symbol "sase-11y.7(ServiceStatusHost)" \
+        --epic-symbol "sase-11y.7(ServiceStatusProc)" \
+        --epic-symbol "sase-11y.7(clear_service_enablement)" \
+        --epic-symbol "sase-11y.7(compose_service_config)" \
+        --epic-symbol "sase-11y.7(resolve_service_enablement)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

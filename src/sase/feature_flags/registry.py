@@ -32,6 +32,7 @@ class FeatureFlag(StrEnum):
     queue_capacity_budget = "queue_capacity_budget"
     ref_sync_gesture = "ref_sync_gesture"
     refresh_panel = "refresh_panel"
+    service_host = "service_host"
     slim_agents_manifest = "slim_agents_manifest"
     typed_launch_units = "typed_launch_units"
 
@@ -143,6 +144,15 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "the cursor on Full history."
         ),
         bead="sase-105",
+    ),
+    FeatureFlag.service_host: FeatureFlagDefinition(
+        key=FeatureFlag.service_host,
+        kind="beta",
+        description=(
+            "Gate the per-machine SASE service host and scheduler ownership "
+            "handover while the service platform phases land."
+        ),
+        bead="sase-12m",
     ),
     FeatureFlag.slim_agents_manifest: FeatureFlagDefinition(
         key=FeatureFlag.slim_agents_manifest,

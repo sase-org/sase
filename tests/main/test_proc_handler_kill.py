@@ -10,6 +10,8 @@ import pytest
 from sase.ops import RESULT_ENV, read_operation_result
 from sase.ops.names import PROC_KILL
 from sase.procs import get_proc
+from sase.procs.service_meta import SERVICE_PROC_MODE_DAEMON, ProcServiceBlock
+from sase.service.state import read_service_state
 from tests.main.proc_handler_helpers import dispatch, stored, proc_home
 
 __all__ = ["proc_home"]
@@ -121,3 +123,32 @@ def test_kill_resolves_named_proc_shell(
     assert dispatch(["proc", "kill", "agent--build"]) == 0
 
     assert "Killed proc aaaaaa." in capsys.readouterr().out
+
+
+def test_kill_live_named_service_proc_records_stop_intent(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Host-owned daemon rows stop through service state instead of direct kill."""
+    monkeypatch.setattr("sase.main.proc_handler._reconcile_quietly", lambda: None)
+    monkeypatch.setattr("sase.service.control.nudge_service_host", lambda: False)
+    stored(
+        "aaaaaaaaaaaa",
+        label="Scheduler",
+        status="running",
+        finished_at=None,
+        exit_code=None,
+        service=ProcServiceBlock(
+            name="scheduler",
+            mode=SERVICE_PROC_MODE_DAEMON,
+            source="builtin",
+        ),
+    )
+
+    assert dispatch(["proc", "kill", "aaa"]) == 0
+
+    assert "Requested service proc scheduler stop" in capsys.readouterr().out
+    proc = get_proc("aaaaaaaaaaaa")
+    assert proc is not None
+    assert proc.status == "running"
+    assert "scheduler" in read_service_state().state.stops

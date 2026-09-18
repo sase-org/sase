@@ -128,6 +128,7 @@ def submit_proc_request(
                     if request.xprompt_proc is not None
                     else None
                 ),
+                service=request.service,
             )
         )
     except Exception as exc:

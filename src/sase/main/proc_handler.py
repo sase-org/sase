@@ -37,6 +37,7 @@ from sase.procs import (
     submit_proc,
     wait_for_proc,
 )
+from sase.procs.service_meta import SERVICE_PROC_MODE_DAEMON
 
 from .proc_render import (
     empty_proc_panel,
@@ -305,6 +306,15 @@ def _handle_proc_kill(args: argparse.Namespace) -> int:
         return 1
 
     was_active = proc.status not in TERMINAL_PROC_STATUSES
+    if (
+        was_active
+        and proc.service is not None
+        and proc.service.name
+        and proc.service.mode == SERVICE_PROC_MODE_DAEMON
+    ):
+        return _request_service_proc_stop(
+            proc, json_output=bool(getattr(args, "json", False))
+        )
     try:
         result = kill_proc(proc.proc_id)
     except ProcControlError as exc:
@@ -335,6 +345,39 @@ def _handle_proc_kill(args: argparse.Namespace) -> int:
         sys.stdout.write("\n")
     elif changed:
         print(message)
+    else:
+        print(message)
+    return 0
+
+
+def _request_service_proc_stop(proc: Proc, *, json_output: bool) -> int:
+    """Route generic proc kill for host-owned daemon rows to service state."""
+    from sase.ops.commands.proc import emit_proc_kill_result
+    from sase.service.control import nudge_service_host
+    from sase.service.state import record_service_stop
+
+    assert proc.service is not None
+    assert proc.service.name is not None
+    record_service_stop(
+        proc.service.name,
+        "sase proc kill",
+        reason=f"proc kill {short_proc_id(proc.proc_id)}",
+    )
+    nudge_service_host()
+    message = (
+        f"Requested service proc {proc.service.name} stop until next boot "
+        f"for proc {short_proc_id(proc.proc_id)}."
+    )
+    payload = {
+        "changed": True,
+        "proc_id": proc.proc_id,
+        "service": proc.service.to_dict(),
+        "status": "stop_requested",
+    }
+    emit_proc_kill_result(success=True, message=message, payload=payload)
+    if json_output:
+        json.dump(payload, sys.stdout, indent=2)
+        sys.stdout.write("\n")
     else:
         print(message)
     return 0

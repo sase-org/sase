@@ -24,4 +24,49 @@ def service_status_path(sase_home: str | PathLike[str] | None = None) -> Path:
     return service_dir(sase_home) / "status.json"
 
 
-__all__ = ["service_dir", "service_state_path", "service_status_path"]
+def service_host_lock_path(sase_home: str | PathLike[str] | None = None) -> Path:
+    """Return the foreground service-host lifetime lock path."""
+    return service_dir(sase_home) / "host.lock"
+
+
+def service_host_start_lock_path(sase_home: str | PathLike[str] | None = None) -> Path:
+    """Return the short-lived lock that converges concurrent detached starts."""
+    return service_dir(sase_home) / "start.lock"
+
+
+def service_host_log_path(sase_home: str | PathLike[str] | None = None) -> Path:
+    """Return the detached service-host stdout/stderr log path."""
+    return service_dir(sase_home) / "host.log"
+
+
+def _service_procs_dir(sase_home: str | PathLike[str] | None = None) -> Path:
+    """Return the root for per-service-proc runtime directories."""
+    return service_dir(sase_home) / "procs"
+
+
+def service_proc_dir(
+    name: str,
+    sase_home: str | PathLike[str] | None = None,
+) -> Path:
+    """Return the runtime directory for one named service proc."""
+    return _service_procs_dir(sase_home) / name
+
+
+def service_proc_output_log_path(
+    name: str,
+    sase_home: str | PathLike[str] | None = None,
+) -> Path:
+    """Return the stable bounded combined-output log for one service proc."""
+    return service_proc_dir(name, sase_home) / "output.log"
+
+
+__all__ = [
+    "service_dir",
+    "service_host_lock_path",
+    "service_host_log_path",
+    "service_host_start_lock_path",
+    "service_proc_dir",
+    "service_proc_output_log_path",
+    "service_state_path",
+    "service_status_path",
+]

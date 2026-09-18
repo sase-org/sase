@@ -480,12 +480,24 @@ def main() -> NoReturn:
 
         run_parsed_prompt(args)
 
+    # --- scheduler ---
+    if args.command == "scheduler":
+        from .scheduler_handler import handle_scheduler_command
+
+        handle_scheduler_command(args)
+
     # --- screenshot ---
     if args.command == "screenshot":
         from .screenshot_handler import handle_screenshot_command
 
         handle_screenshot_command(args)
         sys.exit(0)
+
+    # --- service ---
+    if args.command == "service":
+        from .service_handler import handle_service_command
+
+        handle_service_command(args)
 
     # --- skill ---
     if args.command == "skill":

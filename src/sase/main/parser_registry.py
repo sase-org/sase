@@ -68,6 +68,8 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "revive-log": ("sase.main.parser_commands", "register_revive_log_parser"),
     "run": ("sase.main.parser_commands", "register_run_parser"),
     "screenshot": ("sase.main.parser_screenshot", "register_screenshot_parser"),
+    "scheduler": ("sase.main.parser_scheduler", "register_scheduler_parser"),
+    "service": ("sase.main.parser_service", "register_service_parser"),
     "skill": ("sase.main.parser_skills", "register_skills_parser"),
     "snippet": ("sase.main.parser_snippet", "register_snippet_parser"),
     "stitch": ("sase.main.parser_stitch", "register_stitch_parser"),

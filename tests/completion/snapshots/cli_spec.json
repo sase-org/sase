@@ -23019,6 +23019,366 @@
       {
         "aliases": [],
         "default_child": null,
+        "description_digest": "cfa555761901f06c",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "scheduler",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          }
+        ],
+        "path": [
+          "scheduler"
+        ],
+        "positionals": [],
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "99f5d7cc49d0b4a1",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "restart",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "max_agent_runners",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-A",
+                  "--max-agent-runners"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "max_hook_runners",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-H",
+                  "--max-hook-runners"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "query",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-q",
+                  "--query"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "zombie_timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-z",
+                  "--zombie-timeout"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "verify_timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--verify-timeout"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "scheduler",
+              "restart"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "0bf1563a036b42d9",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "run",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "max_agent_runners",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-A",
+                  "--max-agent-runners"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "max_hook_runners",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-H",
+                  "--max-hook-runners"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "query",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-q",
+                  "--query"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "zombie_timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-z",
+                  "--zombie-timeout"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "scheduler",
+              "run"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "8c81b8edf0ea4685",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "start",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "max_agent_runners",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-A",
+                  "--max-agent-runners"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "max_hook_runners",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-H",
+                  "--max-hook-runners"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "query",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-q",
+                  "--query"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "zombie_timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-z",
+                  "--zombie-timeout"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "scheduler",
+              "start"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "89b5af41648f3600",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "status",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "scheduler",
+              "status"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "eb5236678f190b7c",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "stop",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "force",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--force"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "scheduler",
+              "stop"
+            ],
+            "positionals": [],
+            "subcommands": []
+          }
+        ]
+      },
+      {
+        "aliases": [],
+        "default_child": null,
         "description_digest": "f4df981fff4d6a6d",
         "hidden": false,
         "mutex_groups": [],
@@ -23182,6 +23542,788 @@
           }
         ],
         "subcommands": []
+      },
+      {
+        "aliases": [],
+        "default_child": null,
+        "description_digest": "7a888a002f295a5e",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "service",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          }
+        ],
+        "path": [
+          "service"
+        ],
+        "positionals": [],
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "5de1950f772647ed",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "init",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "service",
+              "init"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "9154cb55e7db870d",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "logs",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "lines",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--lines"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "service",
+              "logs"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": "list",
+            "description_digest": "d851673962f796d0",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "proc",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "service",
+              "proc"
+            ],
+            "positionals": [],
+            "subcommands": [
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "3622beda35b1132c",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "disable",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "service",
+                  "proc",
+                  "disable"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "name",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "NAME",
+                    "nargs": null
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "c5561691560ba3d3",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "enable",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "service",
+                  "proc",
+                  "enable"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "name",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "NAME",
+                    "nargs": null
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "11eddcfb995c6ee1",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "list",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "service",
+                  "proc",
+                  "list"
+                ],
+                "positionals": [],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "64fdda4d6d21a3a8",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "logs",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "lines",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-n",
+                      "--lines"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "service",
+                  "proc",
+                  "logs"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "name",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "NAME",
+                    "nargs": null
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "5082eb97861a0a99",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "restart",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "delay",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-d",
+                      "--delay"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "service",
+                  "proc",
+                  "restart"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "name",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "NAME",
+                    "nargs": null
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "c2e70f985b055b03",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "run",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "cwd",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-c",
+                      "--cwd"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "label",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-l",
+                      "--label"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "project",
+                    "hidden": false,
+                    "kind": "project",
+                    "repeatable": false,
+                    "strings": [
+                      "-p",
+                      "--project"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "workspace",
+                    "hidden": false,
+                    "kind": "workspace",
+                    "repeatable": false,
+                    "strings": [
+                      "-w",
+                      "--workspace"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "service",
+                  "proc",
+                  "run"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "proc_command",
+                    "is_remainder": true,
+                    "kind": null,
+                    "metavar": "-- COMMAND ...",
+                    "nargs": "..."
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "10c6911d81eda024",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "show",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "json",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-j",
+                      "--json"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "service",
+                  "proc",
+                  "show"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "name",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "NAME",
+                    "nargs": null
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "d3617b9b23dda6a2",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "start",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "service",
+                  "proc",
+                  "start"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "name",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "NAME",
+                    "nargs": null
+                  }
+                ],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
+                "description_digest": "af36a4bbb82afc8c",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "stop",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  }
+                ],
+                "path": [
+                  "service",
+                  "proc",
+                  "stop"
+                ],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "name",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "NAME",
+                    "nargs": null
+                  }
+                ],
+                "subcommands": []
+              }
+            ]
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "40b9960520ba39f6",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "restart",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "service",
+              "restart"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "840654f65114b2b0",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "run",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "service",
+              "run"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "6fcb31bfe62397bf",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "start",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "service",
+              "start"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "a135339b93e17abb",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "status",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "service",
+              "status"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "914cc5df3f2b352c",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "stop",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "service",
+              "stop"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "56028dc474db3ffd",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "uninstall",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "service",
+              "uninstall"
+            ],
+            "positionals": [],
+            "subcommands": []
+          }
+        ]
       },
       {
         "aliases": [],
