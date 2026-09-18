@@ -123,7 +123,9 @@ def test_sudo_local_flow_never_persists_canary_credentials(
 
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
-    args = parser.parse_args(["sudo", "answer", gate.request_id, "--run", "--json"])
+    args = parser.parse_args(
+        ["sudo", "answer", gate.request_id, "--run", "--no-detach", "--json"]
+    )
     monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
     monkeypatch.setattr(
         "sase.notification_gates.executor.has_controlling_tty",
@@ -530,7 +532,7 @@ def test_sudo_detached_finalize_is_idempotent_after_response(
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
     answer_args = parser.parse_args(
-        ["sudo", "answer", gate.request_id, "--run", "--json"]
+        ["sudo", "answer", gate.request_id, "--run", "--no-detach", "--json"]
     )
     with override_flags(agent_sudo_requests=True):
         assert handle_sudo_command(answer_args) == 0

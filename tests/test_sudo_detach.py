@@ -41,7 +41,7 @@ def _patch_handshake(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def test_sudo_answer_detach_returns_execution_started(
+def test_sudo_answer_default_detach_returns_execution_started(
     gate_home: Path,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -53,9 +53,7 @@ def test_sudo_answer_detach_returns_execution_started(
         gate = create_gate(build_sudo_gate_request(_request()))
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
-    args = parser.parse_args(
-        ["sudo", "answer", gate.request_id, "--run", "--detach", "--json"]
-    )
+    args = parser.parse_args(["sudo", "answer", gate.request_id, "--run", "--json"])
     monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
     monkeypatch.setattr(
         "sase.notification_gates.executor.has_controlling_tty",

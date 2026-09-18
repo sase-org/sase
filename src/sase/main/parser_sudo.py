@@ -43,7 +43,7 @@ def _register_answer(subparsers: argparse._SubParsersAction) -> None:
         epilog=(
             "examples:\n"
             "  sase sudo answer sudo-123 --run\n"
-            "  sase sudo answer sudo-123 --run --detach\n"
+            "  sase sudo answer sudo-123 --run --no-detach\n"
             "  sase sudo answer sudo-123 --run --command refresh\n"
             "  sase sudo answer sudo-123 --deny --feedback 'not needed'\n"
             "  sase sudo answer sudo-123 --json --run\n"
@@ -71,7 +71,7 @@ def _register_answer(subparsers: argparse._SubParsersAction) -> None:
         help=(
             "Authenticate on this TTY, then run the reviewed commands in a "
             "supervised background proc; the gate stays pending until that "
-            "proc finishes"
+            "proc finishes (the default for approvals)"
         ),
     )
     parser.add_argument("-f", "--feedback", default=None, help="Reviewer note")
@@ -80,7 +80,7 @@ def _register_answer(subparsers: argparse._SubParsersAction) -> None:
         "-N",
         "--no-detach",
         action="store_true",
-        help="Authenticate and run in the foreground (the current default)",
+        help="Authenticate and run in the foreground",
     )
     retry = parser.add_mutually_exclusive_group()
     retry.add_argument(

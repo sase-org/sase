@@ -8,17 +8,19 @@ import pytest
 
 from sase.main.parser import create_parser
 from sase.main.parser_sudo import register_sudo_parser
+from sase.sudo.cli import _wants_detach
 
 
 def _parse(*argv: str) -> argparse.Namespace:
     return create_parser().parse_args(["sudo", *argv])
 
 
-def test_sudo_answer_detach_flags_default_off() -> None:
+def test_sudo_answer_detaches_by_default_without_explicit_flag() -> None:
     args = _parse("answer", "sudo-123", "--run")
 
     assert args.detach is False
     assert args.no_detach is False
+    assert _wants_detach(args) is True
 
 
 def test_sudo_answer_detach_and_no_detach_are_mutually_exclusive() -> None:

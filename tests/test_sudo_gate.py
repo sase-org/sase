@@ -415,7 +415,9 @@ def test_sudo_runner_auth_failure_leaves_gate_answerable(
         gate = create_gate(build_sudo_gate_request(_request()))
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
-    args = parser.parse_args(["sudo", "answer", gate.request_id, "--approve"])
+    args = parser.parse_args(
+        ["sudo", "answer", gate.request_id, "--approve", "--no-detach"]
+    )
     monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
     monkeypatch.setattr(
         "sase.sudo.cli.run_sudo_runner",
@@ -450,6 +452,7 @@ def test_sudo_answer_runs_reviewed_command_subset(
             "answer",
             gate.request_id,
             "--run",
+            "--no-detach",
             "--command",
             "gamma",
             "--command",
@@ -511,7 +514,9 @@ def test_sudo_answer_preserves_reviewed_cwd_in_runner_manifest(
         gate = create_gate(build_sudo_gate_request(request))
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
-    args = parser.parse_args(["sudo", "answer", gate.request_id, "--run", "--json"])
+    args = parser.parse_args(
+        ["sudo", "answer", gate.request_id, "--run", "--no-detach", "--json"]
+    )
     monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
     monkeypatch.setattr(
         "sase.notification_gates.executor.has_controlling_tty",
@@ -564,7 +569,9 @@ def test_sudo_answer_json_auth_failure_reports_pending_gate(
         gate = create_gate(build_sudo_gate_request(_request()))
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
-    args = parser.parse_args(["sudo", "answer", gate.request_id, "--run", "--json"])
+    args = parser.parse_args(
+        ["sudo", "answer", gate.request_id, "--run", "--no-detach", "--json"]
+    )
     monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
     monkeypatch.setattr(
         "sase.sudo.cli.run_sudo_runner",
@@ -595,7 +602,9 @@ def test_sudo_runner_error_ledger_leaves_gate_pending(
         gate = create_gate(build_sudo_gate_request(_request()))
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
-    args = parser.parse_args(["sudo", "answer", gate.request_id, "--run", "--json"])
+    args = parser.parse_args(
+        ["sudo", "answer", gate.request_id, "--run", "--no-detach", "--json"]
+    )
     monkeypatch.setattr("sase.sudo.cli.has_controlling_tty", lambda: True)
     monkeypatch.setattr(
         "sase.sudo.cli.run_sudo_runner",
@@ -622,7 +631,9 @@ def test_sudo_answer_json_feature_disabled_reports_pending_gate(
 ) -> None:
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
-    args = parser.parse_args(["sudo", "answer", "sudo-123", "--run", "--json"])
+    args = parser.parse_args(
+        ["sudo", "answer", "sudo-123", "--run", "--no-detach", "--json"]
+    )
 
     with override_flags(agent_sudo_requests=False):
         assert handle_sudo_command(args) == 1
@@ -680,7 +691,7 @@ def test_sudo_answer_human_feature_disabled_stays_loud(
 ) -> None:
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
-    args = parser.parse_args(["sudo", "answer", "sudo-123", "--run"])
+    args = parser.parse_args(["sudo", "answer", "sudo-123", "--run", "--no-detach"])
 
     with override_flags(agent_sudo_requests=False):
         with pytest.raises(GateError) as excinfo:

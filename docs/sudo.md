@@ -169,12 +169,15 @@ notification row instead.
 The approve action is **Authenticate & run**. It suspends sase's TUI, prints a banner
 naming the request and the selected command IDs, and runs
 `sase sudo answer <id> --run --json` (with one `--command` per selected ID) attached to
-the controlling terminal. The only credential prompt is the real prompt printed by
-`/usr/bin/sudo` or by the target host over SSH. When the command exits, sase's TUI shows
-the outcome: completed, a selected command failed, authentication failed, cancelled, or
-timed out, another sudo handoff is active, or no trusted terminal was available. Deny
-runs through the normal gate path and needs no terminal because it runs no privileged
-command.
+the controlling terminal. The terminal is held only for authentication by default; the
+reviewed commands then run in a supervised background proc and the gate settles when
+that proc validates the ledger. The only credential prompt is the real prompt printed by
+`/usr/bin/sudo` or by the target host over SSH. If the installed runner or remote target
+cannot detach yet, approval falls back to the foreground path with a warning. When the
+handoff returns, sase's TUI shows whether execution started, completed synchronously, a
+selected command failed, authentication failed, cancelled, timed out, another sudo
+handoff is active, or no trusted terminal was available. Deny runs through the normal
+gate path and needs no terminal because it runs no privileged command.
 
 Only `sase sudo answer` can approve a sudo gate. Every other answer path, including
 `sase gate answer`, mobile, Telegram, fleet bridges, and detached procs, is refused and
@@ -183,18 +186,21 @@ leaves the gate pending. Those surfaces can still display or deny the request, a
 
 ## Terminal Commands
 
-| Command                        | Flags                                                                                                                     | Behavior                                                                   |
-| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `sase sudo` / `sase sudo list` | `-a/--all`, `-j/--json`, `-l/--limit`, `-p/--project`                                                                     | List pending sudo gate shells; `--all` includes settled ones.              |
-| `sase sudo show ID`            | `-j/--json`                                                                                                               | Show one gate; `--json` adds the sealed manifest, target, and risk badges. |
-| `sase sudo request`            | `-j/--json`, `-o/--origin-agent`                                                                                          | Create a sudo gate from one JSON object on stdin.                          |
-| `sase sudo answer ID`          | `-u/--run` or `-a/--approve`, `-d/--deny`, `-c/--command ID`, `-f/--feedback`, `-j/--json`, `-r/--resume`, `-R/--restart` | Approve (authenticate and run) or deny one gate.                           |
+| Command                        | Flags                                                                                                                                                      | Behavior                                                                   |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `sase sudo` / `sase sudo list` | `-a/--all`, `-j/--json`, `-l/--limit`, `-p/--project`                                                                                                      | List pending sudo gate shells; `--all` includes settled ones.              |
+| `sase sudo show ID`            | `-j/--json`                                                                                                                                                | Show one gate; `--json` adds the sealed manifest, target, and risk badges. |
+| `sase sudo request`            | `-j/--json`, `-o/--origin-agent`                                                                                                                           | Create a sudo gate from one JSON object on stdin.                          |
+| `sase sudo answer ID`          | `-u/--run` or `-a/--approve`, `-d/--deny`, `-c/--command ID`, `-D/--detach`, `-N/--no-detach`, `-f/--feedback`, `-j/--json`, `-r/--resume`, `-R/--restart` | Approve (authenticate and run) or deny one gate.                           |
 
 `ID` is a sudo gate ID such as `sudo-<uuid>` or a gate-shell reference. `--run` and
-`--approve` both authenticate and run. `--command` is repeatable and selects a subset of
-the reviewed commands; without it, every command runs. Without `--run`, `--approve`, or
-`--deny`, an interactive terminal asks `Approve sudo request? [y/N]`. A non-interactive
-call must choose explicitly, and approval always requires a controlling terminal.
+`--approve` both authenticate and run. Approval detaches by default after the
+authentication phase; use `--no-detach` to keep command execution in the foreground.
+`--detach` is accepted as an explicit spelling of the default. `--command` is repeatable
+and selects a subset of the reviewed commands; without it, every command runs. Without
+`--run`, `--approve`, or `--deny`, an interactive terminal asks
+`Approve sudo request? [y/N]`. A non-interactive call must choose explicitly, and
+approval always requires a controlling terminal.
 
 With `--json`, a failed answer prints `status: "pending"` plus an `outcome` of
 `authentication_failed`, `cancellation`, `timeout`, `lock_contention`, `missing_tty`, or
@@ -203,8 +209,9 @@ With `--json`, a failed answer prints `status: "pending"` plus an `outcome` of
 Only one sudo authentication handoff runs at a time on a host. A second attempt fails
 immediately and names the request, user, and process that hold the lease. The runner
 receives the sealed manifest in a private temporary file together with its expected
-hash. Its overall timeout is the sum of the selected commands' timeouts (300 seconds for
-each command without one) plus 30 seconds.
+hash. In detached mode, the same timeout bounds the finalize proc that supervises
+completion. Its overall timeout is the sum of the selected commands' timeouts (300
+seconds for each command without one) plus 30 seconds.
 
 SASE accepts the runner's ledger only when it matches the reviewed manifest hash,
 contains exactly one entry per selected command, and carries no credential-shaped data.
@@ -224,9 +231,11 @@ Review still happens on the controller. On approval, the controller:
 
 1. checks that `ssh <target> sase sudo exec --contract` reports a compatible contract;
 2. stages the sealed manifest in a private temporary file under the target's `/tmp`;
-3. runs `ssh -t <target> sase sudo exec ...`, so the target's own runner prompts for
-   authentication inside the SSH terminal;
-4. reads the target's JSON ledger back and removes both temporary files.
+3. runs `ssh -t <target> sase sudo exec --detach ...`, so the target's own runner
+   prompts for authentication inside the SSH terminal and then starts a remote detached
+   executor;
+4. starts a local finalize proc that polls the target's JSON ledger, validates it, and
+   removes the staged files after settlement.
 
 The target needs `sase` on its non-interactive SSH `PATH`, its own `sase_sudo_runner`,
 and `agent_sudo_requests` enabled, because `sase sudo exec` is behind the same flag. The
@@ -236,6 +245,10 @@ target machine; the fleet gateway never carries password material.
 The local gate settles from the returned ledger. If the target is unreachable, has no
 compatible `sase sudo exec`, lacks a TTY, or produces no ledger, the gate remains
 pending and can be retried.
+
+If the target does not advertise detached sudo execution yet, approval falls back to the
+older foreground SSH path and keeps the terminal attached until the remote ledger is
+available.
 
 ## Policy Rationale
 
@@ -266,6 +279,9 @@ could not be found, the gate remains pending. Re-run:
 ```bash
 sase sudo answer <id> --run
 ```
+
+Use `--no-detach` as well if you need the approving terminal to stay attached until the
+reviewed commands finish.
 
 If a ledger shows sudo rejected `-D` or `--chdir`, the host ran an old sudo runner. The
 reviewed command never reached the package manager or other target executable. Changing

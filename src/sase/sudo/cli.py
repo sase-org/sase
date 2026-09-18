@@ -236,11 +236,11 @@ def _selected_command_ids(args: argparse.Namespace) -> tuple[str, ...]:
 
 
 def _wants_detach(args: argparse.Namespace) -> bool:
-    if bool(getattr(args, "detach", False)):
-        return True
     if bool(getattr(args, "no_detach", False)):
         return False
-    return False
+    if bool(getattr(args, "detach", False)):
+        return True
+    return True
 
 
 def _approve(
