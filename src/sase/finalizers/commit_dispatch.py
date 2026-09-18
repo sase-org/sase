@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from sase.core.finalizer_wire import (
+    ExecutedCommitObligationFactWire,
     FinalizerAttemptWire,
     FinalizerDeferralWire,
     FinalizerDiagnosticWire,
@@ -19,7 +20,9 @@ from sase.finalizers.commit_declaration import (
 )
 from sase.finalizers.commit_dispatch_followup import (
     attempt_post_repair_follow_up as _attempt_post_repair_follow_up,
+    collect_repair_remaining_handoff as _collect_repair_remaining_handoff,
     conflict_repair_dirty_after_stitch_message as _conflict_repair_dirty_after_stitch_message,
+    format_repair_handoff_failure as _format_repair_handoff_failure,
     post_repair_declared_message as _post_repair_declared_message,
     rescue_landed_commit_after_bounds_failure as _rescue_landed_commit_after_bounds_failure,
     stitch_bounds_failure_code as _stitch_bounds_failure_code,
@@ -114,6 +117,15 @@ def dispatch_commit_decisions(
     diagnostics: list[FinalizerDiagnosticWire] = list(initial_diagnostics)
     deferred: list[_DeferredRepoOutcome] = []
     current_result = invoke_result
+    active_decisions: dict[str, Mapping[str, Any]] = dict(decisions)
+    active_deferrals: dict[str, FinalizerDeferralWire] = dict(accepted_deferrals)
+    pending = list(ordered_repos)
+    original_ids = {repository_decision_id(repo) for repo in ordered_repos}
+    executed_ids: set[str] = set()
+    executed_facts: list[ExecutedCommitObligationFactWire] = []
+    landed: list[tuple[str, str]] = []
+    sweep_used = False
+    index = 0
 
     def _consume_attempt() -> int:
         try:
@@ -144,8 +156,14 @@ def dispatch_commit_decisions(
                 invoke_result=current_result,
             ) from exc
 
-    for repo in ordered_repos:
-        decision = decisions[repository_decision_id(repo)]
+    while index < len(pending):
+        repo = pending[index]
+        index += 1
+        repo_id = repository_decision_id(repo)
+        if repo_id in executed_ids:
+            continue
+        allow_repair = repo_id in original_ids
+        decision = active_decisions[repo_id]
         action = str(decision.get("action"))
         if action != "commit":
             message_text = (
@@ -170,7 +188,7 @@ def dispatch_commit_decisions(
                 invoke_result=current_result,
             )
 
-        deferral = accepted_deferrals.get(repository_decision_id(repo))
+        deferral = active_deferrals.get(repo_id)
         protected: Sequence[str] = ()
         if deferral is None:
             protected = protected_path_resolver(artifacts, repo.path)
@@ -218,6 +236,7 @@ def dispatch_commit_decisions(
                     ),
                 )
             )
+            executed_ids.add(repo_id)
             continue
 
         message = str(decision.get("message", "")).strip()
@@ -309,6 +328,32 @@ def dispatch_commit_decisions(
         repaired_without_commit = False
         if not rescued_bounds_failure:
             if stitch.returncode == EXIT_CODE_CONFLICT:
+                if not allow_repair:
+                    message_text = _format_repair_handoff_failure(
+                        (
+                            "commit finalizer hit an unresolved conflict in "
+                            f"{repo.name} during continuation"
+                        ),
+                        landed=landed,
+                        remaining=(repo,),
+                        continuation_bound=True,
+                    )
+                    attempts[0] = FinalizerAttemptWire(
+                        attempt=consumed_attempt,
+                        status="failed",
+                        diagnostic_code="repair_handoff_continuation_bound",
+                    )
+                    raise BuiltinCommitFinalizerError(
+                        message_text,
+                        result=failed_result(
+                            instance_id,
+                            "repair_handoff_continuation_bound",
+                            message_text,
+                            attempts=attempts,
+                            evidence=evidence,
+                        ),
+                        invoke_result=current_result,
+                    )
                 attempts[0] = FinalizerAttemptWire(
                     attempt=consumed_attempt,
                     status="failed",
@@ -358,25 +403,61 @@ def dispatch_commit_decisions(
             marker for marker in markers if marker_matches_repo(marker, repo)
         ]
         if not repo_markers:
-            if repaired_without_commit:
-                state = prepare_dirty_state(project_dir, artifacts)
-                continue
-            message_text = (
-                f"sase stitch create completed for {repo.name}, but no "
-                "commit_results.json entry was recorded"
+            if not repaired_without_commit:
+                message_text = (
+                    f"sase stitch create completed for {repo.name}, but no "
+                    "commit_results.json entry was recorded"
+                )
+                result = failed_result(
+                    instance_id,
+                    "missing_commit_result",
+                    message_text,
+                    attempts=attempts,
+                    evidence=evidence,
+                )
+                raise BuiltinCommitFinalizerError(
+                    message_text,
+                    result=result,
+                    invoke_result=current_result,
+                )
+            state = prepare_dirty_state(project_dir, artifacts)
+            _record_executed_repo(
+                repo,
+                repo_id,
+                repo_markers=(),
+                executed_ids=executed_ids,
+                executed_facts=executed_facts,
+                landed=landed,
             )
-            result = failed_result(
-                instance_id,
-                "missing_commit_result",
-                message_text,
-                attempts=attempts,
-                evidence=evidence,
-            )
-            raise BuiltinCommitFinalizerError(
-                message_text,
-                result=result,
-                invoke_result=current_result,
-            )
+            if repaired_conflict:
+                (
+                    pending,
+                    index,
+                    sweep_used,
+                    active_decisions,
+                    active_deferrals,
+                    context,
+                    state,
+                ) = _apply_repair_remaining_handoff(
+                    pending=pending,
+                    index=index,
+                    sweep_used=sweep_used,
+                    executed_ids=executed_ids,
+                    executed_facts=executed_facts,
+                    landed=landed,
+                    active_decisions=active_decisions,
+                    active_deferrals=active_deferrals,
+                    context=context,
+                    instance_id=instance_id,
+                    project_dir=project_dir,
+                    artifacts=artifacts,
+                    prepare_dirty_state=prepare_dirty_state,
+                    current_result=current_result,
+                    attempts=attempts,
+                    evidence=evidence,
+                    state=state,
+                )
+            continue
         evidence.extend(marker_evidence(repo_markers[-1]))
         reconcile_commit_file_hooks(
             repo,
@@ -403,27 +484,29 @@ def dispatch_commit_decisions(
                 bead_action=bead_action,
             )
             remaining = follow_up.remaining
-            if not remaining:
-                state = prepare_dirty_state(project_dir, artifacts)
-                continue
-            message_text = _conflict_repair_dirty_after_stitch_message(
-                repo,
-                remaining,
-                primary_marker=repo_markers[-1],
-                failure_reason=follow_up.failure_reason or _FOLLOW_UP_STILL_DIRTY,
-            )
-            result = failed_result(
-                instance_id,
-                "dirty_after_stitch",
-                message_text,
-                attempts=attempts,
-                evidence=evidence,
-            )
-            raise BuiltinCommitFinalizerError(
-                message_text,
-                result=result,
-                invoke_result=current_result,
-            )
+            if remaining:
+                message_text = _conflict_repair_dirty_after_stitch_message(
+                    repo,
+                    remaining,
+                    primary_marker=repo_markers[-1],
+                    failure_reason=follow_up.failure_reason or _FOLLOW_UP_STILL_DIRTY,
+                )
+                result = failed_result(
+                    instance_id,
+                    "dirty_after_stitch",
+                    message_text,
+                    attempts=attempts,
+                    evidence=evidence,
+                )
+                raise BuiltinCommitFinalizerError(
+                    message_text,
+                    result=result,
+                    invoke_result=current_result,
+                )
+            markers = new_commit_markers(before_markers, load_commit_results(artifacts))
+            repo_markers = [
+                marker for marker in markers if marker_matches_repo(marker, repo)
+            ]
         if remaining:
             message_text = (
                 f"sase stitch create left uncommitted attributable paths in "
@@ -443,6 +526,42 @@ def dispatch_commit_decisions(
             )
 
         state = prepare_dirty_state(project_dir, artifacts)
+        _record_executed_repo(
+            repo,
+            repo_id,
+            repo_markers=repo_markers,
+            executed_ids=executed_ids,
+            executed_facts=executed_facts,
+            landed=landed,
+        )
+        if repaired_conflict:
+            (
+                pending,
+                index,
+                sweep_used,
+                active_decisions,
+                active_deferrals,
+                context,
+                state,
+            ) = _apply_repair_remaining_handoff(
+                pending=pending,
+                index=index,
+                sweep_used=sweep_used,
+                executed_ids=executed_ids,
+                executed_facts=executed_facts,
+                landed=landed,
+                active_decisions=active_decisions,
+                active_deferrals=active_deferrals,
+                context=context,
+                instance_id=instance_id,
+                project_dir=project_dir,
+                artifacts=artifacts,
+                prepare_dirty_state=prepare_dirty_state,
+                current_result=current_result,
+                attempts=attempts,
+                evidence=evidence,
+                state=state,
+            )
 
     return _CommitDispatchResult(
         invoke_result=current_result,
@@ -452,6 +571,139 @@ def dispatch_commit_decisions(
         evidence=evidence,
         deferred=tuple(deferred),
         diagnostics=tuple(diagnostics),
+    )
+
+
+def _record_executed_repo(
+    repo: DirtyRepo,
+    repo_id: str,
+    *,
+    repo_markers: Sequence[Mapping[str, Any]],
+    executed_ids: set[str],
+    executed_facts: list[ExecutedCommitObligationFactWire],
+    landed: list[tuple[str, str]],
+) -> None:
+    executed_ids.add(repo_id)
+    sha: str | None = None
+    if repo_markers:
+        raw = repo_markers[-1].get("commit_sha")
+        if isinstance(raw, str) and raw:
+            sha = raw
+            landed.append((repo.name, sha))
+    executed_facts.append(
+        ExecutedCommitObligationFactWire(
+            obligation_id=repo_id,
+            completed=True,
+            commit_sha=sha,
+        )
+    )
+
+
+def _apply_repair_remaining_handoff(
+    *,
+    pending: list[DirtyRepo],
+    index: int,
+    sweep_used: bool,
+    executed_ids: set[str],
+    executed_facts: Sequence[ExecutedCommitObligationFactWire],
+    landed: Sequence[tuple[str, str]],
+    active_decisions: dict[str, Mapping[str, Any]],
+    active_deferrals: dict[str, FinalizerDeferralWire],
+    context: FinalizerExecutionContext,
+    instance_id: str,
+    project_dir: str,
+    artifacts: Path | None,
+    prepare_dirty_state: PrepareDirtyState,
+    current_result: InvokeResult,
+    attempts: Sequence[FinalizerAttemptWire],
+    evidence: list[FinalizerOutcomeEvidenceWire],
+    state: PreparedCommitDirtyState,
+) -> tuple[
+    list[DirtyRepo],
+    int,
+    bool,
+    dict[str, Mapping[str, Any]],
+    dict[str, FinalizerDeferralWire],
+    FinalizerExecutionContext,
+    PreparedCommitDirtyState,
+]:
+    handoff = _collect_repair_remaining_handoff(
+        context=context,
+        instance_id=instance_id,
+        project_dir=project_dir,
+        artifacts=artifacts,
+        prepare_dirty_state=prepare_dirty_state,
+        executed=executed_facts,
+        landed=landed,
+        current_result=current_result,
+        attempts=attempts,
+        evidence=evidence,
+        declaration_loader=load_accepted_commit_declaration,
+    )
+    if handoff is None:
+        return (
+            pending,
+            index,
+            sweep_used,
+            active_decisions,
+            active_deferrals,
+            context,
+            state,
+        )
+    evidence.append(
+        FinalizerOutcomeEvidenceWire(
+            kind="repair_handoff_declaration",
+            value=str(
+                handoff.context.context_digest or handoff.context.plan_digest or ""
+            ),
+        )
+    )
+    rest = [
+        repo
+        for repo in handoff.repos
+        if repository_decision_id(repo) not in executed_ids
+    ]
+    if sweep_used:
+        pending_ids = {repository_decision_id(repo) for repo in pending[index:]}
+        extra = [
+            repo for repo in rest if repository_decision_id(repo) not in pending_ids
+        ]
+        if extra:
+            message_text = _format_repair_handoff_failure(
+                "conflict repair introduced further remaining obligations "
+                "after the continuation sweep",
+                landed=landed,
+                remaining=extra,
+                continuation_bound=True,
+            )
+            raise BuiltinCommitFinalizerError(
+                message_text,
+                result=failed_result(
+                    instance_id,
+                    "repair_handoff_continuation_bound",
+                    message_text,
+                    attempts=attempts,
+                    evidence=evidence,
+                ),
+                invoke_result=current_result,
+            )
+        return (
+            pending,
+            index,
+            sweep_used,
+            dict(handoff.decisions),
+            dict(handoff.accepted_deferrals),
+            handoff.context,
+            handoff.state,
+        )
+    return (
+        pending[:index] + rest,
+        index,
+        True,
+        dict(handoff.decisions),
+        dict(handoff.accepted_deferrals),
+        handoff.context,
+        handoff.state,
     )
 
 

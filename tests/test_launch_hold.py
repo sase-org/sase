@@ -215,7 +215,6 @@ def test_arm_bootstrap_hold_arms_fresh_agent_hold() -> None:
     armer = {"kind": "agent", "key": "agent:planner"}
 
     with (
-        patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=True),
         patch(
             "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts",
             return_value=armer,
@@ -239,7 +238,6 @@ def test_arm_bootstrap_hold_rebinds_prearmed_key() -> None:
     armer = {"kind": "agent", "key": "agent:planner"}
 
     with (
-        patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=True),
         patch(
             "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts",
             return_value=armer,
@@ -260,7 +258,6 @@ def test_arm_bootstrap_hold_releases_key_when_no_hold_was_parsed() -> None:
     info = SimpleNamespace(hold=None)
 
     with (
-        patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=True),
         patch("sase.agent.launch_hold.release_hold_best_effort") as release,
     ):
         arm_bootstrap_hold(state, info, None, "launch:req/u1")
@@ -278,7 +275,6 @@ def test_arm_bootstrap_hold_releases_key_when_rebind_fails() -> None:
     armer = {"kind": "agent", "key": "agent:planner"}
 
     with (
-        patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=True),
         patch(
             "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts",
             return_value=armer,
@@ -306,12 +302,9 @@ def test_arm_bootstrap_hold_skips_refresh_pass(monkeypatch: pytest.MonkeyPatch) 
     state = SimpleNamespace(artifacts_dir="/tmp/artifacts")
     info = SimpleNamespace(hold=HoldFields(future=True))
 
-    with (
-        patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=True),
-        patch(
-            "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts"
-        ) as armer_for_artifacts,
-    ):
+    with patch(
+        "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts"
+    ) as armer_for_artifacts:
         arm_bootstrap_hold(state, info, None, "launch:req/u1")
 
     armer_for_artifacts.assert_not_called()
@@ -321,27 +314,9 @@ def test_arm_bootstrap_hold_skips_retry_handoff() -> None:
     state = SimpleNamespace(artifacts_dir="/tmp/artifacts")
     info = SimpleNamespace(hold=HoldFields(future=True))
 
-    with (
-        patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=True),
-        patch(
-            "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts"
-        ) as armer_for_artifacts,
-    ):
+    with patch(
+        "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts"
+    ) as armer_for_artifacts:
         arm_bootstrap_hold(state, info, object(), "launch:req/u1")
-
-    armer_for_artifacts.assert_not_called()
-
-
-def test_arm_bootstrap_hold_skips_when_flag_disabled() -> None:
-    state = SimpleNamespace(artifacts_dir="/tmp/artifacts")
-    info = SimpleNamespace(hold=HoldFields(future=True))
-
-    with (
-        patch("sase.xprompt.hold_directive.agent_holds_enabled", return_value=False),
-        patch(
-            "sase.core.agent_hold_facade.agent_armer_wire_for_artifacts"
-        ) as armer_for_artifacts,
-    ):
-        arm_bootstrap_hold(state, info, None, "launch:req/u1")
 
     armer_for_artifacts.assert_not_called()

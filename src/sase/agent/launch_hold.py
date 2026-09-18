@@ -173,13 +173,8 @@ def arm_bootstrap_hold(
 ) -> None:
     """Arm or rebind a launch-carried hold during runner bootstrap."""
     from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
-    from sase.xprompt.hold_directive import agent_holds_enabled
 
-    if (
-        RUNNER_CODE_REFRESHED_ENV in os.environ
-        or retry_handoff is not None
-        or not agent_holds_enabled()
-    ):
+    if RUNNER_CODE_REFRESHED_ENV in os.environ or retry_handoff is not None:
         return
 
     hold = getattr(info, "hold", None)
@@ -237,10 +232,6 @@ def launch_hold_dispatch_env(
     """Return the environment that carries a pre-armed hold to a runner."""
     if not request_id or _hold_fields_for(unit.payload) is None:
         return {}
-    from sase.xprompt.hold_directive import agent_holds_enabled
-
-    if not agent_holds_enabled():
-        return {}
     return {LAUNCH_HOLD_KEY_ENV: unit_hold_key(request_id, unit.logical_id)}
 
 
@@ -250,14 +241,12 @@ def pre_arm_typed_plan_holds(
     request_id: str,
 ) -> None:
     """Pre-arm hold-carrying typed units before admission can dispatch them."""
-    from sase.xprompt.hold_directive import agent_holds_enabled
-
     units = [
         unit
         for unit in sorted(plan.units, key=lambda item: item.source_order)
         if _hold_fields_for(unit.payload) is not None
     ]
-    if not units or not agent_holds_enabled():
+    if not units:
         return
     if not request_id:
         raise LaunchHoldError("%hold: typed launch hold arming requires request_id")

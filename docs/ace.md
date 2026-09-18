@@ -5347,11 +5347,8 @@ that needs the terminal gate result can then run
 
 An agent hold is a durable reverse wait: while it is active, matching `WAITING` or
 `QUEUED` agents, later launches, and undispatched procs are kept from starting. Holds
-are armed with [`sase agent hold`](cli.md#sase-agent-hold). With the beta `agent_holds`
-flag enabled, the TUI also parses and previews the
-[`%hold` directive](xprompt.md#hold-directive), but submitting a prompt does not arm
-that hold yet (see the directive's beta status note). sase's TUI shows holds in three
-places:
+are armed with [`sase agent hold`](cli.md#sase-agent-hold) or the
+[`%hold` directive](xprompt.md#hold-directive). sase's TUI shows holds in three places:
 
 - **Agents tab rows.** A `QUEUED` row parked by a hold appends `held by <armer>` after
   its queue position. If a held agent and the agent that armed the hold end up blocking

@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 from sase.core.finalizer_wire import (
     FinalizerAttemptWire,
@@ -12,6 +13,7 @@ from sase.core.finalizer_wire import (
     FinalizerDiagnosticWire,
     FinalizerOutcomeEvidenceWire,
 )
+from sase.finalizers.executor_support import FinalizerExecutionContext
 from sase.finalizers.ledger import InstanceLedger
 from sase.finalizers.reconciliation import PreparedCommitDirtyState
 from sase.llm_provider.commit_finalizer_baseline import FinalizerBaselineRecord
@@ -51,6 +53,17 @@ class PostRepairFollowUpResult:
 
     remaining: list[str]
     failure_reason: str | None = None
+
+
+@dataclass(frozen=True)
+class RepairRemainingHandoff:
+    """Remaining declared work after a successful conflict-repair turn."""
+
+    repos: tuple[DirtyRepo, ...]
+    decisions: dict[str, Mapping[str, Any]]
+    accepted_deferrals: dict[str, FinalizerDeferralWire]
+    state: PreparedCommitDirtyState
+    context: FinalizerExecutionContext
 
 
 def merge_deferrals(
@@ -94,6 +107,7 @@ __all__ = [
     "PrepareDirtyState",
     "ProtectedPathResolver",
     "PostRepairFollowUpResult",
+    "RepairRemainingHandoff",
     "UnexpectedPathResolver",
     "merge_deferrals",
     "peek_attempt",

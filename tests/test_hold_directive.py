@@ -26,20 +26,18 @@ from sase.xprompt.hold_directive import (
 pytest.importorskip("sase_core_rs")
 
 
-def test_hold_flag_off_keeps_bare_hold_as_text_and_rejects_non_bare() -> None:
-    with override_flags(agent_holds=False):
-        cleaned, directives = extract_prompt_directives("%hold\nDo work")
+def test_hold_is_unconditional_and_bare_hold_requires_selector() -> None:
+    with pytest.raises(DirectiveError, match="requires a selector"):
+        extract_prompt_directives("%hold\nDo work")
 
-    assert cleaned == "%hold\nDo work"
-    assert directives.hold is None
+    cleaned, directives = extract_prompt_directives("%hold:reviewer\nDo work")
 
-    with override_flags(agent_holds=False):
-        with pytest.raises(DirectiveError, match="agent_holds beta flag"):
-            extract_prompt_directives("%hold:reviewer\nDo work")
+    assert cleaned.strip() == "Do work"
+    assert directives.hold == {"names": ["reviewer"]}
 
 
 def test_hold_extracts_repeatable_fields_and_formats_canonical_directive() -> None:
-    with override_flags(agent_holds=True):
+    with override_flags():
         cleaned, directives = extract_prompt_directives(
             "%hold:reviewer,planner\n"
             "%hold(pending, future, hood=sase-11l, tribe=nightly, "
@@ -67,7 +65,7 @@ def test_hold_extracts_repeatable_fields_and_formats_canonical_directive() -> No
 
 
 def test_hold_adapter_reports_errors_and_expands_selectors() -> None:
-    with override_flags(agent_holds=True):
+    with override_flags():
         result = collect_hold_fields(
             [
                 {
@@ -91,7 +89,7 @@ def test_hold_adapter_reports_errors_and_expands_selectors() -> None:
     assert selectors["artifact_dirs"] == ["/tmp/a"]
     assert selectors["future"] is True
 
-    with override_flags(agent_holds=True):
+    with override_flags():
         duplicate = collect_hold_fields(
             [
                 {
@@ -114,7 +112,7 @@ def test_hold_adapter_reports_errors_and_expands_selectors() -> None:
 
 
 def test_typed_launch_threads_hold_and_rebuilds_dispatch_prompt() -> None:
-    with override_flags(agent_holds=True, typed_launch_units=True):
+    with override_flags(typed_launch_units=True):
         plan = plan_typed_launch_units(
             "%hold(pending, hood=sase-11l, ttl=5m)\nDo work",
             selected_project="sase",
@@ -187,6 +185,6 @@ def test_hold_wire_round_trips_and_omits_empty_hold() -> None:
 
 
 def test_hold_rejects_repeat_in_python_parser() -> None:
-    with override_flags(agent_holds=True):
+    with override_flags():
         with pytest.raises(DirectiveError, match="%hold with %repeat"):
             extract_prompt_directives("%repeat:2 %hold:reviewer\nDo work")

@@ -378,7 +378,7 @@ def test_typed_hold_prearm_is_idempotent_while_waiting(
     )
     launch_plan = _plan(unit)
 
-    with override_flags(agent_holds=True):
+    with override_flags():
         blocked, response_dir = _run_plan(
             tmp_path,
             launch_plan,
@@ -424,7 +424,7 @@ def test_typed_hold_prearm_records_agent_and_proc_fields(
     )
 
     with (
-        override_flags(agent_holds=True),
+        override_flags(),
         patch(
             "sase.integrations.agent_list_entries.agent_list_entries",
             return_value=[SimpleNamespace(status="WAITING", artifacts_dir=pending_dir)],
@@ -458,38 +458,13 @@ def test_typed_hold_prearm_records_agent_and_proc_fields(
     assert "project" in str(proc_hold["scope"]).lower()
 
 
-def test_typed_hold_prearm_writes_nothing_when_flag_disabled(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    pytest.importorskip("sase_core_rs")
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-
-    with override_flags(agent_holds=False):
-        blocked, response_dir = _run_plan(
-            tmp_path,
-            _plan(
-                _agent_unit(
-                    "unit-1",
-                    waits=[WaitTargetWire(kind="time", value="1h")],
-                    hold=HoldFieldsWire(future=True),
-                )
-            ),
-            request_id="req-hold-flag-off",
-        )
-
-    marker = response_dir / "launch_admission" / "units" / "unit-1.hold.json"
-    assert blocked.admission_complete is False
-    assert not marker.exists()
-    assert list_agent_holds_without_liveness() == []
-
-
 def test_typed_hold_prearm_rejects_empty_request_id(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     pytest.importorskip("sase_core_rs")
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
 
-    with override_flags(agent_holds=True):
+    with override_flags():
         with pytest.raises(LaunchRequestError, match="request_id"):
             _run_plan(
                 tmp_path,
@@ -512,7 +487,7 @@ def test_typed_hold_prearm_failure_rolls_back_already_armed_units(
         hold=HoldFieldsWire(names=["reviewer"]),
     )
 
-    with override_flags(agent_holds=True):
+    with override_flags():
         with pytest.raises(LaunchRequestError, match="%hold:"):
             _run_plan(
                 tmp_path,
@@ -544,7 +519,7 @@ def test_typed_hold_prearm_ttl_failure_rolls_back_already_armed_units(
     )
 
     with (
-        override_flags(agent_holds=True),
+        override_flags(),
         patch("sase.config.core.get_agent_hold_max_ttl_seconds", return_value=1.0),
     ):
         with pytest.raises(LaunchRequestError, match="%hold:"):
@@ -584,7 +559,7 @@ def test_agent_dispatch_carries_hold_key_and_reanchors_to_runner(
         ]
 
     with (
-        override_flags(agent_holds=True),
+        override_flags(),
         patch("sase.agent.launcher.launch_agents_from_cwd", side_effect=launch),
     ):
         progress, _ = _run_plan(
@@ -634,7 +609,7 @@ def test_agent_dispatch_reanchor_failure_still_records_launched_unit(
             )
         ]
 
-    with override_flags(agent_holds=True), caplog.at_level("WARNING"):
+    with override_flags(), caplog.at_level("WARNING"):
         with patches[0]:
             progress, response_dir = _run_plan(
                 tmp_path,
@@ -681,7 +656,7 @@ def test_coordinator_reanchor_failure_still_writes_started_ack(
         "dispatch": {"cwd": str(tmp_path), "prompt": "%wait(time=1h)\nDo work"},
     }
 
-    with override_flags(agent_holds=True):
+    with override_flags():
         first = dispatch_typed_launch_request(
             response_dir,
             data,
@@ -720,7 +695,7 @@ def test_launch_hold_releases_when_unit_never_dispatches(
     pytest.importorskip("sase_core_rs")
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
 
-    with override_flags(agent_holds=True):
+    with override_flags():
         progress, _ = _run_plan(
             tmp_path,
             _plan(_agent_unit("unit-1", hold=HoldFieldsWire(future=True))),
@@ -756,7 +731,7 @@ def test_launch_hold_releases_when_condition_prevents_dispatch(
         del unit, waited_outcomes, context
         return phase, "condition stopped dispatch"
 
-    with override_flags(agent_holds=True):
+    with override_flags():
         progress, _ = _run_plan(
             tmp_path,
             _plan(
@@ -780,7 +755,7 @@ def test_launch_hold_releases_when_admission_is_cancelled(
     pytest.importorskip("sase_core_rs")
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
 
-    with override_flags(agent_holds=True):
+    with override_flags():
         progress, _ = _run_plan(
             tmp_path,
             _plan(_agent_unit("unit-1", hold=HoldFieldsWire(future=True))),
@@ -799,7 +774,7 @@ def test_hold_carrying_proc_does_not_block_on_its_own_future_hold(
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     dispatched: list[str] = []
 
-    with override_flags(agent_holds=True):
+    with override_flags():
         progress, _ = _run_plan(
             tmp_path,
             _plan(

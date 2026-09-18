@@ -1661,7 +1661,7 @@ recipes appear only when the `typed_launch_units` beta flag is enabled. Retired 
 | `%clan` / `%c`      | `%clan:...`, `%clan(...)`                                                                    | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                                                                                                                                                                                     |
 | `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                                                      | Colon form completes only positional agent/family/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, and `time=` suggests `5m` and `1430`.                                                                                                                                                                                                                 |
 | `%queue` / `%q`     | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)`                                  | Colon form completes only the positional positive-integer `capacity` value, suggesting `1` and `100`. Parenthesized form adds `capacity=`, `priority=`, `p=`, `weight=`, and `w=` before those positional values; `priority=`/`p=` and `weight=`/`w=` are alias pairs, `priority=`/`p=` suggest `10` and `1`, `capacity=` suggests `1`, and `weight=`/`w=` suggest `0.25`, `1.0`, and `2.0`. Authored `runners=` is a migration error naming `capacity=`. |
-| `%hold`             | Bare `%hold`, `%hold:...`, and `%hold(pending, future)` / `%hold(hood=..., ttl=...)` recipes | Colon and positional forms complete name/`@tribe` targets plus `pending` and `future`. Parenthesized form adds `hood=`, `scope=`, `ttl=`, and `tribe=`; `scope=` suggests `project` and `host`, `ttl=` suggests common durations, and `hood=`/`tribe=` use their target rows. Shown only when the `agent_holds` beta flag is enabled.                                                                                                                     |
+| `%hold`             | Bare `%hold`, `%hold:...`, and `%hold(pending, future)` / `%hold(hood=..., ttl=...)` recipes | Colon and positional forms complete name/`@tribe` targets plus `pending` and `future`. Parenthesized form adds `hood=`, `scope=`, `ttl=`, and `tribe=`; `scope=` suggests `project` and `host`, `ttl=` suggests common durations, and `hood=`/`tribe=` use their target rows.                                                                                                                                                                             |
 | `%dispatch`         | `%dispatch:...`, `%dispatch(...)`                                                            | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                                                                                                                                                                                 |
 | `%if`               | `%if(should_run=...)`; with `typed_launch_units`, `%if::` Bash and Python fence recipes      | `should_run=` with `true` and `false` is always available. The code-form recipes are shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                                                                     |
 | `%proc`             | `%proc(...)`, `%proc::`; Bash/Python recipes                                                 | `bash=`, `python=`, `timeout=`, `idle_timeout=`, `cwd=`, `workspace=`, and `label=`; shown only when `typed_launch_units` is enabled.                                                                                                                                                                                                                                                                                                                     |
@@ -2628,16 +2628,13 @@ repeat; `ttl=` and `scope=` may each appear at most once per launch unit. Positi
 `pending` and `future` are reserved words, `@<tribe>` is a tribe selector, and anything
 else is a name. There is no short alias — `%h` remains `%hide`.
 
-`%hold` requires the `agent_holds` beta flag (`sase flag enable agent_holds`); the
-`sase agent hold` commands do not. With the flag off, any non-bare `%hold` fails to
-parse with an error naming the flag, and a bare `%hold` stays inert prose the same way
-disabled `%proc` does. `%hold` cannot be combined with `%repeat` or `%dispatch`.
+`%hold` is always available, and bare `%hold` is a directive error because a hold needs
+at least one selector. `%hold` cannot be combined with `%repeat` or `%dispatch`.
 
-**Current beta status:** `%hold` is parsed, validated, stripped from the model prompt,
-carried on typed launch units, and shown in launch previews and confirmation prompts,
-but submitting the launch does not arm a hold in the store yet. Arming at launch
-submission is still being implemented. Until it lands, arm the hold explicitly with
-`sase agent hold create` or `sase agent hold run`.
+`%hold` is parsed, validated, stripped from the model prompt, carried on typed launch
+units, shown in launch previews and confirmation prompts, and armed at launch
+submission. For imperative holds outside a launch prompt, use `sase agent hold create`
+or `sase agent hold run`.
 
 A LaunchApproval preview adds a `## Holds` section listing each agent or proc launch
 unit that declares a hold, with its canonical directive, scope, and TTL next to the

@@ -265,7 +265,7 @@ def test_remote_dispatch_releases_prearmed_launch_hold(
     response_dir = tmp_path / "bundle"
     response_dir.mkdir()
 
-    with override_flags(agent_holds=True):
+    with override_flags():
         result = dispatch_typed_launch_request(
             response_dir,
             {

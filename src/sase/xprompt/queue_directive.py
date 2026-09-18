@@ -265,8 +265,6 @@ def launch_feature_flag_keys() -> list[str]:
 
     flags: list[str] = []
     snapshot = current_flags()
-    if snapshot.enabled(FeatureFlag.agent_holds):
-        flags.append(str(FeatureFlag.agent_holds))
     if snapshot.enabled(FeatureFlag.queue_capacity_budget):
         flags.append(str(FeatureFlag.queue_capacity_budget))
     if typed_launch_units_enabled():

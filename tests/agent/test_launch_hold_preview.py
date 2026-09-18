@@ -23,14 +23,14 @@ def test_hold_confirmation_body_none_without_hold_marker() -> None:
 
 
 def test_hold_confirmation_body_none_for_narrow_named_hold() -> None:
-    with override_flags(agent_holds=True):
+    with override_flags():
         body = hold_confirmation_body("%hold:planner\nDo work", project="proj")
 
     assert body is None
 
 
 def test_hold_confirmation_body_flags_future_with_host_scope() -> None:
-    with override_flags(agent_holds=True):
+    with override_flags():
         body = hold_confirmation_body(
             "%hold(future, scope=host)\nDo work", project="proj"
         )
@@ -45,7 +45,7 @@ def test_hold_confirmation_body_flags_pending_capture_above_threshold() -> None:
         SimpleNamespace(status="WAITING", artifacts_dir=f"/a/w{i}") for i in range(11)
     ]
     with (
-        override_flags(agent_holds=True),
+        override_flags(),
         patch(
             "sase.integrations.agent_list_entries.agent_list_entries",
             return_value=entries,
@@ -63,7 +63,7 @@ def test_hold_confirmation_body_none_for_pending_capture_under_threshold() -> No
         SimpleNamespace(status="QUEUED", artifacts_dir="/a/q1"),
     ]
     with (
-        override_flags(agent_holds=True),
+        override_flags(),
         patch(
             "sase.integrations.agent_list_entries.agent_list_entries",
             return_value=entries,
@@ -75,16 +75,14 @@ def test_hold_confirmation_body_none_for_pending_capture_under_threshold() -> No
 
 
 def test_hold_confirmation_body_project_scoped_pending_without_project_skips() -> None:
-    with override_flags(agent_holds=True):
+    with override_flags():
         body = hold_confirmation_body("%hold(pending)\nDo work", project=None)
 
     assert body is None
 
 
-def test_hold_confirmation_body_none_when_flag_disabled() -> None:
-    with override_flags(agent_holds=False):
-        body = hold_confirmation_body(
-            "%hold(future, scope=host)\nDo work", project="proj"
-        )
+def test_hold_confirmation_body_flags_future_with_host_scope_unconditionally() -> None:
+    body = hold_confirmation_body("%hold(future, scope=host)\nDo work", project="proj")
 
-    assert body is None
+    assert body is not None
+    assert "scope=host" in body

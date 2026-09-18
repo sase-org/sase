@@ -187,7 +187,7 @@ def test_typed_chop_dispatch_carries_launch_hold_key() -> None:
     )
     assert dispatcher is not None
 
-    with override_flags(agent_holds=True):
+    with override_flags():
         ok, identity, message, results = dispatcher(unit, "fp-axe-hold")
 
     assert ok is True

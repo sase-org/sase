@@ -33,7 +33,6 @@ SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV = "SASE_XPROMPT_ARTIFACT_REF_CATALOG"
 SASE_XPROMPT_GLOSSARY_CATALOG_ENV = "SASE_XPROMPT_GLOSSARY_CATALOG"
 SASE_TYPED_LAUNCH_UNITS_ENV = "SASE_TYPED_LAUNCH_UNITS"
 SASE_QUEUE_CAPACITY_BUDGET_ENV = "SASE_QUEUE_CAPACITY_BUDGET"
-SASE_AGENT_HOLDS_ENV = "SASE_AGENT_HOLDS"
 XPROMPT_LSP_BINARY = "sase-xprompt-lsp"
 
 
@@ -257,7 +256,6 @@ def _prepare_xprompt_lsp_environment(
     _materialize_glossary_catalog(environ)
     _apply_typed_launch_units_flag(environ)
     _apply_queue_capacity_budget_flag(environ)
-    _apply_agent_holds_flag(environ)
 
 
 def _default_vcs_project_catalog_path() -> Path:
@@ -413,13 +411,6 @@ def _apply_queue_capacity_budget_flag(environ: MutableMapping[str, str]) -> None
 
     enabled = "queue_capacity_budget" in launch_feature_flag_keys()
     environ[SASE_QUEUE_CAPACITY_BUDGET_ENV] = "1" if enabled else "0"
-
-
-def _apply_agent_holds_flag(environ: MutableMapping[str, str]) -> None:
-    """Pin the LSP to the process-local agent_holds beta flag."""
-    from sase.xprompt.hold_directive import agent_holds_enabled
-
-    environ[SASE_AGENT_HOLDS_ENV] = "1" if agent_holds_enabled() else "0"
 
 
 def _discover_plugin_xprompt_dirs() -> list[dict[str, str]]:

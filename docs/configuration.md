@@ -218,9 +218,7 @@ badges.
 
 **Holds** lists the active [agent holds](xprompt.md#hold-directive) with their selectors
 and expiry. `j` / `k` move, `d` releases the highlighted hold immediately, and `r`
-reloads the list. The pane is available regardless of the `agent_holds` beta flag, which
-gates only the `%hold` directive; see [agent hold limits](#agent-hold-limits) for the
-TTL settings.
+reloads the list. See [agent hold limits](#agent-hold-limits) for the TTL settings.
 
 **Flags** is a keyboard-first control surface for every code-owned SASE feature flag. It
 does not edit `~/.config/sase/sase.yml`, overlays, project-local `sase.yml`, or chezmoi
@@ -3832,9 +3830,8 @@ itself.
 
 ### agent hold limits
 
-Three top-level keys bound agent holds: the `sase agent hold create` / `run` commands
-and the beta [`%hold` directive](xprompt.md#hold-directive), which needs the
-`agent_holds` feature flag.
+Three top-level keys bound agent holds armed by the `sase agent hold create` / `run`
+commands and the [`%hold` directive](xprompt.md#hold-directive).
 
 ```yaml
 agent_hold_default_ttl: 2h
@@ -4485,7 +4482,6 @@ flags deprecated. The currently registered flags are:
 | ------------------------------ | ------ | ------- | --------------------------------------------------------------------------------------------------------------- |
 | `ace_refresh_tokens`           | sunset | `true`  | sase's TUI and proc refreshes are gated on per-surface, stat-only change tokens.                                |
 | `admin_center_flags`           | sunset | `true`  | The Admin Center Config catalog shows the Flags pane.                                                           |
-| `agent_holds`                  | beta   | `false` | The [`%hold` directive](xprompt.md#hold-directive).                                                             |
 | `agent_sudo_requests`          | beta   | `false` | The typed sudo request workflow (`sase sudo`) and its review modal.                                             |
 | `agents_unified_query`         | sunset | `true`  | The Agents tab filter uses the shared `agents-live` boolean query profile.                                      |
 | `axe_routine_job_contract`     | sunset | `true`  | AXE configuration projections and public JSON use routine/job names; see [axe](#axe).                           |

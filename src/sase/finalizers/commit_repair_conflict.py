@@ -344,7 +344,9 @@ def run_conflict_repair_turn(
         "If this repository is still dirty after the resume, the declaration's "
         "commit decision for it will be executed as a single follow-up commit, "
         "so the message you declare there is the message that lands. Include any "
-        "other repository that is still dirty."
+        "other repository that is still dirty; after this declaration is accepted, "
+        "the host executes remaining declared repository obligations once in a "
+        "bounded continuation and will not start another conflict-repair turn."
     )
     artifact_dir = instance_artifact_dir(artifacts_dir, "commit")
     if artifact_dir is not None:

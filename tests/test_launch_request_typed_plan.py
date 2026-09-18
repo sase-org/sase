@@ -56,7 +56,7 @@ def test_typed_plan_preview_renders_holds_section_for_a_held_unit(
     pytest.importorskip("sase_core_rs")
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.chdir(tmp_path)
-    with override_flags(typed_launch_units=True, agent_holds=True):
+    with override_flags(typed_launch_units=True):
         result = create_launch_approval_request(
             {
                 "schema_version": 1,

@@ -87,7 +87,7 @@ def test_runtime_directive_vocabulary_matches_core_contract() -> None:
         "xprompts_enabled": ("colon",),
     }
     assert contract["if"].get("feature_flag") is None
-    assert contract["hold"]["feature_flag"] == "agent_holds"
+    assert contract["hold"].get("feature_flag") is None
     assert contract["proc"]["feature_flag"] == "typed_launch_units"
     assert contract["queue"].get("feature_flag") is None
     assert contract["queue"]["alias"] == "q"

@@ -57,8 +57,6 @@ def strip_known_directives(prompt: str) -> str:
         name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
         if name not in _KNOWN_DIRECTIVES and name not in _DEPRECATED_DIRECTIVES:
             continue
-        if name == "hold" and _hold_match_is_inert(match):
-            continue
         match_end = match.end()
         if match.group(2) is not None:
             paren_end = find_matching_paren_for_args(protected, match.end() - 1)
@@ -100,7 +98,7 @@ def scan_dispatch_directive(prompt: str) -> DispatchDirectiveScan | None:
         name = _DIRECTIVE_ALIASES.get(match.group(1), match.group(1))
         if name not in _KNOWN_DIRECTIVES and name not in _DEPRECATED_DIRECTIVES:
             continue
-        if name == "hold" and not _hold_match_is_inert(match):
+        if name == "hold":
             saw_hold = True
         if name == "wait":
             saw_wait = True
@@ -191,14 +189,6 @@ def _dispatch_raw_target(prompt: str, match: re.Match[str]) -> tuple[str, int]:
     if plus_suffix is not None:
         raise DirectiveError("%dispatch does not support '+'; use %dispatch:<machine>.")
     return "", match.end()
-
-
-def _hold_match_is_inert(match: re.Match[str]) -> bool:
-    if match.group(2) is not None or match.group(3) is not None or match.group(4):
-        return False
-    from sase.xprompt.hold_directive import agent_holds_enabled
-
-    return not agent_holds_enabled()
 
 
 def has_deferred_start_directive(prompt: str) -> bool:

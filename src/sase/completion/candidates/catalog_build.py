@@ -75,8 +75,6 @@ def directive_candidates(_project: str | None) -> list[Candidate]:
 
             snapshot = current_flags()
             flags: list[str] = []
-            if snapshot.enabled(FeatureFlag.agent_holds):
-                flags.append(str(FeatureFlag.agent_holds))
             if snapshot.enabled(FeatureFlag.queue_capacity_budget):
                 flags.append(str(FeatureFlag.queue_capacity_budget))
             if snapshot.enabled(FeatureFlag.typed_launch_units):

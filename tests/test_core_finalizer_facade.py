@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from sase.core.finalizer_facade import (
+    RemainingCommitWorkError,
     aggregate_finalizer_outcomes,
     authenticate_finalizer_plan,
     finalizer_context_digest,
@@ -11,6 +12,7 @@ from sase.core.finalizer_facade import (
     finalizer_provider_spec_digest,
     finalizer_wire_schema_version,
     resolve_finalizer_plan,
+    select_remaining_commit_obligations,
     validate_finalizer_assigned_bead_binding,
     validate_finalizer_context,
     validate_finalizer_plan,
@@ -19,6 +21,7 @@ from sase.core.finalizer_facade import (
 )
 from sase.core.finalizer_wire import (
     FINALIZER_WIRE_SCHEMA_VERSION,
+    ExecutedCommitObligationFactWire,
     FinalizerAssignedBeadWire,
     FinalizerAttemptWire,
     FinalizerContextWire,
@@ -32,6 +35,8 @@ from sase.core.finalizer_wire import (
     FinalizerProviderSpecWire,
     FinalizerSubmissionEnvelopeWire,
     FinalizerSubmissionPayloadWire,
+    RemainingCommitObligationFactWire,
+    RemainingCommitWorkRequestWire,
     finalizer_add,
     finalizer_assigned_bead_from_dict,
     finalizer_context_from_dict,
@@ -282,3 +287,56 @@ def test_assigned_bead_wire_round_trips_and_is_omitted_when_absent() -> None:
     assert finalizer_assigned_bead_from_dict(encoded["assigned_bead"]) == (
         context.assigned_bead
     )
+
+
+def _remaining_request(
+    *,
+    current_ids: tuple[str, ...] = ("linked",),
+    executed_ids: tuple[str, ...] = ("main",),
+    turn_nonce: str = "nonce-1",
+    declaration_turn_nonce: str | None = None,
+) -> RemainingCommitWorkRequestWire:
+    digest = "b" * 64
+    return RemainingCommitWorkRequestWire(
+        current_run_id="run-1",
+        current_agent_id="agent-1",
+        current_turn_nonce=turn_nonce,
+        current_plan_digest="0" * 64,
+        declaration_run_id="run-1",
+        declaration_agent_id="agent-1",
+        declaration_turn_nonce=declaration_turn_nonce or turn_nonce,
+        declaration_plan_digest="0" * 64,
+        current_obligations=[
+            RemainingCommitObligationFactWire(
+                obligation_id=repo_id,
+                kind="repository",
+                has_host_identity=True,
+                host_identity_matches=True,
+                has_valid_decision=True,
+                current_digest=digest,
+                submitted_digest=digest,
+            )
+            for repo_id in current_ids
+        ],
+        executed_obligations=[
+            ExecutedCommitObligationFactWire(
+                obligation_id=repo_id,
+                completed=True,
+                commit_sha="a" * 40,
+            )
+            for repo_id in executed_ids
+        ],
+    )
+
+
+def test_finalizer_facade_selects_remaining_commit_obligations() -> None:
+    outcome = select_remaining_commit_obligations(_remaining_request())
+    assert outcome.status == "remaining"
+    assert outcome.obligation_ids == ["linked"]
+
+
+def test_finalizer_facade_rejects_repair_handoff_identity_mismatch() -> None:
+    with pytest.raises(RemainingCommitWorkError, match="different run, agent, turn"):
+        select_remaining_commit_obligations(
+            _remaining_request(declaration_turn_nonce="other-turn")
+        )

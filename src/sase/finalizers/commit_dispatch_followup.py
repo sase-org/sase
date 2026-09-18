@@ -3,22 +3,35 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import replace
 import inspect
 from pathlib import Path
 from typing import Any, cast
 
+from sase.core.finalizer_facade import (
+    RemainingCommitWorkError,
+    select_remaining_commit_obligations,
+)
 from sase.core.finalizer_wire import (
+    ExecutedCommitObligationFactWire,
     FinalizerAttemptWire,
     FinalizerDiagnosticWire,
     FinalizerOutcomeEvidenceWire,
+    RemainingCommitObligationFactWire,
+    RemainingCommitWorkRequestWire,
 )
+from sase.finalizers import declaration as finalizer_declaration
 from sase.finalizers.commit_declaration import (
+    accepted_deferrals_for_instance,
+    accepted_repos_from_host,
     commit_decisions_for_instance,
     load_accepted_commit_declaration,
     repository_decision_id,
 )
 from sase.finalizers.commit_dispatch_types import (
     PostRepairFollowUpResult,
+    PrepareDirtyState,
+    RepairRemainingHandoff,
     UnexpectedPathResolver,
 )
 from sase.finalizers.commit_repair import (
@@ -497,9 +510,252 @@ def _context_assigned_bead_id(context: FinalizerExecutionContext) -> str | None:
     return _clean_assigned_bead_id(getattr(context, "assigned_bead_id", None))
 
 
+def format_repair_handoff_failure(
+    reason: str,
+    *,
+    landed: Sequence[tuple[str, str]],
+    remaining: Sequence[DirtyRepo],
+    continuation_bound: bool = False,
+) -> str:
+    """Describe a repair-handoff failure without implying a replay of landed work."""
+
+    parts = [reason.rstrip(".") + "."]
+    if landed:
+        parts.append(
+            "Already landed: "
+            + ", ".join(f"{name} {sha}" for name, sha in landed)
+            + "."
+        )
+    if remaining:
+        described = []
+        for repo in remaining:
+            paths = ", ".join(repo.changed_files)
+            described.append(f"{repo.name} ({paths})" if paths else repo.name)
+        parts.append("Remaining: " + ", ".join(described) + ".")
+    if continuation_bound:
+        parts.append(
+            "The conflict-repair continuation bound forbids another repair turn."
+        )
+    return " ".join(parts)
+
+
+def collect_repair_remaining_handoff(
+    *,
+    context: FinalizerExecutionContext,
+    instance_id: str,
+    project_dir: str,
+    artifacts: Path | None,
+    prepare_dirty_state: PrepareDirtyState,
+    executed: Sequence[ExecutedCommitObligationFactWire],
+    landed: Sequence[tuple[str, str]],
+    current_result: InvokeResult,
+    attempts: Sequence[FinalizerAttemptWire],
+    evidence: Sequence[FinalizerOutcomeEvidenceWire],
+    declaration_loader: _DeclarationLoader | None = None,
+) -> RepairRemainingHandoff | None:
+    """Load the repair declaration and select remaining host-ordered work."""
+
+    state = prepare_dirty_state(project_dir, artifacts)
+    completed_ids = {item.obligation_id for item in executed if item.completed}
+    remaining_dirty = tuple(
+        repo
+        for repo in state.dirty_state.repos
+        if repository_decision_id(repo) not in completed_ids
+    )
+    if not remaining_dirty:
+        return None
+    try:
+        loader = declaration_loader or load_accepted_commit_declaration
+        envelope, accepted_context, host_records, accepted_deferrals_raw = loader(
+            context.artifacts_dir
+        )
+        if accepted_context is None:
+            raise RuntimeError("accepted repair context is missing")
+    except Exception as exc:
+        message_text = format_repair_handoff_failure(
+            f"commit finalizer requires a current accepted declaration: {exc}",
+            landed=landed,
+            remaining=remaining_dirty,
+        )
+        raise BuiltinCommitFinalizerError(
+            message_text,
+            result=failed_result(
+                instance_id,
+                "missing_commit_declaration",
+                message_text,
+                attempts=attempts,
+                evidence=evidence,
+            ),
+            invoke_result=current_result,
+        ) from exc
+
+    decisions = commit_decisions_for_instance(envelope, instance_id)
+    accepted_deferrals = accepted_deferrals_for_instance(
+        accepted_deferrals_raw, instance_id
+    )
+    obligation_by_id = {
+        obligation.obligation_id: obligation
+        for obligation in accepted_context.obligations
+        if obligation.kind == "repository"
+    }
+    current_by_id = {repository_decision_id(repo): repo for repo in remaining_dirty}
+    extra_dirty = sorted(set(current_by_id) - set(obligation_by_id))
+    if extra_dirty:
+        extra_repos = tuple(current_by_id[repo_id] for repo_id in extra_dirty)
+        message_text = format_repair_handoff_failure(
+            "commit declaration is stale; unexpected dirty repository "
+            "obligation(s): " + ", ".join(extra_dirty),
+            landed=landed,
+            remaining=extra_repos,
+        )
+        raise BuiltinCommitFinalizerError(
+            message_text,
+            result=failed_result(
+                instance_id,
+                "stale_commit_declaration",
+                message_text,
+                attempts=attempts,
+                evidence=evidence,
+            ),
+            invoke_result=current_result,
+        )
+
+    host_by_id = {record.obligation_id: record for record in host_records}
+    facts: list[RemainingCommitObligationFactWire] = []
+    for obligation in accepted_context.obligations:
+        if obligation.kind != "repository":
+            continue
+        repo = current_by_id.get(obligation.obligation_id)
+        if repo is None:
+            continue
+        record = host_by_id.get(obligation.obligation_id)
+        current_digest = finalizer_declaration.repository_state_digest(
+            obligation.obligation_id,
+            repo,
+            list(repo.changed_files),
+        )
+        facts.append(
+            RemainingCommitObligationFactWire(
+                obligation_id=obligation.obligation_id,
+                kind="repository",
+                current_digest=current_digest,
+                submitted_digest=obligation.digest,
+                has_host_identity=record is not None,
+                host_identity_matches=_host_identity_matches(record, repo),
+                has_valid_decision=_has_valid_current_decision(
+                    obligation.obligation_id,
+                    decisions,
+                    accepted_deferrals,
+                ),
+            )
+        )
+
+    request = RemainingCommitWorkRequestWire(
+        current_run_id=str(context.run_id or ""),
+        current_agent_id=str(context.agent_id or ""),
+        current_turn_nonce=str(context.turn_nonce or ""),
+        current_plan_digest=str(context.plan_digest or ""),
+        declaration_run_id=accepted_context.run_id,
+        declaration_agent_id=accepted_context.agent_id,
+        declaration_turn_nonce=accepted_context.turn_nonce,
+        declaration_plan_digest=accepted_context.plan_digest,
+        current_obligations=facts,
+        executed_obligations=list(executed),
+    )
+    try:
+        outcome = select_remaining_commit_obligations(request)
+    except RemainingCommitWorkError as exc:
+        remaining_repos = tuple(
+            current_by_id[item.obligation_id]
+            for item in facts
+            if item.obligation_id in current_by_id
+        )
+        message_text = format_repair_handoff_failure(
+            str(exc),
+            landed=landed,
+            remaining=remaining_repos,
+        )
+        raise BuiltinCommitFinalizerError(
+            message_text,
+            result=failed_result(
+                instance_id,
+                exc.code,
+                message_text,
+                attempts=attempts,
+                evidence=evidence,
+            ),
+            invoke_result=current_result,
+        ) from exc
+
+    remaining_repos = tuple(
+        current_by_id[repo_id]
+        for repo_id in outcome.obligation_ids
+        if repo_id in current_by_id
+    )
+    if not remaining_repos:
+        return None
+    accepted_repos_from_host(
+        accepted_context,
+        host_records,
+        instance_id=instance_id,
+    )
+    stitch_context = replace(
+        context,
+        assigned_bead_id=(
+            accepted_context.assigned_bead.bead_id
+            if accepted_context.assigned_bead is not None
+            else None
+        ),
+        assigned_bead_primary_repo_id=(
+            accepted_context.assigned_bead.primary_repo_obligation_id
+            if accepted_context.assigned_bead is not None
+            else None
+        ),
+        run_id=accepted_context.run_id,
+        agent_id=accepted_context.agent_id,
+        turn_nonce=accepted_context.turn_nonce,
+        plan_digest=accepted_context.plan_digest,
+        context_digest=accepted_context.context_digest,
+    )
+    return RepairRemainingHandoff(
+        repos=remaining_repos,
+        decisions=decisions,
+        accepted_deferrals=accepted_deferrals,
+        state=state,
+        context=stitch_context,
+    )
+
+
+def _host_identity_matches(record: Any, repo: DirtyRepo) -> bool:
+    if record is None:
+        return False
+    return (
+        record.kind == repo.kind
+        and record.name == repo.name
+        and record.path == repo.path
+    )
+
+
+def _has_valid_current_decision(
+    repo_id: str,
+    decisions: Mapping[str, Mapping[str, Any]],
+    accepted_deferrals: Mapping[str, Any],
+) -> bool:
+    if repo_id in accepted_deferrals:
+        return True
+    decision = decisions.get(repo_id)
+    if not isinstance(decision, Mapping):
+        return False
+    if str(decision.get("action")) != "commit":
+        return False
+    return bool(str(decision.get("message", "")).strip())
+
+
 __all__ = [
     "attempt_post_repair_follow_up",
+    "collect_repair_remaining_handoff",
     "conflict_repair_dirty_after_stitch_message",
+    "format_repair_handoff_failure",
     "post_repair_declared_message",
     "rescue_landed_commit_after_bounds_failure",
     "stitch_bounds_failure_code",

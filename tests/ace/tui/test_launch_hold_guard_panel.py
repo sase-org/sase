@@ -31,7 +31,7 @@ def test_hold_guard_skips_modal_for_a_narrow_hold(
     install_disables(monkeypatch, {})
     app = _FakeApp()
 
-    with override_flags(agent_holds=True):
+    with override_flags():
         app._finish_agent_launch("%hold:planner\nDo work")
 
     assert len(app.workers) == 1
@@ -45,7 +45,7 @@ def test_hold_guard_confirms_a_broad_hold_and_launches(
     install_disables(monkeypatch, {})
     app = _FakeApp()
 
-    with override_flags(agent_holds=True):
+    with override_flags():
         app._finish_agent_launch("%hold(future, scope=host)\nDo work")
 
     assert len(app.pushed_screens) == 1
@@ -64,7 +64,7 @@ def test_hold_guard_cancel_leaves_the_prompt_bar_mounted(
     install_disables(monkeypatch, {})
     app = _FakeApp()
 
-    with override_flags(agent_holds=True):
+    with override_flags():
         app._finish_agent_launch("%hold(future, scope=host)\nDo work")
 
     _screen, callback = app.pushed_screens[0]

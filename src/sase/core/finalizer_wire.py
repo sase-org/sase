@@ -194,6 +194,50 @@ class FinalizerAggregateResultWire:
     diagnostics: list[FinalizerDiagnosticWire] = field(default_factory=list)
 
 
+@dataclass(frozen=True)
+class RemainingCommitObligationFactWire:
+    obligation_id: str
+    kind: str
+    has_host_identity: bool
+    host_identity_matches: bool
+    has_valid_decision: bool
+    current_digest: str | None = None
+    submitted_digest: str | None = None
+
+
+@dataclass(frozen=True)
+class ExecutedCommitObligationFactWire:
+    obligation_id: str
+    completed: bool
+    commit_sha: str | None = None
+
+
+@dataclass(frozen=True)
+class RemainingCommitWorkRequestWire:
+    current_run_id: str
+    current_agent_id: str
+    current_turn_nonce: str
+    current_plan_digest: str
+    declaration_run_id: str
+    declaration_agent_id: str
+    declaration_turn_nonce: str
+    declaration_plan_digest: str
+    current_obligations: list[RemainingCommitObligationFactWire] = field(
+        default_factory=list
+    )
+    executed_obligations: list[ExecutedCommitObligationFactWire] = field(
+        default_factory=list
+    )
+
+
+@dataclass(frozen=True)
+class RemainingCommitWorkOutcomeWire:
+    status: str
+    obligation_ids: list[str] = field(default_factory=list)
+    code: str | None = None
+    message: str | None = None
+
+
 def finalizer_add(instance_id: str) -> FinalizerSelectorOpWire:
     return FinalizerSelectorOpWire(op="add", instance_id=instance_id)
 
@@ -424,6 +468,17 @@ def finalizer_aggregate_result_from_dict(
     )
 
 
+def remaining_commit_work_outcome_from_dict(
+    data: dict[str, Any],
+) -> RemainingCommitWorkOutcomeWire:
+    return RemainingCommitWorkOutcomeWire(
+        status=str(data["status"]),
+        obligation_ids=[str(item) for item in data.get("obligation_ids", [])],
+        code=_optional_str(data.get("code")),
+        message=_optional_str(data.get("message")),
+    )
+
+
 def _optional_str(value: Any) -> str | None:
     return None if value is None else str(value)
 
@@ -433,6 +488,7 @@ def _optional_int(value: Any) -> int | None:
 
 
 __all__ = [
+    "ExecutedCommitObligationFactWire",
     "FINALIZER_DEFERRAL_REASONS",
     "FINALIZER_WIRE_SCHEMA_VERSION",
     "FinalizerAggregateResultWire",
@@ -456,6 +512,9 @@ __all__ = [
     "FinalizerSubmissionPayloadWire",
     "FinalizerSubmissionValidationWire",
     "JsonValue",
+    "RemainingCommitObligationFactWire",
+    "RemainingCommitWorkOutcomeWire",
+    "RemainingCommitWorkRequestWire",
     "finalizer_add",
     "finalizer_aggregate_result_from_dict",
     "finalizer_assigned_bead_from_dict",
@@ -469,4 +528,5 @@ __all__ = [
     "finalizer_remove",
     "finalizer_submission_validation_from_dict",
     "finalizer_wire_to_json_dict",
+    "remaining_commit_work_outcome_from_dict",
 ]

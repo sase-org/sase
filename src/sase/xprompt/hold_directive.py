@@ -8,8 +8,6 @@ from typing import Any
 
 from sase.core.rust import require_rust_binding
 
-AGENT_HOLDS_FLAG = "agent_holds"
-
 HOLD_POSITIONAL_SUGGESTIONS: tuple[str, ...] = ("pending", "future")
 HOLD_KEYWORDS: tuple[str, ...] = ("hood", "scope", "ttl", "tribe")
 HOLD_SCOPE_SUGGESTIONS: tuple[str, ...] = ("project", "host")
@@ -66,14 +64,6 @@ class HoldFields:
         return data
 
 
-def agent_holds_enabled() -> bool:
-    """Return whether the process-local ``agent_holds`` beta flag is enabled."""
-    from sase.feature_flags.registry import FeatureFlag
-    from sase.feature_flags.snapshot import current_flags
-
-    return current_flags().enabled(FeatureFlag.agent_holds)
-
-
 def collect_hold_fields(
     occurrences: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
@@ -112,12 +102,10 @@ def hold_fields_to_selectors(
 
 
 __all__ = [
-    "AGENT_HOLDS_FLAG",
     "HOLD_KEYWORDS",
     "HOLD_POSITIONAL_SUGGESTIONS",
     "HOLD_SCOPE_SUGGESTIONS",
     "HoldFields",
-    "agent_holds_enabled",
     "collect_hold_fields",
     "format_hold_directive",
     "hold_fields_to_selectors",

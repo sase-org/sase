@@ -79,8 +79,6 @@ def collect_prompt_directive_matches(prompt: str) -> _CollectedDirectives:
             collected.regions_to_remove.append((match.start(), match_end))
             continue
         if name == "hold":
-            if _hold_bare_and_disabled(match):
-                continue
             occurrence, match_end = _collect_hold_occurrence(prompt, match)
             collected.hold_occurrences.append(occurrence)
             collected.regions_to_remove.append((match.start(), match_end))
@@ -410,14 +408,6 @@ def _collect_hold_occurrence(
         },
         match_end,
     )
-
-
-def _hold_bare_and_disabled(match: re.Match[str]) -> bool:
-    if match.group(2) is not None or match.group(3) is not None or match.group(4):
-        return False
-    from sase.xprompt.hold_directive import agent_holds_enabled
-
-    return not agent_holds_enabled()
 
 
 def _queue_args_from_paren_content(paren_content: str) -> list[dict[str, str]]:

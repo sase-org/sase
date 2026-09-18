@@ -129,6 +129,8 @@ def test_conflict_repair_prompt_preserves_commit_scope_and_final_declaration(
     assert "/sase_final" in prompt
     assert "single follow-up commit" in prompt
     assert "message you declare there is the message that lands" in prompt
+    assert "bounded continuation" in prompt
+    assert "will not start another conflict-repair turn" in prompt
 
 
 def test_conflict_repair_marks_finalizer_owned_turn_and_restores_on_exception(

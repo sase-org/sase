@@ -169,10 +169,8 @@ blocking hold's armer in `held_by` and that hold's expiry in `hold_expires_at`.
 An agent hold is a durable, reverse-wait admission barrier: while it is active, matching
 agents stay WAITING or QUEUED instead of starting, and matching procs that have not been
 dispatched yet stay pending. `sase agent hold` is the standalone CLI for the hold store
-that the beta [`%hold` directive](xprompt.md#hold-directive) describes; today `%hold` is
-parsed and previewed but not yet armed at launch submission, so this CLI is the way to
-arm a hold. The CLI does not require the `agent_holds` beta flag; only the `%hold`
-directive does.
+that the [`%hold` directive](xprompt.md#hold-directive) also describes in prompt text.
+Use the CLI when you need to inspect, release, or arm a hold outside a launch prompt.
 
 ```bash
 sase agent hold create -n planner -t nightly   # block one name plus a tribe

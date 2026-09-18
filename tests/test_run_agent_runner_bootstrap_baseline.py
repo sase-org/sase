@@ -453,7 +453,7 @@ def test_bootstrap_real_hold_exists_before_dependency_wait_claim(
         events.append("claim")
 
     with (
-        override_flags(agent_holds=True),
+        override_flags(),
         patch.object(
             run_agent_runner_bootstrap,
             "install_workspace_release_sigterm_handler",

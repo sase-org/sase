@@ -15,12 +15,23 @@ from sase.core.finalizer_wire import (
     FinalizerProviderSpecWire,
     FinalizerSubmissionEnvelopeWire,
     FinalizerSubmissionValidationWire,
+    RemainingCommitWorkOutcomeWire,
+    RemainingCommitWorkRequestWire,
     finalizer_aggregate_result_from_dict,
     finalizer_plan_from_dict,
     finalizer_submission_validation_from_dict,
     finalizer_wire_to_json_dict,
+    remaining_commit_work_outcome_from_dict,
 )
 from sase.core.rust import require_rust_binding
+
+
+class RemainingCommitWorkError(ValueError):
+    """Raised when remaining-work selection rejects a repair handoff."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
 
 
 def finalizer_wire_schema_version() -> int:
@@ -155,7 +166,31 @@ def validate_finalizer_bead_decision(
     return dict(payload)
 
 
+def select_remaining_commit_obligations(
+    request: RemainingCommitWorkRequestWire | dict[str, Any],
+) -> RemainingCommitWorkOutcomeWire:
+    """Select remaining repository obligations after conflict repair."""
+
+    binding = require_rust_binding("select_remaining_commit_obligations")
+    payload = binding(finalizer_wire_to_json_dict(request))
+    if not isinstance(payload, dict):
+        raise TypeError("select_remaining_commit_obligations returned a non-mapping")
+    outcome = remaining_commit_work_outcome_from_dict(dict(payload))
+    if outcome.status == "rejected":
+        raise RemainingCommitWorkError(
+            outcome.code or "repair_handoff_rejected",
+            outcome.message or "repair remaining-work selection was rejected",
+        )
+    if outcome.status != "remaining":
+        raise TypeError(
+            "select_remaining_commit_obligations returned unknown status "
+            f"{outcome.status!r}"
+        )
+    return outcome
+
+
 __all__ = [
+    "RemainingCommitWorkError",
     "aggregate_finalizer_outcomes",
     "authenticate_finalizer_plan",
     "finalizer_context_digest",
@@ -165,6 +200,7 @@ __all__ = [
     "finalizer_provider_spec_digest",
     "finalizer_wire_schema_version",
     "resolve_finalizer_plan",
+    "select_remaining_commit_obligations",
     "validate_finalizer_assigned_bead_binding",
     "validate_finalizer_bead_decision",
     "validate_finalizer_context",

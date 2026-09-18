@@ -126,7 +126,7 @@ def test_ace_and_lsp_include_queue_directive(
 def test_ace_and_lsp_include_hold_directive_when_enabled(
     tmp_path: Path,
 ) -> None:
-    with override_flags(agent_holds=True):
+    with override_flags():
         ace_candidates, shared = build_directive_completion_candidates("%")
         assert shared == ""
         ace_labels = {row.label for row in _ace_surface_rows(ace_candidates)}
@@ -226,7 +226,7 @@ def test_ace_and_lsp_queue_argument_rows_match(
 def test_ace_and_lsp_hold_scope_rows_match_when_enabled(
     tmp_path: Path,
 ) -> None:
-    with override_flags(agent_holds=True):
+    with override_flags():
         ace_rows = _ace_clause_rows("%hold(scope=")
         with LspSession(tmp_path) as lsp:
             lsp_rows = lsp.complete("%hold(scope=")
@@ -238,7 +238,7 @@ def test_ace_and_lsp_hold_scope_rows_match_when_enabled(
 def test_ace_and_lsp_hold_target_rows_match_when_enabled(
     tmp_path: Path,
 ) -> None:
-    with override_flags(agent_holds=True):
+    with override_flags():
         ace_rows = _ace_clause_rows("%hold(")
         with LspSession(tmp_path) as lsp:
             lsp_rows = lsp.complete("%hold(")
@@ -263,7 +263,7 @@ def test_ace_and_lsp_hold_target_rows_match_when_enabled(
 def test_ace_and_lsp_hold_hood_rows_match_when_enabled(
     tmp_path: Path,
 ) -> None:
-    with override_flags(agent_holds=True):
+    with override_flags():
         ace_rows = _ace_clause_rows("%hold(hood=s")
         with LspSession(tmp_path) as lsp:
             lsp_rows = lsp.complete("%hold(hood=s")
