@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
+import pytest
+
+from sase.completion.loader import emit_loader
+from sase.completion.install_scripts import completion_payload
 from sase.completion.install import (
     CompletionInstallError,
     CompletionRefreshReport,
@@ -18,7 +23,14 @@ from sase.completion.install import (
     _refresh_stamped_completions,
     zwc_path,
 )
-from sase.completion.install_stamp import InstallStamp, read_stamp, write_stamp
+from sase.completion.install_stamp import (
+    REPRESENTATION_LOADER,
+    REPRESENTATION_RAW,
+    InstallStamp,
+    read_stamp,
+    write_stamp,
+)
+from sase.completion.runtime_cache import RuntimeGrammarStatus, ensure_cached_grammar
 
 
 def _emit(shell: str) -> tuple[str, str]:
@@ -83,7 +95,59 @@ def test_install_writes_zcompiles_stamps_and_verifies(tmp_path: Path) -> None:
     assert stamp.digest == "digest-zsh"
     assert stamp.target == str(script)
     assert stamp.owner == "local"
+    assert stamp.representation == REPRESENTATION_RAW
     assert result.registered is True
+
+
+def test_default_install_writes_loader_and_records_runtime_grammar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    grammar = tmp_path / "cache" / "sase.bash"
+
+    def _ensure(shell: str, **kwargs: object) -> Path:
+        assert shell == "bash"
+        assert kwargs["loader_path"] == tmp_path / "bash-comp" / "sase"
+        assert kwargs["owner"] == "local"
+        grammar.parent.mkdir(parents=True)
+        grammar.write_text("# cached bash grammar\n", encoding="utf-8")
+        return grammar
+
+    def _assess(shell: str, **_kwargs: object) -> RuntimeGrammarStatus:
+        assert shell == "bash"
+        return RuntimeGrammarStatus(
+            shell="bash",
+            status="current",
+            path=str(grammar),
+            structural_digest="digest-bash",
+        )
+
+    monkeypatch.setattr("sase.completion.install_flow.ensure_cached_grammar", _ensure)
+    monkeypatch.setattr("sase.completion.install_flow.assess_cached_grammar", _assess)
+
+    result = install_completion(
+        requested="bash",
+        target=tmp_path / "bash-comp",
+        home=tmp_path,
+        parent=None,
+        version="0.17.0",
+        timestamp="2026-09-18T12:00:00Z",
+    )
+
+    script = tmp_path / "bash-comp" / "sase"
+    text = script.read_text(encoding="utf-8")
+    assert result.ok
+    assert "completion ensure bash" in text
+    assert "--owner 'local'" in text
+    stamp = read_stamp("bash")
+    assert stamp is not None
+    assert stamp.representation == REPRESENTATION_LOADER
+    assert stamp.digest == "digest-bash"
+    assert (
+        stamp.loader_digest
+        == hashlib.sha256(
+            emit_loader("bash", owner="local").encode("utf-8")
+        ).hexdigest()
+    )
 
 
 def test_foreign_file_requires_force(tmp_path: Path) -> None:
@@ -267,6 +331,57 @@ def test_list_status_detects_damaged_script(tmp_path: Path) -> None:
     assert any("script differs" in reason for reason in rows["zsh"].drift_reasons)
 
 
+def test_list_status_distinguishes_loader_from_runtime_grammar(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+    calls: list[tuple[str, ...]] = []
+
+    def _expected(shells: tuple[str, ...] | list[str]):
+        calls.append(tuple(shells))
+        return {
+            shell: _ExpectedCompletion(f"# generated {shell}\n", f"digest-{shell}")
+            for shell in shells
+        }
+
+    grammar = ensure_cached_grammar("bash", expected_fn=_expected)
+    script = tmp_path / "bash-comp" / "sase"
+    script.parent.mkdir()
+    loader = emit_loader("bash", owner="local")
+    script.write_text(completion_payload(loader), encoding="utf-8")
+    write_stamp(
+        InstallStamp(
+            shell="bash",
+            version="0.16.0",
+            digest="digest-bash",
+            target=str(script),
+            timestamp="2026-08-17T12:00:00Z",
+            representation=REPRESENTATION_LOADER,
+            loader_digest=hashlib.sha256(loader.encode("utf-8")).hexdigest(),
+        )
+    )
+
+    rows = {
+        row.shell: row
+        for row in list_shell_statuses(version="0.16.0", expected_fn=_expected)
+    }
+    assert rows["bash"].status == "installed"
+    assert rows["bash"].representation == REPRESENTATION_LOADER
+    assert rows["bash"].loader_status == "current"
+    assert rows["bash"].grammar_status == "current"
+    assert rows["bash"].grammar_path == str(grammar)
+
+    grammar.write_text("# corrupt\n", encoding="utf-8")
+    stale = {
+        row.shell: row
+        for row in list_shell_statuses(version="0.16.0", expected_fn=_expected)
+    }
+    assert stale["bash"].status == "stale"
+    assert stale["bash"].loader_status == "current"
+    assert stale["bash"].grammar_status == "corrupt"
+    assert any("checksum" in reason for reason in stale["bash"].drift_reasons)
+
+
 def test_zcompile_failure_preserves_previous_script_and_stamp(tmp_path: Path) -> None:
     assert _install(tmp_path).ok
     script = tmp_path / "zfunc" / "_sase"
@@ -383,7 +498,7 @@ def test_chezmoi_owned_stamp_refuses_local_takeover_without_force(
     assert stamp.owner == "local"
 
 
-def test_refresh_reports_chezmoi_owned_stamps_without_success(
+def test_refresh_rewrites_chezmoi_owned_stamps_and_preserves_owner(
     tmp_path: Path,
 ) -> None:
     target = tmp_path / "zfunc"
@@ -401,19 +516,28 @@ def test_refresh_reports_chezmoi_owned_stamps_without_success(
         )
     )
 
-    seen: list[str] = []
+    seen: list[dict[str, object]] = []
 
-    def _installer(**kwargs: object):
-        seen.append(str(kwargs["requested"]))
-        return _install(tmp_path, target=kwargs["target"], force=True)
+    def _installer(**kwargs: object) -> InstallResult:
+        seen.append(dict(kwargs))
+        return _install(
+            tmp_path,
+            target=kwargs["target"],
+            force=True,
+            owner=kwargs["owner"],
+        )
 
     report = _refresh_stamped_completions(install_fn=_installer)
 
     assert report.outcomes[0].shell == "zsh"
-    assert report.outcomes[0].ok is False
-    assert "legacy chezmoi-managed" in report.outcomes[0].detail
+    assert report.outcomes[0].ok is True
+    assert "refreshed" in report.outcomes[0].detail
     assert report.outcomes[0].target == str(script)
-    assert seen == []
+    assert seen[0]["owner"] == "chezmoi"
+    assert seen[0]["force_cache"] is True
+    stamp = read_stamp("zsh")
+    assert stamp is not None
+    assert stamp.owner == "chezmoi"
 
 
 def test_maybe_refresh_runs_the_injected_refresher() -> None:

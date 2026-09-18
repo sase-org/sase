@@ -59,7 +59,7 @@ def test_install_check_ok_when_stamp_version_and_zwc_match() -> None:
     check = _check_completion_install(statuses=(_row("zsh", status="installed"),))
     assert check.status == "OK"
     assert "1 stamped" in check.summary
-    assert "generator" in check.summary
+    assert "grammar" in check.summary
 
 
 def test_install_check_warns_for_missing_script() -> None:
@@ -93,14 +93,15 @@ def test_install_check_warns_with_managed_migration_step() -> None:
                 status="managed stale",
                 owner="chezmoi",
                 drift_reasons=(
-                    "legacy chezmoi-managed install is not refreshed automatically",
+                    "legacy chezmoi-managed raw snapshot should be refreshed to a loader",
                 ),
             ),
         )
     )
     assert check.status == "WARN"
     assert "chezmoi-managed" in check.summary
-    assert any("managed completion install" in step for step in check.next_steps)
+    assert any("completion refresh" in step for step in check.next_steps)
+    assert any("managed completion source" in step for step in check.next_steps)
 
 
 def test_install_check_warns_for_stale_zwc() -> None:

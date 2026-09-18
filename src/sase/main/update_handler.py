@@ -102,6 +102,7 @@ def handle_update_command(
             restart_axe_fn=restart_axe_fn,
             clock=clock,
             config_fn=config_fn,
+            refresh_completions_fn=refresh_completions_fn,
         )
 
     if dry_run:

@@ -14,8 +14,10 @@ from sase.completion.install import (
     install_completion,
     zwc_path,
 )
-from sase.completion.install_stamp import read_stamp
+from sase.completion.install_scripts import completion_payload
+from sase.completion.install_stamp import REPRESENTATION_LOADER, read_stamp
 from sase.completion.install_targets import SUPPORTED_SHELLS, script_path
+from sase.completion.loader import emit_loader
 from sase.main.update_handler import handle_update_command
 from sase.uv_tool.runner import parse_uv_output
 from tests.main.update_command_helpers import (
@@ -28,11 +30,6 @@ from tests.main.update_command_helpers import (
 STALE_MARKER = "STALE-UNMANAGED-COMPLETION\n"
 OLD_STAMP_VERSION = "0.15.0"
 SOAK_CYCLES = 3
-
-
-def generated_version_marker(version: str | None = None) -> str:
-    """Return the emitter header fragment that names the running sase version."""
-    return f"(sase {sase.__version__ if version is None else version})"
 
 
 def unmanaged_target(root: Path, shell: str) -> Path:
@@ -121,7 +118,6 @@ def assert_unmanaged_refresh(
         assert set(by_shell) == set(wanted)
     else:
         assert set(wanted) <= set(by_shell)
-    marker = generated_version_marker()
     for shell in wanted:
         outcome = by_shell[shell]
         script = scripts[shell]
@@ -129,11 +125,13 @@ def assert_unmanaged_refresh(
         assert outcome["ok"] is True, outcome
         assert outcome["target"] == str(script)
         assert STALE_MARKER not in text
-        assert marker in text
+        assert text == completion_payload(emit_loader(shell, owner="local"))
         stamp = read_stamp(shell)
         assert stamp is not None
         assert stamp.version == sase.__version__
         assert stamp.owner == "local"
+        assert stamp.representation == REPRESENTATION_LOADER
+        assert stamp.loader_digest is not None
         assert stamp.target == str(script)
         if shell == "zsh":
             compiled = zwc_path(script)

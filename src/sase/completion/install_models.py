@@ -63,6 +63,10 @@ class ShellInstallStatus:
     stamp_version: str | None
     owner: str | None
     drift_reasons: tuple[str, ...] = ()
+    representation: str = "raw"
+    loader_status: str | None = None
+    grammar_status: str | None = None
+    grammar_path: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

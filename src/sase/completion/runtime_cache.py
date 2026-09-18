@@ -10,6 +10,7 @@ import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib import metadata
 from pathlib import Path
@@ -35,6 +36,17 @@ _DISTRIBUTIONS = ("sase", "sase-core-rs")
 
 class CompletionCacheError(RuntimeError):
     """User-facing failure while resolving the runtime grammar cache."""
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeGrammarStatus:
+    """Read-only assessment of one shell's runtime grammar cache."""
+
+    shell: str
+    status: str
+    path: str | None
+    structural_digest: str | None
+    drift_reasons: tuple[str, ...] = ()
 
 
 def ensure_cached_grammar(
@@ -116,6 +128,114 @@ def ensure_cached_grammar(
         )
         _prune_old_runtime_dirs(_cache_root())
     return grammar.resolve(strict=False)
+
+
+def assess_cached_grammar(
+    shell: str,
+    *,
+    expected: ExpectedCompletion | None = None,
+) -> RuntimeGrammarStatus:
+    """Return a read-only freshness assessment for *shell*'s cached grammar."""
+    if shell not in SUPPORTED_SHELLS:
+        raise CompletionCacheError(f"unsupported shell: {shell}")
+    identity = _runtime_identity()
+    fingerprint = _source_fingerprint()
+    runtime_key = _runtime_identity_key(identity)
+    directory = _shell_cache_dir(runtime_key, shell)
+    grammar = directory / _grammar_filename(shell)
+    manifest = directory / "manifest.json"
+    path = str(grammar.resolve(strict=False))
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return RuntimeGrammarStatus(
+            shell,
+            "missing",
+            path,
+            None,
+            ("runtime grammar cache manifest is missing",),
+        )
+    except json.JSONDecodeError:
+        return RuntimeGrammarStatus(
+            shell,
+            "corrupt",
+            path,
+            None,
+            ("runtime grammar cache manifest is not valid JSON",),
+        )
+    except OSError as exc:
+        return RuntimeGrammarStatus(
+            shell,
+            "missing",
+            path,
+            None,
+            (f"runtime grammar cache manifest cannot be read: {exc}",),
+        )
+    if not isinstance(data, dict):
+        return RuntimeGrammarStatus(
+            shell,
+            "corrupt",
+            path,
+            None,
+            ("runtime grammar cache manifest is not an object",),
+        )
+
+    reasons: list[str] = []
+    status = "current"
+    if data.get("schema_version") != CACHE_SCHEMA_VERSION:
+        status = "stale"
+        reasons.append("runtime grammar manifest schema is stale")
+    if data.get("cache_format_revision") != CACHE_FORMAT_REVISION:
+        status = "stale"
+        reasons.append("runtime grammar cache format is stale")
+    if data.get("shell") != shell:
+        status = "corrupt"
+        reasons.append("runtime grammar manifest shell does not match")
+    if data.get("runtime_key") != runtime_key:
+        status = "stale"
+        reasons.append("runtime grammar runtime identity is stale")
+    if data.get("source_fingerprint") != fingerprint:
+        status = "stale"
+        reasons.append("runtime grammar source fingerprint is stale")
+    recorded = data.get("grammar_path")
+    if recorded is not None and Path(str(recorded)) != grammar.resolve(strict=False):
+        status = "stale"
+        reasons.append("runtime grammar manifest points at another path")
+
+    structural_digest = (
+        None
+        if data.get("structural_digest") is None
+        else str(data["structural_digest"])
+    )
+    if expected is not None and structural_digest != expected.digest:
+        status = "stale"
+        reasons.append(
+            "runtime grammar digest "
+            f"{structural_digest or '<missing>'} differs from running "
+            f"{expected.digest}"
+        )
+
+    payload = _read_text(grammar)
+    if payload is None:
+        status = "missing" if status == "current" else status
+        reasons.append("runtime grammar file is missing or unreadable")
+    elif data.get("content_checksum") != _sha256_text(payload):
+        status = "corrupt"
+        reasons.append("runtime grammar checksum does not match manifest")
+
+    if shell == "zsh":
+        grammar_zwc = zwc_freshness(shell, grammar)
+        if grammar_zwc != "fresh":
+            status = "zwc stale" if status == "current" else status
+            reasons.append(f"runtime grammar .zwc is {grammar_zwc}")
+
+    return RuntimeGrammarStatus(
+        shell=shell,
+        status=status,
+        path=path,
+        structural_digest=structural_digest,
+        drift_reasons=tuple(reasons),
+    )
 
 
 def _runtime_identity() -> dict[str, Any]:
@@ -447,5 +567,7 @@ __all__ = [
     "CACHE_FORMAT_REVISION",
     "CACHE_SCHEMA_VERSION",
     "CompletionCacheError",
+    "RuntimeGrammarStatus",
+    "assess_cached_grammar",
     "ensure_cached_grammar",
 ]

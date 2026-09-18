@@ -13,10 +13,13 @@ from sase.completion.install_targets import SUPPORTED_SHELLS
 from sase.core.paths import sase_subdir
 
 
-STAMP_SCHEMA_VERSION = 1
+STAMP_SCHEMA_VERSION = 2
 OWNER_LOCAL = "local"
 OWNER_CHEZMOI = "chezmoi"
 STAMP_OWNERS = frozenset({OWNER_LOCAL, OWNER_CHEZMOI})
+REPRESENTATION_RAW = "raw"
+REPRESENTATION_LOADER = "loader"
+STAMP_REPRESENTATIONS = frozenset({REPRESENTATION_RAW, REPRESENTATION_LOADER})
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,24 +32,36 @@ class InstallStamp:
     target: str
     timestamp: str
     owner: str = OWNER_LOCAL
+    representation: str = REPRESENTATION_RAW
+    loader_digest: str | None = None
     schema_version: int = STAMP_SCHEMA_VERSION
 
     def to_json(self) -> dict[str, Any]:
-        return {
+        payload = {
             "digest": self.digest,
             "owner": self.owner,
+            "representation": self.representation,
             "schema_version": self.schema_version,
             "shell": self.shell,
             "target": self.target,
             "timestamp": self.timestamp,
             "version": self.version,
         }
+        if self.loader_digest is not None:
+            payload["loader_digest"] = self.loader_digest
+        return payload
 
     @classmethod
     def from_json(cls, data: Mapping[str, Any]) -> InstallStamp:
         owner = str(data.get("owner", OWNER_LOCAL))
         if owner not in STAMP_OWNERS:
             raise ValueError(f"unsupported completion stamp owner: {owner}")
+        representation = str(data.get("representation", REPRESENTATION_RAW))
+        if representation not in STAMP_REPRESENTATIONS:
+            raise ValueError(
+                f"unsupported completion stamp representation: {representation}"
+            )
+        loader_digest = data.get("loader_digest")
         return cls(
             shell=str(data["shell"]),
             version=str(data["version"]),
@@ -54,6 +69,8 @@ class InstallStamp:
             target=str(data["target"]),
             timestamp=str(data["timestamp"]),
             owner=owner,
+            representation=representation,
+            loader_digest=None if loader_digest is None else str(loader_digest),
             schema_version=int(data.get("schema_version", STAMP_SCHEMA_VERSION)),
         )
 
@@ -154,6 +171,8 @@ __all__ = [
     "InstallStamp",
     "OWNER_CHEZMOI",
     "OWNER_LOCAL",
+    "REPRESENTATION_LOADER",
+    "REPRESENTATION_RAW",
     "STAMP_SCHEMA_VERSION",
     "list_stamps",
     "portable_stamp_target",

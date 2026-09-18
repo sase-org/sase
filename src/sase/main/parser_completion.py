@@ -41,7 +41,7 @@ def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase completion install zsh             # write, zcompile, verify, stamp\n"
             "  sase completion list                    # shells, path, zwc, stamp\n"
             "  sase completion loader zsh              # print a portable loader\n"
-            "  sase completion refresh                 # refresh stamped local installs\n"
+            "  sase completion refresh                 # refresh stamped installs\n"
             "  sase completion refresh zsh -d          # show the zsh refresh plan\n"
             "  sase completion spec                    # structural JSON\n"
             "  sase completion spec -j -o spec.json    # write the snapshot artifact\n"
@@ -183,12 +183,13 @@ def _register_loader_parser(subparsers: argparse._SubParsersAction) -> None:
 def _register_refresh_parser(subparsers: argparse._SubParsersAction) -> None:
     refresh_parser = subparsers.add_parser(
         "refresh",
-        help="Regenerate existing stamped local completion installs",
+        help="Regenerate existing stamped completion installs",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Refresh stamped local completion scripts from the running sase "
+            "Refresh stamped completion installs from the running sase "
             "CLI. With no SHELL, refreshes every stamped supported shell. "
-            "Legacy chezmoi-owned stamps are reported but not overwritten."
+            "Chezmoi-owned applied targets are refreshed in place; migrate "
+            "the managed source separately to prevent later rollback."
         ),
         epilog=(
             "examples:\n"

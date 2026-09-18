@@ -9,7 +9,12 @@ from typing import Any
 
 from rich.console import Console
 
+from sase.completion.install import CompletionRefreshReport
 from sase.dev_update.models import DevCommandRunner
+from sase.main.update_handler_completion import (
+    completion_refresh_after_update,
+    render_completion_refresh,
+)
 from sase.main.update_handler_support import fail_update
 from sase.main.update_restart import render_restart_info, restart_after_update
 from sase.main.update_types import (
@@ -50,6 +55,7 @@ def handle_mode_switch(
     restart_axe_fn: RestartAxeFn,
     clock: ClockFn,
     config_fn: Callable[[], dict[str, Any]],
+    refresh_completions_fn: Callable[[], CompletionRefreshReport] | None = None,
 ) -> int:
     try:
         plan = plan_mode_switch(
@@ -62,13 +68,27 @@ def handle_mode_switch(
         return fail_update(exc, as_json=as_json, err=err)
 
     if not plan.changed:
+        if dry_run:
+            if as_json:
+                payload = mode_switch_dry_run_json(plan)
+                payload["dry_run"] = True
+                payload["changed"] = False
+                print(json.dumps(payload, indent=2, sort_keys=True))
+            elif not quiet:
+                render_mode_switch_noop(plan, console=out)
+            return 0
+        refresh = completion_refresh_after_update(install, refresh_completions_fn)
         if as_json:
             payload = mode_switch_dry_run_json(plan)
-            payload["dry_run"] = dry_run
+            payload["dry_run"] = False
             payload["changed"] = False
+            if refresh.attempted:
+                payload["completion_refresh"] = refresh.to_json()
             print(json.dumps(payload, indent=2, sort_keys=True))
-        elif not quiet:
-            render_mode_switch_noop(plan, console=out)
+        else:
+            if not quiet:
+                render_mode_switch_noop(plan, console=out)
+            render_completion_refresh(refresh, console=out, quiet=quiet)
         return 0
 
     if dry_run:
@@ -101,20 +121,19 @@ def handle_mode_switch(
         restart_axe_fn=restart_axe_fn,
         source="sase update mode switch",
     )
+    refresh = completion_refresh_after_update(install, refresh_completions_fn)
 
     if as_json:
-        print(
-            json.dumps(
-                mode_switch_result_json(result, elapsed=elapsed, restart=restart),
-                indent=2,
-                sort_keys=True,
-            )
-        )
+        payload = mode_switch_result_json(result, elapsed=elapsed, restart=restart)
+        if refresh.attempted:
+            payload["completion_refresh"] = refresh.to_json()
+        print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
 
     render_mode_switch_result(result, elapsed=elapsed, quiet=quiet, console=out)
     if result.changed:
         render_restart_info(restart, console=out, quiet=quiet)
+    render_completion_refresh(refresh, console=out, quiet=quiet)
     return 0
 
 

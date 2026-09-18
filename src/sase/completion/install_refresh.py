@@ -14,7 +14,6 @@ from sase.completion.install_models import (
 from sase.completion.install_stamp import (
     list_stamps,
     resolve_stamp_target,
-    stamp_is_chezmoi,
 )
 from sase.completion.install_status import list_shell_statuses
 from sase.completion.install_targets import CompletionInstallError, SUPPORTED_SHELLS
@@ -56,19 +55,6 @@ def refresh_stamped_completions(
     outcomes: list[RefreshShellOutcome] = []
     for stamp in stamps:
         status = statuses[stamp.shell]
-        if stamp_is_chezmoi(stamp):
-            outcomes.append(
-                RefreshShellOutcome(
-                    shell=stamp.shell,
-                    ok=False,
-                    detail=(
-                        f"legacy chezmoi-managed {stamp.target} is not refreshed "
-                        "automatically; migrate the managed install first"
-                    ),
-                    target=stamp.target,
-                )
-            )
-            continue
         if dry_run:
             outcomes.append(
                 RefreshShellOutcome(
@@ -85,6 +71,8 @@ def refresh_stamped_completions(
             result = installer(
                 requested=stamp.shell,
                 force=True,
+                force_cache=True,
+                owner=stamp.owner,
                 target=target_dir,
                 verify_fn=_skip_refresh_verify,
             )

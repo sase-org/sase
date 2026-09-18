@@ -21,18 +21,20 @@ from sase.completion.install import (
     list_shell_statuses,
     zwc_path,
 )
+from sase.completion.install_scripts import completion_payload
 from sase.completion.install_stamp import (
     OWNER_CHEZMOI,
+    REPRESENTATION_LOADER,
     InstallStamp,
     read_stamp,
     write_stamp,
 )
+from sase.completion.loader import emit_loader
 from tests.completion._update_refresh_harness import (
     OLD_STAMP_VERSION,
     SOAK_CYCLES,
     STALE_MARKER,
     assert_unmanaged_refresh,
-    generated_version_marker,
     install_unmanaged_shells,
     mark_scripts_stale,
     refresh_by_shell,
@@ -66,11 +68,13 @@ def test_three_update_cycles_refresh_bash_fish_and_zsh(
         for shell in scripts:
             assert statuses[shell].status == "installed"
             assert statuses[shell].stamp_version == sase.__version__
+            assert statuses[shell].representation == REPRESENTATION_LOADER
+            assert statuses[shell].grammar_status == "current"
         assert statuses["zsh"].zwc == "fresh"
 
     assert snapshots[0] == snapshots[1] == snapshots[2]
     for shell, script in scripts.items():
-        assert generated_version_marker() in script.read_text(encoding="utf-8")
+        assert "completion ensure" in script.read_text(encoding="utf-8")
         assert script.stat().st_size > len(STALE_MARKER)
 
 
@@ -139,7 +143,7 @@ def test_per_shell_failure_is_nonfatal_and_isolated(
     assert_unmanaged_refresh(recovered, payload, exact=False)
 
 
-def test_chezmoi_managed_scripts_are_skipped(
+def test_chezmoi_managed_scripts_are_refreshed_with_preserved_owner(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -162,11 +166,14 @@ def test_chezmoi_managed_scripts_are_skipped(
 
     payload = successful_update(tmp_path, capsys)
     by_shell = refresh_by_shell(payload)
-    assert by_shell["fish"]["ok"] is False
-    assert "legacy chezmoi-managed" in by_shell["fish"]["detail"]
-    assert fish_script.read_text(encoding="utf-8") == "# chezmoi-managed fish\n"
+    assert by_shell["fish"]["ok"] is True
+    assert "refreshed" in by_shell["fish"]["detail"]
+    assert fish_script.read_text(encoding="utf-8") == completion_payload(
+        emit_loader("fish", owner=OWNER_CHEZMOI)
+    )
     fish_stamp = read_stamp("fish")
     assert fish_stamp is not None
     assert fish_stamp.owner == OWNER_CHEZMOI
-    assert fish_stamp.version == OLD_STAMP_VERSION
+    assert fish_stamp.version == sase.__version__
+    assert fish_stamp.representation == REPRESENTATION_LOADER
     assert_unmanaged_refresh(scripts, payload, exact=False)

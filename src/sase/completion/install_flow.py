@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import os
+import hashlib
 from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 from pathlib import Path
 
 import sase
+from sase.completion.loader import emit_loader
 from sase.completion.install_models import (
     EmitFn,
     InstallResult,
@@ -24,6 +26,8 @@ from sase.completion.install_scripts import (
 from sase.completion.install_stamp import (
     InstallStamp,
     OWNER_LOCAL,
+    REPRESENTATION_LOADER,
+    REPRESENTATION_RAW,
     read_stamp,
     stamp_is_chezmoi,
     stamp_owns_path,
@@ -39,6 +43,12 @@ from sase.completion.install_targets import (
     probe_zsh_comps,
     resolve_target,
     script_path,
+)
+from sase.completion.runtime_cache import (
+    CompletionCacheError,
+    RuntimeGrammarStatus,
+    assess_cached_grammar,
+    ensure_cached_grammar,
 )
 
 
@@ -99,6 +109,8 @@ def install_completion(
     verify_fn: VerifyFn | None = None,
     version: str | None = None,
     timestamp: str | None = None,
+    owner: str = OWNER_LOCAL,
+    force_cache: bool = False,
 ) -> InstallResult:
     """Install completion for one shell and return a step-by-step result."""
     env = os.environ if environ is None else environ
@@ -121,7 +133,7 @@ def install_completion(
         ),
     ]
 
-    if stamp_is_chezmoi(previous) and not force:
+    if stamp_is_chezmoi(previous) and owner == OWNER_LOCAL and not force:
         steps.append(
             InstallStep(
                 "ownership",
@@ -154,7 +166,14 @@ def install_completion(
         )
 
     if dry_run:
-        steps.extend(_dry_run_steps(detected.name, previous=previous, script=script))
+        steps.extend(
+            _dry_run_steps(
+                detected.name,
+                previous=previous,
+                script=script,
+                representation=_representation_for_emit(emit_fn),
+            )
+        )
         return _result(
             detected,
             choice,
@@ -165,15 +184,29 @@ def install_completion(
             fpath_hint=_hint(detected.name, choice.directory, home_path),
         )
 
-    emit = emit_fn or emit_script_and_digest
+    stamp_representation = _representation_for_emit(emit_fn)
+    loader_digest: str | None = None
+    grammar_status: RuntimeGrammarStatus | None = None
     try:
-        text, digest = emit(detected.name)
+        if emit_fn is None:
+            text, digest, loader_digest, grammar_status = _emit_loader_and_digest(
+                detected.name,
+                script=script,
+                owner=owner,
+                force_cache=force_cache,
+                zcompile_fn=zcompile_fn,
+            )
+        else:
+            text, digest = emit_fn(detected.name)
         publication = publish_script(
             script,
             text,
             shell=detected.name,
             zcompile_fn=zcompile_fn,
         )
+    except CompletionCacheError as exc:
+        steps.append(InstallStep("grammar", "fail", str(exc)))
+        return _result(detected, choice, script, steps, ok=False, exit_code=1)
     except OSError as exc:
         steps.append(InstallStep("write", "fail", f"cannot write {script}: {exc}"))
         return _result(detected, choice, script, steps, ok=False, exit_code=1)
@@ -181,6 +214,14 @@ def install_completion(
         step_name = "zcompile" if detected.name == "zsh" else "write"
         steps.append(InstallStep(step_name, "fail", str(exc)))
         return _result(detected, choice, script, steps, ok=False, exit_code=1)
+    if grammar_status is not None:
+        steps.append(
+            InstallStep(
+                "grammar",
+                "ok",
+                f"{grammar_status.status} at {grammar_status.path}",
+            )
+        )
     write_detail = str(script) if publication.wrote_script else f"{script} unchanged"
     steps.append(InstallStep("write", "ok", write_detail))
     if detected.name == "zsh":
@@ -194,7 +235,9 @@ def install_completion(
         digest=digest,
         target=str(script),
         timestamp=_utc_timestamp() if timestamp is None else timestamp,
-        owner=OWNER_LOCAL,
+        owner=owner,
+        representation=stamp_representation,
+        loader_digest=loader_digest,
     )
     try:
         write_stamp(stamp)
@@ -293,7 +336,11 @@ def _hint(shell: str, directory: Path, home: Path) -> str | None:
 
 
 def _dry_run_steps(
-    shell: str, *, previous: InstallStamp | None, script: Path
+    shell: str,
+    *,
+    previous: InstallStamp | None,
+    script: Path,
+    representation: str,
 ) -> tuple[InstallStep, ...]:
     zcompile = (
         InstallStep("zcompile", "planned", "zcompile the script")
@@ -306,7 +353,14 @@ def _dry_run_steps(
         else InstallStep("verify", "skip", "zsh registration only")
     )
     steps = [
-        InstallStep("write", "planned", "write the script atomically"),
+        InstallStep(
+            "grammar",
+            "planned",
+            "validate the runtime grammar cache",
+        )
+        if representation == REPRESENTATION_LOADER
+        else InstallStep("grammar", "skip", "raw script export"),
+        InstallStep("write", "planned", f"write the {representation} atomically"),
         zcompile,
         InstallStep("stamp", "planned", "write ~/.sase/completion/stamp/<shell>.json"),
     ]
@@ -320,6 +374,39 @@ def _dry_run_steps(
 
 def _planned(dry_run: bool) -> str:
     return "planned" if dry_run else "ok"
+
+
+def _representation_for_emit(emit_fn: EmitFn | None) -> str:
+    return REPRESENTATION_LOADER if emit_fn is None else REPRESENTATION_RAW
+
+
+def _emit_loader_and_digest(
+    shell: str,
+    *,
+    script: Path,
+    owner: str,
+    force_cache: bool,
+    zcompile_fn: ZcompileFn | None,
+) -> tuple[str, str, str, RuntimeGrammarStatus]:
+    ensure_cached_grammar(
+        shell,
+        force=force_cache,
+        loader_path=script,
+        owner=owner,
+        zcompile_fn=zcompile_fn,
+    )
+    status = assess_cached_grammar(shell)
+    if status.status != "current":
+        reasons = "; ".join(status.drift_reasons) or status.status
+        raise CompletionCacheError(f"runtime grammar cache is not current: {reasons}")
+    if not status.structural_digest:
+        raise CompletionCacheError("runtime grammar cache did not record a digest")
+    text = emit_loader(shell, owner=owner)
+    return text, status.structural_digest, _sha256_text(text), status
+
+
+def _sha256_text(text: str) -> str:
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def _result(

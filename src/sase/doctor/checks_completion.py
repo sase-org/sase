@@ -89,7 +89,7 @@ def _check_completion_install(
         "completion.install",
         _CHECK_TITLE,
         "OK",
-        f"{len(stamped)} stamped shell(s) match the running sase version and generator",
+        f"{len(stamped)} stamped shell(s) match the running sase loader and grammar",
         details=details,
         data=_status_data(rows),
     )
@@ -216,8 +216,6 @@ def _install_problem(row: ShellInstallStatus) -> str | None:
         return f"{row.shell}: {_row_reason(row)}"
     if row.status == "managed stale":
         return f"{row.shell}: {_row_reason(row)}"
-    if row.status == "managed":
-        return f"{row.shell}: legacy chezmoi-managed install needs migration"
     if row.status == "zwc stale":
         return f"{row.shell}: .zwc is {row.zwc}"
     return None
@@ -266,7 +264,10 @@ def _install_detail(row: ShellInstallStatus) -> str:
         extra = f" zwc={zwc_path(resolve_stamp_target(row.path))}"
     detail = (
         f"{row.shell}: {row.status} path={path} zwc={row.zwc} "
-        f"stamp={row.stamp_version} owner={row.owner or '—'}{extra}"
+        f"stamp={row.stamp_version} owner={row.owner or '—'} "
+        f"representation={row.representation} "
+        f"loader={row.loader_status or '—'} grammar={row.grammar_status or '—'}"
+        f"{extra}"
     )
     if row.drift_reasons:
         detail = f"{detail} reasons={'; '.join(row.drift_reasons)}"
@@ -276,7 +277,8 @@ def _install_detail(row: ShellInstallStatus) -> str:
 def _install_next_steps(rows: Sequence[ShellInstallStatus]) -> tuple[str, ...]:
     if any(row.owner == "chezmoi" for row in rows if _install_problem(row)):
         return (
-            "Migrate the managed completion install before local refresh takes over.",
+            "Refresh the applied target with `sase completion refresh`.",
+            "Migrate the managed completion source to loaders before the next chezmoi apply.",
             "Rerun `sase doctor -C completion.install -v`.",
         )
     if any(row.status == "missing" for row in rows):
@@ -296,6 +298,10 @@ def _status_data(rows: Sequence[ShellInstallStatus]) -> Mapping[str, object]:
             {
                 "path": row.path,
                 "owner": row.owner,
+                "representation": row.representation,
+                "loader_status": row.loader_status,
+                "grammar_status": row.grammar_status,
+                "grammar_path": row.grammar_path,
                 "shell": row.shell,
                 "stamp_version": row.stamp_version,
                 "status": row.status,

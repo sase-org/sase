@@ -251,6 +251,10 @@ def _list_json(rows: Sequence[ShellInstallStatus]) -> dict[str, object]:
                 "shell": row.shell,
                 "stamp_version": row.stamp_version,
                 "owner": row.owner,
+                "representation": row.representation,
+                "loader_status": row.loader_status,
+                "grammar_status": row.grammar_status,
+                "grammar_path": row.grammar_path,
                 "status": row.status,
                 "zwc": row.zwc,
             }
@@ -274,6 +278,8 @@ def _render_list(rows: Sequence[ShellInstallStatus], *, console: Console) -> Non
     table.add_column("ZWC", no_wrap=True)
     table.add_column("STAMP", no_wrap=True)
     table.add_column("OWNER", no_wrap=True)
+    table.add_column("REP", no_wrap=True)
+    table.add_column("GRAMMAR", no_wrap=True)
     table.add_column("DETAIL", overflow="fold")
     for row in rows:
         table.add_row(
@@ -287,6 +293,11 @@ def _render_list(rows: Sequence[ShellInstallStatus], *, console: Console) -> Non
                 style="dim" if row.stamp_version is None else "",
             ),
             Text(row.owner or "—", style="dim" if row.owner is None else ""),
+            Text(row.representation, style="dim" if row.path is None else ""),
+            Text(
+                row.grammar_status or "—",
+                style="dim" if row.grammar_status in (None, "current") else "yellow",
+            ),
             Text("; ".join(row.drift_reasons) or "—", style="dim"),
         )
     console.print(table)

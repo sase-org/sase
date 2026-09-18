@@ -48,6 +48,8 @@ def test_list_renders_all_three_generators() -> None:
     assert "PATH" in text
     assert "ZWC" in text
     assert "STAMP" in text
+    assert "REP" in text
+    assert "GRAMMAR" in text
     assert "zsh" in text
     assert "yes" in text
     assert "not installed" in text
@@ -67,6 +69,10 @@ def test_list_json_payload(capsys: pytest.CaptureFixture[str]) -> None:
         "generator": True,
         "path": None,
         "owner": None,
+        "representation": "raw",
+        "loader_status": None,
+        "grammar_status": None,
+        "grammar_path": None,
         "stamp_version": None,
         "status": "not installed",
         "zwc": "n/a",
