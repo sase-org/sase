@@ -8,30 +8,20 @@ built-in pane, e.g. to stamp or validate a saved record's profile digest.
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from importlib import import_module
 
 from .compiler import CompiledQueryProfile, compile_query_profile
-from .profiles import (
-    agents_live_query_schema,
-    agents_query_schema,
-    beads_query_schema,
-    files_query_schema,
-    patches_query_schema,
-    plans_query_schema,
-    procs_query_schema,
-    stitches_query_schema,
-)
 from .types import ArtifactQuerySchema
 
-_BUILTIN_SCHEMA_BUILDERS: dict[str, Callable[[], ArtifactQuerySchema]] = {
-    "patches": patches_query_schema,
-    "stitches": stitches_query_schema,
-    "beads": beads_query_schema,
-    "ref:plan": plans_query_schema,
-    "agents": agents_query_schema,
-    "agents-live": agents_live_query_schema,
-    "files": files_query_schema,
-    "procs": procs_query_schema,
+_BUILTIN_SCHEMA_BUILDERS: dict[str, tuple[str, str]] = {
+    "patches": (".profiles._patches", "patches_query_schema"),
+    "stitches": (".profiles._stitches", "stitches_query_schema"),
+    "beads": (".profiles._beads", "beads_query_schema"),
+    "ref:plan": (".profiles._plans", "plans_query_schema"),
+    "agents": (".profiles._agents", "agents_query_schema"),
+    "agents-live": (".profiles._agents_live", "agents_live_query_schema"),
+    "files": (".profiles._files", "files_query_schema"),
+    "procs": (".profiles._procs", "procs_query_schema"),
 }
 
 
@@ -45,9 +35,12 @@ def compiled_profile_for_builtin_pane(pane_id: str) -> CompiledQueryProfile | No
     digest known yet" rather than an error -- wiring live profile
     resolution for those panes into persistence is later epic work.
     """
-    builder = _BUILTIN_SCHEMA_BUILDERS.get(pane_id)
-    if builder is None:
+    builder_ref = _BUILTIN_SCHEMA_BUILDERS.get(pane_id)
+    if builder_ref is None:
         return None
+    module_name, attr = builder_ref
+    module = import_module(module_name, __package__)
+    builder = getattr(module, attr)
     return compile_query_profile(builder())
 
 

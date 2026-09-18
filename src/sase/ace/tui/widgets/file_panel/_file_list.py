@@ -1,7 +1,10 @@
 """File list navigation and source selection for the agent file panel."""
 
+from __future__ import annotations
+
 import os
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from rich.text import Text
 from textual.worker import Worker
@@ -11,9 +14,6 @@ from sase.plan_chain import PLAN_CHAIN_PLAN_SUFFIX, canonical_plan_chain_suffix
 
 from ...graphics import is_supported_image_path
 from ...models.agent import Agent
-from ..prompt_panel._agent_commits import CommitDiffInfo, agent_commit_diffs
-from ..prompt_panel._agent_context_common import WORKSPACE_GLYPH
-from ..prompt_panel._agent_context_common import EXTERNAL_REPO_GLYPH
 from ._linked_deltas import LinkedDeltaGroup, get_cached_linked_delta_groups
 from ._messages import (
     FileListChanged,
@@ -28,6 +28,12 @@ from ._messages import (
     linked_slot_id,
     linked_slot_repo_name,
 )
+
+if TYPE_CHECKING:
+    from ..prompt_panel._agent_commits import CommitDiffInfo
+
+WORKSPACE_GLYPH = "▣"
+EXTERNAL_REPO_GLYPH = "◆"
 
 
 @dataclass(frozen=True)
@@ -181,6 +187,8 @@ class FilePanelFileListMixin:
 
     def _desired_file_list(self, agent: Agent) -> tuple[list[str], str | None]:
         """Return the current canonical file-panel page list and default page."""
+        from ..prompt_panel._agent_commits import agent_commit_diffs
+
         pages: list[str] = []
 
         commit_diffs = agent_commit_diffs(agent)
@@ -244,6 +252,8 @@ class FilePanelFileListMixin:
         return None
 
     def _commit_diff_info_for_slot(self, slot: str) -> CommitDiffInfo | None:
+        from ..prompt_panel._agent_commits import agent_commit_diffs
+
         agent = self._current_agent
         if agent is None:
             return None

@@ -32,7 +32,7 @@ from sase.ace.query.types import (
     StringMatch,
 )
 from sase.ace.query_profile import CompiledQueryProfile, compile_query_profile
-from sase.ace.query_profile.profiles import procs_query_schema
+from sase.ace.query_profile.profiles._procs import procs_query_schema
 from sase.project_display_names import project_display_name_for
 
 from ._proc_observer_models import (

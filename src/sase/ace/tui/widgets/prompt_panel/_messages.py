@@ -1,27 +1,15 @@
-"""Messages emitted by asynchronous prompt-panel enrichment."""
+"""Compatibility re-export for prompt-panel enrichment messages."""
 
-from textual.message import Message
+from __future__ import annotations
 
+from ..prompt_panel_messages import (
+    AgentDetailHeaderEnriched,
+    ClanSectionSnapshotLoaded,
+    TribeSectionSnapshotLoaded,
+)
 
-class AgentDetailHeaderEnriched(Message):
-    """Cached detail-header metadata refreshed for an agent."""
-
-    def __init__(self, agent_identity: tuple[object, ...]) -> None:
-        super().__init__()
-        self.agent_identity = agent_identity
-
-
-class ClanSectionSnapshotLoaded(Message):
-    """Disk-backed clan section data refreshed for a selected clan."""
-
-    def __init__(self, agent_identity: tuple[object, ...]) -> None:
-        super().__init__()
-        self.agent_identity = agent_identity
-
-
-class TribeSectionSnapshotLoaded(Message):
-    """Disk/statistics enrichment refreshed for one tribe panel."""
-
-    def __init__(self, panel_identity: tuple[object, ...]) -> None:
-        super().__init__()
-        self.panel_identity = panel_identity
+__all__ = [
+    "AgentDetailHeaderEnriched",
+    "ClanSectionSnapshotLoaded",
+    "TribeSectionSnapshotLoaded",
+]

@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from ...util.trace import tui_trace
-from ...widgets.prompt_panel._messages import (
+from ...widgets.prompt_panel_messages import (
     AgentDetailHeaderEnriched,
     ClanSectionSnapshotLoaded,
     TribeSectionSnapshotLoaded,

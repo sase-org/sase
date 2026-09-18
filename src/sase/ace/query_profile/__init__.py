@@ -25,6 +25,9 @@ imports back from here (:mod:`sase.ace.query.profile_evaluator`).
 
 from __future__ import annotations
 
+from importlib import import_module
+from typing import Any
+
 from .registry import (
     HOST_ANY_SPECIAL_SIGIL,
     HOST_DATE_BOUND_KEYS,
@@ -44,17 +47,21 @@ from .types import (
 )
 from .compiler import CompiledQueryProfile, QueryProfileError, compile_query_profile
 from .pane_registry import compiled_profile_for_builtin_pane
-from .profiles import (
-    agents_live_query_schema,
-    agents_query_schema,
-    beads_query_schema,
-    files_query_schema,
-    patches_query_schema,
-    plans_query_schema,
-    procs_query_schema,
-    provider_query_schema,
-    stitches_query_schema,
-)
+
+_LAZY_EXPORTS = {
+    "agents_live_query_schema": (
+        ".profiles._agents_live",
+        "agents_live_query_schema",
+    ),
+    "agents_query_schema": (".profiles._agents", "agents_query_schema"),
+    "beads_query_schema": (".profiles._beads", "beads_query_schema"),
+    "files_query_schema": (".profiles._files", "files_query_schema"),
+    "patches_query_schema": (".profiles._patches", "patches_query_schema"),
+    "plans_query_schema": (".profiles._plans", "plans_query_schema"),
+    "procs_query_schema": (".profiles._procs", "procs_query_schema"),
+    "provider_query_schema": (".profiles._provider", "provider_query_schema"),
+    "stitches_query_schema": (".profiles._stitches", "stitches_query_schema"),
+}
 
 __all__ = [
     "HOST_ANY_SPECIAL_SIGIL",
@@ -84,3 +91,23 @@ __all__ = [
     "provider_query_schema",
     "stitches_query_schema",
 ]
+
+
+def __getattr__(name: str) -> Any:
+    try:
+        module_name, attr = _LAZY_EXPORTS[name]
+    except KeyError as error:
+        raise AttributeError(
+            f"module {__name__!r} has no attribute {name!r}"
+        ) from error
+    module = import_module(module_name, __name__)
+    value = getattr(module, attr)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *__all__})
+
+
+_PEP562_HOOKS = (__getattr__, __dir__)

@@ -11,7 +11,6 @@ from textual.widgets import Static
 
 from ...keymaps import key_display_name, split_key_alternatives
 from ...widgets.agent_detail import AgentDetail, AgentMetadataIdentityChanged
-from ...widgets.prompt_panel import AgentPromptPanel
 from ...widgets.renderable_text import renderable_to_text
 from ...widgets.vim_search_controller import (
     SearchViewport,
@@ -23,8 +22,16 @@ from ..clipboard import schedule_copy_delivery
 if TYPE_CHECKING:
     from textual.widget import Widget
 
+    from ...widgets.prompt_panel import AgentPromptPanel
+
 
 _METADATA_LAYOUT_CLASSES = ("expanded", "layout-priority")
+
+
+def _agent_prompt_panel_type() -> type[AgentPromptPanel]:
+    from ...widgets.prompt_panel import AgentPromptPanel
+
+    return AgentPromptPanel
 
 
 class AgentMetadataSearchMixin:
@@ -191,7 +198,7 @@ class AgentMetadataSearchMixin:
             return self._agent_metadata_search.corpus
         panel = self._agent_detail().query_one(
             "#agent-prompt-panel",
-            AgentPromptPanel,
+            _agent_prompt_panel_type(),
         )
         return renderable_to_text(getattr(panel, "content", None)) or ""
 

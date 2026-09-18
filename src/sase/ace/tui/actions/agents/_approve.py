@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
-from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
-
 from ..proc_actions import TrackedProcCompletion
 
 if TYPE_CHECKING:
@@ -15,8 +13,12 @@ if TYPE_CHECKING:
 # Type alias for tab names
 TabName = Literal["artifacts", "agents", "axe"]
 
-# Agent statuses for which auto-approval can be configured.
-_APPROVE_ELIGIBLE = AUTO_APPROVE_ELIGIBLE_STATUSES
+
+def _approve_eligible_statuses() -> frozenset[str]:
+    """Return statuses that can receive an auto-approval directive."""
+    from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
+
+    return AUTO_APPROVE_ELIGIBLE_STATUSES
 
 
 def _auto_approval_choice_for_agent(agent: Agent) -> AutoApproveChoice:
@@ -83,7 +85,7 @@ class AgentApproveMixin:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
 
-        if agent.status not in _APPROVE_ELIGIBLE:
+        if agent.status not in _approve_eligible_statuses():
             self.notify("Agent not in an active status", severity="warning")  # type: ignore[attr-defined]
             return
 

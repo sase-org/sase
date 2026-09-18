@@ -1,6 +1,8 @@
 """Agent detail widget for sase's TUI."""
 
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
@@ -26,14 +28,18 @@ from ._agent_detail_panels import (
 )
 from .file_panel import AgentFilePanel
 from .file_panel._messages import LinkedDeltasRefreshed
-from .prompt_panel import AgentPromptPanel
-from .prompt_panel._agent_display_header_summary import (
-    detail_header_summary_is_complete,
-    get_cached_detail_header_summary,
-)
-from .prompt_panel._agent_display_state import AgentHintRender
 from .llm_calls_panel import AgentLLMCallsPanel, ToolDetailLevel
 from ..util.trace import tui_trace
+
+if TYPE_CHECKING:
+    from .prompt_panel import AgentPromptPanel
+    from .prompt_panel._agent_display_state import AgentHintRender
+
+
+def _agent_prompt_panel_type() -> type[AgentPromptPanel]:
+    from .prompt_panel import AgentPromptPanel
+
+    return AgentPromptPanel
 
 
 _ACTIVE_STATUSES = frozenset(
@@ -86,6 +92,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
 
     def compose(self) -> ComposeResult:
         """Compose the two-panel layout (prompt and file)."""
+        AgentPromptPanel = _agent_prompt_panel_type()
         with Vertical(id="agent-detail-layout"):
             with VerticalScroll(id="agent-prompt-scroll"):
                 yield AgentPromptPanel(id="agent-prompt-panel")
@@ -173,7 +180,9 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         ):
             self._current_agent = agent
             self._current_attempt_number = attempt_number
-            prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
+            prompt_panel = self.query_one(
+                "#agent-prompt-panel", _agent_prompt_panel_type()
+            )
             prompt_panel.attempt_view_mode = self._attempt_view_mode
             prompt_panel.attempt_pinned_number = attempt_number
             prompt_panel.update_header_only(agent)
@@ -185,7 +194,8 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         stale_threshold_seconds: int = 10,
         attempt_number: int | None = None,
     ) -> None:
-        prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
+        PromptPanel = _agent_prompt_panel_type()
+        prompt_panel = self.query_one("#agent-prompt-panel", PromptPanel)
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
         llm_calls_panel = self.query_one("#agent-llm-calls-panel", AgentLLMCallsPanel)
 
@@ -387,7 +397,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         previous_identity = self.metadata_identity
         self._agent_detail_generation += 1
         self._current_tribe_identity = None
-        prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
+        prompt_panel = self.query_one("#agent-prompt-panel", _agent_prompt_panel_type())
         cancel_slow_tick = getattr(prompt_panel, "_cancel_slow_tool_render_tick", None)
         if callable(cancel_slow_tick):
             cancel_slow_tick()
@@ -411,7 +421,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
 
     def hint_document_is_current(self, agent: Agent) -> bool:
         """Return whether the visible hint document already matches ``agent``."""
-        prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
+        prompt_panel = self.query_one("#agent-prompt-panel", _agent_prompt_panel_type())
         prompt_panel.attempt_view_mode = self._attempt_view_mode
         prompt_panel.attempt_pinned_number = self._current_attempt_number
         return prompt_panel.hint_document_is_current(agent)
@@ -424,7 +434,12 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         instead of leaving the document stuck on a partial render for the
         rest of the hint session.
         """
-        prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
+        from .prompt_panel._agent_display_header_summary import (
+            detail_header_summary_is_complete,
+            get_cached_detail_header_summary,
+        )
+
+        prompt_panel = self.query_one("#agent-prompt-panel", _agent_prompt_panel_type())
         summary = get_cached_detail_header_summary(prompt_panel, agent)
         return detail_header_summary_is_complete(summary)
 
@@ -435,7 +450,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._current_agent = None
         self._current_tribe_identity = None
         self._current_attempt_number = None
-        prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
+        prompt_panel = self.query_one("#agent-prompt-panel", _agent_prompt_panel_type())
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
         llm_calls_panel = self.query_one("#agent-llm-calls-panel", AgentLLMCallsPanel)
 
@@ -476,7 +491,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._current_agent = None
         self._current_tribe_identity = snapshot.container_identity
         self._current_attempt_number = None
-        prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
+        prompt_panel = self.query_one("#agent-prompt-panel", _agent_prompt_panel_type())
         prompt_panel.update_tribe_display(snapshot, cheap=cheap)
         prompt_scroll = self._active_metadata_scroll()
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)

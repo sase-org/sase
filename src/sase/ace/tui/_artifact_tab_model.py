@@ -11,10 +11,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from sase.ace.query_profile import CompiledQueryProfile
-from sase.sidecar_ref_config import SidecarRefPolicy
+if TYPE_CHECKING:
+    from sase.ace.query_profile import CompiledQueryProfile
+    from sase.sidecar_ref_config import SidecarRefPolicy
 
 
 ArtifactsSubTab = str

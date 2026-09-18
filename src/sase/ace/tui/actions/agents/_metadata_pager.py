@@ -5,14 +5,12 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any
 
-from sase.pager.document import PagerDocument
-from sase.pager.link_context import LinkResolutionContext
-from sase.pager.syntax_policy import pager_syntax_session_from_config
-
 from ...util.trace import tui_trace
-from ._metadata_pager_document import build_agent_metadata_document
 
 if TYPE_CHECKING:
+    from sase.pager.document import PagerDocument
+    from sase.pager.link_context import LinkResolutionContext
+
     from ..hints._link_context_capture import CapturedLinkContext
     from ...models.agent import Agent
 
@@ -35,6 +33,7 @@ def _build_document(
 ) -> PagerDocument:
     """Resolve the link context and build the document off the event loop."""
     from ..hints._link_context_capture import link_context_from_capture
+    from ._metadata_pager_document import build_agent_metadata_document
 
     link_context: LinkResolutionContext | None = link_context_from_capture(
         captured_link_context
@@ -93,6 +92,7 @@ class AgentMetadataPagerMixin:
         captured_link_context: CapturedLinkContext,
     ) -> None:
         from sase.pager.screen import PagerScreen
+        from sase.pager.syntax_policy import pager_syntax_session_from_config
 
         document = await asyncio.to_thread(
             _build_document, agent, captured_link_context

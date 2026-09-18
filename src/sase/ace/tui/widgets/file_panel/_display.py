@@ -17,15 +17,6 @@ from sase.ace.tui.graphics import (
 )
 from sase.core.time import local_now
 
-from ..prompt_panel._agent_context_common import (
-    COLOR_EXTERNAL_REPO_GLYPH,
-    COLOR_EXTERNAL_REPO_NAME,
-    COLOR_WORKSPACE_GLYPH,
-    COLOR_WORKSPACE_NAME,
-    COLOR_WORKSPACE_PATH,
-    EXTERNAL_REPO_GLYPH,
-    WORKSPACE_GLYPH,
-)
 from sase.linked_repos import OpenedRepoKind
 from ._messages import (
     _LIVE_DIFF_SENTINEL,
@@ -37,6 +28,14 @@ from ._static_read import (
     normalized_static_path as _normalized_static_path,
     read_static_file as _read_static_file,
 )
+
+COLOR_WORKSPACE_GLYPH = "bold #FF87D7"
+COLOR_WORKSPACE_NAME = "bold #FFAFD7"
+COLOR_WORKSPACE_PATH = "dim #D7AFD7"
+COLOR_EXTERNAL_REPO_GLYPH = "bold #FFAF00"
+COLOR_EXTERNAL_REPO_NAME = "bold #FFD787"
+WORKSPACE_GLYPH = "▣"
+EXTERNAL_REPO_GLYPH = "◆"
 
 
 class FilePanelDisplayMixin:
