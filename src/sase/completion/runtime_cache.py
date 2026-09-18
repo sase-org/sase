@@ -6,6 +6,7 @@ import fcntl
 import hashlib
 import json
 import os
+import shutil
 import sys
 import time
 from collections.abc import Callable, Iterator, Mapping
@@ -23,6 +24,7 @@ from sase.completion.install_scripts import (
     expected_scripts_for_shells,
     publish_script,
     zwc_freshness,
+    zwc_path,
 )
 from sase.completion.install_targets import SUPPORTED_SHELLS, script_path
 from sase.core.paths import sase_subdir
@@ -32,6 +34,8 @@ CACHE_FORMAT_REVISION = 1
 LOCK_TIMEOUT_SECONDS = 10.0
 _RUNTIME_CACHE_KEEP = 6
 _DISTRIBUTIONS = ("sase", "sase-core-rs")
+_BACKUP_NAME = ".backup"
+_STAGE_PREFIX = ".stage."
 
 
 class CompletionCacheError(RuntimeError):
@@ -93,6 +97,7 @@ def ensure_cached_grammar(
 
     directory.mkdir(parents=True, exist_ok=True)
     with _bounded_lock(directory / ".generate.lock"):
+        _recover_interrupted_publish(directory, shell=shell)
         current = _read_current_manifest(
             manifest,
             shell=shell,
@@ -102,29 +107,24 @@ def ensure_cached_grammar(
         )
         if current is not None and not force:
             return grammar.resolve(strict=False)
-        expected = _expected_for_shell(shell, expected_fn=expected_fn)
-        payload = completion_payload(expected.script)
         try:
-            publish_script(
-                grammar,
-                expected.script,
-                shell=shell,
-                zcompile_fn=zcompile_fn,
-            )
+            expected = _expected_for_shell(shell, expected_fn=expected_fn)
+        except CompletionCacheError:
+            raise
         except Exception as exc:
             raise CompletionCacheError(str(exc)) from exc
-        _write_manifest(
-            manifest,
+        _commit_generation(
+            directory=directory,
             shell=shell,
-            runtime_key=runtime_key,
-            identity=identity,
-            fingerprint=fingerprint,
             grammar=grammar,
             expected=expected,
-            payload=payload,
+            identity=identity,
+            runtime_key=runtime_key,
+            fingerprint=fingerprint,
             loader_target=resolved_target,
             owner=owner,
             now=(now_fn or _utc_now)(),
+            zcompile_fn=zcompile_fn,
         )
         _prune_old_runtime_dirs(_cache_root())
     return grammar.resolve(strict=False)
@@ -236,6 +236,217 @@ def assess_cached_grammar(
         structural_digest=structural_digest,
         drift_reasons=tuple(reasons),
     )
+
+
+def _commit_generation(
+    *,
+    directory: Path,
+    shell: str,
+    grammar: Path,
+    expected: ExpectedCompletion,
+    identity: Mapping[str, Any],
+    runtime_key: str,
+    fingerprint: str,
+    loader_target: Path | None,
+    owner: str | None,
+    now: datetime,
+    zcompile_fn: ZcompileFn | None,
+) -> None:
+    """Stage, validate, and publish one coherent generation.
+
+    Live grammar, bytecode, and manifest are replaced only after the staged
+    set is valid. A failure restores the previous coherent generation, or
+    leaves no generation that can be mistaken for current.
+    """
+    staging = directory / f"{_STAGE_PREFIX}{os.getpid()}"
+    backup = directory / _BACKUP_NAME
+    _remove_tree(staging)
+    published = False
+    try:
+        _stage_generation(
+            staging=staging,
+            live_grammar=grammar,
+            shell=shell,
+            expected=expected,
+            identity=identity,
+            runtime_key=runtime_key,
+            fingerprint=fingerprint,
+            loader_target=loader_target,
+            owner=owner,
+            now=now,
+            zcompile_fn=zcompile_fn,
+        )
+        had_backup = _backup_live_generation(directory, backup, shell=shell)
+        try:
+            _publish_staged_generation(staging, directory, shell=shell)
+            published = True
+        except Exception:
+            if had_backup:
+                _restore_backup(backup, directory)
+            else:
+                _remove_generation_files(directory, shell)
+            raise
+    except Exception as exc:
+        _remove_tree(staging)
+        if _generation_is_coherent(directory, shell):
+            _remove_tree(backup)
+        if isinstance(exc, CompletionCacheError):
+            raise
+        raise CompletionCacheError(str(exc)) from exc
+    if published:
+        _remove_tree(staging)
+        _remove_tree(backup)
+
+
+def _stage_generation(
+    *,
+    staging: Path,
+    live_grammar: Path,
+    shell: str,
+    expected: ExpectedCompletion,
+    identity: Mapping[str, Any],
+    runtime_key: str,
+    fingerprint: str,
+    loader_target: Path | None,
+    owner: str | None,
+    now: datetime,
+    zcompile_fn: ZcompileFn | None,
+) -> None:
+    staging.mkdir(parents=True, exist_ok=True)
+    staged_grammar = staging / _grammar_filename(shell)
+    payload = completion_payload(expected.script)
+    try:
+        publish_script(
+            staged_grammar,
+            expected.script,
+            shell=shell,
+            zcompile_fn=zcompile_fn,
+        )
+    except Exception as exc:
+        raise CompletionCacheError(str(exc)) from exc
+    _write_manifest(
+        staging / "manifest.json",
+        shell=shell,
+        runtime_key=runtime_key,
+        identity=identity,
+        fingerprint=fingerprint,
+        grammar=live_grammar,
+        expected=expected,
+        payload=payload,
+        loader_target=loader_target,
+        owner=owner,
+        now=now,
+    )
+    if not _generation_is_coherent(staging, shell):
+        raise CompletionCacheError("staged completion generation is not coherent")
+    recorded = json.loads((staging / "manifest.json").read_text(encoding="utf-8")).get(
+        "grammar_path"
+    )
+    if recorded is None or Path(str(recorded)) != live_grammar.resolve(strict=False):
+        raise CompletionCacheError(
+            "staged manifest does not name the public grammar path"
+        )
+
+
+def _publish_staged_generation(staging: Path, directory: Path, *, shell: str) -> None:
+    name = _grammar_filename(shell)
+    _replace_file(staging / name, directory / name)
+    if shell == "zsh":
+        _replace_file(zwc_path(staging / name), zwc_path(directory / name))
+    _replace_file(staging / "manifest.json", directory / "manifest.json")
+
+
+def _replace_file(src: Path, dst: Path) -> None:
+    os.replace(src, dst)
+
+
+def _backup_live_generation(directory: Path, backup: Path, *, shell: str) -> bool:
+    _remove_tree(backup)
+    if not _generation_is_coherent(directory, shell):
+        return False
+    backup.mkdir(parents=True)
+    for path in _generation_paths(directory, shell):
+        if path.is_file():
+            shutil.copy2(path, backup / path.name)
+    return True
+
+
+def _restore_backup(backup: Path, directory: Path) -> None:
+    try:
+        children = list(backup.iterdir())
+    except OSError as exc:
+        raise CompletionCacheError(
+            f"cannot restore completion cache backup: {exc}"
+        ) from exc
+    for child in children:
+        if child.is_file():
+            os.replace(child, directory / child.name)
+
+
+def _recover_interrupted_publish(directory: Path, *, shell: str) -> None:
+    _cleanup_staging(directory)
+    backup = directory / _BACKUP_NAME
+    live_ok = _generation_is_coherent(directory, shell)
+    backup_ok = backup.is_dir() and _generation_is_coherent(backup, shell)
+    if live_ok:
+        if backup.exists():
+            _remove_tree(backup)
+        return
+    if backup_ok:
+        _restore_backup(backup, directory)
+        _remove_tree(backup)
+        return
+    if backup.exists():
+        _remove_tree(backup)
+    _remove_generation_files(directory, shell)
+
+
+def _cleanup_staging(directory: Path) -> None:
+    try:
+        children = list(directory.iterdir())
+    except OSError:
+        return
+    for child in children:
+        if child.name.startswith(_STAGE_PREFIX):
+            _remove_tree(child)
+
+
+def _generation_paths(directory: Path, shell: str) -> tuple[Path, ...]:
+    grammar = directory / _grammar_filename(shell)
+    paths = [grammar, directory / "manifest.json"]
+    if shell == "zsh":
+        paths.append(zwc_path(grammar))
+    return tuple(paths)
+
+
+def _remove_generation_files(directory: Path, shell: str) -> None:
+    for path in _generation_paths(directory, shell):
+        try:
+            path.unlink()
+        except OSError:
+            pass
+
+
+def _generation_is_coherent(directory: Path, shell: str) -> bool:
+    grammar = directory / _grammar_filename(shell)
+    try:
+        data = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    if not isinstance(data, dict):
+        return False
+    if data.get("schema_version") != CACHE_SCHEMA_VERSION:
+        return False
+    if data.get("cache_format_revision") != CACHE_FORMAT_REVISION:
+        return False
+    if data.get("shell") != shell:
+        return False
+    payload = _read_text(grammar)
+    if payload is None:
+        return False
+    if data.get("content_checksum") != _sha256_text(payload):
+        return False
+    return shell != "zsh" or zwc_freshness(shell, grammar) == "fresh"
 
 
 def _runtime_identity() -> dict[str, Any]:

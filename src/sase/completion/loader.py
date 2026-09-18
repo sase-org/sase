@@ -29,7 +29,7 @@ __sase_loader_run() {{
   IFS=: read -r -a dirs <<< "${{PATH}}"
   for dir in "${{dirs[@]}}"; do
     cmd="${{dir}}/sase"
-    if [[ -x ${{cmd}} && ${{cmd}} != */sase_[0-9]*/.venv/bin/sase ]]; then
+    if [[ -x "${{cmd}}" && "${{cmd}}" != */sase_[0-9]*/.venv/bin/sase ]]; then
       command "${{cmd}}" "$@"
       return $?
     fi
@@ -43,7 +43,7 @@ __sase_loader_source() {{
   local loader="${{BASH_SOURCE[0]:-${{0}}}}"
   local grammar
   grammar="$(__sase_loader_run completion ensure bash --loader-path "${{loader}}" {owner_args}2>/dev/null)" || return 1
-  [[ -n ${{grammar}} && -r ${{grammar}} ]] || return 1
+  [[ -n "${{grammar}}" && -r "${{grammar}}" ]] || return 1
   # shellcheck source=/dev/null
   source "${{grammar}}"
 }}
@@ -64,10 +64,10 @@ def _fish_loader(*, owner: str | None) -> str:
 
 function __sase_loader_run
     for dir in $PATH
-        set -l cmd $dir/sase
-        if test -x $cmd
-            if not string match -qr '/sase_[0-9]+/\\.venv/bin/sase$' $cmd
-                command $cmd $argv
+        set -l cmd "$dir/sase"
+        if test -x "$cmd"
+            if not string match -qr '/sase_[0-9]+/\\.venv/bin/sase$' -- "$cmd"
+                command "$cmd" $argv
                 return $status
             end
         end
@@ -101,7 +101,7 @@ __sase_loader_run() {{
   local cmd
   found=( ${{(f)"$(whence -p -a sase 2>/dev/null)"}} )
   for cmd in $found; do
-    if [[ ! $cmd =~ '/sase_[0-9]+/\\.venv/bin/sase$' ]]; then
+    if [[ ! "$cmd" =~ '/sase_[0-9]+/\\.venv/bin/sase$' ]]; then
       command "$cmd" "$@"
       return $?
     fi
@@ -115,15 +115,14 @@ if [[ -z ${{__SASE_COMPLETION_LOADER_ACTIVE:-}} ]]; then
   [[ -n $loader ]] || loader=${{(%):-%N}}
   local grammar
   grammar="$(__sase_loader_run completion ensure zsh --loader-path "$loader" {owner_args}2>/dev/null)" || return 1
-  if [[ -n $grammar && -r $grammar ]]; then
-    if [[ -r $grammar.zwc && $grammar.zwc -nt $grammar ]]; then
-      source "$grammar.zwc"
-    else
-      source "$grammar"
-    fi
-    local status=$?
+  if [[ -n "$grammar" && -r "$grammar" ]]; then
+    # Source the grammar path. zsh loads an adjacent newer .zwc automatically;
+    # sourcing the bytecode file itself is parsed as a script and fails.
+    source "$grammar"
+    local loader_rc=$?
+    unfunction __sase_loader_run 2>/dev/null || true
     _sase() {{ _sase_root "$@"; }}
-    return $status
+    return $loader_rc
   fi
 fi
 unfunction __sase_loader_run 2>/dev/null || true
