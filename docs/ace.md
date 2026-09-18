@@ -5699,13 +5699,13 @@ only the count; if even that cannot fit, only `Ln, Col` remains.
 
 | Key                          | Action                                                                                                                                         |
 | ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Enter`                      | Submit; in a prompt stack, open the submit chooser                                                                                             |
+| `Enter`                      | Submit the prompt as typed; in a prompt stack, open the submit chooser. Does not accept a completion candidate                                 |
 | `Ctrl+S`                     | Stash the active pane; from an empty prompt, open the stashed-prompt picker                                                                    |
 | `Ctrl+C`                     | Cancel the prompt; in a prompt stack, cancel only the selected pane                                                                            |
 | `Ctrl+J`                     | Insert a newline; continue a containing `- ` bullet or `<N>.` item (renumbered), or leave the list from an empty marker                        |
 | `Ctrl+A`                     | Move to start of line (jumps to previous line start if already at col 0)                                                                       |
 | `Ctrl+E`                     | Move to end of line (jumps to next line end if already at end)                                                                                 |
-| `Ctrl+G`                     | Start the prompt-local prefix; press `g` or `Ctrl+G` again to open `$EDITOR`                                                                   |
+| `Ctrl+G`                     | With a completion menu open, accept the highlighted candidate; otherwise start the prompt-local prefix (`g` or `Ctrl+G` again opens `$EDITOR`) |
 | `Ctrl+G Enter`               | Submit only the selected pane                                                                                                                  |
 | `Ctrl+G j/k`                 | Focus the next / previous pane and leave the target pane in INSERT mode                                                                        |
 | `Ctrl+G J/K`                 | Move the active pane down / up and leave it in INSERT mode                                                                                     |
@@ -6151,13 +6151,13 @@ token under the cursor:
   `ace.prompt_completion.auto_xprompt_menu` is off), and INSERT-mode `Ctrl+N` / `Ctrl+P`
   open it with the first / last keyword highlighted. Accepting a keyword immediately
   opens its value menu when the input has one (bool values, agent targets, or paths).
-  While nothing has been typed in the slot and you have not moved through an
-  automatically opened menu, `Enter` still submits the prompt instead of accepting a
-  row. Agent inputs such as `#fork` offer agent, proc/monitor, family, clan, and
-  `@tribe` targets with kind and member context. A proc or monitor row inserts its exact
-  durable proc ID while displaying the friendly, reusable shell name. Family rows also
-  show the associated plan or bead when SASE can resolve one: the row reads
-  `<kind> · <phases/waves> · <title>` (for example
+  `Enter` always submits the prompt as typed, even on an automatically opened first-row
+  menu; `Ctrl+G` accepts the highlighted row without requiring `Ctrl+N`, `Down`, or
+  another ownership signal. Agent inputs such as `#fork` offer agent, proc/monitor,
+  family, clan, and `@tribe` targets with kind and member context. A proc or monitor row
+  inserts its exact durable proc ID while displaying the friendly, reusable shell name.
+  Family rows also show the associated plan or bead when SASE can resolve one: the row
+  reads `<kind> · <phases/waves> · <title>` (for example
   `Epic · 5 phases · 2 waves · Bead review hardening`), and its plan title is
   searchable, so typing part of the title filters to that family. Selecting the row
   fills the panel subtitle with more of the same artifact — phase titles for an epic,
@@ -6191,15 +6191,15 @@ token under the cursor:
   that provider. The second equals sign switches an open alias shortcut panel into the
   explicit model panel. If the token already has a following ASCII space, sase's TUI
   reuses it and leaves the cursor after that space; before a tab it inserts no extra
-  space; before a newline or prompt end it appends one ASCII space. `Enter` and `Ctrl+L`
-  accept the highlighted row and never submit the prompt while either shortcut menu is
-  open. No matches dismiss the panel and leave the literal query text intact, so unknown
-  equals tokens submit as ordinary prose. These shortcuts do not fire inside inline
-  code, fenced code, frontmatter, placeholder/directive contexts, escaped equals signs,
-  Markdown-style `=text=` / `==text==` marker pairs, or path-like tokens such as
-  `path/=`. The old `*alias` and `**model` forms are ordinary prompt text. The xprompt
-  LSP uses the same shared filter and edit plans; see
-  [Equals model shortcuts](editor.md#equals-model-shortcuts).
+  space; before a newline or prompt end it appends one ASCII space. `Ctrl+G` and
+  `Ctrl+L` accept the highlighted row; `Enter` submits the prompt as typed and dismisses
+  the menu instead of expanding the shortcut. No matches dismiss the panel and leave the
+  literal query text intact, so unknown equals tokens submit as ordinary prose. These
+  shortcuts do not fire inside inline code, fenced code, frontmatter,
+  placeholder/directive contexts, escaped equals signs, Markdown-style `=text=` /
+  `==text==` marker pairs, or path-like tokens such as `path/=`. The old `*alias` and
+  `**model` forms are ordinary prompt text. The xprompt LSP uses the same shared filter
+  and edit plans; see [Equals model shortcuts](editor.md#equals-model-shortcuts).
   `ace.prompt_completion.auto_directive_menu` only controls whether sase's TUI
   auto-opens these menus and does not govern an external editor's `=` trigger.
 - **`@` reference completion**: A bare `@` opens the artifact-kind menu before a `:`
@@ -6246,17 +6246,18 @@ token under the cursor:
   it while a sync is already running for that kind is a no-op. Disable
   `ref_sync_gesture` to fall back to a literal second colon with no sync ever triggered.
   Payload acceptance replaces the complete `@kind:payload` context, including when the
-  cursor is in the middle of it. On an un-narrowed bare-`@` menu, `Enter` submits and
-  dismisses the menu until you type a query character or move the selection; `Ctrl+L`
-  always accepts the highlighted row. Payload rows are rendered path-first — the source
-  badge, then the reference path with dim directories and a bright basename, then a dim
-  `title · detail · age` tail truncated to the remaining panel width — so what you see
-  is what gets inserted. Matched characters are highlighted in gold wherever they
-  landed, in the path, in the title, in a kind name, or in a local file row, so every
-  row shows why it is there. The panel subtitle reports the same context: `~ fuzzy` when
-  any visible row matched below the literal tiers, `N of M` for matching rows out of
-  that kind's known payloads, and a `⚠ K not scanned` warning when a catalog cap
-  truncated the candidate set, so a bounded search never reads as an exhaustive one.
+  cursor is in the middle of it. On an un-narrowed bare-`@` menu, `Enter` submits the
+  unexpanded `@` and dismisses the menu; `Ctrl+G` accepts the highlighted row even when
+  it is the untouched first row, and `Ctrl+L` remains a manual-menu alias. Payload rows
+  are rendered path-first — the source badge, then the reference path with dim
+  directories and a bright basename, then a dim `title · detail · age` tail truncated to
+  the remaining panel width — so what you see is what gets inserted. Matched characters
+  are highlighted in gold wherever they landed, in the path, in the title, in a kind
+  name, or in a local file row, so every row shows why it is there. The panel subtitle
+  reports the same context: `~ fuzzy` when any visible row matched below the literal
+  tiers, `N of M` for matching rows out of that kind's known payloads, and a
+  `⚠ K not scanned` warning when a catalog cap truncated the candidate set, so a bounded
+  search never reads as an exhaustive one.
 - **Placeholder completion**: When the cursor is inside an incomplete `<foobar>` tag,
   completion suggests matching placeholders from the current prompt first, then saved
   common placeholders learned from tags you have written before. Within the
@@ -6365,14 +6366,15 @@ token under the cursor:
   signal column, or `word_ranking_signals: false` to keep smart ranking but hide the
   meter, chip, and legend.
 
-| Key                | Action                                                               |
-| ------------------ | -------------------------------------------------------------------- |
-| `Ctrl+T`           | Start completion or insert shared prefix                             |
-| `Ctrl+N` / `Down`  | Next candidate                                                       |
-| `Ctrl+P` / `Up`    | Previous candidate                                                   |
-| `Enter` / `Ctrl+L` | Accept highlighted candidate                                         |
-| `Ctrl+D`           | Delete a highlighted recent file, saved placeholder, or history word |
-| `Escape`           | Cancel completion                                                    |
+| Key                 | Action                                                               |
+| ------------------- | -------------------------------------------------------------------- |
+| `Ctrl+T`            | Start completion or insert shared prefix                             |
+| `Ctrl+N` / `Down`   | Next candidate                                                       |
+| `Ctrl+P` / `Up`     | Previous candidate                                                   |
+| `Ctrl+G` / `Ctrl+L` | Accept highlighted candidate (`Ctrl+L` is the retained alias)        |
+| `Enter`             | Submit the prompt as typed; never accept a candidate                 |
+| `Ctrl+D`            | Delete a highlighted recent file, saved placeholder, or history word |
+| `Escape`            | Cancel completion                                                    |
 
 Press `Ctrl+R` to open the recursive fuzzy file finder. With a token such as `src/alp`,
 `src/` becomes the search root and `alp` pre-seeds the fuzzy query; with no token, the
@@ -6726,23 +6728,22 @@ automatic menu ever auto-accepts a single match. The grouped `@` reference menu 
 from a bare `@`, narrowed artifact/file queries such as `@pl` or `@src/`, and
 syntactically valid `@kind:` payload contexts; disable automatic opening with
 `ace.prompt_completion.auto_artifact_menu: false`. On an un-narrowed bare-`@` menu,
-`Enter` still submits the prompt and dismisses the menu until you type a query character
-or move the selection. The project/Patch picker opens when `+` completes a token at
-prompt offset zero or immediately after a literal ASCII space and is also available
-through manual `Ctrl+T`. The VCS ref-root menu opens when `:` or `(` completes a known
-workflow ref trigger such as `#gh:` and local candidates exist. The VCS repository menu
-opens when `/` completes a known workflow ref trigger such as `#gh:owner/`; cached rows
-appear immediately and uncached namespaces fetch in a background worker. Placeholder
-auto-completion opens only for an incomplete `<...` context; saved common placeholders
-join automatic results after the prefix is non-empty, while manual `Ctrl+T` can show
-them from a bare `<`. Manual `Ctrl+T` inserts a lone match in the highest-priority
-placeholder source group outright; automatic completion only opens the menu, even for
-one match. Manual `Ctrl+T` completion still supports file paths, xprompt names,
-directives, skills, `=alias` / `==model` shortcuts, `@` references, project/Patch tags,
-VCS ref roots, VCS repository refs, prompt-local prose words, placeholders, and enabled
-history words regardless of the automatic settings. Live suggestions pause while the
-manual completion panel is open, while snippet tabstops are active, in NORMAL mode, and
-during feedback prompts.
+`Enter` submits the prompt as typed and `Ctrl+G` accepts the highlighted first row. The
+project/Patch picker opens when `+` completes a token at prompt offset zero or
+immediately after a literal ASCII space and is also available through manual `Ctrl+T`.
+The VCS ref-root menu opens when `:` or `(` completes a known workflow ref trigger such
+as `#gh:` and local candidates exist. The VCS repository menu opens when `/` completes a
+known workflow ref trigger such as `#gh:owner/`; cached rows appear immediately and
+uncached namespaces fetch in a background worker. Placeholder auto-completion opens only
+for an incomplete `<...` context; saved common placeholders join automatic results after
+the prefix is non-empty, while manual `Ctrl+T` can show them from a bare `<`. Manual
+`Ctrl+T` inserts a lone match in the highest-priority placeholder source group outright;
+automatic completion only opens the menu, even for one match. Manual `Ctrl+T` completion
+still supports file paths, xprompt names, directives, skills, `=alias` / `==model`
+shortcuts, `@` references, project/Patch tags, VCS ref roots, VCS repository refs,
+prompt-local prose words, placeholders, and enabled history words regardless of the
+automatic settings. Live suggestions pause while the manual completion panel is open,
+while snippet tabstops are active, in NORMAL mode, and during feedback prompts.
 
 For file completion, directories appear before files in the candidate list. Dotfiles are
 hidden unless the partial prefix starts with `.`. Accepting a directory automatically

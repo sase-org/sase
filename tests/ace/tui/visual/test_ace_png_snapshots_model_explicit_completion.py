@@ -86,7 +86,7 @@ async def test_model_explicit_completion_full_menu_png_snapshot(
             ),
             description="explicit model shortcut completion visibility",
         )
-        await wait_for_svg_contains(page, "Enter → %m:claude-fable-5")
+        await wait_for_svg_contains(page, "Ctrl+G → %m:claude-fable-5")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -116,7 +116,7 @@ async def test_model_explicit_completion_filtered_preview_png_snapshot(
             selected_index=0,
             completion_kind=MODEL_EXPLICIT_COMPLETION_KIND,
         )
-        await wait_for_svg_contains(page, "Enter → %m:claude-fable-5")
+        await wait_for_svg_contains(page, "Ctrl+G → %m:claude-fable-5")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -145,7 +145,7 @@ async def test_model_explicit_completion_narrow_scoped_png_snapshot(
             selected_index=0,
             completion_kind=MODEL_EXPLICIT_COMPLETION_KIND,
         )
-        await wait_for_svg_contains(page, "Enter → %m:anthropic/claude")
+        await wait_for_svg_contains(page, "Ctrl+G → %m:anthropic/claude")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
@@ -175,7 +175,7 @@ async def test_model_explicit_completion_stacked_pane_png_snapshot(
             selected_index=0,
             completion_kind=MODEL_EXPLICIT_COMPLETION_KIND,
         )
-        await wait_for_svg_contains(page, "Enter → %m:gpt-5.6-sol")
+        await wait_for_svg_contains(page, "Ctrl+G → %m:gpt-5.6-sol")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

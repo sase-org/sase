@@ -104,9 +104,12 @@ async def test_auto_keyword_arg_enter_submits_until_user_interacts() -> None:
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
 
+        original_submit = ta.action_submit_prompt
+
         def record_submit() -> None:
             nonlocal submitted
             submitted += 1
+            original_submit()
 
         ta.action_submit_prompt = record_submit  # type: ignore[method-assign]
         seed_entries(ta, [rich_review_entry()])
@@ -122,7 +125,15 @@ async def test_auto_keyword_arg_enter_submits_until_user_interacts() -> None:
         ta.load_text("#review(")
         ta.cursor_location = (0, len("#review("))
         assert ta._try_auto_xprompt_arg_completion() is True
-        await pilot.press("e", "enter")
+        await pilot.press("ctrl+g")
+        assert submitted == 1
+        assert ta.text == "#review(path="
+        assert ta._insert_g_prefix_pending is False
+
+        ta.load_text("#review(")
+        ta.cursor_location = (0, len("#review("))
+        assert ta._try_auto_xprompt_arg_completion() is True
+        await pilot.press("e", "ctrl+g")
 
     assert submitted == 1
     assert ta.text == "#review(enabled="
@@ -131,7 +142,7 @@ async def test_auto_keyword_arg_enter_submits_until_user_interacts() -> None:
     assert ta._xprompt_arg_completion_trigger == "manual"
 
 
-async def test_keyword_arg_selection_movement_hands_enter_to_menu() -> None:
+async def test_keyword_arg_selection_movement_hands_ctrl_g_to_menu() -> None:
     app = CompletionTestApp()
     submitted = 0
     async with app.run_test() as pilot:
@@ -147,10 +158,37 @@ async def test_keyword_arg_selection_movement_hands_enter_to_menu() -> None:
         ta.cursor_location = (0, len("#review("))
         assert ta._try_auto_xprompt_arg_completion() is True
 
-        await pilot.press("ctrl+n", "enter", "enter")
+        await pilot.press("ctrl+n", "ctrl+g", "ctrl+g")
 
     assert submitted == 0
     assert ta.text == "#review(enabled=true"
+    assert ta._file_completion_active is False
+    assert ta._insert_g_prefix_pending is False
+
+
+async def test_keyword_arg_enter_submits_even_after_selection_moves() -> None:
+    app = CompletionTestApp()
+    submitted = 0
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        original_submit = ta.action_submit_prompt
+
+        def record_submit() -> None:
+            nonlocal submitted
+            submitted += 1
+            original_submit()
+
+        ta.action_submit_prompt = record_submit  # type: ignore[method-assign]
+        seed_entries(ta, [rich_review_entry()])
+        ta.load_text("#review(")
+        ta.cursor_location = (0, len("#review("))
+        assert ta._try_auto_xprompt_arg_completion() is True
+
+        await pilot.press("ctrl+n", "enter")
+
+    assert submitted == 1
+    assert ta.text == "#review("
     assert ta._file_completion_active is False
 
 

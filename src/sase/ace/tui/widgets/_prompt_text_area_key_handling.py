@@ -30,15 +30,11 @@ from sase.ace.tui.widgets.vim_text_area import INSERT_NORMAL_MODE_KEYS
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets._vcs_mru_cycling import VcsMruCycleKey
-    from sase.ace.tui.widgets.artifact_ref_completion import (
-        ArtifactRefCompletionContext,
-    )
     from sase.ace.tui.widgets.prompt_completion import PromptCompletionSettings
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
     from sase.ace.tui.widgets.xprompt_arg_assist import (
         ActiveXPromptArgHint,
         PendingXPromptCompletionSpacer,
-        XPromptArgCompletionContext,
     )
 
 
@@ -61,21 +57,12 @@ class PromptTextAreaKeyHandlingMixin(
     if TYPE_CHECKING:
         _active_xprompt_arg_hint: ActiveXPromptArgHint | None
         _pending_xprompt_completion_spacer: PendingXPromptCompletionSpacer | None
-        _completion_kind: str
-        _completion_selection_moved: bool
         _file_completion_active: bool
-        _xprompt_arg_completion_trigger: str | None
         _pending_keys: str
         _vcs_mru_index: int | None
         _vim_mode: str
 
         def _absolute_offset(self, location: tuple[int, int]) -> int: ...
-        def _get_artifact_ref_completion_context(
-            self,
-        ) -> ArtifactRefCompletionContext | None: ...
-        def _get_xprompt_arg_completion_context(
-            self,
-        ) -> XPromptArgCompletionContext | None: ...
         def _artifact_ref_sync_trigger(self) -> str | None: ...
         def _start_artifact_ref_sync(self, kind: str) -> None: ...
         def _accept_file_completion(self) -> bool: ...
@@ -198,6 +185,20 @@ class PromptTextAreaKeyHandlingMixin(
                 event.prevent_default()
                 return
 
+        # Active INSERT-mode completion consumes ``Ctrl+G`` before the
+        # prompt-local ``Ctrl+G`` prefix dispatchers, including the initially
+        # highlighted first row. Inactive-menu ``Ctrl+G`` still starts the
+        # prefix below.
+        if (
+            self._file_completion_active
+            and self._vim_mode == "insert"
+            and event.key == "ctrl+g"
+        ):
+            event.stop()
+            event.prevent_default()
+            self._accept_file_completion()
+            return
+
         if self._handle_insert_g_prefix_key(event):
             event.stop()
             event.prevent_default()
@@ -216,33 +217,6 @@ class PromptTextAreaKeyHandlingMixin(
                     return
             event.stop()
             event.prevent_default()
-            if self._file_completion_active:
-                artifact_context = (
-                    self._get_artifact_ref_completion_context()
-                    if self._completion_kind == "artifact_ref"
-                    else None
-                )
-                unowned_bare_at = (
-                    artifact_context is not None
-                    and artifact_context.stage == "kind"
-                    and not artifact_context.prefix
-                    and not self._completion_selection_moved
-                )
-                xprompt_arg_context = (
-                    self._get_xprompt_arg_completion_context()
-                    if self._completion_kind.startswith("xprompt_arg_")
-                    else None
-                )
-                unowned_auto_xprompt_arg = (
-                    xprompt_arg_context is not None
-                    and self._xprompt_arg_completion_trigger == "auto"
-                    and not xprompt_arg_context.token
-                    and not self._completion_selection_moved
-                )
-                if not (unowned_bare_at or unowned_auto_xprompt_arg):
-                    self._accept_file_completion()
-                    return
-                self._clear_file_completion()
             bar = self._find_prompt_bar()
             prompt_texts = bar.all_prompt_texts() if bar is not None else []
             active_is_auxiliary = bool(

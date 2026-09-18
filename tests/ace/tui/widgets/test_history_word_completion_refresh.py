@@ -57,10 +57,11 @@ async def test_history_refresh_preserves_hyphenated_shared_prefix() -> None:
             candidate.insertion for candidate in ta._file_completion_candidates
         ] == ["bob-mac-capture"]
 
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == "bob-mac-capture"
         assert ta._file_completion_active is False
+        assert ta._insert_g_prefix_pending is False
 
 
 async def test_history_refresh_preserves_shared_prefix_narrowing_with_suffix() -> None:
@@ -85,7 +86,7 @@ async def test_history_refresh_preserves_shared_prefix_narrowing_with_suffix() -
             candidate.insertion for candidate in ta._file_completion_candidates
         ] == ["bob-mac-capture"]
 
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == "bob-mac-capture ZZZ"
         assert ta.cursor_location == (0, len("bob-mac-capture"))

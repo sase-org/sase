@@ -183,7 +183,7 @@ def _selected_insertion(text_area: PromptTextArea) -> str:
     ].insertion
 
 
-async def test_equals_alias_auto_opens_and_enter_expands_without_submit() -> None:
+async def test_equals_alias_auto_opens_and_ctrl_g_expands_without_submit() -> None:
     app = ModelAliasCompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
@@ -197,15 +197,32 @@ async def test_equals_alias_auto_opens_and_enter_expands_without_submit() -> Non
         assert ta._completion_kind == MODEL_ALIAS_COMPLETION_KIND
         assert panel.border_title == "model aliases"
         assert [c.insertion for c in ta._file_completion_candidates] == ["@large"]
-        assert "Enter → %m:@large · Large model" in str(panel.border_subtitle)
+        assert "Ctrl+G → %m:@large · Large model" in str(panel.border_subtitle)
         assert bar._subtitle_base == MODEL_ALIAS_MODE_SUBTITLE
 
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == "%m:@large "
         assert app.submitted == []
         assert ta._file_completion_active is False
+        assert ta._insert_g_prefix_pending is False
         assert bar._subtitle_base == bar._mode_subtitle
+
+
+async def test_equals_alias_enter_submits_unexpanded_text_while_menu_is_open() -> None:
+    app = ModelAliasCompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptInputBar).active_text_area()
+
+        await pilot.press("=")
+        await pilot.press("l")
+        assert ta._file_completion_active is True
+
+        await pilot.press("enter")
+
+        assert ta.text == "=l"
+        assert app.submitted == ["=l"]
+        assert ta._file_completion_active is False
 
 
 @pytest.mark.parametrize(
@@ -300,7 +317,7 @@ async def test_equals_alias_subtitle_omits_missing_description() -> None:
         await pilot.press("s")
 
         panel = bar.query_one("#prompt-completion", Static)
-        assert str(panel.border_subtitle) == "Enter → %m:@small"
+        assert str(panel.border_subtitle) == "Ctrl+G → %m:@small"
 
 
 async def test_equals_alias_accept_replaces_whole_token_from_mid_token_cursor() -> None:
@@ -311,7 +328,7 @@ async def test_equals_alias_accept_replaces_whole_token_from_mid_token_cursor() 
         ta.cursor_location = (0, len("Use =la"))
 
         await pilot.press("ctrl+t")
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == "Use %m:@large later"
         assert ta.cursor_location == (0, len("Use %m:@large "))
@@ -327,11 +344,12 @@ async def test_equals_alias_accept_preserves_context_and_undo_redo() -> None:
         ta.cursor_location = (0, len("Keep\t🙂 =la"))
 
         await pilot.press("ctrl+t")
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == expanded
         assert ta.cursor_location == (0, len("Keep\t🙂 %m:@large "))
         assert app.submitted == []
+        assert ta._insert_g_prefix_pending is False
 
         await pilot.press("escape")
         await pilot.press("u")
@@ -438,11 +456,18 @@ async def test_loading_model_alias_row_is_not_selectable() -> None:
         assert ta._file_completion_candidates[0].display == "Loading model aliases…"
         assert bar._subtitle_base != MODEL_ALIAS_MODE_SUBTITLE
 
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == "="
         assert app.submitted == []
         assert ta._file_completion_active is True
+        assert ta._insert_g_prefix_pending is False
+
+        await pilot.press("enter")
+
+        assert ta.text == "="
+        assert app.submitted == ["="]
+        assert ta._file_completion_active is False
 
 
 async def test_cold_model_alias_catalog_shows_loading_without_blocking_keys() -> None:
@@ -464,11 +489,12 @@ async def test_cold_model_alias_catalog_shows_loading_without_blocking_keys() ->
             )
 
             await pilot.press("x")
-            await pilot.press("enter")
+            await pilot.press("ctrl+g")
 
             assert ta.text == "=x"
             assert app.submitted == []
             assert ta._file_completion_active is True
+            assert ta._insert_g_prefix_pending is False
 
     assert any(
         kwargs.get("group") == "prompt-model-catalog" and kwargs.get("thread") is True

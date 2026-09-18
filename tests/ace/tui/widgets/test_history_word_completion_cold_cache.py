@@ -69,9 +69,10 @@ async def test_cold_cache_no_matches_dismisses_and_placeholder_is_not_accepted()
         ta.load_text("rev")
         ta.cursor_location = (0, 3)
 
-        await pilot.press("ctrl+t", "enter")
+        await pilot.press("ctrl+t", "ctrl+g")
         assert ta.text == "rev"
         assert ta._file_completion_active is False
+        assert ta._insert_g_prefix_pending is False
 
         await pilot.press("ctrl+t")
         app.words = ["unrelated"]

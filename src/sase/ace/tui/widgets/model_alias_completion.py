@@ -23,7 +23,7 @@ from sase.xprompt.model_completion import (
 )
 
 MODEL_ALIAS_COMPLETION_KIND = "model_alias"
-MODEL_ALIAS_MODE_SUBTITLE = "[Enter] accept alias  [Esc] normal  [^C] cancel"
+MODEL_ALIAS_MODE_SUBTITLE = "[Ctrl+G] accept alias  [Esc] normal  [^C] cancel"
 MODEL_ALIAS_ENTRY_KINDS = frozenset({"implicit_alias", "user_alias"})
 
 

@@ -42,6 +42,27 @@ def _submit_choice_rows(modal: PromptSubmitChoiceModal) -> list[str]:
     ]
 
 
+async def test_enter_with_open_completion_pushes_submit_choice_modal() -> None:
+    app = CaptureApp("first\n---\nalpha alpine al")
+
+    async with app.run_test(size=(80, 30)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        ta = bar.active_text_area()
+
+        await pilot.press("ctrl+t")
+        assert ta._file_completion_active is True
+        narrowed = ta.text
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
+        assert app.submitted == []
+        assert ta.text == narrowed
+        assert ta._file_completion_active is False
+
+
 async def test_enter_on_multi_pane_pushes_submit_choice_modal() -> None:
     app = CaptureApp("first\n---\nsecond\n---\nthird")
 

@@ -91,19 +91,46 @@ async def test_accept_replaces_inner_text_with_and_without_closing_bracket() -> 
         ta.cursor_location = (0, len(ta.text) - 1)
         assert ta._try_auto_placeholder_completion() is True
 
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == "Use <alpha> then <alpha>"
         assert ta.cursor_location == (0, len(ta.text))
+        assert ta._insert_g_prefix_pending is False
 
+        ta.load_text("Use <alpha> then <a")
+        ta.cursor_location = (0, len(ta.text))
+        assert ta._try_auto_placeholder_completion() is True
+
+        await pilot.press("ctrl+g")
+
+        assert ta.text == "Use <alpha> then <alpha>"
+        assert ta.cursor_location == (0, len(ta.text))
+        assert ta._insert_g_prefix_pending is False
+
+
+async def test_placeholder_enter_submits_unexpanded_text_while_menu_is_open() -> None:
+    app = CompletionTestApp()
+    submitted = 0
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        original_submit = ta.action_submit_prompt
+
+        def record_submit() -> None:
+            nonlocal submitted
+            submitted += 1
+            original_submit()
+
+        ta.action_submit_prompt = record_submit  # type: ignore[method-assign]
         ta.load_text("Use <alpha> then <a")
         ta.cursor_location = (0, len(ta.text))
         assert ta._try_auto_placeholder_completion() is True
 
         await pilot.press("enter")
 
-        assert ta.text == "Use <alpha> then <alpha>"
-        assert ta.cursor_location == (0, len(ta.text))
+        assert ta.text == "Use <alpha> then <a"
+        assert ta._file_completion_active is False
+        assert submitted == 1
 
 
 async def test_placeholder_free_prompt_stays_silent() -> None:
@@ -155,7 +182,7 @@ async def test_snippet_tabstop_opens_completion_and_survives_accept() -> None:
             assert ta._file_completion_active is True
             assert ta.cursor_location == (0, ta.text.rindex("<") + 1)
 
-            await pilot.press("enter")
+            await pilot.press("ctrl+g")
 
             assert ta.text == "Reuse <alpha>: `<alpha>`"
             assert ta.cursor_location == (0, ta.text.rindex(">") + 1)
@@ -530,19 +557,21 @@ async def test_accepting_a_saved_candidate_closes_the_bracket_either_way() -> No
         ta.cursor_location = (0, len(ta.text))
         assert ta._try_auto_placeholder_completion() is True
 
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == "Use <alpha> then <feature flag>"
         assert ta.cursor_location == (0, len(ta.text))
+        assert ta._insert_g_prefix_pending is False
 
         ta.load_text("Use <alpha> then <fe>")
         ta.cursor_location = (0, len(ta.text) - 1)
         assert ta._try_auto_placeholder_completion() is True
 
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == "Use <alpha> then <feature flag>"
         assert ta.cursor_location == (0, len(ta.text))
+        assert ta._insert_g_prefix_pending is False
 
 
 async def test_refresh_keeps_the_highlighted_saved_candidate_across_an_edit() -> None:

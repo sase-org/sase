@@ -114,7 +114,7 @@ async def test_revealed_files_survive_typing_and_reset_when_menu_closes() -> Non
             "@final.txt",
         ]
 
-        await pilot.press("ctrl+n", "enter")
+        await pilot.press("ctrl+n", "ctrl+g")
 
         assert text_area.text == "@final.txt"
         assert text_area._file_completion_active is False
@@ -132,7 +132,7 @@ async def test_directory_accept_drills_down_and_file_accept_closes() -> None:
         text_area.cursor_location = (0, 3)
 
         assert text_area._try_artifact_ref_completion() is True
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert text_area.text == "@src/"
         assert text_area._file_completion_active is True
@@ -140,12 +140,13 @@ async def test_directory_accept_drills_down_and_file_accept_closes() -> None:
             "@src/main.py"
         ]
 
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
         assert text_area.text == "@src/main.py"
         assert text_area._file_completion_active is False
+        assert text_area._insert_g_prefix_pending is False
 
 
-async def test_bare_at_enter_submits_but_ctrl_l_and_navigation_accept() -> None:
+async def test_bare_at_enter_submits_but_ctrl_g_ctrl_l_and_navigation_accept() -> None:
     app = CompletionTestApp()
     submitted = 0
     async with app.run_test() as pilot:
@@ -153,9 +154,12 @@ async def test_bare_at_enter_submits_but_ctrl_l_and_navigation_accept() -> None:
         seed_catalog(text_area, CATALOG)
         seed_paths(text_area, "", ())
 
+        original_submit = text_area.action_submit_prompt
+
         def record_submit() -> None:
             nonlocal submitted
             submitted += 1
+            original_submit()
 
         text_area.action_submit_prompt = record_submit  # type: ignore[method-assign]
         text_area.load_text("@")
@@ -168,6 +172,14 @@ async def test_bare_at_enter_submits_but_ctrl_l_and_navigation_accept() -> None:
         assert text_area._file_completion_active is False
 
         assert text_area._try_artifact_ref_completion() is True
+        await pilot.press("ctrl+g")
+        assert submitted == 1
+        assert text_area.text != "@"
+        assert text_area._insert_g_prefix_pending is False
+
+        text_area.load_text("@")
+        text_area.cursor_location = (0, 1)
+        assert text_area._try_artifact_ref_completion() is True
         await pilot.press("ctrl+l")
         assert submitted == 1
         assert text_area.text != "@"
@@ -175,9 +187,18 @@ async def test_bare_at_enter_submits_but_ctrl_l_and_navigation_accept() -> None:
         text_area.load_text("@")
         text_area.cursor_location = (0, 1)
         assert text_area._try_artifact_ref_completion() is True
-        await pilot.press("ctrl+n", "enter")
+        await pilot.press("ctrl+n", "ctrl+g")
         assert submitted == 1
         assert text_area.text != "@"
+        assert text_area._insert_g_prefix_pending is False
+
+        text_area.load_text("@")
+        text_area.cursor_location = (0, 1)
+        assert text_area._try_artifact_ref_completion() is True
+        await pilot.press("ctrl+n", "enter")
+        assert submitted == 2
+        assert text_area.text == "@"
+        assert text_area._file_completion_active is False
 
 
 async def test_cold_path_snapshot_refreshes_the_open_menu() -> None:
@@ -360,7 +381,7 @@ async def test_accept_kind_reopens_payload_then_accepts_document() -> None:
         text_area.cursor_location = (0, 3)
 
         assert text_area._try_artifact_ref_completion() is True
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert text_area.text == "@plans:"
         assert text_area._file_completion_active is True
@@ -370,9 +391,10 @@ async def test_accept_kind_reopens_payload_then_accepts_document() -> None:
             for row in text_area._file_completion_candidates
         )
 
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
         assert text_area.text == "@plans:202607/alpha.md"
         assert text_area._file_completion_active is False
+        assert text_area._insert_g_prefix_pending is False
 
 
 @pytest.mark.parametrize(

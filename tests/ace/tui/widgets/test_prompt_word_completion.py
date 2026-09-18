@@ -355,17 +355,18 @@ async def test_ctrl_t_mid_word_accept_preserves_right_hand_suffix_as_word() -> N
         assert ta.cursor_location == (0, len("publish then publish"))
 
 
-async def test_prompt_word_menu_enter_accept_preserves_suffix() -> None:
+async def test_prompt_word_menu_ctrl_g_accept_preserves_suffix() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("alpha alpine alpZZZ")
         ta.cursor_location = (0, ta.text.rindex("alpZZZ") + len("alp"))
 
-        await pilot.press("ctrl+t", "down", "enter")
+        await pilot.press("ctrl+t", "down", "ctrl+g")
 
         assert ta.text == "alpha alpine alpha ZZZ"
         assert ta.cursor_location == (0, len("alpha alpine alpha"))
+        assert ta._insert_g_prefix_pending is False
 
 
 async def test_prompt_word_menu_ctrl_l_accept_preserves_suffix() -> None:
@@ -396,7 +397,7 @@ async def test_ctrl_t_narrowing_preserves_suffix_without_space_until_commit() ->
             candidate.insertion for candidate in ta._file_completion_candidates
         ] == ["bob-mac-camera", "bob-mac-capture"]
 
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == "bob-mac-capture bob-mac-camera bob-mac-camera ZZZ"
         assert ta.cursor_location == (
@@ -433,17 +434,41 @@ async def test_ctrl_t_scans_all_prompt_lines() -> None:
         ] == ["alpine", "alpha"]
 
 
-async def test_prompt_word_navigation_and_enter_acceptance() -> None:
+async def test_prompt_word_navigation_and_ctrl_g_acceptance() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("alpha alpine al")
         ta.cursor_location = (0, len(ta.text))
 
-        await pilot.press("ctrl+t", "down", "enter")
+        await pilot.press("ctrl+t", "down", "ctrl+g")
 
         assert ta.text == "alpha alpine alpha"
         assert ta._file_completion_active is False
+        assert ta._insert_g_prefix_pending is False
+
+
+async def test_prompt_word_enter_submits_unexpanded_text_while_menu_is_open() -> None:
+    app = CompletionTestApp()
+    submitted = 0
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        original_submit = ta.action_submit_prompt
+
+        def record_submit() -> None:
+            nonlocal submitted
+            submitted += 1
+            original_submit()
+
+        ta.action_submit_prompt = record_submit  # type: ignore[method-assign]
+        ta.load_text("alpha alpine al")
+        ta.cursor_location = (0, len(ta.text))
+
+        await pilot.press("ctrl+t", "down", "enter")
+
+        assert ta.text == "alpha alpine alp"
+        assert ta._file_completion_active is False
+        assert submitted == 1
 
 
 async def test_prompt_word_candidates_refresh_and_preserve_selection() -> None:
@@ -507,10 +532,11 @@ async def test_stale_short_candidate_cannot_be_accepted() -> None:
         assert ta._file_completion_candidates[0].insertion == "alpha"
 
         app.settings = PromptCompletionSettings(word_min_length=6)
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == "alpine alpha alp"
         assert ta._file_completion_active is False
+        assert ta._insert_g_prefix_pending is False
 
 
 async def test_prompt_word_cursor_movement_dismisses_without_prefix() -> None:

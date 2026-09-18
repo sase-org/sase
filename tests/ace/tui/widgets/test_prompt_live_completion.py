@@ -199,6 +199,26 @@ async def test_soft_xprompt_suggestion_accepts_with_ctrl_l_not_enter() -> None:
     assert ta._active_xprompt_arg_hint is not None
 
 
+async def test_soft_xprompt_suggestion_ctrl_g_starts_prefix_without_accepting() -> None:
+    app = RecordingCompletionTestApp()
+    async with app.run_test() as pilot:
+        bar = app.query_one(PromptInputBar)
+        ta = app.query_one(PromptTextArea)
+        _seed_entries(ta, [_entry("review", inputs=(_input("path", "path"),))])
+
+        ta.load_text("#r")
+        ta.cursor_location = (0, 2)
+        await _compute_soft_now(ta)
+
+        assert _subtitle_text(bar).startswith("[^L] accept #review")
+        await pilot.press("ctrl+g")
+
+        assert ta.text == "#r"
+        assert app.submitted == []
+        assert ta._insert_g_prefix_pending is True
+        assert ta._soft_completion is not None
+
+
 async def test_soft_completion_timer_defers_resolution_to_pump_free_task(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

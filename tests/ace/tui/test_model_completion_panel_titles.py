@@ -142,7 +142,7 @@ async def test_equals_alias_shortcut_subtitle_prioritizes_expansion_preview() ->
 
         assert panel.border_title == "model aliases"
         subtitle = str(panel.border_subtitle)
-        assert subtitle.startswith("Enter → %m:@observ")
+        assert subtitle.startswith("Ctrl+G → %m:@observ")
         assert "Long operational" not in subtitle
 
 
@@ -179,4 +179,4 @@ async def test_provider_completion_row_subtitle_explains_drill_down() -> None:
         )
 
         assert panel.border_title == "%model values"
-        assert panel.border_subtitle == "[Enter] show Claude models"
+        assert panel.border_subtitle == "[Ctrl+G] show Claude models"

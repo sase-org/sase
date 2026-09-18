@@ -547,10 +547,41 @@ async def test_panel_acceptance_uses_xprompt_completion_skeleton() -> None:
         ta.cursor_location = (0, 2)
         _seed_entries(ta, entries)
         await pilot.press("ctrl+t")
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
     assert ta.text == "#many()"
     assert ta.cursor_location == (0, len("#many("))
+    assert ta._insert_g_prefix_pending is False
+
+
+async def test_xprompt_enter_submits_unexpanded_text_while_menu_is_open() -> None:
+    entries = [
+        _entry("many", inputs=(_input("path", "path"), _input("body", "text"))),
+        _entry("more"),
+    ]
+    app = CompletionTestApp()
+    submitted = 0
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+
+        original_submit = ta.action_submit_prompt
+
+        def record_submit() -> None:
+            nonlocal submitted
+            submitted += 1
+            original_submit()
+
+        ta.action_submit_prompt = record_submit  # type: ignore[method-assign]
+        ta.load_text("#m")
+        ta.cursor_location = (0, 2)
+        _seed_entries(ta, entries)
+        await pilot.press("ctrl+t")
+        assert ta._file_completion_active is True
+        await pilot.press("enter")
+
+    assert ta.text == "#m"
+    assert ta._file_completion_active is False
+    assert submitted == 1
 
 
 async def test_ctrl_t_required_text_before_existing_text_keeps_single_space() -> None:

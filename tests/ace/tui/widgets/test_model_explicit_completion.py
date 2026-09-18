@@ -177,7 +177,7 @@ def _selected_insertion(text_area: PromptTextArea) -> str:
     ].insertion
 
 
-async def test_double_equals_auto_opens_and_enter_expands_without_submit() -> None:
+async def test_double_equals_auto_opens_and_ctrl_g_expands_without_submit() -> None:
     app = ModelExplicitCompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
@@ -194,15 +194,33 @@ async def test_double_equals_auto_opens_and_enter_expands_without_submit() -> No
         assert ta._completion_kind == MODEL_EXPLICIT_COMPLETION_KIND
         assert panel.border_title == "explicit models"
         assert _candidate_insertions(ta) == ["gpt-5.6-sol"]
-        assert "Enter → %m:gpt-5.6-sol · Codex (sol)" in str(panel.border_subtitle)
+        assert "Ctrl+G → %m:gpt-5.6-sol · Codex (sol)" in str(panel.border_subtitle)
         assert bar._subtitle_base == MODEL_EXPLICIT_MODE_SUBTITLE
 
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == "%m:gpt-5.6-sol "
         assert app.submitted == []
         assert ta._file_completion_active is False
+        assert ta._insert_g_prefix_pending is False
         assert bar._subtitle_base == bar._mode_subtitle
+
+
+async def test_double_equals_enter_submits_unexpanded_text_while_menu_is_open() -> None:
+    app = ModelExplicitCompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptInputBar).active_text_area()
+
+        await pilot.press("=")
+        await pilot.press("=")
+        await pilot.press("g")
+        assert ta._file_completion_active is True
+
+        await pilot.press("enter")
+
+        assert ta.text == "==g"
+        assert app.submitted == ["==g"]
+        assert ta._file_completion_active is False
 
 
 def test_double_equals_context_and_filtering_use_model_rows_only() -> None:
@@ -429,7 +447,7 @@ async def test_double_equals_accept_replaces_whole_token_from_mid_token_cursor()
         ta.cursor_location = (0, len("Use ==gp"))
 
         await pilot.press("ctrl+t")
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == "Use %m:gpt-5.6-sol later"
         assert ta.cursor_location == (0, len("Use %m:gpt-5.6-sol "))
@@ -446,11 +464,12 @@ async def test_double_equals_accept_preserves_context_and_undo_redo() -> None:
         ta.cursor_location = (0, len("Keep\t🙂 ==gp"))
 
         await pilot.press("ctrl+t")
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == expanded
         assert ta.cursor_location == (0, len("Keep\t🙂 %m:gpt-5.6-sol "))
         assert app.submitted == []
+        assert ta._insert_g_prefix_pending is False
 
         await pilot.press("escape")
         await pilot.press("u")
@@ -557,11 +576,18 @@ async def test_loading_model_rows_are_not_selectable() -> None:
         assert ta._file_completion_candidates[0].display == "Loading models…"
         assert bar._subtitle_base != MODEL_EXPLICIT_MODE_SUBTITLE
 
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == "=="
         assert app.submitted == []
         assert ta._file_completion_active is True
+        assert ta._insert_g_prefix_pending is False
+
+        await pilot.press("enter")
+
+        assert ta.text == "=="
+        assert app.submitted == ["=="]
+        assert ta._file_completion_active is False
 
 
 async def test_model_catalog_worker_refreshes_only_matching_shortcut_kind() -> None:

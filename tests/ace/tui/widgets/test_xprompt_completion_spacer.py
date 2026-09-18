@@ -212,9 +212,9 @@ async def test_completion_panel_accept_then_comma() -> None:
         ta.load_text("#")
         ta.cursor_location = (0, 1)
         _seed_entries(ta, entries)
-        # Two candidates -> the panel opens; ``enter`` accepts the first.
+        # Two candidates -> the panel opens; ``ctrl+g`` accepts the first.
         await pilot.press("ctrl+t")
-        await pilot.press("enter")
+        await pilot.press("ctrl+g")
 
         assert ta.text == "#optional "
         assert ta._pending_xprompt_completion_spacer is not None
