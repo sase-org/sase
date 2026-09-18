@@ -307,6 +307,14 @@ def test_sudo_answer_detach_remote_starts_finalize_proc(
         "/ledger.json"
     )
     assert not gate.response_path.exists()
+    from sase.sudo.execution import load_execution_state
+
+    state = load_execution_state(gate.bundle_path)
+    assert state is not None
+    assert state.target_kind == "remote"
+    assert state.target_host == "other-host"
+    assert state.remote_handoff is not None
+    assert state.remote_handoff["ledger"].endswith("/ledger.json")
 
 
 def test_sudo_exec_contract_advertises_detached_runner(

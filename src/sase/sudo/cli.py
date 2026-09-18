@@ -40,6 +40,7 @@ from sase.sudo.detach import (
 )
 from sase.sudo.execution import (
     SudoExecutionState,
+    abandon_unstarted_attempt,
     claim_execution_record,
     cleanup_handoff,
     clear_execution_state,
@@ -62,7 +63,12 @@ from sase.sudo.runner import (
     run_sudo_runner_file,
     runner_supports_detached_execution,
 )
-from sase.sudo.ssh import remote_supports_detached_execution, run_remote_sudo
+from sase.sudo.ssh import (
+    PRE_SPAWN_REMOTE_ERROR_CODES,
+    allocate_remote_sudo_paths,
+    remote_supports_detached_execution,
+    run_remote_sudo,
+)
 
 _DETACH_FALLBACK_NOTICE = (
     "installed sase_sudo_runner does not advertise detached_execution; "
@@ -310,6 +316,7 @@ def _approve(
             feedback=feedback,
             retry=retry,
         )
+    remote_paths = allocate_remote_sudo_paths() if remote else None
     with execution_lock(bundle.root):
         existing = claim_execution_record(bundle.root, gate_id=gate_id)
         if existing is not None:
@@ -323,6 +330,7 @@ def _approve(
             target_kind="remote" if remote else "local",
             target_host=host if remote else None,
             startup_state="reserved",
+            remote_handoff=None if remote_paths is None else dict(remote_paths),
         )
         write_execution_state(bundle.root, state)
     try:
@@ -346,6 +354,7 @@ def _approve(
                     manifest,
                     manifest_sha256=manifest_sha256,
                     timeout_seconds=runner_timeout_seconds(manifest),
+                    paths=remote_paths,
                 )
             else:
                 receipt = run_sudo_runner(
@@ -372,9 +381,12 @@ def _approve(
             feedback=feedback,
             retry=retry,
         )
-    except Exception:
-        _retire_pre_start_attempt(bundle.root)
-        recover_dead_attempt(bundle.root)
+    except Exception as exc:
+        if isinstance(exc, GateError) and exc.code in PRE_SPAWN_REMOTE_ERROR_CODES:
+            abandon_unstarted_attempt(bundle.root)
+        else:
+            _retire_pre_start_attempt(bundle.root)
+            recover_dead_attempt(bundle.root)
         raise
     with execution_lock(bundle.root):
         cleanup_handoff(handoff)

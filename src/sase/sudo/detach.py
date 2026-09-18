@@ -41,6 +41,7 @@ from sase.sudo.execution import (
     LOG_FILENAME,
     MANIFEST_FILENAME,
     SudoExecutionState,
+    abandon_unstarted_attempt,
     claim_execution_record,
     clear_execution_state,
     cleanup_handoff,
@@ -62,6 +63,8 @@ from sase.sudo.lease import sudo_auth_lease
 from sase.sudo.manifest import selected_sudo_manifest
 from sase.sudo.runner import run_sudo_runner_detached
 from sase.sudo.ssh import (
+    PRE_SPAWN_REMOTE_ERROR_CODES,
+    allocate_remote_sudo_paths,
     cleanup_remote_sudo,
     run_remote_sudo_detached,
     wait_for_remote_sudo_ledger,
@@ -187,7 +190,7 @@ def approve_remote_detached(
     """Authenticate over SSH, start a remote executor, and submit finalize."""
     gate_id = bundle.request_id
     runner_payload: dict[str, Any] | None = None
-    remote_paths: dict[str, Any] | None = None
+    remote_paths = allocate_remote_sudo_paths()
     with execution_lock(bundle.root):
         existing = claim_execution_record(bundle.root, gate_id=gate_id)
         if existing is not None:
@@ -201,6 +204,7 @@ def approve_remote_detached(
             target_kind="remote",
             target_host=host,
             startup_state="reserved",
+            remote_handoff=dict(remote_paths),
         )
         write_execution_state(bundle.root, state)
     proc: Any
@@ -224,6 +228,7 @@ def approve_remote_detached(
                 manifest,
                 manifest_sha256=manifest_sha256,
                 timeout_seconds=runner_timeout_seconds(manifest),
+                paths=remote_paths,
             )
             if handshake_from_runner_payload(runner_payload):
                 handshake = DEFAULT_SUDO_CORE.validate_handshake(
@@ -244,12 +249,19 @@ def approve_remote_detached(
                     feedback=feedback,
                     retry=retry,
                 )
-        except Exception:
-            _preserve_or_recover_attempt(bundle.root, runner_payload=runner_payload)
+        except Exception as exc:
+            _preserve_or_recover_attempt(
+                bundle.root, runner_payload=runner_payload, error=exc
+            )
             raise
         with execution_lock(bundle.root):
             state = load_execution_state(bundle.root) or state
-            state = replace(state, handshake=dict(handshake), startup_state="started")
+            state = replace(
+                state,
+                handshake=dict(handshake),
+                startup_state="started",
+                remote_handoff=dict(state.remote_handoff or remote_paths),
+            )
             write_execution_state(bundle.root, state)
             try:
                 proc, operation_payload_digest = _submit_finalize_proc(
@@ -259,7 +271,10 @@ def approve_remote_detached(
                     handshake=handshake,
                     feedback=feedback,
                     retry=retry,
-                    remote={"host": host, "paths": dict(remote_paths or {})},
+                    remote={
+                        "host": host,
+                        "paths": dict(state.remote_handoff or remote_paths),
+                    },
                 )
             except Exception:
                 write_execution_state(bundle.root, state)
@@ -307,7 +322,11 @@ def _preserve_or_recover_attempt(
     bundle_root: Path,
     *,
     runner_payload: Mapping[str, Any] | None,
+    error: BaseException | None = None,
 ) -> None:
+    if isinstance(error, GateError) and error.code in PRE_SPAWN_REMOTE_ERROR_CODES:
+        abandon_unstarted_attempt(bundle_root)
+        return
     state = load_execution_state(bundle_root)
     if state is None:
         return
@@ -431,7 +450,7 @@ def _run_finalize(args: argparse.Namespace) -> dict[str, Any]:
             "finalize sidecar manifest digest does not match the execution record",
         )
     try:
-        remote = _finalize_remote(payload)
+        remote = _finalize_remote_from_state(state, payload)
         if remote is None:
             receipt = _wait_for_executor_ledger(
                 handoff,
@@ -466,11 +485,7 @@ def _run_finalize(args: argparse.Namespace) -> dict[str, Any]:
         _record_finalize_failure(bundle.root, exc)
         recover_dead_attempt(bundle.root)
         raise
-    if remote is not None:
-        cleanup_remote_sudo(remote["host"], remote["paths"])
-    with execution_lock(bundle.root):
-        cleanup_handoff(handoff)
-        clear_execution_state(bundle.root)
+    _retire_after_settlement(bundle.root, state=state, remote=remote)
     return result
 
 
@@ -494,8 +509,11 @@ def _finalize_existing_response(
     if state is not None:
         with execution_lock(bundle.root):
             write_execution_state(bundle.root, replace(state, startup_state="settled"))
-            cleanup_handoff(Path(state.handoff_dir))
-            clear_execution_state(bundle.root)
+        _retire_after_settlement(
+            bundle.root,
+            state=replace(state, startup_state="settled"),
+            remote=_finalize_remote_from_state(state, payload),
+        )
     return answer_payload(
         bundle.kind, bundle.request_id, response, selected_command_ids=selected
     )
@@ -642,6 +660,44 @@ def _finalize_remote(payload: Mapping[str, Any]) -> dict[str, Any] | None:
             "finalize sidecar remote paths must be an object",
         )
     return {"host": host, "paths": dict(paths)}
+
+
+def _finalize_remote_from_state(
+    state: SudoExecutionState,
+    payload: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    sidecar = _finalize_remote(payload)
+    if state.target_kind == "remote" and state.target_host and state.remote_handoff:
+        recorded = {"host": state.target_host, "paths": dict(state.remote_handoff)}
+        if sidecar is not None:
+            if sidecar["host"] != recorded["host"]:
+                raise GateError(
+                    "invalid_sudo_finalize",
+                    "remote.host",
+                    "finalize sidecar remote host does not match the execution record",
+                )
+        return recorded
+    return sidecar
+
+
+def _retire_after_settlement(
+    bundle_root: Path,
+    *,
+    state: SudoExecutionState,
+    remote: Mapping[str, Any] | None,
+) -> None:
+    cleaned = True
+    if remote is not None:
+        cleaned = cleanup_remote_sudo(str(remote["host"]), remote["paths"])
+    with execution_lock(bundle_root):
+        current = load_execution_state(bundle_root) or state
+        if not cleaned:
+            write_execution_state(
+                bundle_root, replace(current, startup_state="settled")
+            )
+            return
+        cleanup_handoff(Path(current.handoff_dir))
+        clear_execution_state(bundle_root)
 
 
 def _wait_for_executor_ledger(

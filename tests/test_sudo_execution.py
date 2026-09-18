@@ -71,6 +71,85 @@ def test_create_handoff_dir_is_user_owned_0700(
     assert not manifest.is_symlink()
 
 
+def test_execution_state_round_trips_remote_handoff(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    remote_handoff = {
+        "directory": "/tmp/sase-sudo/req-1",
+        "handshake": "/tmp/sase-sudo/req-1/handshake.json",
+        "ledger": "/tmp/sase-sudo/req-1/ledger.json",
+        "log": "/tmp/sase-sudo/req-1/output.log",
+        "manifest": "/tmp/sase-sudo/req-1/manifest.json",
+        "stop": "/tmp/sase-sudo/req-1/stop",
+    }
+    state = SudoExecutionState(
+        gate_id="sudo-exec-1",
+        selected_command_ids=("refresh",),
+        manifest_sha256="a" * 64,
+        handoff_dir=str(tmp_path / "handoff"),
+        target_kind="remote",
+        target_host="apollo",
+        startup_state="reserved",
+        remote_handoff=remote_handoff,
+    )
+    write_execution_state(bundle, state)
+
+    loaded = load_execution_state(bundle)
+    raw = (bundle / "execution-state.json").read_text(encoding="utf-8")
+
+    assert loaded == state
+    assert '"remote_handoff"' in raw
+
+
+def test_execution_state_reads_legacy_records_without_remote_handoff(
+    tmp_path: Path,
+) -> None:
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    (bundle / "execution-state.json").write_text(
+        '{"schema_version":1,"gate_id":"sudo-exec-1",'
+        '"selected_command_ids":["refresh"],'
+        '"manifest_sha256":"' + "a" * 64 + '",'
+        '"handoff_dir":"/tmp/sase-sudo/req-1"}\n',
+        encoding="utf-8",
+    )
+
+    loaded = load_execution_state(bundle)
+
+    assert loaded is not None
+    assert loaded.remote_handoff is None
+    assert loaded.target_kind == "unknown"
+    assert loaded.startup_state == "unknown"
+
+
+def test_execution_state_rejects_malformed_remote_handoff(tmp_path: Path) -> None:
+    bundle = tmp_path / "bundle"
+    bundle.mkdir()
+    (bundle / "execution-state.json").write_text(
+        '{"schema_version":1,"gate_id":"sudo-exec-1",'
+        '"selected_command_ids":["refresh"],'
+        '"manifest_sha256":"' + "a" * 64 + '",'
+        '"handoff_dir":"/tmp/sase-sudo/req-1",'
+        '"target_kind":"remote","target_host":"apollo",'
+        '"remote_handoff":{"directory":"/tmp/sase-sudo/req-1",'
+        '"handshake":"handshake.json","ledger":"/tmp/sase-sudo/req-1/ledger.json",'
+        '"log":"/tmp/sase-sudo/req-1/output.log",'
+        '"manifest":"/tmp/sase-sudo/req-1/manifest.json",'
+        '"stop":"/tmp/sase-sudo/req-1/stop"}}\n',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(GateError) as excinfo:
+        load_execution_state(bundle)
+
+    assert excinfo.value.code == "invalid_sudo_execution_state"
+    assert "absolute" in str(excinfo.value) or "safe" in str(excinfo.value)
+
+
 def test_execution_state_round_trip(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

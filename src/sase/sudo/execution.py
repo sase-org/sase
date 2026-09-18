@@ -10,7 +10,7 @@ import sys
 import tempfile
 from collections.abc import Mapping
 from contextlib import AbstractContextManager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, BinaryIO, TextIO
 
@@ -59,10 +59,11 @@ class SudoExecutionState:
     startup_state: str = "legacy"
     operation_payload_digest: str | None = None
     authorization_id: str | None = None
+    remote_handoff: dict[str, str] | None = None
     schema_version: int = EXECUTION_STATE_SCHEMA_VERSION
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "authorization_id": self.authorization_id,
             "finalize_proc_id": self.finalize_proc_id,
             "gate_id": self.gate_id,
@@ -76,6 +77,9 @@ class SudoExecutionState:
             "target_host": self.target_host,
             "target_kind": self.target_kind,
         }
+        if self.remote_handoff is not None:
+            payload["remote_handoff"] = dict(self.remote_handoff)
+        return payload
 
 
 @dataclass(frozen=True)
@@ -301,9 +305,36 @@ def recover_dead_attempt(bundle_root: Path) -> None:
     state = load_execution_state(bundle_root)
     if state is None or execution_liveness(state)["classification"] != "dead":
         return
+    if not _cleanup_remote_handoff(state):
+        return
     if state.handoff_dir:
         cleanup_handoff(Path(state.handoff_dir))
     clear_execution_state(bundle_root)
+
+
+def abandon_unstarted_attempt(bundle_root: Path) -> None:
+    """Drop a proven pre-spawn attempt, including any allocated remote paths."""
+    state = load_execution_state(bundle_root)
+    if state is None:
+        return
+    write_execution_state(bundle_root, replace(state, startup_state="terminal"))
+    _cleanup_remote_handoff(state)
+    if state.handoff_dir:
+        cleanup_handoff(Path(state.handoff_dir))
+    clear_execution_state(bundle_root)
+
+
+def _cleanup_remote_handoff(state: SudoExecutionState) -> bool:
+    """Return True when remote cleanup completed or is unnecessary."""
+    if (
+        state.target_kind != "remote"
+        or not state.target_host
+        or not state.remote_handoff
+    ):
+        return True
+    from sase.sudo.ssh import cleanup_remote_sudo
+
+    return cleanup_remote_sudo(state.target_host, state.remote_handoff)
 
 
 def write_stop_file(handoff_dir: Path) -> None:
@@ -545,6 +576,11 @@ def _state_from_payload(
             "authorization_id",
             "sudo execution record authorization_id must be a string",
         )
+    remote_handoff = _remote_handoff_from_payload(
+        payload.get("remote_handoff"),
+        target_kind=str(target_kind),
+        target_host=target_host if isinstance(target_host, str) else None,
+    )
     return SudoExecutionState(
         schema_version=EXECUTION_STATE_SCHEMA_VERSION,
         gate_id=gate_id,
@@ -558,7 +594,91 @@ def _state_from_payload(
         startup_state=startup_state,
         operation_payload_digest=operation_payload_digest,
         authorization_id=authorization_id,
+        remote_handoff=remote_handoff,
     )
+
+
+_REMOTE_HANDOFF_KEYS = (
+    "directory",
+    "handshake",
+    "ledger",
+    "log",
+    "manifest",
+    "stop",
+)
+
+
+def _remote_handoff_from_payload(
+    value: Any,
+    *,
+    target_kind: str,
+    target_host: str | None,
+) -> dict[str, str] | None:
+    """Return validated remote path metadata, or ``None`` for legacy records."""
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise GateError(
+            "invalid_sudo_execution_state",
+            "remote_handoff",
+            "sudo execution record remote_handoff must be an object",
+        )
+    if target_kind != "remote":
+        raise GateError(
+            "invalid_sudo_execution_state",
+            "remote_handoff",
+            "sudo remote handoff metadata requires target_kind remote",
+        )
+    if not target_host:
+        raise GateError(
+            "invalid_sudo_execution_state",
+            "target_host",
+            "sudo remote handoff metadata requires target_host",
+        )
+    paths: dict[str, str] = {}
+    for key in _REMOTE_HANDOFF_KEYS:
+        item = value.get(key)
+        if not isinstance(item, str) or not item or item.endswith("/"):
+            raise GateError(
+                "invalid_sudo_execution_state",
+                f"remote_handoff.{key}",
+                "sudo remote handoff path must be a non-empty absolute path",
+            )
+        if not item.startswith("/") or "\x00" in item:
+            raise GateError(
+                "invalid_sudo_execution_state",
+                f"remote_handoff.{key}",
+                "sudo remote handoff path must be a safe absolute path",
+            )
+        parts = Path(item).parts
+        if any(part in {".", ".."} for part in parts):
+            raise GateError(
+                "invalid_sudo_execution_state",
+                f"remote_handoff.{key}",
+                "sudo remote handoff path must not contain relative components",
+            )
+        paths[key] = item
+    directory = paths["directory"]
+    prefix = directory.rstrip("/") + "/"
+    seen = {directory}
+    for key in _REMOTE_HANDOFF_KEYS:
+        if key == "directory":
+            continue
+        item = paths[key]
+        if not item.startswith(prefix) or item == prefix:
+            raise GateError(
+                "invalid_sudo_execution_state",
+                f"remote_handoff.{key}",
+                "sudo remote handoff path must be inside the remote directory",
+            )
+        if item in seen:
+            raise GateError(
+                "invalid_sudo_execution_state",
+                f"remote_handoff.{key}",
+                "sudo remote handoff paths must be unique",
+            )
+        seen.add(item)
+    return paths
 
 
 def _attempt_liveness_facts(state: SudoExecutionState) -> dict[str, Any]:
@@ -706,6 +826,7 @@ __all__ = [
     "STOP_FILENAME",
     "SUDO_EXEC_STARTED_KIND",
     "SudoExecutionState",
+    "abandon_unstarted_attempt",
     "claim_execution_record",
     "cleanup_handoff",
     "clear_execution_state",
