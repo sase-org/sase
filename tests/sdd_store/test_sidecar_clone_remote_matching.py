@@ -9,6 +9,19 @@ from sase.sdd._store_types import SddMaterializationError
 from tests.sdd_store._helpers import clone, commit_all, git, init_bare_repo
 
 
+def _normalize_staged_clone_dest(
+    commands: list[list[str]], expected_dest: Path
+) -> list[list[str]]:
+    normalized: list[list[str]] = []
+    for args in commands:
+        stage = Path(args[-1])
+        assert stage != expected_dest
+        assert stage.name == "clone"
+        assert stage.parent.parent == expected_dest.parent / ".sase-sdd-clone-staging"
+        normalized.append([*args[:-1], str(expected_dest)])
+    return normalized
+
+
 def test_moved_sidecar_clone_with_matching_remote_is_accepted(
     tmp_path: Path,
 ) -> None:
@@ -118,7 +131,9 @@ def test_sidecar_clone_uses_authoritative_remote_not_durable_primary(
 
     ensure_sidecar_sdd_clone(clone_dir, str(remote), strict=True)
 
-    assert clone_commands == [["clone", str(remote), str(clone_dir)]]
+    assert _normalize_staged_clone_dest(clone_commands, clone_dir) == [
+        ["clone", str(remote), str(clone_dir)]
+    ]
     assert clone_terminal_prompts == ["0"]
     assert git(["rev-parse", "HEAD"], clone_dir).stdout.strip() == remote_head
     assert git(["rev-parse", "@{upstream}"], clone_dir).stdout.strip() == remote_head

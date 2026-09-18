@@ -14,6 +14,7 @@ from sase.sdd._store_clone_ops import (
     clone_sdd_store_from_primary,
     fast_forward_workspace_clone_from_primary,
     handle_failed_sdd_clone,
+    staged_sdd_clone_replacement,
 )
 from sase.sdd._store_git import (
     git_remote_url as _git_remote_url,
@@ -40,6 +41,7 @@ _clone_sdd_store_from_primary = clone_sdd_store_from_primary
 _fast_forward_workspace_clone_from_primary = fast_forward_workspace_clone_from_primary
 _handle_failed_sdd_clone = handle_failed_sdd_clone
 _pull_sdd_clone = pull_sdd_clone
+_staged_sdd_clone_replacement = staged_sdd_clone_replacement
 
 __all__ = [
     "ensure_sidecar_sdd_clone",
@@ -51,6 +53,7 @@ __all__ = [
     "_handle_failed_sdd_clone",
     "_pull_sdd_clone",
     "_replace_workspace_sdd_clone",
+    "_staged_sdd_clone_replacement",
 ]
 
 
@@ -211,7 +214,11 @@ def ensure_workspace_sdd_clone(
             )
             return
 
-        cloned = _clone_sdd_store_from_primary(primary_sdd, workspace_sdd)
+        cloned = _clone_sdd_store_from_primary(
+            primary_sdd,
+            workspace_sdd,
+            remote_url=store.remote_url,
+        )
         if cloned and store.remote_url:
             _set_sdd_origin(workspace_sdd, store.remote_url)
         if not cloned and store.remote_url:
@@ -277,46 +284,41 @@ def _replace_workspace_sdd_clone(
 ) -> None:
     """Atomically replace legacy workspace content after primary adoption."""
 
-    temp = workspace_sdd.with_name(f".sdd.clone-{uuid.uuid4().hex}")
     backup = workspace_sdd.with_name(f".sdd.recovery-{uuid.uuid4().hex}")
-    if deadline is not None:
-        cloned = _clone_sdd_store_from_primary(primary_sdd, temp, deadline=deadline)
-    else:
-        cloned = _clone_sdd_store_from_primary(primary_sdd, temp)
-    if cloned and remote_url:
-        _set_sdd_origin(temp, remote_url)
-    if not cloned and remote_url:
-        if deadline is not None:
-            cloned = _clone_sdd_store(remote_url, temp, deadline=deadline)
-        else:
-            cloned = _clone_sdd_store(remote_url, temp)
-    if not cloned:
-        shutil.rmtree(temp, ignore_errors=True)
+    try:
+        with _staged_sdd_clone_replacement(
+            workspace_sdd,
+            primary_sdd,
+            remote_url,
+            deadline=deadline,
+        ) as staged:
+            had_existing = os.path.lexists(workspace_sdd)
+            if had_existing:
+                workspace_sdd.replace(backup)
+            try:
+                staged.replace(workspace_sdd)
+            except Exception:
+                if (
+                    had_existing
+                    and os.path.lexists(backup)
+                    and not os.path.lexists(workspace_sdd)
+                ):
+                    backup.replace(workspace_sdd)
+                raise
+            if had_existing:
+                if backup.is_dir() and not backup.is_symlink():
+                    shutil.rmtree(backup, ignore_errors=True)
+                else:
+                    try:
+                        backup.unlink()
+                    except OSError:
+                        pass
+    except SddMaterializationError:
+        raise
+    except Exception as exc:
         raise SddMaterializationError(
             f"could not replace legacy workspace SDD path at {workspace_sdd}"
-        )
-
-    had_existing = os.path.lexists(workspace_sdd)
-    if had_existing:
-        workspace_sdd.replace(backup)
-    try:
-        temp.replace(workspace_sdd)
-    except Exception:
-        if (
-            had_existing
-            and os.path.lexists(backup)
-            and not os.path.lexists(workspace_sdd)
-        ):
-            backup.replace(workspace_sdd)
-        raise
-    if had_existing:
-        if backup.is_dir() and not backup.is_symlink():
-            shutil.rmtree(backup, ignore_errors=True)
-        else:
-            try:
-                backup.unlink()
-            except OSError:
-                pass
+        ) from exc
 
 
 def _sync_workspace_sdd_clone(

@@ -5,6 +5,7 @@ import shutil
 
 import pytest
 
+from sase.sdd._store_link import _replace_workspace_sdd_clone
 from sase.sdd.store import ensure_workspace_sdd_clone, write_sdd_store_record
 from tests.sdd_store._helpers import (
     build_separate_repo_clones,
@@ -242,6 +243,38 @@ def test_ensure_workspace_sdd_clone_replaces_stale_symlink(
     assert workspace_sdd.is_dir()
     assert not workspace_sdd.is_symlink()
     assert (workspace_sdd / "plans" / "202607" / "feature.md").exists()
+    assert not list(workspace_sdd.parent.glob(".sdd.clone-*"))
+    assert not [
+        path
+        for path in (workspace_sdd.parent / ".sase-sdd-clone-staging").iterdir()
+        if path.is_dir()
+    ]
+
+
+def test_replace_workspace_sdd_clone_uses_hidden_staging(
+    tmp_path: Path,
+) -> None:
+    sidecar, primary_sdd, workspace_sdd = build_separate_repo_clones(tmp_path)
+    shutil.rmtree(workspace_sdd)
+    workspace_sdd.write_text("legacy content\n", encoding="utf-8")
+
+    _replace_workspace_sdd_clone(workspace_sdd, primary_sdd, str(sidecar))
+
+    assert workspace_sdd.is_dir()
+    assert not workspace_sdd.is_symlink()
+    assert (workspace_sdd / "plans" / "202607" / "feature.md").read_text(
+        encoding="utf-8"
+    ) == "# Plan\n"
+    assert git(["remote", "get-url", "origin"], workspace_sdd).stdout.strip() == str(
+        sidecar
+    )
+    assert not list(workspace_sdd.parent.glob(".sdd.clone-*"))
+    assert not list(workspace_sdd.parent.glob(".sdd.recovery-*"))
+    assert not [
+        path
+        for path in (workspace_sdd.parent / ".sase-sdd-clone-staging").iterdir()
+        if path.is_dir()
+    ]
 
 
 def test_ensure_workspace_sdd_clone_remote_failure_uses_primary_fallback(

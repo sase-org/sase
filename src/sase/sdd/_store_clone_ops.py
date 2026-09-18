@@ -14,10 +14,18 @@ import time
 from sase._git_remote import is_http_git_remote, parse_hosted_git_remote
 from sase.core.retryability_facade import is_retryable_git_clone_failure
 from sase.core.retryability_wire import RETRY_OPERATION_GIT_CLONE
+from sase.sdd._store_clone_transaction import (
+    ClonePublicationError as _ClonePublicationError,
+    CloneTransactionTimeout as _CloneTransactionTimeout,
+    clone_materialization_transaction as _clone_materialization_transaction,
+    valid_published_sdd_clone as _valid_published_sdd_clone,
+    validate_staged_sdd_clone as _validate_staged_sdd_clone,
+)
 from sase.sdd._store_git import (
     git_remote_url as _git_remote_url,
     paths_same_file as _paths_same_file,
     same_git_remote as _same_git_remote,
+    set_sdd_origin as _set_sdd_origin,
 )
 from sase.sdd._store_types import (
     SddMaterializationError,
@@ -42,6 +50,7 @@ def clone_sdd_store(
     strict: bool = False,
     deadline: float | None = None,
 ) -> bool:
+    workspace_sdd = workspace_sdd.expanduser()
     if is_http_git_remote(remote_url):
         return handle_failed_sdd_clone(
             workspace_sdd,
@@ -49,6 +58,83 @@ def clone_sdd_store(
             "materialization requires an SSH or local Git remote and Git was "
             "not invoked",
             strict=strict,
+            cleanup_path=None,
+        )
+
+    try:
+        with _clone_materialization_transaction(
+            workspace_sdd,
+            deadline=deadline,
+        ) as transaction:
+            if os.path.lexists(workspace_sdd):
+                if _valid_published_sdd_clone(
+                    workspace_sdd,
+                    expected_remote=remote_url,
+                    deadline=deadline,
+                ):
+                    return True
+                return handle_failed_sdd_clone(
+                    workspace_sdd,
+                    f"refusing to overwrite existing SDD store at {workspace_sdd}; "
+                    "the concurrently materialized destination is not a healthy "
+                    "clone of the configured remote",
+                    strict=strict,
+                    cleanup_path=transaction.clone_path,
+                )
+
+            cloned = _clone_sdd_store_to_path(
+                remote_url,
+                transaction.clone_path,
+                reference_repo=reference_repo,
+                strict=strict,
+                deadline=deadline,
+                canonical_sdd=workspace_sdd,
+            )
+            if not cloned:
+                return False
+            try:
+                transaction.publish(
+                    expected_remote=remote_url,
+                    deadline=deadline,
+                )
+            except _ClonePublicationError as exc:
+                return handle_failed_sdd_clone(
+                    workspace_sdd,
+                    str(exc),
+                    strict=strict,
+                    cause=exc,
+                    cleanup_path=transaction.clone_path,
+                )
+            return True
+    except _CloneTransactionTimeout as exc:
+        return handle_failed_sdd_clone(
+            workspace_sdd,
+            str(exc),
+            strict=strict,
+            cause=exc,
+            transient=True,
+            cleanup_path=None,
+        )
+
+
+def _clone_sdd_store_to_path(
+    remote_url: str,
+    workspace_sdd: Path,
+    *,
+    reference_repo: Path | None = None,
+    strict: bool = False,
+    deadline: float | None = None,
+    canonical_sdd: Path | None = None,
+) -> bool:
+    telemetry_sdd = workspace_sdd if canonical_sdd is None else canonical_sdd
+    if is_http_git_remote(remote_url):
+        return handle_failed_sdd_clone(
+            telemetry_sdd,
+            f"refusing HTTP(S) SDD sidecar remote {remote_url!r}; "
+            "materialization requires an SSH or local Git remote and Git was "
+            "not invoked",
+            strict=strict,
+            cleanup_path=workspace_sdd,
         )
 
     from sase.sdd._commit import (
@@ -67,29 +153,31 @@ def clone_sdd_store(
     base_timeout = network_git_timeout()
     for attempt in range(max_attempts):
         attempt_telemetry = _clone_attempt_telemetry(
-            workspace_sdd,
+            telemetry_sdd,
             remote_url=remote_url,
             attempt=attempt,
             max_attempts=max_attempts,
             reference=reference,
+            clone_path=workspace_sdd,
         )
         timeout = _clone_attempt_timeout(base_timeout, attempt, deadline)
         if timeout <= 0.0:
             return handle_failed_sdd_clone(
-                workspace_sdd,
+                telemetry_sdd,
                 f"deadline expired before cloning SDD store {remote_url} into "
-                f"{workspace_sdd}",
+                f"{telemetry_sdd}",
                 strict=strict,
                 transient=True,
+                cleanup_path=workspace_sdd,
             )
         try:
             # Clone builds a fresh checkout with no existing index.lock to recover.
-            with _remote_clone_admission(remote_url, workspace_sdd, deadline=deadline):
+            with _remote_clone_admission(remote_url, telemetry_sdd, deadline=deadline):
                 timeout = _deadline_timeout(timeout, deadline)
                 if timeout <= 0.0:
                     raise _RemoteCloneAdmissionTimeout(
                         "deadline expired after acquiring SDD remote clone permit "
-                        f"for {remote_url} into {workspace_sdd}"
+                        f"for {remote_url} into {telemetry_sdd}"
                     )
                 result = run_sdd_git(
                     clone_args,
@@ -105,11 +193,12 @@ def clone_sdd_store(
                 )
         except _RemoteCloneAdmissionTimeout as exc:
             return handle_failed_sdd_clone(
-                workspace_sdd,
+                telemetry_sdd,
                 str(exc),
                 strict=strict,
                 transient=True,
                 cause=exc,
+                cleanup_path=workspace_sdd,
             )
         except SddGitCommandTimeout as exc:
             can_retry_without_reference = (
@@ -124,7 +213,7 @@ def clone_sdd_store(
                     "Timed out cloning SDD store %s into %s with local object "
                     "reference %s; retrying without the reference",
                     remote_url,
-                    workspace_sdd,
+                    telemetry_sdd,
                     reference,
                 )
                 reference = None
@@ -134,11 +223,12 @@ def clone_sdd_store(
                 continue
             if attempt >= len(_REMOTE_CLONE_RETRY_DELAYS):
                 return handle_failed_sdd_clone(
-                    workspace_sdd,
-                    f"timed out cloning SDD store {remote_url} into {workspace_sdd}",
+                    telemetry_sdd,
+                    f"timed out cloning SDD store {remote_url} into {telemetry_sdd}",
                     strict=strict,
                     cause=exc,
                     transient=True,
+                    cleanup_path=workspace_sdd,
                 )
 
             _remove_partial_sdd_clone(workspace_sdd)
@@ -147,7 +237,7 @@ def clone_sdd_store(
                 "Timed out cloning SDD store %s into %s after %.1fs; retrying "
                 "in %.2fs (attempt %d/%d)",
                 remote_url,
-                workspace_sdd,
+                telemetry_sdd,
                 timeout,
                 delay,
                 attempt + 2,
@@ -155,20 +245,22 @@ def clone_sdd_store(
             )
             if not _sleep_before_retry(delay, deadline):
                 return handle_failed_sdd_clone(
-                    workspace_sdd,
+                    telemetry_sdd,
                     f"deadline expired before retrying SDD clone {remote_url} into "
-                    f"{workspace_sdd}",
+                    f"{telemetry_sdd}",
                     strict=strict,
                     transient=True,
+                    cleanup_path=workspace_sdd,
                 )
             continue
         except Exception as exc:
             return handle_failed_sdd_clone(
-                workspace_sdd,
-                f"failed to clone SDD store {remote_url} into {workspace_sdd}: "
+                telemetry_sdd,
+                f"failed to clone SDD store {remote_url} into {telemetry_sdd}: "
                 f"{str(exc) or type(exc).__name__}",
                 strict=strict,
                 cause=exc,
+                cleanup_path=workspace_sdd,
             )
         if result.returncode == 0:
             return True
@@ -186,7 +278,7 @@ def clone_sdd_store(
                 "Failed cloning SDD store %s into %s with local object "
                 "reference %s; retrying without the reference: %s",
                 remote_url,
-                workspace_sdd,
+                telemetry_sdd,
                 reference,
                 detail or f"git clone exited {result.returncode}",
             )
@@ -200,11 +292,12 @@ def clone_sdd_store(
             _REMOTE_CLONE_RETRY_DELAYS
         ):
             return handle_failed_sdd_clone(
-                workspace_sdd,
-                f"failed to clone SDD store {remote_url} into {workspace_sdd}: "
+                telemetry_sdd,
+                f"failed to clone SDD store {remote_url} into {telemetry_sdd}: "
                 f"{detail or f'git clone exited {result.returncode}'}",
                 strict=strict,
                 transient=_is_transient_remote_clone_failure(detail),
+                cleanup_path=workspace_sdd,
             )
 
         _remove_partial_sdd_clone(workspace_sdd)
@@ -213,7 +306,7 @@ def clone_sdd_store(
             "Transient failure cloning SDD store %s into %s; retrying in "
             "%.2fs (attempt %d/%d): %s",
             remote_url,
-            workspace_sdd,
+            telemetry_sdd,
             delay,
             attempt + 2,
             max_attempts,
@@ -221,11 +314,12 @@ def clone_sdd_store(
         )
         if not _sleep_before_retry(delay, deadline):
             return handle_failed_sdd_clone(
-                workspace_sdd,
+                telemetry_sdd,
                 f"deadline expired before retrying SDD clone {remote_url} into "
-                f"{workspace_sdd}",
+                f"{telemetry_sdd}",
                 strict=strict,
                 transient=True,
+                cleanup_path=workspace_sdd,
             )
 
     raise AssertionError("remote clone retry loop did not return")
@@ -255,8 +349,9 @@ def _clone_attempt_telemetry(
     attempt: int,
     max_attempts: int,
     reference: Path | None,
+    clone_path: Path | None = None,
 ) -> dict[str, object]:
-    return {
+    telemetry: dict[str, object] = {
         "retry_attempt_index": attempt,
         "retry_attempt_ordinal": attempt + 1,
         "retry_attempts_total": max_attempts,
@@ -265,6 +360,9 @@ def _clone_attempt_telemetry(
         "sdd_store_name": workspace_sdd.name,
         "sdd_remote_url": remote_url,
     }
+    if clone_path is not None:
+        telemetry["sdd_clone_stage_path"] = str(clone_path)
+    return telemetry
 
 
 def _matching_clone_reference(
@@ -286,6 +384,48 @@ def _matching_clone_reference(
 
 def _is_transient_remote_clone_failure(detail: str) -> bool:
     return is_retryable_git_clone_failure(detail)
+
+
+@contextmanager
+def staged_sdd_clone_replacement(
+    workspace_sdd: Path,
+    primary_sdd: Path,
+    remote_url: str | None,
+    *,
+    deadline: float | None = None,
+) -> Iterator[Path]:
+    """Yield a validated staged clone for replacing an existing workspace path."""
+
+    expected_remote = remote_url or str(primary_sdd)
+    with _clone_materialization_transaction(
+        workspace_sdd,
+        deadline=deadline,
+    ) as transaction:
+        cloned = clone_sdd_store_from_primary(
+            primary_sdd,
+            transaction.clone_path,
+            deadline=deadline,
+            remote_url=remote_url,
+            publish=False,
+        )
+        if not cloned and remote_url:
+            cloned = _clone_sdd_store_to_path(
+                remote_url,
+                transaction.clone_path,
+                strict=False,
+                deadline=deadline,
+                canonical_sdd=workspace_sdd,
+            )
+        if not cloned:
+            raise SddMaterializationError(
+                f"could not create replacement SDD sidecar clone for {workspace_sdd}"
+            )
+        _validate_staged_sdd_clone(
+            transaction.clone_path,
+            expected_remote=expected_remote,
+            deadline=deadline,
+        )
+        yield transaction.clone_path
 
 
 class _RemoteCloneAdmissionTimeout(RuntimeError):
@@ -422,10 +562,12 @@ def handle_failed_sdd_clone(
     strict: bool,
     cause: Exception | None = None,
     transient: bool = False,
+    cleanup_path: Path | None = None,
 ) -> bool:
     """Remove partial clone output and optionally fail the setup transaction."""
 
-    _remove_partial_sdd_clone(workspace_sdd)
+    if cleanup_path is not None:
+        _remove_partial_sdd_clone(cleanup_path)
     if strict:
         error_cls = (
             SddTransientMaterializationError if transient else SddMaterializationError
@@ -439,12 +581,65 @@ def handle_failed_sdd_clone(
 
 
 def clone_sdd_store_from_primary(
-    primary_sdd: Path, workspace_sdd: Path, *, deadline: float | None = None
+    primary_sdd: Path,
+    workspace_sdd: Path,
+    *,
+    deadline: float | None = None,
+    remote_url: str | None = None,
+    publish: bool = True,
 ) -> bool:
     if not (primary_sdd / ".git").is_dir():
         return False
     if _paths_same_file(primary_sdd, workspace_sdd):
         return workspace_sdd.is_dir()
+
+    workspace_sdd = workspace_sdd.expanduser()
+    expected_remote = remote_url or str(primary_sdd)
+    if publish:
+        try:
+            with _clone_materialization_transaction(
+                workspace_sdd,
+                deadline=deadline,
+            ) as transaction:
+                if os.path.lexists(workspace_sdd):
+                    return _valid_published_sdd_clone(
+                        workspace_sdd,
+                        expected_remote=expected_remote,
+                        deadline=deadline,
+                    )
+                cloned = clone_sdd_store_from_primary(
+                    primary_sdd,
+                    transaction.clone_path,
+                    deadline=deadline,
+                    remote_url=remote_url,
+                    publish=False,
+                )
+                if not cloned:
+                    return False
+                try:
+                    transaction.publish(
+                        expected_remote=expected_remote,
+                        deadline=deadline,
+                    )
+                except _ClonePublicationError:
+                    _logger.warning(
+                        "Failed to publish workspace SDD store %s cloned from "
+                        "primary %s",
+                        workspace_sdd,
+                        primary_sdd,
+                        exc_info=True,
+                    )
+                    return False
+                return True
+        except _CloneTransactionTimeout:
+            _logger.warning(
+                "Timed out waiting to materialize workspace SDD store %s from "
+                "primary %s",
+                workspace_sdd,
+                primary_sdd,
+                exc_info=True,
+            )
+            return False
 
     from sase.sdd._commit import (
         SddGitCommandTimeout,
@@ -466,6 +661,8 @@ def clone_sdd_store_from_primary(
             capture_output=True,
             text=True,
         )
+        if result.returncode == 0 and remote_url:
+            _set_sdd_origin(workspace_sdd, remote_url)
     except SddGitCommandTimeout:
         _logger.warning(
             "Timed out cloning workspace SDD store %s from primary %s",
@@ -482,6 +679,21 @@ def clone_sdd_store_from_primary(
         )
         return False
     if result.returncode == 0:
+        try:
+            _validate_staged_sdd_clone(
+                workspace_sdd,
+                expected_remote=expected_remote,
+                deadline=deadline,
+            )
+        except _ClonePublicationError:
+            _remove_partial_sdd_clone(workspace_sdd)
+            _logger.warning(
+                "Cloned workspace SDD store %s from primary %s failed validation",
+                workspace_sdd,
+                primary_sdd,
+                exc_info=True,
+            )
+            return False
         return True
     detail = (result.stderr or result.stdout or "").strip()
     _logger.warning(

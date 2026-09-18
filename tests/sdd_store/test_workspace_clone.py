@@ -18,6 +18,7 @@ from tests.sdd_store._helpers import (
     clone,
     commit_all,
     git,
+    init_git_identity,
     init_bare_repo,
 )
 
@@ -60,6 +61,19 @@ def _record_clone_commands(monkeypatch: pytest.MonkeyPatch) -> list[list[str]]:
 
     monkeypatch.setattr("sase.sdd._commit.run_sdd_git", recording_run_sdd_git)
     return clone_commands
+
+
+def _normalize_staged_clone_dest(
+    commands: list[list[str]], expected_dest: Path
+) -> list[list[str]]:
+    normalized: list[list[str]] = []
+    for args in commands:
+        stage = Path(args[-1])
+        assert stage != expected_dest
+        assert stage.name == "clone"
+        assert stage.parent.parent == expected_dest.parent / ".sase-sdd-clone-staging"
+        normalized.append([*args[:-1], str(expected_dest)])
+    return normalized
 
 
 def test_ensure_workspace_sdd_clone_managed_separate_repo(
@@ -111,6 +125,11 @@ def test_ensure_workspace_sdd_clone_syncs_plans_sidecar_only(
     plan.write_text("# Plan\n", encoding="utf-8")
     commit_all(seed, "Add plan")
     git(["push", "-u", "origin", "main"], seed)
+    research_seed = tmp_path / "research-seed"
+    clone(research_remote, research_seed)
+    (research_seed / "README.md").write_text("# Research\n", encoding="utf-8")
+    commit_all(research_seed, "Initialize research")
+    git(["push", "-u", "origin", "main"], research_seed)
     primary = tmp_path / "repo"
     workspace = tmp_path / "repo_2"
     primary.mkdir()
@@ -181,7 +200,7 @@ def test_sidecar_kind_clone_uses_primary_clone_as_reference(
 
     ensure_workspace_sdd_clone(workspace, 2, strict=True)
 
-    assert clone_commands == [
+    assert _normalize_staged_clone_dest(clone_commands, workspace_plans) == [
         [
             "clone",
             "--reference-if-able",
@@ -219,7 +238,9 @@ def test_sidecar_kind_clone_falls_back_without_matching_primary_reference(
 
     ensure_workspace_sdd_clone(workspace, 2, strict=True)
 
-    assert clone_commands == [["clone", str(plans_remote), str(workspace_plans)]]
+    assert _normalize_staged_clone_dest(clone_commands, workspace_plans) == [
+        ["clone", str(plans_remote), str(workspace_plans)]
+    ]
     assert (workspace_plans / ".git").is_dir()
 
 
@@ -239,7 +260,9 @@ def test_sidecar_kind_clone_refuses_target_as_reference(
 
     assert ensure_sdd_kind_clone(primary, 1, "plans", strict=True) == primary_plans
 
-    assert clone_commands == [["clone", str(plans_remote), str(primary_plans)]]
+    assert _normalize_staged_clone_dest(clone_commands, primary_plans) == [
+        ["clone", str(plans_remote), str(primary_plans)]
+    ]
     assert (primary_plans / ".git").is_dir()
 
 
@@ -285,8 +308,13 @@ def test_fresh_workspace_normalizes_legacy_https_record_before_clone(
             clone_terminal_prompts.append(kwargs["env"].get("GIT_TERMINAL_PROMPT"))
             target = Path(args[2])
             target.mkdir(parents=True)
-            git(["init", "-q"], target)
+            git(["init", "-q", "-b", "main"], target)
+            init_git_identity(target)
+            (target / "README.md").write_text("# Plans\n", encoding="utf-8")
+            commit_all(target, "Initialize plans")
             git(["remote", "add", "origin", args[1]], target)
+            git(["update-ref", "refs/remotes/origin/main", "HEAD"], target)
+            git(["branch", "--set-upstream-to=origin/main", "main"], target)
             return subprocess.CompletedProcess(
                 args=args, returncode=0, stdout="", stderr=""
             )
@@ -297,7 +325,9 @@ def test_fresh_workspace_normalizes_legacy_https_record_before_clone(
     ensure_workspace_sdd_clone(workspace, 2, strict=True)
 
     plans = workspace / "sase" / "repos" / "plans"
-    assert clone_commands == [["clone", canonical_plans_remote, str(plans)]]
+    assert _normalize_staged_clone_dest(clone_commands, plans) == [
+        ["clone", canonical_plans_remote, str(plans)]
+    ]
     assert clone_terminal_prompts == ["0"]
     assert git(["remote", "get-url", "origin"], plans).stdout.strip() == (
         canonical_plans_remote

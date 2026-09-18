@@ -200,6 +200,13 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "artifact directory."
         ),
     ),
+    "src/sase/sdd/_store_clone_transaction.py:_remove_clone_stage_path": DirOpReview(
+        exemption=(
+            "Removes only abandoned or completed SDD clone staging entries under "
+            "the hidden sidecar clone staging container, not an agent artifact "
+            "directory."
+        ),
+    ),
     "src/sase/sdd/_store_link.py:_replace_workspace_sdd_clone": DirOpReview(
         exemption=(
             "Removes only the recovery copy left after atomically replacing a "
