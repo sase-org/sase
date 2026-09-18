@@ -77,6 +77,27 @@ def _timeout_kwargs(timeout: _TimeoutValue) -> dict[str, float]:
     return {"timeout": max(0.001, value)}
 
 
+def _run_tmux_command(
+    cmd: list[str],
+    *,
+    runner: _RunCommand,
+    timeout: _TimeoutValue,
+    action: str,
+) -> subprocess.CompletedProcess[str]:
+    try:
+        return runner(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=False,
+            **_timeout_kwargs(timeout),
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise _TmuxLaunchError(f"timed out while trying to {action}") from exc
+    except OSError as exc:
+        raise _TmuxLaunchError(f"failed to {action}: {exc}") from exc
+
+
 def launch_ace_in_tmux(args: argparse.Namespace) -> None:
     """Launch sase's TUI inside a new tmux window named ``sase_tmux_<N>``.
 
@@ -182,12 +203,11 @@ def _resolve_or_create_session(
 ) -> str:
     run = _default_runner(runner)
     if os.environ.get("TMUX"):
-        result = run(
+        result = _run_tmux_command(
             ["tmux", "display-message", "-p", "#{session_name}"],
-            capture_output=True,
-            text=True,
-            check=False,
-            **_timeout_kwargs(timeout),
+            runner=run,
+            timeout=timeout,
+            action="read current tmux session name",
         )
         if result.returncode != 0:
             raise _TmuxLaunchError(
@@ -208,15 +228,14 @@ def _resolve_or_create_agent_session(
 ) -> str:
     run = _default_runner(runner)
     # Outside of tmux: ensure the dedicated agents session exists.
-    has_session = run(
+    has_session = _run_tmux_command(
         ["tmux", "has-session", "-t", _AGENTS_SESSION],
-        capture_output=True,
-        text=True,
-        check=False,
-        **_timeout_kwargs(timeout),
+        runner=run,
+        timeout=timeout,
+        action=f"check for tmux session '{_AGENTS_SESSION}'",
     )
     if has_session.returncode != 0:
-        created = run(
+        created = _run_tmux_command(
             [
                 "tmux",
                 "new-session",
@@ -226,10 +245,9 @@ def _resolve_or_create_agent_session(
                 "-n",
                 "placeholder",
             ],
-            capture_output=True,
-            text=True,
-            check=False,
-            **_timeout_kwargs(timeout),
+            runner=run,
+            timeout=timeout,
+            action=f"create tmux session '{_AGENTS_SESSION}'",
         )
         if created.returncode != 0:
             raise _TmuxLaunchError(
@@ -330,38 +348,41 @@ def _claim_window(
         screenshot_dir = _reserve_tmux_window_claim(session, window_name)
         if screenshot_dir is None:
             continue
-        if _window_name_in_use(session, window_name, runner=run, timeout=timeout):
-            release_tmux_window_claim(screenshot_dir)
-            continue
 
-        temporary_name = f"{window_name}_{uuid.uuid4().hex[:12]}"
+        temporary_name: str | None = None
         window_id: str | None = None
-        result = run(
-            [
-                "tmux",
-                "new-window",
-                "-d",
-                *_tmux_env_args(
-                    session,
-                    window_name,
-                    screenshot_dir=screenshot_dir,
-                    extra_env=extra_env,
-                ),
-                "-n",
-                temporary_name,
-                "-t",
-                f"{session}:",
-                "-P",
-                "-F",
-                "#{session_name}\t#{window_id}\t#{window_name}\t#{pane_pid}",
-                relaunch_cmd,
-            ],
-            capture_output=True,
-            text=True,
-            check=False,
-            **_timeout_kwargs(timeout),
-        )
+        creation_attempted = False
         try:
+            if _window_name_in_use(session, window_name, runner=run, timeout=timeout):
+                release_tmux_window_claim(screenshot_dir)
+                continue
+
+            temporary_name = f"{window_name}_{uuid.uuid4().hex[:12]}"
+            creation_attempted = True
+            result = _run_tmux_command(
+                [
+                    "tmux",
+                    "new-window",
+                    "-d",
+                    *_tmux_env_args(
+                        session,
+                        window_name,
+                        screenshot_dir=screenshot_dir,
+                        extra_env=extra_env,
+                    ),
+                    "-n",
+                    temporary_name,
+                    "-t",
+                    f"{session}:",
+                    "-P",
+                    "-F",
+                    "#{session_name}\t#{window_id}\t#{window_name}\t#{pane_pid}",
+                    relaunch_cmd,
+                ],
+                runner=run,
+                timeout=timeout,
+                action=f"create tmux window {window_name!r} in session {session!r}",
+            )
             if result.returncode != 0:
                 raise _TmuxLaunchError(
                     "tmux new-window failed: "
@@ -373,11 +394,12 @@ def _claim_window(
                 raise _TmuxLaunchError(
                     "tmux did not report the new window's target and pane pid"
                 )
-            reported_session, window_id, reported_name, pid_str = fields
-            if not window_id.startswith("@"):
+            reported_session, reported_window_id, reported_name, pid_str = fields
+            if not reported_window_id.startswith("@"):
                 raise _TmuxLaunchError(
-                    f"tmux returned invalid window id: {window_id!r}"
+                    f"tmux returned invalid window id: {reported_window_id!r}"
                 )
+            window_id = reported_window_id
             if reported_name != temporary_name:
                 raise _TmuxLaunchError(
                     f"tmux reported unexpected temporary window name {reported_name!r}"
@@ -408,10 +430,10 @@ def _claim_window(
                 screenshot_dir=screenshot_dir,
             )
         except Exception:
-            _kill_window_best_effort(
-                window_id or f"{session}:{temporary_name}",
-                runner=run,
-            )
+            cleanup_target = window_id
+            if cleanup_target is None and creation_attempted and temporary_name:
+                cleanup_target = f"{session}:{temporary_name}"
+            _kill_window_best_effort(cleanup_target, runner=run)
             release_tmux_window_claim(screenshot_dir)
             raise
 
@@ -428,12 +450,11 @@ def _window_name_in_use(
     timeout: _TimeoutValue = None,
 ) -> bool:
     run = _default_runner(runner)
-    result = run(
+    result = _run_tmux_command(
         ["tmux", "list-windows", "-t", session, "-F", "#{window_name}"],
-        capture_output=True,
-        text=True,
-        check=False,
-        **_timeout_kwargs(timeout),
+        runner=run,
+        timeout=timeout,
+        action=f"list tmux windows in session {session!r}",
     )
     if result.returncode != 0:
         return False
@@ -449,12 +470,11 @@ def _set_session_default_size(
     timeout: _TimeoutValue = None,
 ) -> None:
     run = _default_runner(runner)
-    result = run(
+    result = _run_tmux_command(
         ["tmux", "set-option", "-t", session, "default-size", f"{cols}x{rows}"],
-        capture_output=True,
-        text=True,
-        check=False,
-        **_timeout_kwargs(timeout),
+        runner=run,
+        timeout=timeout,
+        action=f"set tmux default-size for session {session!r}",
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
@@ -473,7 +493,7 @@ def _set_window_metadata(
     timeout: _TimeoutValue = None,
 ) -> None:
     run = _default_runner(runner)
-    result = run(
+    result = _run_tmux_command(
         [
             "tmux",
             "set-option",
@@ -483,10 +503,9 @@ def _set_window_metadata(
             _SCREENSHOT_DIR_OPTION,
             screenshot_dir,
         ],
-        capture_output=True,
-        text=True,
-        check=False,
-        **_timeout_kwargs(timeout),
+        runner=run,
+        timeout=timeout,
+        action=f"record screenshot request dir for tmux window {target}",
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
@@ -504,12 +523,11 @@ def _rename_window(
     timeout: _TimeoutValue = None,
 ) -> None:
     run = _default_runner(runner)
-    result = run(
+    result = _run_tmux_command(
         ["tmux", "rename-window", "-t", target, window_name],
-        capture_output=True,
-        text=True,
-        check=False,
-        **_timeout_kwargs(timeout),
+        runner=run,
+        timeout=timeout,
+        action=f"rename tmux window {target} to {window_name}",
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
@@ -528,12 +546,11 @@ def _resize_and_verify_window(
     timeout: _TimeoutValue = None,
 ) -> None:
     run = _default_runner(runner)
-    resized = run(
+    resized = _run_tmux_command(
         ["tmux", "resize-window", "-t", target, "-x", str(cols), "-y", str(rows)],
-        capture_output=True,
-        text=True,
-        check=False,
-        **_timeout_kwargs(timeout),
+        runner=run,
+        timeout=timeout,
+        action=f"resize tmux window {target} to {cols}x{rows}",
     )
     if resized.returncode != 0:
         detail = resized.stderr.strip() or resized.stdout.strip()
@@ -542,7 +559,7 @@ def _resize_and_verify_window(
             + (f": {detail}" if detail else "")
         )
 
-    displayed = run(
+    displayed = _run_tmux_command(
         [
             "tmux",
             "display-message",
@@ -551,10 +568,9 @@ def _resize_and_verify_window(
             target,
             "#{window_width}x#{window_height}",
         ],
-        capture_output=True,
-        text=True,
-        check=False,
-        **_timeout_kwargs(timeout),
+        runner=run,
+        timeout=timeout,
+        action=f"read tmux window size for {target}",
     )
     if displayed.returncode != 0:
         detail = displayed.stderr.strip() or displayed.stdout.strip()

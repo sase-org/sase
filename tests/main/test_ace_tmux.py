@@ -293,6 +293,70 @@ def test_create_agent_tmux_window_uses_real_window_ids_on_isolated_socket(
             pass
 
 
+def test_claim_window_cleans_real_window_after_post_create_timeout(
+    tmp_path: Path,
+) -> None:
+    if shutil.which("tmux") is None:
+        pytest.skip("tmux is not installed")
+
+    class _PostCreateTimeoutRunner(_SocketTmuxRunner):
+        def run(
+            self,
+            cmd: list[str],
+            **kwargs: Any,
+        ) -> subprocess.CompletedProcess[str]:
+            if cmd[:2] == ["tmux", "new-window"]:
+                super().run(cmd, **kwargs)
+                raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout"))
+            return super().run(cmd, **kwargs)
+
+    socket_path = Path("/tmp") / f"sase-test-tmux-{uuid.uuid4().hex}.sock"
+    runner = _PostCreateTimeoutRunner(socket_path)
+    session = "sase-test-post-create"
+    try:
+        runner.run(
+            ["tmux", "new-session", "-d", "-s", session, "-n", "placeholder"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+
+        with pytest.raises(ace_tmux.TmuxLaunchError) as excinfo:
+            ace_tmux._claim_window(
+                session,
+                "sleep 60",
+                runner=runner.run,
+                timeout=5,
+            )
+
+        assert "timed out while trying to create tmux window 'sase_tmux_1'" in str(
+            excinfo.value
+        )
+        windows = runner.run(
+            ["tmux", "list-windows", "-t", session, "-F", "#{window_name}"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        assert "sase_tmux_1_" not in windows.stdout
+        claim = tmp_path / session / "sase_tmux_1" / ace_tmux._WINDOW_CLAIM_FILE
+        assert not claim.exists()
+    finally:
+        runner.run(
+            ["tmux", "kill-server"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        try:
+            socket_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
 def test_strips_tmux_flags_from_relaunch_argv(monkeypatch) -> None:
     monkeypatch.setenv("TMUX", "/tmp/tmux-1000/default,1,0")
     fake = _FakeTmux(in_tmux=True)

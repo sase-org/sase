@@ -288,12 +288,19 @@ def _wait_for_startup_frame(
     deadline: _Deadline,
 ) -> str:
     last = ""
+    last_nonblank = ""
     stable_frames = 0
     while True:
-        text = _capture_pane(target, runner=runner, deadline=deadline)
+        try:
+            text = _capture_pane(target, runner=runner, deadline=deadline)
+        except ScreenshotCaptureError as exc:
+            raise ScreenshotCaptureError(
+                str(exc) + _debug_suffix(last_nonblank or last)
+            ) from exc
         if text.strip():
             stable_frames = stable_frames + 1 if text == last else 1
             last = text
+            last_nonblank = text
             if stable_frames >= _STARTUP_STABLE_FRAME_COUNT:
                 return text
         else:
@@ -302,7 +309,7 @@ def _wait_for_startup_frame(
         if deadline.expired:
             raise ScreenshotCaptureError(
                 "timed out waiting for the TUI to paint a non-blank frame"
-                + _debug_suffix(last)
+                + _debug_suffix(last_nonblank or last)
             )
         deadline.sleep(0.05)
 
@@ -323,14 +330,22 @@ def _wait_for_capture_match(
         ) from exc
 
     capture = last_capture
+    last_nonblank = capture if capture.strip() else ""
     while True:
-        capture = _capture_pane(target, runner=runner, deadline=deadline)
+        try:
+            capture = _capture_pane(target, runner=runner, deadline=deadline)
+        except ScreenshotCaptureError as exc:
+            raise ScreenshotCaptureError(
+                str(exc) + _debug_suffix(last_nonblank or capture)
+            ) from exc
+        if capture.strip():
+            last_nonblank = capture
         if regex.search(capture):
             return capture
         if deadline.expired:
             raise ScreenshotCaptureError(
                 f"timed out waiting for tmux screen to match {pattern!r}"
-                + _debug_suffix(capture)
+                + _debug_suffix(last_nonblank or capture)
             )
         deadline.sleep(0.05)
 

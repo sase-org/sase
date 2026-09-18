@@ -128,7 +128,14 @@ class _FakeRunner:
             return _completed(argv)
         if subcommand == "kill-window":
             target = argv[argv.index("-t") + 1]
-            self.windows.pop(target, None)
+            try:
+                window = self._window_for_target(target)
+            except AssertionError:
+                return _completed(argv)
+            for window_id, candidate in list(self.windows.items()):
+                if candidate is window:
+                    self.windows.pop(window_id)
+                    break
             return _completed(argv)
         raise AssertionError(f"unexpected tmux subcommand: {argv!r}")
 
