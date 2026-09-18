@@ -368,6 +368,8 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-11y.7(service_dir)" \
         --epic-symbol "sase-11y.7(service_platform_supported)" \
         --epic-symbol "sase-11y.7(service_state_path)" \
+        --epic-symbol "sase-12y.3(set_bead_endpoint_projection)" \
+        --epic-symbol "sase-12y.3(set_link_projection)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

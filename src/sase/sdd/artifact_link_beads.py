@@ -113,34 +113,51 @@ def set_bead_endpoint_projection(
     now: str | None = None,
 ) -> dict[str, Any]:
     """Install the exact event-reduced projection for one bead endpoint."""
+    return set_bead_endpoint_projections(
+        beads_dir,
+        (
+            {
+                "issue_id": issue_id,
+                "target_ref": target_ref,
+                "relation": relation,
+                "direction": direction,
+                "operation_id": operation_id,
+                "row": row,
+                "now": now,
+            },
+        ),
+    )
+
+
+def set_bead_endpoint_projections(
+    beads_dir: Path,
+    requests: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Install exact event-reduced projections for an ordered endpoint batch."""
     from sase.core import bead_mutation_facade as rust_beads
 
-    if row is None:
-        _issue, outcome = rust_beads.set_link_projection(
-            beads_dir,
-            issue_id,
-            target_ref,
-            relation,
-            direction=direction,
-            present=False,
-            operation_id=operation_id,
-            now=now,
-        )
-        return outcome
-    _issue, outcome = rust_beads.set_link_projection(
+    return rust_beads.set_link_projections(
         beads_dir,
-        issue_id,
-        target_ref,
-        relation,
-        direction=direction,
-        present=True,
-        operation_id=operation_id,
-        description=str(row.get("description") or ""),
-        origin=str(row.get("origin") or ""),
-        uses=_row_uses(row),
-        now=now,
+        tuple(_wire_projection_request(request) for request in requests),
     )
-    return outcome
+
+
+def _wire_projection_request(request: Mapping[str, Any]) -> dict[str, Any]:
+    row = request.get("row")
+    payload: dict[str, Any] = {
+        "issue_id": str(request["issue_id"]),
+        "target_ref": str(request["target_ref"]),
+        "relation": str(request["relation"]),
+        "direction": str(request["direction"]),
+        "present": isinstance(row, Mapping),
+        "operation_id": str(request["operation_id"]),
+        "now": request.get("now"),
+    }
+    if isinstance(row, Mapping):
+        payload["description"] = str(row.get("description") or "")
+        payload["origin"] = str(row.get("origin") or "")
+        payload["uses"] = _row_uses(row)
+    return payload
 
 
 def rows_from_bead_issues(
@@ -270,4 +287,5 @@ __all__ = [
     "rows_from_bead_issues",
     "rows_touching_bead",
     "set_bead_endpoint_projection",
+    "set_bead_endpoint_projections",
 ]

@@ -70,6 +70,79 @@ def test_bead_link_remove_event_round_trip(
     assert "link_removed" in events
 
 
+def test_set_bead_endpoint_projections_converts_row_requests_to_core_wire(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.sdd.artifact_link_beads import set_bead_endpoint_projections
+
+    project = _project(tmp_path, monkeypatch)
+    issue = project.create("Target", IssueType.PLAN)
+    captured: list[object] = []
+
+    def _fake_batch(beads_dir: Path, requests: object) -> dict[str, object]:
+        captured.append((beads_dir, list(requests)))
+        return {"operation": "link_project", "changed": True, "issue_ids": [issue.id]}
+
+    monkeypatch.setattr(
+        "sase.core.bead_mutation_facade.set_link_projections", _fake_batch
+    )
+
+    outcome = set_bead_endpoint_projections(
+        project.beads_dir,
+        (
+            {
+                "issue_id": issue.id,
+                "target_ref": "plan:202609/a.md",
+                "relation": "related",
+                "direction": "out",
+                "operation_id": "a" * 32,
+                "row": {
+                    "description": "present edge",
+                    "origin": "manual",
+                    "uses": 2,
+                },
+                "now": "2026-01-01T00:01:00Z",
+            },
+            {
+                "issue_id": issue.id,
+                "target_ref": "plan:202609/a.md",
+                "relation": "related",
+                "direction": "out",
+                "operation_id": "b" * 32,
+                "row": None,
+                "now": "2026-01-01T00:02:00Z",
+            },
+        ),
+    )
+
+    assert outcome["changed"] is True
+    _beads_dir, requests = captured[0]
+    assert _beads_dir == project.beads_dir
+    assert requests == [
+        {
+            "issue_id": issue.id,
+            "target_ref": "plan:202609/a.md",
+            "relation": "related",
+            "direction": "out",
+            "present": True,
+            "operation_id": "a" * 32,
+            "now": "2026-01-01T00:01:00Z",
+            "description": "present edge",
+            "origin": "manual",
+            "uses": 2,
+        },
+        {
+            "issue_id": issue.id,
+            "target_ref": "plan:202609/a.md",
+            "relation": "related",
+            "direction": "out",
+            "present": False,
+            "operation_id": "b" * 32,
+            "now": "2026-01-01T00:02:00Z",
+        },
+    ]
+
+
 def test_reserved_relation_points_at_bead_dep(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

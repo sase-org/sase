@@ -43,6 +43,7 @@ def install_fake_artifact_link_event_drain(
             event_paths=(),
             publication_error=None,
             skip_diagnostics=(),
+            deferred=False,
         )
 
     monkeypatch.setattr(

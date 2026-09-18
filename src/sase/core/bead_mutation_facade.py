@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -427,23 +428,38 @@ def set_link_projection(
     uses: int = 1,
     now: str | None = None,
 ) -> tuple[Issue, dict[str, Any]]:
-    _guard_bead_store_write(beads_dir, "set_link_projection")
-    binding = require_rust_binding("bead_set_link_projection")
-    payload = _call_issue_operation(
-        binding,
-        str(beads_dir),
-        issue_id,
-        target_ref,
-        relation,
-        direction,
-        present,
-        operation_id,
-        description,
-        origin,
-        uses,
-        now,
+    payload = set_link_projections(
+        beads_dir,
+        (
+            {
+                "issue_id": issue_id,
+                "target_ref": target_ref,
+                "relation": relation,
+                "direction": direction,
+                "present": present,
+                "operation_id": operation_id,
+                "description": description,
+                "origin": origin,
+                "uses": uses,
+                "now": now,
+            },
+        ),
     )
     return _issue_payload(payload), payload
+
+
+def set_link_projections(
+    beads_dir: Path | str,
+    requests: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Install an ordered batch of bead-link projections under one core lock."""
+    _guard_bead_store_write(beads_dir, "set_link_projections")
+    binding = require_rust_binding("bead_set_link_projections")
+    return _call_issue_operation(
+        binding,
+        str(beads_dir),
+        [dict(request) for request in requests],
+    )
 
 
 def remove_link(
@@ -639,6 +655,7 @@ __all__ = [
     "remove_link",
     "remove_many",
     "set_link_projection",
+    "set_link_projections",
     "snooze",
     "unmark_ready_to_work",
     "update",

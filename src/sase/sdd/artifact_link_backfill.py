@@ -85,6 +85,7 @@ def run_artifact_link_backfill_batch(
     already_swept: frozenset[str],
     batch_size: int,
     deadline: float | None = None,
+    persist_deadline: float | None = None,
     artifacts_dir: str | Path | None = None,
 ) -> tuple[_ArtifactLinkBackfillReport, frozenset[str]]:
     """Derive and persist one bounded batch of not-yet-swept documents.
@@ -137,6 +138,7 @@ def run_artifact_link_backfill_batch(
     errors: list[str] = []
     scanned = 0
     derivation_inputs = artifact_link_derivation_inputs(store)
+    projection_deadline = persist_deadline if persist_deadline is not None else deadline
     for offset in range(0, len(batch), _PERSIST_CHUNK_SIZE):
         chunk = batch[offset : offset + _PERSIST_CHUNK_SIZE]
         candidates_by_ref = _derive_chunk_candidates(chunk, derivation_inputs)
@@ -150,6 +152,7 @@ def run_artifact_link_backfill_batch(
             chunk_candidates,
             created_by=_SWEEP_CREATED_BY,
             artifacts_dir=artifacts_dir,
+            deadline=projection_deadline,
         )
         scanned += len(chunk)
         candidates += len(chunk_candidates)
@@ -163,6 +166,8 @@ def run_artifact_link_backfill_batch(
                 errors=errors,
             )
         )
+        if outcome.deferred:
+            break
         if deadline is not None and time.monotonic() >= deadline:
             break
     report = _ArtifactLinkBackfillReport(

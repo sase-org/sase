@@ -6,6 +6,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 import fcntl
 from pathlib import Path
+import time
 from typing import Any, Literal
 
 from sase.core.paths import sase_projects_dir
@@ -75,6 +76,7 @@ class _ArtifactLinkEventPublishReport:
     aggregate_rows: tuple[dict[str, Any], ...] = ()
     publication_error: str | None = None
     skip_diagnostics: tuple[str, ...] = ()
+    deferred: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -110,6 +112,7 @@ def publish_artifact_link_events(
     artifacts_dir: str | Path | None = None,
     already_locked: bool = False,
     extra_roots: Sequence[Path] = (),
+    deadline: float | None = None,
 ) -> _ArtifactLinkEventPublishReport:
     """Publish immutable link events and update local non-durable projections."""
 
@@ -130,6 +133,7 @@ def publish_artifact_link_events(
             mutation_origin=mutation_origin,
             artifacts_dir=artifacts_dir,
             extra_roots=extra_roots,
+            deadline=deadline,
         )
     with locked_file(lock_path, fcntl.LOCK_EX):
         return _publish_event_objects_locked(
@@ -139,6 +143,7 @@ def publish_artifact_link_events(
             mutation_origin=mutation_origin,
             artifacts_dir=artifacts_dir,
             extra_roots=extra_roots,
+            deadline=deadline,
         )
 
 
@@ -150,7 +155,18 @@ def _publish_event_objects_locked(
     mutation_origin: str,
     artifacts_dir: str | Path | None,
     extra_roots: Sequence[Path] = (),
+    deadline: float | None = None,
 ) -> _ArtifactLinkEventPublishReport:
+    from sase.sdd._artifact_link_event_project import (
+        BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,
+    )
+
+    if deadline is not None and time.monotonic() >= deadline:
+        return _ArtifactLinkEventPublishReport(
+            attempted=len(objects),
+            skip_diagnostics=(BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,),
+            deferred=True,
+        )
     states = _operation_states(store, objects, extra_roots=extra_roots)
     grouped = _objects_by_root_for(states)
     event_paths: list[Path] = []
@@ -196,15 +212,29 @@ def _publish_event_objects_locked(
     bead_objects = [
         state.item
         for state in states.values()
-        if state.bead_owner and _documents_ready(state)
+        if _documents_ready(state)
+        and (
+            state.bead_owner
+            or (
+                store.beads_dir is not None
+                and _event_can_affect_bead_projections(state.item.event)
+            )
+        )
     ]
     bead_result = _apply_events_to_beads(
         store,
         bead_objects,
         mutation_origin=mutation_origin,
         artifacts_dir=artifacts_dir,
+        deadline=deadline,
     )
-    if bead_result.diagnostic:
+    if bead_result.deferred:
+        diagnostics.append(
+            f"artifact-link bead projection {bead_result.diagnostic}"
+            if bead_result.diagnostic
+            else f"artifact-link bead projection {BEAD_PROJECTION_DEFERRED_DIAGNOSTIC}"
+        )
+    elif bead_result.diagnostic:
         diagnostics.append(
             f"artifact-link bead event publication failed: {bead_result.diagnostic}"
         )
@@ -213,6 +243,7 @@ def _publish_event_objects_locked(
         states.values(),
         bead_receipt=bead_result.receipt,
         diagnostics=diagnostics,
+        beads_available=store.beads_dir is not None,
     )
     ready_objects = [
         state.item for state in states.values() if state.operation_id in published_ids
@@ -239,6 +270,7 @@ def _publish_event_objects_locked(
         aggregate_rows=aggregate_rows,
         publication_error="\n".join(publication_errors) or None,
         skip_diagnostics=tuple(dict.fromkeys(diagnostics)),
+        deferred=bead_result.deferred,
     )
 
 
@@ -374,6 +406,11 @@ def _required_roots(state: _OperationPublicationState) -> tuple[Path, ...]:
     return tuple(dict.fromkeys((*state.resolved_roots.values(), *state.forced_roots)))
 
 
+def _event_can_affect_bead_projections(event: Mapping[str, Any]) -> bool:
+    kind = event.get("kind")
+    return isinstance(kind, dict) and str(kind.get("type") or "") == "alias"
+
+
 def _documents_ready(state: _OperationPublicationState) -> bool:
     refs = state.requirements.get("document_refs")
     if isinstance(refs, list):
@@ -425,9 +462,13 @@ def _published_operation_ids(
     *,
     bead_receipt: bool,
     diagnostics: list[str],
+    beads_available: bool = False,
 ) -> tuple[str, ...]:
     published: list[str] = []
     for state in states:
+        needs_bead = state.bead_owner or (
+            beads_available and _event_can_affect_bead_projections(state.item.event)
+        )
         receipt = _publication_receipt(
             state.requirements,
             _publication_evidence(
@@ -435,8 +476,8 @@ def _published_operation_ids(
                 resolved_roots=state.resolved_roots,
                 forced_roots=state.forced_roots,
                 durable_roots=tuple(state.durable_roots),
-                bead_owner=state.bead_owner,
-                bead_receipt=state.bead_owner and bead_receipt,
+                bead_owner=needs_bead,
+                bead_receipt=needs_bead and bead_receipt,
                 local_receipt=state.local_receipt,
             ),
         )

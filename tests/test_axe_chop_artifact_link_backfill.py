@@ -188,7 +188,9 @@ def test_runs_every_job_and_aggregates_totals(
     monkeypatch.setattr(
         backfill_chop,
         "drain_artifact_link_outbox",
-        lambda store=None: SimpleNamespace(drained=4, dropped=1),
+        lambda store=None, **_kwargs: SimpleNamespace(
+            drained=4, dropped=1, deferred=False
+        ),
     )
     monkeypatch.setattr(
         backfill_chop,
@@ -261,7 +263,9 @@ def test_publication_retry_runs_before_store_resolution_and_reports_counts(
     monkeypatch.setattr(
         backfill_chop,
         "drain_artifact_link_outbox",
-        lambda store=None: SimpleNamespace(drained=0, dropped=0),
+        lambda store=None, **_kwargs: SimpleNamespace(
+            drained=0, dropped=0, deferred=False
+        ),
     )
     monkeypatch.setattr(
         backfill_chop,
@@ -335,7 +339,9 @@ def test_resolves_the_machine_store_with_the_project_key_and_primary_checkout(
     monkeypatch.setattr(
         backfill_chop,
         "drain_artifact_link_outbox",
-        lambda store=None: SimpleNamespace(drained=0, dropped=0),
+        lambda store=None, **_kwargs: SimpleNamespace(
+            drained=0, dropped=0, deferred=False
+        ),
     )
     monkeypatch.setattr(
         backfill_chop,
@@ -371,7 +377,9 @@ def test_a_broken_project_is_recorded_and_does_not_stop_the_sweep(
     monkeypatch.setattr(
         backfill_chop,
         "drain_artifact_link_outbox",
-        lambda store=None: SimpleNamespace(drained=0, dropped=0),
+        lambda store=None, **_kwargs: SimpleNamespace(
+            drained=0, dropped=0, deferred=False
+        ),
     )
     monkeypatch.setattr(
         backfill_chop,
@@ -404,8 +412,10 @@ def test_checkpoint_survives_across_ticks(
         already_swept: frozenset[str],
         batch_size: int,
         deadline: float | None = None,
+        persist_deadline: float | None = None,
     ) -> tuple[_ArtifactLinkBackfillReport, frozenset[str]]:
         assert deadline is not None
+        assert persist_deadline is not None
         seen_already_swept.append(already_swept)
         return _ArtifactLinkBackfillReport(), already_swept | {"plan:202608/a.md"}
 
@@ -413,7 +423,9 @@ def test_checkpoint_survives_across_ticks(
     monkeypatch.setattr(
         backfill_chop,
         "drain_artifact_link_outbox",
-        lambda store=None: SimpleNamespace(drained=0, dropped=0),
+        lambda store=None, **_kwargs: SimpleNamespace(
+            drained=0, dropped=0, deferred=False
+        ),
     )
     monkeypatch.setattr(
         backfill_chop,
@@ -447,8 +459,10 @@ def test_later_jobs_defer_after_sweep_budget(
         already_swept: frozenset[str],
         batch_size: int,
         deadline: float | None = None,
+        persist_deadline: float | None = None,
     ) -> tuple[_ArtifactLinkBackfillReport, frozenset[str]]:
         now[0] = 46.0  # the sweep alone consumes the whole sweep budget
+        assert persist_deadline is not None
         return (
             _ArtifactLinkBackfillReport(scanned=1, persisted=1, remaining=1),
             already_swept | {"plan:202608/a.md"},
@@ -458,7 +472,7 @@ def test_later_jobs_defer_after_sweep_budget(
     monkeypatch.setattr(
         backfill_chop,
         "drain_artifact_link_outbox",
-        lambda store=None: pytest.fail("outbox should defer"),
+        lambda store=None, **_kwargs: pytest.fail("outbox should defer"),
     )
     monkeypatch.setattr(
         backfill_chop,
@@ -497,7 +511,9 @@ def test_chop_stops_starting_projects_past_the_chop_budget(
     monkeypatch.setattr(
         backfill_chop,
         "drain_artifact_link_outbox",
-        lambda store=None: SimpleNamespace(drained=0, dropped=0),
+        lambda store=None, **_kwargs: SimpleNamespace(
+            drained=0, dropped=0, deferred=False
+        ),
     )
     now = [0.0]
     monkeypatch.setattr(backfill_chop.time, "monotonic", lambda: now[0])
@@ -544,7 +560,9 @@ def test_per_project_progress_is_logged(
     monkeypatch.setattr(
         backfill_chop,
         "drain_artifact_link_outbox",
-        lambda store=None: SimpleNamespace(drained=0, dropped=0),
+        lambda store=None, **_kwargs: SimpleNamespace(
+            drained=0, dropped=0, deferred=False
+        ),
     )
     monkeypatch.setattr(
         backfill_chop,
@@ -557,6 +575,11 @@ def test_per_project_progress_is_logged(
 
     log_output = stdout.getvalue()
     assert "proj: starting" in log_output
+    assert "proj: publication_retry" in log_output
+    assert "proj: store_resolution" in log_output
+    assert "proj: sweep" in log_output
+    assert "proj: drain" in log_output
+    assert "proj: reconcile" in log_output
     assert "proj: done" in log_output
 
 
@@ -581,7 +604,9 @@ def test_chop_passes_budget_through_and_warns_on_deferred_refs(
     monkeypatch.setattr(
         backfill_chop,
         "drain_artifact_link_outbox",
-        lambda store=None: SimpleNamespace(drained=0, dropped=0),
+        lambda store=None, **_kwargs: SimpleNamespace(
+            drained=0, dropped=0, deferred=False
+        ),
     )
     now = [0.0]
     monkeypatch.setattr(backfill_chop.time, "monotonic", lambda: now[0])
@@ -603,3 +628,87 @@ def test_chop_passes_budget_through_and_warns_on_deferred_refs(
     assert "proj" in warning
     assert "deferred 4" in warning
     assert "past job budget" in warning
+
+
+def test_chop_forwards_chop_deadline_to_sweep_persist_and_drain(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        backfill_chop,
+        "_enabled_project_records",
+        lambda: [_project(tmp_path, name="proj")],
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "resolve_machine_artifact_link_store",
+        lambda project_key, primary_checkout, **_kwargs: object(),
+    )
+    batch_kwargs: list[dict[str, object]] = []
+    drain_kwargs: list[dict[str, object]] = []
+
+    def _fake_batch(
+        store: object, **kwargs: object
+    ) -> tuple[_ArtifactLinkBackfillReport, frozenset[str]]:
+        batch_kwargs.append(dict(kwargs))
+        return _ArtifactLinkBackfillReport(), frozenset()
+
+    def _fake_drain(**kwargs: object) -> SimpleNamespace:
+        drain_kwargs.append(dict(kwargs))
+        return SimpleNamespace(drained=0, dropped=0, deferred=False)
+
+    monkeypatch.setattr(backfill_chop, "run_artifact_link_backfill_batch", _fake_batch)
+    monkeypatch.setattr(backfill_chop, "drain_artifact_link_outbox", _fake_drain)
+    monkeypatch.setattr(
+        backfill_chop,
+        "reconcile_and_repair_artifact_links",
+        lambda store, **_kwargs: _ArtifactLinkReconcileReport(),
+    )
+
+    backfill_chop._run(_runtime(tmp_path))
+
+    assert isinstance(batch_kwargs[0]["deadline"], float)
+    assert isinstance(batch_kwargs[0]["persist_deadline"], float)
+    assert batch_kwargs[0]["persist_deadline"] > batch_kwargs[0]["deadline"]
+    assert drain_kwargs[0]["deadline"] == batch_kwargs[0]["persist_deadline"]
+
+
+def test_deferred_drain_skips_reconcile_and_counts_the_project(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        backfill_chop,
+        "_enabled_project_records",
+        lambda: [_project(tmp_path, name="proj")],
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "resolve_machine_artifact_link_store",
+        lambda project_key, primary_checkout, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "run_artifact_link_backfill_batch",
+        lambda store, **kwargs: (_ArtifactLinkBackfillReport(), frozenset()),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "drain_artifact_link_outbox",
+        lambda store=None, **_kwargs: SimpleNamespace(
+            drained=0,
+            dropped=0,
+            deferred=True,
+            skip_diagnostics=("deferred past job budget",),
+        ),
+    )
+    monkeypatch.setattr(
+        backfill_chop,
+        "reconcile_and_repair_artifact_links",
+        lambda store, **_kwargs: pytest.fail("reconcile should defer"),
+    )
+
+    runtime, _stdout, stderr = _runtime_with_logs(tmp_path)
+    result = backfill_chop._run(runtime)
+
+    assert result.counters["projects"] == 1
+    assert result.counters["deferred_projects"] == 1
+    assert "deferred past job budget" in stderr.getvalue()

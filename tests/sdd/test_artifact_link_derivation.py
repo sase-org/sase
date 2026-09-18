@@ -74,6 +74,37 @@ def test_no_documents_is_a_noop(
     assert outcome == type(outcome)()
 
 
+def test_persist_respects_an_already_expired_deadline(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.sdd._artifact_link_event_project import (
+        BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,
+    )
+
+    store = _store(tmp_path, monkeypatch)
+    monkeypatch.setattr(artifact_link_derivation_module.time, "monotonic", lambda: 10.0)
+
+    outcome = persist_derived_link_candidates(
+        store,
+        (
+            DerivedLinkCandidate(
+                source_ref="plan:202608/a.md",
+                relation="implements",
+                target_ref="bead:sase-xx",
+                description="derived",
+                origin="derived",
+            ),
+        ),
+        created_by="sase",
+        deadline=1.0,
+    )
+
+    assert outcome.persisted == 0
+    assert outcome.deferred is True
+    assert BEAD_PROJECTION_DEFERRED_DIAGNOSTIC in outcome.errors
+    assert read_artifact_link_outbox_entries(store.project_key) == ()
+
+
 def test_derives_and_persists_research_lineage(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

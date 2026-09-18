@@ -14,6 +14,7 @@ from __future__ import annotations
 from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+import time
 
 from sase.artifact_links.derive import (
     DerivableDocument,
@@ -45,6 +46,7 @@ class _ArtifactLinkDerivationOutcome:
     candidates: int = 0
     persisted: int = 0
     errors: tuple[str, ...] = ()
+    deferred: bool = False
 
 
 @dataclass(frozen=True)
@@ -77,6 +79,7 @@ def derive_and_persist_artifact_links(
     artifacts_dir: str | Path | None = None,
     derivation_inputs: ArtifactLinkDerivationInputs | None = None,
     mutation_origin: str = "user",
+    deadline: float | None = None,
 ) -> _ArtifactLinkDerivationOutcome:
     """Derive candidate rows for *documents* and persist them via *store*.
 
@@ -101,6 +104,7 @@ def derive_and_persist_artifact_links(
         created_by=created_by,
         artifacts_dir=artifacts_dir,
         mutation_origin=mutation_origin,
+        deadline=deadline,
     )
 
 
@@ -111,17 +115,29 @@ def persist_derived_link_candidates(
     created_by: str,
     artifacts_dir: str | Path | None = None,
     mutation_origin: str = "machine",
+    deadline: float | None = None,
 ) -> _ArtifactLinkDerivationOutcome:
     """Persist already-derived candidate rows via *store*."""
 
     if not candidates:
         return _ArtifactLinkDerivationOutcome()
+    from sase.sdd._artifact_link_event_project import (
+        BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,
+    )
+
+    if deadline is not None and time.monotonic() >= deadline:
+        return _ArtifactLinkDerivationOutcome(
+            candidates=len(candidates),
+            errors=(BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,),
+            deferred=True,
+        )
     return _persist_derived_link_candidates_as_events(
         store,
         candidates,
         created_by=created_by,
         artifacts_dir=artifacts_dir,
         mutation_origin=mutation_origin,
+        deadline=deadline,
     )
 
 
@@ -132,7 +148,13 @@ def _persist_derived_link_candidates_as_events(
     created_by: str,
     artifacts_dir: str | Path | None,
     mutation_origin: str,
+    deadline: float | None,
 ) -> _ArtifactLinkDerivationOutcome:
+    from sase.sdd.artifact_link_outbox import (
+        append_artifact_link_outbox_event,
+        drain_artifact_link_outbox,
+    )
+
     producer = artifact_link_derived_producer_id()
     created_at = artifact_link_stable_fact_created_at()
     run_id = artifact_link_machine_run_id()
@@ -166,8 +188,6 @@ def _persist_derived_link_candidates_as_events(
                 project_key=store.project_key,
                 operation_id=operation_id,
             )
-            from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_event
-
             append_artifact_link_outbox_event(
                 project_key=store.project_key,
                 agent_name=producer,
@@ -181,18 +201,19 @@ def _persist_derived_link_candidates_as_events(
                 f"{candidate.target_ref}: {exc}"
             )
 
+    deferred = False
     if queued_ids:
         try:
-            from sase.sdd.artifact_link_outbox import drain_artifact_link_outbox
-
             report = drain_artifact_link_outbox(
                 store=store,
                 agent_name=producer,
                 push_after_commit="async",
+                deadline=deadline,
             )
             errors.extend(report.skip_diagnostics)
             if report.publication_error:
                 errors.append(report.publication_error)
+            deferred = report.deferred
         except Exception as exc:  # noqa: BLE001 - derivation remains best-effort.
             errors.append(str(exc))
 
@@ -204,6 +225,7 @@ def _persist_derived_link_candidates_as_events(
         candidates=len(candidates),
         persisted=persisted,
         errors=tuple(errors),
+        deferred=deferred,
     )
 
 

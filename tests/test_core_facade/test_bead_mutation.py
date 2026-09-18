@@ -239,6 +239,88 @@ def test_append_note_facade_returns_issue_and_repairs_projection(
     }
 
 
+def test_set_link_projections_batch_is_authorized_and_returns_aggregate(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "rust"
+    _init_store(root)
+    issue, _ = rust_beads.create(
+        root / "sdd/beads",
+        title="Linked",
+        issue_type=IssueType.PLAN,
+        now="2026-01-01T00:00:00Z",
+    )
+
+    outcome = rust_beads.set_link_projections(
+        root / "sdd/beads",
+        [
+            {
+                "issue_id": issue.id,
+                "target_ref": "plan:202609/a.md",
+                "relation": "related",
+                "direction": "out",
+                "present": True,
+                "operation_id": "a" * 32,
+                "description": "present edge",
+                "origin": "manual",
+                "uses": 1,
+                "now": "2026-01-01T00:01:00Z",
+            },
+            {
+                "issue_id": issue.id,
+                "target_ref": "plan:202609/a.md",
+                "relation": "related",
+                "direction": "out",
+                "present": False,
+                "operation_id": "b" * 32,
+                "now": "2026-01-01T00:02:00Z",
+            },
+        ],
+    )
+
+    assert outcome["operation"] == "link_project"
+    assert outcome["changed"] is True
+    assert outcome["issue_ids"] == [issue.id]
+    replay = rust_beads.set_link_projections(
+        root / "sdd/beads",
+        [
+            {
+                "issue_id": issue.id,
+                "target_ref": "plan:202609/a.md",
+                "relation": "related",
+                "direction": "out",
+                "present": False,
+                "operation_id": "b" * 32,
+                "now": "2026-01-01T00:02:00Z",
+            }
+        ],
+    )
+    assert replay["changed"] is False
+
+
+def test_set_link_projections_refuses_unsandboxed_pytest_store_before_binding(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    unsafe_beads_dir = tmp_path / "production" / "sdd/beads"
+    unsafe_beads_dir.mkdir(parents=True)
+    sandbox = tmp_path / "sandbox"
+    sandbox.mkdir()
+
+    def fail_binding(_name: str):
+        raise AssertionError("unsafe bead write reached Rust binding")
+
+    monkeypatch.setattr(rust_beads, "require_rust_binding", fail_binding)
+    monkeypatch.setenv("PYTEST_CURRENT_TEST", "mutation facade write guard")
+    monkeypatch.setenv("SASE_PYTEST_SANDBOX_DIR", str(sandbox))
+
+    with pytest.raises(RuntimeError) as exc_info:
+        rust_beads.set_link_projections(unsafe_beads_dir, [])
+
+    message = str(exc_info.value)
+    assert "set_link_projections" in message
+    assert str(unsafe_beads_dir.resolve()) in message
+
+
 def test_mutation_facade_refuses_unsandboxed_pytest_store_before_binding(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

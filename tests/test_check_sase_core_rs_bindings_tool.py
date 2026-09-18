@@ -124,6 +124,8 @@ def test_required_bindings_include_pre_facade_contracts(tool: ModuleType) -> Non
         "artifact_link_publication_ownership_wire_schema_version",
         "artifact_link_event_owner_requirements",
         "artifact_link_publication_receipt",
+        "bead_set_link_projection",
+        "bead_set_link_projections",
     }
     assert expected <= set(tool.REQUIRED_BINDINGS)
 

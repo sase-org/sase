@@ -264,6 +264,12 @@ def _log_project_done(
     runtime.log.info(f"[{_CHOP}] {project_key}: done in {total:.2f}s ({jobs})")
 
 
+def _log_project_stage(
+    runtime: BuiltinChopRuntime, project_key: str, stage: str
+) -> None:
+    runtime.log.info(f"[{_CHOP}] {project_key}: {stage}")
+
+
 def _publication_detail_line(detail: ArtifactLinkPublicationRetryDetail) -> str:
     parts = [
         f"{detail.project_key}/{detail.role}: publication {detail.status}",
@@ -295,6 +301,7 @@ def _run_project(
     runtime.log.info(f"[{_CHOP}] {project_key}: starting")
     elapsed: dict[str, float] = {}
 
+    _log_project_stage(runtime, project_key, "publication_retry")
     publication_started = time.monotonic()
     roots, root_diagnostics = machine_document_sidecar_roots(
         project_key, Path(workspace_dir), deadline=chop_deadline
@@ -319,6 +326,8 @@ def _run_project(
                 totals.warnings.append(_publication_detail_line(detail))
     elapsed["publication_retry"] = time.monotonic() - publication_started
 
+    _log_project_stage(runtime, project_key, "store_resolution")
+    resolve_started = time.monotonic()
     try:
         store = resolve_machine_artifact_link_store(
             project_key, Path(workspace_dir), deadline=chop_deadline
@@ -326,9 +335,13 @@ def _run_project(
     except Exception as exc:  # noqa: BLE001 - one broken project cannot stall the rest.
         totals.failed_projects += 1
         totals.warnings.append(f"{project_key}: could not resolve link store: {exc}")
+        elapsed["store_resolution"] = time.monotonic() - resolve_started
+        _log_project_done(runtime, project_key, elapsed, started)
         return
+    elapsed["store_resolution"] = time.monotonic() - resolve_started
 
     if time.monotonic() < deadline:
+        _log_project_stage(runtime, project_key, "sweep")
         sweep_started = time.monotonic()
         already_swept = frozenset(swept.get(project_key, ()))
         report, updated_swept = run_artifact_link_backfill_batch(
@@ -336,6 +349,7 @@ def _run_project(
             already_swept=already_swept,
             batch_size=_SWEEP_BATCH_SIZE,
             deadline=deadline,
+            persist_deadline=chop_deadline,
         )
         elapsed["sweep"] = time.monotonic() - sweep_started
         swept[project_key] = sorted(updated_swept)
@@ -363,28 +377,33 @@ def _run_project(
         _log_project_done(runtime, project_key, elapsed, started)
         return
 
+    _log_project_stage(runtime, project_key, "drain")
     drain_started = time.monotonic()
+    drain_deferred = False
     try:
-        outbox_report = drain_artifact_link_outbox(store=store)
+        outbox_report = drain_artifact_link_outbox(store=store, deadline=chop_deadline)
         totals.outbox_drained += outbox_report.drained
         totals.outbox_dropped += outbox_report.dropped
         totals.warnings.extend(
             f"{project_key}: {item}"
             for item in getattr(outbox_report, "skip_diagnostics", ())
         )
+        drain_deferred = bool(getattr(outbox_report, "deferred", False))
     except Exception as exc:  # noqa: BLE001 - continue with the other jobs.
         totals.warnings.append(f"{project_key}: outbox drain failed: {exc}")
     elapsed["drain"] = time.monotonic() - drain_started
 
-    if time.monotonic() >= chop_deadline:
+    if drain_deferred or time.monotonic() >= chop_deadline:
         totals.deferred_projects += 1
-        totals.warnings.append(
-            f"{project_key}: deferred reconcile/repair past job budget"
-        )
+        if not drain_deferred:
+            totals.warnings.append(
+                f"{project_key}: deferred reconcile/repair past job budget"
+            )
         totals.projects += 1
         _log_project_done(runtime, project_key, elapsed, started)
         return
 
+    _log_project_stage(runtime, project_key, "reconcile")
     reconcile_started = time.monotonic()
     try:
         reconcile_report = reconcile_and_repair_artifact_links(

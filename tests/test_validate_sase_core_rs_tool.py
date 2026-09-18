@@ -272,6 +272,16 @@ def test_validate_sase_core_rs_probes_artifact_link_event_contract() -> None:
     assert not validator._validate_artifact_link_event_contract(stale)
 
 
+def test_validate_sase_core_rs_requires_bead_link_projection_batch_binding() -> None:
+    validator = load_validate_sase_core_rs()
+
+    assert "bead_set_link_projections" in validator.REQUIRED_BINDINGS
+    assert validator._validate_bindings(module_with_required_bindings(validator))
+    assert not validator._validate_bindings(
+        module_with_required_bindings(validator, missing={"bead_set_link_projections"})
+    )
+
+
 def test_validate_sase_core_rs_requires_machine_setup_bindings() -> None:
     validator = load_validate_sase_core_rs()
     bindings = {

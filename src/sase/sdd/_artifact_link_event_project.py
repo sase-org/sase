@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import os
 from pathlib import Path
 import subprocess
+import time
 from typing import Any
 
 from sase.core.rust import require_rust_binding
@@ -23,6 +24,9 @@ from sase.sdd._artifact_link_event_store import reduce_artifact_link_event_input
 from sase.sdd._artifact_link_store_support import validate_artifact_link_row
 from sase.sdd.artifact_link_store import ArtifactLinkStore
 
+BEAD_PROJECTION_BATCH_SIZE = 64
+BEAD_PROJECTION_DEFERRED_DIAGNOSTIC = "deferred past job budget"
+
 
 @dataclass(frozen=True, slots=True)
 class _ArtifactLinkBeadProjectionResult:
@@ -31,6 +35,7 @@ class _ArtifactLinkBeadProjectionResult:
     changed: bool
     receipt: bool
     diagnostic: str | None = None
+    deferred: bool = False
 
 
 def active_operation_ids_for_row(
@@ -80,6 +85,7 @@ def apply_events_to_beads(
     mutation_origin: str,
     artifacts_dir: str | Path | None,
     force: bool = False,
+    deadline: float | None = None,
 ) -> _ArtifactLinkBeadProjectionResult:
     if not objects and not force:
         return _ArtifactLinkBeadProjectionResult(changed=False, receipt=True)
@@ -99,18 +105,22 @@ def apply_events_to_beads(
             receipt=False,
             diagnostic=authorization_error,
         )
-    from sase.sdd.artifact_link_beads import set_bead_endpoint_projection
-    from sase.sdd._artifact_link_commit import (
-        ArtifactLinkPersistError,
-        commit_bead_link_events,
-    )
+    from sase.sdd.artifact_link_beads import set_bead_endpoint_projections
+    from sase.sdd._artifact_link_commit import ArtifactLinkPersistError
 
     changed = False
     try:
-        union_events = (
-            *(event.event for event in _iter_event_objects(store)),
-            *(item.event for item in objects),
-        )
+        if _deadline_expired(deadline):
+            return _finalize_bead_projection(
+                store,
+                artifacts_dir=artifacts_dir,
+                mutation_origin=mutation_origin,
+                changed=False,
+                deferred=True,
+            )
+        store_events = tuple(event.event for event in _iter_event_objects(store))
+        incoming_events = tuple(item.event for item in objects)
+        union_events = (*store_events, *incoming_events)
         snapshot = reduce_artifact_link_event_inputs(
             durable_events=union_events,
             strict=True,
@@ -120,43 +130,48 @@ def apply_events_to_beads(
         )
         raw_operations = _raw_endpoint_operations(union_events)
         affected.update(raw_operations)
-        for key in sorted(affected):
-            issue_id, target_ref, relation, direction = key
-            row = desired.get(key)
-            operation_ids = (
-                active_operations.get(key) or raw_operations.get(key, ())
-                if row is not None
-                else raw_operations.get(key, ())
+        scoped = (
+            affected
+            if force
+            else _scope_endpoint_keys(
+                incoming_events,
+                snapshot=snapshot,
+                active_operations=active_operations,
+                raw_operations=raw_operations,
+                all_keys=affected,
             )
-            if not operation_ids:
-                continue
-            now = str(row.get("created_at") or "") or None if row is not None else None
-            for operation_id in operation_ids:
-                outcome = set_bead_endpoint_projection(
-                    store.beads_dir,
-                    issue_id=issue_id,
-                    target_ref=target_ref,
-                    relation=relation,
-                    direction=direction,
-                    operation_id=operation_id,
-                    row=row,
-                    now=now,
+        )
+        requests: list[dict[str, Any]] = []
+        for key in sorted(scoped):
+            requests.extend(
+                _projection_requests_for_key(
+                    key,
+                    desired=desired,
+                    active_operations=active_operations,
+                    raw_operations=raw_operations,
                 )
-                changed = changed or bool(outcome.get("changed"))
+            )
+        batch_size = max(1, BEAD_PROJECTION_BATCH_SIZE)
+        for offset in range(0, len(requests), batch_size):
+            if _deadline_expired(deadline):
+                return _finalize_bead_projection(
+                    store,
+                    artifacts_dir=artifacts_dir,
+                    mutation_origin=mutation_origin,
+                    changed=changed,
+                    deferred=True,
+                )
+            chunk = requests[offset : offset + batch_size]
+            outcome = set_bead_endpoint_projections(store.beads_dir, chunk)
+            changed = changed or bool(outcome.get("changed"))
 
-        if changed or _bead_store_has_uncommitted_changes(store.beads_dir):
-            commit_bead_link_events(
-                store,
-                artifacts_dir=artifacts_dir,
-                mutation_origin=mutation_origin,
-            )
-        if _bead_store_has_uncommitted_changes(store.beads_dir):
-            return _ArtifactLinkBeadProjectionResult(
-                changed=changed,
-                receipt=False,
-                diagnostic="artifact-link bead projection has uncommitted changes",
-            )
-        return _ArtifactLinkBeadProjectionResult(changed=changed, receipt=True)
+        return _finalize_bead_projection(
+            store,
+            artifacts_dir=artifacts_dir,
+            mutation_origin=mutation_origin,
+            changed=changed,
+            deferred=False,
+        )
     except ArtifactLinkPersistError as exc:
         return _ArtifactLinkBeadProjectionResult(
             changed=changed,
@@ -169,6 +184,157 @@ def apply_events_to_beads(
             receipt=False,
             diagnostic=str(exc),
         )
+
+
+def _finalize_bead_projection(
+    store: ArtifactLinkStore,
+    *,
+    artifacts_dir: str | Path | None,
+    mutation_origin: str,
+    changed: bool,
+    deferred: bool,
+) -> _ArtifactLinkBeadProjectionResult:
+    from sase.sdd._artifact_link_commit import commit_bead_link_events
+
+    assert store.beads_dir is not None
+    if changed or _bead_store_has_uncommitted_changes(store.beads_dir):
+        commit_bead_link_events(
+            store,
+            artifacts_dir=artifacts_dir,
+            mutation_origin=mutation_origin,
+        )
+    if _bead_store_has_uncommitted_changes(store.beads_dir):
+        return _ArtifactLinkBeadProjectionResult(
+            changed=changed,
+            receipt=False,
+            diagnostic="artifact-link bead projection has uncommitted changes",
+            deferred=deferred,
+        )
+    if deferred:
+        return _ArtifactLinkBeadProjectionResult(
+            changed=changed,
+            receipt=False,
+            diagnostic=BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,
+            deferred=True,
+        )
+    return _ArtifactLinkBeadProjectionResult(changed=changed, receipt=True)
+
+
+def _deadline_expired(deadline: float | None) -> bool:
+    return deadline is not None and time.monotonic() >= deadline
+
+
+def _projection_requests_for_key(
+    key: _EndpointKey,
+    *,
+    desired: Mapping[_EndpointKey, Mapping[str, Any]],
+    active_operations: Mapping[_EndpointKey, tuple[str, ...]],
+    raw_operations: Mapping[_EndpointKey, tuple[str, ...]],
+) -> tuple[dict[str, Any], ...]:
+    issue_id, target_ref, relation, direction = key
+    row = desired.get(key)
+    operation_ids = (
+        active_operations.get(key) or raw_operations.get(key, ())
+        if row is not None
+        else raw_operations.get(key, ())
+    )
+    if not operation_ids:
+        return ()
+    now = str(row.get("created_at") or "") or None if row is not None else None
+    return tuple(
+        {
+            "issue_id": issue_id,
+            "target_ref": target_ref,
+            "relation": relation,
+            "direction": direction,
+            "operation_id": operation_id,
+            "row": row,
+            "now": now,
+        }
+        for operation_id in operation_ids
+    )
+
+
+def _scope_endpoint_keys(
+    incoming_events: Sequence[Mapping[str, Any]],
+    *,
+    snapshot: object,
+    active_operations: Mapping[_EndpointKey, tuple[str, ...]],
+    raw_operations: Mapping[_EndpointKey, tuple[str, ...]],
+    all_keys: set[_EndpointKey],
+) -> set[_EndpointKey]:
+    incoming_raw = _raw_endpoint_operations(incoming_events)
+    scope = set(incoming_raw)
+    incoming_operation_ids = {
+        str(event.get("operation_id") or "")
+        for event in incoming_events
+        if str(event.get("operation_id") or "")
+    }
+    for key, operation_ids in (*active_operations.items(), *raw_operations.items()):
+        if incoming_operation_ids.intersection(operation_ids):
+            scope.add(key)
+    aliases = tuple(getattr(snapshot, "aliases", ()) or ())
+    alias_refs: set[str] = set()
+    for event in incoming_events:
+        alias = _event_alias_refs(event)
+        if alias is not None:
+            alias_refs.update(alias)
+        for row in _event_rows_for_beads(event):
+            scope.update(_endpoint_keys_for_row(row))
+            resolved = _row_with_aliases(row, aliases)
+            if resolved is not None:
+                scope.update(_endpoint_keys_for_row(resolved))
+    if alias_refs:
+        for key in all_keys:
+            if _endpoint_touches_refs(key, alias_refs):
+                scope.add(key)
+        for key in incoming_raw:
+            if _endpoint_touches_refs(key, alias_refs):
+                scope.add(key)
+    return scope
+
+
+def _event_alias_refs(event: Mapping[str, Any]) -> tuple[str, str] | None:
+    kind = event.get("kind")
+    if not isinstance(kind, dict) or str(kind.get("type") or "") != "alias":
+        return None
+    old_ref = str(kind.get("old_ref") or "")
+    new_ref = str(kind.get("new_ref") or "")
+    if not old_ref or not new_ref:
+        return None
+    return old_ref, new_ref
+
+
+def _row_with_aliases(
+    row: Mapping[str, Any],
+    aliases: Sequence[Mapping[str, str]],
+) -> dict[str, Any] | None:
+    if not aliases:
+        return None
+    mapping = {
+        str(alias.get("old_ref") or ""): str(alias.get("new_ref") or "")
+        for alias in aliases
+        if str(alias.get("old_ref") or "") and str(alias.get("new_ref") or "")
+    }
+    if not mapping:
+        return None
+    source = str(row.get("source_ref") or "")
+    target = str(row.get("target_ref") or "")
+    resolved_source = mapping.get(source, source)
+    resolved_target = mapping.get(target, target)
+    if resolved_source == source and resolved_target == target:
+        return None
+    resolved = dict(row)
+    resolved["source_ref"] = resolved_source
+    resolved["target_ref"] = resolved_target
+    return resolved
+
+
+def _endpoint_touches_refs(key: _EndpointKey, refs: set[str]) -> bool:
+    from sase.sdd.artifact_link_beads import bead_source_ref
+
+    issue_id, target_ref, _relation, _direction = key
+    return target_ref in refs or bead_source_ref(issue_id) in refs
 
 
 def _event_rows_for_beads(event: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
@@ -392,6 +558,8 @@ def _iter_event_objects(store: ArtifactLinkStore) -> Iterable[_ArtifactLinkEvent
 
 
 __all__ = [
+    "BEAD_PROJECTION_BATCH_SIZE",
+    "BEAD_PROJECTION_DEFERRED_DIAGNOSTIC",
     "active_operation_ids_for_row",
     "apply_events_to_aggregate",
     "apply_events_to_beads",

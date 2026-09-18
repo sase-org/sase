@@ -82,6 +82,8 @@ REQUIRED_BINDINGS = (
     "artifact_link_publication_ownership_wire_schema_version",
     "artifact_link_event_owner_requirements",
     "artifact_link_publication_receipt",
+    "bead_set_link_projection",
+    "bead_set_link_projections",
     "provider_availability_wire_schema_version",
     "provider_priority_wire_schema_version",
     "provider_routing_context_wire_schema_version",

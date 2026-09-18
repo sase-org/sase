@@ -50,6 +50,7 @@ class _ArtifactLinkOutboxDrainReport:
     event_paths: tuple[Path, ...] = ()
     publication_error: str | None = None
     skip_diagnostics: tuple[str, ...] = ()
+    deferred: bool = False
 
 
 def drain_artifact_link_outbox(
@@ -58,12 +59,17 @@ def drain_artifact_link_outbox(
     agent_name: str | None = None,
     drop_stale_terminal: bool = True,
     push_after_commit: bool | str | None = "async",
+    deadline: float | None = None,
 ) -> _ArtifactLinkOutboxDrainReport:
     """Replay publishable read-link rows into sidecar indexes.
 
     When *agent_name* is provided, only that agent's entries are considered for
     publication. Other entries remain queued.
     """
+
+    from sase.sdd._artifact_link_event_project import (
+        BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,
+    )
 
     link_store = store or resolve_artifact_link_store()
     stats = _inspect_artifact_link_outbox(link_store.project_key)
@@ -73,6 +79,15 @@ def drain_artifact_link_outbox(
             queued=0,
             retained_legacy=stats.legacy_queued,
             retained_invalid=stats.invalid_queued,
+        )
+    if deadline is not None and time.monotonic() >= deadline:
+        return _ArtifactLinkOutboxDrainReport(
+            queued=len(entries),
+            retained=len(entries),
+            retained_legacy=stats.legacy_queued,
+            retained_invalid=stats.invalid_queued,
+            skip_diagnostics=(BEAD_PROJECTION_DEFERRED_DIAGNOSTIC,),
+            deferred=True,
         )
 
     selected, retained = _partition_selected(entries, agent_name=agent_name)
@@ -100,6 +115,7 @@ def drain_artifact_link_outbox(
         (entry.event for entry in event_drainable if entry.event is not None),
         push_after_commit=push_after_commit,  # type: ignore[arg-type]
         mutation_origin="machine",
+        deadline=deadline,
     )
     published_event_ids = set(event_report.published_operation_ids)
     retained.extend(
@@ -124,6 +140,7 @@ def drain_artifact_link_outbox(
         event_paths=event_report.event_paths,
         publication_error=event_report.publication_error,
         skip_diagnostics=(*skip_diagnostics, *event_skip_diagnostics),
+        deferred=event_report.deferred,
     )
 
 
