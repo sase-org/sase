@@ -2,20 +2,26 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 from rich.cells import cell_len
 from rich.color import Color as RichColor
+from rich.color import ColorSystem
+from rich.style import Style
 from textual.app import App, ComposeResult
+from textual.color import Color
+from textual.theme import BUILTIN_THEMES
 from textual.widgets import Static, TextArea
 
 from sase.ace.tui.widgets._prompt_search_readout import (
+    _FALLBACK_COLORS,
+    _contrast_ratio,
     PromptSearchReadout,
+    format_search_count_segment,
     format_search_readout,
     _display_query,
     _readout_sigil,
-    _search_readout_colors,
+    _search_readout_palette,
+    _theme_var,
     stack_match_position,
 )
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
@@ -73,12 +79,59 @@ def _highlight_names(ta: PromptTextArea) -> list[str]:
     return [name for row in ta._highlights.values() for *_range, name in row]
 
 
-def _theme(
+def _variables(
     *,
+    surface: str = "#1E1E1E",
+    foreground: str = "#E0E0E0",
+    background: str = "#121212",
     accent: str = "#6B4FBB",
     warning: str = "#FFA62B",
-) -> SimpleNamespace:
-    return SimpleNamespace(accent=accent, warning=warning)
+) -> dict[str, str]:
+    return {
+        "surface": surface,
+        "foreground": foreground,
+        "background": background,
+        "accent": accent,
+        "warning": warning,
+    }
+
+
+def _synthetic_variables(value: str) -> dict[str, str]:
+    return _variables(
+        surface=value,
+        foreground=value,
+        background=value,
+        accent=value,
+        warning=value,
+    )
+
+
+def _theme_variables(name: str) -> dict[str, str]:
+    theme = BUILTIN_THEMES[name]
+    return {**theme.to_color_system().generate(), **theme.variables}
+
+
+def _rich_to_textual(color: RichColor) -> Color:
+    truecolor = color.get_truecolor()
+    return Color(truecolor.red, truecolor.green, truecolor.blue)
+
+
+def _style_colors(style: Style) -> tuple[RichColor, RichColor]:
+    assert style.color is not None
+    assert style.bgcolor is not None
+    return style.color, style.bgcolor
+
+
+def _xterm_256_index(color: RichColor) -> int | None:
+    return color.downgrade(ColorSystem.EIGHT_BIT).number
+
+
+_THEME_VARIABLE_CASES = [
+    pytest.param(name, _theme_variables(name), id=name) for name in BUILTIN_THEMES
+] + [
+    pytest.param("pure-black", _synthetic_variables("#000000"), id="pure-black"),
+    pytest.param("pure-white", _synthetic_variables("#FFFFFF"), id="pure-white"),
+]
 
 
 @pytest.mark.parametrize(
@@ -132,10 +185,16 @@ def test_format_search_readout_plain_text_and_count_only() -> None:
         pane_text="alpha beta alpha",
     )
 
-    assert format_search_readout(readout, theme=_theme()).plain == "/alpha  2/3"
     assert (
-        format_search_readout(readout, theme=_theme(), include_query=False).plain
-        == "2/3"
+        format_search_readout(readout, variables=_variables()).plain == " /alpha  2/3 "
+    )
+    assert (
+        format_search_readout(
+            readout,
+            variables=_variables(),
+            include_query=False,
+        ).plain
+        == " 2/3 "
     )
 
 
@@ -148,18 +207,83 @@ def test_search_readout_count_background_uses_theme_warning() -> None:
         total=3,
         pane_text="alpha beta alpha",
     )
+    variables = _variables(warning="#FFA62B")
 
-    count = format_search_readout(readout, theme=_theme(), include_query=False)
+    count = format_search_readout(readout, variables=variables, include_query=False)
 
-    assert count.style.bgcolor == RichColor.parse("#FFA62B")
+    assert count.spans
+    assert count.spans[0].style.bgcolor == RichColor.parse(variables["warning"])
 
 
 def test_query_and_count_backgrounds_differ_when_theme_reuses_colors() -> None:
-    query_style, _sigil_style, count_style = _search_readout_colors(
-        _theme(accent="#FFA62B", warning="#FFA62B")
-    )
+    palette = _search_readout_palette(_variables(accent="#FFA62B", warning="#FFA62B"))
 
-    assert query_style.bgcolor != count_style.bgcolor
+    assert palette.query.bgcolor != palette.ordinal.bgcolor
+
+
+def test_flexoki_count_ink_avoids_base16_black_regression() -> None:
+    palette = _search_readout_palette(_theme_variables("flexoki"))
+    count_fg, _count_bg = _style_colors(palette.ordinal)
+
+    assert count_fg != RichColor.parse("#000000")
+    assert count_fg == RichColor.parse("#100F0F")
+    assert _xterm_256_index(count_fg) != 16
+
+
+@pytest.mark.parametrize(("name", "variables"), _THEME_VARIABLE_CASES)
+def test_palette_colors_avoid_base16_repurposed_indices(
+    name: str,
+    variables: dict[str, str],
+) -> None:
+    palette = _search_readout_palette(variables)
+
+    for style in (palette.query, palette.sigil, palette.ordinal, palette.total):
+        for color in _style_colors(style):
+            assert _xterm_256_index(color) not in range(16, 22), name
+
+
+@pytest.mark.parametrize(("name", "variables"), _THEME_VARIABLE_CASES)
+def test_palette_contrast_budget(name: str, variables: dict[str, str]) -> None:
+    palette = _search_readout_palette(variables)
+    query_fg, query_bg = _style_colors(palette.query)
+    sigil_fg, sigil_bg = _style_colors(palette.sigil)
+    count_fg, count_bg = _style_colors(palette.ordinal)
+
+    assert (
+        _contrast_ratio(_rich_to_textual(query_fg), _rich_to_textual(query_bg)) >= 4.5
+    ), name
+    assert (
+        _contrast_ratio(_rich_to_textual(sigil_fg), _rich_to_textual(sigil_bg)) >= 3.0
+    ), name
+    assert (
+        _contrast_ratio(_rich_to_textual(count_fg), _rich_to_textual(count_bg)) >= 4.0
+    ), name
+
+
+def test_count_segment_styles_ordinal_bold_total_regular() -> None:
+    count = format_search_count_segment(12, 137, variables=_variables())
+
+    assert count.plain == " 12/137 "
+    ordinal_span, total_span = count.spans
+    assert count.plain[ordinal_span.start : ordinal_span.end] == " 12"
+    assert ordinal_span.style.bold is True
+    assert count.plain[total_span.start : total_span.end] == "/137 "
+    assert total_span.style.bold is None
+
+
+@pytest.mark.parametrize(
+    "variables",
+    [
+        {},
+        {"surface": "auto 87%"},
+        {"surface": "rgba(1,2,3,0.5)"},
+        {"surface": "ansi_default"},
+    ],
+)
+def test_theme_var_falls_back_for_missing_unparseable_translucent_and_ansi(
+    variables: dict[str, str],
+) -> None:
+    assert _theme_var(variables, "surface").hex == _FALLBACK_COLORS["surface"]
 
 
 async def test_typing_count_moves_to_bar_pill_and_repeats_update_it() -> None:

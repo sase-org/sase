@@ -408,7 +408,7 @@ class PromptInputBarCompletionMixin(_MixinBase):
             return None
         return format_search_readout(
             readout,
-            theme=self.app.current_theme,
+            variables=self.app.theme_variables,
             include_query=include_query,
         )
 

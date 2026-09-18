@@ -5667,11 +5667,14 @@ in the prompt stack but none in the active pane, the panel says
 has a local match.
 
 After a search is accepted, the count moves to a compact two-tone pill on the prompt
-bar's bottom border, just left of the `Ln, Col` readout. The query segment uses the same
-accent family as non-current match highlights, and the count segment uses the same
-warning color as the current-match highlight. The sigil records how the search was made:
-`/` for forward, `?` for reverse, `*` for whole-word forward, and `#` for whole-word
-reverse. Non-whole-word word searches (`g*`, `g#`, and VISUAL `*` / `#`) use `/` or `?`.
+bar's bottom border, just left of the `Ln, Col` readout. The query chip is graphite and
+uses the accent color for the search sigil; the count chip is solid warning gold, the
+same color as the current-match highlight, with the current ordinal in bold. The chip
+ink is chosen for maximum contrast from the theme's own foreground and background while
+avoiding colors that 256-color terminals with base16 palettes repaint. The sigil records
+how the search was made: `/` for forward, `?` for reverse, `*` for whole-word forward,
+and `#` for whole-word reverse. Non-whole-word word searches (`g*`, `g#`, and VISUAL `*`
+/ `#`) use `/` or `?`.
 
 `n` and `N` repeat the recorded search across every non-auxiliary prompt pane in stack
 order, with the existing wrap toasts when the traversal crosses the top or bottom. `*`,

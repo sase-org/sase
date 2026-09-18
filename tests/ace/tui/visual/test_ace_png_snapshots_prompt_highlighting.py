@@ -237,6 +237,11 @@ async def test_prompt_search_highlight_png_snapshot(
             "prompt_search_count_pill_light_120x40",
             "ACE prompt input - committed search count pill, light theme",
         ),
+        (
+            "flexoki",
+            "prompt_search_count_pill_flexoki_120x40",
+            "ACE prompt input - committed search count pill, flexoki theme",
+        ),
     ],
 )
 async def test_prompt_search_count_pill_png_snapshot(

@@ -458,7 +458,7 @@ class PromptInputBarSearchMixin(_MixinBase):
             return format_search_count_segment(
                 readout.ordinal,
                 readout.total,
-                theme=theme,
+                variables=self.app.theme_variables,
             )
         if readout.total > 0:
             warning = getattr(theme, "warning", "#FFA62B") or "#FFA62B"
