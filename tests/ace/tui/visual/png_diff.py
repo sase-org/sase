@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from sase.ace.tui.visual_render import render_svg_to_png
 from sase.ace.testing import AcePage
 from tests.ace.tui.visual._png_diff_artifacts import (
     repo_relative,
@@ -30,53 +31,6 @@ from tests.ace.tui.visual._png_diff_tolerance import (
     PNG_MAX_MATERIAL_DIFF_PIXELS_ENV,
     resolve_png_diff_tolerance,
 )
-
-_BUNDLED_FONTS_DIR = (
-    Path(__file__).resolve().parents[4] / "src" / "sase" / "ace" / "tui" / "fonts"
-)
-
-
-def _bundled_fonts_dir() -> Path:
-    """Return the directory containing the bundled renderer fonts."""
-    return _BUNDLED_FONTS_DIR
-
-
-def _bundled_font_files(fonts_dir: Path | None = None) -> list[str]:
-    """Return paths to every bundled renderer face."""
-    root = fonts_dir or _BUNDLED_FONTS_DIR
-    return sorted(
-        str(path)
-        for path in root.iterdir()
-        if path.is_file() and path.suffix.lower() in {".otf", ".ttf"}
-    )
-
-
-def render_svg_to_png(svg: str) -> bytes:
-    """Render SVG text to PNG bytes using the pinned hermetic renderer."""
-    try:
-        import resvg_py
-    except ImportError as exc:
-        raise RuntimeError(
-            "ACE SVG-to-PNG rendering requires the visual extra. "
-            "Install it with `uv pip install -e '.[dev,visual]'` or an "
-            "equivalent environment setup."
-        ) from exc
-
-    fonts_dir = _BUNDLED_FONTS_DIR
-    return bytes(
-        resvg_py.svg_to_bytes(
-            svg_string=svg,
-            skip_system_fonts=True,
-            font_dirs=[str(fonts_dir)],
-            # Some resvg-py wheels ignore font_dirs (CPython 3.14 manylinux).
-            # Listing faces makes Noto Emoji / DejaVu load on every wheel.
-            font_files=_bundled_font_files(fonts_dir),
-            font_family="Fira Code",
-            monospace_family="Fira Code",
-            sans_serif_family="Fira Code",
-            serif_family="Fira Code",
-        )
-    )
 
 
 __all__ = [

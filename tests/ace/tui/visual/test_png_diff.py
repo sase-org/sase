@@ -12,6 +12,7 @@ from unittest.mock import MagicMock
 import pytest
 from PIL import Image
 
+from sase.ace.tui import visual_render
 from tests.ace.tui.visual import png_diff
 from tests.ace.tui.visual.conftest import _visual_artifact_root
 from tests.ace.tui.visual.png_diff import (
@@ -516,6 +517,7 @@ def test_assert_page_png_rasterizes_page_svg(
 def test_render_svg_to_png_uses_visual_renderer() -> None:
     pytest.importorskip("resvg_py")
 
+    assert png_diff.render_svg_to_png is visual_render.render_svg_to_png
     png = render_svg_to_png(
         '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1">'
         '<rect width="1" height="1" fill="red"/>'
