@@ -107,6 +107,22 @@ def register_mobile_parser(subparsers: argparse._SubParsersAction) -> None:
         dest="mobile_gateway_subcommand", help="Mobile gateway subcommands"
     )
 
+    pair_parser = gateway_subparsers.add_parser(
+        "pair",
+        help="Request a pairing challenge from the running gateway",
+    )
+    pair_parser.add_argument(
+        "-b",
+        "--bind-address",
+        help="Host address to contact (default: config or 127.0.0.1)",
+    )
+    pair_parser.add_argument(
+        "-p",
+        "--port",
+        type=int,
+        help="Port to contact (default: config or 7629)",
+    )
+
     start_parser = gateway_subparsers.add_parser(
         "start",
         help="Start the mobile gateway in the foreground",

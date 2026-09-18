@@ -40,6 +40,7 @@ from sase.agent_clis.models import (
     AgentCliUpdatesReady,
     UpdateStrategy,
 )
+from sase.monitor_state import MONITOR_PROC_ORIGIN
 from sase.procs import Proc
 from tests.ace.tui._plugins_browser_pane_helpers import _agent_cli_statuses
 from tests.ace.tui._proc_submit_signature_helpers import (
@@ -166,6 +167,14 @@ def _telegram_receiver_row() -> ObservedProc:
             message="polling",
         )
     )
+
+
+def _monitor_shell_row() -> ObservedProc:
+    row = _telegram_receiver_row()
+    row.origin = MONITOR_PROC_ORIGIN
+    row.proc_id = "monitor-shell"
+    row.display_name = "SASE monitor"
+    return row
 
 
 def test_preview_proc_runnable_result_pushes_confirm_modal() -> None:
@@ -384,7 +393,44 @@ def test_code_changed_result_restarts(
     assert harness.messages == []
 
 
-def test_code_changed_result_restarts_immediately_with_telegram_receiver(
+def test_code_changed_result_restarts_immediately_with_monitor_shell(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    written: list[object] = []
+    receipt = object()
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.update_run.build_update_receipt",
+        lambda _result: receipt,
+    )
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.update_run.write_pending_update_toast",
+        written.append,
+    )
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
+    harness = _ProductionRestartHarness(_monitor_shell_row())
+    result = ComprehensiveUpdateResult(
+        sase=ComprehensiveSaseUpdateResult(
+            SaseUpdateResultStatus.UPDATED,
+            "sase updated",
+            SimpleNamespace(changed=True),
+        )
+    )
+
+    harness._on_scoped_update_complete(_completion(result, message="sase updated"))
+
+    assert written == [receipt]
+    assert harness.restart_axe_calls == [True]
+    assert harness.timer_callbacks == []
+    assert harness.messages == [
+        (
+            "SASE, core & plugins: sase updated; Agent CLIs: no captured work "
+            "— restarting ACE to load new code.",
+            "information",
+        )
+    ]
+
+
+def test_code_changed_result_waits_for_telegram_receiver_like_ordinary_proc(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     written: list[object] = []
@@ -410,12 +456,12 @@ def test_code_changed_result_restarts_immediately_with_telegram_receiver(
     harness._on_scoped_update_complete(_completion(result, message="sase updated"))
 
     assert written == [receipt]
-    assert harness.restart_axe_calls == [True]
-    assert harness.timer_callbacks == []
+    assert harness.restart_axe_calls == []
+    assert len(harness.timer_callbacks) == 1
     assert harness.messages == [
         (
             "SASE, core & plugins: sase updated; Agent CLIs: no captured work "
-            "— restarting ACE to load new code.",
+            "- restart queued until 1 proc finishes.",
             "information",
         )
     ]

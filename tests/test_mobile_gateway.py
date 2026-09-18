@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
 
@@ -194,6 +195,43 @@ def test_prepare_launch_includes_non_secret_push_settings(tmp_path: Path) -> Non
         "3",
     ]
     assert "secret" not in " ".join(launch.argv).lower()
+
+
+def test_prepare_service_launch_uses_direct_gateway_argv() -> None:
+    with (
+        patch(
+            "sase.integrations.mobile_gateway.load_merged_config",
+            return_value={"mobile_gateway": {"command": "sase_gateway"}},
+        ),
+        patch(
+            "sase.integrations.mobile_gateway._sase_command",
+            return_value=("sase",),
+        ),
+    ):
+        launch = mobile_gateway.prepare_mobile_gateway_service_launch()
+
+    assert launch.argv == [
+        "sase_gateway",
+        "--bind",
+        "127.0.0.1:7629",
+        "--agent-bridge-command",
+        "sase mobile agent-bridge",
+        "--helper-bridge-command",
+        "sase mobile helper-bridge",
+    ]
+    assert "gateway start" not in " ".join(launch.argv)
+
+
+def test_parser_accepts_mobile_gateway_pair() -> None:
+    args = create_parser().parse_args(
+        ["mobile", "gateway", "pair", "-b", "127.0.0.1", "-p", "7630"]
+    )
+
+    assert args.command == "mobile"
+    assert args.mobile_subcommand == "gateway"
+    assert args.mobile_gateway_subcommand == "pair"
+    assert args.bind_address == "127.0.0.1"
+    assert args.port == 7630
 
 
 def test_parser_accepts_mobile_gateway_start() -> None:
@@ -427,3 +465,78 @@ def test_run_mobile_gateway_start_foreground_lifecycle(
     assert "Starting SASE mobile gateway at http://127.0.0.1:7629" in out
     assert "Pairing code: 123456" in out
     assert "Pairing ID: pair_123" in out
+
+
+def test_run_mobile_gateway_start_delegates_to_service_host(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls: list[str] = []
+
+    def fail_popen(_argv: list[str]) -> None:
+        raise AssertionError("foreground gateway must not be spawned")
+
+    with (
+        patch(
+            "sase.integrations.mobile_gateway._service_host_owns_gateway",
+            return_value=True,
+        ),
+        patch(
+            "sase.service.state.clear_service_stop",
+            side_effect=lambda name: calls.append(f"clear:{name}"),
+        ),
+        patch(
+            "sase.service.control.start_service_host",
+            return_value=SimpleNamespace(ok=True, message="running detached"),
+        ),
+        patch(
+            "sase.service.control.nudge_service_host",
+            side_effect=lambda: calls.append("nudge"),
+        ),
+    ):
+        code = _run_mobile_gateway_start(
+            _args(),
+            popen=fail_popen,  # type: ignore[arg-type]
+        )
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert calls == ["clear:gateway", "nudge"]
+    assert "managed by the SASE service host" in out
+    assert "sase mobile gateway pair" in out
+
+
+def test_run_mobile_gateway_pair_posts_challenge_request(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    requests: list[tuple[str, str, bytes | None]] = []
+
+    def fake_opener(request: Any, timeout: float) -> _FakeResponse:
+        requests.append((request.get_method(), request.full_url, request.data))
+        return _FakeResponse(
+            {
+                "pairing_id": "pair_456",
+                "code": "654321",
+                "expires_at": "2026-05-06T15:05:00Z",
+            }
+        )
+
+    with patch(
+        "sase.integrations.mobile_gateway.load_merged_config",
+        return_value={"mobile_gateway": {"port": 7630}},
+    ):
+        code = mobile_gateway._run_mobile_gateway_pair(  # noqa: SLF001
+            _args(),
+            opener=fake_opener,
+        )
+
+    out = capsys.readouterr().out
+    assert code == 0
+    assert requests == [
+        (
+            "POST",
+            "http://127.0.0.1:7630/api/v1/session/pair/start",
+            b'{"schema_version": 1}',
+        )
+    ]
+    assert "Pairing code: 654321" in out
+    assert "Pairing ID: pair_456" in out

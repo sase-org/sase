@@ -5,6 +5,7 @@ from __future__ import annotations
 import sys
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 from sase.procs import read_procs
 from sase.procs.service_meta import SERVICE_PROC_MODE_DAEMON
@@ -14,20 +15,21 @@ from sase.service.config import (
     ServiceLauncher,
     ServiceProcConfig,
 )
-from sase.service.host import _ServiceHost
+from sase.service.host import _ServiceHost, _entry_argv
 from sase.service.paths import service_proc_output_log_path
 from sase.service.state import read_service_state
 
 
-def test_service_host_launches_direct_child_and_settles_durable_row(
-    monkeypatch,
-    tmp_path: Path,
-) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
-    entry = ServiceProcConfig(
-        name="demo",
+def _service_entry(
+    *,
+    launcher: ServiceLauncher,
+    name: str = "demo",
+    source: str = "user",
+) -> ServiceProcConfig:
+    return ServiceProcConfig(
+        name=name,
         available=True,
-        source="user",
+        source=source,
         declared_by="pytest",
         enabled=True,
         enablement=ServiceEnablementSource(explicit=True, layer="pytest"),
@@ -36,12 +38,22 @@ def test_service_host_launches_direct_child_and_settles_durable_row(
         stop_signal="SIGTERM",
         stop_timeout_seconds=1.0,
         log_max_bytes=1024,
+        launcher=launcher,
+        success_exit_codes=(0,),
+    )
+
+
+def test_service_host_launches_direct_child_and_settles_durable_row(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    entry = _service_entry(
         launcher=ServiceLauncher(
             kind="command",
             command=[sys.executable, "-c", "print('service child', flush=True)"],
             argv=(sys.executable, "-c", "print('service child', flush=True)"),
         ),
-        success_exit_codes=(0,),
     )
     config = ServiceConfigComposition(
         schema_version=1,
@@ -75,3 +87,41 @@ def test_service_host_launches_direct_child_and_settles_durable_row(
     ):
         time.sleep(0.05)  # sase-test-wait: background output pump flushes log
     assert "service child" in log_path.read_text(encoding="utf-8")
+
+
+def test_gateway_builtin_resolves_direct_gateway_argv(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "sase.integrations.mobile_gateway.prepare_mobile_gateway_service_launch",
+        lambda: SimpleNamespace(argv=["sase_gateway", "--bind", "127.0.0.1:7629"]),
+    )
+    entry = _service_entry(
+        name="gateway",
+        source="builtin",
+        launcher=ServiceLauncher(kind="builtin", builtin="gateway"),
+    )
+
+    argv = _entry_argv(entry)
+
+    assert argv == ("sase_gateway", "--bind", "127.0.0.1:7629")
+    assert "mobile gateway start" not in " ".join(argv)
+
+
+def test_gateway_builtin_prepare_failure_is_recorded(monkeypatch) -> None:
+    def fail_prepare() -> object:
+        raise RuntimeError("gateway config invalid")
+
+    monkeypatch.setattr(
+        "sase.integrations.mobile_gateway.prepare_mobile_gateway_service_launch",
+        fail_prepare,
+    )
+    entry = _service_entry(
+        name="gateway",
+        source="builtin",
+        launcher=ServiceLauncher(kind="builtin", builtin="gateway"),
+    )
+    host = _ServiceHost()
+
+    host._launch(entry, history=None)
+
+    assert "gateway" not in host._children
+    assert host._last_exits["gateway"].spawn_error == "gateway config invalid"

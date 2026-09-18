@@ -113,7 +113,7 @@ def _monitor_row() -> ObservedProc:
 
 @pytest.mark.parametrize("status", ["pending", "running", "settling"])
 @pytest.mark.parametrize("with_monitor", [False, True])
-def test_telegram_receiver_does_not_delay_restart(
+def test_telegram_receiver_delays_restart(
     monkeypatch: pytest.MonkeyPatch,
     status: str,
     with_monitor: bool,
@@ -126,18 +126,16 @@ def test_telegram_receiver_does_not_delay_restart(
 
     restart_after_update_when_ready(app, "updated", deferred=False)
 
-    assert app.restart_calls == [True]
-    assert app.timers == []
-    assert app.messages == [
-        ("updated — restarting ACE to load new code.", "information")
+    assert app.restart_calls == []
+    assert [(delay, callable(callback)) for delay, callback in app.timers] == [
+        (1.0, True)
     ]
-    assert all(
-        "queued" not in message and "expired" not in message
-        for message, _ in app.messages
-    )
+    assert app.messages == [
+        ("updated - restart queued until 1 proc finishes.", "information")
+    ]
 
 
-def test_telegram_receiver_with_ordinary_work_waits_only_for_ordinary_work(
+def test_telegram_receiver_with_ordinary_work_waits_for_both(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     receiver = _receiver_row()
@@ -152,10 +150,13 @@ def test_telegram_receiver_with_ordinary_work_waits_only_for_ordinary_work(
         (1.0, True)
     ]
     assert app.messages == [
-        ("updated - restart queued until 1 proc finishes.", "information")
+        ("updated - restart queued until 2 procs finish.", "information")
     ]
 
-    app._proc_projection = _projection(receiver, _ordinary_row(status="success"))
+    app._proc_projection = _projection(
+        _receiver_row(status="success"),
+        _ordinary_row(status="success"),
+    )
     app.timers[0][1]()
 
     assert app.restart_calls == [True]
@@ -181,12 +182,12 @@ def test_ordinary_work_timeout_summary_omits_receiver(
     assert app.restart_calls == [True]
     warnings = [message for message, severity in app.messages if severity == "warning"]
     assert warnings == [
-        "updated - restart wait expired; restarting with 1 proc: Sync workspace still active."
+        "updated - restart wait expired; restarting with 2 procs: "
+        "Telegram inbound long-poll receiver, Sync workspace still active."
     ]
-    assert _RECEIVER_LABEL not in warnings[0]
 
 
-def test_restart_filter_matches_receiver_origin_not_label() -> None:
+def test_restart_filter_treats_receiver_like_ordinary_proc() -> None:
     app = _App(
         _receiver_row(
             proc_id="same-label",
@@ -202,7 +203,7 @@ def test_restart_filter_matches_receiver_origin_not_label() -> None:
 
     blockers = running_background_procs(app)
 
-    assert [row.proc_id for row in blockers] == ["same-label"]
+    assert [row.proc_id for row in blockers] == ["same-label", "same-origin"]
 
 
 def test_restart_filter_preserves_projection_rows_and_counts() -> None:
@@ -211,7 +212,7 @@ def test_restart_filter_preserves_projection_rows_and_counts() -> None:
     app = _App(receiver, monitor)
     projection = app._proc_projection
 
-    assert running_background_procs(app) == []
+    assert running_background_procs(app) == [receiver]
     assert app._proc_projection is projection
     assert projection.rows == (receiver, monitor)
     assert projection.active_rows() == [receiver, monitor]

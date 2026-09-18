@@ -15463,6 +15463,59 @@
               {
                 "aliases": [],
                 "default_child": null,
+                "description_digest": "e307e8e6ba285e4a",
+                "hidden": false,
+                "mutex_groups": [],
+                "name": "pair",
+                "options": [
+                  {
+                    "choices": null,
+                    "dest": "help",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-h",
+                      "--help"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "bind_address",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-b",
+                      "--bind-address"
+                    ],
+                    "takes_value": true
+                  },
+                  {
+                    "choices": null,
+                    "dest": "port",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-p",
+                      "--port"
+                    ],
+                    "takes_value": true
+                  }
+                ],
+                "path": [
+                  "mobile",
+                  "gateway",
+                  "pair"
+                ],
+                "positionals": [],
+                "subcommands": []
+              },
+              {
+                "aliases": [],
+                "default_child": null,
                 "description_digest": "7a840c33f857ea98",
                 "hidden": false,
                 "mutex_groups": [],

@@ -7,7 +7,6 @@ from collections.abc import Callable
 from typing import Any
 
 _RESTART_WAIT_SECONDS = 60.0
-_TELEGRAM_RECEIVER_ORIGIN = "telegram-receiver"
 NotifyFn = Callable[..., None]
 
 
@@ -91,10 +90,8 @@ def restart_after_update_when_ready(
 def running_background_procs(app: Any) -> list[Any]:
     """Return observed active procs that must finish before ACE can restart.
 
-    Excludes durable services that outlive ACE by design: monitor shells and
-    the persistent Telegram receiver. The receiver has no drain point before a
-    self-update restart, so treating it as restart-blocking only adds a fixed
-    delay while leaving the proc running anyway.
+    Excludes monitor shells because they are host-level follow-up supervisors;
+    every other active proc is ordinary background work and should drain first.
     """
     from sase.ace.tui.proc_observer import is_monitor_shell_row, proc_projection_for
 
@@ -102,7 +99,6 @@ def running_background_procs(app: Any) -> list[Any]:
         row
         for row in proc_projection_for(app).active_rows()
         if not is_monitor_shell_row(row)
-        and getattr(row, "origin", "") != _TELEGRAM_RECEIVER_ORIGIN
     ]
 
 

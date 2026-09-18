@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 from sase.ace.hooks.processes import is_process_running
+from sase.config.core import set_include_local_config
 from sase.procs import (
     ProcFinish,
     ProcReserve,
@@ -110,6 +111,7 @@ class _ServiceHost:
 
     def run(self) -> int:
         """Run the foreground host until SIGTERM, SIGINT, or KeyboardInterrupt."""
+        set_include_local_config(False)
         lock = ServiceHostLock.acquire(blocking=False)
         if lock is None:
             print("sase service run: service host is already running", file=sys.stderr)
@@ -330,21 +332,25 @@ class _ServiceHost:
         if entry.launcher is None:
             self._record_spawn_failure(entry, "service entry has no launcher")
             return
-        if entry.launcher.kind == "builtin" and entry.launcher.builtin != "scheduler":
-            builtin = entry.launcher.builtin or entry.name
-            self._record_spawn_failure(
-                entry,
-                f"builtin launcher {builtin!r} is not available in this phase",
-            )
-            return
-        if entry.launcher.kind == "builtin" and not self._handover_scheduler(entry):
+        if (
+            entry.launcher.kind == "builtin"
+            and entry.launcher.builtin == "scheduler"
+            and not self._handover_scheduler(entry)
+        ):
             self._record_spawn_failure(
                 entry,
                 "scheduler handover could not establish single ownership",
             )
             return
 
-        argv = _entry_argv(entry)
+        try:
+            argv = _entry_argv(entry)
+        except Exception as exc:  # noqa: BLE001 - reconcile must keep running.
+            self._record_spawn_failure(entry, str(exc))
+            return
+        if not argv:
+            self._record_spawn_failure(entry, "service entry has no command")
+            return
         cwd = str(Path(entry.cwd or Path.cwd()).expanduser())
         proc_dir = service_proc_dir(entry.name)
         proc_dir.mkdir(parents=True, exist_ok=True)
@@ -622,12 +628,20 @@ def _entry_argv(entry: ServiceProcConfig) -> tuple[str, ...]:
     if launcher.kind == "builtin":
         if launcher.builtin == "scheduler":
             return (*_sase_command(), "scheduler", "run")
+        if launcher.builtin == "gateway":
+            return _gateway_builtin_argv()
         return ()
     if launcher.argv:
         return tuple(launcher.argv)
     if isinstance(launcher.command, str):
         return ("/bin/sh", "-lc", launcher.command)
     return tuple(str(part) for part in launcher.command or ())
+
+
+def _gateway_builtin_argv() -> tuple[str, ...]:
+    from sase.integrations.mobile_gateway import prepare_mobile_gateway_service_launch
+
+    return tuple(prepare_mobile_gateway_service_launch().argv)
 
 
 def _entry_env(entry: ServiceProcConfig, proc_dir: Path) -> dict[str, str]:

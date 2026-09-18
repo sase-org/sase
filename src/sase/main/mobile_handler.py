@@ -26,6 +26,11 @@ def handle_mobile_command(args: argparse.Namespace) -> None:
 
         sys.exit(handle_mobile_notification_bridge(args))
 
+    if sub == "gateway" and gateway_sub == "pair":
+        from sase.integrations.mobile_gateway import handle_mobile_gateway_pair
+
+        handle_mobile_gateway_pair(args)
+        return
     if sub == "gateway" and gateway_sub == "start":
         from sase.integrations.mobile_gateway import handle_mobile_gateway_start
 

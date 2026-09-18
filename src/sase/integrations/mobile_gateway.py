@@ -61,6 +61,7 @@ class _MobileGatewayLaunch:
 UrlOpen = Callable[..., Any]
 PopenFactory = Callable[..., subprocess.Popen[Any]]
 SleepFn = Callable[[float], None]
+_GATEWAY_SERVICE_PROC = "gateway"
 
 
 def _load_mobile_gateway_config() -> _MobileGatewayConfig:
@@ -185,6 +186,32 @@ def _prepare_mobile_gateway_launch(
     )
 
 
+def prepare_mobile_gateway_service_launch() -> _MobileGatewayLaunch:
+    """Build the service-host-owned gateway launch without pairing side effects."""
+    return _prepare_mobile_gateway_launch(
+        argparse.Namespace(
+            bind_address=None,
+            port=None,
+            state_dir=None,
+            allow_non_loopback=False,
+            gateway_command=None,
+            agent_bridge_command=shlex.join(
+                (*_sase_command(), "mobile", "agent-bridge")
+            ),
+            helper_bridge_command=shlex.join(
+                (*_sase_command(), "mobile", "helper-bridge")
+            ),
+            push_provider=None,
+            fcm_project_id=None,
+            fcm_service_account_json=None,
+            fcm_credential_env=None,
+            fcm_dry_run=False,
+            push_timeout_seconds=None,
+            push_retry_limit=None,
+        )
+    )
+
+
 def _run_mobile_gateway_start(
     args: argparse.Namespace,
     *,
@@ -193,6 +220,9 @@ def _run_mobile_gateway_start(
     sleep: SleepFn = time.sleep,
 ) -> int:
     """Start the Rust gateway in the foreground and print pairing details."""
+    if _service_host_owns_gateway():
+        return _delegate_gateway_start_to_service_host()
+
     config = _load_mobile_gateway_config()
     launch = _prepare_mobile_gateway_launch(args, config=config)
     startup_timeout = _positive_float(
@@ -203,9 +233,7 @@ def _run_mobile_gateway_start(
     proc = popen(launch.argv)
     try:
         pairing = _wait_for_pairing(launch.url, proc, startup_timeout, opener, sleep)
-        print(f"Pairing code: {pairing['code']}")
-        print(f"Pairing ID: {pairing['pairing_id']}")
-        print(f"Expires at: {pairing['expires_at']}")
+        _print_pairing(pairing)
         print("Keep this process running while mobile clients connect.")
         return int(proc.wait())
     except KeyboardInterrupt:
@@ -220,6 +248,34 @@ def handle_mobile_gateway_start(args: argparse.Namespace) -> None:
     """CLI wrapper for ``sase mobile gateway start``."""
     try:
         code = _run_mobile_gateway_start(args)
+    except _MobileGatewayError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    sys.exit(code)
+
+
+def _run_mobile_gateway_pair(
+    args: argparse.Namespace,
+    *,
+    opener: UrlOpen = urlopen,
+) -> int:
+    """Request and print a pairing challenge from an already-running gateway."""
+    config = _load_mobile_gateway_config()
+    url = _configured_gateway_url(args, config)
+    try:
+        pairing = _request_pairing(url, opener)
+    except (OSError, URLError, TimeoutError, json.JSONDecodeError) as exc:
+        raise _MobileGatewayError(
+            f"could not request pairing challenge from {url}: {exc}"
+        ) from exc
+    _print_pairing(pairing)
+    return 0
+
+
+def handle_mobile_gateway_pair(args: argparse.Namespace) -> None:
+    """CLI wrapper for ``sase mobile gateway pair``."""
+    try:
+        code = _run_mobile_gateway_pair(args)
     except _MobileGatewayError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
@@ -244,12 +300,7 @@ def _wait_for_pairing(
         try:
             health = _request_json(opener, "GET", f"{base_url}/api/v1/health")
             if health.get("status") == "ok":
-                return _request_json(
-                    opener,
-                    "POST",
-                    f"{base_url}/api/v1/session/pair/start",
-                    {"schema_version": 1},
-                )
+                return _request_pairing(base_url, opener)
         except (OSError, URLError, TimeoutError, json.JSONDecodeError) as exc:
             last_error = str(exc)
         sleep(0.1)
@@ -257,6 +308,29 @@ def _wait_for_pairing(
     raise _MobileGatewayError(
         f"mobile gateway did not become ready within {startup_timeout:g}s{suffix}"
     )
+
+
+def _request_pairing(base_url: str, opener: UrlOpen) -> dict[str, Any]:
+    return _request_json(
+        opener,
+        "POST",
+        f"{base_url}/api/v1/session/pair/start",
+        {"schema_version": 1},
+    )
+
+
+def _print_pairing(pairing: dict[str, Any]) -> None:
+    try:
+        code = pairing["code"]
+        pairing_id = pairing["pairing_id"]
+        expires_at = pairing["expires_at"]
+    except KeyError as exc:
+        raise _MobileGatewayError(
+            f"gateway pairing response missing {exc.args[0]}"
+        ) from exc
+    print(f"Pairing code: {code}")
+    print(f"Pairing ID: {pairing_id}")
+    print(f"Expires at: {expires_at}")
 
 
 def _request_json(
@@ -315,6 +389,69 @@ def _console_script_names(command: str) -> tuple[str, ...]:
     if sys.platform == "win32" and not command.lower().endswith(".exe"):
         return (f"{command}.exe", command)
     return (command,)
+
+
+def _service_host_owns_gateway() -> bool:
+    """Return whether ``start`` should delegate to host-owned gateway service."""
+    try:
+        from sase.feature_flags import FeatureFlag, current_flags
+        from sase.service.config import load_service_config
+        from sase.service.state import read_service_state
+
+        if not current_flags().enabled(FeatureFlag.service_host):
+            return False
+        composition = load_service_config()
+        state = read_service_state()
+    except Exception:
+        return False
+
+    entry = composition.get(_GATEWAY_SERVICE_PROC)
+    if entry is None or not entry.available:
+        return False
+    override = state.state.enablement.get(_GATEWAY_SERVICE_PROC)
+    enabled = entry.enabled if override is None else override.enabled
+    return bool(enabled)
+
+
+def _delegate_gateway_start_to_service_host() -> int:
+    try:
+        from sase.service.control import nudge_service_host, start_service_host
+        from sase.service.state import clear_service_stop
+    except Exception as exc:
+        raise _MobileGatewayError(
+            "service host APIs are unavailable; disable service_host or upgrade SASE"
+        ) from exc
+
+    clear_service_stop(_GATEWAY_SERVICE_PROC)
+    result = start_service_host()
+    nudge_service_host()
+    if not result.ok:
+        raise _MobileGatewayError(f"service host could not start: {result.message}")
+    print("Mobile gateway is managed by the SASE service host.")
+    print(f"Service host: {result.message}")
+    print("Run `sase mobile gateway pair` to request a pairing challenge.")
+    return 0
+
+
+def _configured_gateway_url(
+    args: argparse.Namespace,
+    config: _MobileGatewayConfig,
+) -> str:
+    bind_address = _string_value(
+        getattr(args, "bind_address", None), config.bind_address
+    )
+    port = _port_value(getattr(args, "port", None), config.port)
+    return _local_probe_url(bind_address, port)
+
+
+def _sase_command() -> tuple[str, ...]:
+    invoked = Path(sys.argv[0])
+    if invoked.name == "sase" and invoked.exists():
+        return (str(invoked),)
+    found = shutil.which("sase")
+    if found is not None:
+        return (found,)
+    return (sys.executable, "-m", "sase")
 
 
 def _terminate_process(proc: subprocess.Popen[Any]) -> None:
