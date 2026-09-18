@@ -71,7 +71,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the agent detail view."""
         super().__init__(**kwargs)
-        self._detail_layout_mode: DetailLayoutMode = DetailLayoutMode.SECONDARY_LARGER
+        self._detail_layout_mode: DetailLayoutMode = DetailLayoutMode.METADATA_ONLY
         self._panel_mode: DetailPanelMode = DetailPanelMode.AUTO
         self._current_agent: Agent | None = None
         self._current_tribe_identity: TribePanelIdentity | None = None
@@ -94,12 +94,12 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         """Compose the two-panel layout (prompt and file)."""
         AgentPromptPanel = _agent_prompt_panel_type()
         with Vertical(id="agent-detail-layout"):
-            with VerticalScroll(id="agent-prompt-scroll"):
+            with VerticalScroll(id="agent-prompt-scroll", classes="expanded"):
                 yield AgentPromptPanel(id="agent-prompt-panel")
             with VerticalScroll(id="agent-search-scroll", classes="hidden"):
                 yield Static(id="agent-search-panel")
             yield Static(id="agent-search-command", classes="hidden")
-            with VerticalScroll(id="agent-file-scroll"):
+            with VerticalScroll(id="agent-file-scroll", classes="hidden"):
                 yield AgentFilePanel(id="agent-file-panel")
             with VerticalScroll(id="agent-llm-calls-scroll", classes="hidden"):
                 yield AgentLLMCallsPanel(id="agent-llm-calls-panel")

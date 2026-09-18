@@ -8,6 +8,11 @@ from xml.etree import ElementTree
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.widgets import AgentDetail
+from tests.ace.tui.visual._ace_png_snapshot_helpers import (
+    wait_for_state,
+    wait_for_visual_idle,
+)
 
 
 async def choose_agent_metadata_view(page: AcePage) -> None:
@@ -20,6 +25,21 @@ async def choose_agent_metadata_view(page: AcePage) -> None:
     await page.expect_modal("AgentViewModal")
     await page.press("[")
     await page.expect_no_modal()
+
+
+async def reveal_agent_file_larger_layout(page: AcePage) -> None:
+    """Wait for File content, then choose File-larger through the picker."""
+    detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+    await wait_for_state(
+        page,
+        lambda: bool(detail._has_file_content),
+        description="file content available",
+    )
+    await page.press("p")
+    await page.expect_modal("AgentViewModal")
+    await page.press("2")
+    await page.expect_no_modal()
+    await wait_for_visual_idle(page)
 
 
 def pin_agents_visual_now(monkeypatch: pytest.MonkeyPatch, now: datetime) -> None:

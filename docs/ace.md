@@ -4833,14 +4833,16 @@ skips legacy dismissal-prefixed candidates so it anchors on a live, visible agen
 ### Agents Detail View Picker
 
 Press `p` on an agent row to choose the detail view without cycling through hidden
-panels. Inside the picker, `f` shows the selected file, `t` shows the LLM Calls
+panels. A fresh session starts in metadata-only: File and LLM Calls stay hidden until
+the user selects a visible layout in this picker, even when that content is already
+available. Inside the picker, `f` shows the selected file, `t` shows the LLM Calls
 timeline, `[` shows metadata only, and `]` shows only the selected File or LLM Calls
 panel. `1` makes metadata larger, `=` makes metadata and the selected secondary panel
 equal height, and `2` makes the File/LLM Calls side larger. The picker-local `p` key
 moves to the next layout and `P` moves to the previous layout only within the circular
 split order metadata-larger -> equal -> secondary-larger -> metadata-larger. From either
-fullscreen endpoint, both `p` and `P` return directly to equal split. With the default
-secondary-larger split, `pp` selects metadata-larger and `pP` selects equal.
+fullscreen endpoint, including the metadata-only default, both `p` and `P` return
+directly to equal split.
 
 The layout choice is session-local and independent from the view mode: switching between
 file and LLM Calls keeps the same saved fullscreen or split layout. Split and

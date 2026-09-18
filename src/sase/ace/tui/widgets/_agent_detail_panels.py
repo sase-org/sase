@@ -231,22 +231,20 @@ class AgentDetailPanelMixin(Static):
             file_scroll.add_class("hidden")
             llm_calls_scroll.add_class("hidden")
             prompt_scroll.add_class("expanded")
-            return
-
-        if self._detail_layout_mode is DetailLayoutMode.SECONDARY_ONLY:
+        elif self._detail_layout_mode is DetailLayoutMode.SECONDARY_ONLY:
             self._hide_metadata_scrolls()
             secondary_scroll.remove_class("hidden")
             secondary_scroll.add_class("expanded")
-            return
-
-        self._show_active_metadata_scroll(prompt_scroll)
-        secondary_scroll.remove_class("hidden")
-        if self._detail_layout_mode is DetailLayoutMode.METADATA_LARGER:
-            prompt_scroll.add_class("layout-priority")
-            secondary_scroll.add_class("layout-secondary")
-        elif self._detail_layout_mode is DetailLayoutMode.EQUAL:
-            prompt_scroll.add_class("layout-equal")
-            secondary_scroll.add_class("layout-equal")
+        else:
+            self._show_active_metadata_scroll(prompt_scroll)
+            secondary_scroll.remove_class("hidden")
+            if self._detail_layout_mode is DetailLayoutMode.METADATA_LARGER:
+                prompt_scroll.add_class("layout-priority")
+                secondary_scroll.add_class("layout-secondary")
+            elif self._detail_layout_mode is DetailLayoutMode.EQUAL:
+                prompt_scroll.add_class("layout-equal")
+                secondary_scroll.add_class("layout-equal")
+        self._update_panel_indicators()
 
     def set_panel_mode(
         self,

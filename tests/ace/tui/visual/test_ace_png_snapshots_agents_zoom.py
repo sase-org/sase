@@ -11,6 +11,7 @@ from textual.widgets import Static
 from sase.ace.testing import AcePage
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    reveal_agent_file_larger_layout,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_zoom_fixtures import (
     pin_zoom_file_header,
@@ -44,6 +45,7 @@ async def test_agents_file_zoom_modal_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
+        await reveal_agent_file_larger_layout(page)
         await page.press("Z")
         await page.expect_modal("ZoomPanelModal")
         await wait_for_zoom_content(
@@ -73,6 +75,7 @@ async def test_agents_multi_file_zoom_modal_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
+        await reveal_agent_file_larger_layout(page)
         await page.press("Z")
         await page.expect_modal("ZoomPanelModal")
         await wait_for_zoom_content(
@@ -105,6 +108,7 @@ async def test_agents_file_zoom_search_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
+        await reveal_agent_file_larger_layout(page)
         await page.press("Z")
         await page.expect_modal("ZoomPanelModal")
         await wait_for_zoom_content(

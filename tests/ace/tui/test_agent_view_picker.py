@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from sase.ace.testing import AcePage
@@ -19,6 +21,20 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patch_startup_loaders,
     wait_for_startup,
 )
+
+
+def _secondary_scrolls_hidden(detail: AgentDetail) -> bool:
+    file_scroll = detail.query_one("#agent-file-scroll")
+    llm_calls_scroll = detail.query_one("#agent-llm-calls-scroll")
+    return file_scroll.has_class("hidden") and llm_calls_scroll.has_class("hidden")
+
+
+async def _wait_for_file_availability(page: AcePage, detail: AgentDetail) -> None:
+    await page.wait_for(
+        lambda _screen: (
+            detail.panel_mode is DetailPanelMode.AUTO and detail._has_file_content
+        )
+    )
 
 
 async def test_agents_p_opens_picker_and_direct_mode_choice_applies(
@@ -73,6 +89,57 @@ async def test_agents_brackets_are_inert_on_agents_tab(
         assert not isinstance(page.app.screen, AgentViewModal)
 
 
+async def test_agents_fresh_tab_stays_metadata_only_until_picker_layout(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    file_path = tmp_path / "notes.md"
+    file_path.write_text("# Notes\n\nready\n")
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[
+            _make_agent(
+                status="DONE",
+                extra_files=[str(file_path)],
+                llm_provider="codex",
+            )
+        ],
+    )
+
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        await _wait_for_file_availability(page, detail)
+
+        assert detail.detail_layout_mode is DetailLayoutMode.METADATA_ONLY
+        assert detail.is_metadata_visible()
+        assert not detail.is_file_visible()
+        assert not detail.is_llm_calls_visible()
+        assert _secondary_scrolls_hidden(detail)
+
+        await page.press("p")
+        await page.expect_modal("AgentViewModal")
+        await page.press("2")
+        await page.expect_no_modal()
+        assert detail.detail_layout_mode is DetailLayoutMode.SECONDARY_LARGER
+        assert detail.is_file_visible()
+        assert detail.is_metadata_visible()
+        assert detail.panel_mode_label == "file"
+
+        await page.press("p")
+        await page.expect_modal("AgentViewModal")
+        await page.press("t")
+        await page.expect_no_modal()
+        assert detail.panel_mode is DetailPanelMode.LLM_CALLS
+        assert detail.detail_layout_mode is DetailLayoutMode.SECONDARY_LARGER
+        detail.on_llm_calls_visibility_changed(
+            LLMCallsVisibilityChanged(has_llm_calls=True)
+        )
+        assert detail._has_llm_calls_content
+        assert detail.is_llm_calls_visible()
+        assert not detail.is_file_visible()
+
+
 async def test_agents_pp_cycles_visible_file_layout_next(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -87,13 +154,7 @@ async def test_agents_pp_cycles_visible_file_layout_next(
     async with AcePage(initial_tab="agents") as page:
         await wait_for_startup(page)
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
-        await page.wait_for(
-            lambda _screen: (
-                detail.panel_mode is DetailPanelMode.AUTO
-                and detail.is_file_visible()
-                and detail._has_file_content
-            )
-        )
+        await _wait_for_file_availability(page, detail)
         detail.set_detail_layout(DetailLayoutMode.SECONDARY_LARGER)
 
         await page.press("p")
@@ -121,13 +182,7 @@ async def test_agents_p_upper_p_cycles_visible_file_layout_previous(
     async with AcePage(initial_tab="agents") as page:
         await wait_for_startup(page)
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
-        await page.wait_for(
-            lambda _screen: (
-                detail.panel_mode is DetailPanelMode.AUTO
-                and detail.is_file_visible()
-                and detail._has_file_content
-            )
-        )
+        await _wait_for_file_availability(page, detail)
         detail.set_detail_layout(DetailLayoutMode.SECONDARY_LARGER)
 
         await page.press("p")
@@ -152,13 +207,7 @@ async def test_agents_picker_direct_layout_choices_apply_all_three(
     async with AcePage(initial_tab="agents") as page:
         await wait_for_startup(page)
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
-        await page.wait_for(
-            lambda _screen: (
-                detail.panel_mode is DetailPanelMode.AUTO
-                and detail.is_file_visible()
-                and detail._has_file_content
-            )
-        )
+        await _wait_for_file_availability(page, detail)
 
         for key, expected in (
             ("[", DetailLayoutMode.METADATA_ONLY),
@@ -188,13 +237,7 @@ async def test_agents_equal_layout_survives_view_changes(
     async with AcePage(initial_tab="agents") as page:
         await wait_for_startup(page)
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
-        await page.wait_for(
-            lambda _screen: (
-                detail.panel_mode is DetailPanelMode.AUTO
-                and detail.is_file_visible()
-                and detail._has_file_content
-            )
-        )
+        await _wait_for_file_availability(page, detail)
 
         await page.press("p")
         await page.expect_modal("AgentViewModal")
@@ -244,13 +287,7 @@ async def test_agents_file_only_layout_and_cycle_escape_to_equal(
     async with AcePage(initial_tab="agents") as page:
         await wait_for_startup(page)
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
-        await page.wait_for(
-            lambda _screen: (
-                detail.panel_mode is DetailPanelMode.AUTO
-                and detail.is_file_visible()
-                and detail._has_file_content
-            )
-        )
+        await _wait_for_file_availability(page, detail)
 
         await page.press("p")
         await page.expect_modal("AgentViewModal")

@@ -222,8 +222,8 @@ async def test_agents_view_picker_five_layouts_png_snapshot(
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
         await wait_for_state(
             page,
-            lambda: detail.is_file_visible() and detail._has_file_content,
-            description="file detail visible",
+            lambda: detail._has_file_content,
+            description="file content available",
         )
 
         await page.press("p")
@@ -261,8 +261,8 @@ async def test_agents_equal_file_layout_png_snapshot(
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
         await wait_for_state(
             page,
-            lambda: detail.is_file_visible() and detail._has_file_content,
-            description="file detail visible",
+            lambda: detail._has_file_content,
+            description="file content available",
         )
 
         await page.press("p")
@@ -310,8 +310,8 @@ async def test_agents_file_only_layout_png_snapshot(
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
         await wait_for_state(
             page,
-            lambda: detail.is_file_visible() and detail._has_file_content,
-            description="file detail visible",
+            lambda: detail._has_file_content,
+            description="file content available",
         )
 
         await page.press("p")
