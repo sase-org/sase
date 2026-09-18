@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+import hashlib
 import logging
 import os
 from pathlib import Path
@@ -21,6 +22,15 @@ from ..screenshot_export import (
 from ..util.pump_tasks import spawn_pump_free_task
 
 log = logging.getLogger(__name__)
+
+_SCREENSHOT_DEBOUNCERS = (
+    "_patch_detail_debouncer",
+    "_agent_detail_debouncer",
+    "_axe_detail_debouncer",
+)
+_SCREENSHOT_STABLE_FRAME_COUNT = 3
+_SCREENSHOT_SETTLE_TIMEOUT_SECONDS = 3.0
+_SCREENSHOT_SETTLING_TIMER_MAX_SECONDS = 0.5
 
 
 class ScreenshotExportMixin:
@@ -125,10 +135,8 @@ class ScreenshotExportMixin:
             try:
                 stage = "request refresh"
                 self._request_screenshot_refresh_if_available()
-                stage = "wait for refresh"
-                await self._wait_for_screenshot_refresh_if_available()
-                stage = "export SVG"
-                svg = self.export_screenshot(title="sase tui", simplify=True)  # type: ignore[attr-defined]
+                stage = "wait for settled frame"
+                svg = await self._export_settled_screenshot_svg()
             finally:
                 self._restore_screenshot_cursor_blink(restore_cursor_blink)
             stage = "complete export"
@@ -157,12 +165,127 @@ class ScreenshotExportMixin:
         """Wait for Textual's next refresh when the signal task context permits it."""
         wait_for_refresh = getattr(self, "wait_for_refresh", None)
         if not callable(wait_for_refresh):
+            await asyncio.sleep(0)
             return
         try:
             await wait_for_refresh()
         except (AssertionError, RuntimeError) as exc:
             if not _is_textual_refresh_context_error(exc):
                 raise
+
+    async def _export_settled_screenshot_svg(self) -> str:
+        """Export a frame after finite visual work and SVG output settle."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + _SCREENSHOT_SETTLE_TIMEOUT_SECONDS
+        previous_svg: str | None = None
+        stable_frames = 0
+        frame_digests: list[str] = []
+        pending: tuple[list[str], list[str], list[str], list[str]] = ([], [], [], [])
+
+        while True:
+            self._request_screenshot_refresh_if_available()
+            await self._wait_for_screenshot_refresh_if_available()
+            self._clear_screenshot_transient_state()
+            pending = self._pending_screenshot_visual_work()
+
+            if any(pending):
+                previous_svg = None
+                stable_frames = 0
+            else:
+                svg = self.export_screenshot(title="sase tui", simplify=True)  # type: ignore[attr-defined]
+                digest = hashlib.sha256(svg.encode()).hexdigest()[:12]
+                frame_digests.append(digest)
+                frame_digests = frame_digests[-4:]
+                if svg == previous_svg:
+                    stable_frames += 1
+                else:
+                    stable_frames = 1
+                previous_svg = svg
+                if stable_frames >= _SCREENSHOT_STABLE_FRAME_COUNT:
+                    return svg
+
+            if loop.time() >= deadline:
+                debouncers, workers, timers, animations = pending
+                raise RuntimeError(
+                    "timed out waiting for screenshot frame convergence; "
+                    f"stable_frames={stable_frames}/"
+                    f"{_SCREENSHOT_STABLE_FRAME_COUNT}; "
+                    f"frame_digests={frame_digests}; "
+                    f"pending_debouncers={debouncers}; "
+                    f"pending_workers={workers}; "
+                    f"pending_one_shot_timers={timers}; "
+                    f"pending_animations={animations}"
+                )
+            await asyncio.sleep(min(0.02, max(0.0, deadline - loop.time())))
+
+    def _clear_screenshot_transient_state(self) -> None:
+        try:
+            from textual.widgets import Button
+        except Exception:
+            return
+        for screen in getattr(self, "screen_stack", ()):
+            try:
+                buttons = screen.query(Button)
+            except Exception:
+                continue
+            for button in buttons:
+                try:
+                    button.remove_class("-active")
+                except Exception:
+                    pass
+
+    def _pending_screenshot_visual_work(
+        self,
+    ) -> tuple[list[str], list[str], list[str], list[str]]:
+        debouncers = [
+            name
+            for name in _SCREENSHOT_DEBOUNCERS
+            if bool(getattr(getattr(self, name, None), "is_pending", False))
+        ]
+        workers = [
+            str(getattr(worker, "name", None) or getattr(worker, "description", worker))
+            for worker in getattr(self, "workers", ())
+            if bool(getattr(worker, "is_running", False))
+        ]
+
+        animator = getattr(self, "animator", None)
+        animations = [
+            f"running:{key!r}" for key in getattr(animator, "_animations", {})
+        ]
+        animations.extend(
+            f"scheduled:{key!r}" for key in getattr(animator, "_scheduled", {})
+        )
+
+        nodes: list[Any] = [self]
+        for screen in getattr(self, "screen_stack", ()):
+            nodes.append(screen)
+            try:
+                nodes.extend(screen.walk_children(with_self=True))
+            except TypeError:
+                nodes.extend(screen.walk_children())
+            except Exception:
+                pass
+
+        timers: list[str] = []
+        seen_nodes: set[int] = set()
+        for node in nodes:
+            if id(node) in seen_nodes:
+                continue
+            seen_nodes.add(id(node))
+            for timer in getattr(node, "_timers", ()):
+                task = getattr(timer, "_task", None)
+                try:
+                    interval = float(getattr(timer, "_interval", float("inf")))
+                except (TypeError, ValueError):
+                    interval = float("inf")
+                if (
+                    getattr(timer, "_repeat", None) == 0
+                    and interval <= _SCREENSHOT_SETTLING_TIMER_MAX_SECONDS
+                    and task is not None
+                    and not task.done()
+                ):
+                    timers.append(str(getattr(timer, "name", timer)))
+        return debouncers, workers, timers, animations
 
     def _require_screenshot_export_request_dir(self) -> Path:
         request_dir = getattr(self, "_screenshot_export_request_dir", None)

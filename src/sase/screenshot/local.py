@@ -28,6 +28,8 @@ _SCREEN_RESULT_RE = re.compile(r"^screen_(\d+)\.(done|error)$")
 _SCREEN_SVG_RE = re.compile(r"^screen_(\d+)\.svg$")
 _TRANSIENT_EXPORT_ERRORS = ("Node must be running before calling wait_for_refresh",)
 _EXPORT_RETRY_DELAY_SECONDS = 0.25
+_STARTUP_STABLE_FRAME_COUNT = 2
+_DEBUG_CAPTURE_TIMEOUT_SECONDS = 0.5
 
 
 class CommandRunner(Protocol):
@@ -79,14 +81,21 @@ class _ScreenshotResult:
     screenshot_dir: Path
     tmux_session: str
     tmux_window: str
+    tmux_target: str
     tmux_pid: int
     created_window: bool
     kept_window: bool
 
-    @property
-    def tmux_target(self) -> str:
-        """Return a tmux target suitable for ``send-keys`` and ``capture-pane``."""
-        return f"{self.tmux_session}:{self.tmux_window}"
+
+@dataclass(frozen=True)
+class _InspectedTmuxWindow:
+    """Tmux target details for a supplied or newly-created screenshot window."""
+
+    session: str
+    window_name: str
+    target: str
+    pane_pid: int
+    request_dir: Path
 
 
 class ScreenshotCaptureError(RuntimeError):
@@ -106,35 +115,41 @@ def capture_local_screenshot(
     session: str
     pane_pid: int
     request_dir: Path
+    target = ""
 
     try:
         if options.window:
-            session, window_name, pane_pid = _inspect_tmux_window(
+            inspected = _inspect_tmux_window(
                 options.window,
                 runner=active_runner,
                 deadline=deadline,
             )
-            request_dir = screenshot_request_dir(session, window_name)
+            session = inspected.session
+            window_name = inspected.window_name
+            pane_pid = inspected.pane_pid
+            request_dir = inspected.request_dir
+            target = inspected.target
         else:
             relaunch_cmd = _build_tui_relaunch_cmd(options.tui_args)
             cols, rows = options.size
             try:
-                window_name, pane_pid, screenshot_dir = (
-                    ace_tmux.create_agent_tmux_window(
-                        relaunch_cmd,
-                        cols=cols,
-                        rows=rows,
-                        extra_env=_tui_env_pins(),
-                        runner=active_runner.run,
-                    )
+                window = ace_tmux.create_agent_tmux_window(
+                    relaunch_cmd,
+                    cols=cols,
+                    rows=rows,
+                    extra_env=_tui_env_pins(),
+                    runner=active_runner.run,
+                    timeout=lambda: deadline.remaining,
                 )
             except ace_tmux.TmuxLaunchError as exc:
                 raise ScreenshotCaptureError(str(exc)) from exc
-            session = ace_tmux._AGENTS_SESSION
-            request_dir = Path(screenshot_dir)
+            session = window.session
+            window_name = window.window_name
+            pane_pid = window.pane_pid
+            request_dir = Path(window.screenshot_dir)
+            target = window.target
             created_window = True
 
-        target = f"{session}:{window_name}"
         last_capture = _wait_for_startup_frame(
             target,
             runner=active_runner,
@@ -178,16 +193,15 @@ def capture_local_screenshot(
             screenshot_dir=request_dir,
             tmux_session=session,
             tmux_window=window_name,
+            tmux_target=target,
             tmux_pid=pane_pid,
             created_window=created_window,
             kept_window=bool(options.window) or options.keep,
         )
     finally:
         if created_window and not options.keep:
-            _kill_window_best_effort(
-                f"{session}:{window_name}",
-                runner=active_runner,
-            )
+            _kill_window_best_effort(target, runner=active_runner)
+            ace_tmux.release_tmux_window_claim(request_dir)
 
 
 def _build_tui_relaunch_cmd(tui_args: Sequence[str]) -> str:
@@ -225,7 +239,7 @@ def _inspect_tmux_window(
     *,
     runner: CommandRunner,
     deadline: _Deadline,
-) -> tuple[str, str, int]:
+) -> _InspectedTmuxWindow:
     result = _run_tmux(
         [
             "tmux",
@@ -233,24 +247,38 @@ def _inspect_tmux_window(
             "-p",
             "-t",
             target,
-            "#{session_name}\t#{window_name}\t#{pane_pid}",
+            "#{session_name}\t#{window_id}\t#{window_name}\t#{pane_pid}\t#{@sase_screenshot_dir}",
         ],
         runner=runner,
         deadline=deadline,
         action=f"inspect tmux window {target}",
     )
-    fields = result.stdout.strip().split("\t")
-    if len(fields) != 3 or not fields[0] or not fields[1]:
+    fields = result.stdout.rstrip("\n").split("\t")
+    if len(fields) != 5 or not fields[0] or not fields[2]:
         raise ScreenshotCaptureError(
             f"tmux did not report session, window, and pane pid for {target!r}"
         )
     try:
-        pane_pid = int(fields[2])
+        pane_pid = int(fields[3])
     except ValueError as exc:
         raise ScreenshotCaptureError(
-            f"tmux returned non-integer pane pid for {target!r}: {fields[2]!r}"
+            f"tmux returned non-integer pane pid for {target!r}: {fields[3]!r}"
         ) from exc
-    return fields[0], fields[1], pane_pid
+    session = fields[0]
+    window_id = fields[1]
+    window_name = fields[2]
+    request_dir = (
+        Path(fields[4]).expanduser()
+        if fields[4]
+        else screenshot_request_dir(session, window_name)
+    )
+    return _InspectedTmuxWindow(
+        session=session,
+        window_name=window_name,
+        target=window_id if window_id.startswith("@") else target,
+        pane_pid=pane_pid,
+        request_dir=request_dir,
+    )
 
 
 def _wait_for_startup_frame(
@@ -260,12 +288,17 @@ def _wait_for_startup_frame(
     deadline: _Deadline,
 ) -> str:
     last = ""
+    stable_frames = 0
     while True:
         text = _capture_pane(target, runner=runner, deadline=deadline)
         if text.strip():
-            deadline.sleep(0.1)
-            return _capture_pane(target, runner=runner, deadline=deadline)
-        last = text
+            stable_frames = stable_frames + 1 if text == last else 1
+            last = text
+            if stable_frames >= _STARTUP_STABLE_FRAME_COUNT:
+                return text
+        else:
+            stable_frames = 0
+            last = text
         if deadline.expired:
             raise ScreenshotCaptureError(
                 "timed out waiting for the TUI to paint a non-blank frame"
@@ -367,7 +400,12 @@ def _wait_for_export(
             sequence, kind, marker = result
             if kind == "error":
                 message = marker.read_text(encoding="utf-8").strip()
-                capture = _capture_pane(target, runner=runner, deadline=deadline)
+                capture = _capture_pane_for_debug(
+                    target,
+                    runner=runner,
+                    deadline=deadline,
+                    fallback=capture,
+                )
                 raise _ExportMarkerError(message or "unknown error", capture)
             svg = marker.with_suffix(".svg")
             if not svg.exists():
@@ -376,11 +414,32 @@ def _wait_for_export(
                 )
             return svg
         if deadline.expired:
-            capture = _capture_pane(target, runner=runner, deadline=deadline)
+            capture = _capture_pane_for_debug(
+                target,
+                runner=runner,
+                deadline=deadline,
+                fallback=capture,
+            )
             raise ScreenshotCaptureError(
                 "timed out waiting for TUI screenshot export" + _debug_suffix(capture)
             )
         deadline.sleep(0.05)
+
+
+def _capture_pane_for_debug(
+    target: str,
+    *,
+    runner: CommandRunner,
+    deadline: _Deadline,
+    fallback: str,
+) -> str:
+    try:
+        capture_deadline = (
+            _Deadline(_DEBUG_CAPTURE_TIMEOUT_SECONDS) if deadline.expired else deadline
+        )
+        return _capture_pane(target, runner=runner, deadline=capture_deadline)
+    except ScreenshotCaptureError:
+        return fallback
 
 
 def _next_export_result(

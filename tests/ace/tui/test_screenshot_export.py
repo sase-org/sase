@@ -7,12 +7,44 @@ from pathlib import Path
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.screenshot_export import ScreenshotExportMixin
 from sase.ace.tui.screenshot_export import (
     complete_export,
     fail_export,
     reserve_export_paths,
     screenshot_request_dir,
 )
+
+
+class _SettlingExportApp(ScreenshotExportMixin):
+    """Minimal host for the screenshot export mixin's convergence loop."""
+
+    screen_stack = ()
+    workers = ()
+
+    def __init__(self) -> None:
+        self.refresh_count = 0
+        self.export_count = 0
+        self._frame = 0
+
+    def refresh(
+        self,
+        *,
+        repaint: bool = True,
+        layout: bool = False,
+        recompose: bool = False,
+    ) -> None:
+        del repaint, layout, recompose
+        self.refresh_count += 1
+
+    async def wait_for_refresh(self) -> None:
+        self._frame += 1
+
+    def export_screenshot(self, *, title: str, simplify: bool) -> str:
+        del title, simplify
+        self.export_count += 1
+        label = "settled" if self._frame >= 2 else f"frame-{self._frame}"
+        return f"<svg><text>{label}</text></svg>"
 
 
 def test_screenshot_request_dir_sanitizes_tmux_names(tmp_path: Path) -> None:
@@ -52,6 +84,18 @@ async def test_app_export_body_writes_svg_and_done(tmp_path: Path) -> None:
     svg = paths.svg.read_text(encoding="utf-8")
     assert "<svg" in svg
     assert "rich-terminal" in svg
+
+
+async def test_export_body_waits_for_stable_visual_frame(tmp_path: Path) -> None:
+    app = _SettlingExportApp()
+
+    paths = await app._run_screenshot_export(tmp_path)
+
+    assert paths.done.exists()
+    assert not paths.error.exists()
+    assert paths.svg.read_text(encoding="utf-8") == ("<svg><text>settled</text></svg>")
+    assert app.export_count >= 4
+    assert app.refresh_count >= 4
 
 
 async def test_app_export_body_tolerates_signal_task_refresh_wait_error(

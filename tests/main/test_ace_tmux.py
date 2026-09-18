@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 import shlex
+import shutil
 import subprocess
 import sys
+import uuid
 from typing import Any
 from unittest.mock import patch
 
@@ -29,15 +32,20 @@ class _FakeTmux:
         in_tmux: bool,
         session_name: str = "agent-session-7",
         existing_windows: tuple[str, ...] = (),
-        new_window_pattern: str = "{session}:@{n}",
         pane_pid_base: int = 82316,
     ) -> None:
         self.in_tmux = in_tmux
         self.session_name = session_name
-        self.existing_windows = list(existing_windows)
-        self.new_window_pattern = new_window_pattern
+        self.windows = [
+            {
+                "id": f"@{index}",
+                "name": name,
+                "metadata": {},
+                "pane_pid": pane_pid_base + index,
+            }
+            for index, name in enumerate(existing_windows, start=1)
+        ]
         self.pane_pid_base = pane_pid_base
-        self.pane_pid_counter = 0
         self.calls: list[list[str]] = []
 
     def __call__(
@@ -52,30 +60,96 @@ class _FakeTmux:
         if sub == "has-session":
             return _completed(cmd, returncode=0 if not self.in_tmux else 1)
         if sub == "list-windows":
-            return _completed(cmd, stdout="\n".join(self.existing_windows) + "\n")
+            return _completed(
+                cmd,
+                stdout="\n".join(str(window["name"]) for window in self.windows) + "\n",
+            )
         if sub == "new-session":
+            return _completed(cmd)
+        if sub == "set-option":
+            if "-w" not in cmd:
+                return _completed(cmd)
+            target = cmd[cmd.index("-t") + 1]
+            window = self._window_by_target(target)
+            option = cmd[-2]
+            value = cmd[-1]
+            window["metadata"][option] = value
+            return _completed(cmd)
+        if sub == "rename-window":
+            target = cmd[cmd.index("-t") + 1]
+            window = self._window_by_target(target)
+            window["name"] = cmd[-1]
+            return _completed(cmd)
+        if sub == "kill-window":
+            target = cmd[cmd.index("-t") + 1]
+            window = self._window_by_target(target)
+            self.windows.remove(window)
             return _completed(cmd)
         if sub == "new-window":
             assert "-n" in cmd
             window_name = cmd[cmd.index("-n") + 1]
-            if window_name in self.existing_windows:
-                return _completed(
-                    cmd,
-                    returncode=1,
-                    stderr=f"duplicate window: {window_name}\n",
-                )
-            self.existing_windows.append(window_name)
             session = self.session_name if self.in_tmux else ace_tmux._AGENTS_SESSION
-            n = len(self.existing_windows)
-            target = self.new_window_pattern.format(session=session, n=n)
-            self.pane_pid_counter += 1
-            pane_pid = self.pane_pid_base + self.pane_pid_counter
-            return _completed(cmd, stdout=f"{target} {pane_pid}\n")
+            n = len(self.windows) + 1
+            window_id = f"@{n}"
+            pane_pid = self.pane_pid_base + n
+            self.windows.append(
+                {
+                    "id": window_id,
+                    "name": window_name,
+                    "metadata": {},
+                    "pane_pid": pane_pid,
+                }
+            )
+            return _completed(
+                cmd, stdout=f"{session}\t{window_id}\t{window_name}\t{pane_pid}\n"
+            )
         raise AssertionError(f"unexpected tmux subcommand: {cmd}")
+
+    def _window_by_target(self, target: str) -> dict[str, Any]:
+        if target.startswith("@"):
+            for window in self.windows:
+                if window["id"] == target:
+                    return window
+        if ":" in target:
+            _session, _, name = target.partition(":")
+            for window in self.windows:
+                if window["name"] == name:
+                    return window
+        raise AssertionError(f"unknown tmux target: {target}")
 
 
 def _args() -> argparse.Namespace:
     return argparse.Namespace(tmux=True)
+
+
+class _SocketTmuxRunner:
+    def __init__(self, socket_path: Path) -> None:
+        self.socket_path = socket_path
+        self.calls: list[list[str]] = []
+
+    def run(
+        self,
+        cmd: list[str],
+        **kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        self.calls.append(list(cmd))
+        assert cmd[0] == "tmux"
+        return subprocess.run(
+            ["tmux", "-S", str(self.socket_path), *cmd[1:]],
+            **kwargs,
+        )
+
+
+@pytest.fixture(autouse=True)
+def _sandbox_screenshot_request_dirs(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(
+        ace_tmux,
+        "screenshot_request_dir",
+        lambda session, window_name: tmp_path / session / window_name,
+    )
 
 
 def test_returns_sase_tmux_1_on_fresh_session(capsys, monkeypatch) -> None:
@@ -91,7 +165,8 @@ def test_returns_sase_tmux_1_on_fresh_session(capsys, monkeypatch) -> None:
     out = capsys.readouterr().out
     assert "sase_tmux_window=sase_tmux_1" in out
     assert "sase_tmux_session=agent-session-7" in out
-    assert "sase_tmux_target" not in out
+    assert "sase_tmux_target=@1" in out
+    assert "sase_tmux_window_id=@1" in out
     assert "sase_screenshot_dir=" in out
     # The PID reported must be the fake pane pid (first window → base + 1),
     # not the parent process's PID. This locks in that we surface the child.
@@ -110,11 +185,112 @@ def test_skips_occupied_window_numbers(capsys, monkeypatch) -> None:
 
     out = capsys.readouterr().out
     assert "sase_tmux_window=sase_tmux_2" in out
-    # We should have tried sase_tmux_1 first and then sase_tmux_2.
     new_window_calls = [c for c in fake.calls if c[1] == "new-window"]
-    assert len(new_window_calls) == 2
-    assert new_window_calls[0][new_window_calls[0].index("-n") + 1] == "sase_tmux_1"
-    assert new_window_calls[1][new_window_calls[1].index("-n") + 1] == "sase_tmux_2"
+    assert len(new_window_calls) == 1
+    assert (new_window_calls[0][new_window_calls[0].index("-n") + 1]).startswith(
+        "sase_tmux_2_"
+    )
+
+
+def test_claim_window_uses_local_claim_when_tmux_allows_duplicate_names(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("TMUX", "/tmp/tmux-1000/default,1,0")
+    fake = _FakeTmux(in_tmux=True)
+
+    first = ace_tmux._claim_window("agent-session-7", "sleep 60", runner=fake)
+    second = ace_tmux._claim_window("agent-session-7", "sleep 60", runner=fake)
+
+    assert first.window_name == "sase_tmux_1"
+    assert second.window_name == "sase_tmux_2"
+    assert first.target == "@1"
+    assert second.target == "@2"
+    assert first.screenshot_dir != second.screenshot_dir
+
+
+def test_create_agent_tmux_window_uses_real_window_ids_on_isolated_socket(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    if shutil.which("tmux") is None:
+        pytest.skip("tmux is not installed")
+    monkeypatch.setattr(
+        ace_tmux,
+        "screenshot_request_dir",
+        lambda session, window_name: tmp_path / "requests" / session / window_name,
+    )
+    socket_path = Path("/tmp") / f"sase-test-tmux-{uuid.uuid4().hex}.sock"
+    runner = _SocketTmuxRunner(socket_path)
+    first: Any = None
+    second: Any = None
+    try:
+        first = ace_tmux.create_agent_tmux_window(
+            "sleep 60",
+            cols=40,
+            rows=10,
+            runner=runner.run,
+            timeout=5,
+        )
+        second = ace_tmux.create_agent_tmux_window(
+            "sleep 60",
+            cols=40,
+            rows=10,
+            runner=runner.run,
+            timeout=5,
+        )
+
+        assert first.window_name == "sase_tmux_1"
+        assert second.window_name == "sase_tmux_2"
+        assert first.target.startswith("@")
+        assert second.target.startswith("@")
+        assert first.target != second.target
+        assert first.screenshot_dir != second.screenshot_dir
+
+        first_dir = runner.run(
+            [
+                "tmux",
+                "display-message",
+                "-p",
+                "-t",
+                first.target,
+                "#{@sase_screenshot_dir}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        second_dir = runner.run(
+            [
+                "tmux",
+                "display-message",
+                "-p",
+                "-t",
+                second.target,
+                "#{@sase_screenshot_dir}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        assert first_dir.stdout.strip() == first.screenshot_dir
+        assert second_dir.stdout.strip() == second.screenshot_dir
+    finally:
+        for window in (first, second):
+            if window is not None:
+                ace_tmux.release_tmux_window_claim(window.screenshot_dir)
+        runner.run(
+            ["tmux", "kill-server"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        try:
+            socket_path.unlink()
+        except FileNotFoundError:
+            pass
 
 
 def test_strips_tmux_flags_from_relaunch_argv(monkeypatch) -> None:
