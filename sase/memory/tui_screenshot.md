@@ -15,18 +15,47 @@ project-canonical TUI visual renderer.
 
 ## Agent Workflow
 
-- `sase screenshot -o /tmp/shot.png` captures a fresh local TUI window.
-- Add repeatable `-p/--press` keys and `-w/--wait-for` regexes for simple setup flows.
-- Use `--keep` when you want to keep driving the launched window by hand with tmux, then
-  capture the same process later with `--window <target>`.
+- Capture after a TUI code, styling, layout, state, navigation, refresh, or screenshot
+  export change when text logs do not prove the visible result. Live captures complement
+  the golden visual lane: use them for real workflow confidence and debugging, then rely
+  on approved visual snapshots for deterministic regression coverage.
+- `sase screenshot -o /tmp/shot.png` captures a fresh local TUI window. Add repeatable
+  `-p/--press` keys and `-w/--wait-for` regexes for setup flows, for example
+  `sase screenshot -o /tmp/agents.png -p tab -w "Agents|Loading" -- -t axe`.
+- Use `--keep` for iterative inspection. Capture once with
+  `sase screenshot --keep -o /tmp/one.png`, copy the printed `sase_tmux_window=...`,
+  drive that exact target with `tmux send-keys -t <target> ...`, then recapture with
+  `sase screenshot --window <target> -o /tmp/two.png`. The printed target is the owned
+  tmux window identity; prefer it over a display name when driving or cleaning up.
 - Use `--host <alias-or-ssh>` to run the SVG capture on a remote machine and rasterize
   the PNG locally. Remote captures show that machine's installed `sase`, not local
-  uncommitted changes.
+  uncommitted changes. Check the printed `remote_sase_version=` before trusting a remote
+  workflow result.
 - Use `--svg` only when the SVG artifact is the desired output or when composing a
   transport leg; ordinary agent visual checks should inspect the final PNG.
 
 The command prints machine-readable `key=value` lines such as `png=`, `svg=`,
-`sase_tmux_window=`, and `sase_screenshot_dir=`. Prefer those keys over prose parsing.
+`sase_tmux_window=`, `sase_screenshot_dir=`, and `remote_sase_version=`. Prefer those
+keys over prose parsing. Inspect the PNG itself, not just its signature or existence.
+
+Live captures include real timestamps, running procs, and host state. Assert stable
+layout, focus, and visible behavior, but do not treat live PNG bytes as deterministic
+goldens unless the fixture controls time and data.
+
+## Troubleshooting
+
+- Missing visual extra: install the project visual dependencies; the screenshot command
+  should report an actionable renderer/import error rather than falling back to a second
+  renderer.
+- Missing tmux or launch timeout: use a private tmux socket for tests, remove only
+  test-owned windows, and keep the overall screenshot timeout bounded. Failure messages
+  should include the last known pane text when available.
+- Old remote `sase`: the remote host must have the screenshot contract installed. If
+  `remote_sase_version=` is absent or too old, verify the shell transport regressions
+  locally and do not assume local uncommitted changes exist on the remote.
+- Settling timeout: wait for a meaningful visual state with `-w/--wait-for` and a
+  delayed interaction. Do not paper over recurring background refreshes with unbounded
+  waits or broad reloads.
 
 ## Implementation Rules
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -45,6 +46,16 @@ class _SettlingExportApp(ScreenshotExportMixin):
         self.export_count += 1
         label = "settled" if self._frame >= 2 else f"frame-{self._frame}"
         return f"<svg><text>{label}</text></svg>"
+
+
+class _BackgroundWorkerExportApp(_SettlingExportApp):
+    """Settling host with a non-visual worker that remains active."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.workers = (
+            SimpleNamespace(name="automatic-update-check", is_running=True),
+        )
 
 
 def test_screenshot_request_dir_sanitizes_tmux_names(tmp_path: Path) -> None:
@@ -96,6 +107,17 @@ async def test_export_body_waits_for_stable_visual_frame(tmp_path: Path) -> None
     assert paths.svg.read_text(encoding="utf-8") == ("<svg><text>settled</text></svg>")
     assert app.export_count >= 4
     assert app.refresh_count >= 4
+
+
+async def test_export_body_ignores_running_background_workers(tmp_path: Path) -> None:
+    app = _BackgroundWorkerExportApp()
+
+    paths = await app._run_screenshot_export(tmp_path)
+
+    assert paths.done.exists()
+    assert not paths.error.exists()
+    assert paths.svg.read_text(encoding="utf-8") == ("<svg><text>settled</text></svg>")
+    assert app.export_count >= 4
 
 
 async def test_app_export_body_tolerates_signal_task_refresh_wait_error(

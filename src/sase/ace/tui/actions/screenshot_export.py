@@ -242,11 +242,12 @@ class ScreenshotExportMixin:
             for name in _SCREENSHOT_DEBOUNCERS
             if bool(getattr(getattr(self, name, None), "is_pending", False))
         ]
-        workers = [
-            str(getattr(worker, "name", None) or getattr(worker, "description", worker))
-            for worker in getattr(self, "workers", ())
-            if bool(getattr(worker, "is_running", False))
-        ]
+        # Live TUI captures run against the user's real host state, where broad
+        # data refresh and update-check workers may be active for longer than a
+        # bounded screenshot export. Frame convergence below proves compositor
+        # progress; finite visual blockers are covered by debouncers, timers,
+        # and animations.
+        workers: list[str] = []
 
         animator = getattr(self, "animator", None)
         animations = [
