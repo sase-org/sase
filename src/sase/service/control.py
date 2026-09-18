@@ -181,6 +181,9 @@ def start_service_host(
     *, wait_seconds: float = _START_WAIT_SECONDS
 ) -> _ServiceHostActionResult:
     """Launch ``sase service run`` detached and wait for a fresh heartbeat."""
+    native = _native_lifecycle_action("start")
+    if native is not None:
+        return native
     with _short_file_lock(service_host_start_lock_path()):
         before = time.time()
         probe = _probe_service_host()
@@ -249,6 +252,9 @@ def stop_service_host(
     *, wait_seconds: float = _STOP_WAIT_SECONDS
 ) -> _ServiceHostActionResult:
     """Signal the foreground service host and wait for it to exit."""
+    native = _native_lifecycle_action("stop")
+    if native is not None:
+        return native
     probe = _probe_service_host()
     if probe.record is None or not probe.pid_alive:
         return _ServiceHostActionResult(
@@ -286,6 +292,9 @@ def stop_service_host(
 
 def restart_service_host() -> _ServiceHostActionResult:
     """Stop then start the host, verifying each side of the handoff."""
+    native = _native_lifecycle_action("restart")
+    if native is not None:
+        return native
     stopped = stop_service_host()
     if not stopped.ok:
         return stopped
@@ -306,6 +315,7 @@ def current_service_status(
     composition = load_service_config() if config is None else config
     state_snapshot = read_service_state()
     probe = _probe_service_host()
+    platform_unit = _installed_platform_unit()
     return build_service_status(
         composition,
         state_snapshot,
@@ -313,6 +323,7 @@ def current_service_status(
             record=probe.record,
             lock_held=probe.lock_held,
             pid_alive=probe.pid_alive,
+            platform_unit=platform_unit,
             stale_after_seconds=_HOST_STALE_SECONDS,
         ),
         _proc_observations(),
@@ -435,6 +446,36 @@ def _parse_timestamp(value: str | None) -> float | None:
 def utc_timestamp() -> str:
     """Return the proc-store timestamp format used by service-host rows."""
     return datetime.now(UTC).isoformat(timespec="seconds").replace("+00:00", "Z")
+
+
+def _native_lifecycle_action(action: str) -> _ServiceHostActionResult | None:
+    try:
+        from sase.service.platform import control_installed_service
+
+        result = control_installed_service(action)  # type: ignore[arg-type]
+    except Exception as exc:
+        return _ServiceHostActionResult(
+            ok=False,
+            changed=False,
+            message=f"native service {action} failed before execution: {exc}",
+        )
+    if result is None:
+        return None
+    return _ServiceHostActionResult(
+        ok=result.ok,
+        changed=result.changed,
+        message=result.message,
+    )
+
+
+def _installed_platform_unit() -> str | None:
+    try:
+        from sase.service.platform import installed_native_definition
+
+        definition = installed_native_definition()
+    except Exception:
+        return None
+    return None if definition is None else definition.identity
 
 
 __all__ = [

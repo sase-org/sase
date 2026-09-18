@@ -60,7 +60,7 @@ def _active_onboarding_specs(
 ) -> tuple[InitCommandSpec, ...]:
     active_specs = tuple(iter_init_command_specs() if specs is None else specs)
     if specs is None and not is_project_directory():
-        return tuple(spec for spec in active_specs if spec.name != "repo")
+        return tuple(spec for spec in active_specs if spec.scope != "project")
     return active_specs
 
 

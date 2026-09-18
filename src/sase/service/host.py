@@ -37,6 +37,7 @@ from sase.service.boot import current_boot_id
 from sase.service.config import ServiceConfigComposition, ServiceProcConfig
 from sase.service.config import load_service_config
 from sase.service.control import ServiceHostLock, utc_timestamp
+from sase.service.env import load_service_environment
 from sase.service.paths import service_proc_dir, service_proc_output_log_path
 from sase.service.restart import (
     ServiceExit,
@@ -108,10 +109,12 @@ class _ServiceHost:
         self._restart_counts: dict[str, int] = {}
         self._boot_id = current_boot_id()
         self._started_at = time.time()
+        self._unit = os.environ.get("SASE_SERVICE_UNIT") or None
 
     def run(self) -> int:
         """Run the foreground host until SIGTERM, SIGINT, or KeyboardInterrupt."""
         set_include_local_config(False)
+        load_service_environment(override_existing=True)
         lock = ServiceHostLock.acquire(blocking=False)
         if lock is None:
             print("sase service run: service host is already running", file=sys.stderr)
@@ -157,6 +160,7 @@ class _ServiceHost:
                 started_at=self._started_at,
                 heartbeat_at=time.time(),
                 mode="foreground",
+                unit=self._unit,
                 sase_version=_package_version(),
                 error=error,
             )
@@ -590,6 +594,7 @@ class _ServiceHost:
                     started_at=self._started_at,
                     heartbeat_at=time.time(),
                     mode="foreground",
+                    unit=self._unit,
                     sase_version=_package_version(),
                 ),
                 lock_held=True,

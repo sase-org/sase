@@ -12613,6 +12613,70 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "adb65047a514922f",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "service",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "check",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-c",
+                  "--check"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "diff",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--diff"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "force",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--force"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "init",
+              "service"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "6da2fbb173516fc0",
             "hidden": false,
             "mutex_groups": [],
@@ -23785,7 +23849,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "5de1950f772647ed",
+            "description_digest": "3370d44d3faffb20",
             "hidden": false,
             "mutex_groups": [],
             "name": "init",
@@ -23799,6 +23863,54 @@
                 "strings": [
                   "-h",
                   "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "check",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-c",
+                  "--check"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "diff",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--diff"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "force",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--force"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "yes",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-y",
+                  "--yes"
                 ],
                 "takes_value": false
               }
@@ -24511,7 +24623,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "56028dc474db3ffd",
+            "description_digest": "3fe7ddf0c8a30c80",
             "hidden": false,
             "mutex_groups": [],
             "name": "uninstall",
@@ -24525,6 +24637,42 @@
                 "strings": [
                   "-h",
                   "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "check",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-c",
+                  "--check"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "diff",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-d",
+                  "--diff"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "yes",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-y",
+                  "--yes"
                 ],
                 "takes_value": false
               }

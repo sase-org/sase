@@ -43,7 +43,7 @@ def test_noop_plans_print_initialized_message(
     assert "Checked: memory, repo, skills." in out
 
 
-def test_bare_init_check_skips_repo_outside_project(
+def test_bare_init_check_skips_project_scopes_outside_project(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -53,6 +53,12 @@ def test_bare_init_check_skips_repo_outside_project(
     monkeypatch.chdir(tmp_path)
     calls: list[str] = []
     specs = (
+        _spec(
+            "machine",
+            _plan("machine", summary="machine current"),
+            calls,
+            scope="machine",
+        ),
         _spec("memory", _plan("memory", summary="memory current"), calls),
         _spec(
             "repo",
@@ -62,6 +68,12 @@ def test_bare_init_check_skips_repo_outside_project(
                 summary="create repository wiring",
             ),
             calls,
+        ),
+        _spec(
+            "service",
+            _plan("service", summary="service current"),
+            calls,
+            scope="machine",
         ),
         _spec("skills", _plan("skills", summary="skills current"), calls),
     )
@@ -75,7 +87,7 @@ def test_bare_init_check_skips_repo_outside_project(
 
     assert exit_code == 0
     out = capsys.readouterr().out
-    assert "Checked: memory, skills." in out
+    assert "Checked: machine, service." in out
     assert "init repo" not in out
     assert calls == []
 

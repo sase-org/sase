@@ -29,6 +29,7 @@ from sase.service.control import (
     stop_service_host,
 )
 from sase.service.host import run_service_host
+from sase.service.env import load_service_environment
 from sase.service.paths import service_host_log_path, service_proc_output_log_path
 from sase.service.actions import (
     ServiceProcActionError,
@@ -38,11 +39,20 @@ from sase.service.actions import (
     start_service_proc,
     stop_service_proc,
 )
+from sase.service.platform import (
+    ServicePlatformPlan,
+    apply_service_init,
+    apply_service_uninstall,
+    service_init_plan,
+    service_uninstall_plan,
+)
 
 
 def handle_service_command(args: argparse.Namespace) -> NoReturn:
     """Dispatch top-level service commands."""
     try:
+        if getattr(args, "service_subcommand", None) == "run":
+            load_service_environment(override_existing=True)
         require_service_host_enabled("sase service")
         code = _handle_service_command(args)
     except ServiceHostDisabledError as exc:
@@ -60,7 +70,7 @@ def handle_service_command(args: argparse.Namespace) -> NoReturn:
 def _handle_service_command(args: argparse.Namespace) -> int:
     subcommand = getattr(args, "service_subcommand", None) or "status"
     if subcommand == "init":
-        return _phase_error("init")
+        return _handle_service_init(args)
     if subcommand == "logs":
         return _handle_service_logs(args)
     if subcommand == "proc":
@@ -76,7 +86,7 @@ def _handle_service_command(args: argparse.Namespace) -> int:
     if subcommand == "stop":
         return _print_action(stop_service_host(), args)
     if subcommand == "uninstall":
-        return _phase_error("uninstall")
+        return _handle_service_uninstall(args)
     print(
         "Usage: sase service {init,logs,proc,restart,run,start,status,stop,uninstall}",
         file=sys.stderr,
@@ -92,6 +102,8 @@ def _handle_service_status(args: argparse.Namespace) -> int:
         return 0
     console = Console()
     console.print(f"[bold]Service host:[/bold] {snapshot.host.summary}")
+    if snapshot.host.platform_unit:
+        console.print(f"[dim]Native unit:[/dim] {snapshot.host.platform_unit}")
     table = Table(title="Service procs")
     table.add_column("Name")
     table.add_column("Desired")
@@ -102,7 +114,67 @@ def _handle_service_status(args: argparse.Namespace) -> int:
     console.print(table)
     for diagnostic in snapshot.diagnostics:
         console.print(f"[yellow]{diagnostic}[/yellow]")
+    plan = service_init_plan(force=True)
+    for diagnostic in (*plan.blockers, *plan.warnings):
+        console.print(f"[yellow]{diagnostic}[/yellow]")
     return 0 if snapshot.host.state in {"running", "starting"} else 1
+
+
+def _handle_service_init(args: argparse.Namespace) -> int:
+    force = bool(getattr(args, "force", False))
+    if bool(getattr(args, "yes", False)):
+        result = apply_service_init(force=force)
+        _print_platform_plan(result.plan, show_diff=False)
+        print(result.message)
+        return 0 if result.ok else 1
+    plan = service_init_plan(force=force)
+    _print_platform_plan(plan, show_diff=bool(getattr(args, "diff", False)))
+    if bool(getattr(args, "check", False)):
+        return 0 if plan.current else 1
+    if plan.current:
+        return 0
+    print("Run `sase service init --yes` to apply these changes.")
+    return 1
+
+
+def _handle_service_uninstall(args: argparse.Namespace) -> int:
+    if bool(getattr(args, "yes", False)):
+        result = apply_service_uninstall()
+        _print_platform_plan(result.plan, show_diff=False)
+        print(result.message)
+        return 0 if result.ok else 1
+    plan = service_uninstall_plan()
+    _print_platform_plan(plan, show_diff=bool(getattr(args, "diff", False)))
+    if bool(getattr(args, "check", False)):
+        return 0 if plan.current else 1
+    if plan.current:
+        return 0
+    print("Run `sase service uninstall --yes` to apply these changes.")
+    return 1
+
+
+def _print_platform_plan(plan: ServicePlatformPlan | None, *, show_diff: bool) -> None:
+    if plan is None:
+        return
+    console = Console()
+    console.print(f"[bold]Service platform:[/bold] {plan.status}")
+    console.print(f"  unit: {plan.definition.identity}")
+    console.print(f"  definition: {plan.definition.definition_path}")
+    console.print(f"  environment: {plan.definition.env_path}")
+    if plan.actions:
+        console.print("Actions:", style="bold")
+        for action in plan.actions:
+            console.print(f"  - {action}")
+    if plan.blockers:
+        console.print("Blockers:", style="bold red")
+        for blocker in plan.blockers:
+            console.print(f"  - {blocker}", style="red")
+    if plan.warnings:
+        console.print("Warnings:", style="bold yellow")
+        for warning in plan.warnings:
+            console.print(f"  - {warning}", style="yellow")
+    if show_diff and plan.diff:
+        console.print(plan.diff)
 
 
 def _handle_service_logs(args: argparse.Namespace) -> int:
@@ -298,15 +370,6 @@ def _print_action(result: Any, args: argparse.Namespace) -> int:
     else:
         print(result.message)
     return 0 if result.ok else 1
-
-
-def _phase_error(command: str) -> int:
-    print(
-        f"sase service {command}: platform unit integration lands in sase-11y.5; "
-        "use `sase service start` for the detached fallback.",
-        file=sys.stderr,
-    )
-    return 2
 
 
 def _run_command(args: argparse.Namespace) -> list[str]:

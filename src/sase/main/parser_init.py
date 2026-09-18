@@ -287,6 +287,35 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Write project config and ignore rules without committing or pushing",
     )
 
+    service_parser = init_subparsers.add_parser(
+        "service",
+        help="Alias for `sase service init`",
+        description=(
+            "Compatibility alias for `sase service init`, which installs or "
+            "checks the machine-scoped native service-host unit."
+        ),
+    )
+    service_parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Report service-platform drift without writing files",
+    )
+    service_parser.add_argument(
+        "-d",
+        "--diff",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Show native-unit and redacted service-environment diffs",
+    )
+    service_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Allow installation for a non-default SASE_HOME using a home-scoped unit identity",
+    )
+
     skills_parser = init_subparsers.add_parser(
         "skills",
         help="Alias for `sase skill init`",

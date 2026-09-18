@@ -6,9 +6,10 @@ import argparse
 from collections.abc import Iterator
 from contextlib import contextmanager
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import os
 from pathlib import Path
+from typing import Any
 
 from rich.console import Console
 
@@ -20,7 +21,20 @@ from .init_project_scope import InitProjectTarget
 class InitOnboardingBatchContext:
     """Invocation-local context shared across project onboarding passes."""
 
-    machine_offer_handled: bool = False
+    handled_scopes: set[str] = field(default_factory=set)
+    machine_assessment_cache: dict[tuple[Any, ...], Any] = field(default_factory=dict)
+
+    @property
+    def machine_offer_handled(self) -> bool:
+        """Backward-compatible view for older machine-init helpers/tests."""
+        return "machine" in self.handled_scopes
+
+    @machine_offer_handled.setter
+    def machine_offer_handled(self, value: bool) -> None:
+        if value:
+            self.handled_scopes.add("machine")
+        else:
+            self.handled_scopes.discard("machine")
 
 
 @contextmanager

@@ -351,15 +351,23 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-11y.5(clear_service_marker)" \
-        --epic-symbol "sase-11y.5(service_dir)" \
-        --epic-symbol "sase-11y.5(service_state_path)" \
-        --epic-symbol "sase-11y.5(set_service_marker)" \
+        --epic-symbol "sase-11y.7(CapturedServiceEnvironment)" \
+        --epic-symbol "sase-11y.7(NativeInspection)" \
+        --epic-symbol "sase-11y.7(NativeServiceDefinition)" \
         --epic-symbol "sase-11y.7(ServiceEnablement)" \
+        --epic-symbol "sase-11y.7(ServiceEnvironmentError)" \
         --epic-symbol "sase-11y.7(ServiceFieldProvenance)" \
+        --epic-symbol "sase-11y.7(ServicePlatformApplyResult)" \
+        --epic-symbol "sase-11y.7(build_native_definition)" \
         --epic-symbol "sase-11y.7(clear_service_enablement)" \
         --epic-symbol "sase-11y.7(compose_service_config)" \
+        --epic-symbol "sase-11y.7(inspect_native_service)" \
+        --epic-symbol "sase-11y.7(read_service_environment)" \
+        --epic-symbol "sase-11y.7(readiness_warnings)" \
         --epic-symbol "sase-11y.7(resolve_service_enablement)" \
+        --epic-symbol "sase-11y.7(service_dir)" \
+        --epic-symbol "sase-11y.7(service_platform_supported)" \
+        --epic-symbol "sase-11y.7(service_state_path)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

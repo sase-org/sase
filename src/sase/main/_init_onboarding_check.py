@@ -20,7 +20,24 @@ def plan_specs(
     args: argparse.Namespace,
     specs: Sequence[InitCommandSpec],
 ) -> tuple[InitPlan, ...]:
-    return tuple(spec.plan(args) for spec in specs)
+    context = getattr(args, "_init_onboarding_context", None)
+    handled: set[str] = (
+        getattr(context, "handled_scopes", set()) if context is not None else set()
+    )
+    plans: list[InitPlan] = []
+    for spec in specs:
+        if spec.scope == "machine" and spec.name in handled:
+            plans.append(
+                InitPlan(
+                    command=spec.name,
+                    label=spec.label,
+                    summary=f"{spec.label} was already handled in this init batch",
+                    actions=(),
+                )
+            )
+            continue
+        plans.append(spec.plan(args))
+    return tuple(plans)
 
 
 def plan_check_status(plans: Sequence[InitPlan]) -> tuple[bool, bool, bool]:

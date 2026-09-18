@@ -75,6 +75,26 @@ def test_service_proc_run_parser_carries_transient_options() -> None:
     assert args.proc_command == ["--", "echo", "ok"]
 
 
+def test_service_init_and_uninstall_parser_flags() -> None:
+    init_args = create_parser().parse_args(["service", "init", "-c", "-d", "-f", "-y"])
+    uninstall_args = create_parser().parse_args(
+        ["service", "uninstall", "-c", "-d", "-y"]
+    )
+    alias_args = create_parser().parse_args(["init", "service", "-c", "-d", "-f"])
+
+    assert init_args.check is True
+    assert init_args.diff is True
+    assert init_args.force is True
+    assert init_args.yes is True
+    assert uninstall_args.check is True
+    assert uninstall_args.diff is True
+    assert uninstall_args.yes is True
+    assert alias_args.init_subcommand == "service"
+    assert alias_args.check is True
+    assert alias_args.diff is True
+    assert alias_args.force is True
+
+
 def test_scheduler_help_lists_sorted_subcommands() -> None:
     parser = parser_for(("sase", "scheduler"))
     help_text = parser.format_help()

@@ -39,6 +39,7 @@ from sase.doctor.checks_runtime_node import (
     npm_provider_readiness_rows,
     providers_from_payload,
 )
+from sase.doctor.checks_service_platform import check_service_platform
 from sase.doctor.checks_state_paths import (
     check_state_paths,
     directory_target,
@@ -87,6 +88,12 @@ def runtime_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             group="install",
             title="Install management readiness",
             runner=lambda: _check_install_management(context),
+        ),
+        CheckSpec(
+            id="service.platform",
+            group="service",
+            title="Service platform unit",
+            runner=check_service_platform,
         ),
         CheckSpec(
             id="state.paths",

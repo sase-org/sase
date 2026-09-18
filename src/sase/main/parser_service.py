@@ -23,10 +23,11 @@ def register_service_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="{init,logs,proc,restart,run,start,status,stop,uninstall}",
     )
 
-    service_sub.add_parser(
+    init_parser = service_sub.add_parser(
         "init",
-        help="Explain platform-unit setup status for this phase",
+        help="Install or check the native service-host unit",
     )
+    _add_check_diff_force_yes(init_parser, include_force=True)
 
     logs_parser = service_sub.add_parser(
         "logs",
@@ -77,10 +78,11 @@ def register_service_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     _add_json_flag(stop_parser)
 
-    service_sub.add_parser(
+    uninstall_parser = service_sub.add_parser(
         "uninstall",
-        help="Explain platform-unit removal status for this phase",
+        help="Unload and remove the native service-host unit",
     )
+    _add_check_diff_force_yes(uninstall_parser, include_force=False)
 
 
 def _add_service_proc_parser(service_sub: argparse._SubParsersAction) -> None:
@@ -218,6 +220,38 @@ def _add_json_flag(parser: argparse.ArgumentParser) -> None:
         "--json",
         action="store_true",
         help="Emit a machine-readable JSON object",
+    )
+
+
+def _add_check_diff_force_yes(
+    parser: argparse.ArgumentParser,
+    *,
+    include_force: bool,
+) -> None:
+    parser.add_argument(
+        "-c",
+        "--check",
+        action="store_true",
+        help="Report platform-unit drift without writing files or changing the native manager",
+    )
+    parser.add_argument(
+        "-d",
+        "--diff",
+        action="store_true",
+        help="Show desired native-unit and redacted environment diffs without writing",
+    )
+    if include_force:
+        parser.add_argument(
+            "-f",
+            "--force",
+            action="store_true",
+            help="Allow installation for a non-default SASE_HOME using a home-scoped unit identity",
+        )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Apply the planned native-manager changes",
     )
 
 

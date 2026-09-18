@@ -24,6 +24,8 @@ def _prompt_for_plan(
     command = f"sase init {plan.command}"
     if plan.command == "machine":
         command = "sase machine init"
+    if plan.command == "service":
+        command = "sase service init"
     if plan.command == "skills":
         command = f"{command} --force"
     prompt = f"Run `{command}` now?"
@@ -96,13 +98,13 @@ def run_changed_plans(
         spec = spec_by_name[plan.command]
         context = getattr(args, "_init_onboarding_context", None)
         if (
-            plan.command == "machine"
+            spec.scope == "machine"
             and context is not None
-            and getattr(context, "machine_offer_handled", False)
+            and spec.name in getattr(context, "handled_scopes", set())
         ):
             continue
-        if plan.command == "machine" and context is not None:
-            context.machine_offer_handled = True
+        if spec.scope == "machine" and context is not None:
+            context.handled_scopes.add(spec.name)
         if getattr(args, "yes", False):
             should_run = True
         else:
@@ -119,6 +121,10 @@ def run_changed_plans(
                 console.print("init: confirmation cancelled; aborting.")
                 return InitRunResult(1, "cancelled")
         if not should_run:
+            if spec.decline is not None:
+                spec.decline(
+                    _apply_args(args, spec, input_func=input_func, stdin=stdin)
+                )
             skipped = True
             continue
         exit_code = spec.run(

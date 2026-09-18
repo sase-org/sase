@@ -317,6 +317,11 @@ def main() -> NoReturn:
 
             handle_repo_init_command(args)
 
+        if args.init_subcommand == "service":
+            from .init_service_handler import handle_init_service_command
+
+            handle_init_service_command(args)
+
         if args.init_subcommand == "skills":
             from .init_skills_handler import handle_init_skills_command
 

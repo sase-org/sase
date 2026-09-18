@@ -39,6 +39,21 @@ def service_host_log_path(sase_home: str | PathLike[str] | None = None) -> Path:
     return service_dir(sase_home) / "host.log"
 
 
+def service_host_stdout_path(sase_home: str | PathLike[str] | None = None) -> Path:
+    """Return the platform-unit service-host stdout log path."""
+    return service_dir(sase_home) / "host.stdout.log"
+
+
+def service_host_stderr_path(sase_home: str | PathLike[str] | None = None) -> Path:
+    """Return the platform-unit service-host stderr log path."""
+    return service_dir(sase_home) / "host.stderr.log"
+
+
+def service_env_path(sase_home: str | PathLike[str] | None = None) -> Path:
+    """Return the captured platform-unit environment file path."""
+    return service_dir(sase_home) / "env"
+
+
 def _service_procs_dir(sase_home: str | PathLike[str] | None = None) -> Path:
     """Return the root for per-service-proc runtime directories."""
     return service_dir(sase_home) / "procs"
@@ -62,9 +77,12 @@ def service_proc_output_log_path(
 
 __all__ = [
     "service_dir",
+    "service_env_path",
     "service_host_lock_path",
     "service_host_log_path",
+    "service_host_stderr_path",
     "service_host_start_lock_path",
+    "service_host_stdout_path",
     "service_proc_dir",
     "service_proc_output_log_path",
     "service_state_path",

@@ -7,7 +7,7 @@ from io import StringIO
 from pathlib import Path
 
 from sase.main.init_plan import InitAction, InitPlan
-from sase.main.init_registry import InitCommandSpec
+from sase.main.init_registry import InitCommandScope, InitCommandSpec
 
 
 class _TtyStringIO(StringIO):
@@ -68,6 +68,7 @@ def _spec(
     calls: list[str],
     args_seen: list[argparse.Namespace] | None = None,
     exit_code: int = 0,
+    scope: InitCommandScope = "project",
 ) -> InitCommandSpec:
     def _run(args: argparse.Namespace) -> int:
         calls.append(name)
@@ -80,6 +81,7 @@ def _spec(
         label=plan.label,
         plan=lambda args: plan,
         run=_run,
+        scope=scope,
     )
 
 
