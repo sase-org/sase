@@ -9,7 +9,10 @@ import pytest
 
 from sase.completion.candidates.protocol import Candidate
 from sase.main import completion_fast_path
-from sase.main.completion_fast_path import try_handle_completion_candidates
+from sase.main.completion_fast_path import (
+    try_handle_completion_candidates,
+    try_handle_completion_ensure,
+)
 
 
 def _stub_candidates_for(monkeypatch: pytest.MonkeyPatch, result: list[Candidate]):
@@ -152,6 +155,109 @@ def test_fast_path_guard_only_triggers_for_exact_completion_candidates_argv(
         ["sase", "--help"],
         ["sase", "completion", "--help"],
         ["sase", "completions", "candidates"],
+        ["sase", "completion"],
+    ):
+        monkeypatch.setattr(sys, "argv", argv)
+        with pytest.raises(SystemExit):
+            entry.main()
+    assert calls == []
+
+
+def test_ensure_fast_path_prints_cached_path(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    calls: list[dict[str, object]] = []
+    grammar = tmp_path / "grammar" / "sase.bash"
+
+    def fake(
+        shell: str,
+        *,
+        force: bool,
+        loader_path: str | None,
+        owner: str | None,
+        target: str | None,
+    ) -> Path:
+        calls.append(
+            {
+                "force": force,
+                "loader_path": loader_path,
+                "owner": owner,
+                "shell": shell,
+                "target": target,
+            }
+        )
+        return grammar
+
+    monkeypatch.setattr("sase.completion.runtime_cache.ensure_cached_grammar", fake)
+
+    assert (
+        try_handle_completion_ensure(
+            [
+                "bash",
+                "-f",
+                "--loader-path",
+                "/tmp/sase",
+                "--owner=local",
+            ]
+        )
+        == 0
+    )
+
+    assert capsys.readouterr().out == f"{grammar}\n"
+    assert calls == [
+        {
+            "force": True,
+            "loader_path": "/tmp/sase",
+            "owner": "local",
+            "shell": "bash",
+            "target": None,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        [],
+        ["--help"],
+        ["bash", "--help"],
+        ["bash", "--unknown"],
+        ["bash", "--owner", "somebody"],
+        ["bash", "--loader-path"],
+        ["bash", "--loader-path", "/tmp/sase", "--target", "/tmp"],
+        ["not-a-shell"],
+        ["bash", "extra"],
+    ],
+)
+def test_ensure_fast_path_defers_on_help_or_malformed(argv: list[str]) -> None:
+    assert try_handle_completion_ensure(argv) is None
+
+
+def test_ensure_fast_path_guard_only_triggers_for_exact_completion_ensure_argv(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.main import entry
+
+    calls: list[list[str]] = []
+    monkeypatch.setattr(
+        completion_fast_path,
+        "try_handle_completion_ensure",
+        lambda argv: calls.append(argv) or 0,
+    )
+
+    monkeypatch.setattr(sys, "argv", ["sase", "completion", "ensure", "bash"])
+    with pytest.raises(SystemExit) as exc_info:
+        entry.main()
+    assert exc_info.value.code == 0
+    assert calls == [["bash"]]
+
+    calls.clear()
+    for argv in (
+        ["sase", "--help"],
+        ["sase", "completion", "--help"],
+        ["sase", "completion", "loader", "bash"],
         ["sase", "completion"],
     ):
         monkeypatch.setattr(sys, "argv", argv)

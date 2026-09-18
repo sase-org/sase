@@ -35,9 +35,11 @@ def test_completion_help_lists_sorted_subcommands() -> None:
         "bash",
         "candidates",
         "deploy-chezmoi",
+        "ensure",
         "fish",
         "install",
         "list",
+        "loader",
         "refresh",
         "spec",
         "zsh",
@@ -45,8 +47,8 @@ def test_completion_help_lists_sorted_subcommands() -> None:
 
     assert help_subcommand_rows(help_text, expected) == sorted(expected)
     assert (
-        "{bash,candidates,deploy-chezmoi,fish,install,list,refresh,spec,zsh}"
-        in help_text
+        "{bash,candidates,deploy-chezmoi,ensure,fish,install,"
+        "list,loader,refresh,spec,zsh}" in help_text
     )
     assert "defaults to `sase completion list`" in help_text
     assert 'eval "$(sase completion zsh)"' in help_text
@@ -68,6 +70,41 @@ def test_completion_spec_and_shells_accept_output() -> None:
     assert fish.output == "out.fish"
     assert zsh.completion_subcommand == "zsh"
     assert zsh.output == "out.zsh"
+
+
+def test_completion_ensure_accepts_shell_and_cache_modifiers() -> None:
+    parsed = parse_sase_args(
+        [
+            "completion",
+            "ensure",
+            "fish",
+            "-f",
+            "-p",
+            "/tmp/sase.fish",
+            "-O",
+            "chezmoi",
+        ]
+    )
+    target = parse_sase_args(["completion", "ensure", "bash", "-t", "/tmp"])
+
+    assert parsed.completion_subcommand == "ensure"
+    assert parsed.shell == "fish"
+    assert parsed.force is True
+    assert parsed.loader_path == "/tmp/sase.fish"
+    assert parsed.owner == "chezmoi"
+    assert parsed.target is None
+    assert target.target == "/tmp"
+
+
+def test_completion_loader_accepts_shell_owner_and_output() -> None:
+    parsed = parse_sase_args(
+        ["completion", "loader", "zsh", "-O", "local", "-o", "_sase"]
+    )
+
+    assert parsed.completion_subcommand == "loader"
+    assert parsed.shell == "zsh"
+    assert parsed.owner == "local"
+    assert parsed.output == "_sase"
 
 
 def test_completion_install_accepts_shell_and_modifiers() -> None:
@@ -125,6 +162,8 @@ def test_completion_child_help_documents_short_aliases() -> None:
     refresh_help = flat_help(
         parser_for(("sase", "completion", "refresh")).format_help()
     )
+    ensure_help = flat_help(parser_for(("sase", "completion", "ensure")).format_help())
+    loader_help = flat_help(parser_for(("sase", "completion", "loader")).format_help())
 
     assert "-j, --json" in list_help
     assert "-j, --json" in spec_help
@@ -136,7 +175,13 @@ def test_completion_child_help_documents_short_aliases() -> None:
     assert "-d, --dry-run" in refresh_help
     assert "-j, --json" in refresh_help
     assert "-f, --force" in install_help
+    assert "-f, --force" in ensure_help
     assert_metavar_option_documented(install_help, "-t", "--target", "DIR")
+    assert_metavar_option_documented(ensure_help, "-p", "--loader-path", "FILE")
+    assert_metavar_option_documented(ensure_help, "-t", "--target", "DIR")
+    assert "-O" in ensure_help and "--owner" in ensure_help
+    assert "-O" in loader_help and "--owner" in loader_help
+    assert_metavar_option_documented(loader_help, "-o", "--output", "FILE")
     assert "complete -o default" in bash_help
     assert "__sase_cmd" in fish_help
     assert "fpath" in zsh_help

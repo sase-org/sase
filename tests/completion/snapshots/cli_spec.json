@@ -9269,6 +9269,98 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "a208e53dda63bf0d",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "ensure",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "force",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--force"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "loader_path",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--loader-path"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": [
+                  "chezmoi",
+                  "local"
+                ],
+                "dest": "owner",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-O",
+                  "--owner"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "target",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--target"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "completion",
+              "ensure"
+            ],
+            "positionals": [
+              {
+                "choices": [
+                  "bash",
+                  "fish",
+                  "zsh"
+                ],
+                "dest": "shell",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "shell",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "0452164a8405f581",
             "hidden": false,
             "mutex_groups": [],
@@ -9421,6 +9513,74 @@
               "list"
             ],
             "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "db1264b4a5d00319",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "loader",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "chezmoi",
+                  "local"
+                ],
+                "dest": "owner",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-O",
+                  "--owner"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "output",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-o",
+                  "--output"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "completion",
+              "loader"
+            ],
+            "positionals": [
+              {
+                "choices": [
+                  "bash",
+                  "fish",
+                  "zsh"
+                ],
+                "dest": "shell",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "shell",
+                "nargs": null
+              }
+            ],
             "subcommands": []
           },
           {

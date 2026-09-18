@@ -34,11 +34,13 @@ def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase completion bash -o "
             "~/.local/share/bash-completion/completions/sase\n"
             "  sase completion deploy-chezmoi -d       # plan managed source files\n"
+            "  sase completion ensure zsh              # print cached grammar path\n"
             "  sase completion fish                    # print fish complete directives\n"
             "  sase completion fish -o ~/.config/fish/completions/sase.fish\n"
             "  sase completion install                 # detect the shell and install\n"
             "  sase completion install zsh             # write, zcompile, verify, stamp\n"
             "  sase completion list                    # shells, path, zwc, stamp\n"
+            "  sase completion loader zsh              # print a portable loader\n"
             "  sase completion refresh                 # refresh stamped local installs\n"
             "  sase completion refresh zsh -d          # show the zsh refresh plan\n"
             "  sase completion spec                    # structural JSON\n"
@@ -51,15 +53,20 @@ def register_completion_parser(subparsers: argparse._SubParsersAction) -> None:
     completion_sub = completion_parser.add_subparsers(
         dest="completion_subcommand",
         help="Completion subcommands",
-        metavar="{bash,candidates,deploy-chezmoi,fish,install,list,refresh,spec,zsh}",
+        metavar=(
+            "{bash,candidates,deploy-chezmoi,ensure,fish,install,"
+            "list,loader,refresh,spec,zsh}"
+        ),
     )
 
     _register_bash_parser(completion_sub)
     _register_candidates_parser(completion_sub)
     _register_deploy_chezmoi_parser(completion_sub)
+    _register_ensure_parser(completion_sub)
     _register_fish_parser(completion_sub)
     _register_install_parser(completion_sub)
     _register_list_parser(completion_sub)
+    _register_loader_parser(completion_sub)
     _register_refresh_parser(completion_sub)
     _register_spec_parser(completion_sub)
     _register_zsh_parser(completion_sub)
@@ -132,6 +139,44 @@ def _register_list_parser(subparsers: argparse._SubParsersAction) -> None:
         "--json",
         action="store_true",
         help="Emit machine-readable JSON",
+    )
+
+
+def _register_loader_parser(subparsers: argparse._SubParsersAction) -> None:
+    loader_parser = subparsers.add_parser(
+        "loader",
+        help="Emit a portable shell-completion loader",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Print a small shell-native loader that resolves the active sase "
+            "executable at runtime, asks `sase completion ensure SHELL` for "
+            "the current cached grammar, and sources that grammar once."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase completion loader zsh\n"
+            "  sase completion loader bash -O local -o ./sase\n"
+            "  sase completion loader fish -O chezmoi"
+        ),
+    )
+    loader_parser.add_argument(
+        "shell",
+        choices=("bash", "fish", "zsh"),
+        help="Shell loader to emit",
+    )
+    loader_parser.add_argument(
+        "-O",
+        "--owner",
+        choices=("chezmoi", "local"),
+        default=None,
+        help="Ownership metadata the loader passes to ensure",
+    )
+    loader_parser.add_argument(
+        "-o",
+        "--output",
+        metavar="FILE",
+        default=None,
+        help="Write the loader to FILE instead of stdout",
     )
 
 
@@ -221,6 +266,58 @@ def _register_deploy_chezmoi_parser(subparsers: argparse._SubParsersAction) -> N
         metavar="DIR",
         default=None,
         help="Chezmoi source home to write (default: ~/.local/share/chezmoi/home)",
+    )
+
+
+def _register_ensure_parser(subparsers: argparse._SubParsersAction) -> None:
+    ensure_parser = subparsers.add_parser(
+        "ensure",
+        help="Print a current runtime grammar cache path",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Ensure runtime-cached completion grammar exists for SHELL and "
+            "print exactly one absolute grammar-file path on success. Cache "
+            "hits avoid building the argparse tree; diagnostics are written "
+            "to stderr."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase completion ensure zsh\n"
+            "  sase completion ensure bash -f\n"
+            "  sase completion ensure fish -p ~/.config/fish/completions/sase.fish"
+        ),
+    )
+    ensure_parser.add_argument(
+        "shell",
+        choices=("bash", "fish", "zsh"),
+        help="Shell grammar to resolve",
+    )
+    ensure_parser.add_argument(
+        "-f",
+        "--force",
+        action="store_true",
+        help="Regenerate the grammar even when the cache is current",
+    )
+    ensure_parser.add_argument(
+        "-p",
+        "--loader-path",
+        metavar="FILE",
+        default=None,
+        help="Installed loader file path to record with the cache manifest",
+    )
+    ensure_parser.add_argument(
+        "-O",
+        "--owner",
+        choices=("chezmoi", "local"),
+        default=None,
+        help="Ownership metadata to record when a loader target is supplied",
+    )
+    ensure_parser.add_argument(
+        "-t",
+        "--target",
+        metavar="DIR",
+        default=None,
+        help="Installed loader directory to record with the cache manifest",
     )
 
 

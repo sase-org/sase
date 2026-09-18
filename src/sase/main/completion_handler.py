@@ -37,12 +37,16 @@ def handle_completion_command(args: argparse.Namespace) -> int:
         return _handle_completion_candidates(args)
     if sub == "deploy-chezmoi":
         return _handle_completion_deploy_chezmoi(args)
+    if sub == "ensure":
+        return _handle_completion_ensure(args)
     if sub == "fish":
         return _handle_completion_fish(args)
     if sub == "install":
         return _handle_completion_install(args)
     if sub == "list":
         return _handle_completion_list(args)
+    if sub == "loader":
+        return _handle_completion_loader(args)
     if sub == "refresh":
         return _handle_completion_refresh(args)
     if sub == "spec":
@@ -51,7 +55,8 @@ def handle_completion_command(args: argparse.Namespace) -> int:
         return _handle_completion_zsh(args)
     print(
         "Usage: sase completion "
-        "{bash,candidates,deploy-chezmoi,fish,install,list,refresh,spec,zsh}",
+        "{bash,candidates,deploy-chezmoi,ensure,fish,install,"
+        "list,loader,refresh,spec,zsh}",
         file=sys.stderr,
     )
     return 2
@@ -162,6 +167,40 @@ def _handle_completion_deploy_chezmoi(args: argparse.Namespace) -> int:
     for path in result.plan.paths:
         print(f"  {path}")
     return result.exit_code
+
+
+def _handle_completion_ensure(args: argparse.Namespace) -> int:
+    """Run ``sase completion ensure``."""
+    from sase.completion.runtime_cache import (
+        CompletionCacheError,
+        ensure_cached_grammar,
+    )
+
+    try:
+        path = ensure_cached_grammar(
+            str(args.shell),
+            force=bool(getattr(args, "force", False)),
+            loader_path=getattr(args, "loader_path", None),
+            owner=getattr(args, "owner", None),
+            target=getattr(args, "target", None),
+        )
+    except CompletionCacheError as exc:
+        print(f"sase completion ensure: {exc}", file=sys.stderr)
+        return 1
+    print(path)
+    return 0
+
+
+def _handle_completion_loader(args: argparse.Namespace) -> int:
+    """Run ``sase completion loader``."""
+    from sase.completion.loader import emit_loader
+
+    try:
+        text = emit_loader(str(args.shell), owner=getattr(args, "owner", None))
+    except ValueError as exc:
+        print(f"sase completion loader: {exc}", file=sys.stderr)
+        return 1
+    return _write_output(getattr(args, "output", None), text)
 
 
 def _handle_completion_spec(args: argparse.Namespace) -> int:

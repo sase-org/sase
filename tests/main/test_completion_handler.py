@@ -21,8 +21,10 @@ from sase.completion.install import (
     TargetChoice,
 )
 from sase.main.completion_handler import (
+    _handle_completion_ensure,
     _handle_completion_install,
     _handle_completion_list,
+    _handle_completion_loader,
     _handle_completion_refresh,
     handle_completion_command,
 )
@@ -193,6 +195,63 @@ def test_spec_and_shells_write_output_files(
     zsh_text = zsh_path.read_text(encoding="utf-8")
     assert zsh_text.startswith("#compdef sase\n")
     assert "_arguments -C -s -S" in zsh_text
+
+
+def test_loader_writes_output_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    loader_path = tmp_path / "_sase"
+    args = create_parser().parse_args(
+        ["completion", "loader", "zsh", "-O", "chezmoi", "-o", str(loader_path)]
+    )
+
+    assert _handle_completion_loader(args) == 0
+
+    assert capsys.readouterr().out == ""
+    text = loader_path.read_text(encoding="utf-8")
+    assert text.startswith("#compdef sase\n")
+    assert "completion ensure zsh" in text
+    assert "--owner 'chezmoi'" in text
+
+
+def test_ensure_prints_one_path(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    grammar = tmp_path / "sase.bash"
+    calls: list[dict[str, object]] = []
+
+    def fake(shell: str, **kwargs: object) -> Path:
+        calls.append({"shell": shell, **kwargs})
+        return grammar
+
+    monkeypatch.setattr("sase.completion.runtime_cache.ensure_cached_grammar", fake)
+    args = create_parser().parse_args(
+        [
+            "completion",
+            "ensure",
+            "bash",
+            "-f",
+            "-p",
+            "/tmp/sase",
+            "-O",
+            "local",
+        ]
+    )
+
+    assert _handle_completion_ensure(args) == 0
+
+    assert capsys.readouterr().out == f"{grammar}\n"
+    assert calls == [
+        {
+            "force": True,
+            "loader_path": "/tmp/sase",
+            "owner": "local",
+            "shell": "bash",
+            "target": None,
+        }
+    ]
 
 
 def test_shell_emitters_print_scripts(capsys: pytest.CaptureFixture[str]) -> None:
