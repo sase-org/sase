@@ -18,6 +18,7 @@ from ._axe_dashboard_render import overrun_chip as _overrun_chip
 if TYPE_CHECKING:
     from ..actions.axe_display._data import ChopSnapshot
     from sase.axe.state import LumberjackStatus
+    from sase.service.status import ServiceStatusProc
 
 # Item type: "axe" or slot number (1-9)
 ItemType = Literal["axe"] | int
@@ -48,7 +49,14 @@ class BgCmdItem:
     slot: int
 
 
-AxeItem = LumberjackItem | ChopItem | BgCmdItem
+@dataclass(frozen=True)
+class ServiceProcItem:
+    """A service-host managed proc entry."""
+
+    name: str
+
+
+AxeItem = ServiceProcItem | LumberjackItem | ChopItem | BgCmdItem
 
 
 # --- Row taxonomy palette ----------------------------------------------
@@ -73,6 +81,12 @@ _BGCMD_NAME_RUN_STYLE = "#5FD7FF"
 _BGCMD_NAME_RUN_SELECTED_STYLE = "bold #5FD7FF"
 _BGCMD_NAME_DONE_STYLE = "#87AFAF"
 _BGCMD_NAME_DONE_SELECTED_STYLE = "bold #87AFAF"
+
+_SERVICE_ACCENT_STYLE = "bold #00D7AF"
+_SERVICE_NAME_STYLE = "#00D7AF"
+_SERVICE_NAME_SELECTED_STYLE = "bold #00D7AF"
+_SERVICE_DISABLED_STYLE = "dim #87AFAF"
+_SERVICE_WARN_STYLE = "bold #FFAF5F"
 
 _DIVIDER_STYLE = "dim #5FD7FF"
 _DIVIDER_LABEL = "── commands ──"
@@ -125,6 +139,7 @@ class BgCmdList(OptionList):
         bgcmd_running: dict[int, bool] | None = None,
         chop_snapshots: "dict[tuple[str, str], ChopSnapshot] | None" = None,
         lumberjack_overruns: dict[str, int] | None = None,
+        service_procs: "dict[str, ServiceStatusProc] | None" = None,
     ) -> None:
         """Update the list with current AXE items.
 
@@ -145,6 +160,7 @@ class BgCmdList(OptionList):
             lumberjack_overruns: Cached count of chops at overrun level
                 ``"over"``, keyed by lumberjack name. ``None`` or a missing
                 key renders no roll-up chip.
+            service_procs: Cached service-proc statuses keyed by name.
         """
         del axe_running, lumberjack_names  # accepted for callers; not rendered
         self._programmatic_update = True
@@ -152,7 +168,9 @@ class BgCmdList(OptionList):
 
         self.clear_options()
 
-        has_axe_rows = any(isinstance(i, (LumberjackItem, ChopItem)) for i in items)
+        has_axe_rows = any(
+            isinstance(i, (ServiceProcItem, LumberjackItem, ChopItem)) for i in items
+        )
         has_bgcmds = any(isinstance(i, BgCmdItem) for i in items)
         # Spacer divider gets rendered on the first bgcmd row when the
         # sidebar contains both lumberjack/chop rows and bgcmd rows, so
@@ -166,6 +184,13 @@ class BgCmdList(OptionList):
             is_selected = idx == current_idx
             hint_char = (jump_hints or {}).get(idx)
             match item:
+                case ServiceProcItem(name=name):
+                    option = self._format_service_proc_option(
+                        name=name,
+                        proc=None if service_procs is None else service_procs.get(name),
+                        is_selected=is_selected,
+                        hint_char=hint_char,
+                    )
                 case LumberjackItem(name=name):
                     if lumberjack_statuses is not None:
                         lumberjack_status = lumberjack_statuses.get(name)
@@ -291,6 +316,42 @@ class BgCmdList(OptionList):
             text.append(chip_label, style=chip_style)
 
         return Option(text, id=f"lumberjack-{name}")
+
+    def _format_service_proc_option(
+        self,
+        name: str,
+        proc: "ServiceStatusProc | None",
+        is_selected: bool,
+        hint_char: str | None = None,
+    ) -> Option:
+        """Format a service-host proc row for display."""
+        text = Text(no_wrap=True, overflow="ellipsis")
+        if hint_char is not None:
+            text.append(f"[{hint_char}] ", style="bold #FFFF00")
+
+        text.append("▌ ", style=_SERVICE_ACCENT_STYLE)
+        text.append("[", style="dim")
+        marker, marker_style = _service_proc_marker(proc)
+        text.append(marker, style=marker_style)
+        text.append("] ", style="dim")
+
+        label = _service_proc_label(name)
+        if proc is not None and not proc.enablement.enabled:
+            label_style = _SERVICE_DISABLED_STYLE
+        else:
+            label_style = (
+                _SERVICE_NAME_SELECTED_STYLE if is_selected else _SERVICE_NAME_STYLE
+            )
+        text.append(label, style=label_style)
+
+        if proc is not None:
+            chip = _service_proc_chip(proc)
+            if chip is not None:
+                chip_label, chip_style = chip
+                text.append("  ")
+                text.append(chip_label, style=chip_style)
+
+        return Option(text, id=f"service-{name}")
 
     def _format_chop_option(
         self,
@@ -460,6 +521,52 @@ def _lumberjack_status_chip(status: Any) -> tuple[str, str] | None:
         return (f"{errors}e", "bold red")
     if cycles > 0:
         return (f"{cycles}c", "dim")
+    return None
+
+
+def _service_proc_label(name: str) -> str:
+    """Return the compact user-facing name for a service proc row."""
+    if name == "scheduler":
+        return "Scheduler"
+    return name.replace("_", " ").title()
+
+
+def _service_proc_marker(proc: Any) -> tuple[str, str]:
+    """Return the one-character service-proc status marker and style."""
+    if proc is None:
+        return ("·", "dim")
+    if not getattr(proc, "available", True):
+        return ("?", _SERVICE_WARN_STYLE)
+    enablement = getattr(proc, "enablement", None)
+    if enablement is not None and not getattr(enablement, "enabled", True):
+        return ("-", "dim")
+    state = getattr(proc, "state", "")
+    if state == "running":
+        return ("*", "bold green")
+    if state in {"failed", "error"}:
+        return ("!", "bold red")
+    desired = getattr(proc, "desired", "")
+    if desired == "running":
+        return ("~", "bold #00D7AF")
+    return ("·", "dim")
+
+
+def _service_proc_chip(proc: Any) -> tuple[str, str] | None:
+    """Return a short service-proc state chip, or None when redundant."""
+    if not getattr(proc, "available", True):
+        return ("unavailable", _SERVICE_WARN_STYLE)
+    enablement = getattr(proc, "enablement", None)
+    if enablement is not None and not getattr(enablement, "enabled", True):
+        return ("disabled", _SERVICE_DISABLED_STYLE)
+    state = getattr(proc, "state", "")
+    if state == "running":
+        restarts = int(getattr(proc, "restarts", 0) or 0)
+        if restarts > 0:
+            return (f"{restarts}r", "dim")
+        return None
+    if state:
+        style = "bold red" if state in {"failed", "error"} else "dim"
+        return (state, style)
     return None
 
 

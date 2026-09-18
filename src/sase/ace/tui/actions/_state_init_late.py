@@ -50,6 +50,7 @@ def init_late_startup_state(
     # this to pick the chop-run-detail view rather than the
     # lumberjack overview.
     self._axe_chop_selection = None
+    self._axe_service_selection = None
     self._bgcmd_slots = []
 
     # Axe navigation caches: populated by the async collector so that
@@ -65,6 +66,10 @@ def init_late_startup_state(
     self._axe_lumberjack_chop_names = {}
     self._axe_chop_snapshots = {}
     self._axe_lumberjack_snapshots = {}
+    self._service_host_enabled = False
+    self._service_status = None
+    self._service_log_tails = {}
+    self._service_tailed_names = set()
     from .axe_display._read_cache import AxeStatusReadCache
 
     self._axe_status_read_cache = AxeStatusReadCache()

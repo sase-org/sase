@@ -55,6 +55,11 @@ class KeybindingBindingsMixin:
         chop_selected: bool = False,
         chop_selected_running: bool = False,
         chop_selected_enabled: bool = True,
+        service_selected: bool = False,
+        service_running: bool = False,
+        service_enabled: bool = True,
+        service_available: bool = True,
+        service_host_enabled: bool = False,
         config_row_selected: bool = False,
         description_expanded: bool = True,
     ) -> list[tuple[str, str]]:
@@ -73,13 +78,25 @@ class KeybindingBindingsMixin:
         runs, since with zero or one run the keys cannot do anything useful.
         """
         bindings: list[tuple[str, str]] = []
-        if axe_current_view == "axe":
-            label = "stop axe" if self._axe_running else "start axe"
+        if service_selected:
+            if not service_available:
+                label = "unavailable"
+            elif service_running:
+                label = "stop service"
+            elif service_enabled:
+                label = "start service"
+            else:
+                label = "disabled"
+        elif axe_current_view == "axe":
+            noun = "service host" if service_host_enabled else "axe"
+            label = f"stop {noun}" if self._axe_running else f"start {noun}"
         else:
             label = "kill"
         bindings.append((self._kd("kill_agent"), label))
         if selected_slot_done:
             bindings.append((self._kd("run_workflow"), "re-run"))
+        elif service_selected and service_available and service_enabled:
+            bindings.append((self._kd("run_workflow"), "restart service"))
         elif chop_selected and chop_selected_enabled:
             label = "running" if chop_selected_running else "run job"
             bindings.append((self._kd("run_workflow"), label))

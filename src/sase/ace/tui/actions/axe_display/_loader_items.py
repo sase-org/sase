@@ -8,13 +8,21 @@ from ...bgcmd import (
     is_slot_running,
     mark_slot_finished,
 )
-from ...widgets.bgcmd_list import AxeItem, BgCmdItem, ChopItem, LumberjackItem
+from ...widgets.bgcmd_list import (
+    AxeItem,
+    BgCmdItem,
+    ChopItem,
+    LumberjackItem,
+    ServiceProcItem,
+)
 from ._loader_state import AxeItemKey, AxeLoaderState
 
 
 def axe_item_key(item: AxeItem) -> AxeItemKey:
     """Return the stable identity key for an AXE side-panel item."""
     match item:
+        case ServiceProcItem(name=name):
+            return ("service", name)
         case LumberjackItem(name=name):
             return ("lumberjack", name)
         case ChopItem(lumberjack_name=lj_name, chop_name=chop_name):
@@ -131,24 +139,26 @@ class AxeDisplayItemsMixin(AxeLoaderState):
                 pending_target = pending.target_key
                 if pending_target[0] == "chop":
                     self._axe_fold_manager.expand(f"lumberjack:{pending_target[1]}")
+                    self._axe_fold_manager.expand("service:scheduler")
 
         items: list[AxeItem] = []
 
-        # Top-level lumberjacks, each followed by its configured chops
-        # when its per-lumberjack fold is expanded. First-time sightings
-        # default to expanded so chops are visible without an extra keystroke.
-        for lumberjack_name in self._axe_lumberjack_names:
-            items.append(LumberjackItem(name=lumberjack_name))
-            fold_key = f"lumberjack:{lumberjack_name}"
-            if not self._axe_fold_manager.has(fold_key):
-                self._axe_fold_manager.expand(fold_key)
-            if self._axe_fold_manager.get(fold_key) != FoldLevel.COLLAPSED:
-                for chop_name in self._axe_lumberjack_chop_names.get(
-                    lumberjack_name, []
-                ):
-                    items.append(
-                        ChopItem(lumberjack_name=lumberjack_name, chop_name=chop_name)
-                    )
+        # Top-level Services rows in service-host mode. The scheduler row
+        # owns the legacy routine/job tree underneath it so the internal
+        # AXE model stays intact while the visible hierarchy leads with
+        # actual service procs.
+        service_status = getattr(self, "_service_status", None)
+        if getattr(self, "_service_host_enabled", False) and service_status is not None:
+            for proc in service_status.procs:
+                items.append(ServiceProcItem(name=proc.name))
+                if proc.name == "scheduler":
+                    fold_key = "service:scheduler"
+                    if not self._axe_fold_manager.has(fold_key):
+                        self._axe_fold_manager.expand(fold_key)
+                    if self._axe_fold_manager.get(fold_key) != FoldLevel.COLLAPSED:
+                        self._append_lumberjack_items(items)
+        else:
+            self._append_lumberjack_items(items)
 
         # Add bgcmd entries when not hidden, visually separated below the
         # lumberjack tree.
@@ -179,6 +189,26 @@ class AxeDisplayItemsMixin(AxeLoaderState):
         # never touch ``current_idx`` (it belongs to whatever tab is active).
         self._axe_last_idx = restored_idx
         self._axe_last_item_key = selected_axe_item_key(items, restored_idx)
+
+    def _append_lumberjack_items(self, items: list[AxeItem]) -> None:
+        """Append routine/job rows to ``items`` using per-routine fold state."""
+        from ...models.fold_state import FoldLevel
+
+        # Top-level lumberjacks, each followed by its configured chops
+        # when its per-lumberjack fold is expanded. First-time sightings
+        # default to expanded so chops are visible without an extra keystroke.
+        for lumberjack_name in self._axe_lumberjack_names:
+            items.append(LumberjackItem(name=lumberjack_name))
+            fold_key = f"lumberjack:{lumberjack_name}"
+            if not self._axe_fold_manager.has(fold_key):
+                self._axe_fold_manager.expand(fold_key)
+            if self._axe_fold_manager.get(fold_key) != FoldLevel.COLLAPSED:
+                for chop_name in self._axe_lumberjack_chop_names.get(
+                    lumberjack_name, []
+                ):
+                    items.append(
+                        ChopItem(lumberjack_name=lumberjack_name, chop_name=chop_name)
+                    )
 
     # Max number of recorded runs kept per chop (mirrors the on-disk cap).
     _MAX_CHOP_RUN_HISTORY: int = 10
@@ -247,12 +277,19 @@ class AxeDisplayItemsMixin(AxeLoaderState):
             self._axe_current_view = "axe"
             self._axe_lumberjack_idx = None
             self._axe_chop_selection = None
+            self._axe_service_selection = None
             return
 
         item = self._axe_items[self.current_idx]
         match item:
+            case ServiceProcItem(name=name):
+                self._axe_current_view = "axe"
+                self._axe_service_selection = name
+                self._axe_chop_selection = None
+                self._axe_lumberjack_idx = None
             case LumberjackItem(name=name):
                 self._axe_current_view = "axe"
+                self._axe_service_selection = None
                 self._axe_chop_selection = None
                 try:
                     self._axe_lumberjack_idx = self._axe_lumberjack_names.index(name)
@@ -264,6 +301,7 @@ class AxeDisplayItemsMixin(AxeLoaderState):
                 # chop-run-detail view from the same cached snapshot the
                 # lumberjack overview uses.
                 self._axe_current_view = "axe"
+                self._axe_service_selection = None
                 self._axe_chop_selection = (lj_name, chop_name)
                 try:
                     self._axe_lumberjack_idx = self._axe_lumberjack_names.index(lj_name)
@@ -271,5 +309,6 @@ class AxeDisplayItemsMixin(AxeLoaderState):
                     self._axe_lumberjack_idx = None
             case BgCmdItem(slot=slot):
                 self._axe_current_view = slot
+                self._axe_service_selection = None
                 self._axe_chop_selection = None
                 self._axe_lumberjack_idx = None

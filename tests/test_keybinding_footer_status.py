@@ -19,7 +19,7 @@ def test_keybinding_footer_status_indicator_starting() -> None:
     text = footer._get_status_text()
     text_str = str(text)
 
-    assert "AXE" in text_str
+    assert "SVC" in text_str
     assert "STARTING" in text_str
 
 
@@ -34,7 +34,7 @@ def test_keybinding_footer_status_indicator_stopping() -> None:
     text = footer._get_status_text()
     text_str = str(text)
 
-    assert "AXE" in text_str
+    assert "SVC" in text_str
     assert "STOPPING" in text_str
 
 
@@ -46,7 +46,7 @@ def test_keybinding_footer_status_indicator_restarting() -> None:
 
     text_str = str(footer._get_status_text())
 
-    assert "AXE" in text_str
+    assert "SVC" in text_str
     assert "RESTARTING" in text_str
 
 
@@ -58,7 +58,7 @@ def test_keybinding_footer_status_indicator_running() -> None:
 
     text_str = str(footer._get_status_text())
 
-    assert "AXE" in text_str
+    assert "SVC" in text_str
     assert "RUNNING" in text_str
 
 
@@ -69,7 +69,7 @@ def test_keybinding_footer_status_indicator_stopped() -> None:
 
     text_str = str(footer._get_status_text())
 
-    assert "AXE" in text_str
+    assert "SVC" in text_str
     assert "STOPPED" in text_str
 
 
@@ -79,7 +79,7 @@ def test_keybinding_footer_startup_indicator_is_labeled() -> None:
 
     text_str = str(footer._get_status_text())
 
-    assert "AXE" in text_str
+    assert "SVC" in text_str
     assert "starting" in text_str
 
 

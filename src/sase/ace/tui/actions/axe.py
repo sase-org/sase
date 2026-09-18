@@ -37,7 +37,7 @@ TabName = Literal["artifacts", "agents", "axe"]
 
 # Type alias for axe view: "axe" for daemon view, int for bgcmd slot (1-9)
 AxeViewType = Literal["axe"] | int
-AxeWorkerOperation = Literal["start", "stop", "restart"]
+AxeWorkerOperation = Literal["start", "stop", "restart", "enable", "disable"]
 
 _POST_AXE_WORKER_STATUS_REPOLL_DELAYS = (0.25, 0.75, 1.5, 3.0)
 
@@ -113,10 +113,20 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
         - View 1-9 (bgcmd): Show confirm dialog to kill that bgcmd
         """
         if self._axe_current_view == "axe":
+            service_name = getattr(self, "_axe_service_selection", None)
+            if service_name is not None:
+                self._toggle_selected_service_proc(service_name)
+                return
             if self.axe_running:
-                self._stop_axe()
+                if getattr(self, "_service_host_enabled", False):
+                    self._stop_service_host()
+                else:
+                    self._stop_axe()
             else:
-                self._start_axe()
+                if getattr(self, "_service_host_enabled", False):
+                    self._start_service_host()
+                else:
+                    self._start_axe()
         else:
             slot = self._axe_current_view
             self._confirm_kill_bgcmd(slot)
@@ -141,11 +151,17 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
             bgcmd_active = len(self._bgcmd_slots) > 0
 
             if not self.axe_running and not bgcmd_active:
-                # Nothing running - start axe
-                self._start_axe()
+                # Nothing running - start axe/service host
+                if getattr(self, "_service_host_enabled", False):
+                    self._start_service_host()
+                else:
+                    self._start_axe()
             elif self.axe_running and not bgcmd_active:
-                # Only axe running - stop it
-                self._stop_axe()
+                # Only axe/service host running - stop it
+                if getattr(self, "_service_host_enabled", False):
+                    self._stop_service_host()
+                else:
+                    self._stop_axe()
             else:
                 # Either only bgcmd or both running - show selector
                 self._show_process_selector()
@@ -177,6 +193,12 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
         if key == bang_keys["toggle_axe"]:
             # !x → toggle axe / select process (global)
             self._toggle_axe_global()
+            self._refresh_current_tab()  # type: ignore[attr-defined]
+            return True
+
+        toggle_enablement_key = bang_keys.get("toggle_service_enablement")
+        if toggle_enablement_key == key:
+            self._toggle_selected_service_enablement()
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
@@ -241,12 +263,13 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
             stop_watchdog()
 
         try:
-            await asyncio.to_thread(
-                _stop_axe_daemon_result,
-                timeout=5.0,
-                kill_timeout=2.0,
-                desired_state_source="ace quit",
-            )
+            if not getattr(self, "_service_host_enabled", False):
+                await asyncio.to_thread(
+                    _stop_axe_daemon_result,
+                    timeout=5.0,
+                    kill_timeout=2.0,
+                    desired_state_source="ace quit",
+                )
         except Exception:
             pass
         finally:
@@ -385,6 +408,131 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
             return (False, result.message or "Failed to restart axe")
 
         self._axe_worker = self.run_worker(_do_restart, thread=True)  # type: ignore[attr-defined]
+
+    def _selected_service_proc(self, name: str | None = None) -> Any | None:
+        """Return the selected service proc status from the cached snapshot."""
+        service_name = (
+            name if name is not None else getattr(self, "_axe_service_selection", None)
+        )
+        snapshot = getattr(self, "_service_status", None)
+        if service_name is None or snapshot is None:
+            return None
+        return next(
+            (proc for proc in snapshot.procs if proc.name == service_name), None
+        )
+
+    def _toggle_selected_service_proc(self, name: str) -> None:
+        """Start or stop the selected service proc."""
+        proc = self._selected_service_proc(name)
+        if proc is None:
+            self.notify("Service proc status unavailable", severity="warning")  # type: ignore[attr-defined]
+            return
+        if not proc.available:
+            self.notify("Service proc is unavailable", severity="warning")  # type: ignore[attr-defined]
+            return
+        if not proc.enablement.enabled:
+            self.notify("Service proc is disabled", severity="warning")  # type: ignore[attr-defined]
+            return
+        action: AxeWorkerOperation = "stop" if proc.state == "running" else "start"
+        self._run_service_proc_action(name, action)
+
+    def _restart_selected_service_proc(self) -> None:
+        """Restart the selected service proc."""
+        name = getattr(self, "_axe_service_selection", None)
+        proc = self._selected_service_proc(name)
+        if name is None or proc is None:
+            self.notify("No service proc selected", severity="warning")  # type: ignore[attr-defined]
+            return
+        if not proc.available:
+            self.notify("Service proc is unavailable", severity="warning")  # type: ignore[attr-defined]
+            return
+        if not proc.enablement.enabled:
+            self.notify("Service proc is disabled", severity="warning")  # type: ignore[attr-defined]
+            return
+        self._run_service_proc_action(name, "restart")
+
+    def _toggle_selected_service_enablement(self) -> None:
+        """Enable or disable the selected service proc for this machine."""
+        name = getattr(self, "_axe_service_selection", None)
+        proc = self._selected_service_proc(name)
+        if name is None or proc is None:
+            self.notify("Select a service proc first", severity="warning")  # type: ignore[attr-defined]
+            return
+        action: AxeWorkerOperation = "disable" if proc.enablement.enabled else "enable"
+        self._run_service_proc_action(name, action)
+
+    def _run_service_proc_action(self, name: str, action: AxeWorkerOperation) -> None:
+        """Run a service-proc action in the shared AXE worker slot."""
+        if self._axe_worker is not None:
+            return
+        if action == "start":
+            self._set_axe_starting(True)
+        elif action == "stop":
+            self._set_axe_stopping(True)
+        elif action == "restart":
+            self._set_axe_restarting(True)
+        self._axe_worker_operation = action
+
+        def _do_action() -> tuple[bool, str]:
+            from sase.service.actions import (
+                ServiceProcActionError,
+                disable_service_proc,
+                enable_service_proc,
+                restart_service_proc,
+                start_service_proc,
+                stop_service_proc,
+            )
+
+            try:
+                if action == "start":
+                    outcome = start_service_proc(name, actor="tui")
+                elif action == "stop":
+                    outcome = stop_service_proc(name, actor="tui", reason="tui")
+                elif action == "restart":
+                    outcome = restart_service_proc(
+                        name,
+                        actor="tui",
+                        reason="tui",
+                    )
+                elif action == "enable":
+                    outcome = enable_service_proc(name, actor="tui")
+                else:
+                    outcome = disable_service_proc(name, actor="tui")
+            except ServiceProcActionError as exc:
+                return (False, str(exc))
+            return (True, outcome.message)
+
+        self._axe_worker = self.run_worker(_do_action, thread=True)  # type: ignore[attr-defined]
+
+    def _start_service_host(self) -> None:
+        """Start the service host in a background worker thread."""
+        if self._axe_worker is not None:
+            return
+        self._set_axe_starting(True)
+        self._axe_worker_operation = "start"
+
+        def _do_start() -> tuple[bool, str]:
+            from sase.service.control import start_service_host
+
+            result = start_service_host()
+            return (result.ok, result.message)
+
+        self._axe_worker = self.run_worker(_do_start, thread=True)  # type: ignore[attr-defined]
+
+    def _stop_service_host(self) -> None:
+        """Stop the service host in a background worker thread."""
+        if self._axe_worker is not None:
+            return
+        self._set_axe_stopping(True)
+        self._axe_worker_operation = "stop"
+
+        def _do_stop() -> tuple[bool, str]:
+            from sase.service.control import stop_service_host
+
+            result = stop_service_host()
+            return (result.ok, result.message)
+
+        self._axe_worker = self.run_worker(_do_stop, thread=True)  # type: ignore[attr-defined]
 
     def _on_axe_worker_done(self, worker: Worker[Any], state: WorkerState) -> None:
         """Handle axe start/stop worker completion."""

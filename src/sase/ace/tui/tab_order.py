@@ -13,6 +13,7 @@ TabName = Literal["artifacts", "agents", "axe"]
 LegacyTabName = Literal[
     "changespecs",  # legacy compatibility tab id persisted by older sessions
     "patches",
+    "services",
 ]
 TabInput = TabName | LegacyTabName | str
 
@@ -20,7 +21,9 @@ TabInput = TabName | LegacyTabName | str
 # sessions; ``patches`` appeared in short-lived development captures during the
 # Patch terminology migration.
 LEGACY_ARTIFACTS_TABS: frozenset[str] = frozenset({"changespecs", "patches"})
+SERVICE_TAB_ALIASES: frozenset[str] = frozenset({"services"})
 ARTIFACTS_TAB: TabName = "artifacts"
+SERVICES_TAB: TabName = "axe"
 
 # Left-to-right order of the top-bar tabs.  The Agents tab leads because
 # it is the app's default startup tab.
@@ -34,6 +37,8 @@ def normalize_tab_name(tab: TabInput | None, *, default: TabName = "agents") -> 
     value = str(tab).strip()
     if value in LEGACY_ARTIFACTS_TABS:
         return ARTIFACTS_TAB
+    if value in SERVICE_TAB_ALIASES:
+        return SERVICES_TAB
     if value in TAB_ORDER:
         return cast(TabName, value)
     return default

@@ -357,9 +357,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-11y.5(set_service_marker)" \
         --epic-symbol "sase-11y.7(ServiceEnablement)" \
         --epic-symbol "sase-11y.7(ServiceFieldProvenance)" \
-        --epic-symbol "sase-11y.7(ServiceStateMutationOutcome)" \
-        --epic-symbol "sase-11y.7(ServiceStatusHost)" \
-        --epic-symbol "sase-11y.7(ServiceStatusProc)" \
         --epic-symbol "sase-11y.7(clear_service_enablement)" \
         --epic-symbol "sase-11y.7(compose_service_config)" \
         --epic-symbol "sase-11y.7(resolve_service_enablement)" \

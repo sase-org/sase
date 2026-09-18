@@ -7,6 +7,7 @@ from textual.widgets import Static
 
 if TYPE_CHECKING:
     from ..bgcmd import BackgroundCommandInfo
+    from sase.service.status import ServiceStatusProc
 
 
 class AxeInfoPanel(Static):
@@ -31,12 +32,17 @@ class AxeInfoPanel(Static):
         self._chop_name: str = ""
         self._chop_run_idx: int = 0
         self._chop_run_total: int = 0
+        self._service_mode = False
+        self._service_name: str = ""
+        self._service_idx: int = 0
+        self._service_total: int = 0
+        self._service_proc: ServiceStatusProc | None = None
         self._loading: bool = False
 
     def set_loading(self, loading: bool) -> None:
         """Show or hide the startup-loading ellipsis.
 
-        While True, the panel renders ``AXE …`` (dim italic) instead of
+        While True, the panel renders ``Services …`` (dim italic) instead of
         a ``not running`` / status claim that may be wrong during the
         first-load window.
         """
@@ -54,6 +60,7 @@ class AxeInfoPanel(Static):
         self._bgcmd_mode = False
         self._lumberjack_mode = False
         self._chop_mode = False
+        self._service_mode = False
         self._update_display()
 
     def update_lumberjack_status(self, name: str, idx: int, total: int) -> None:
@@ -67,6 +74,7 @@ class AxeInfoPanel(Static):
         self._bgcmd_mode = False
         self._lumberjack_mode = True
         self._chop_mode = False
+        self._service_mode = False
         self._lumberjack_name = name
         self._lumberjack_idx = idx
         self._lumberjack_total = total
@@ -90,6 +98,7 @@ class AxeInfoPanel(Static):
         self._bgcmd_mode = False
         self._lumberjack_mode = False
         self._chop_mode = True
+        self._service_mode = False
         self._chop_lumberjack_name = lumberjack_name
         self._chop_name = chop_name
         self._chop_run_idx = run_idx
@@ -112,9 +121,29 @@ class AxeInfoPanel(Static):
         self._bgcmd_mode = True
         self._lumberjack_mode = False
         self._chop_mode = False
+        self._service_mode = False
         self._bgcmd_slot = slot
         self._bgcmd_info = info
         self._bgcmd_running = is_running
+        self._update_display()
+
+    def update_service_status(
+        self,
+        *,
+        name: str,
+        idx: int,
+        total: int,
+        proc: "ServiceStatusProc | None",
+    ) -> None:
+        """Update the top-bar copy for a service-proc row."""
+        self._bgcmd_mode = False
+        self._lumberjack_mode = False
+        self._chop_mode = False
+        self._service_mode = True
+        self._service_name = name
+        self._service_idx = idx
+        self._service_total = total
+        self._service_proc = proc
         self._update_display()
 
     def update_countdown(self, countdown: int, interval: int) -> None:
@@ -133,12 +162,34 @@ class AxeInfoPanel(Static):
         text = Text()
 
         if self._loading:
-            text.append("AXE ", style="bold")
+            text.append("Services ", style="bold")
             text.append("…", style="dim italic")
             self.update(text)
             return
 
-        if self._chop_mode:
+        if self._service_mode:
+            label = (
+                "Scheduler" if self._service_name == "scheduler" else self._service_name
+            )
+            text.append(f"[{label}]", style="bold #00D7AF")
+            if self._service_total > 0:
+                text.append(
+                    f" ({self._service_idx + 1}/{self._service_total})",
+                    style="dim",
+                )
+            proc = self._service_proc
+            if proc is not None:
+                text.append(" ", style="")
+                state_style = (
+                    "bold green"
+                    if proc.state == "running"
+                    else "bold red"
+                    if proc.state in {"failed", "error"}
+                    else "dim"
+                )
+                text.append(proc.state, style=state_style)
+            text.append("  ", style="")
+        elif self._chop_mode:
             text.append(
                 f"[{self._chop_lumberjack_name} / {self._chop_name}]",
                 style="bold #FFD700",

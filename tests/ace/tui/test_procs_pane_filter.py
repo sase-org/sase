@@ -38,6 +38,17 @@ def _option_labels(option_list: OptionList) -> list[str]:
     ]
 
 
+def test_procs_session_state_uses_configured_default_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.config.load_merged_config",
+        lambda: {"ace": {"procs": {"default_query": "-service"}}},
+    )
+
+    assert ProcsSessionState().query == "-service"
+
+
 async def test_slash_opens_the_bar_prefilled_with_the_committed_query() -> None:
     monitor = task("mon", label="just check-full", status="running", age_seconds=1)
     session_state = AdminCenterSessionState(procs=ProcsSessionState(query="monitor"))

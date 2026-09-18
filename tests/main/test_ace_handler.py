@@ -169,7 +169,7 @@ def test_tab_option_defaults_to_agents() -> None:
 
 
 @pytest.mark.parametrize(
-    "tab", ["artifacts", "changespecs", "agents", "axe"]
+    "tab", ["artifacts", "changespecs", "agents", "services", "axe"]
 )  # legacy tab id
 def test_tab_option_accepts_valid_choices(tab: str) -> None:
     args = _parse_ace_args(["--tab", tab])
@@ -215,7 +215,8 @@ def test_build_ace_restart_argv_strips_restart_and_tmux_flags() -> None:
     argv = [
         "tui",
         "--tab",
-        "axe",
+        "services",
+        "--restart-service",
         "--restart-axe",
         "-R",
         "--tmux",
@@ -226,20 +227,20 @@ def test_build_ace_restart_argv_strips_restart_and_tmux_flags() -> None:
     assert ace_handler._build_ace_restart_argv(
         restart_axe=False,
         argv=argv,
-    ) == ["tui", "--tab", "axe", '"Ready"']
+    ) == ["tui", "--tab", "services", '"Ready"']
     assert ace_handler._build_ace_restart_argv(
         restart_axe=True,
         argv=argv,
-    ) == ["tui", "--tab", "axe", '"Ready"', "--restart-axe"]
+    ) == ["tui", "--tab", "services", '"Ready"', "--restart-service"]
 
 
 def test_build_ace_restart_argv_preserves_separator_query_flags() -> None:
-    argv = ["tui", "--restart-axe", "--", "--restart-axe"]
+    argv = ["tui", "--restart-service", "--", "--restart-axe"]
 
     assert ace_handler._build_ace_restart_argv(
         restart_axe=True,
         argv=argv,
-    ) == ["tui", "--restart-axe", "--", "--restart-axe"]
+    ) == ["tui", "--restart-service", "--", "--restart-axe"]
 
 
 def test_build_ace_restart_argv_prepends_tui_subcommand_when_missing() -> None:
@@ -266,7 +267,7 @@ def test_build_ace_restart_argv_preserves_global_options_before_tui() -> None:
         "provider_drain",
         "tui",
         '"Ready"',
-        "--restart-axe",
+        "--restart-service",
         "--",
         "--tab",
     ]
@@ -305,7 +306,7 @@ def test_exec_ace_restart_if_requested_execs_current_python(
                 "-m",
                 "sase",
                 "tui",
-                "--restart-axe",
+                "--restart-service",
             ],
         )
     ]

@@ -1,4 +1,4 @@
-"""Axe tab keybinding sections for the help modal."""
+"""Services tab keybinding sections for the help modal."""
 
 from ...keymaps import KeymapRegistry, key_display_name
 from .binding_common import (
@@ -19,7 +19,7 @@ from .binding_common import (
 
 
 def axe_bindings(km: KeymapRegistry) -> Sections:
-    """Build keybinding sections for the AXE tab."""
+    """Build keybinding sections for the Services tab."""
     d = key_display_name
     a = km.app
     lm = km.leader_mode
@@ -125,7 +125,11 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(bm.prefix)}{d(sk(bm.keys, 'toggle_axe'))}",
-                    "Start / stop axe (or select process)",
+                    "Start / stop service host (or select process)",
+                ),
+                (
+                    f"{d(bm.prefix)}{d(sk(bm.keys, 'toggle_service_enablement'))}",
+                    "Enable / disable selected service",
                 ),
                 (
                     f"{d(bm.prefix)}{d(sk(bm.keys, 'mark_pr_origin'))}",
@@ -143,9 +147,9 @@ def axe_bindings(km: KeymapRegistry) -> Sections:
             ],
         ),
         (
-            "Axe Control",
+            "Services Control",
             [
-                (d(a.kill_agent), "Start / stop axe (or kill command)"),
+                (d(a.kill_agent), "Start / stop service (or kill command)"),
                 (d(a.open_agent_cleanup_panel), "Clear output"),
                 (d(a.stop_axe_and_quit), "Quit / restart menu"),
             ],

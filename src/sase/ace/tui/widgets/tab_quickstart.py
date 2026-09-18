@@ -224,7 +224,7 @@ class TabQuickStart(VerticalScroll):
             ),
             (
                 (key_display_name(app.next_tab),),
-                "Cycle tabs: Agents · Artifacts · AXE.",
+                "Cycle tabs: Agents · Artifacts · Services.",
             ),
             (
                 (query_key,),

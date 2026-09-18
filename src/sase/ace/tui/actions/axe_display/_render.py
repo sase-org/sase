@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...bgcmd import get_slot_info, is_slot_running
-from ...widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem
+from ...widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem, ServiceProcItem
 from ._loaders import AxeDisplayLoadersMixin
 
 if TYPE_CHECKING:
@@ -83,6 +83,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
 
         # Derive current view from selected item
         self._derive_axe_view_from_selection()
+        self._axe_ensure_selected_service_tail()
         self._axe_ensure_selected_chop_tails()
 
         try:
@@ -97,8 +98,37 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             # in-memory cache populated by the async collector; navigation must
             # never hit disk.
             if self._axe_current_view == "axe":
+                service_selection = self._axe_service_selection
                 chop_selection = self._axe_chop_selection
-                if chop_selection is not None:
+                if service_selection is not None:
+                    service_snapshot = self._service_status
+                    procs = () if service_snapshot is None else service_snapshot.procs
+                    proc = next(
+                        (item for item in procs if item.name == service_selection),
+                        None,
+                    )
+                    service_idx = next(
+                        (
+                            idx
+                            for idx, item in enumerate(procs)
+                            if item.name == service_selection
+                        ),
+                        0,
+                    )
+                    axe_info.update_service_status(
+                        name=service_selection,
+                        idx=service_idx,
+                        total=len(procs),
+                        proc=proc,
+                    )
+                    axe_dashboard.update_service_proc_display(
+                        snapshot=service_snapshot,
+                        proc=proc,
+                        name=service_selection,
+                        output=self._service_log_tails.get(service_selection, ""),
+                        countdown=self._countdown_remaining,
+                    )
+                elif chop_selection is not None:
                     # Chop child row selected → chop-run-detail view.
                     lj_name, chop_name = chop_selection
                     from ._data import ChopSnapshot
@@ -205,6 +235,8 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             footer.set_axe_running(self.axe_running)
             running_count, done_count = self._get_bgcmd_counts()
             footer.set_bgcmd_count(running_count, done_count)
+            service_running, service_total = self._get_service_proc_counts()
+            footer.set_service_proc_count(service_running, service_total)
             footer.set_runner_count(get_runner_count())
             if getattr(self, "_leader_mode_active", False):
                 footer.update_leader_bindings(current_tab="axe")
@@ -231,6 +263,23 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                             selected_slot_done = not is_slot_running(sel_item.slot)
                 chop_run_total = 0
                 chop_selected = self._axe_chop_selection is not None
+                service_selected = self._axe_service_selection is not None
+                service_running = False
+                service_enabled = True
+                service_available = True
+                if self._axe_service_selection is not None and self._service_status:
+                    proc = next(
+                        (
+                            item
+                            for item in self._service_status.procs
+                            if item.name == self._axe_service_selection
+                        ),
+                        None,
+                    )
+                    if proc is not None:
+                        service_running = proc.state == "running"
+                        service_enabled = proc.enablement.enabled
+                        service_available = proc.available
                 chop_selected_running = False
                 chop_selected_enabled = True
                 if self._axe_chop_selection is not None:
@@ -250,6 +299,11 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                     chop_selected=chop_selected,
                     chop_selected_running=chop_selected_running,
                     chop_selected_enabled=chop_selected_enabled,
+                    service_selected=service_selected,
+                    service_running=service_running,
+                    service_enabled=service_enabled,
+                    service_available=service_available,
+                    service_host_enabled=getattr(self, "_service_host_enabled", False),
                     config_row_selected=(
                         0 <= self.current_idx < len(self._axe_items)
                         and isinstance(
@@ -286,6 +340,11 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                     bgcmd_running=bgcmd_running_cache,
                     chop_snapshots=self._axe_chop_snapshots,
                     lumberjack_overruns=lumberjack_overruns,
+                    service_procs=(
+                        {proc.name: proc for proc in self._service_status.procs}
+                        if self._service_status is not None
+                        else None
+                    ),
                 )
             except Exception:
                 pass
@@ -315,8 +374,30 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
         try:
             axe_info = self.query_one("#axe-info-panel", AxeInfoPanel)  # type: ignore[attr-defined]
             if self._axe_current_view == "axe":
+                service_selection = self._axe_service_selection
                 chop_selection = self._axe_chop_selection
-                if chop_selection is not None:
+                if service_selection is not None:
+                    service_snapshot = self._service_status
+                    procs = () if service_snapshot is None else service_snapshot.procs
+                    proc = next(
+                        (item for item in procs if item.name == service_selection),
+                        None,
+                    )
+                    service_idx = next(
+                        (
+                            idx
+                            for idx, item in enumerate(procs)
+                            if item.name == service_selection
+                        ),
+                        0,
+                    )
+                    axe_info.update_service_status(
+                        name=service_selection,
+                        idx=service_idx,
+                        total=len(procs),
+                        proc=proc,
+                    )
+                elif chop_selection is not None:
                     lj_name, chop_name = chop_selection
                     chop_snap = self._axe_chop_snapshots.get(chop_selection)
                     run_total = len(chop_snap.runs) if chop_snap is not None else 0
@@ -363,8 +444,19 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
             footer.set_axe_running(self.axe_running)
             footer.set_bgcmd_count(running_count, done_count)
+            service_running, service_total = self._get_service_proc_counts()
+            footer.set_service_proc_count(service_running, service_total)
         except Exception:
             pass
+
+    def _get_service_proc_counts(self) -> tuple[int, int]:
+        """Return running/total counts for cached service procs."""
+        snapshot = getattr(self, "_service_status", None)
+        if snapshot is None:
+            return (0, 0)
+        total = len(snapshot.procs)
+        running = sum(1 for proc in snapshot.procs if proc.state == "running")
+        return (running, total)
 
     def _set_axe_starting(self, starting: bool) -> None:
         """Set axe starting state and update footer.

@@ -16,7 +16,10 @@ from sase.ace.tui.modals import config_pane as cp
 from sase.ace.tui.modals import logs_pane as lp
 from sase.ace.tui.modals import plugins_browser_pane as pbp
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
-from sase.ace.tui.modals.config_center_session import AdminCenterSessionState
+from sase.ace.tui.modals.config_center_session import (
+    AdminCenterSessionState,
+    ProcsSessionState,
+)
 from sase.ace.tui.modals.procs_pane import ProcsPane
 from sase.ace.tui.proc_observer import (
     ObservedProc,
@@ -220,6 +223,8 @@ async def open_procs_pane(
     *,
     session_state: AdminCenterSessionState | None = None,
 ) -> tuple[ConfigCenterModal, ProcsPane]:
+    if session_state is None:
+        session_state = AdminCenterSessionState(procs=ProcsSessionState(query=""))
     modal = ConfigCenterModal(initial_tab="procs", session_state=session_state)
     pilot.app.push_screen(modal)
     await pilot.pause()

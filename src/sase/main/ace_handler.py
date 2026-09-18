@@ -19,7 +19,9 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-_RESTART_FILTER_FLAGS = frozenset(("-R", "--restart-axe", "-T", "--tmux"))
+_RESTART_FILTER_FLAGS = frozenset(
+    ("-R", "--restart-service", "--restart-axe", "-T", "--tmux")
+)
 _TUI_COMMAND = "tui"
 _LEGACY_ACE_COMMAND = "ace"
 
@@ -91,7 +93,7 @@ def _build_ace_restart_argv(*, restart_axe: bool, argv: list[str]) -> list[str]:
             insert_idx = forwarded.index("--")
         except ValueError:
             insert_idx = len(forwarded)
-        forwarded.insert(insert_idx, "--restart-axe")
+        forwarded.insert(insert_idx, "--restart-service")
 
     return forwarded
 

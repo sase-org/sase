@@ -34,6 +34,14 @@ def _is_lumberjack(item: AxeItem | None) -> bool:
     return isinstance(item, LumberjackItem)
 
 
+def _is_service_proc(item: AxeItem | None) -> bool:
+    if item is None:
+        return False
+    from sase.ace.tui.widgets.bgcmd_list import ServiceProcItem
+
+    return isinstance(item, ServiceProcItem)
+
+
 def axe_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     """Return whether an AXE-tab command is runnable."""
     item = ctx.axe_item
@@ -60,6 +68,8 @@ def axe_available(spec: CommandSpec, ctx: CommandContext) -> bool:
 
     # Re-run is only available on a done bgcmd row.
     if spec.id == "app.run_workflow":
+        if _is_service_proc(item):
+            return True
         if _is_bgcmd(item):
             return ctx.selected_axe_slot_done
         return (

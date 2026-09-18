@@ -24,10 +24,12 @@ if TYPE_CHECKING:
         LumberjackSnapshot,
         TabName,
     )
+    from sase.service.status import ServiceStatusSnapshot
 
 
 type AxeItemKey = (
-    tuple[Literal["lumberjack"], str]
+    tuple[Literal["service"], str]
+    | tuple[Literal["lumberjack"], str]
     | tuple[Literal["chop"], str, str]
     | tuple[Literal["bgcmd"], int]
 )
@@ -54,6 +56,8 @@ class AxeLoaderState:
     # layer uses to pick the chop-detail view instead of the lumberjack
     # overview. ``None`` means a lumberjack row (or no row) is selected.
     _axe_chop_selection: tuple[str, str] | None
+    # Set when a service-proc row is selected in service-host mode.
+    _axe_service_selection: str | None
     _bgcmd_slots: list[tuple[int, BackgroundCommandInfo]]
     _axe_lumberjack_names: list[str]
     _axe_lumberjack_idx: int | None
@@ -77,6 +81,11 @@ class AxeLoaderState:
     # configured chops). Mirrors the per-attribute caches above for
     # callers that prefer a single object.
     _axe_lumberjack_snapshots: dict[str, LumberjackSnapshot]
+    # Service-host snapshot caches populated only while the beta flag is enabled.
+    _service_host_enabled: bool
+    _service_status: ServiceStatusSnapshot | None
+    _service_log_tails: dict[str, str]
+    _service_tailed_names: set[str]
     _axe_status_read_cache: Any
     _axe_tailed_chops: set[tuple[str, str]]
     _axe_status_refresh_want_full: bool

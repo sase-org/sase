@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from textual.timer import Timer
 
 
-_AXE_LABEL_TEXT = " AXE "
+_AXE_LABEL_TEXT = " SVC "
 _AXE_LABEL_STYLE = "bold white on rgb(68,71,90)"
 _STARTUP_STOPWATCH_TIMEOUT_SECS = 30.0
 _STOPWATCH_GLYPH_FRAMES = ("◴", "◷", "◶", "◵")
@@ -56,6 +56,8 @@ class KeybindingStatusMixin:
         _axe_restarting: bool
         _bgcmd_running_count: int
         _bgcmd_done_count: int
+        _service_running_count: int
+        _service_total_count: int
         _startup_stopwatch_active: bool
         _startup_start_time: float
         _startup_elapsed: float
@@ -137,6 +139,12 @@ class KeybindingStatusMixin:
         self._bgcmd_done_count = done_count
         self._update_status()
 
+    def set_service_proc_count(self, running_count: int, total_count: int) -> None:
+        """Update the managed service-proc counts."""
+        self._service_running_count = running_count
+        self._service_total_count = total_count
+        self._update_status()
+
     def _status_signature(self) -> tuple[Any, ...]:
         """Compact signature of every input that drives status rendering."""
         if self._startup_stopwatch_active:
@@ -155,6 +163,8 @@ class KeybindingStatusMixin:
             self._axe_running,
             self._bgcmd_running_count,
             self._bgcmd_done_count,
+            self._service_running_count,
+            self._service_total_count,
         )
 
     def _update_status(self) -> None:
@@ -202,6 +212,13 @@ class KeybindingStatusMixin:
             text.append(" STOPPED ", style="bold white on red")
 
         # Add bgcmd badges if there are any background commands.
+        if self._service_total_count > 0:
+            text.append(" ")
+            text.append(
+                f" [⚙{self._service_running_count}/{self._service_total_count}] ",
+                style="bold black on #00D7AF",
+            )
+
         if self._bgcmd_running_count > 0 or self._bgcmd_done_count > 0:
             text.append(" ")
             if self._bgcmd_running_count > 0:

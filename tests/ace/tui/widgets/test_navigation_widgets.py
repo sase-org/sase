@@ -23,10 +23,10 @@ def test_tab_bar_patch_tab_label_is_artifacts() -> None:
     assert " Patches " not in plain
 
 
-def test_tab_bar_label_order_is_agents_artifacts_axe() -> None:
+def test_tab_bar_label_order_is_agents_artifacts_services() -> None:
     tab_bar = TabBar()
     plain = tab_bar._build_content().plain
-    assert plain.index("Agents") < plain.index("Artifacts") < plain.index("AXE")
+    assert plain.index("Agents") < plain.index("Artifacts") < plain.index("Services")
 
 
 def test_info_panel_fold_indicator_hidden_when_all_collapsed() -> None:

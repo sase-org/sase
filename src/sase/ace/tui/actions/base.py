@@ -47,7 +47,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
         # On axe tab, dispatch to re-run for done bgcmds or to manual chop run
         # for chop rows. Other rows (lumberjacks, running bgcmds) are no-ops.
         if self.current_tab == "axe":
-            from ..widgets.bgcmd_list import BgCmdItem, ChopItem
+            from ..widgets.bgcmd_list import BgCmdItem, ChopItem, ServiceProcItem
             from ..bgcmd import is_slot_running
 
             items = getattr(self, "_axe_items", [])
@@ -56,6 +56,8 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
                 item = items[idx]
                 if isinstance(item, BgCmdItem) and not is_slot_running(item.slot):
                     self._rerun_bgcmd(item.slot)  # type: ignore[attr-defined]
+                elif isinstance(item, ServiceProcItem):
+                    self._restart_selected_service_proc()  # type: ignore[attr-defined]
                 elif isinstance(item, ChopItem):
                     self._run_selected_chop()  # type: ignore[attr-defined]
             return

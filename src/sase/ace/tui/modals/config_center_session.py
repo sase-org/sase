@@ -13,6 +13,17 @@ if TYPE_CHECKING:
 ProjectsSubTab = Literal["projects", "repos", "workspaces"]
 
 
+def _default_procs_query() -> str:
+    """Return the configured default query for the Admin Center Procs pane."""
+    from sase.config import load_merged_config
+
+    merged = load_merged_config()
+    ace_cfg = merged.get("ace", {}) if isinstance(merged, dict) else {}
+    procs_cfg = ace_cfg.get("procs", {}) if isinstance(ace_cfg, dict) else {}
+    value = procs_cfg.get("default_query", "") if isinstance(procs_cfg, dict) else ""
+    return value if isinstance(value, str) else ""
+
+
 @dataclass
 class SelectionBookmark:
     """Requested selection plus the row a staged rebuild currently displays.
@@ -74,7 +85,7 @@ class ProcsSessionState:
 
     all_sessions: bool = False
     task: SelectionBookmark = field(default_factory=SelectionBookmark)
-    query: str = ""
+    query: str = field(default_factory=_default_procs_query)
 
 
 @dataclass

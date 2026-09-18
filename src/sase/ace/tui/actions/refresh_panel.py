@@ -24,7 +24,7 @@ REFRESH_PANEL_COMMAND_LABEL = "Open Refresh panel"
 REFRESH_TAB_COMMAND_LABEL = "Refresh tab"
 _USAGE_DISABLED_MESSAGE = "subscription usage collection is disabled"
 _USAGE_ALREADY_RUNNING = "Usage refresh already running"
-_TAB_LABELS = {"agents": "Agents", "axe": "Axe"}
+_TAB_LABELS = {"agents": "Agents", "axe": "Services"}
 
 
 def refresh_panel_enabled() -> bool:
@@ -235,7 +235,7 @@ class RefreshPanelMixin:
         if tab == "agents":
             return "Reload the visible inbox from the index."
         if tab == "axe":
-            return "Reload the focused AXE panel and fleet."
+            return "Reload the focused Services panel and fleet."
         return "Reload the visible artifacts pane."
 
     def _this_tab_surface(self) -> str:

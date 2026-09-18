@@ -26319,7 +26319,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "adfdceb9b3b0cf95",
+        "description_digest": "6636c35fb126beaf",
         "hidden": false,
         "mutex_groups": [],
         "name": "tui",
@@ -26398,6 +26398,7 @@
             "repeatable": false,
             "strings": [
               "-R",
+              "--restart-service",
               "--restart-axe"
             ],
             "takes_value": false
@@ -26418,7 +26419,7 @@
             "choices": [
               "artifacts",
               "agents",
-              "axe"
+              "services"
             ],
             "dest": "tab",
             "hidden": false,
@@ -26450,6 +26451,7 @@
             "repeatable": false,
             "strings": [
               "-x",
+              "--no-service",
               "--no-axe"
             ],
             "takes_value": false

@@ -68,7 +68,8 @@ def test_tui_tab_omits_legacy_choices() -> None:
     assert tab.choices is not None
     assert "artifacts" in tab.choices
     assert "agents" in tab.choices
-    assert "axe" in tab.choices
+    assert "services" in tab.choices
+    assert "axe" not in tab.choices
     assert "changespecs" not in tab.choices  # legacy tab alias
     assert "patches" not in tab.choices
 

@@ -6,6 +6,7 @@ import dataclasses
 import types
 from datetime import datetime
 from functools import partial
+from pathlib import Path
 from typing import Literal
 
 from sase.axe import config as axe_config
@@ -32,6 +33,10 @@ from sase.axe.state import (
     read_output_log_tail,
 )
 from sase.core.time import get_timezone
+from sase.feature_flags import FeatureFlag, current_flags
+from sase.service.control import latest_service_log_lines, persisted_or_current_status
+from sase.service.paths import service_proc_output_log_path
+from sase.service.status import ServiceStatusSnapshot
 
 from ...bgcmd import (
     BackgroundCommandInfo,
@@ -170,6 +175,10 @@ class AxeCollectedData:
     tailed_chop_keys: frozenset[tuple[str, str]] = dataclasses.field(
         default_factory=frozenset
     )
+    service_host_enabled: bool = False
+    service_status: ServiceStatusSnapshot | None = None
+    service_log_tails: dict[str, str] = dataclasses.field(default_factory=dict)
+    tailed_service_names: frozenset[str] = dataclasses.field(default_factory=frozenset)
     stats: AxeCollectorStats = dataclasses.field(default_factory=AxeCollectorStats)
 
 
@@ -304,6 +313,7 @@ def collect_axe_status_data(
     cache: AxeStatusReadCache | None = None,
     include_full_snapshots: bool = True,
     tail_chop_keys: frozenset[tuple[str, str]] | None = None,
+    tail_service_name: str | None = None,
 ) -> AxeCollectedData:
     """Collect axe status data via disk I/O (thread-safe, no app state mutation).
 
@@ -321,13 +331,32 @@ def collect_axe_status_data(
     read_cache = cache if cache is not None else AxeStatusReadCache()
     read_cache.begin_tick()
 
-    proc = get_axe_process_module()
-    axe_running = proc.is_axe_running()
+    service_host_enabled = _service_host_enabled()
+    service_status: ServiceStatusSnapshot | None = None
+    service_log_tails: dict[str, str] = {}
+    tailed_service_names: frozenset[str] = frozenset()
+    if service_host_enabled:
+        try:
+            service_status = persisted_or_current_status()
+        except Exception as exc:
+            trace_event(
+                "axe.collect.service_status.unavailable",
+                error_type=type(exc).__name__,
+            )
+
+    if service_host_enabled:
+        axe_running = service_status is not None and service_status.host.state in {
+            "running",
+            "starting",
+        }
+    else:
+        proc = get_axe_process_module()
+        axe_running = proc.is_axe_running()
 
     axe_status: AxeStatus | None = None
     axe_metrics: AxeMetrics | None = None
     degraded_status: AxeStatusDegradation | None = None
-    if axe_running:
+    if axe_running and not service_host_enabled:
         try:
             status_dict = proc.get_axe_status()
         except axe_config.AxeConfigError as error:
@@ -341,6 +370,22 @@ def collect_axe_status_data(
             except TypeError:
                 pass
         axe_metrics = read_metrics()
+
+    if service_status is not None and include_full_snapshots and tail_service_name:
+        proc_status = next(
+            (proc for proc in service_status.procs if proc.name == tail_service_name),
+            None,
+        )
+        log_path = Path(
+            service_proc_output_log_path(tail_service_name)
+            if proc_status is None or proc_status.log_path is None
+            else proc_status.log_path
+        )
+        service_log_tails[tail_service_name] = latest_service_log_lines(
+            log_path,
+            lines=500,
+        )
+        tailed_service_names = frozenset({tail_service_name})
 
     if include_full_snapshots:
         axe_output = read_cache.get_or_load_tail(
@@ -519,5 +564,17 @@ def collect_axe_status_data(
         degraded_status=degraded_status,
         include_full_snapshots=include_full_snapshots,
         tailed_chop_keys=tailed_chop_keys,
+        service_host_enabled=service_host_enabled,
+        service_status=service_status,
+        service_log_tails=service_log_tails,
+        tailed_service_names=tailed_service_names,
         stats=stats,
     )
+
+
+def _service_host_enabled() -> bool:
+    """Return whether the service-host backed Services tab should be active."""
+    try:
+        return current_flags().enabled(FeatureFlag.service_host)
+    except Exception:
+        return False

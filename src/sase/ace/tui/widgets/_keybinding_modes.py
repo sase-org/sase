@@ -82,6 +82,11 @@ class KeybindingModesMixin:
             chop_selected: bool = False,
             chop_selected_running: bool = False,
             chop_selected_enabled: bool = True,
+            service_selected: bool = False,
+            service_running: bool = False,
+            service_enabled: bool = True,
+            service_available: bool = True,
+            service_host_enabled: bool = False,
             config_row_selected: bool = False,
             description_expanded: bool = True,
         ) -> list[tuple[str, str]]: ...
@@ -200,6 +205,11 @@ class KeybindingModesMixin:
         chop_selected: bool = False,
         chop_selected_running: bool = False,
         chop_selected_enabled: bool = True,
+        service_selected: bool = False,
+        service_running: bool = False,
+        service_enabled: bool = True,
+        service_available: bool = True,
+        service_host_enabled: bool = False,
         config_row_selected: bool = False,
         description_expanded: bool = True,
     ) -> None:
@@ -211,6 +221,11 @@ class KeybindingModesMixin:
             chop_selected=chop_selected,
             chop_selected_running=chop_selected_running,
             chop_selected_enabled=chop_selected_enabled,
+            service_selected=service_selected,
+            service_running=service_running,
+            service_enabled=service_enabled,
+            service_available=service_available,
+            service_host_enabled=service_host_enabled,
             config_row_selected=config_row_selected,
             description_expanded=description_expanded,
         )
@@ -456,6 +471,8 @@ class KeybindingModesMixin:
             (k("run_cmd"), "run cmd"),
             (k("toggle_axe"), "start/stop axe"),
         ]
+        if "toggle_service_enablement" in keys:
+            bindings.append((k("toggle_service_enablement"), "enable/disable service"))
         if "mark_pr_origin" in keys:
             bindings.append((k("mark_pr_origin"), "mark PR origin"))
         if "start_rewind" in keys:

@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-import time
 from pathlib import Path
 from typing import Any, NoReturn
 
@@ -23,7 +22,6 @@ from sase.service.control import (
     ServiceHostDisabledError,
     current_service_status,
     latest_service_log_lines,
-    nudge_service_host,
     persisted_or_current_status,
     require_service_host_enabled,
     restart_service_host,
@@ -32,10 +30,13 @@ from sase.service.control import (
 )
 from sase.service.host import run_service_host
 from sase.service.paths import service_host_log_path, service_proc_output_log_path
-from sase.service.state import (
-    clear_service_stop,
-    record_service_stop,
-    set_service_enablement,
+from sase.service.actions import (
+    ServiceProcActionError,
+    disable_service_proc,
+    enable_service_proc,
+    restart_service_proc,
+    start_service_proc,
+    stop_service_proc,
 )
 
 
@@ -48,6 +49,9 @@ def handle_service_command(args: argparse.Namespace) -> NoReturn:
         print(str(exc), file=sys.stderr)
         code = 2
     except ServiceConfigError as exc:
+        print(str(exc), file=sys.stderr)
+        code = 2
+    except ServiceProcActionError as exc:
         print(str(exc), file=sys.stderr)
         code = 2
     sys.exit(code)
@@ -197,41 +201,35 @@ def handle_service_proc_show(args: argparse.Namespace) -> int:
 
 def _handle_proc_enablement(args: argparse.Namespace, *, enabled: bool) -> int:
     name = str(args.name)
-    _require_configured_proc(name, command="enable" if enabled else "disable")
-    outcome = set_service_enablement(name, enabled, "cli")
-    nudge_service_host()
-    verb = "enabled" if enabled else "disabled"
-    print(f"{verb} service proc {name} for this machine")
+    action = enable_service_proc if enabled else disable_service_proc
+    outcome = action(name, actor="cli")
+    print(outcome.message)
     return 0 if outcome.changed else 0
 
 
 def _handle_proc_start(args: argparse.Namespace) -> int:
     name = str(args.name)
-    _require_configured_proc(name, command="start")
-    clear_service_stop(name)
-    nudge_service_host()
-    print(f"requested service proc {name} start")
+    outcome = start_service_proc(name, actor="cli")
+    print(outcome.message)
     return 0
 
 
 def _handle_proc_stop(args: argparse.Namespace) -> int:
     name = str(args.name)
-    _require_configured_proc(name, command="stop")
-    record_service_stop(name, "cli", reason="cli")
-    nudge_service_host()
-    print(f"requested service proc {name} stop until next boot")
+    outcome = stop_service_proc(name, actor="cli", reason="cli")
+    print(outcome.message)
     return 0
 
 
 def _handle_proc_restart(args: argparse.Namespace) -> int:
     name = str(args.name)
-    _require_configured_proc(name, command="restart")
-    record_service_stop(name, "cli", reason="restart")
-    nudge_service_host()
-    time.sleep(float(getattr(args, "delay", 0.5)))
-    clear_service_stop(name)
-    nudge_service_host()
-    print(f"requested service proc {name} restart")
+    outcome = restart_service_proc(
+        name,
+        actor="cli",
+        reason="restart",
+        delay=float(getattr(args, "delay", 0.5)),
+    )
+    print(outcome.message)
     return 0
 
 
@@ -309,16 +307,6 @@ def _phase_error(command: str) -> int:
         file=sys.stderr,
     )
     return 2
-
-
-def _require_configured_proc(name: str, *, command: str) -> None:
-    config = load_service_config()
-    if config.get(name) is None:
-        print(
-            f"sase service proc {command}: unknown service proc {name!r}",
-            file=sys.stderr,
-        )
-        raise SystemExit(2)
 
 
 def _run_command(args: argparse.Namespace) -> list[str]:

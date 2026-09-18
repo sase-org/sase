@@ -9,7 +9,8 @@ import sys
 from typing import NoReturn
 
 from sase.feature_flags import FeatureFlag, current_flags
-from sase.service.state import clear_service_stop, record_service_stop
+from sase.service.actions import ServiceProcActionError
+from sase.service.config import ServiceConfigError
 
 
 def handle_scheduler_command(args: argparse.Namespace) -> NoReturn:
@@ -18,10 +19,14 @@ def handle_scheduler_command(args: argparse.Namespace) -> NoReturn:
     if subcommand == "run":
         sys.exit(_run_foreground_scheduler(args))
 
-    if current_flags().enabled(FeatureFlag.service_host):
-        code = _handle_service_scheduler(subcommand, args)
-    else:
-        code = _handle_legacy_scheduler(subcommand, args)
+    try:
+        if current_flags().enabled(FeatureFlag.service_host):
+            code = _handle_service_scheduler(subcommand, args)
+        else:
+            code = _handle_legacy_scheduler(subcommand, args)
+    except (ServiceConfigError, ServiceProcActionError) as exc:
+        print(str(exc), file=sys.stderr)
+        code = 2
     sys.exit(code)
 
 
@@ -47,27 +52,31 @@ def _run_foreground_scheduler(args: argparse.Namespace) -> int:
 
 def _handle_service_scheduler(subcommand: str, args: argparse.Namespace) -> int:
     from sase.main.service_handler import handle_service_proc_show
-    from sase.service.control import nudge_service_host
+    from sase.service.actions import (
+        restart_service_proc,
+        start_service_proc,
+        stop_service_proc,
+    )
 
     if subcommand == "start":
-        clear_service_stop("scheduler")
-        nudge_service_host()
-        print("requested scheduler start")
+        outcome = start_service_proc("scheduler", actor="cli")
+        print(outcome.message)
         return 0
     if subcommand == "status":
         args.name = "scheduler"
         return handle_service_proc_show(args)
     if subcommand == "stop":
-        record_service_stop("scheduler", "cli", reason="scheduler stop")
-        nudge_service_host()
-        print("requested scheduler stop until next boot")
+        outcome = stop_service_proc("scheduler", actor="cli", reason="scheduler stop")
+        print(outcome.message)
         return 0
     if subcommand == "restart":
-        record_service_stop("scheduler", "cli", reason="scheduler restart")
-        nudge_service_host()
-        clear_service_stop("scheduler")
-        nudge_service_host()
-        print("requested scheduler restart")
+        outcome = restart_service_proc(
+            "scheduler",
+            actor="cli",
+            reason="scheduler restart",
+            delay=0.0,
+        )
+        print(outcome.message)
         return 0
     print("Usage: sase scheduler {restart,run,start,status,stop}", file=sys.stderr)
     return 2

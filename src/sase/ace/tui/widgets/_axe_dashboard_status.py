@@ -6,6 +6,7 @@ from rich.text import Text
 from textual.widgets import Static
 
 from sase.axe.state import AxeStatus, LumberjackStatus
+from sase.core.time import parse_local
 
 from ._axe_dashboard_render import (
     CHOP_NAME_STYLE as _CHOP_NAME_STYLE,
@@ -22,6 +23,15 @@ if TYPE_CHECKING:
     from ..actions.axe_display._data import AxeStatusDegradation, ChopRunSnapshot
     from ..bgcmd import BackgroundCommandInfo
     from sase.axe.chop_overrun import ChopOverrun
+    from sase.service.status import ServiceStatusHost, ServiceStatusProc
+
+
+def _format_epoch_runtime(started_at: float) -> str:
+    """Format a service epoch start timestamp with the existing runtime helper."""
+    parsed = parse_local(started_at)
+    if parsed is None:
+        return "..."
+    return _format_runtime(parsed.isoformat())
 
 
 class AxeStatusSection(Static):
@@ -54,6 +64,11 @@ class AxeStatusSection(Static):
         self._chop_run_total: int = 0
         self._chop_overrun: ChopOverrun | None = None
         self._chop_interval_seconds: int | None = None
+        # State for service-proc mode
+        self._service_mode = False
+        self._service_host: ServiceStatusHost | None = None
+        self._service_proc: ServiceStatusProc | None = None
+        self._service_name: str = ""
         # Shared state
         self._countdown = 0
 
@@ -76,6 +91,8 @@ class AxeStatusSection(Static):
         """
         self._axe_mode = True
         self._lumberjack_mode = False
+        self._chop_mode = False
+        self._service_mode = False
         self._status = status
         self._is_running = is_running
         self._full_cycles = full_cycles
@@ -98,6 +115,8 @@ class AxeStatusSection(Static):
         """
         self._axe_mode = False
         self._lumberjack_mode = False
+        self._chop_mode = False
+        self._service_mode = False
         self._bgcmd_info = info
         self._bgcmd_running = is_running
         self._countdown = countdown
@@ -122,6 +141,7 @@ class AxeStatusSection(Static):
         """
         self._lumberjack_mode = True
         self._chop_mode = False
+        self._service_mode = False
         self._axe_mode = False
         self._lumberjack_status = status
         self._lumberjack_name = name
@@ -162,6 +182,7 @@ class AxeStatusSection(Static):
         """
         self._chop_mode = True
         self._lumberjack_mode = False
+        self._service_mode = False
         self._axe_mode = False
         self._chop_lumberjack_name = lumberjack_name
         self._chop_name = chop_name
@@ -170,6 +191,25 @@ class AxeStatusSection(Static):
         self._chop_run_total = run_total
         self._chop_overrun = overrun
         self._chop_interval_seconds = interval_seconds
+        self._countdown = countdown
+        self._refresh_display()
+
+    def update_service_proc_display(
+        self,
+        *,
+        host: "ServiceStatusHost | None",
+        proc: "ServiceStatusProc | None",
+        name: str,
+        countdown: int = 0,
+    ) -> None:
+        """Update the status section for a service-host proc."""
+        self._service_mode = True
+        self._chop_mode = False
+        self._lumberjack_mode = False
+        self._axe_mode = False
+        self._service_host = host
+        self._service_proc = proc
+        self._service_name = name
         self._countdown = countdown
         self._refresh_display()
 
@@ -188,6 +228,8 @@ class AxeStatusSection(Static):
         """Refresh the display based on current state."""
         if self._chop_mode:
             self._render_chop_display()
+        elif self._service_mode:
+            self._render_service_proc_display()
         elif self._lumberjack_mode:
             self._render_lumberjack_display()
         elif self._axe_mode:
@@ -251,6 +293,70 @@ class AxeStatusSection(Static):
                 text.append("(auto-refresh in ", style="dim")
                 text.append(f"{self._countdown}s", style="bold #FFD700")
                 text.append(")", style="dim")
+
+        self.update(text)
+
+    def _render_service_proc_display(self) -> None:
+        """Render the selected service-proc status display."""
+        text = Text(no_wrap=True, overflow="ellipsis")
+        host = self._service_host
+        proc = self._service_proc
+        label = "Scheduler" if self._service_name == "scheduler" else self._service_name
+
+        text.append("[", style="dim")
+        text.append(label, style="bold #00D7AF")
+        text.append("]", style="dim")
+
+        if proc is not None:
+            text.append("  │  ", style="dim")
+            text.append("State: ", style="bold #87D7FF")
+            state_style = (
+                "bold green"
+                if proc.state == "running"
+                else "bold red"
+                if proc.state in {"failed", "error"}
+                else "#FFD700"
+            )
+            text.append(proc.state, style=state_style)
+
+            text.append("  │  ", style="dim")
+            text.append("Desired: ", style="bold #87D7FF")
+            text.append(proc.desired, style="#00D7AF")
+
+            text.append("  │  ", style="dim")
+            text.append("Enabled: ", style="bold #87D7FF")
+            enabled_style = "#00D7AF" if proc.enablement.enabled else "dim"
+            text.append("yes" if proc.enablement.enabled else "no", style=enabled_style)
+
+            if proc.pid is not None:
+                text.append("  │  ", style="dim")
+                text.append("PID: ", style="bold #87D7FF")
+                text.append(str(proc.pid), style="#FF87D7")
+
+            if proc.started_at is not None and proc.state == "running":
+                text.append("  │  ", style="dim")
+                text.append("Runtime: ", style="bold #87D7FF")
+                text.append(_format_epoch_runtime(proc.started_at), style="#00D7AF")
+
+            if proc.restarts:
+                text.append("  │  ", style="dim")
+                text.append("Restarts: ", style="bold #87D7FF")
+                text.append(str(proc.restarts), style="#FFD700")
+        else:
+            text.append("  │  ", style="dim")
+            text.append("status unavailable", style="dim italic")
+
+        if host is not None:
+            text.append("  │  ", style="dim")
+            text.append("Host: ", style="bold #87D7FF")
+            host_style = "bold green" if host.state == "running" else "dim"
+            text.append(host.state, style=host_style)
+
+        if self._countdown > 0:
+            text.append("  │  ", style="dim")
+            text.append("(auto-refresh in ", style="dim")
+            text.append(f"{self._countdown}s", style="bold #FFD700")
+            text.append(")", style="dim")
 
         self.update(text)
 

@@ -32,7 +32,10 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'tui' subcommand parser."""
     ace_parser = subparsers.add_parser(
         "tui",
-        help="Open sase's TUI for agents, Patches, artifacts, notifications, and axe",
+        help=(
+            "Open sase's TUI for agents, Patches, artifacts, notifications, "
+            "and Services"
+        ),
     )
     # Optional positional argument with default
     ace_parser.add_argument(
@@ -77,9 +80,11 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     ace_parser.add_argument(
         "-R",
+        "--restart-service",
         "--restart-axe",
+        dest="restart_axe",
         action="store_true",
-        help="Restart the axe daemon on startup (no-op if axe is not running)",
+        help="Restart the service host on startup (no-op if it is not running)",
     )
     ace_parser.add_argument(
         "-s",
@@ -98,13 +103,15 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
             "changespecs",  # legacy tab id
             "patches",
             "agents",
+            "services",
             "axe",
         ],
         default="agents",
-        help="Tab to focus on startup; 'changespecs' and 'patches' remain legacy "
-        "aliases for 'artifacts' (default: agents)",
+        help="Tab to focus on startup; 'services' is the Services tab, and "
+        "'changespecs'/'patches' remain legacy aliases for 'artifacts' "
+        "(default: agents)",
     )
-    set_completion_compat_choices(tab, "changespecs", "patches")
+    set_completion_compat_choices(tab, "changespecs", "patches", "axe")
     set_completion_summary(tab, "Tab to focus on startup (default: agents)")
     ace_parser.add_argument(
         "-T",
@@ -117,9 +124,11 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     ace_parser.add_argument(
         "-x",
+        "--no-service",
         "--no-axe",
+        dest="no_axe",
         action="store_true",
-        help="Disable auto-starting the axe daemon on startup",
+        help="Disable auto-starting the service host on startup",
     )
     ace_parser.add_argument(
         "-v",

@@ -37,6 +37,7 @@ if TYPE_CHECKING:
         LumberjackSnapshot,
     )
     from ..bgcmd import BackgroundCommandInfo
+    from sase.service.status import ServiceStatusProc, ServiceStatusSnapshot
 
 __all__ = [
     "AxeDashboard",
@@ -208,6 +209,33 @@ class AxeDashboard(Static):
             info_id = info.pid if info is not None else "unset"
             text = render_axe_output(f"bgcmd:{info_id}", output, "ansi")
             output_section.update(text)
+
+    def update_service_proc_display(
+        self,
+        *,
+        snapshot: "ServiceStatusSnapshot | None",
+        proc: "ServiceStatusProc | None",
+        name: str,
+        output: str,
+        countdown: int = 0,
+    ) -> None:
+        """Update the dashboard to show a service proc and its output."""
+        status_section = self.query_one("#axe-status-section", _AxeStatusSection)
+        output_section = self.query_one("#axe-output-section", _AxeOutputSection)
+
+        self._hide_description_banner()
+        status_section.update_service_proc_display(
+            host=None if snapshot is None else snapshot.host,
+            proc=proc,
+            name=name,
+            countdown=countdown,
+        )
+        output_section.update_service_proc(
+            snapshot=snapshot,
+            proc=proc,
+            name=name,
+            output=output,
+        )
 
     def update_lumberjack_display(
         self,

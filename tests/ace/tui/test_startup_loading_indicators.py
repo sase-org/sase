@@ -66,11 +66,11 @@ def test_agent_info_panel_renders_proc_count_after_status_strip() -> None:
 
 
 def test_axe_info_panel_loading_renders_ellipsis() -> None:
-    """AxeInfoPanel shows 'AXE …' while loading."""
+    """AxeInfoPanel shows the Services label while loading."""
     panel = AxeInfoPanel()
     panel._loading = True
     plain = _collect_text(panel)
-    assert plain == "AXE …"
+    assert plain == "Services …"
     assert "tab guide" not in plain
 
 

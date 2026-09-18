@@ -19,7 +19,7 @@ _TAB_COLORS: dict[TabName, str] = {
 _TAB_DISPLAY_NAMES: dict[TabName, str] = {
     "artifacts": "Artifacts",
     "agents": "Agents",
-    "axe": "AXE",
+    "axe": "Services",
 }
 
 # Rendered left-to-right in TAB_ORDER so the visible labels track the

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TypedDict
+from typing import Any, TypedDict
 
 from sase.axe.state import (
     LumberjackMetrics,
@@ -20,7 +20,7 @@ from ...bgcmd import (
     read_slot_output_tail,
 )
 from ...util.pump_tasks import spawn_pump_free_task
-from ...widgets.bgcmd_list import AxeItem, ChopItem
+from ...widgets.bgcmd_list import AxeItem, ChopItem, ServiceProcItem
 from ._data import (
     AxeCollectedData,
     BgCmdSnapshot,
@@ -36,6 +36,7 @@ class _AxeCollectorKwargs(TypedDict):
     cache: AxeStatusReadCache
     include_full_snapshots: bool
     tail_chop_keys: frozenset[tuple[str, str]] | None
+    tail_service_name: str | None
 
 
 class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
@@ -72,10 +73,16 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             )
         else:
             tail_chop_keys = frozenset()
+        tail_service_name = (
+            getattr(self, "_axe_service_selection", None)
+            if include_full_snapshots
+            else None
+        )
         return {
             "cache": cache,
             "include_full_snapshots": include_full_snapshots,
             "tail_chop_keys": tail_chop_keys,
+            "tail_service_name": tail_service_name,
         }
 
     def _load_axe_status(self) -> None:
@@ -85,6 +92,7 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             cache=kwargs["cache"],
             include_full_snapshots=kwargs["include_full_snapshots"],
             tail_chop_keys=kwargs["tail_chop_keys"],
+            tail_service_name=kwargs["tail_service_name"],
         )
         self._apply_axe_status_data(data)
 
@@ -125,6 +133,8 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
         self._axe_status = data.axe_status
         self._axe_metrics = data.axe_metrics
         self._axe_degraded_status = data.degraded_status
+        self._service_host_enabled = data.service_host_enabled
+        self._service_status = data.service_status
 
         # Apply lumberjack names
         self._axe_lumberjack_names = data.lumberjack_names
@@ -147,6 +157,15 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             self._axe_output = data.axe_output
             self._axe_lumberjack_log_tails = data.lumberjack_log_tails
             self._axe_bgcmd_details = data.bgcmd_details
+            if data.service_log_tails:
+                merged_service_tails = dict(getattr(self, "_service_log_tails", {}))
+                merged_service_tails.update(data.service_log_tails)
+                self._service_log_tails = merged_service_tails
+            tailed_service = getattr(self, "_service_tailed_names", None)
+            if tailed_service is None:
+                self._service_tailed_names = set()
+                tailed_service = self._service_tailed_names
+            tailed_service.update(data.tailed_service_names)
             # Translate any pinned run-history offsets to keep the user looking
             # at the same run_id when new runs arrive at the head of history.
             self._reconcile_chop_run_offsets(data.chop_snapshots)
@@ -177,6 +196,16 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
                     jack.status = data.lumberjack_statuses[name]
                 if name in data.lumberjack_metrics:
                     jack.metrics = data.lumberjack_metrics[name]
+            if data.service_log_tails:
+                merged_service_tails = dict(getattr(self, "_service_log_tails", {}))
+                merged_service_tails.update(data.service_log_tails)
+                self._service_log_tails = merged_service_tails
+            if data.tailed_service_names:
+                tailed_service = getattr(self, "_service_tailed_names", None)
+                if tailed_service is None:
+                    self._service_tailed_names = set()
+                    tailed_service = self._service_tailed_names
+                tailed_service.update(data.tailed_service_names)
 
         self._update_bgcmd_count()
         self._build_axe_items()
@@ -206,6 +235,7 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             cache=kwargs["cache"],
             include_full_snapshots=kwargs["include_full_snapshots"],
             tail_chop_keys=kwargs["tail_chop_keys"],
+            tail_service_name=kwargs["tail_service_name"],
         )
         self._apply_axe_status_data(data)
 
@@ -367,6 +397,42 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
                 self._refresh_axe_display()  # type: ignore[attr-defined]
             return
 
+        if isinstance(selected_item, ServiceProcItem):
+            name = selected_item.name
+
+            def _read_service() -> tuple[Any, str]:
+                from pathlib import Path
+
+                from sase.service.control import (
+                    latest_service_log_lines,
+                    persisted_or_current_status,
+                )
+                from sase.service.paths import service_proc_output_log_path
+
+                snapshot = persisted_or_current_status()
+                proc_status = next(
+                    (proc for proc in snapshot.procs if proc.name == name),
+                    None,
+                )
+                log_path = Path(
+                    service_proc_output_log_path(name)
+                    if proc_status is None or proc_status.log_path is None
+                    else proc_status.log_path
+                )
+                return snapshot, latest_service_log_lines(log_path, lines=500)
+
+            snapshot, tail = await asyncio.to_thread(_read_service)
+            self._service_status = snapshot
+            self._service_log_tails[name] = tail
+            tailed = getattr(self, "_service_tailed_names", None)
+            if tailed is None:
+                self._service_tailed_names = set()
+                tailed = self._service_tailed_names
+            tailed.add(name)
+            if self.current_tab == "axe":
+                self._refresh_axe_display()  # type: ignore[attr-defined]
+            return
+
         if (
             view == "axe"
             and lumberjack_idx is not None
@@ -475,6 +541,20 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
         tailed.add(chop_sel)
         self._schedule_targeted_axe_refresh()
 
+    def _axe_ensure_selected_service_tail(self) -> None:
+        """Fetch the bounded log tail for a newly selected service-proc row."""
+        service_name = getattr(self, "_axe_service_selection", None)
+        if service_name is None:
+            return
+        tailed = getattr(self, "_service_tailed_names", None)
+        if tailed is None:
+            self._service_tailed_names = set()
+            tailed = self._service_tailed_names
+        if service_name in tailed:
+            return
+        tailed.add(service_name)
+        self._schedule_targeted_axe_refresh()
+
     def _axe_selected_chop_has_running_run(self) -> bool:
         """Return True when the selected chop's newest cached run is active.
 
@@ -490,6 +570,17 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             return False
         return snap.runs[0].entry.status in {"running", "launched"}
 
+    def _axe_selected_service_running(self) -> bool:
+        """Return True when the selected service-proc row is currently active."""
+        service_name = getattr(self, "_axe_service_selection", None)
+        snapshot = getattr(self, "_service_status", None)
+        if service_name is None or snapshot is None:
+            return False
+        proc = next(
+            (item for item in snapshot.procs if item.name == service_name), None
+        )
+        return proc is not None and proc.state == "running"
+
     def _axe_live_tick(self) -> None:
         """Per-second hook that pulls fresh data for an active chop run.
 
@@ -499,6 +590,9 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
         ``y``. No-op when the selected row is not a chop with a running run.
         """
         if self.current_tab != "axe":
+            return
+        if self._axe_selected_service_running():
+            self._schedule_targeted_axe_refresh()
             return
         if not self._axe_selected_chop_has_running_run():
             return
@@ -548,7 +642,21 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
 
     async def _run_axe_startup_init(self) -> None:
         """Load axe status and trigger startup auto-start/restart off the critical path."""
+        import asyncio
+
         await self._load_axe_status_async()
+        if getattr(self, "_service_host_enabled", False):
+            if self._restart_axe and self.axe_running:  # type: ignore[attr-defined]
+                from sase.service.control import restart_service_host
+
+                await asyncio.to_thread(restart_service_host)
+                self._schedule_axe_async_refresh()
+            elif self._auto_start_axe and not self.axe_running:  # type: ignore[attr-defined]
+                from sase.service.control import start_service_host
+
+                await asyncio.to_thread(start_service_host)
+                self._schedule_axe_async_refresh()
+            return
         if self._restart_axe and self.axe_running:  # type: ignore[attr-defined]
             self._restart_axe_daemon(source="ace startup restart")  # type: ignore[attr-defined]
         elif self._auto_start_axe and not self.axe_running:  # type: ignore[attr-defined]

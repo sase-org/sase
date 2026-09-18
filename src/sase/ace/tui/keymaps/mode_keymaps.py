@@ -199,6 +199,7 @@ class BangModeKeymaps(ModeKeymaps):
         default_factory=lambda: {
             "run_cmd": "exclamation_mark",
             "toggle_axe": "x",
+            "toggle_service_enablement": "e",
             "mark_pr_origin": "o",
             "start_rewind": "R",
         }
