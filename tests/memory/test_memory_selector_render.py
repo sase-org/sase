@@ -226,6 +226,90 @@ def test_note_markdown_places_linked_references_after_children(tmp_path: Path) -
     assert "### 1. `decisions:single-turn-agents`" in output
 
 
+def test_linked_child_references_replace_complete_children_listing(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "parent.md",
+        _note("# Parent\nSee [[alpha]] and [[beta]].\n"),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "alpha.md",
+        _note("# Alpha\n", description="Alpha child.").replace(
+            "parent: AGENTS.md", "parent: parent.md"
+        ),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "beta.md",
+        _note("# Beta\n", description="Beta child.").replace(
+            "parent: AGENTS.md", "parent: parent.md"
+        ),
+    )
+
+    batch = _resolve(tmp_path, ["parent.md"])
+    output = memory_selector_batch_markdown(batch)
+    payload = _json_payload(batch)
+    rich = _rich_text(batch)
+
+    assert "## Children" not in output
+    assert "## Linked References" in output
+    assert "### 1. `alpha.md`" in output
+    assert "### 2. `beta.md`" in output
+    assert payload["children"] == []
+    assert [item["address"] for item in payload["linked_references"]] == [
+        "alpha.md",
+        "beta.md",
+    ]
+    assert "Children" not in rich
+    assert "Linked References" in rich
+
+
+def test_linked_child_reference_leaves_unlinked_children_visible(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "parent.md",
+        _note("# Parent\nSee [[linked]].\n"),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "linked.md",
+        _note("# Linked\n", description="Linked child.").replace(
+            "parent: AGENTS.md", "parent: parent.md"
+        ),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "unlinked.md",
+        _note("# Unlinked\n", description="Unlinked child.").replace(
+            "parent: AGENTS.md", "parent: parent.md"
+        ),
+    )
+
+    batch = _resolve(tmp_path, ["parent.md"])
+    output = memory_selector_batch_markdown(batch)
+    payload = _json_payload(batch)
+    rich = _rich_text(batch)
+
+    children_section = output.split("## Children", maxsplit=1)[1].split(
+        "## Linked References", maxsplit=1
+    )[0]
+    assert "sase/memory/unlinked.md" in children_section
+    assert "sase/memory/linked.md" not in children_section
+    assert payload["children"] == [
+        {"path": "sase/memory/unlinked.md", "description": "Unlinked child."}
+    ]
+    assert payload["linked_references"] == [
+        {
+            "address": "linked.md",
+            "always_loaded": False,
+            "label": "Linked",
+            "summary": "Linked child.",
+        }
+    ]
+    assert "Children" in rich
+    assert "sase/memory/unlinked.md" in rich
+    assert "Linked References" in rich
+
+
 def test_note_markdown_lists_unresolved_targets_last(tmp_path: Path) -> None:
     _seed_decisions_web(tmp_path)
     _write(

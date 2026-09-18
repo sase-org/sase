@@ -25,7 +25,7 @@ from sase.memory.link_render import (
     linked_references_renderable,
     memory_links_json,
 )
-from sase.memory.link_resolve import MemoryLinkTarget
+from sase.memory.link_resolve import MemoryLinkTarget, MemoryNoteLinkTarget
 from sase.memory.notes import MemoryNote, render_children_section
 from sase.memory.read_log import MemoryReadContent
 
@@ -115,7 +115,20 @@ def _inline_note_reference_paths(view: ResolvedMemoryNote) -> frozenset[str]:
 
 def _suppressed_child_paths(view: ResolvedMemoryNote) -> frozenset[str]:
     """Return child paths whose bodies already appear in the rendered output."""
-    return _inline_note_reference_paths(view) | view.suppress_child_paths
+    return (
+        _inline_note_reference_paths(view)
+        | _linked_note_reference_paths(view)
+        | view.suppress_child_paths
+    )
+
+
+def _linked_note_reference_paths(view: ResolvedMemoryNote) -> frozenset[str]:
+    """Return relative paths for note targets listed in Linked References."""
+    return frozenset(
+        target.note.relative_path
+        for target in view.resolved_links
+        if isinstance(target, MemoryNoteLinkTarget)
+    )
 
 
 def _memory_note_link_items(

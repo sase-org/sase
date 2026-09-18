@@ -90,8 +90,10 @@ def test_home_root_omits_bead_memory_note(
         argparse.Namespace(selectors=["sase_beads.md"], reason="Need bead guidance")
     )
     read_output = capsys.readouterr().out
-    assert "## Children" in read_output
-    assert "**`sase/memory/sase_sizes.md`**" in read_output
+    assert "## Children" not in read_output
+    assert "## Linked References" in read_output
+    assert "### 2. `sase_sizes.md`" in read_output
+    assert "**`sase/memory/sase_sizes.md`**" not in read_output
 
 
 def test_retirement_converges_in_one_pass(
