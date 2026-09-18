@@ -132,3 +132,35 @@ def test_encoding_only_pair_does_not_rewrite_golden(tmp_path: Path) -> None:
     )
     assert ace.read_bytes() == first
     assert ace.stat().st_mtime_ns == mtime
+
+
+def test_update_report_writes_representative_contact_sheet(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    red = make_png(1, 1, (255, 0, 0, 255))
+    blue = make_png(1, 1, (0, 0, 255, 255))
+    write_golden(tmp_path, "ace", "one.png", red)
+    write_golden(tmp_path, "ace", "two.png", red)
+    write_golden(tmp_path, "pager", "keep.png", red)
+    commit_all(tmp_path)
+    runner = FakeRunner(
+        captures=[
+            ScriptedCapture(ACE_NODE, "one", "ace", blue),
+            ScriptedCapture(
+                "tests/ace/tui/visual/test_a.py::test_two",
+                "two",
+                "ace",
+                blue,
+            ),
+            ScriptedCapture(PAGER_NODE, "keep", "pager", red),
+        ],
+        repo_root=tmp_path,
+    )
+
+    assert (
+        main(["--check"], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
+        != EXIT_SUCCESS
+    )
+
+    report_dirs = sorted((tmp_path / ".pytest_cache/sase-visual/runs").glob("*/report"))
+    assert report_dirs
+    assert (report_dirs[-1] / "contact-sheet.png").is_file()

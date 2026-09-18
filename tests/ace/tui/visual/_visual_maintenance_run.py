@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+import importlib.machinery
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -67,6 +69,8 @@ from tests.ace.tui.visual._visual_maintenance_types import (
 
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
+REPORT_DIRNAME = "report"
+LATEST_REPORT_FILENAME = "latest-report.json"
 
 
 def main(
@@ -118,13 +122,32 @@ def run_maintenance(
             repo_root,
             allow_writes=not request.check,
         )
-        _refuse_ci_update(request, hooks=hooks, environ=environ)
-        _preflight(request, hooks=hooks)
         run_dir = create_run_dir(repo_root, run_id)
         capture_dir = run_dir / "capture"
         capture_dir.mkdir(parents=True, exist_ok=True)
         baseline = capture_golden_baseline(repo_root)
         renderer = _renderer_identity(hooks)
+        try:
+            _refuse_ci_update(request, hooks=hooks, environ=environ)
+            _preflight(request, hooks=hooks)
+        except UsageError as error:
+            manifest = _failure_manifest(
+                request,
+                repo_root=repo_root,
+                run_id=run_id,
+                run_dir=run_dir,
+                capture_dir=capture_dir,
+                verify_dir=None,
+                baseline=baseline,
+                renderer=renderer,
+                child_exit_code=None,
+                logs={},
+                status=STATUS_REFUSED,
+                errors=(str(error),),
+            )
+            _try_publish_failure_manifest(repo_root, run_dir, manifest)
+            print_summary(manifest)
+            raise
         write_run_record(
             run_dir,
             {
@@ -168,6 +191,7 @@ def _run_locked(
     child_exit: int | None = None
     verify_dir: Path | None = None
     journal_relpath: str | None = None
+    terminal_manifest: ChangeManifest | None = None
     try:
         child_exit = _run_pytest(
             hooks,
@@ -239,14 +263,93 @@ def _run_locked(
         )
         exit_code = EXIT_DRIFT if status == STATUS_DRIFT else EXIT_SUCCESS
         if not request.check and has_actionable_changes(changes):
-            recheck_baseline_or_raise(baseline, repo_root)
-            apply_changes(
-                run_dir,
-                changes,
+            preapply_manifest = _build_manifest(
+                request,
                 repo_root=repo_root,
-                capture_dir=capture_dir,
                 run_id=run_id,
+                run_dir=run_dir,
+                capture_dir=capture_dir,
+                verify_dir=verify_dir,
+                baseline=baseline,
+                renderer=renderer,
+                changes=changes,
+                status=STATUS_DRIFT,
+                exit_code=EXIT_SUCCESS,
+                child_exit_code=child_exit,
+                inventory_reasons=inventory.reasons,
+                errors=inventory.errors,
+                logs=logs,
+                journal_relpath=None,
+                extra={
+                    "full_inventory": inventory.full_inventory,
+                    "pruning_allowed": inventory.pruning_allowed,
+                    "complete": inventory.complete,
+                },
             )
+            _publish_manifest_and_report(repo_root, run_dir, preapply_manifest)
+            recheck_baseline_or_raise(baseline, repo_root)
+            try:
+                apply_changes(
+                    run_dir,
+                    changes,
+                    repo_root=repo_root,
+                    capture_dir=capture_dir,
+                    run_id=run_id,
+                )
+            except KeyboardInterrupt:
+                terminal_manifest = _build_manifest(
+                    request,
+                    repo_root=repo_root,
+                    run_id=run_id,
+                    run_dir=run_dir,
+                    capture_dir=capture_dir,
+                    verify_dir=verify_dir,
+                    baseline=baseline,
+                    renderer=renderer,
+                    changes=changes,
+                    status=STATUS_INTERRUPTED,
+                    exit_code=EXIT_FAILURE,
+                    child_exit_code=child_exit,
+                    inventory_reasons=inventory.reasons,
+                    errors=("interrupted during apply",),
+                    logs=logs,
+                    journal_relpath=None,
+                    extra={
+                        "full_inventory": inventory.full_inventory,
+                        "pruning_allowed": inventory.pruning_allowed,
+                        "complete": inventory.complete,
+                    },
+                )
+                _publish_manifest_and_report(repo_root, run_dir, terminal_manifest)
+                print_summary(terminal_manifest)
+                raise
+            except MaintenanceError as error:
+                terminal_manifest = _build_manifest(
+                    request,
+                    repo_root=repo_root,
+                    run_id=run_id,
+                    run_dir=run_dir,
+                    capture_dir=capture_dir,
+                    verify_dir=verify_dir,
+                    baseline=baseline,
+                    renderer=renderer,
+                    changes=changes,
+                    status=STATUS_FAILED,
+                    exit_code=EXIT_FAILURE,
+                    child_exit_code=child_exit,
+                    inventory_reasons=inventory.reasons,
+                    errors=(str(error),),
+                    logs=logs,
+                    journal_relpath=None,
+                    extra={
+                        "full_inventory": inventory.full_inventory,
+                        "pruning_allowed": inventory.pruning_allowed,
+                        "complete": inventory.complete,
+                    },
+                )
+                _publish_manifest_and_report(repo_root, run_dir, terminal_manifest)
+                print_summary(terminal_manifest)
+                raise
             journal_relpath = str((run_dir / JOURNAL_FILENAME).relative_to(repo_root))
             status = STATUS_APPLIED
             exit_code = EXIT_SUCCESS
@@ -273,10 +376,12 @@ def _run_locked(
                 "complete": inventory.complete,
             },
         )
-        _write_manifest(repo_root, run_dir, manifest)
+        _publish_manifest_and_report(repo_root, run_dir, manifest)
         print_summary(manifest)
         return exit_code
     except KeyboardInterrupt:
+        if terminal_manifest is not None:
+            raise
         manifest = _failure_manifest(
             request,
             repo_root=repo_root,
@@ -291,10 +396,12 @@ def _run_locked(
             status=STATUS_INTERRUPTED,
             errors=("interrupted",),
         )
-        _write_manifest(repo_root, run_dir, manifest)
+        _try_publish_failure_manifest(repo_root, run_dir, manifest)
         print_summary(manifest)
         raise
     except MaintenanceError as error:
+        if terminal_manifest is not None:
+            raise
         manifest = _failure_manifest(
             request,
             repo_root=repo_root,
@@ -309,7 +416,7 @@ def _run_locked(
             status=STATUS_FAILED,
             errors=(str(error),),
         )
-        _write_manifest(repo_root, run_dir, manifest)
+        _try_publish_failure_manifest(repo_root, run_dir, manifest)
         print_summary(manifest)
         raise
 
@@ -337,8 +444,30 @@ def print_summary(manifest: ChangeManifest, *, stream: Any | None = None) -> Non
             print(f"  {path}", file=out)
     print(f"manifest: {manifest.manifest_path}", file=out)
     print(f"run-dir: {manifest.run_dir}", file=out)
+    report = manifest.extra.get("report")
+    if isinstance(report, Mapping):
+        html = report.get("html")
+        summary = report.get("summary")
+        if isinstance(html, str):
+            print(f"report: {html}", file=out)
+        if isinstance(summary, str):
+            print(f"report-summary: {summary}", file=out)
+        groups = report.get("groups")
+        if isinstance(groups, list) and groups:
+            print("update-groups:", file=out)
+            for group in groups[:5]:
+                if not isinstance(group, Mapping):
+                    continue
+                group_id = group.get("id", "?")
+                size = group.get("size", "?")
+                representative = group.get("representative", "?")
+                print(f"  {group_id}: {size} member(s), {representative}", file=out)
+            if len(groups) > 5:
+                print(f"  ... {len(groups) - 5} more group(s)", file=out)
     if manifest.mode == "check" and manifest.status == STATUS_DRIFT:
         print("run: just fix-tui-screenshots", file=out)
+        if isinstance(report, Mapping) and isinstance(report.get("html"), str):
+            print(f"inspect: {report['html']}", file=out)
 
 
 def build_run_pytest_command(
@@ -692,6 +821,86 @@ def _write_manifest(repo_root: Path, run_dir: Path, manifest: ChangeManifest) ->
     atomic_write_text(
         run_dir / MANIFEST_FILENAME,
         json.dumps(manifest.to_dict(), indent=2, sort_keys=True) + "\n",
+    )
+
+
+def _publish_manifest_and_report(
+    repo_root: Path,
+    run_dir: Path,
+    manifest: ChangeManifest,
+) -> None:
+    """Write manifest, render its review report, and publish latest pointer."""
+    _write_manifest(repo_root, run_dir, manifest)
+    try:
+        metadata = _render_manifest_report(repo_root, run_dir)
+    except Exception as exc:
+        raise MaintenanceError(
+            "visual screenshot report generation failed; goldens were not changed: "
+            f"{exc}"
+        ) from exc
+    manifest.extra["report"] = metadata
+    _write_manifest(repo_root, run_dir, manifest)
+    _write_latest_report_pointer(repo_root, manifest, metadata)
+
+
+def _try_publish_failure_manifest(
+    repo_root: Path,
+    run_dir: Path,
+    manifest: ChangeManifest,
+) -> None:
+    try:
+        _publish_manifest_and_report(repo_root, run_dir, manifest)
+    except MaintenanceError:
+        _write_manifest(repo_root, run_dir, manifest)
+
+
+def _render_manifest_report(repo_root: Path, run_dir: Path) -> dict[str, Any]:
+    tool = _load_report_tool(repo_root)
+    output_dir = run_dir / REPORT_DIRNAME
+    context = tool.RenderContext(repo=None, sha=None, report_url=None)
+    metadata = tool.write_outputs_from_manifest(
+        run_dir / MANIFEST_FILENAME,
+        output_dir=output_dir,
+        context=context,
+        repo_root=repo_root,
+    )
+    if not isinstance(metadata, dict):
+        raise MaintenanceError("report renderer returned invalid metadata")
+    return metadata
+
+
+def _load_report_tool(repo_root: Path) -> Any:
+    path = repo_root / "tools" / "render_visual_snapshot_failure_report"
+    if not path.is_file():
+        path = REPO_ROOT / "tools" / "render_visual_snapshot_failure_report"
+    loader = importlib.machinery.SourceFileLoader(
+        "_sase_visual_snapshot_report_tool",
+        str(path),
+    )
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    if spec is None:
+        raise MaintenanceError(f"cannot load visual report tool: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[loader.name] = module
+    loader.exec_module(module)
+    return module
+
+
+def _write_latest_report_pointer(
+    repo_root: Path,
+    manifest: ChangeManifest,
+    metadata: Mapping[str, Any],
+) -> None:
+    pointer = {
+        "run_id": manifest.run_id,
+        "mode": manifest.mode,
+        "status": manifest.status,
+        "manifest": manifest.manifest_path,
+        "report": metadata,
+    }
+    atomic_write_text(
+        cache_root(repo_root) / LATEST_REPORT_FILENAME,
+        json.dumps(pointer, indent=2, sort_keys=True) + "\n",
     )
 
 

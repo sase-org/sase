@@ -25,6 +25,7 @@ from tests.ace.tui.visual._visual_maintenance import (
     EXIT_DRIFT,
     EXIT_FAILURE,
     EXIT_SUCCESS,
+    MaintenanceError,
     main,
 )
 from tests.ace.tui.visual._visual_maintenance_apply import (
@@ -415,6 +416,46 @@ def test_concurrent_edit_refuses_apply(tmp_path: Path) -> None:
         == EXIT_FAILURE
     )
     assert target.read_bytes() == green
+
+
+def test_report_is_rendered_before_apply_and_preserved_on_apply_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    init_repo(tmp_path)
+    red = make_png(1, 1, (255, 0, 0, 255))
+    blue = make_png(1, 1, (0, 0, 255, 255))
+    target = write_golden(tmp_path, "ace", "shot.png", red)
+    write_golden(tmp_path, "pager", "shot.png", red)
+    commit_all(tmp_path)
+    runner = FakeRunner(
+        captures=[
+            ScriptedCapture(ACE_NODE, "shot", "ace", blue),
+            ScriptedCapture(PAGER_NODE, "shot", "pager", red),
+        ],
+        repo_root=tmp_path,
+    )
+
+    def fail_after_report(*args: object, **kwargs: object) -> Path:
+        run_dir = args[0]
+        assert isinstance(run_dir, Path)
+        assert (run_dir / "report/visual-failure-report.html").is_file()
+        raise MaintenanceError("boom")
+
+    monkeypatch.setattr(
+        "tests.ace.tui.visual._visual_maintenance_run.apply_changes",
+        fail_after_report,
+    )
+
+    assert (
+        main([], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
+        == EXIT_FAILURE
+    )
+    assert target.read_bytes() == red
+    manifest = _manifest(tmp_path)
+    assert manifest["status"] == "failed"
+    assert any(item["kind"] == KIND_UPDATED for item in manifest["changes"])
+    assert manifest["report"]["html"].endswith("visual-failure-report.html")
+    assert (tmp_path / manifest["report"]["html"]).is_file()
 
 
 def test_write_failure_rolls_back_applied_files(

@@ -14,11 +14,14 @@ from __future__ import annotations
 
 import argparse
 import base64
+from collections import defaultdict
 import html
+import hashlib
 import json
+import shutil
 import sys
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -29,18 +32,22 @@ HTML_REPORT_NAME = "visual-failure-report.html"
 SUMMARY_NAME = "summary.md"
 ANNOTATIONS_NAME = "annotations.sh"
 MANIFEST_NAME = "manifest.jsonl"
+CONTACT_SHEET_NAME = "contact-sheet.png"
+MAINTENANCE_REPORT_TITLE = "sase's TUI PNG screenshot changes"
+FAILURE_REPORT_TITLE = "sase's TUI PNG snapshot failures"
+MAINTENANCE_ACTIONABLE_KINDS = frozenset({"created", "updated", "stale"})
 
 
 @dataclass(frozen=True)
 class FailureRecord:
-    """Failure metadata loaded from a ``failure.json`` sidecar."""
+    """Visual report metadata loaded from a failure sidecar or run manifest."""
 
     node_id: str
     snapshot: str
     kind: str
     expected_repo_path: str
-    actual_path: str
-    summary_path: str
+    actual_path: str | None
+    summary_path: str | None
     test_file: str | None
     test_line: int | None
     expected_path: str | None
@@ -52,10 +59,15 @@ class FailureRecord:
     total_pixels: int | None
     changed_ratio: float | None
     source_file: Path
+    anchor_prefix: str = "failure"
+    group_id: str | None = None
+    group_size: int | None = None
+    bounding_box: tuple[int, int, int, int] | None = None
+    notes: tuple[str, ...] = ()
 
     @property
     def anchor(self) -> str:
-        return f"failure-{_slug(self.node_id)}-{_slug(self.snapshot)}"
+        return f"{self.anchor_prefix}-{_slug(self.node_id)}-{_slug(self.snapshot)}"
 
 
 @dataclass(frozen=True)
@@ -65,6 +77,18 @@ class RenderContext:
     repo: str | None
     sha: str | None
     report_url: str | None
+
+
+@dataclass(frozen=True)
+class ManifestReport:
+    """Records plus run-level context derived from a maintenance manifest."""
+
+    records: tuple[FailureRecord, ...]
+    title: str
+    empty_message: str
+    run_summary: tuple[str, ...]
+    contact_sheet_path: str | None
+    metadata: dict[str, Any]
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
@@ -81,6 +105,15 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         help=(
             "Directory containing per-failure subtrees with failure.json "
             "sidecars (default: %(default)s)."
+        ),
+    )
+    parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=None,
+        help=(
+            "Versioned tools/fix_tui_screenshots run manifest to render. "
+            "When set, failure.json sidecars are not scanned."
         ),
     )
     parser.add_argument(
@@ -111,6 +144,15 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
             "${report_url}#<anchor>; otherwise they are bare fragments."
         ),
     )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=None,
+        help=(
+            "Repository root for resolving manifest-relative paths. By default "
+            "the root is inferred from the manifest run_dir."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -121,6 +163,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     artifact_root: Path = args.artifact_root
     output_dir: Path = args.output_dir
+
+    if args.manifest is not None:
+        write_outputs_from_manifest(
+            args.manifest,
+            output_dir=output_dir,
+            context=context,
+            repo_root=args.repo_root,
+        )
+        return 0
 
     records = list(discover_records(artifact_root))
     write_outputs(records, output_dir=output_dir, context=context)
@@ -166,14 +217,33 @@ def write_outputs(
     *,
     output_dir: Path,
     context: RenderContext,
+    title: str = FAILURE_REPORT_TITLE,
+    empty_message: str = "No failures recorded.",
+    html_empty_message: str = "No sase's TUI PNG snapshot failures were recorded.",
+    run_summary: Sequence[str] = (),
+    contact_sheet_path: str | None = None,
 ) -> None:
     """Write the four report files into *output_dir*."""
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / HTML_REPORT_NAME).write_text(
-        render_html(records, context=context)
+        render_html(
+            records,
+            context=context,
+            title=title,
+            empty_message=html_empty_message,
+            run_summary=run_summary,
+            contact_sheet_path=contact_sheet_path,
+        )
     )
     (output_dir / SUMMARY_NAME).write_text(
-        render_summary(records, context=context)
+        render_summary(
+            records,
+            context=context,
+            title=title,
+            empty_message=empty_message,
+            run_summary=run_summary,
+            contact_sheet_path=contact_sheet_path,
+        )
     )
     (output_dir / ANNOTATIONS_NAME).write_text(
         render_annotations(records)
@@ -187,22 +257,31 @@ def render_html(
     records: Sequence[FailureRecord],
     *,
     context: RenderContext,
+    title: str = FAILURE_REPORT_TITLE,
+    empty_message: str = "No sase's TUI PNG snapshot failures were recorded.",
+    run_summary: Sequence[str] = (),
+    contact_sheet_path: str | None = None,
 ) -> str:
     """Render the self-contained HTML report."""
     body_parts: list[str] = []
+    if run_summary:
+        body_parts.append(_render_run_summary_html(run_summary))
+    if contact_sheet_path is not None:
+        body_parts.append(_render_contact_sheet_html(contact_sheet_path, Path.cwd()))
     if not records:
-        body_parts.append(
-            "<p class=\"empty\">No sase's TUI PNG snapshot failures were recorded.</p>"
-        )
+        body_parts.append(f'<p class="empty">{html.escape(empty_message, quote=False)}</p>')
     else:
         body_parts.append(
-            f"<p class=\"count\">{len(records)} sase's TUI PNG snapshot failure(s).</p>"
+            f'<p class="count">{len(records)} visual record(s).</p>'
         )
+        group_summary = _render_group_summary_html(records)
+        if group_summary:
+            body_parts.append(group_summary)
         for record in records:
             body_parts.append(_render_html_section(record, context=context))
 
     body = "\n".join(body_parts)
-    return _HTML_TEMPLATE.format(body=body)
+    return _HTML_TEMPLATE.format(title=html.escape(title, quote=False), body=body)
 
 
 def _render_html_section(
@@ -216,14 +295,17 @@ def _render_html_section(
     location = _format_location(record)
     expected_link = _format_expected_link_html(record, context=context)
     stats = _format_stats_html(record)
+    group = _format_group_html(record)
+    notes = _format_notes_html(record)
+    bbox = _format_bbox_html(record)
 
     image_blocks = []
     diff_block = _image_block("diff", record.diff_path, record.source_file)
     expected_block = _image_block(
-        "expected", record.expected_path, record.source_file
+        _expected_image_label(record), record.expected_path, record.source_file
     )
     actual_block = _image_block(
-        "actual", record.actual_path, record.source_file
+        _actual_image_label(record), record.actual_path, record.source_file
     )
     if diff_block is not None:
         image_blocks.append(diff_block)
@@ -243,10 +325,25 @@ def _render_html_section(
         f'{location}'
         f'{expected_link}'
         f'{stats}'
+        f'{group}'
+        f'{bbox}'
+        f'{notes}'
         f'<div class="images">{images_html}</div>\n'
         f'{svg_block}'
         f'</section>'
     )
+
+
+def _expected_image_label(record: FailureRecord) -> str:
+    if record.kind == "stale":
+        return "previous"
+    return "expected"
+
+
+def _actual_image_label(record: FailureRecord) -> str:
+    if record.kind in {"created", "updated"}:
+        return "candidate"
+    return "actual"
 
 
 def _image_block(label: str, repo_path: str | None, source_file: Path) -> str | None:
@@ -323,27 +420,106 @@ def _format_stats_html(record: FailureRecord) -> str:
     )
 
 
+def _format_group_html(record: FailureRecord) -> str:
+    if record.group_id is None:
+        return ""
+    size = f" · {record.group_size} member(s)" if record.group_size else ""
+    return (
+        f'<p class="group">update group: '
+        f'{html.escape(record.group_id)}{html.escape(size)}</p>\n'
+    )
+
+
+def _format_bbox_html(record: FailureRecord) -> str:
+    if record.bounding_box is None:
+        return ""
+    left, top, right, bottom = record.bounding_box
+    return (
+        '<p class="bbox">changed bounds: '
+        f'x={left}..{right}, y={top}..{bottom}</p>\n'
+    )
+
+
+def _format_notes_html(record: FailureRecord) -> str:
+    if not record.notes:
+        return ""
+    items = "".join(f"<li>{html.escape(note)}</li>" for note in record.notes)
+    return f'<ul class="notes">{items}</ul>\n'
+
+
+def _render_run_summary_html(lines: Sequence[str]) -> str:
+    items = "".join(f"<li>{html.escape(line)}</li>" for line in lines)
+    return f'<section class="run-summary"><h2>Run</h2><ul>{items}</ul></section>'
+
+
+def _render_group_summary_html(records: Sequence[FailureRecord]) -> str:
+    grouped: dict[str, list[FailureRecord]] = defaultdict(list)
+    for record in records:
+        if record.group_id is not None:
+            grouped[record.group_id].append(record)
+    if not grouped:
+        return ""
+    parts = ['<section class="groups"><h2>Update Groups</h2><ul>']
+    for group_id in sorted(grouped):
+        members = sorted(grouped[group_id], key=lambda record: record.expected_repo_path)
+        representative = members[0]
+        bbox = (
+            ""
+            if representative.bounding_box is None
+            else " bounds="
+            + html.escape(",".join(str(value) for value in representative.bounding_box))
+        )
+        parts.append(
+            "<li>"
+            f"{html.escape(group_id)}: {len(members)} member(s), "
+            f"representative {html.escape(representative.expected_repo_path)}"
+            f"{bbox}"
+            "</li>"
+        )
+    parts.append("</ul></section>")
+    return "\n".join(parts)
+
+
+def _render_contact_sheet_html(repo_path: str, source_file: Path) -> str:
+    data_uri = _data_uri_for(repo_path, source_file)
+    if data_uri is None:
+        return ""
+    return (
+        '<section class="contact-sheet"><h2>Representative Contact Sheet</h2>'
+        f'<img alt="representative contact sheet" src="{data_uri}" />'
+        '</section>'
+    )
+
+
 def render_summary(
     records: Sequence[FailureRecord],
     *,
     context: RenderContext,
+    title: str = FAILURE_REPORT_TITLE,
+    empty_message: str = "No failures recorded.",
+    run_summary: Sequence[str] = (),
+    contact_sheet_path: str | None = None,
 ) -> str:
     """Render the compact ``summary.md`` GitHub job summary."""
+    lines: list[str] = [f"# {title}", ""]
+    if run_summary:
+        lines.extend(f"- {line}" for line in run_summary)
+        lines.append("")
+    if contact_sheet_path is not None:
+        lines.append(f"Representative contact sheet: `{_md_text(contact_sheet_path)}`")
+        lines.append("")
     if not records:
-        return "# sase's TUI PNG snapshot failures\n\nNo failures recorded.\n"
+        lines.append(empty_message)
+        lines.append("")
+        return "\n".join(lines)
 
-    lines: list[str] = []
-    lines.append("# sase's TUI PNG snapshot failures")
+    lines.append(f"{len(records)} visual record(s).")
     lines.append("")
     lines.append(
-        f"{len(records)} sase's TUI PNG snapshot failure(s)."
-    )
-    lines.append("")
-    lines.append(
-        "| Snapshot | Kind | Test | Expected | Actual | Diff |"
+        "| Snapshot | Kind | Test | Golden | Candidate | Diff | Group |"
     )
     lines.append(
-        "| --- | --- | --- | --- | --- | --- |"
+        "| --- | --- | --- | --- | --- | --- | --- |"
     )
     for record in records:
         snapshot = _md_text(record.snapshot)
@@ -356,8 +532,10 @@ def render_summary(
             if record.diff_path is not None
             else "—"
         )
+        group = _md_text(record.group_id or "—")
         lines.append(
-            f"| {snapshot} | {kind} | {test} | {expected} | {actual} | {diff} |"
+            f"| {snapshot} | {kind} | {test} | {expected} | {actual} | "
+            f"{diff} | {group} |"
         )
     lines.append("")
     return "\n".join(lines)
@@ -384,6 +562,8 @@ def _format_md_expected(
 def _format_md_anchor_link(
     label: str, record: FailureRecord, *, context: RenderContext
 ) -> str:
+    if label == "actual" and record.actual_path is None:
+        return "—"
     anchor = record.anchor
     if context.report_url:
         href = f"{context.report_url}#{anchor}"
@@ -428,6 +608,12 @@ def _annotation_line(record: FailureRecord) -> str:
 
 
 def _annotation_title(record: FailureRecord) -> str:
+    if record.kind == "created":
+        return "sase's TUI PNG snapshot created"
+    if record.kind == "updated":
+        return "sase's TUI PNG snapshot updated"
+    if record.kind == "stale":
+        return "sase's TUI PNG snapshot stale"
     if record.kind == "missing_golden":
         return "sase's TUI PNG snapshot missing golden"
     return "sase's TUI PNG snapshot mismatch"
@@ -446,6 +632,8 @@ def _annotation_message(record: FailureRecord) -> str:
             f"changed pixels {record.changed_pixels}/{record.total_pixels} "
             f"({ratio:.6%})"
         )
+    if record.group_id is not None:
+        parts.append(f"group={record.group_id}")
     parts.append(f"expected={record.expected_repo_path}")
     return " | ".join(parts)
 
@@ -481,8 +669,381 @@ def render_manifest(records: Sequence[FailureRecord]) -> str:
             payload["total_pixels"] = record.total_pixels
         if record.changed_ratio is not None:
             payload["changed_ratio"] = record.changed_ratio
+        if record.group_id is not None:
+            payload["group_id"] = record.group_id
+        if record.group_size is not None:
+            payload["group_size"] = record.group_size
+        if record.bounding_box is not None:
+            payload["bounding_box"] = list(record.bounding_box)
+        if record.notes:
+            payload["notes"] = list(record.notes)
         lines.append(json.dumps(payload, sort_keys=True))
     return "\n".join(lines) + ("\n" if lines else "")
+
+
+# ---------------------------------------------------------------------------
+# tools/fix_tui_screenshots manifest input
+# ---------------------------------------------------------------------------
+
+
+def write_outputs_from_manifest(
+    manifest_path: Path,
+    *,
+    output_dir: Path,
+    context: RenderContext,
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """Write report outputs for a versioned screenshot-maintenance manifest."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    report = load_manifest_report(
+        manifest_path,
+        output_dir=output_dir,
+        repo_root=repo_root,
+    )
+    write_outputs(
+        report.records,
+        output_dir=output_dir,
+        context=context,
+        title=report.title,
+        empty_message=report.empty_message,
+        html_empty_message=report.empty_message,
+        run_summary=report.run_summary,
+        contact_sheet_path=report.contact_sheet_path,
+    )
+    return report.metadata
+
+
+def load_manifest_report(
+    manifest_path: Path,
+    *,
+    output_dir: Path,
+    repo_root: Path | None = None,
+) -> ManifestReport:
+    """Return normalized report data from a screenshot-maintenance manifest."""
+    raw = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if not isinstance(raw, dict):
+        raise ValueError(f"manifest is not an object: {manifest_path}")
+    root = _repo_root_for_manifest(manifest_path, raw, repo_root)
+    records = _records_from_manifest(raw, manifest_path, output_dir, root)
+    records = _assign_update_groups(records)
+    contact_sheet = _write_contact_sheet(records, output_dir, root)
+    metadata = _manifest_report_metadata(
+        raw,
+        records,
+        output_dir,
+        root,
+        contact_sheet_path=contact_sheet,
+    )
+    return ManifestReport(
+        records=tuple(records),
+        title=MAINTENANCE_REPORT_TITLE,
+        empty_message="No screenshot changes recorded.",
+        run_summary=_run_summary_lines(raw),
+        contact_sheet_path=contact_sheet,
+        metadata=metadata,
+    )
+
+
+def _records_from_manifest(
+    manifest: dict[str, Any],
+    manifest_path: Path,
+    output_dir: Path,
+    repo_root: Path,
+) -> list[FailureRecord]:
+    records: list[FailureRecord] = []
+    run_dir = _manifest_path(manifest.get("run_dir"), repo_root)
+    capture_dir = _manifest_path(manifest.get("capture_dir"), repo_root)
+    changes = manifest.get("changes")
+    if not isinstance(changes, list):
+        raise ValueError("manifest changes must be a list")
+    for change in changes:
+        if not isinstance(change, dict):
+            continue
+        kind = str(change.get("kind", ""))
+        if kind not in MAINTENANCE_ACTIONABLE_KINDS:
+            continue
+        path = str(change.get("path", ""))
+        if not path:
+            continue
+        snapshot = str(change.get("snapshot_name") or Path(path).stem)
+        node_id = _as_optional_str(change.get("node_id")) or f"{kind}:{path}"
+        artifact_dir = output_dir / "images" / _slug(f"{kind}-{path}")
+        expected_path = _copy_manifest_expected(
+            change,
+            repo_root=repo_root,
+            run_dir=run_dir,
+            artifact_dir=artifact_dir,
+        )
+        actual_path = _copy_manifest_candidate(
+            change,
+            capture_dir=capture_dir,
+            artifact_dir=artifact_dir,
+        )
+        source_svg_path = _copy_manifest_svg(
+            change,
+            capture_dir=capture_dir,
+            artifact_dir=artifact_dir,
+        )
+        diff_path = None
+        bounding_box = None
+        notes = list(_notes_for_change(kind))
+        if kind == "updated" and expected_path is not None and actual_path is not None:
+            diff_path, bounding_box = _write_manifest_diff(
+                expected_path,
+                actual_path,
+                artifact_dir=artifact_dir,
+            )
+            if diff_path is None:
+                notes.append("diff image unavailable")
+        records.append(
+            FailureRecord(
+                node_id=node_id,
+                snapshot=snapshot,
+                kind=kind,
+                expected_repo_path=path,
+                actual_path=_path_ref(actual_path, repo_root),
+                summary_path=None,
+                test_file=_as_optional_str(change.get("test_file"))
+                or _as_optional_str(change.get("source_file")),
+                test_line=_as_optional_int(change.get("test_line"))
+                or _as_optional_int(change.get("source_line")),
+                expected_path=_path_ref(expected_path, repo_root),
+                diff_path=_path_ref(diff_path, repo_root),
+                source_svg_path=_path_ref(source_svg_path, repo_root),
+                expected_size=_size_from_change(change, "baseline"),
+                actual_size=_size_from_change(change, "candidate"),
+                changed_pixels=_as_optional_int(change.get("changed_pixels")),
+                total_pixels=_as_optional_int(change.get("total_pixels")),
+                changed_ratio=_ratio_from_change(change),
+                source_file=manifest_path,
+                anchor_prefix="change",
+                bounding_box=bounding_box,
+                notes=tuple(notes),
+            )
+        )
+    return records
+
+
+def _copy_manifest_expected(
+    change: dict[str, Any],
+    *,
+    repo_root: Path,
+    run_dir: Path,
+    artifact_dir: Path,
+) -> Path | None:
+    kind = str(change.get("kind", ""))
+    if kind not in {"updated", "stale"}:
+        return None
+    relative = str(change.get("path", ""))
+    candidates = [run_dir / "baseline" / relative, repo_root / relative]
+    source = next((path for path in candidates if path.is_file()), None)
+    if source is None:
+        return None
+    target = artifact_dir / "expected.png"
+    _copy_file(source, target)
+    return target
+
+
+def _copy_manifest_candidate(
+    change: dict[str, Any],
+    *,
+    capture_dir: Path,
+    artifact_dir: Path,
+) -> Path | None:
+    relpath = _as_optional_str(change.get("candidate_png_relpath"))
+    if relpath is None:
+        return None
+    source = capture_dir / relpath
+    if not source.is_file():
+        return None
+    target = artifact_dir / "actual.png"
+    _copy_file(source, target)
+    return target
+
+
+def _copy_manifest_svg(
+    change: dict[str, Any],
+    *,
+    capture_dir: Path,
+    artifact_dir: Path,
+) -> Path | None:
+    relpath = _as_optional_str(change.get("candidate_svg_relpath"))
+    if relpath is None:
+        return None
+    source = capture_dir / relpath
+    if not source.is_file():
+        return None
+    target = artifact_dir / "actual.svg"
+    _copy_file(source, target)
+    return target
+
+
+def _write_manifest_diff(
+    expected_path: Path,
+    actual_path: Path,
+    *,
+    artifact_dir: Path,
+) -> tuple[Path | None, tuple[int, int, int, int] | None]:
+    try:
+        from tests.ace.tui.visual._png_diff_comparison import diff_pngs
+    except Exception:
+        return None, None
+    try:
+        _summary, diff = diff_pngs(expected_path.read_bytes(), actual_path.read_bytes())
+    except Exception:
+        return None, None
+    target = artifact_dir / "diff.png"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(diff)
+    return target, _diff_bounding_box(diff)
+
+
+def _assign_update_groups(
+    records: Sequence[FailureRecord],
+) -> list[FailureRecord]:
+    groups: dict[tuple[Any, ...], list[FailureRecord]] = defaultdict(list)
+    for record in records:
+        if record.kind != "updated" or record.diff_path is None:
+            continue
+        diff = _resolve_repo_path(record.diff_path, record.source_file)
+        if diff is None or not diff.is_file():
+            continue
+        signature = (
+            record.expected_size,
+            record.actual_size,
+            hashlib.sha256(diff.read_bytes()).hexdigest(),
+        )
+        groups[signature].append(record)
+    group_ids: dict[FailureRecord, tuple[str, int]] = {}
+    for index, signature in enumerate(sorted(groups, key=repr), start=1):
+        members = sorted(groups[signature], key=lambda item: item.expected_repo_path)
+        for member in members:
+            group_ids[member] = (f"group-{index}", len(members))
+    updated: list[FailureRecord] = []
+    for record in records:
+        group = group_ids.get(record)
+        if group is None:
+            updated.append(record)
+        else:
+            updated.append(
+                replace(record, group_id=group[0], group_size=group[1])
+            )
+    return updated
+
+
+def _write_contact_sheet(
+    records: Sequence[FailureRecord],
+    output_dir: Path,
+    repo_root: Path,
+) -> str | None:
+    representatives: list[FailureRecord] = []
+    seen: set[str] = set()
+    for record in records:
+        if record.group_id is None or record.group_id in seen:
+            continue
+        representatives.append(record)
+        seen.add(record.group_id)
+    if not representatives:
+        return None
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:
+        return None
+    thumbs = []
+    for record in representatives:
+        image_path = None
+        if record.diff_path is not None:
+            image_path = _resolve_repo_path(record.diff_path, record.source_file)
+        if image_path is None or not image_path.is_file():
+            continue
+        with Image.open(image_path) as image:
+            thumb = image.convert("RGBA")
+            thumb.thumbnail((220, 160))
+            thumbs.append((record, thumb.copy()))
+    if not thumbs:
+        return None
+    cell_w = 260
+    cell_h = 205
+    cols = min(3, len(thumbs))
+    rows = (len(thumbs) + cols - 1) // cols
+    sheet = Image.new("RGBA", (cols * cell_w, rows * cell_h), (255, 255, 255, 255))
+    draw = ImageDraw.Draw(sheet)
+    for index, (record, thumb) in enumerate(thumbs):
+        col = index % cols
+        row = index // cols
+        x = col * cell_w + 20
+        y = row * cell_h + 20
+        sheet.alpha_composite(thumb, (x, y))
+        draw.text((x, y + 165), record.group_id or "group", fill=(30, 30, 30, 255))
+    target = output_dir / CONTACT_SHEET_NAME
+    target.parent.mkdir(parents=True, exist_ok=True)
+    sheet.convert("RGB").save(target, format="PNG")
+    return _path_ref(target, repo_root)
+
+
+def _manifest_report_metadata(
+    manifest: dict[str, Any],
+    records: Sequence[FailureRecord],
+    output_dir: Path,
+    repo_root: Path,
+    *,
+    contact_sheet_path: str | None,
+) -> dict[str, Any]:
+    groups: dict[str, list[FailureRecord]] = defaultdict(list)
+    for record in records:
+        if record.group_id is not None:
+            groups[record.group_id].append(record)
+    return {
+        "output_dir": _path_ref(output_dir, repo_root),
+        "html": _path_ref(output_dir / HTML_REPORT_NAME, repo_root),
+        "summary": _path_ref(output_dir / SUMMARY_NAME, repo_root),
+        "annotations": _path_ref(output_dir / ANNOTATIONS_NAME, repo_root),
+        "manifest_jsonl": _path_ref(output_dir / MANIFEST_NAME, repo_root),
+        "contact_sheet": contact_sheet_path,
+        "record_count": len(records),
+        "groups": [
+            {
+                "id": group_id,
+                "size": len(members),
+                "representative": sorted(
+                    member.expected_repo_path for member in members
+                )[0],
+                "members": sorted(member.expected_repo_path for member in members),
+                "bounding_box": (
+                    list(members[0].bounding_box)
+                    if members and members[0].bounding_box is not None
+                    else None
+                ),
+            }
+            for group_id, members in sorted(groups.items())
+        ],
+        "run_id": manifest.get("run_id"),
+        "status": manifest.get("status"),
+        "mode": manifest.get("mode"),
+    }
+
+
+def _run_summary_lines(manifest: dict[str, Any]) -> tuple[str, ...]:
+    counts_raw = manifest.get("counts")
+    counts: Mapping[str, Any] = counts_raw if isinstance(counts_raw, dict) else {}
+    parts = [
+        f"run_id: {manifest.get('run_id', '')}",
+        f"mode/status: {manifest.get('mode', '')}/{manifest.get('status', '')}",
+        f"scope: {manifest.get('requested_scope', '')}",
+        "counts: "
+        f"created={counts.get('created', 0)} "
+        f"updated={counts.get('updated', 0)} "
+        f"unchanged={counts.get('unchanged', 0)} "
+        f"stale={counts.get('stale', 0)}",
+        f"manifest: {manifest.get('manifest_path', '')}",
+    ]
+    dirty = manifest.get("dirty_before")
+    if isinstance(dirty, list) and dirty:
+        parts.append("dirty-before: " + ", ".join(str(item) for item in dirty))
+    errors = manifest.get("errors")
+    if isinstance(errors, list) and errors:
+        parts.append("errors: " + "; ".join(str(item) for item in errors))
+    return tuple(parts)
 
 
 # ---------------------------------------------------------------------------
@@ -503,6 +1064,89 @@ def _read_text_or_none(repo_path: str, source_file: Path) -> str | None:
     if target is None or not target.exists():
         return None
     return target.read_text()
+
+
+def _repo_root_for_manifest(
+    manifest_path: Path,
+    manifest: dict[str, Any],
+    repo_root: Path | None,
+) -> Path:
+    if repo_root is not None:
+        return repo_root.resolve()
+    run_dir = manifest.get("run_dir")
+    if isinstance(run_dir, str) and run_dir:
+        parts = Path(run_dir).parts
+        parent = manifest_path.resolve().parent
+        if len(parts) <= len(parent.parts):
+            try:
+                return parent.parents[len(parts) - 1]
+            except IndexError:
+                pass
+    return Path.cwd().resolve()
+
+
+def _manifest_path(value: Any, repo_root: Path) -> Path:
+    if not isinstance(value, str) or not value:
+        return repo_root
+    path = Path(value)
+    return path if path.is_absolute() else repo_root / path
+
+
+def _path_ref(path: Path | None, repo_root: Path) -> str | None:
+    if path is None:
+        return None
+    try:
+        return path.resolve().relative_to(repo_root.resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def _copy_file(source: Path, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target)
+
+
+def _notes_for_change(kind: str) -> tuple[str, ...]:
+    if kind == "created":
+        return ("no baseline image existed at run start",)
+    if kind == "stale":
+        return ("no producing assertion was captured in the full inventory",)
+    return ()
+
+
+def _size_from_change(change: dict[str, Any], prefix: str) -> tuple[int, int] | None:
+    width = _as_optional_int(change.get(f"{prefix}_width"))
+    height = _as_optional_int(change.get(f"{prefix}_height"))
+    if width is None or height is None:
+        return None
+    return width, height
+
+
+def _ratio_from_change(change: dict[str, Any]) -> float | None:
+    changed = _as_optional_int(change.get("changed_pixels"))
+    total = _as_optional_int(change.get("total_pixels"))
+    if changed is None or total is None or total == 0:
+        return None
+    return changed / total
+
+
+def _diff_bounding_box(diff_png: bytes) -> tuple[int, int, int, int] | None:
+    try:
+        from io import BytesIO
+
+        from PIL import Image
+    except Exception:
+        return None
+    try:
+        with Image.open(BytesIO(diff_png)) as image:
+            alpha = image.convert("RGBA").getchannel("A")
+            bbox = alpha.getbbox()
+    except Exception:
+        return None
+    if bbox is None:
+        return None
+    left, top, right, bottom = bbox
+    return left, top, right - 1, bottom - 1
 
 
 def _resolve_repo_path(repo_path: str, source_file: Path) -> Path | None:
@@ -584,12 +1228,12 @@ _HTML_TEMPLATE = """<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>sase's TUI PNG snapshot failure report</title>
+<title>{title}</title>
 <style>
 body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
        margin: 2rem auto; max-width: 60rem; padding: 0 1rem; }}
 h1 {{ margin-bottom: 0.25rem; }}
-.failure {{ border: 1px solid #d0d7de; border-radius: 6px;
+.failure, .run-summary, .groups, .contact-sheet {{ border: 1px solid #d0d7de; border-radius: 6px;
             padding: 1rem; margin: 1.25rem 0; }}
 .failure h2 a {{ color: inherit; text-decoration: none; }}
 .meta {{ color: #57606a; margin: 0.1rem 0; }}
@@ -602,6 +1246,7 @@ h1 {{ margin-bottom: 0.25rem; }}
 .images img {{ max-width: 100%; border: 1px solid #d0d7de;
                background: repeating-conic-gradient(#eee 0 25%, #fff 0 50%)
                   50% / 16px 16px; }}
+.contact-sheet img {{ max-width: 100%; border: 1px solid #d0d7de; }}
 .images figcaption {{ font-weight: 600; margin-bottom: 0.25rem; }}
 .svg pre {{ background: #f6f8fa; padding: 0.5rem; overflow: auto; }}
 .missing {{ color: #82071e; }}
@@ -609,7 +1254,7 @@ h1 {{ margin-bottom: 0.25rem; }}
 </style>
 </head>
 <body>
-<h1>sase's TUI PNG snapshot failure report</h1>
+<h1>{title}</h1>
 {body}
 </body>
 </html>
