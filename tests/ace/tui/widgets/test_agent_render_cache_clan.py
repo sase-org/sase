@@ -274,6 +274,41 @@ def test_default_panel_suppresses_explicit_default_clan_annotation() -> None:
     assert rendered.plain.endswith("@review")
 
 
+def test_cached_merged_clan_row_omits_inline_default_tribe_label() -> None:
+    cache = AgentRenderCache()
+    clan = _agent(cl_name="research", status="RUNNING")
+    clan.is_clan_container = True
+    clan.agent_clan = "research"
+    clan.clan_tribes = ("default", "review", "default")
+
+    with_default = cached_format_agent_option(
+        cache,
+        clan,
+        0,
+        is_selected=False,
+        tribe_label="default",
+    )
+    with_none = cached_format_agent_option(
+        cache,
+        clan,
+        0,
+        is_selected=False,
+        tribe_label=None,
+    )
+    with_named = cached_format_agent_option(
+        cache,
+        clan,
+        0,
+        is_selected=False,
+        tribe_label="alpha",
+    )
+
+    assert with_default[0] is with_none[0]
+    assert "@default" not in with_default[0].plain
+    assert "@review" in with_default[0].plain
+    assert "@alpha" in with_named[0].plain
+
+
 def test_cached_clan_row_distinguishes_split_and_unsuppressed_contexts() -> None:
     cache = AgentRenderCache()
     clan = _agent(status="RUNNING")

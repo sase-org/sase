@@ -7,6 +7,7 @@ from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
 from sase.ace.tui.modals.agent_grouping_modal import AgentGroupingModal
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_groups import GroupingMode
+from sase.ace.tui.widgets.agent_list import AgentList
 from sase.core.time import local_now
 from textual.binding import BindingsMap
 
@@ -27,6 +28,7 @@ def _agent(name: str, *, tribe: str | None, suffix: str) -> Agent:
 async def _seed_multiple_tribe_agents(page: AcePage) -> None:
     agents = [
         _agent("home", tribe=None, suffix="20260101000000"),
+        _agent("default-one", tribe="default", suffix="20260101000030"),
         _agent("alpha-one", tribe="alpha", suffix="20260101000100"),
         _agent("beta-one", tribe="beta", suffix="20260101000200"),
     ]
@@ -43,6 +45,13 @@ def _install_keymap(page: AcePage, ace_cfg: dict) -> None:
     registry = load_keymap_registry(ace_cfg)
     page.app._keymap_registry = registry
     page.app._bindings = BindingsMap(build_app_bindings(registry.app))
+
+
+def _agent_list_prompts(widget: AgentList) -> list[str]:
+    return [
+        widget.get_option_at_index(index).prompt.plain
+        for index in range(widget.option_count)
+    ]
 
 
 async def test_agents_o_opens_picker_and_direct_choice_applies() -> None:
@@ -76,6 +85,11 @@ async def test_agents_default_oo_toggles_panel_layout_once_and_preserves_mode() 
         assert page.app._panel_group.panel_keys == [None]
         assert page.app._grouping_mode is GroupingMode.STANDARD
         assert page.app._grouping_mode_save_pending == initial_save_state
+        merged_list = page.app.query_one("#agent-list-panel", AgentList)
+        merged_prompts = "\n".join(_agent_list_prompts(merged_list))
+        assert "@default" not in merged_prompts
+        assert "@alpha" in merged_prompts
+        assert "@beta" in merged_prompts
 
         await page.press("o", "o")
         await page.expect_no_modal()

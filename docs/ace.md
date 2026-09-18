@@ -2176,10 +2176,12 @@ tree.
 Press `o` on the Agents tab to open the grouping picker, then choose `p` Project, `d`
 Date, `s` Status, or `m` Machine. Press lowercase `o` inside that picker (`oo` with
 default keymaps) to toggle between tribe-split panels and one merged panel; the picker
-closes after the toggle. Panel layout and grouping mode are independent: toggling panel
-layout preserves the active grouping mode and does not persist beyond the current
-session. The Agents tab shows a brief toast (`Grouping: by project` / `by date` /
-`by status` / `by machine`) when the chosen mode changes:
+closes after the toggle. Merged panels annotate named tribes inline on agent nodes; the
+default tribe is implied there, so default nodes do not add `@default` labels. Panel
+layout and grouping mode are independent: toggling panel layout preserves the active
+grouping mode and does not persist beyond the current session. The Agents tab shows a
+brief toast (`Grouping: by project` / `by date` / `by status` / `by machine`) when the
+chosen mode changes:
 
 | Mode         | L0 buckets                                                                    | Notes                                                                                                                                                                               |
 | ------------ | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

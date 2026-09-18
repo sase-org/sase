@@ -170,6 +170,30 @@ async def test_patch_clan_row_preserves_latest_panel_context() -> None:
 
 
 @pytest.mark.asyncio
+async def test_patch_agent_row_keeps_synthesized_default_tribe_label_hidden() -> None:
+    app = _Harness()
+    async with app.run_test() as pilot:
+        widget = app.query_one(AgentList)
+        agent = _agent(status="RUNNING")
+        widget.update_list(
+            [agent],
+            current_idx=0,
+            tribe_labels=["default"],
+        )
+        await pilot.pause()
+        row = _agent_row_index(widget, 0)
+        assert "@default" not in str(widget.get_option_at_index(row).prompt)
+
+        agent.status = "DONE"
+        assert widget.patch_agent_row(0) is True
+        await pilot.pause()
+
+        patched = str(widget.get_option_at_index(row).prompt)
+        assert "@default" not in patched
+        assert "DONE" in patched
+
+
+@pytest.mark.asyncio
 async def test_full_rebuild_refreshes_tribe_colors_reused_by_patch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

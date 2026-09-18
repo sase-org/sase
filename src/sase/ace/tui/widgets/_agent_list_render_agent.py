@@ -61,6 +61,13 @@ def _has_file_change_hint(agent: Agent) -> bool:
     return agent_file_change_hint(agent)
 
 
+def _inline_tribe_label(tribe_label: str | None) -> str | None:
+    """Return the tribe label that belongs inline on an agent node."""
+    if normalize_panel_key(tribe_label) is None:
+        return None
+    return tribe_label
+
+
 _FLEET_HEALTHY_CONNECTION_HEALTH = frozenset({"online"})
 _FLEET_HEALTHY_FRESHNESS = frozenset({"fresh"})
 
@@ -141,6 +148,7 @@ def format_agent_option(
     show_machine_chip: bool = False,
 ) -> tuple[Text, Text, str]:
     """Build ``(left_text, suffix_text, option_id)`` parts for an agent row."""
+    tribe_label = _inline_tribe_label(tribe_label)
     text = append_agent_row_prefix(
         agent,
         is_selected=is_selected,
@@ -339,6 +347,7 @@ def cached_format_agent_option(
     our purposes (we don't mutate them after assemble); returning the
     cached object avoids rebuilding an O(rows) Text tree on each refresh.
     """
+    tribe_label = _inline_tribe_label(tribe_label)
     visible_clan_counts = (
         (
             clan_member_counts(agent, unread_agent_ids)
