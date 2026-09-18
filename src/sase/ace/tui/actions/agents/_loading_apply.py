@@ -175,7 +175,11 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         selected_identity: tuple[AgentType, str, str | None] | None,
         load_state: AgentLoadState | None,
     ) -> PreparedApplySnapshot:
-        """Capture UI-owned state for the pure prepared-apply boundary."""
+        """Capture UI-owned state for the pure prepared-apply boundary.
+
+        This is a cheap identity capture: agent lists are shallow-copied.
+        Worker mutation must go through :func:`own_prepared_apply_snapshot`.
+        """
         from ...models.agent_groups import GroupingMode
 
         fold_manager = getattr(self, "_fold_manager", None)

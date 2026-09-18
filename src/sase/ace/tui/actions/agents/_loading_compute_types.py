@@ -74,7 +74,13 @@ class PreparedApplySelectionInputs:
 
 @dataclass(frozen=True)
 class PreparedApplySnapshot:
-    """Pure snapshot of app-owned state needed to prepare loaded agents."""
+    """Pure snapshot of app-owned state needed to prepare loaded agents.
+
+    ``frozen=True`` only freezes these snapshot fields. Cached ``Agent`` rows
+    remain mutable presentation objects shared with the live UI until
+    :func:`own_prepared_apply_snapshot` copies them. Cheap UI capture (stale
+    tokens, selection, folds) must not deep-copy the archive-sized graph.
+    """
 
     cached_agents_with_children: list[Agent]
     dismissed_agents: set[tuple[AgentType, str, str | None]]

@@ -64,7 +64,12 @@ def test_incomplete_load_after_complete_history_drops_running_duplicate_root() -
         load_state=INCOMPLETE_INDEX_STATE,
     )
 
-    assert app._agents == [workflow_parent, workflow_child]
+    assert [agent.identity for agent in app._agents] == [
+        workflow_parent.identity,
+        workflow_child.identity,
+    ]
+    assert app._agents[0] is not workflow_parent
+    assert app._agents[1] is not workflow_child
 
 
 def test_incomplete_load_after_complete_history_keeps_non_workflow_suffix_guard() -> (
@@ -101,7 +106,8 @@ def test_incomplete_load_after_complete_history_keeps_non_workflow_suffix_guard(
         load_state=INCOMPLETE_INDEX_STATE,
     )
 
-    assert app._agents == [cached_running]
+    assert [agent.identity for agent in app._agents] == [cached_running.identity]
+    assert app._agents[0] is not cached_running
 
 
 def test_incomplete_load_after_complete_history_merges_running_shadow_metadata() -> (
@@ -157,13 +163,18 @@ def test_incomplete_load_after_complete_history_merges_running_shadow_metadata()
         load_state=INCOMPLETE_INDEX_STATE,
     )
 
-    assert app._agents == [workflow_parent, workflow_child]
-    assert workflow_parent.workspace_num == 7
-    assert workflow_parent.response_path == "/tmp/response.md"
-    assert workflow_parent.model == "claude-opus-4-20250514"
-    assert workflow_parent.vcs_provider == "GitHub"
-    assert workflow_parent.agent_name == "active-agent"
-    assert workflow_parent.step_output == {"meta_workspace": "7", "stdout": "done"}
+    assert [agent.identity for agent in app._agents] == [
+        workflow_parent.identity,
+        workflow_child.identity,
+    ]
+    published_parent = app._agents[0]
+    assert published_parent is not workflow_parent
+    assert published_parent.workspace_num == 7
+    assert published_parent.response_path == "/tmp/response.md"
+    assert published_parent.model == "claude-opus-4-20250514"
+    assert published_parent.vcs_provider == "GitHub"
+    assert published_parent.agent_name == "active-agent"
+    assert published_parent.step_output == {"meta_workspace": "7", "stdout": "done"}
 
 
 def test_incomplete_load_after_complete_history_dedups_cross_snapshot_same_pid() -> (
@@ -256,7 +267,17 @@ def test_incomplete_load_preserves_distinct_same_pid_artifact_children() -> None
         load_state=INCOMPLETE_INDEX_STATE,
     )
 
-    assert app._agents == [incoming_workflow, cached_running, cached_child]
+    assert [agent.identity for agent in app._agents] == [
+        incoming_workflow.identity,
+        cached_running.identity,
+        cached_child.identity,
+    ]
+    published_cached = next(
+        agent for agent in app._agents if agent.identity == cached_running.identity
+    )
+    published_child = next(
+        agent for agent in app._agents if agent.identity == cached_child.identity
+    )
     assert incoming_workflow.workspace_num is None
-    assert cached_running.workspace_num == 11
-    assert cached_child.parent_timestamp == cached_suffix
+    assert published_cached.workspace_num == 11
+    assert published_child.parent_timestamp == cached_suffix

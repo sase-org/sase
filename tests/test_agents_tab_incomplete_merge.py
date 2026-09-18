@@ -185,12 +185,17 @@ def test_incomplete_merge_refresh_preserves_child_derived_timestamps() -> None:
     merge_incomplete_load_after_complete_history(prep, snapshot)
 
     assert prep.filtered_agents[0] is fresh_parent
-    assert prep.filtered_agents.index(cached_child) > prep.filtered_agents.index(
+    published_child = next(
+        agent
+        for agent in prep.filtered_agents
+        if agent.identity == cached_child.identity
+    )
+    assert published_child is not cached_child
+    assert prep.filtered_agents.index(published_child) > prep.filtered_agents.index(
         fresh_parent
     )
     assert fresh_parent.code_time == code_started
-    assert cached_child in fresh_parent.runtime_children
-    assert cached_child in prep.filtered_agents
+    assert any(child is published_child for child in fresh_parent.runtime_children)
     assert "CODE  | 2026-05-21 09:08:05" in fresh_parent.timestamps_display
 
 
@@ -352,9 +357,12 @@ def test_bounded_prefix_shadow_without_shell_state_does_not_clobber_cached_row()
         load_state=_bounded_prefix_load_state(),
     )
 
-    assert _gate_rows(rows) == [cached_gate]
-    assert shadow not in rows
+    published_gates = _gate_rows(rows)
+    assert [agent.identity for agent in published_gates] == [cached_gate.identity]
+    assert published_gates[0] is not cached_gate
+    assert published_gates[0].gate_state == "pending"
     assert cached_gate.gate_state == "pending"
+    assert all(agent is not shadow for agent in rows)
 
 
 def test_bounded_prefix_exact_dismissal_removes_cached_row() -> None:
@@ -410,7 +418,8 @@ def test_bounded_prefix_suffix_only_dismissal_does_not_remove_cached_row() -> No
 
     merge_incomplete_load_after_complete_history(prep, snapshot)
 
-    assert prep.filtered_agents == [cached]
+    assert [agent.identity for agent in prep.filtered_agents] == [cached.identity]
+    assert prep.filtered_agents[0] is not cached
 
 
 def test_bounded_prefix_deleted_dir_metadata_does_not_remove_cached_row() -> None:
@@ -449,7 +458,8 @@ def test_bounded_prefix_deleted_dir_metadata_does_not_remove_cached_row() -> Non
 
     merge_incomplete_load_after_complete_history(prep, snapshot)
 
-    assert prep.filtered_agents == [cached]
+    assert [agent.identity for agent in prep.filtered_agents] == [cached.identity]
+    assert prep.filtered_agents[0] is not cached
 
 
 def test_bounded_prefix_type_changed_monitor_settlement_replaces_running_row() -> None:

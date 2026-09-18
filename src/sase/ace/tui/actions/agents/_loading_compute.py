@@ -10,6 +10,7 @@ The implementation is split across three sibling modules:
 * :mod:`._loading_compute_types` — pure-data dataclass types
 * :mod:`._loading_compute_merge` — Tier 1 patch-merge over complete history
 * :mod:`._loading_compute_finalize` — query/override/selection plan
+* :mod:`._loading_graph` — worker-owned copies of cached UI row graphs
 
 This module remains the public import facade so existing callers can
 keep importing ``PreparedApplyData``, ``compute_apply_loaded_agents``,
@@ -41,6 +42,7 @@ from ._loading_compute_types import (
     PreparedApplySnapshot,
     PreparedFinalizePlan,
 )
+from ._loading_graph import adopt_prepared_apply_data, own_prepared_apply_snapshot
 from ._loading_helpers import (
     DISMISSABLE_STATUSES,
     is_always_visible,
@@ -67,6 +69,7 @@ __all__ = [
     "compute_loader_cleanup",
     "make_finalize_stale_token",
     "merge_incomplete_load_after_complete_history",
+    "own_prepared_apply_snapshot",
     "prepare_loaded_agents_apply_boundary",
     "prepare_loaded_agents_worker_boundary",
 ]
@@ -169,9 +172,20 @@ def prepare_loaded_agents_apply_boundary(
     *,
     merge_incomplete: bool = True,
     effective_runner_limit: float | None = None,
+    graphs_owned: bool = False,
 ) -> PreparedApplyBoundary:
-    """Prepare pure post-load apply data from an explicit app-state snapshot."""
+    """Prepare pure post-load apply data from an explicit app-state snapshot.
+
+    Cached UI rows are detached here unless the caller already took ownership
+    (``graphs_owned=True``), so slot annotation and proc-shell carryover cannot
+    mutate the displayed graph.
+    """
     from ...util.trace import tui_trace
+
+    if not graphs_owned:
+        snapshot, memo = own_prepared_apply_snapshot(snapshot)
+        prep = adopt_prepared_apply_data(prep, memo)
+        graphs_owned = True
 
     if merge_incomplete:
         with tui_trace(
@@ -180,7 +194,11 @@ def prepare_loaded_agents_apply_boundary(
             cached=len(snapshot.cached_agents_with_children),
             complete=getattr(snapshot.load_state, "complete_history", None),
         ):
-            prep = merge_incomplete_load_after_complete_history(prep, snapshot)
+            prep = merge_incomplete_load_after_complete_history(
+                prep,
+                snapshot,
+                graphs_owned=graphs_owned,
+            )
 
     # The disk loader has no proc-shell source; stand-alone proc rows are a
     # proc-observer projection held in the current roster. Carry them into the
@@ -371,6 +389,7 @@ def _prepare_loaded_agents_worker_prep(
     snapshot: PreparedApplySnapshot,
     *,
     dismissed_bundle_snapshot: set[tuple[AgentType, str, str | None]] | None = None,
+    graphs_owned: bool = False,
 ) -> PreparedApplyData:
     """Prepare async-loaded agents, including post-history Tier 1 patch merge."""
     from ...util.trace import tui_trace
@@ -405,7 +424,11 @@ def _prepare_loaded_agents_worker_prep(
         cached=len(snapshot.cached_agents_with_children),
         complete=getattr(snapshot.load_state, "complete_history", None),
     ):
-        return merge_incomplete_load_after_complete_history(prep, snapshot_for_merge)
+        return merge_incomplete_load_after_complete_history(
+            prep,
+            snapshot_for_merge,
+            graphs_owned=graphs_owned,
+        )
 
 
 def prepare_loaded_agents_worker_boundary(
@@ -417,9 +440,18 @@ def prepare_loaded_agents_worker_boundary(
     *,
     dismissed_bundle_snapshot: set[tuple[AgentType, str, str | None]] | None = None,
 ) -> PreparedApplyBoundary:
-    """Prepare async-loaded agents through the fold-filter boundary."""
+    """Prepare async-loaded agents through the fold-filter boundary.
+
+    Detaches the captured UI graph once on this worker, then keeps that
+    ownership through merge, proc-shell carryover, and slot annotation.
+    """
     from sase.config.core import get_max_running_agents
 
+    from ...models._agent_graph import adopt_agents
+
+    snapshot, memo = own_prepared_apply_snapshot(snapshot)
+    all_agents = adopt_agents(all_agents, memo)
+    dismissed_from_loader = adopt_agents(dismissed_from_loader, memo)
     prep = _prepare_loaded_agents_worker_prep(
         all_agents,
         dismissed_from_loader,
@@ -427,10 +459,12 @@ def prepare_loaded_agents_worker_boundary(
         hide_non_run_agents,
         snapshot,
         dismissed_bundle_snapshot=dismissed_bundle_snapshot,
+        graphs_owned=True,
     )
     return prepare_loaded_agents_apply_boundary(
         prep,
         snapshot,
         merge_incomplete=False,
         effective_runner_limit=get_max_running_agents(),
+        graphs_owned=True,
     )

@@ -204,8 +204,10 @@ def test_artifact_delta_retry_projection_survives_cached_family_reattach() -> No
     assert root.status == "RETRYING"
     assert (root.retry_count, root.max_retries) == (2, 3)
     assert root.retry_next_at_epoch == 1_800_000_000.0
-    assert coder is cached_coder
+    assert coder is not cached_coder
+    assert coder.identity == cached_coder.identity
     assert coder.status == "FAILED"
+    assert cached_coder.status == "FAILED"
 
 
 def test_artifact_delta_under_committed_query_removes_stale_match() -> None:

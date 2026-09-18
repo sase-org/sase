@@ -5,8 +5,18 @@ from __future__ import annotations
 from dataclasses import replace
 from typing import Any
 
+from sase.ace.tui.actions.agents._loading_compute import (
+    prepare_loaded_agents_worker_boundary,
+)
 from sase.ace.tui.models.agent_groups import GroupingMode
 
+from tests._agents_tab_graph_isolation_helpers import (
+    clan_container,
+    clan_graph,
+    delta_load_state,
+    row_prefix,
+)
+from tests._agents_tab_query_helpers import FakeAgentApp
 from tests.ace.tui._agent_display_diff_helpers import (
     _DisplayDiffApp,
     _agent,
@@ -121,4 +131,63 @@ def test_by_status_live_churn_keeps_tribe_panels_on_incremental_path(
     }
     assert "unsupported_grouping" not in fallback_reasons
     assert "active_search" not in fallback_reasons
+    assert "status_membership_change" not in fallback_reasons
+
+
+def test_by_status_stable_clan_refresh_keeps_epic_panel(
+    monkeypatch: Any,
+) -> None:
+    """Unchanged BY_STATUS clan membership must patch in place, not remount."""
+    live = clan_graph()
+    container = clan_container(live)
+    live_prefix = row_prefix(container)
+    loader = FakeAgentApp()
+    loader._agents_with_children = live
+    loader._agents = list(live)
+    loader._agents_seen_complete_history = True
+    snapshot = loader._make_prepared_apply_snapshot(
+        on_agents_tab=True,
+        selected_identity=container.identity,
+        load_state=delta_load_state(),
+    )
+    boundary = prepare_loaded_agents_worker_boundary(
+        [],
+        [],
+        set(),
+        False,
+        snapshot,
+    )
+    assert row_prefix(container) == live_prefix
+    next_agents = list(boundary.fold.unfiltered_agents)
+
+    app = _DisplayDiffApp(live, monkeypatch)
+    app._grouping_mode = GroupingMode.BY_STATUS
+    app._refresh_panel_widgets(jump_hints=None)
+    widget = app._widgets["#agent-list-panel"]
+    app._agent_search_query = "NOT machine:apollo"
+    app._agent_display_last_search_query = "NOT machine:apollo"
+    widget.update_list_calls = 0
+    app._agents_refresh_trace_records.clear()
+    previous_widget = widget
+
+    app._agents = next_agents
+    app.current_idx = 0
+    app._refresh_agents_display_after_finalize(
+        previous_agents=live,
+        defer_detail=True,
+    )
+
+    assert app._widgets["#agent-list-panel"] is previous_widget
+    assert widget.update_list_calls == 0
+    assert app.full_rebuilds == 0
+    costs = _display_costs(app)
+    assert "display_full_rebuild" not in costs
+    published = clan_container(next_agents)
+    assert row_prefix(published) == live_prefix
+    fallback_reasons = {
+        record.fallback_reason
+        for record in app._agents_refresh_trace_records
+        if record.fallback_reason is not None
+    }
+    assert "unsupported_grouping" not in fallback_reasons
     assert "status_membership_change" not in fallback_reasons

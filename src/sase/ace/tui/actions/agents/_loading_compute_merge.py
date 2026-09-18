@@ -289,8 +289,22 @@ def _normalize_relationships_after_merge(agents: list[Agent]) -> list[Agent]:
 def merge_incomplete_load_after_complete_history(
     prep: PreparedApplyData,
     snapshot: PreparedApplySnapshot,
+    *,
+    graphs_owned: bool = False,
 ) -> PreparedApplyData:
-    """Treat post-reconcile Tier 1 loads as patches over full history."""
+    """Treat post-reconcile Tier 1 loads as patches over full history.
+
+    Cached UI rows are detached before relationship rebuild unless the caller
+    already took ownership (``graphs_owned=True``).
+    """
+    if not graphs_owned:
+        from ._loading_graph import (
+            adopt_prepared_apply_data,
+            own_prepared_apply_snapshot,
+        )
+
+        snapshot, memo = own_prepared_apply_snapshot(snapshot)
+        prep = adopt_prepared_apply_data(prep, memo)
     load_state = snapshot.load_state
     is_artifact_delta = (
         load_state is not None and load_state.artifact_source == "artifact_delta"
@@ -558,6 +572,7 @@ def merge_incomplete_load_after_complete_history(
         prep.capacity_agents = merge_incomplete_load_after_complete_history(
             capacity_prep,
             capacity_snapshot,
+            graphs_owned=True,
         ).filtered_agents
     elif incoming_capacity_agents:
         prep.capacity_agents = incoming_capacity_agents
