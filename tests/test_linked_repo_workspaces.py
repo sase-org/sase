@@ -20,6 +20,19 @@ from tests.sdd_store._helpers import (
 )
 
 
+def _normalize_staged_clone_dest(
+    commands: list[list[str]], expected_dest: Path
+) -> list[list[str]]:
+    normalized: list[list[str]] = []
+    for args in commands:
+        stage = Path(args[-1])
+        assert stage != expected_dest
+        assert stage.name == "clone"
+        assert stage.parent.parent == expected_dest.parent / ".sase-sdd-clone-staging"
+        normalized.append([*args[:-1], str(expected_dest)])
+    return normalized
+
+
 def test_clear_workspace_repos_renames_whole_tree_and_defers_delete(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -232,7 +245,7 @@ def test_sidecar_materialization_uses_remote_not_divergent_primary(
     assert not (target / ".git" / "rebase-apply").exists()
     assert not (target / ".git" / "objects" / "info" / "alternates").exists()
     assert git(["remote", "get-url", "origin"], target).stdout.strip() == str(remote)
-    assert clone_commands == [
+    assert _normalize_staged_clone_dest(clone_commands, target) == [
         [
             "clone",
             "--reference-if-able",

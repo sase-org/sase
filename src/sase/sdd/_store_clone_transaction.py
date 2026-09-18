@@ -171,7 +171,10 @@ def validate_staged_sdd_clone(
         op="sdd.clone.validate_head",
         deadline=deadline,
     )
-    if head is None:
+    # `git clone` of an empty remote leaves an unborn branch with tracking
+    # config and no HEAD commit. Sidecar init clones newly created remotes
+    # in that state before seeding the first commit.
+    if head is None and not _is_unborn_tracked_clone(path, branch, deadline=deadline):
         raise ClonePublicationError(
             f"staged SDD clone at {path} does not have a resolvable HEAD"
         )
@@ -187,6 +190,8 @@ def validate_staged_sdd_clone(
                 f"staged SDD clone at {path} has origin {remote!r}, expected "
                 f"{expected_remote!r}"
             )
+    if head is None:
+        return
     upstream = _git_validation_stdout(
         path,
         ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
@@ -197,6 +202,31 @@ def validate_staged_sdd_clone(
         raise ClonePublicationError(
             f"staged SDD clone at {path} has no tracking upstream"
         )
+
+
+def _is_unborn_tracked_clone(
+    path: Path, branch: str, *, deadline: float | None
+) -> bool:
+    if _git_validation_stdout(
+        path,
+        ["rev-list", "--max-count=1", "--all"],
+        op="sdd.clone.validate_empty",
+        deadline=deadline,
+    ):
+        return False
+    remote = _git_validation_stdout(
+        path,
+        ["config", "--get", f"branch.{branch}.remote"],
+        op="sdd.clone.validate_unborn_remote",
+        deadline=deadline,
+    )
+    merge = _git_validation_stdout(
+        path,
+        ["config", "--get", f"branch.{branch}.merge"],
+        op="sdd.clone.validate_unborn_merge",
+        deadline=deadline,
+    )
+    return bool(remote) and bool(merge)
 
 
 def _clone_target_key(target: Path) -> str:

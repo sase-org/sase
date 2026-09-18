@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.sdd._store_clone_ops import clone_sdd_store
 from sase.sdd._store_link import ensure_sidecar_sdd_clone
 from sase.sdd._store_types import SddMaterializationError
 from tests.sdd_store._helpers import clone, commit_all, git, init_bare_repo
@@ -185,3 +186,30 @@ def test_http_sidecar_remote_is_rejected_before_git(
 
     assert git_calls == []
     assert not clone_dir.exists()
+
+
+def test_empty_remote_clone_publishes_unborn_checkout(tmp_path: Path) -> None:
+    remote = tmp_path / "empty.git"
+    clone_dir = tmp_path / "workspace" / "sase" / "repos" / "plans"
+    init_bare_repo(remote)
+
+    assert clone_sdd_store(str(remote), clone_dir, strict=True)
+
+    assert (clone_dir / ".git").is_dir()
+    assert git(["symbolic-ref", "--short", "HEAD"], clone_dir).stdout.strip() == "main"
+    assert git(["rev-list", "--all"], clone_dir).stdout.strip() == ""
+    assert git(["config", "--get", "branch.main.remote"], clone_dir).stdout.strip() == (
+        "origin"
+    )
+    assert git(["config", "--get", "branch.main.merge"], clone_dir).stdout.strip() == (
+        "refs/heads/main"
+    )
+    assert git(["remote", "get-url", "origin"], clone_dir).stdout.strip() == str(remote)
+    assert git(["status", "--porcelain"], clone_dir).stdout == ""
+    staging = clone_dir.parent / ".sase-sdd-clone-staging"
+    leftover = (
+        [path for path in staging.iterdir() if path.is_dir()]
+        if staging.exists()
+        else []
+    )
+    assert leftover == []
