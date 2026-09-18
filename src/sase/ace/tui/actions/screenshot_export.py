@@ -28,6 +28,9 @@ _SCREENSHOT_DEBOUNCERS = (
     "_agent_detail_debouncer",
     "_axe_detail_debouncer",
 )
+_SCREENSHOT_VISUAL_TASK_REGISTRIES = ("_projected_record_hydration_tasks",)
+_SCREENSHOT_VISUAL_WORKER_GROUPS = frozenset({"screenshot-visual"})
+_SCREENSHOT_VISUAL_WORKER_NAME_PREFIXES = ("screenshot-visual:",)
 _SCREENSHOT_STABLE_FRAME_COUNT = 3
 _SCREENSHOT_SETTLE_TIMEOUT_SECONDS = 3.0
 _SCREENSHOT_SETTLING_TIMER_MAX_SECONDS = 0.5
@@ -184,7 +187,7 @@ class ScreenshotExportMixin:
 
         while True:
             self._request_screenshot_refresh_if_available()
-            await self._wait_for_screenshot_refresh_if_available()
+            await self._wait_for_screenshot_refresh_until(deadline)
             self._clear_screenshot_transient_state()
             pending = self._pending_screenshot_visual_work()
 
@@ -218,6 +221,26 @@ class ScreenshotExportMixin:
                 )
             await asyncio.sleep(min(0.02, max(0.0, deadline - loop.time())))
 
+    async def _wait_for_screenshot_refresh_until(self, deadline: float) -> None:
+        """Wait for one refresh without letting it outlive the settle deadline."""
+        loop = asyncio.get_running_loop()
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            raise RuntimeError(
+                "timed out waiting for screenshot refresh; "
+                f"deadline={_SCREENSHOT_SETTLE_TIMEOUT_SECONDS:.3f}s"
+            )
+        try:
+            await asyncio.wait_for(
+                self._wait_for_screenshot_refresh_if_available(),
+                timeout=remaining,
+            )
+        except TimeoutError as exc:
+            raise RuntimeError(
+                "timed out waiting for screenshot refresh; "
+                f"deadline={_SCREENSHOT_SETTLE_TIMEOUT_SECONDS:.3f}s"
+            ) from exc
+
     def _clear_screenshot_transient_state(self) -> None:
         try:
             from textual.widgets import Button
@@ -244,10 +267,9 @@ class ScreenshotExportMixin:
         ]
         # Live TUI captures run against the user's real host state, where broad
         # data refresh and update-check workers may be active for longer than a
-        # bounded screenshot export. Frame convergence below proves compositor
-        # progress; finite visual blockers are covered by debouncers, timers,
-        # and animations.
-        workers: list[str] = []
+        # bounded screenshot export. Only explicitly visual finite work joins
+        # the settle gate; frame convergence handles the rest of the compositor.
+        workers = self._pending_screenshot_visual_worker_labels()
 
         animator = getattr(self, "animator", None)
         animations = [
@@ -287,6 +309,87 @@ class ScreenshotExportMixin:
                 ):
                     timers.append(str(getattr(timer, "name", timer)))
         return debouncers, workers, timers, animations
+
+    def _pending_screenshot_visual_worker_labels(self) -> list[str]:
+        """Return finite visual worker/task labels still relevant to export."""
+        labels: list[str] = []
+        labels.extend(self._pending_screenshot_visual_task_labels())
+
+        worker_manager = getattr(self, "workers", ())
+        try:
+            workers = tuple(worker_manager)
+        except TypeError:
+            workers = tuple(getattr(worker_manager, "_workers", ()))
+
+        for worker in workers:
+            if self._screenshot_worker_is_finished(worker):
+                continue
+            if not self._is_screenshot_visual_worker(worker):
+                continue
+            labels.append(self._screenshot_worker_label(worker))
+        return labels
+
+    def _pending_screenshot_visual_task_labels(self) -> list[str]:
+        registries = set(_SCREENSHOT_VISUAL_TASK_REGISTRIES)
+        registries.update(getattr(self, "_screenshot_visual_task_registries", ()))
+
+        labels: list[str] = []
+        for registry_attr in sorted(registries):
+            for task in tuple(getattr(self, registry_attr, ())):
+                done = getattr(task, "done", None)
+                if callable(done) and done():
+                    continue
+                name = getattr(task, "get_name", lambda: "")()
+                labels.append(f"{registry_attr}:{name or type(task).__name__}")
+        return labels
+
+    def _is_screenshot_visual_worker(self, worker: object) -> bool:
+        groups = set(_SCREENSHOT_VISUAL_WORKER_GROUPS)
+        groups.update(getattr(self, "_screenshot_visual_worker_groups", ()))
+        group = str(getattr(worker, "group", "") or "")
+        if group in groups:
+            return True
+
+        name = str(getattr(worker, "name", "") or "")
+        prefixes = tuple(
+            getattr(
+                self,
+                "_screenshot_visual_worker_name_prefixes",
+                _SCREENSHOT_VISUAL_WORKER_NAME_PREFIXES,
+            )
+        )
+        return bool(name) and name.startswith(prefixes)
+
+    def _screenshot_worker_is_finished(self, worker: object) -> bool:
+        is_finished = getattr(worker, "is_finished", None)
+        if isinstance(is_finished, bool):
+            return is_finished
+        if callable(is_finished):
+            try:
+                return bool(is_finished())
+            except Exception:
+                return False
+
+        is_running = getattr(worker, "is_running", None)
+        if isinstance(is_running, bool):
+            return not is_running
+        if callable(is_running):
+            try:
+                return not bool(is_running())
+            except Exception:
+                return False
+        return False
+
+    def _screenshot_worker_label(self, worker: object) -> str:
+        name = str(getattr(worker, "name", "") or "")
+        group = str(getattr(worker, "group", "") or "")
+        if name and group:
+            return f"{group}:{name}"
+        if name:
+            return name
+        if group:
+            return group
+        return type(worker).__name__
 
     def _require_screenshot_export_request_dir(self) -> Path:
         request_dir = getattr(self, "_screenshot_export_request_dir", None)
