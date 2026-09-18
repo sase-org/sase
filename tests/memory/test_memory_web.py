@@ -451,6 +451,26 @@ def test_roster_wraps_long_list_entries_to_the_configured_prose_width(
     assert "\n     one unwrapped line." in content
 
 
+def test_roster_list_entries_use_prettier_stable_detail_lines(
+    tmp_path: Path,
+) -> None:
+    body = f"Intro.\n\n{START_MARKER}\n{END_MARKER}\n"
+    _write(
+        tmp_path / "sase" / "memory" / "terms.md", _descriptor(roster="list", body=body)
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "terms" / "alpha.md",
+        _strand(aliases="", summary="summary: Short summary.\n"),
+    )
+
+    (web,) = discover_memory_webs(tmp_path).webs
+    content, error = render_web_descriptor_with_roster(web)
+
+    assert error is None
+    assert content is not None
+    assert "1. **Alpha Term** (`alpha`)\n   - Short summary." in content
+
+
 def test_roster_wraps_two_digit_list_entries_with_matching_indent(
     tmp_path: Path,
 ) -> None:

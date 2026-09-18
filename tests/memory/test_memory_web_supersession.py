@@ -239,7 +239,7 @@ def test_roster_inline_partial_suffix(tmp_path: Path) -> None:
 def test_roster_list_accepted_and_missing_metadata_match_plain_entry(
     tmp_path: Path,
 ) -> None:
-    expected = "1. **Alpha Term** (`alpha`) - First term."
+    expected = "1. **Alpha Term** (`alpha`)\n   - First term."
     _seed_terms(tmp_path)
     (plain_web,) = discover_memory_webs(tmp_path).webs
     assert render_strand_roster(plain_web) == expected

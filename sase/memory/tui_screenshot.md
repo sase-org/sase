@@ -23,10 +23,10 @@ project-canonical TUI visual renderer.
   `-p/--press` keys and `-w/--wait-for` regexes for setup flows, for example
   `sase screenshot -o /tmp/agents.png -p tab -w "Agents|Loading" -- -t axe`.
 - Use `--keep` for iterative inspection. Capture once with
-  `sase screenshot --keep -o /tmp/one.png`, copy the printed `sase_tmux_window=...`,
+  `sase screenshot --keep -o /tmp/one.png`, copy the printed `sase_tmux_target=...`,
   drive that exact target with `tmux send-keys -t <target> ...`, then recapture with
-  `sase screenshot --window <target> -o /tmp/two.png`. The printed target is the owned
-  tmux window identity; prefer it over a display name when driving or cleaning up.
+  `sase screenshot --window <target> -o /tmp/two.png`. The target is the owned tmux
+  window identity; prefer it over the display name when driving or cleaning up.
 - Use `--host <alias-or-ssh>` to run the SVG capture on a remote machine and rasterize
   the PNG locally. Remote captures show that machine's installed `sase`, not local
   uncommitted changes. Check the printed `remote_sase_version=` before trusting a remote
@@ -35,8 +35,9 @@ project-canonical TUI visual renderer.
   transport leg; ordinary agent visual checks should inspect the final PNG.
 
 The command prints machine-readable `key=value` lines such as `png=`, `svg=`,
-`sase_tmux_window=`, `sase_screenshot_dir=`, and `remote_sase_version=`. Prefer those
-keys over prose parsing. Inspect the PNG itself, not just its signature or existence.
+`sase_tmux_target=`, `sase_tmux_window=`, `sase_screenshot_dir=`, and
+`remote_sase_version=`. Prefer those keys over prose parsing. Inspect the PNG itself,
+not just its signature or existence.
 
 Live captures include real timestamps, running procs, and host state. Assert stable
 layout, focus, and visible behavior, but do not treat live PNG bytes as deterministic

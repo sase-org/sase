@@ -19,8 +19,10 @@ note is the generated, always-current snapshot of the agent-creatable types belo
    - A confirmed true test or lint failure you did not cause, not a flake.
 3. **Feature** (`feature`)
    - An out-of-scope product or tooling idea that should not become a wish list.
-4. **Flaky test** (`flake`) - A test that fails and then passes on an unchanged tree.
-5. **Memory** (`memory`) - A sase memory note or skill that is out of date.
+4. **Flaky test** (`flake`)
+   - A test that fails and then passes on an unchanged tree.
+5. **Memory** (`memory`)
+   - A sase memory note or skill that is out of date.
 
 <!-- /sase:strands -->
 

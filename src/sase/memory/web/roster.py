@@ -82,8 +82,6 @@ def _list_entry(
 ) -> str:
     prefix = f"{number}. **{keyword}** (`{slug}`)"
     inline = f"{prefix} - {detail}".rstrip()
-    if "\n" not in wrap_markdown(inline, width=width):
-        return inline
 
     if "\n" in wrap_markdown(prefix, width=width):
         return wrap_markdown(inline, width=width)

@@ -130,8 +130,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 
 - Kind: memory web descriptor
 - Description: No description set.
-- Lines: 32
-- Approx. tokens: 309
+- Lines: 34
+- Approx. tokens: 310
 
 ### `sase/memory/cli_rules.md`
 
@@ -234,8 +234,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `sase/memory/tui.md`
 - Description: Read before using or changing `sase screenshot`, live TUI SVG export, or
   TUI PNG visual snapshot capture.
-- Lines: 75
-- Approx. tokens: 1070
+- Lines: 76
+- Approx. tokens: 1074
 
 ### `sase/memory/xprompts.md`
 
@@ -252,8 +252,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 12
 - Web descriptor notes: 3
-- Total lines: 1212
-- Total approx. tokens: 15623
+- Total lines: 1215
+- Total approx. tokens: 15628
 
 ## Commands
 

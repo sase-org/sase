@@ -40,28 +40,14 @@ class _RemoteScreenshotResult:
     screenshot_dir: str
     tmux_session: str
     tmux_window: str
+    tmux_target: str
     tmux_pid: int
     kept_window: bool
 
     @property
-    def tmux_target(self) -> str:
-        """Return a remote tmux target suitable for ``send-keys``."""
-        return f"{self.tmux_session}:{self.tmux_window}"
-
-    @property
     def send_keys_hint(self) -> str:
         """Return a shell command template for driving a kept remote window."""
-        return shlex.join(
-            [
-                "ssh",
-                self.host,
-                "tmux",
-                "send-keys",
-                "-t",
-                self.tmux_target,
-                "<KEY>",
-            ]
-        )
+        return _remote_send_keys_hint(self.host, self.tmux_target)
 
 
 @dataclass(frozen=True)
@@ -71,6 +57,7 @@ class _RemoteScreenshotMetadata:
     screenshot_dir: str
     tmux_session: str
     tmux_window: str
+    tmux_target: str
     tmux_pid: int
 
 
@@ -141,6 +128,7 @@ def capture_remote_screenshot(
             screenshot_dir=metadata.screenshot_dir,
             tmux_session=metadata.tmux_session,
             tmux_window=metadata.tmux_window,
+            tmux_target=metadata.tmux_target,
             tmux_pid=metadata.tmux_pid,
             kept_window=options.keep or bool(options.window),
         )
@@ -238,14 +226,21 @@ def _parse_remote_metadata(stdout: str, *, host: str) -> _RemoteScreenshotMetada
             "sase_screenshot_dir",
             "sase_tmux_session",
             "sase_tmux_window",
+            "sase_tmux_target",
             "sase_tmux_pid",
         )
         if not values.get(key)
     ]
     if missing:
+        hint = (
+            "; remote sase is missing retained tmux target support; upgrade it"
+            if "sase_tmux_target" in missing
+            else ""
+        )
         raise ScreenshotCaptureError(
             f"remote screenshot capture on {host!r} returned an incomplete contract: "
             + ", ".join(missing)
+            + hint
         )
     try:
         pid = int(values["sase_tmux_pid"])
@@ -258,8 +253,14 @@ def _parse_remote_metadata(stdout: str, *, host: str) -> _RemoteScreenshotMetada
         screenshot_dir=values["sase_screenshot_dir"],
         tmux_session=values["sase_tmux_session"],
         tmux_window=values["sase_tmux_window"],
+        tmux_target=values["sase_tmux_target"],
         tmux_pid=pid,
     )
+
+
+def _remote_send_keys_hint(host: str, tmux_target: str) -> str:
+    remote_command = shlex.join(["tmux", "send-keys", "-t", tmux_target, "<KEY>"])
+    return shlex.join(["ssh", host, remote_command])
 
 
 def _fetch_remote_svg(
