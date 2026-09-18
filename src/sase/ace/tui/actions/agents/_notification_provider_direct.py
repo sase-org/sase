@@ -70,7 +70,7 @@ def direct_notification_count_snapshot() -> AceNotificationCountSnapshot:
 def direct_unread_notification_page(
     *,
     include_dismissed: bool,
-    limit: int,
+    limit: int | None = None,
 ) -> AceNotificationPage:
     from sase.notifications import read_notification_snapshot
     from sase.notifications.gate_reconcile import (
@@ -88,15 +88,26 @@ def direct_unread_notification_page(
         n
         for n in snapshot.notifications
         if not n.read and not n.silent and (include_dismissed or not n.dismissed)
-    ][: max(0, limit)]
+    ]
+    if limit is None:
+        bounded = False
+        truncated = False
+        page_notifications = unread
+    else:
+        bounded = True
+        normalized_limit = max(0, limit)
+        page_notifications = unread[:normalized_limit]
+        truncated = len(page_notifications) < len(unread)
     page = AceNotificationPage(
-        notifications=unread,
+        notifications=page_notifications,
         counts=AceNotificationCounts(
             priority=snapshot.counts.priority,
             errors=snapshot.counts.errors,
             rest=snapshot.counts.rest,
             muted=snapshot.counts.muted,
         ),
+        bounded=bounded,
+        truncated=truncated,
     )
     return notification_page_with_shared_metadata(
         page,

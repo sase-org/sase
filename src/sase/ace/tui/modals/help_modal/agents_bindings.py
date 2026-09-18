@@ -369,7 +369,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'jump_to_notification'))}",
-                    "Jump to agent notification",
+                    "Jump to any agent notification",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'capture_agents_repro'))}",
@@ -605,7 +605,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.show_help), "Show this help"),
                 (
                     d(a.show_notifications),
-                    "Notifications (Enter opens full report; d debugs row)",
+                    "All unread notifications (Enter opens; d debugs)",
                 ),
                 (d(a.dismiss_toasts), "Dismiss toasts"),
                 (d(a.stop_axe_and_quit), "Quit / restart menu"),

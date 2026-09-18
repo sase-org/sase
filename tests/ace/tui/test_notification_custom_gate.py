@@ -16,7 +16,7 @@ from sase.notification_gates.failure_notifications import GATE_EXECUTION_FAILED_
 from sase.notification_gates.service import create_gate
 from sase.bead.task_gate import create_task_triage_gate
 from sase.notifications.models import Notification
-from sase.notifications.store import load_notifications
+from sase.notifications.store import append_notification, load_notifications
 from sase.sudo.gate import build_sudo_gate_request
 
 from ._notification_custom_gate_helpers import (
@@ -291,3 +291,23 @@ def test_unread_page_keeps_unanswered_gate_notification(gate_home: Path) -> None
     ]
     [notification] = load_notifications(include_dismissed=True)
     assert notification.dismissed is False
+
+
+def test_unread_page_keeps_live_gate_behind_large_backlog(gate_home: Path) -> None:
+    del gate_home
+    created = create_gate(_spec())
+    for index in range(120):
+        append_notification(
+            Notification(
+                id=f"newer-{index}",
+                timestamp=(f"2026-09-18T12:{index // 60:02d}:{index % 60:02d}+00:00"),
+                sender="test",
+                tags=["done"],
+            )
+        )
+
+    page = direct_unread_notification_page(include_dismissed=False)
+
+    assert created.notification_id in [
+        notification.id for notification in page.notifications
+    ]

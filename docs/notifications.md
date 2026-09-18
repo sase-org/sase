@@ -33,11 +33,13 @@ diagnostic instead of routing the answer elsewhere.
 
 ## Viewing Notifications
 
-Press `i` on any tab in sase's TUI to open the notifications modal. Rows in the list
-show relative timestamps (e.g., "2m ago", "1h ago") and can be marked as read or
-dismissed. The detail pane shows the selected notification's absolute send time
-alongside its relative age (`sent today 13:18:42 · 4m ago`), tiered as `today HH:MM:SS`
-/ `yesterday HH:MM` / `Mon D HH:MM` / `Mon D 'YY HH:MM` in the configured timezone.
+Press `i` on any tab in sase's TUI to open the notifications modal. The modal receives
+the complete unread, non-silent inbox dataset, so every populated tab and every eligible
+row remains accessible even when the backlog is large. Rows in the list show relative
+timestamps (e.g., "2m ago", "1h ago") and can be marked as read or dismissed. The detail
+pane shows the selected notification's absolute send time alongside its relative age
+(`sent today 13:18:42 · 4m ago`), tiered as `today HH:MM:SS` / `yesterday HH:MM` /
+`Mon D HH:MM` / `Mon D 'YY HH:MM` in the configured timezone.
 
 ### Modal Keybindings
 
@@ -333,6 +335,12 @@ means:
   (4 by default), taken in panel order; any remaining tabs collapse into one trailing
   dim `+K` chip, joined by the same single space. Every suppressed tab is still
   described in the tooltip.
+
+The chip budget is display-only. It does not limit the notification modal dataset, tab
+counts, or the Agents `,n` shortcut. On the Agents tab, `,n` searches the complete
+unread dataset for the selected agent's plan, epic, or question notification, so older
+pending agent decisions remain reachable regardless of indicator overflow or backlog
+size.
 
 Hovering the indicator opens a tooltip briefing: a header count of unread rows (snoozed
 and muted rows are informational and excluded from that header count) followed by one

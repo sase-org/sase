@@ -54,8 +54,6 @@ _notification_snapshot_from_direct = notification_snapshot_from_direct
 _notification_snapshot_with_shared_metadata = notification_snapshot_with_shared_metadata
 _pending_actions_with_shared_metadata = pending_actions_with_shared_metadata
 
-DEFAULT_NOTIFICATION_PAGE_LIMIT = 100
-
 
 @dataclass(frozen=True)
 class _DirectReadResult[T]:
@@ -131,12 +129,12 @@ def _read_notification_counts_for_tui(
 def _read_unread_notification_page_for_tui(
     *,
     include_dismissed: bool = False,
-    limit: int = DEFAULT_NOTIFICATION_PAGE_LIMIT,
+    limit: int | None = None,
     cursor: str | None = None,
     args: Any | None = None,
     client: Any | None = None,
 ) -> _DirectReadResult[AceNotificationPage]:
-    """Return one unread notification modal page from direct source stores."""
+    """Return unread notifications, optionally bounded by an explicit limit."""
     _ = (args, client, cursor)
 
     page = direct_unread_notification_page(
@@ -325,10 +323,10 @@ class AgentNotificationProviderMixin:
         include_dismissed: bool = False,
         limit: int | None = None,
     ) -> Any:
-        """Return one unread modal page via the configured ACE provider."""
+        """Return unread modal rows, unbounded unless a limit is provided."""
         result = _read_unread_notification_page_for_tui(
             include_dismissed=include_dismissed,
-            limit=limit or DEFAULT_NOTIFICATION_PAGE_LIMIT,
+            limit=limit,
         )
         self._notification_provider_used_daemon = False  # type: ignore[attr-defined]
         self._notification_provider_fallback_reason = None  # type: ignore[attr-defined]
