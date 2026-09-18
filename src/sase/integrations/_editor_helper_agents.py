@@ -69,6 +69,10 @@ def agent_catalog_response(request: dict[str, Any]) -> dict[str, Any]:
                 "detail": detail,
             }
         )
+    try:
+        entries.extend(_proc_catalog_entries())
+    except Exception:
+        pass
 
     # New list results carry the exact artifact snapshot used above. Tests and
     # mixed-version integrations may still provide an ordinary list, which
@@ -162,12 +166,43 @@ def _bead_catalog_entries(request: dict[str, Any]) -> list[dict[str, Any]]:
     return rows[:_BEAD_CATALOG_LIMIT]
 
 
+def _proc_catalog_entries() -> list[dict[str, Any]]:
+    """Return prompt-owned proc shell rows for hold-target completion."""
+    from sase.procs import is_proc_shell_row, read_procs
+    from sase.project_display_names import project_display_name_for
+
+    rows: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for proc in read_procs():
+        if not is_proc_shell_row(proc):
+            continue
+        name = (proc.shell_name or proc.label or "").strip()
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        project = project_display_name_for(proc.project) if proc.project else ""
+        status = proc.status.upper()
+        detail = " · ".join(part for part in (status, project) if part)
+        rows.append(
+            {
+                "name": name,
+                "status": status,
+                "project": project,
+                "kind": "proc",
+                "member_count": 1,
+                "detail": detail,
+            }
+        )
+    return rows
+
+
 def _derive_group_entries(snapshot: Any, agents: Iterable[Any]) -> list[dict[str, Any]]:
     members = _catalog_members(snapshot, agents)
+    hoods = _hood_entries(members)
     families = _family_entries(members, snapshot)
     clans, clan_members = _clan_entries(members)
     tribes = _tribe_entries(members, clan_members)
-    return [*families, *clans, *tribes]
+    return [*hoods, *families, *clans, *tribes]
 
 
 def _catalog_members(snapshot: Any, agents: Iterable[Any]) -> list[_CatalogMember]:
@@ -332,6 +367,45 @@ def _family_entries(
             except Exception:
                 pass
         entries.append(entry)
+    return entries
+
+
+def _hood_entries(members: list[_CatalogMember]) -> list[dict[str, Any]]:
+    newest_by_name: dict[str, _CatalogMember] = {}
+    for member in members:
+        previous = newest_by_name.get(member.name)
+        if previous is None or member.timestamp > previous.timestamp:
+            newest_by_name[member.name] = member
+
+    hoods: dict[str, list[_CatalogMember]] = {}
+    for member in newest_by_name.values():
+        if member.is_monitor:
+            continue
+        try:
+            from sase.core.agent_identity_facade import agent_name_ancestors
+
+            ancestors = agent_name_ancestors(member.name)
+        except Exception:
+            ancestors = ()
+        for hood in ancestors:
+            hoods.setdefault(hood, []).append(member)
+
+    entries: list[dict[str, Any]] = []
+    for hood, hood_members in hoods.items():
+        count = len(hood_members)
+        status = _aggregate_status(member.status for member in hood_members)
+        entries.append(
+            {
+                "name": hood,
+                "kind": "hood",
+                "member_count": count,
+                "status": status,
+                "detail": (
+                    f"hood · {count} {_members_label(count)}"
+                    + (f" · {status}" if status else "")
+                ),
+            }
+        )
     return entries
 
 

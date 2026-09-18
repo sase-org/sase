@@ -147,6 +147,17 @@ def build_directive_clause_candidates(
             required_kind=clause.value_role,
         )
 
+    if clause.value_role == "hood":
+        return build_agent_arg_completion_candidates(
+            clause.token,
+            agent_candidates,
+            excluded_names=frozenset(clause.selected_values),
+            required_kind="hood",
+        )
+
+    if clause.is_hold_positional:
+        return _build_hold_clause_candidates(clause, agent_candidates)
+
     if clause.is_wait_positional or clause.value_role == "agent":
         return _build_wait_or_agent_clause_candidates(clause, agent_candidates)
 
@@ -177,8 +188,9 @@ def is_directive_catalog_placeholder(candidate: CompletionCandidate) -> bool:
 
 def clause_needs_agent_snapshot(clause: DirectiveClauseCompletion) -> bool:
     """Return True when live agent rows can appear for *clause*."""
-    return clause.is_wait_positional or clause.value_role in {
+    return clause.is_wait_style_positional or clause.value_role in {
         "agent",
+        "hood",
         *IDENTITY_ROLES,
     }
 
@@ -235,6 +247,33 @@ def _build_wait_or_agent_clause_candidates(
     if keywords:
         return candidates, ""
     return candidates, agent_shared
+
+
+def _build_hold_clause_candidates(
+    clause: DirectiveClauseCompletion,
+    agent_candidates: Sequence[AgentCompletionCandidate] | None,
+) -> tuple[list[CompletionCandidate], str]:
+    core_rows = [
+        static_or_keyword_candidate(row, clause)
+        for row in core_candidate_rows(clause)
+        if isinstance(row.get("insertion"), str)
+        and (
+            str(row["insertion"]).endswith("=")
+            or str(row["insertion"]).lower().startswith(clause.token.lower())
+        )
+    ]
+    targets, target_shared = build_agent_arg_completion_candidates(
+        clause.token,
+        agent_candidates,
+        excluded_names=frozenset(clause.selected_values),
+        excluded_kinds=frozenset({"hood"}),
+        prioritize_pre_run=True,
+        proc_insertion="label",
+    )
+    candidates = [*core_rows, *targets]
+    if any(candidate.insertion.endswith("=") for candidate in core_rows):
+        return candidates, ""
+    return candidates, target_shared
 
 
 __all__ = [

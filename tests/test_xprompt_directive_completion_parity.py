@@ -235,6 +235,43 @@ def test_ace_and_lsp_hold_scope_rows_match_when_enabled(
     assert [row.insertion for row in ace_rows] == ["project", "host"]
 
 
+def test_ace_and_lsp_hold_target_rows_match_when_enabled(
+    tmp_path: Path,
+) -> None:
+    with override_flags(agent_holds=True):
+        ace_rows = _ace_clause_rows("%hold(")
+        with LspSession(tmp_path) as lsp:
+            lsp_rows = lsp.complete("%hold(")
+
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    assert [row.insertion for row in ace_rows] == [
+        "hood=",
+        "scope=",
+        "ttl=",
+        "tribe=",
+        "pending",
+        "future",
+        "planner",
+        "coder",
+        "@builders",
+        "review",
+        "ship",
+        "build-shell",
+    ]
+
+
+def test_ace_and_lsp_hold_hood_rows_match_when_enabled(
+    tmp_path: Path,
+) -> None:
+    with override_flags(agent_holds=True):
+        ace_rows = _ace_clause_rows("%hold(hood=s")
+        with LspSession(tmp_path) as lsp:
+            lsp_rows = lsp.complete("%hold(hood=s")
+
+    assert _surface_rows(lsp_rows) == _surface_rows(ace_rows)
+    assert [row.insertion for row in ace_rows] == ["sase-11l", "ship"]
+
+
 def test_ace_and_lsp_queue_argument_rows_keep_zero_when_budget_off(
     tmp_path: Path,
 ) -> None:

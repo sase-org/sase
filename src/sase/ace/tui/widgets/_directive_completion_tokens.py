@@ -18,6 +18,7 @@ from sase.core.rust import require_rust_binding
 
 _DIRECTIVE_TOKEN_RE = re.compile(r"^%[A-Za-z0-9_]*$")
 _DIRECTIVE_OPENING_CONTEXTS = frozenset("([{\"'")
+_WAIT_STYLE_DIRECTIVES = frozenset({"wait", "hold"})
 
 DirectiveCompletionKind = Literal[
     "directive_name",
@@ -59,6 +60,19 @@ class DirectiveClauseCompletion:
             and not self.is_keyword_value
             and self.value_role != "bead"
         )
+
+    @property
+    def is_hold_positional(self) -> bool:
+        return (
+            self.directive_name == "hold"
+            and not self.is_keyword_value
+            and self.value_role != "hood"
+            and self.value_role != "tribe"
+        )
+
+    @property
+    def is_wait_style_positional(self) -> bool:
+        return self.is_wait_positional or self.is_hold_positional
 
 
 def is_directive_like_token(token: str) -> bool:
@@ -150,7 +164,10 @@ def classify_directive_completion(
         selected_keywords=selected_keywords,
         raw=payload,
     )
-    if clause.directive_name == "wait" and not _wait_fragments_are_structured(clause):
+    if (
+        clause.directive_name in _WAIT_STYLE_DIRECTIVES
+        and not _wait_style_fragments_are_structured(clause)
+    ):
         return None
     if not _colon_argument_chars_are_valid(clause):
         return None
@@ -323,17 +340,17 @@ def _has_valid_directive_context(line: str, percent_index: int) -> bool:
     return previous.isspace() or previous in _DIRECTIVE_OPENING_CONTEXTS
 
 
-def _wait_fragments_are_structured(clause: DirectiveClauseCompletion) -> bool:
-    """Return False when wait completion would attach to surrounding prose."""
+def _wait_style_fragments_are_structured(clause: DirectiveClauseCompletion) -> bool:
+    """Return False when wait/hold completion would attach to surrounding prose."""
     fragments = (*clause.selected_values, clause.token)
-    return all(_wait_fragment_is_structured(fragment) for fragment in fragments)
+    return all(_wait_style_fragment_is_structured(fragment) for fragment in fragments)
 
 
 def _colon_argument_chars_are_valid(clause: DirectiveClauseCompletion) -> bool:
     """Keep colon-form typing from attaching to trailing prose or punctuation."""
     if clause.is_name or clause.syntax_form != "colon":
         return True
-    if clause.directive_name == "wait":
+    if clause.directive_name in _WAIT_STYLE_DIRECTIVES:
         return True
     extra = "-="
     if clause.directive_name == "model" or clause.value_role == "model":
@@ -343,7 +360,7 @@ def _colon_argument_chars_are_valid(clause: DirectiveClauseCompletion) -> bool:
     return all(char.isalnum() or char == "_" or char in extra for char in clause.token)
 
 
-def _wait_fragment_is_structured(fragment: str) -> bool:
+def _wait_style_fragment_is_structured(fragment: str) -> bool:
     stripped = fragment.strip()
     if not stripped:
         return True

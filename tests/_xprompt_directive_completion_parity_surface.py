@@ -35,11 +35,19 @@ MODEL_CATALOG_PATCH = (
 MODEL_ALIAS_NAMES_PATCH = "sase.llm_provider.config.model_alias_names"
 MODEL_ALIAS_DESCRIPTION_PATCH = "sase.llm_provider.config.model_alias_description"
 _AGENT_ROWS = (
-    AgentCompletionCandidate("planner", "planner", "RUNNING"),
-    AgentCompletionCandidate("coder", "coder", "RUNNING"),
+    AgentCompletionCandidate("planner", "planner", "WAITING"),
+    AgentCompletionCandidate("coder", "coder", "QUEUED"),
+    AgentCompletionCandidate("sase-11l", "sase-11l", "RUNNING", kind="hood"),
     AgentCompletionCandidate("review", "review", "RUNNING", kind="clan"),
     AgentCompletionCandidate("ship", "ship", "RUNNING", kind="family"),
     AgentCompletionCandidate("@builders", "builders", "RUNNING", kind="tribe"),
+    AgentCompletionCandidate(
+        "proc-build-123",
+        "build-shell",
+        "PENDING",
+        kind="proc",
+        search_aliases=("build-shell",),
+    ),
 )
 _BEAD_ROWS = (
     {
@@ -127,8 +135,14 @@ def _ace_surface_rows(candidates: Iterable[Any]) -> list[SurfaceRow]:
             documentation = metadata.description
             detail = "keyword" if candidate.insertion.endswith("=") else ""
         elif isinstance(metadata, AgentCompletionCandidate):
-            detail = metadata.status
-            if metadata.kind != "agent":
+            if metadata.kind == "agent":
+                detail = metadata.status
+            elif metadata.kind == "proc":
+                detail = f"proc · {metadata.status}" if metadata.status else "proc"
+            elif metadata.kind == "hood" and metadata.member_count:
+                unit = "member" if metadata.member_count == 1 else "members"
+                detail = f"hood · {metadata.member_count} {unit}"
+            else:
                 detail = metadata.kind
         elif isinstance(metadata, BeadCompletionMetadata):
             documentation = metadata.documentation
