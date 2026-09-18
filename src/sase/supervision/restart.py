@@ -3,6 +3,13 @@
 from collections import deque
 from dataclasses import dataclass, field
 
+from sase.service.restart import (
+    ServiceExit,
+    ServiceRestartHistory,
+    ServiceRestartTuning,
+    decide_service_restart,
+)
+
 
 @dataclass
 class RestartState:
@@ -49,35 +56,32 @@ def schedule_restart(
     instant the crash-loop threshold is first crossed since the last alert,
     so the caller can surface exactly one alert per episode.
     """
-    healthy_run = (
-        state.started_at is not None
-        and now - state.started_at >= policy.healthy_run_seconds
+    decision = decide_service_restart(
+        "always",
+        ServiceExit(exit_code=exit_code),
+        ServiceRestartHistory(
+            started_at=state.started_at,
+            backoff_seconds=state.backoff_seconds,
+            consecutive_failures=state.consecutive_failures,
+            recent_failures=tuple(state.recent_failures),
+            alert_sent=state.alert_sent,
+        ),
+        now=now,
+        tuning=ServiceRestartTuning(
+            initial_backoff_seconds=policy.initial_backoff_seconds,
+            max_backoff_seconds=policy.max_backoff_seconds,
+            healthy_run_seconds=policy.healthy_run_seconds,
+            crash_loop_window_seconds=policy.crash_loop_window_seconds,
+            crash_loop_threshold=policy.crash_loop_failure_threshold,
+        ),
     )
-    if healthy_run:
-        state.backoff_seconds = 0.0
-        state.consecutive_failures = 0
-        state.recent_failures.clear()
-        state.alert_sent = False
-
-    state.started_at = None
-    state.consecutive_failures += 1
-    if state.backoff_seconds == 0:
-        state.backoff_seconds = policy.initial_backoff_seconds
-    else:
-        state.backoff_seconds *= 2
-    state.backoff_seconds = min(state.backoff_seconds, policy.max_backoff_seconds)
-    state.restart_at = now + state.backoff_seconds
+    state.started_at = decision.history.started_at
+    state.restart_at = decision.restart_at
+    state.backoff_seconds = decision.history.backoff_seconds
+    state.consecutive_failures = decision.history.consecutive_failures
+    state.recent_failures.clear()
+    state.recent_failures.extend(decision.history.recent_failures)
     state.last_exit_code = exit_code
+    state.alert_sent = decision.history.alert_sent
 
-    cutoff = now - policy.crash_loop_window_seconds
-    while state.recent_failures and state.recent_failures[0] < cutoff:
-        state.recent_failures.popleft()
-    state.recent_failures.append(now)
-
-    if (
-        len(state.recent_failures) >= policy.crash_loop_failure_threshold
-        and not state.alert_sent
-    ):
-        state.alert_sent = True
-        return True
-    return False
+    return decision.notify

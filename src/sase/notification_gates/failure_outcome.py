@@ -38,6 +38,7 @@ from sase.notification_gates.journal import (
     append_journal_event_once,
     current_execution_stage,
     current_gate_execution_failure,
+    failure_outcome_attempt_id,
 )
 from sase.notification_gates.model_options import GateOption
 from sase.notification_gates.models import GateError
@@ -51,7 +52,7 @@ _MESSAGE_LIMIT = 1000
 #: a reviewer already reads through ``errors/*.json`` via ``d``.
 _FIXED_SUMMARY_CODES = frozenset({"command_failed", "invalid_command_output"})
 
-PRE_ATTEMPT_FAILURE_ATTEMPT_ID = "pre_attempt"
+PRE_ATTEMPT_FAILURE_ATTEMPT_ID = ""
 OWNER_LOST_ATTEMPT_ID = "owner_lost"
 SIDE_EFFECTS_ATTEMPT_ID = "side_effects"
 FOLLOW_UP_ATTEMPT_ID = "follow_up"
@@ -81,9 +82,9 @@ def record_failure_outcome(
     :func:`record_execution_error` themselves for the same failure.
 
     ``stage`` is one of ``command``, ``terminal_prepare``, ``side_effects``,
-    or ``follow_up``. Pre-attempt revalidation failures (before a command
-    attempt id exists) use ``stage="command"`` and the synthetic
-    ``pre_attempt`` attempt id, per design decision 7. ``default_code``
+    or ``follow_up``. Pre-attempt revalidation failures (before an execution
+    attempt id exists) get a synthetic id from their durable outcome id.
+    ``default_code``
     names *error* when it is not a
     :class:`GateError` -- ``execution_interrupted`` for a true interruption
     (a ``BaseException`` escaping option-command or stage execution), or
@@ -94,6 +95,11 @@ def record_failure_outcome(
     option_id = selected[0].id if selected else ""
     message = _redacted_message(code, error, selected, resolved_inputs, returncode)
     outcome_id = uuid4().hex
+    attempt_id = failure_outcome_attempt_id(
+        attempt_id,
+        stage=stage,
+        outcome_id=outcome_id,
+    )
     error_record = record_execution_error(
         bundle_path,
         option_id=option_id,
@@ -242,9 +248,9 @@ def recorded_attempt_failure(
     """Record one failure outcome for an exception raised in the block.
 
     Pre-attempt revalidation (feedback normalization, input resolution,
-    bounds and schema checks) happens after acceptance but before a command
-    attempt id exists, so it uses the synthetic ``pre_attempt`` id by
-    default. Combines what
+    bounds and schema checks) happens after acceptance but before an execution
+    attempt id exists, so it uses ``stage="command"`` and lets
+    :func:`record_failure_outcome` derive the durable failure id. Combines what
     :func:`sase.notification_gates.command_runner.recorded_rejection` does
     for a pre-acceptance rejection with the journal's ``attempt_failed``
     event in one write, so a caller past acceptance never records two

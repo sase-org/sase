@@ -14,6 +14,11 @@ from sase.supervision.restart import (
     record_started,
     schedule_restart,
 )
+from sase.service.restart import (
+    ServiceRestartDecision,
+    ServiceRestartHistory,
+    ServiceRestartTuning,
+)
 from sase.supervision.termination import send_sigterm, wait_with_escalation
 
 
@@ -40,6 +45,78 @@ def test_record_started_clears_pending_retry_state() -> None:
     assert state.started_at == 10.0
     assert state.restart_at is None
     assert state.last_exit_code is None
+
+
+def test_schedule_restart_delegates_to_core_restart_facade() -> None:
+    state = RestartState(
+        started_at=10.0,
+        backoff_seconds=2.0,
+        consecutive_failures=2,
+        last_exit_code=99,
+    )
+    failures = state.recent_failures
+    failures.extend([11.0, 12.0])
+    policy = _policy(
+        initial_backoff_seconds=1.5,
+        healthy_run_seconds=120.0,
+        max_backoff_seconds=8.0,
+        crash_loop_window_seconds=30.0,
+        crash_loop_failure_threshold=4,
+    )
+    decision = ServiceRestartDecision(
+        schema_version=1,
+        action="restart",
+        clean_exit=False,
+        delay_seconds=4.0,
+        restart_at=24.0,
+        reason="test decision",
+        crash_loop=True,
+        notify=True,
+        history=ServiceRestartHistory(
+            started_at=None,
+            backoff_seconds=4.0,
+            consecutive_failures=3,
+            recent_failures=(12.0, 20.0),
+            alert_sent=True,
+        ),
+    )
+
+    with patch(
+        "sase.supervision.restart.decide_service_restart",
+        return_value=decision,
+    ) as decide_restart:
+        triggered = schedule_restart(state, policy, now=20.0, exit_code=7)
+
+    assert triggered is True
+    decide_restart.assert_called_once()
+    args, kwargs = decide_restart.call_args
+    assert args[0] == "always"
+    assert args[1].exit_code == 7
+    assert args[2] == ServiceRestartHistory(
+        started_at=10.0,
+        backoff_seconds=2.0,
+        consecutive_failures=2,
+        recent_failures=(11.0, 12.0),
+        alert_sent=False,
+    )
+    assert kwargs == {
+        "now": 20.0,
+        "tuning": ServiceRestartTuning(
+            initial_backoff_seconds=1.5,
+            max_backoff_seconds=8.0,
+            healthy_run_seconds=120.0,
+            crash_loop_window_seconds=30.0,
+            crash_loop_threshold=4,
+        ),
+    }
+    assert state.started_at is None
+    assert state.restart_at == 24.0
+    assert state.backoff_seconds == 4.0
+    assert state.consecutive_failures == 3
+    assert state.recent_failures is failures
+    assert list(state.recent_failures) == [12.0, 20.0]
+    assert state.last_exit_code == 7
+    assert state.alert_sent is True
 
 
 def test_schedule_restart_uses_capped_exponential_backoff() -> None:
@@ -76,6 +153,7 @@ def test_schedule_restart_resets_after_healthy_run() -> None:
     assert state.restart_at == 302.0
     assert state.consecutive_failures == 1
     assert list(state.recent_failures) == [301.0]
+    assert state.last_exit_code == 7
     assert state.alert_sent is False
 
 

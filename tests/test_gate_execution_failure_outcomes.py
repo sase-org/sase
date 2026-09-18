@@ -210,7 +210,7 @@ def test_pre_attempt_revalidation_failure_uses_command_stage_and_synthetic_attem
     assert exc.value.code == "feedback_required"
 
     [failure] = _failures(created.bundle_path)
-    assert failure["attempt_id"] == "pre_attempt"
+    assert failure["attempt_id"] == f"command-failure-{failure['outcome_id']}"
     assert failure["stage"] == "command"
     assert failure["code"] == "feedback_required"
 

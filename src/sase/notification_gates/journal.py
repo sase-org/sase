@@ -115,7 +115,11 @@ class ExecutionFailureFacts:
         """Return this failure as a ``GateDecisionFailureOutcomeWire`` JSON dict."""
         wire: dict[str, Any] = {
             "outcome_id": self.outcome_id,
-            "attempt_id": self._wire_attempt_id(),
+            "attempt_id": failure_outcome_attempt_id(
+                self.attempt_id,
+                stage=self.stage,
+                outcome_id=self.outcome_id,
+            ),
             "stage": self.stage,
             "code": self.code,
             "message": self.message,
@@ -125,20 +129,6 @@ class ExecutionFailureFacts:
         if self.acceptance_id is not None:
             wire["acceptance_id"] = self.acceptance_id
         return wire
-
-    def _wire_attempt_id(self) -> str:
-        """Return a nonempty attempt id for the Rust lifecycle policy.
-
-        Pre-attempt command failures and post-response stage failures are
-        journaled with an empty attempt id by design. The Rust policy wire
-        requires a stable nonempty id, so use the failure outcome id as the
-        policy-only identity without changing the durable journal record.
-        """
-        if self.attempt_id:
-            return self.attempt_id
-        if self.outcome_id:
-            return f"failure:{self.outcome_id}"
-        return f"failure:{self.stage or 'unknown'}"
 
     @classmethod
     def _from_record(cls, record: Mapping[str, Any]) -> ExecutionFailureFacts:
@@ -174,6 +164,22 @@ def _event_acceptance_id(record: Mapping[str, Any]) -> str | None:
 def value_digest(value: object) -> str:
     """Return the digest recorded in place of a raw journal value."""
     return sha256_bytes(canonical_json_bytes(value))
+
+
+def failure_outcome_attempt_id(attempt_id: str, *, stage: str, outcome_id: str) -> str:
+    """Return a nonempty attempt id for a failure outcome.
+
+    Legacy journal rows used an empty id for failures that happened before an
+    execution attempt existed. The Rust gate-decision policy now requires a
+    stable failure identity, so those rows project to a synthetic id derived
+    from their durable outcome id.
+    """
+    stripped = attempt_id.strip()
+    if stripped:
+        return stripped
+    normalized_stage = stage.strip() or "unknown"
+    normalized_outcome = outcome_id.strip() or "unknown"
+    return f"{normalized_stage}-failure-{normalized_outcome}"
 
 
 def append_journal_event(
@@ -560,6 +566,7 @@ __all__ = [
     "current_gate_execution_failure",
     "current_post_response_failure",
     "executed_operations",
+    "failure_outcome_attempt_id",
     "incomplete_attempt",
     "read_journal_records",
     "value_digest",
