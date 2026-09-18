@@ -65,6 +65,7 @@ from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.input_bounds import check_input_bounds
 from sase.notification_gates.journal import value_digest
 from sase.notification_gates.journal import append_journal_event_once
+from sase.notification_gates.journal import current_execution_stage
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import (
     CANCELLATION_FILENAME,
@@ -201,8 +202,15 @@ def accept_gate_decision(
         receipt = outcome["receipt"]
         already_accepted = outcome["status"] == "replayed"
         if not already_accepted:
+            if response_path.exists():
+                return None
+            if cancellation_path.exists():
+                raise GateError(
+                    "gate_cancelled",
+                    str(cancellation_path),
+                    "gate is already cancelled",
+                )
             if outcome["status"] == "superseded":
-                atomic_write_json(receipt_path, receipt, exclusive=False)
                 _journal_decision_superseded(
                     bundle_path,
                     existing_receipt=existing_receipt,
@@ -210,6 +218,7 @@ def accept_gate_decision(
                     outcome=outcome,
                     execution_facts=request.get("execution_facts"),
                 )
+                atomic_write_json(receipt_path, receipt, exclusive=False)
                 dismiss_gate_execution_failed(
                     bundle_path=bundle_path,
                     envelope=envelope,
@@ -329,14 +338,18 @@ def _journal_decision_superseded(
     request_hash = str(superseded_receipt.get("request_hash") or "")
     owner_liveness = outcome.get("owner_liveness")
     owner_liveness_text = owner_liveness if isinstance(owner_liveness, str) else None
-    owner_lost = bool(outcome.get("owner_lost")) or _facts_show_dead_owner(
-        execution_facts
+    owner_lost = bool(outcome.get("owner_lost"))
+    superseded_attempt_id = _superseded_attempt_id(
+        bundle_path,
+        superseded_receipt=superseded_receipt,
+        execution_facts=execution_facts,
+        owner_lost=owner_lost,
     )
     append_journal_event_once(
         bundle_path,
         event="decision_superseded",
         acceptance_id=old_acceptance_id,
-        attempt_id="",
+        attempt_id=superseded_attempt_id,
         request_hash=request_hash,
         superseded_by_acceptance_id=new_acceptance_id,
         owner_lost=owner_lost,
@@ -347,7 +360,7 @@ def _journal_decision_superseded(
             bundle_path,
             event="owner_lost",
             acceptance_id=old_acceptance_id,
-            attempt_id="",
+            attempt_id=superseded_attempt_id,
             request_hash=request_hash,
             code="execution_owner_lost",
             stage="command",
@@ -356,20 +369,36 @@ def _journal_decision_superseded(
             owner_lost=True,
             owner_liveness=owner_liveness_text or "dead",
         )
+    append_journal_event_once(
+        bundle_path,
+        event="attempt_superseded",
+        acceptance_id=old_acceptance_id,
+        attempt_id=superseded_attempt_id,
+        request_hash=request_hash,
+        superseded_by_acceptance_id=new_acceptance_id,
+        owner_lost=owner_lost,
+        owner_liveness=owner_liveness_text,
+    )
 
 
-def _facts_show_dead_owner(execution_facts: object) -> bool:
-    if not isinstance(execution_facts, Mapping):
-        return False
-    if execution_facts.get("owner_pid_running") is False:
-        return True
-    if execution_facts.get("owner_identity_matches") is False:
-        return True
-    if execution_facts.get("legacy_proc_status") in {"missing", "error", "killed"}:
-        return True
-    if execution_facts.get("legacy_proc_supervisor_alive") is False:
-        return True
-    return False
+def _superseded_attempt_id(
+    bundle_path: Path,
+    *,
+    superseded_receipt: Mapping[str, Any],
+    execution_facts: object,
+    owner_lost: bool,
+) -> str:
+    if isinstance(execution_facts, Mapping):
+        for key in ("current_failure", "post_response_failure"):
+            failure = execution_facts.get(key)
+            if isinstance(failure, Mapping):
+                attempt_id = failure.get("attempt_id")
+                if isinstance(attempt_id, str) and attempt_id:
+                    return attempt_id
+    _stage, attempt_id = current_execution_stage(bundle_path, superseded_receipt)
+    if attempt_id:
+        return attempt_id
+    return "owner_lost" if owner_lost else ""
 
 
 def _policy_gate_error(exc: ValueError, target: str) -> GateError:

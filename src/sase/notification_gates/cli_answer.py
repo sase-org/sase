@@ -38,6 +38,9 @@ from sase.notification_gates.decision import read_current_receipt, receipt_accep
 from sase.notification_gates.durability import read_json_object
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.failure_outcome import with_follow_up_stage_tracking
+from sase.notification_gates.failure_notifications import (
+    dismiss_gate_execution_failed,
+)
 from sase.notification_gates.journal import current_post_response_failure
 from sase.notification_gates.model_inputs import GateInputField
 from sase.notification_gates.model_options import GateOption
@@ -276,6 +279,7 @@ def _resume_answered_shell(
             resume=True,
         ),
     )
+    dismiss_gate_execution_failed(bundle_path=bundle.root, envelope=bundle.envelope)
     payload = _answered_payload(bundle, existing, True)
     payload["followup_agent"] = settled.followup_agent
     payload["followup_outcome"] = settled.followup_outcome

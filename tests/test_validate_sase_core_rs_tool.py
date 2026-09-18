@@ -477,6 +477,46 @@ def test_validate_sase_core_rs_requires_disk_inventory_wire_schema() -> None:
     )
 
 
+def test_validate_sase_core_rs_requires_gate_decision_lifecycle_contract() -> None:
+    validator = load_validate_sase_core_rs()
+    bindings = {
+        "claim_gate_decision_execution",
+        "decide_gate_decision_acceptance",
+        "decide_gate_lifecycle",
+    }
+    seen: dict[str, object] = {}
+
+    def decide_gate_lifecycle(request: object) -> dict[str, object]:
+        seen["request"] = request
+        return {
+            "disposition": "answered",
+            "failure": {
+                "stage": "side_effects",
+            },
+        }
+
+    assert bindings <= set(validator.REQUIRED_BINDINGS)
+    for binding in bindings:
+        assert not validator._validate_bindings(
+            module_with_required_bindings(validator, missing={binding})
+        )
+    assert validator._validate_gate_decision_lifecycle_contract(
+        SimpleNamespace(decide_gate_lifecycle=decide_gate_lifecycle)
+    )
+    request = seen["request"]
+    assert isinstance(request, dict)
+    execution_facts = request["execution_facts"]
+    assert isinstance(execution_facts, dict)
+    post_response_failure = execution_facts["post_response_failure"]
+    assert isinstance(post_response_failure, dict)
+    assert post_response_failure["stage"] == "side_effects"
+    assert not validator._validate_gate_decision_lifecycle_contract(
+        SimpleNamespace(
+            decide_gate_lifecycle=lambda _request: {"disposition": "answered"}
+        )
+    )
+
+
 def test_validate_sase_core_rs_requires_proc_store_bindings() -> None:
     validator = load_validate_sase_core_rs()
     proc_bindings = {

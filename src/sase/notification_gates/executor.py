@@ -55,6 +55,7 @@ from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.input_bounds import check_input_bounds
 from sase.notification_gates.journal import (
     append_journal_event,
+    current_gate_execution_failure,
     current_post_response_failure,
     value_digest,
 )
@@ -195,10 +196,16 @@ def execute_gate_selection(
                     envelope=envelope,
                 )
             settle_gate_notification(envelope, existing_response, source=source)
-            dismiss_gate_execution_failed(
-                bundle_path=bundle_path,
-                envelope=envelope,
-            )
+            if (
+                current_gate_execution_failure(
+                    bundle_path, receipt, response_exists=True
+                )
+                is None
+            ):
+                dismiss_gate_execution_failed(
+                    bundle_path=bundle_path,
+                    envelope=envelope,
+                )
             return GateExecutionResult(
                 response=existing_response,
                 already_completed=True,

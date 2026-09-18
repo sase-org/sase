@@ -87,6 +87,9 @@ REQUIRED_BINDINGS = (
     "parse_git_conflicted_files",
     "parse_git_local_changes",
     "decide_sidecar_publication_after_push",
+    "claim_gate_decision_execution",
+    "decide_gate_decision_acceptance",
+    "decide_gate_lifecycle",
     "plan_agent_publication_batches",
     "prompt_archive_inventory",
     "prompt_archive_inventory_wire_schema_version",
@@ -693,6 +696,63 @@ def _validate_disk_inventory_wire_schema(module: ModuleType) -> bool:
         _error(
             "disk_inventory_wire_schema_version() returned stale schema: "
             f"got {actual_version}, expected 1"
+        )
+        return False
+    return True
+
+
+def _validate_gate_decision_lifecycle_contract(module: ModuleType) -> bool:
+    receipt = {
+        "schema_version": 1,
+        "gate_id": "__sase_contract_probe__",
+        "request_hash": "request",
+        "selected_option_ids": ["accept"],
+        "input_identity": "input",
+        "acceptance_id": "acceptance",
+        "source": "probe",
+        "accepted_at_unix": 0.0,
+        "identity_fingerprint": "probe",
+    }
+    failure = {
+        "outcome_id": "outcome",
+        "acceptance_id": "acceptance",
+        "attempt_id": "probe",
+        "stage": "side_effects",
+        "code": "side_effect_failed",
+        "message": "probe",
+        "at_unix": 0.0,
+        "error_record": "errors/probe.json",
+    }
+    request = {
+        "schema_version": 1,
+        "gate_id": "__sase_contract_probe__",
+        "request_hash": "request",
+        "now_unix": 0.0,
+        "grace_seconds": 0.0,
+        "has_response": True,
+        "receipt_unreadable": False,
+        "receipt": receipt,
+        "execution_facts": {"post_response_failure": failure},
+    }
+    try:
+        outcome = module.decide_gate_lifecycle(request)
+    except Exception as exc:
+        _error(f"decide_gate_lifecycle(post_response_failure) probe failed: {exc}")
+        return False
+    if not isinstance(outcome, dict):
+        _error("decide_gate_lifecycle(post_response_failure) returned non-object")
+        return False
+    failure_outcome = outcome.get("failure")
+    if not isinstance(failure_outcome, dict):
+        _error(
+            "decide_gate_lifecycle(post_response_failure) did not preserve "
+            f"the failure payload: {outcome!r}"
+        )
+        return False
+    if failure_outcome.get("stage") != "side_effects":
+        _error(
+            "decide_gate_lifecycle(post_response_failure) returned stale "
+            f"failure stage: {failure_outcome.get('stage')!r}"
         )
         return False
     return True
@@ -2581,6 +2641,8 @@ def main(argv: list[str] | None = None) -> int:
     if not _validate_vcs_log_wire_schema(module):
         return 1
     if not _validate_disk_inventory_wire_schema(module):
+        return 1
+    if not _validate_gate_decision_lifecycle_contract(module):
         return 1
     if not _validate_finalizer_contract(module):
         return 1

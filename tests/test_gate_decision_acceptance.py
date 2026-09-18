@@ -26,12 +26,14 @@ import pytest
 from sase.notification_gates.decision import (
     DECISION_RECEIPT_FILENAME,
     accept_gate_decision,
+    claim_gate_decision_execution_receipt,
     receipt_acceptance_id,
 )
 from sase.notification_gates.durability import atomic_write_json
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.failure_notifications import GATE_EXECUTION_FAILED_ACTION
 from sase.notification_gates.journal import append_journal_event
+from sase.notification_gates.journal import current_execution_failure
 from sase.notification_gates.journal import read_journal_records
 from sase.notification_gates.models import GateError
 from sase.notification_gates.poller import poll_gate
@@ -238,11 +240,28 @@ def test_conflicting_selection_supersedes_after_current_failure(
     superseded_events = [
         record for record in events if record["event"] == "decision_superseded"
     ]
+    attempt_superseded = [
+        record for record in events if record["event"] == "attempt_superseded"
+    ]
     assert len(superseded_events) == 1
     assert superseded_events[0]["acceptance_id"] == acceptance_id
+    assert len(attempt_superseded) == 1
+    assert attempt_superseded[0]["attempt_id"] == "attempt-failed"
+    assert attempt_superseded[0]["acceptance_id"] == acceptance_id
+    assert (
+        attempt_superseded[0]["superseded_by_acceptance_id"]
+        == superseded.receipt["acceptance_id"]
+    )
+    assert events.index(superseded_events[0]) < events.index(attempt_superseded[0])
     assert (
         superseded_events[0]["superseded_by_acceptance_id"]
         == superseded.receipt["acceptance_id"]
+    )
+    assert (
+        current_execution_failure(
+            result.bundle_path, accepted.receipt, response_exists=False
+        )
+        is None
     )
 
     replay = accept_gate_decision(result.bundle_path, ["audit"], {})
@@ -253,6 +272,43 @@ def test_conflicting_selection_supersedes_after_current_failure(
         for record in read_journal_records(result.bundle_path)
         if record["event"] == "decision_superseded"
     ] == superseded_events
+
+
+def test_stale_execution_claim_cannot_mutate_replacement_receipt(
+    gate_home: Path,
+) -> None:
+    result = create_gate(_two_branch_spec(request_id="stale-claim-supersede"))
+    accepted = accept_gate_decision(result.bundle_path, ["proceed"], {})
+    assert accepted is not None
+    old_acceptance_id = receipt_acceptance_id(accepted.receipt)
+
+    append_journal_event(
+        result.bundle_path,
+        attempt_id="attempt-failed",
+        request_hash=str(accepted.receipt["request_hash"]),
+        event="attempt_failed",
+        stage="command",
+        code="feedback_required",
+        message="feedback is required",
+        outcome_id="outcome-1",
+        error_record="errors/outcome-1.json",
+        acceptance_id=old_acceptance_id,
+    )
+    replacement = accept_gate_decision(result.bundle_path, ["audit"], {})
+    assert replacement is not None
+
+    with pytest.raises(GateError) as rejected:
+        claim_gate_decision_execution_receipt(
+            result.bundle_path,
+            gate_id="stale-claim-supersede",
+            request_hash=str(accepted.receipt["request_hash"]),
+            acceptance_id=old_acceptance_id,
+        )
+
+    assert rejected.value.code == "gate_decision_conflict"
+    receipt = json.loads((result.bundle_path / DECISION_RECEIPT_FILENAME).read_text())
+    assert receipt["acceptance_id"] == replacement.receipt["acceptance_id"]
+    assert receipt["selected_option_ids"] == ["audit"]
 
 
 def test_cancel_is_permitted_after_current_failure(gate_home: Path) -> None:
@@ -305,10 +361,16 @@ def test_conflicting_selection_supersedes_after_dead_process_owner(
     decision_superseded = [
         record for record in events if record["event"] == "decision_superseded"
     ]
+    attempt_superseded = [
+        record for record in events if record["event"] == "attempt_superseded"
+    ]
     assert len(owner_lost) == 1
     assert owner_lost[0]["acceptance_id"] == accepted.receipt["acceptance_id"]
     assert len(decision_superseded) == 1
     assert decision_superseded[0]["owner_lost"] is True
+    assert len(attempt_superseded) == 1
+    assert attempt_superseded[0]["acceptance_id"] == accepted.receipt["acceptance_id"]
+    assert attempt_superseded[0]["attempt_id"] == "owner_lost"
 
 
 def test_poll_gate_records_dead_owner_as_failed_execution(gate_home: Path) -> None:
@@ -340,6 +402,18 @@ def test_poll_gate_records_dead_owner_as_failed_execution(gate_home: Path) -> No
     ]
     assert len(failures) == 1
     assert failures[0].action_data["request_id"] == "dead-owner-poll"
+    assert (
+        failures[0].action_data["resume_command"]
+        == "sase gate answer --kind hitl --id dead-owner-poll --option accept --resume"
+    )
+    assert (
+        failures[0].action_data["restart_command"]
+        == "sase gate answer --kind hitl --id dead-owner-poll --option accept --restart"
+    )
+    assert (
+        failures[0].action_data["cancel_command"]
+        == "sase gate cancel --kind hitl --id dead-owner-poll"
+    )
 
     # A later poll republishes/reuses the current failure but does not append
     # another owner-loss transition.

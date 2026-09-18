@@ -247,6 +247,9 @@ def _selected_option_ids(
     if pending is not None and pending.attempt_id == attempt_id:
         return tuple(pending.selected_option_ids)
     acceptance_id = _failure_value(failure, "acceptance_id")
+    receipt_selected = _receipt_selected_option_ids(bundle_path, acceptance_id)
+    if receipt_selected:
+        return receipt_selected
     for record in reversed(read_journal_records(bundle_path)):
         if record.get("event") != "attempt_started":
             continue
@@ -257,6 +260,23 @@ def _selected_option_ids(
         raw = record.get("selected_option_ids")
         if isinstance(raw, list) and all(isinstance(value, str) for value in raw):
             return tuple(raw)
+    return ()
+
+
+def _receipt_selected_option_ids(
+    bundle_path: Path, acceptance_id: str
+) -> tuple[str, ...]:
+    if not acceptance_id:
+        return ()
+    try:
+        receipt = read_json_object(bundle_path / "decision_receipt.json")
+    except Exception:
+        return ()
+    if receipt.get("acceptance_id") != acceptance_id:
+        return ()
+    raw = receipt.get("selected_option_ids")
+    if isinstance(raw, list) and all(isinstance(value, str) for value in raw):
+        return tuple(raw)
     return ()
 
 

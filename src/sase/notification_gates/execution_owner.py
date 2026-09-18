@@ -9,9 +9,6 @@ from pathlib import Path
 from typing import Any
 
 from sase.ace.hooks.processes import is_process_running
-from sase.core.gate_decision_facade import (
-    gate_lifecycle_supports_post_response_failure,
-)
 from sase.core.process_identity import (
     current_boot_time_utc,
     identity_from_previous_boot,
@@ -62,12 +59,11 @@ def collect_gate_execution_facts(
         "response_lock_held": _response_lock_is_held(bundle_path),
     }
     if response_exists:
-        if gate_lifecycle_supports_post_response_failure():
-            failure = current_gate_execution_failure(
-                bundle_path, receipt, response_exists=True
-            )
-            if failure is not None:
-                facts["post_response_failure"] = failure.to_wire()
+        failure = current_gate_execution_failure(
+            bundle_path, receipt, response_exists=True
+        )
+        if failure is not None:
+            facts["post_response_failure"] = failure.to_wire()
     else:
         failure = current_execution_failure(bundle_path, receipt, response_exists=False)
         if failure is not None:

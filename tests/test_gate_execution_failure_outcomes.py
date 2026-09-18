@@ -14,6 +14,7 @@ from sase.notification_gates.adapters import GateAdapter
 from sase.notification_gates.decision import read_current_receipt, receipt_acceptance_id
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.failure_outcome import with_follow_up_stage_tracking
+from sase.notification_gates.failure_notifications import GATE_EXECUTION_FAILED_ACTION
 from sase.notification_gates.journal import (
     append_journal_event,
     incomplete_attempt,
@@ -21,6 +22,7 @@ from sase.notification_gates.journal import (
 )
 from sase.notification_gates.models import GateError
 from sase.notification_gates.service import create_gate
+from sase.notifications.store import load_notifications
 from tests._notification_gates_fixtures import custom_gate_spec, gate_spec
 from tests.test_bead.task_gate_test_helpers import task_triage_spec
 
@@ -138,12 +140,24 @@ def test_side_effect_failure_is_recorded_after_attempt_completed_and_resume_reru
     plain = execute_gate_selection(created.bundle_path, ["accept"], {"reviewed": True})
     assert plain.already_completed is True
     assert calls["n"] == 1
+    [failure_notification] = [
+        notification
+        for notification in load_notifications()
+        if notification.action == GATE_EXECUTION_FAILED_ACTION
+    ]
+    assert failure_notification.dismissed is False
 
     resumed = execute_gate_selection(
         created.bundle_path, ["accept"], {"reviewed": True}, retry="resume"
     )
     assert resumed.already_completed is True
     assert calls["n"] == 2
+    [failure_notification_after_resume] = [
+        notification
+        for notification in load_notifications(include_dismissed=True)
+        if notification.action == GATE_EXECUTION_FAILED_ACTION
+    ]
+    assert failure_notification_after_resume.dismissed is True
 
     events_after = _events(created.bundle_path)
     assert events_after[-1] == "stage_completed"
@@ -213,6 +227,23 @@ def test_pre_attempt_revalidation_failure_uses_command_stage_and_synthetic_attem
     assert failure["attempt_id"] == f"command-failure-{failure['outcome_id']}"
     assert failure["stage"] == "command"
     assert failure["code"] == "feedback_required"
+    [notification] = [
+        notification
+        for notification in load_notifications()
+        if notification.action == GATE_EXECUTION_FAILED_ACTION
+    ]
+    assert (
+        notification.action_data["resume_command"]
+        == "sase gate answer --kind hitl --id pre-attempt-failure --option accept --resume"
+    )
+    assert (
+        notification.action_data["restart_command"]
+        == "sase gate answer --kind hitl --id pre-attempt-failure --option accept --restart"
+    )
+    assert (
+        notification.action_data["cancel_command"]
+        == "sase gate cancel --kind hitl --id pre-attempt-failure"
+    )
 
 
 def test_keyboard_interrupt_is_recorded_as_execution_interrupted_and_reraised(
