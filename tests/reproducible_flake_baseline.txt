@@ -112,13 +112,16 @@ tests/test_models_panel_edit_outcomes.py::test_on_alias_edited_offers_commit_whe
 # sase-pg
 tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wall_clock_budget[agent]
 tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wall_clock_budget[monitor]
-# sase-o0 / sase-pr: fixed by caa7917ac "feat(cli): canonicalize host
-# producers for the fleet cutover" (committed 2026-09-06T13:54:28Z), the
-# latest cli_spec.json regeneration after the recorded CLI/snapshot drift
-# windows. Earlier drift was also repaired by 6f5df19d6 and later resyncs, but
-# post-fix records required the final current snapshot instant.
-# fixed-at: 2026-09-06T13:54:28Z tests/completion/test_snapshot.py::test_checked_in_snapshot_has_no_drift
-# fixed-at: 2026-09-06T13:54:28Z tests/completion/test_snapshot.py::test_current_structural_view_matches_checked_in_snapshot
+# sase-o0 / sase-pr / sase-11l.10: cli_spec.json regeneration after the
+# hold-flag-removal description_digest change for `sase completion refresh`.
+# Earlier drift was repaired by caa7917ac (2026-09-06T13:54:28Z), 6f5df19d6,
+# and later resyncs. A node may have only one fixed-at entry, so this instant
+# supersedes the 2026-09-06 cutoff. Focused snapshot tests passed after
+# `just sync-completion-spec` on this tree; later live records through
+# 2026-09-18T15:41:20Z were committed or dirty-tree snapshot drift, not a
+# race in the assertions.
+# fixed-at: 2026-09-18T18:53:24Z tests/completion/test_snapshot.py::test_checked_in_snapshot_has_no_drift
+# fixed-at: 2026-09-18T18:53:24Z tests/completion/test_snapshot.py::test_current_structural_view_matches_checked_in_snapshot
 # sase-rm.10 (sase-qm): the commits interaction test now waits for collection
 # and diff worker completion/callback delivery instead of a generic pause.
 # fixed-at: 2026-08-21T10:03:43Z tests/ace/tui/test_commits_pane_interactions.py::test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles
@@ -375,6 +378,11 @@ tests/test_vcs_log_filter_query.py::test_canonical_query_round_trip_property
 # rather than adding live baseline suppressions.
 # fixed-at: 2026-09-08T22:11:29Z tests/llm_provider/test_grok_usage_probe.py::test_grok_usage_probe_reaps_descendant_processes
 # fixed-at: 2026-09-08T22:11:29Z tests/test_check_sase_core_rs_bindings_tool.py::test_dev_extension_exposes_every_collected_name
+# sase-11l.10: JsonLine descendant cleanup treated zombies as live
+# (`os.kill(pid, 0)` succeeds until init reaps). Align `_pid_alive` with the
+# grok probe helper and wait briefly for the killed grandchild. Focused test
+# passed; retires two dirty-tree full-run records through 2026-09-18T11:55:09Z.
+# fixed-at: 2026-09-18T18:53:24Z tests/llm_provider/test_usage_transport.py::test_jsonline_descendant_cleanup
 #
 # sase-yq
 tests/pager/test_rendered_link_contract.py::test_kitchen_follow_copy_edit_and_media_for_each_supported_action

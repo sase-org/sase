@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -20,9 +21,21 @@ _FIXTURE = (
 def _pid_alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
     except OSError:
         return False
-    return True
+    try:
+        state = subprocess.check_output(
+            ["ps", "-o", "stat=", "-p", str(pid)],
+            text=True,
+            stderr=subprocess.DEVNULL,
+        ).strip()
+    except subprocess.CalledProcessError:
+        return False
+    return not state.startswith("Z")
 
 
 def _session(mode: str, **env: str) -> JsonLineSession:
@@ -85,4 +98,7 @@ def test_jsonline_descendant_cleanup(tmp_path: Path) -> None:
         ) as session:
             session.read_response(1)
     child_pid = int(pidfile.read_text(encoding="utf-8"))
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline and _pid_alive(child_pid):
+        time.sleep(0.05)  # sase-test-wait: init reaps the killed descendant
     assert not _pid_alive(child_pid)
