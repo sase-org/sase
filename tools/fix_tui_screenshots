@@ -1,0 +1,24 @@
+#!/usr/bin/env python3
+"""Capture, compare, and apply TUI screenshot golden changes.
+
+Check mode inventories both visual trees and fails on required drift without
+writing goldens. Update mode applies created and updated candidates after a
+bounded verification pass, and removes proven stale goldens only for a
+complete full inventory.
+"""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from tests.ace.tui.visual._visual_maintenance import main  # noqa: E402
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -1,4 +1,8 @@
-"""Public façade for the isolated visual candidate-capture protocol."""
+"""Public façade for the isolated visual candidate-capture protocol.
+
+``tools/fix_tui_screenshots`` enables this protocol through the governed
+visual runner, then compares and applies candidate goldens.
+"""
 
 from __future__ import annotations
 
