@@ -26,12 +26,14 @@ from sase.xprompt.hold_directive import (
 pytest.importorskip("sase_core_rs")
 
 
-def test_hold_is_unconditional_and_bare_hold_requires_selector() -> None:
-    with pytest.raises(DirectiveError, match="requires a selector"):
-        extract_prompt_directives("%hold\nDo work")
+def test_hold_ignores_retired_flag_override_and_requires_selector() -> None:
+    with override_flags(agent_holds=False):
+        with pytest.raises(DirectiveError, match="requires a selector"):
+            extract_prompt_directives("%hold\nDo work")
 
-    cleaned, directives = extract_prompt_directives("%hold:reviewer\nDo work")
+        cleaned, directives = extract_prompt_directives("%hold:reviewer\nDo work")
 
+    assert "%hold" not in cleaned
     assert cleaned.strip() == "Do work"
     assert directives.hold == {"names": ["reviewer"]}
 

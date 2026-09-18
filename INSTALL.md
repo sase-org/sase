@@ -26,13 +26,15 @@ only.
 Then set up `<TAB>` completion, which is worth the one command it takes:
 
 ```bash
-sase completion install   # detect the shell, write the script, verify it registers
+sase completion install   # detect the shell, write the loader, verify it registers
 ```
 
 It supports zsh, bash, and fish, never edits an rc file, and tells you exactly what to
-add if the script lands somewhere your shell does not already scan. Open a new shell
-afterward. See the [Shell Completion guide](https://sase.sh/completion/) for the full
-behavior, including `sase completion list` and the `sase doctor` checks.
+add if the loader lands somewhere your shell does not already scan. A fresh shell asks
+the active `sase` executable for the current cached grammar, so external upgrades are
+picked up without re-exporting a static script. Open a new shell afterward. See the
+[Shell Completion guide](https://sase.sh/completion/) for the full behavior, including
+`sase completion list` and the `sase doctor` checks.
 
 ## What you need before installing
 

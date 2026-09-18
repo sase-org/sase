@@ -123,28 +123,6 @@ def list_stamps() -> tuple[InstallStamp, ...]:
     )
 
 
-def portable_stamp_target(path: Path, *, home: Path) -> str:
-    """Return a ``~/...`` spelling when *path* is under *home*.
-
-    Chezmoi-owned stamps must not bake in a host-absolute home such as
-    ``/home/bryan``; Mac would then inherit a Linux path. Actual write and
-    existence checks still go through :func:`resolve_stamp_target`.
-    """
-    resolved_path = path.expanduser()
-    resolved_home = home.expanduser()
-    try:
-        resolved_path = resolved_path.resolve()
-        resolved_home = resolved_home.resolve()
-    except OSError:
-        pass
-    try:
-        relative = resolved_path.relative_to(resolved_home)
-    except ValueError:
-        return str(path)
-    posix = relative.as_posix()
-    return "~" if posix == "." else f"~/{posix}"
-
-
 def resolve_stamp_target(target: str) -> Path:
     """Expand ``~`` in a stamp target without requiring the path to exist."""
     return Path(target).expanduser()
@@ -175,7 +153,6 @@ __all__ = [
     "REPRESENTATION_RAW",
     "STAMP_SCHEMA_VERSION",
     "list_stamps",
-    "portable_stamp_target",
     "read_stamp",
     "resolve_stamp_target",
     "stamp_is_chezmoi",

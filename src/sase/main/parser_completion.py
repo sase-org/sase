@@ -223,12 +223,13 @@ def _register_refresh_parser(subparsers: argparse._SubParsersAction) -> None:
 def _register_deploy_chezmoi_parser(subparsers: argparse._SubParsersAction) -> None:
     deploy_parser = subparsers.add_parser(
         "deploy-chezmoi",
-        help="Render completion scripts into a chezmoi source tree",
+        help="Render portable completion loaders into a chezmoi source tree",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Render bash, fish, and zsh completion scripts plus managed "
-            "ownership stamp metadata into the configured chezmoi source "
-            "tree, then optionally commit, push, and apply those changes."
+            "Render bash, fish, and zsh portable completion loaders into "
+            "the configured chezmoi source tree, remove legacy generated "
+            "completion stamp sources, then optionally commit, push, and "
+            "apply those changes."
         ),
         epilog=(
             "examples:\n"

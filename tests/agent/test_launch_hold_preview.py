@@ -81,8 +81,11 @@ def test_hold_confirmation_body_project_scoped_pending_without_project_skips() -
     assert body is None
 
 
-def test_hold_confirmation_body_flags_future_with_host_scope_unconditionally() -> None:
-    body = hold_confirmation_body("%hold(future, scope=host)\nDo work", project="proj")
+def test_hold_confirmation_body_ignores_retired_flag_override() -> None:
+    with override_flags(agent_holds=False):
+        body = hold_confirmation_body(
+            "%hold(future, scope=host)\nDo work", project="proj"
+        )
 
     assert body is not None
     assert "scope=host" in body

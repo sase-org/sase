@@ -9181,7 +9181,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "e4f99796b84403fc",
+            "description_digest": "35161613a55fb3de",
             "hidden": false,
             "mutex_groups": [],
             "name": "deploy-chezmoi",

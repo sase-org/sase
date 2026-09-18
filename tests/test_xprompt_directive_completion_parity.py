@@ -14,6 +14,7 @@ from sase.ace.tui.widgets.directive_completion import (
     classify_directive_completion,
 )
 from sase.feature_flags import override_flags
+from sase.xprompt.hold_directive import AGENT_HOLDS_FLAG
 from tests._xprompt_directive_completion_parity_helpers import _write_failing_helper
 from tests._xprompt_directive_completion_parity_lsp import (
     LspSession,
@@ -63,8 +64,8 @@ def test_ace_and_lsp_directive_name_rows_match(tmp_path: Path) -> None:
     assert shared == ""
     ace_rows = _ace_surface_rows(ace_candidates)
     expected_labels: list[str] = []
-    for row in sase_core_rs.directive_contract():
-        if row.get("feature_flag"):
+    for row in sase_core_rs.directive_contract([AGENT_HOLDS_FLAG]):
+        if row.get("feature_flag") and row.get("feature_flag") != AGENT_HOLDS_FLAG:
             continue
         expected_labels.append(f"%{row['name']}")
         expected_labels.extend(

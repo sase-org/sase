@@ -3850,12 +3850,9 @@ values, showing both the default and the cap. sase's TUI and an interactive `sas
 ask for confirmation when a preview combines `future` with `scope=host`, regardless of
 the threshold. They can also ask when a `pending` capture exceeds the threshold, but the
 capture check needs project context: the TUI supplies it, typed launch plans can resolve
-it, and a plain project-scoped `sase run` prompt currently cannot. During the
-directive's current beta, accepting this confirmation permits the launch but does not
-arm a hold; non-interactive launches proceed without asking and likewise do not arm one.
-The Admin Center [Config tab](#config-tab)'s **Holds** child lists and releases active
-holds created by `sase agent hold`, and `sase doctor -C agent_holds.stale` reports holds
-whose armer died or whose TTL passed.
+it, and a plain project-scoped `sase run` prompt currently cannot. The Admin Center
+[Config tab](#config-tab)'s **Holds** child lists and releases active holds, and
+`sase doctor -C agent_holds.stale` reports holds whose armer died or whose TTL passed.
 
 A missing or unparsable TTL, or a negative or non-integer threshold, falls back to the
 default shown above rather than failing the command.

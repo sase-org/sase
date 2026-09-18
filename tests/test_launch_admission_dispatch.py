@@ -458,6 +458,33 @@ def test_typed_hold_prearm_records_agent_and_proc_fields(
     assert "project" in str(proc_hold["scope"]).lower()
 
 
+def test_typed_hold_prearm_ignores_retired_flag_override(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    with override_flags(agent_holds=False):
+        blocked, response_dir = _run_plan(
+            tmp_path,
+            _plan(
+                _agent_unit(
+                    "unit-1",
+                    waits=[WaitTargetWire(kind="time", value="1h")],
+                    hold=HoldFieldsWire(future=True),
+                )
+            ),
+            request_id="req-hold-flag-off",
+        )
+
+    marker = response_dir / "launch_admission" / "units" / "unit-1.hold.json"
+    assert blocked.admission_complete is False
+    assert marker.exists()
+    holds = list_agent_holds_without_liveness()
+    assert len(holds) == 1
+    assert holds[0]["selectors"]["future"] is True
+
+
 def test_typed_hold_prearm_rejects_empty_request_id(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

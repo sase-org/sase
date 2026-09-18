@@ -21,6 +21,7 @@ from sase.completion.install import (
     TargetChoice,
 )
 from sase.main.completion_handler import (
+    _handle_completion_deploy_chezmoi,
     _handle_completion_ensure,
     _handle_completion_install,
     _handle_completion_list,
@@ -159,6 +160,24 @@ def test_refresh_json_payload(capsys: pytest.CaptureFixture[str]) -> None:
             }
         ],
     }
+
+
+def test_deploy_chezmoi_dry_run_reports_writes_and_removals(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    args = create_parser().parse_args(
+        ["completion", "deploy-chezmoi", "-d", "-s", str(tmp_path / "home")]
+    )
+
+    assert _handle_completion_deploy_chezmoi(args) == 0
+
+    output = capsys.readouterr().out
+    assert "Would write 3 chezmoi completion source file(s)" in output
+    assert "Would remove 3 obsolete chezmoi completion stamp source file(s)" in output
+    assert "dot_local/share/bash-completion/completions/sase" in output
+    assert "dot_sase/completion/stamp/zsh.json" in output
+    assert not (tmp_path / "home").exists()
 
 
 def test_spec_prints_structural_snapshot(

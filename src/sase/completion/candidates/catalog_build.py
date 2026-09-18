@@ -21,6 +21,7 @@ _BUILTIN_MODEL_ALIASES: tuple[str, ...] = (
     "large",
     "xlarge",
 )
+_RETIRED_ENABLED_DIRECTIVE_FLAGS: frozenset[str] = frozenset({"agent_holds"})
 
 
 def flag_source_path(_project: str | None) -> Path | None:
@@ -70,17 +71,10 @@ def directive_candidates(_project: str | None) -> list[Candidate]:
         import sase_core_rs  # type: ignore[import-untyped]
 
         try:
-            from sase.feature_flags.registry import FeatureFlag
-            from sase.feature_flags.snapshot import current_flags
-
-            snapshot = current_flags()
-            flags: list[str] = []
-            if snapshot.enabled(FeatureFlag.queue_capacity_budget):
-                flags.append(str(FeatureFlag.queue_capacity_budget))
-            if snapshot.enabled(FeatureFlag.typed_launch_units):
-                flags.append(str(FeatureFlag.typed_launch_units))
-            rows = sase_core_rs.directive_contract(flags)
+            enabled_flags = _enabled_directive_flags()
+            rows = sase_core_rs.directive_contract(sorted(enabled_flags))
         except TypeError:
+            enabled_flags = frozenset()
             rows = sase_core_rs.directive_contract()
     except Exception:  # noqa: BLE001 - completion must not traceback
         return []
@@ -94,7 +88,11 @@ def directive_candidates(_project: str | None) -> list[Candidate]:
         if not name:
             continue
         flag = row.get("feature_flag")
-        if isinstance(flag, str) and flag and not _env_feature_flag_enabled(flag):
+        if (
+            isinstance(flag, str)
+            and flag
+            and not _directive_feature_flag_enabled(flag, enabled_flags)
+        ):
             continue
         description = str(row.get("description") or "")
         alias = row.get("alias")
@@ -106,16 +104,39 @@ def directive_candidates(_project: str | None) -> list[Candidate]:
     return candidates
 
 
-def _env_feature_flag_enabled(flag: str) -> bool:
+def _enabled_directive_flags() -> frozenset[str]:
+    """Return feature flags visible to directive completion's fast path."""
+    enabled = set(_RETIRED_ENABLED_DIRECTIVE_FLAGS)
+    env_flags = _env_feature_flags()
+    try:
+        from sase.feature_flags.registry import feature_flag_definitions
+
+        for key, definition in feature_flag_definitions().items():
+            if bool(env_flags.get(key, definition.default)):
+                enabled.add(key)
+    except Exception:  # noqa: BLE001 - completion must not traceback
+        pass
+    enabled.update(key for key, value in env_flags.items() if value)
+    return frozenset(enabled)
+
+
+def _env_feature_flags() -> dict[str, bool]:
     """Read only ``SASE_FEATURE_FLAGS`` so CLI completion stays a fast path."""
     raw = os.environ.get("SASE_FEATURE_FLAGS", "").strip()
     if not raw:
-        return False
+        return {}
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError:
-        return False
-    return isinstance(payload, dict) and payload.get(flag) is True
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return {str(key): value for key, value in payload.items() if type(value) is bool}
+
+
+def _directive_feature_flag_enabled(flag: str, enabled_flags: frozenset[str]) -> bool:
+    """Return whether a directive-gating flag is enabled in the fast path."""
+    return flag in _RETIRED_ENABLED_DIRECTIVE_FLAGS or flag in enabled_flags
 
 
 def flag_candidates(_project: str | None) -> list[Candidate]:

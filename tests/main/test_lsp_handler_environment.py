@@ -13,6 +13,7 @@ import pytest
 from sase.feature_flags import override_flags
 from sase.integrations.xprompt_lsp import (
     SASE_DEFAULT_CONFIG_PATH_ENV,
+    SASE_AGENT_HOLDS_ENV,
     SASE_TYPED_LAUNCH_UNITS_ENV,
     SASE_XPROMPT_ARTIFACT_REF_CATALOG_ENV,
     SASE_XPROMPT_BUILTIN_DIR_ENV,
@@ -473,3 +474,13 @@ def test_prepare_lsp_environment_pins_typed_launch_units(
         _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
 
     assert env[SASE_TYPED_LAUNCH_UNITS_ENV] == expected
+
+
+def test_prepare_lsp_environment_pins_retired_agent_holds_on(
+    tmp_path: Path,
+) -> None:
+    env: dict[str, str] = {}
+    with override_flags(agent_holds=False):
+        _prepare_xprompt_lsp_environment(env, package_dir=tmp_path / "sase")
+
+    assert env[SASE_AGENT_HOLDS_ENV] == "1"

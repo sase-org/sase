@@ -8,6 +8,8 @@ from typing import Any
 
 from sase.core.rust import require_rust_binding
 
+AGENT_HOLDS_FLAG = "agent_holds"
+
 HOLD_POSITIONAL_SUGGESTIONS: tuple[str, ...] = ("pending", "future")
 HOLD_KEYWORDS: tuple[str, ...] = ("hood", "scope", "ttl", "tribe")
 HOLD_SCOPE_SUGGESTIONS: tuple[str, ...] = ("project", "host")
@@ -102,6 +104,7 @@ def hold_fields_to_selectors(
 
 
 __all__ = [
+    "AGENT_HOLDS_FLAG",
     "HOLD_KEYWORDS",
     "HOLD_POSITIONAL_SUGGESTIONS",
     "HOLD_SCOPE_SUGGESTIONS",

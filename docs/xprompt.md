@@ -1623,7 +1623,7 @@ are extracted and stripped from the prompt before further processing.
 | `%clan`             | `%c`  | Declare a new named, rootless parallel agent clan                     |
 | `%wait`             | `%w`  | Wait for agents, closed beads, and/or a time floor                    |
 | `%queue`            | `%q`  | Set per-launch capacity budget, queue priority, and/or claim weight   |
-| `%hold`             |       | Declare a pre-run admission hold on selected agents and procs (beta)  |
+| `%hold`             |       | Declare a pre-run admission hold on selected agents and procs         |
 | `%dispatch`         |       | Launch on one enrolled remote machine                                 |
 | `%if`               |       | Statically omit a segment, or attach a beta admission predicate       |
 | `%proc`             |       | Define and natively dispatch a beta stand-alone process unit          |
@@ -2628,8 +2628,9 @@ repeat; `ttl=` and `scope=` may each appear at most once per launch unit. Positi
 `pending` and `future` are reserved words, `@<tribe>` is a tribe selector, and anything
 else is a name. There is no short alias — `%h` remains `%hide`.
 
-`%hold` is always available, and bare `%hold` is a directive error because a hold needs
-at least one selector. `%hold` cannot be combined with `%repeat` or `%dispatch`.
+`%hold` is always available without a feature flag, and bare `%hold` is a directive
+error because a hold needs at least one selector. `%hold` cannot be combined with
+`%repeat` or `%dispatch`.
 
 `%hold` is parsed, validated, stripped from the model prompt, carried on typed launch
 units, shown in launch previews and confirmation prompts, and armed at launch

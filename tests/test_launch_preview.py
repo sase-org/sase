@@ -255,3 +255,23 @@ def test_launch_preview_omits_holds_section_without_hold(tmp_path: Path) -> None
     preview = render_launch_preview_markdown(request)
 
     assert "## Holds" not in preview
+
+
+def test_launch_preview_ignores_retired_flag_override(
+    tmp_path: Path,
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    prompt = "%hold(pending)\nDo the thing."
+    with override_flags(agent_holds=False):
+        request = build_launch_preview_request(
+            plan=plan_fake_fanout("agent", [prompt]),
+            context=_context(tmp_path),
+            source_surface="agent",
+            request_id="launch-hold-flag-off",
+            slot_planned_names={0: "demo.hold"},
+            created_at_unix=10.0,
+        )
+        preview = render_launch_preview_markdown(request)
+
+    assert "## Holds" in preview
+    assert "%hold(pending)" in preview

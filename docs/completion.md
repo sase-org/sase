@@ -1,14 +1,16 @@
 # Shell Completion
 
-`sase completion` generates native shell-completion scripts for `zsh`, `bash`, and
-`fish` from the live `sase` argparse tree, so pressing `<TAB>` anywhere in the command
-line offers the right commands, options, static choices, and live values — bead ids with
-titles, project display names, xprompt names, and more — with no perceptible latency.
+`sase completion` supports native shell completion for `zsh`, `bash`, and `fish` from
+the live `sase` argparse tree, so pressing `<TAB>` anywhere in the command line offers
+the right commands, options, static choices, and live values — bead ids with titles,
+project display names, xprompt names, and more — with no perceptible latency.
 
-The grammar (commands, options, choices, mutex groups) is generated fresh every time
-from the same tree `--help` reads, so it cannot drift out of sync with the CLI. Only
-_values_ — beads, projects, repos, and the like — are fetched live, through a narrow,
-cached fast path.
+Installed completion uses a small shell-native loader plus a SASE-owned runtime grammar
+cache. A fresh shell loads the portable loader, the loader asks the active `sase`
+executable for a current cached grammar, and cache hits avoid rebuilding the full
+parser. Static completion after that runs in the shell. Only _values_ — beads, projects,
+repos, and the like — are fetched live, through a narrow cached fast path. Manual
+`sase completion zsh|bash|fish` exports remain snapshots.
 
 ## Quick Start
 
@@ -16,7 +18,7 @@ Pick your shell and write the script somewhere your shell already scans, or let
 `sase completion install` find that place for you:
 
 ```bash
-sase completion install          # detect the shell, write, zcompile (zsh), verify, stamp
+sase completion install          # detect the shell, write the loader, verify, stamp
 sase completion install zsh      # or name one explicitly
 sase completion install -d       # dry run: print the plan, touch nothing
 sase completion refresh -d       # preview refreshes for existing stamped installs
@@ -32,17 +34,19 @@ sase completion bash  -o ~/.local/share/bash-completion/completions/sase
 sase completion fish  -o ~/.config/fish/completions/sase.fish
 ```
 
-SASE-managed machines can write the same scripts through chezmoi instead:
+SASE-managed machines can write the same loaders through chezmoi instead:
 
 ```bash
 sase completion deploy-chezmoi -d  # preview source files
 sase completion deploy-chezmoi     # write source, commit, push, and apply
 ```
 
-`deploy-chezmoi` renders the bash, fish, and zsh scripts plus chezmoi-owned stamp
-metadata into `~/.local/share/chezmoi/home` (override with `-s/--source`).
-`-c/--no-commit` writes the source files only, `-n/--no-push` commits without pulling,
-pushing, or applying, and `-a/--no-apply` commits and pushes but skips `chezmoi apply`.
+`deploy-chezmoi` renders the bash, fish, and zsh loaders into
+`~/.local/share/chezmoi/home` (override with `-s/--source`) and removes the old
+generated stamp source files under `dot_sase/completion/stamp/`. Runtime stamp metadata
+now belongs to each host's SASE state. `-c/--no-commit` writes the source files only,
+`-n/--no-push` commits without pulling, pushing, or applying, and `-a/--no-apply`
+commits and pushes but skips `chezmoi apply`.
 
 The generated grammar also understands root `-p/--print-command` as a no-value global
 option. That makes short zsh aliases work cleanly with completion:
@@ -102,19 +106,22 @@ only the completion script itself.
 
    Among the remaining candidates, home directories win over system-wide ones.
 
-3. **Writes** the script atomically, and removes the script a previous install stamped
+3. **Warms and validates** the runtime grammar cache for the selected shell. A cache hit
+   verifies the cached file without importing the full parser; a miss generates the
+   grammar once from the running CLI.
+4. **Writes** the loader atomically, and removes the script a previous install stamped
    somewhere else, so changing targets never leaves a second copy behind.
-4. **`zcompile`s** the zsh script. This is not an optimization — an uncompiled ~300 KB
-   script costs 79–84 ms to parse on the first `<TAB>` of every new shell; the compiled
-   `.zwc` answers in well under a millisecond.
-5. **Verifies registration** for zsh by probing `${_comps[sase]}` in a real,
+5. **`zcompile`s** the zsh loader. The larger generated zsh grammar is compiled in the
+   runtime cache when it is refreshed.
+6. **Verifies registration** for zsh by probing `${_comps[sase]}` in a real,
    non-interactive shell. A file that exists but was written to a directory `compinit`
    never scanned is a silent no-op — `install` catches that and tells you exactly what
    to fix.
-6. **Stamps** `~/.sase/completion/stamp/<shell>.json` with the sase version, the spec's
-   structural digest, the target path, and an ownership marker (`local`), so
-   `sase completion list` and `sase doctor` can tell a real install from a stray file.
-7. **Reports** every step's outcome and prints the recommended `zstyle` snippet below.
+7. **Stamps** `~/.sase/completion/stamp/<shell>.json` with the sase version, the grammar
+   structural digest, the target path, the loader representation, the loader digest, and
+   an ownership marker (`local` or `chezmoi`), so `sase completion list` and
+   `sase doctor` can tell a real install from a stray file.
+8. **Reports** every step's outcome and prints the recommended `zstyle` snippet below.
 
 `sase completion list` (also the bare `sase completion` default; `-j` for JSON) shows
 every shell's generator availability, install status, owner, target path, `.zwc`
@@ -203,7 +210,7 @@ embedded fragment.
 
 ## Refresh Existing Installs
 
-Refresh stamped local installs without changing where they live:
+Refresh stamped installs without changing where they live:
 
 ```bash
 sase completion refresh              # every stamped supported shell
@@ -212,24 +219,26 @@ sase completion refresh bash -d      # show whether and why it would change
 sase completion refresh -j           # machine-readable per-shell outcomes
 ```
 
-The command regenerates each script from the running CLI, rewrites its stamped target,
-`zcompile`s zsh, and records a fresh local stamp. With no shell argument it refreshes
-every stamped `zsh`, `bash`, and `fish` install. Naming a shell with no stamp is a
-successful no-op (`no stamped <shell> completion install`), as is running without a
+The command validates or regenerates each runtime grammar cache, rewrites its stamped
+target to the loader representation, `zcompile`s zsh, and records a fresh stamp while
+preserving the existing owner (`local` or `chezmoi`). With no shell argument it
+refreshes every stamped `zsh`, `bash`, and `fish` install. Naming a shell with no stamp
+is a successful no-op (`no stamped <shell> completion install`), as is running without a
 shell when there are no stamps. Dry-run reports `already current` or `would refresh`
-with the detected drift reasons and touches no scripts, stamps, or zsh bytecode.
+with the detected drift reasons and touches no scripts, stamps, cache files, or zsh
+bytecode.
 
 Refresh deliberately skips zsh's registration probe: that probe protects a first
 install, but can false-fail a refresh targeting a disposable or currently unregistered
 directory. Use `sase doctor -D -C completion.registration` when you want to test the
 active shell registration explicitly.
 
-Legacy stamps whose owner is `chezmoi` are reported but never overwritten by refresh,
-because those scripts must be regenerated from the chezmoi source tree. The explicit
-refresh command exits nonzero when any selected outcome cannot be refreshed. To convert
-a chezmoi-owned target to a local install, run
-`sase completion install <shell> --force`; without `--force`, install refuses the
-ownership change.
+Legacy raw snapshots whose owner is `chezmoi` are refreshed in place to loaders, but the
+managed source still needs a one-time `sase completion deploy-chezmoi` migration so a
+later `chezmoi apply` cannot restore the frozen grammar. The explicit refresh command
+exits nonzero when any selected outcome cannot be refreshed. To convert a chezmoi-owned
+target to a local install, run `sase completion install <shell> --force`; without
+`--force`, install refuses the ownership change.
 
 After every successful live `sase update` run, including an already-up-to-date no-op,
 SASE runs this same refresh automatically for all stamped installs. Dry-runs and `--to`
@@ -277,10 +286,11 @@ Common issues:
   slow _dynamic_ value (a kinded slot) points at the candidates fast path itself —
   `sase completion candidates <kind>` directly to isolate it from shell overhead.
 - **A completion looks stale.** In-shell caches (zsh, bash) expire after
-  `SASE_COMPLETION_CACHE_TTL` seconds (default 60); a new shell always starts cold.
-  Chezmoi-managed machines must regenerate the source files through
-  `sase completion deploy-chezmoi`, apply the updated chezmoi source, and then start a
-  fresh shell to pick up repaired files and previously loaded zsh functions.
+  `SASE_COMPLETION_CACHE_TTL` seconds (default 60); a fresh shell also reloads the
+  installed loader and asks the active `sase` executable for current grammar. If the
+  target is still a raw export or a pre-loader chezmoi source, run
+  `sase completion refresh` for the applied target and `sase completion deploy-chezmoi`
+  for managed sources, then open a fresh shell.
 
 ### Measured Latency
 

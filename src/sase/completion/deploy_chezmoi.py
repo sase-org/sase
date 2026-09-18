@@ -1,22 +1,15 @@
-"""Render generated completion scripts into a chezmoi source tree."""
+"""Render portable completion loaders into a chezmoi source tree."""
 
 from __future__ import annotations
 
-import json
 import os
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 
-import sase
-from sase.completion.emit_bash import emit_bash
-from sase.completion.emit_fish import emit_fish
-from sase.completion.emit_zsh import emit_zsh
+from sase.completion.loader import emit_loader
 from sase.completion.install_stamp import (
-    InstallStamp,
     OWNER_CHEZMOI,
-    portable_stamp_target,
 )
 from sase.completion.install_targets import SUPPORTED_SHELLS, script_path
 from sase.config.core import CHEZMOI_HOME
@@ -41,17 +34,19 @@ class _ChezmoiCompletionPlan:
     """All files needed for chezmoi-managed shell completion."""
 
     files: tuple[_ChezmoiCompletionFile, ...]
-    stamp_files: tuple[_ChezmoiCompletionFile, ...]
+    remove_sources: tuple[Path, ...]
 
     @property
     def paths(self) -> tuple[Path, ...]:
-        return tuple(file.source for file in (*self.files, *self.stamp_files))
+        return (*self.write_paths, *self.remove_sources)
+
+    @property
+    def write_paths(self) -> tuple[Path, ...]:
+        return tuple(file.source for file in self.files)
 
     def paths_and_text(self) -> tuple[tuple[Path, str], ...]:
         """Return source path / content pairs for writing this plan."""
-        return tuple(
-            (file.source, file.text) for file in (*self.files, *self.stamp_files)
-        )
+        return tuple((file.source, file.text) for file in self.files)
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,6 +55,7 @@ class _ChezmoiCompletionDeployResult:
 
     plan: _ChezmoiCompletionPlan
     written_paths: tuple[Path, ...]
+    removed_paths: tuple[Path, ...]
     exit_code: int
 
 
@@ -67,25 +63,11 @@ def _build_chezmoi_completion_plan(
     *,
     source_root: Path = CHEZMOI_HOME,
     home: Path | None = None,
-    version: str | None = None,
-    timestamp: str | None = None,
 ) -> _ChezmoiCompletionPlan:
     """Build the source files for chezmoi-managed completion deployment."""
-    from sase.completion.build import build_spec
-
-    spec = build_spec()
-    digest = spec.structural_digest()
     home_path = Path.home() if home is None else home
-    version_value = sase.__version__ if version is None else version
-    timestamp_value = _utc_timestamp() if timestamp is None else timestamp
-    emitters = {
-        "bash": emit_bash,
-        "fish": emit_fish,
-        "zsh": emit_zsh,
-    }
 
     files: list[_ChezmoiCompletionFile] = []
-    stamp_files: list[_ChezmoiCompletionFile] = []
     for shell in SUPPORTED_SHELLS:
         target = _target_path(shell, home_path)
         source = chezmoi_source_path(
@@ -98,34 +80,14 @@ def _build_chezmoi_completion_plan(
                 shell=shell,
                 target=target,
                 source=source,
-                text=emitters[shell](spec),
+                text=emit_loader(shell, owner=OWNER_CHEZMOI),
             )
         )
 
-        stamp = InstallStamp(
-            shell=shell,
-            version=version_value,
-            digest=digest,
-            target=portable_stamp_target(target, home=home_path),
-            timestamp=timestamp_value,
-            owner=OWNER_CHEZMOI,
-        )
-        stamp_target = home_path / ".sase" / "completion" / "stamp" / f"{shell}.json"
-        stamp_source = chezmoi_source_path(
-            stamp_target,
-            home_root=home_path,
-            source_root=source_root,
-        )
-        stamp_files.append(
-            _ChezmoiCompletionFile(
-                shell=shell,
-                target=stamp_target,
-                source=stamp_source,
-                text=json.dumps(stamp.to_json(), indent=2, sort_keys=True) + "\n",
-            )
-        )
-
-    return _ChezmoiCompletionPlan(files=tuple(files), stamp_files=tuple(stamp_files))
+    return _ChezmoiCompletionPlan(
+        files=tuple(files),
+        remove_sources=_legacy_stamp_source_paths(source_root, home_path),
+    )
 
 
 def deploy_chezmoi_completion(
@@ -141,9 +103,15 @@ def deploy_chezmoi_completion(
     """Render completion files and optionally deploy them through chezmoi."""
     plan = _build_chezmoi_completion_plan(source_root=source_root, home=home)
     if dry_run:
-        return _ChezmoiCompletionDeployResult(plan, written_paths=(), exit_code=0)
+        return _ChezmoiCompletionDeployResult(
+            plan,
+            written_paths=(),
+            removed_paths=(),
+            exit_code=0,
+        )
 
     _write_files(plan.paths_and_text())
+    removed_paths = _remove_files(plan.remove_sources)
     exit_code = deploy_fn(
         plan.paths,
         ChezmoiDeployBehavior(
@@ -159,7 +127,8 @@ def deploy_chezmoi_completion(
     )
     return _ChezmoiCompletionDeployResult(
         plan,
-        written_paths=plan.paths,
+        written_paths=plan.write_paths,
+        removed_paths=removed_paths,
         exit_code=exit_code,
     )
 
@@ -178,6 +147,15 @@ def _write_files(files: Iterable[tuple[Path, str]]) -> None:
         _atomic_write_text(path, text)
 
 
+def _remove_files(paths: Iterable[Path]) -> tuple[Path, ...]:
+    removed: list[Path] = []
+    for path in paths:
+        if path.exists():
+            path.unlink()
+            removed.append(path)
+    return tuple(removed)
+
+
 def _atomic_write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = text if text.endswith("\n") else f"{text}\n"
@@ -190,8 +168,15 @@ def _atomic_write_text(path: Path, text: str) -> None:
         raise
 
 
-def _utc_timestamp() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+def _legacy_stamp_source_paths(source_root: Path, home: Path) -> tuple[Path, ...]:
+    return tuple(
+        chezmoi_source_path(
+            home / ".sase" / "completion" / "stamp" / f"{shell}.json",
+            home_root=home,
+            source_root=source_root,
+        )
+        for shell in SUPPORTED_SHELLS
+    )
 
 
 __all__ = [

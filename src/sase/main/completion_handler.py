@@ -163,8 +163,15 @@ def _handle_completion_deploy_chezmoi(args: argparse.Namespace) -> int:
         source_root=source_root,
     )
     verb = "Would write" if getattr(args, "dry_run", False) else "Wrote"
-    print(f"{verb} {len(result.plan.paths)} chezmoi completion source file(s):")
-    for path in result.plan.paths:
+    print(f"{verb} {len(result.plan.write_paths)} chezmoi completion source file(s):")
+    for path in result.plan.write_paths:
+        print(f"  {path}")
+    remove_verb = "Would remove" if getattr(args, "dry_run", False) else "Removed"
+    print(
+        f"{remove_verb} {len(result.plan.remove_sources)} obsolete "
+        "chezmoi completion stamp source file(s):"
+    )
+    for path in result.plan.remove_sources:
         print(f"  {path}")
     return result.exit_code
 

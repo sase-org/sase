@@ -11,7 +11,6 @@ from sase.completion.install_stamp import (
     OWNER_CHEZMOI,
     _stamp_path,
     list_stamps,
-    portable_stamp_target,
     read_stamp,
     resolve_stamp_target,
     stamp_owns_path,
@@ -70,18 +69,6 @@ def test_stamp_owner_round_trip_and_legacy_default(tmp_path: Path) -> None:
     loaded = read_stamp("bash")
     assert loaded is not None
     assert loaded.owner == "local"
-
-
-def test_portable_stamp_target_uses_tilde_prefix(tmp_path: Path) -> None:
-    linux_home = tmp_path / "home" / "bryan"
-    mac_home = tmp_path / "Users" / "bryan"
-    linux_target = linux_home / ".zfunc" / "_sase"
-    mac_target = mac_home / ".zfunc" / "_sase"
-
-    assert portable_stamp_target(linux_target, home=linux_home) == "~/.zfunc/_sase"
-    assert portable_stamp_target(mac_target, home=mac_home) == "~/.zfunc/_sase"
-    outside = tmp_path / "opt" / "sase"
-    assert portable_stamp_target(outside, home=linux_home) == str(outside)
 
 
 def test_portable_stamp_owns_path_on_foreign_home(
