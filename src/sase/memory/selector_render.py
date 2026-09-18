@@ -25,6 +25,7 @@ from sase.memory.link_render import (
     linked_references_renderable,
     memory_links_json,
 )
+from sase.memory.notes import MemoryNote
 from sase.memory.render import (
     MemoryShowFormat,
     ResolvedMemoryNote,
@@ -32,6 +33,7 @@ from sase.memory.render import (
     render_memory_note,
 )
 from sase.memory.selector import (
+    MemorySelectorBatchUnit,
     MemoryWebReadNode,
     MemoryWebReadSection,
     ResolvedMemorySelectorBatch,
@@ -63,10 +65,11 @@ def render_memory_selector_batch(
         return
 
     target = console or Console()
-    for note in batch.notes:
-        render_memory_note(note, output_format="rich", console=target)
-    for section in batch.web_sections:
-        target.print(_web_section_renderable(section))
+    for item in _render_items(batch):
+        if isinstance(item, ResolvedMemoryNote):
+            render_memory_note(item, output_format="rich", console=target)
+        else:
+            target.print(_web_section_renderable(item))
 
 
 # --- json -------------------------------------------------------------
@@ -97,8 +100,28 @@ def _note_json(note: ResolvedMemoryNote) -> dict[str, object]:
             or [(link, "reference") for link in note.resolved_links]
         ),
         "inline_notes": [_note_json(inline_note) for inline_note in note.inline_notes],
+        "children": [_child_json(child) for child in _note_children(note)],
         "linked_references": linked_references_json(note.resolved_links),
     }
+
+
+def _note_children(note: ResolvedMemoryNote) -> tuple[MemoryNote, ...]:
+    parent_keys = {
+        note.content.path.canonical_path,
+        note.content.path.note.relative_path,
+    }
+    children = (
+        child
+        for child in note.children
+        if child.type == "reference"
+        and child.parent in parent_keys
+        and child.relative_path not in note.suppress_child_paths
+    )
+    return tuple(sorted(children, key=lambda child: child.relative_path))
+
+
+def _child_json(child: MemoryNote) -> dict[str, str | None]:
+    return {"path": child.relative_path, "description": child.description}
 
 
 def _web_section_json(section: MemoryWebReadSection) -> dict[str, object]:
@@ -156,11 +179,46 @@ _MARKDOWN_SECTION_RULE = "-" * 10
 
 def _batch_markdown(batch: ResolvedMemorySelectorBatch) -> str:
     pieces: list[str] = []
-    for note in batch.notes:
-        pieces.append(_note_section_markdown(note))
-    for section in batch.web_sections:
-        pieces.append(_web_section_markdown(section))
+    for item in _render_items(batch):
+        if isinstance(item, ResolvedMemoryNote):
+            pieces.append(_note_section_markdown(item))
+        else:
+            pieces.append(_web_section_markdown(item))
     return "\n".join(piece.rstrip("\n") for piece in pieces) + "\n"
+
+
+def _render_items(
+    batch: ResolvedMemorySelectorBatch,
+) -> tuple[ResolvedMemoryNote | MemoryWebReadSection, ...]:
+    notes = {note.content.path.canonical_path: note for note in batch.notes}
+    sections = {section.web.slug: section for section in batch.web_sections}
+    units = batch.render_units or _legacy_render_units(batch)
+    items: list[ResolvedMemoryNote | MemoryWebReadSection] = []
+    for unit in units:
+        if unit.kind == "note":
+            note = notes.get(unit.key)
+            if note is not None:
+                items.append(note)
+            continue
+        section = sections.get(unit.key)
+        if section is not None:
+            items.append(section)
+    return tuple(items)
+
+
+def _legacy_render_units(
+    batch: ResolvedMemorySelectorBatch,
+) -> tuple[MemorySelectorBatchUnit, ...]:
+    return (
+        *(
+            MemorySelectorBatchUnit("note", note.content.path.canonical_path)
+            for note in batch.notes
+        ),
+        *(
+            MemorySelectorBatchUnit("web", section.web.slug)
+            for section in batch.web_sections
+        ),
+    )
 
 
 def _markdown_section_header(kind: Literal["FILE", "WEB"], name: str) -> str:

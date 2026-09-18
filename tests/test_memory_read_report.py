@@ -300,4 +300,4 @@ def test_mixed_note_and_strand_report_uses_original_selector_batch(
     assert f"\n{note_header}\n" in output
     assert f"\n{web_header}\n" in output
     assert output.index(note_header) < output.index("# Perf")
-    assert output.index(note_header) < output.index(web_header)
+    assert output.index(web_header) < output.index(note_header)

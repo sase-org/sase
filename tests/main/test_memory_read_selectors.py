@@ -206,6 +206,35 @@ def test_read_multi_note_batch_markdown_labels_each_note_before_its_body(
     assert first_header < first_body < second_header < second_body
 
 
+def test_read_multi_note_shared_inline_logs_included_target_once(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _prepare(tmp_path, monkeypatch)
+    shared = _note("# Shared\nSHARED_BODY\n")
+    alpha = _note("# Alpha\n![[shared]]\n")
+    beta = _note("# Beta\n![[shared]]\n")
+    write(tmp_path / "sase" / "memory" / "shared.md", shared)
+    write(tmp_path / "sase" / "memory" / "alpha.md", alpha)
+    write(tmp_path / "sase" / "memory" / "beta.md", beta)
+
+    handle_memory_read_command(
+        create_parser().parse_args(
+            ["memory", "read", "alpha.md", "beta.md", "-r", "need it"]
+        )
+    )
+
+    out = capsys.readouterr().out
+    assert out.count("SHARED_BODY") == 1
+    (event,) = read_memory_read_events(log_path=memory_read_log_path(cwd=tmp_path))
+    assert event.resolved_targets == ("alpha.md", "beta.md")
+    assert event.included_targets == ("shared.md",)
+    assert event.byte_count == sum(
+        len(text.encode("utf-8")) for text in (alpha, beta, shared)
+    )
+
+
 def test_show_records_no_audit_event_for_web_selector(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -526,3 +526,34 @@ def test_flat_note_inline_note_cycle_is_guarded(tmp_path: Path) -> None:
     assert beta.inline_notes == ()
     assert alpha.resolved_links == ()
     assert beta.resolved_links == ()
+
+
+def test_flat_note_inline_note_diamond_renders_shared_leaf_once(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "alpha.md",
+        _note("# Alpha\nSee ![[beta]] and ![[gamma]].\n"),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "beta.md",
+        _note("# Beta\nSee ![[delta]].\n"),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "gamma.md",
+        _note("# Gamma\nSee ![[delta]].\n"),
+    )
+    _write(tmp_path / "sase" / "memory" / "delta.md", _note("# Delta\n"))
+
+    batch = resolve_memory_selector_batch(
+        ["alpha.md"], project_root=tmp_path, home_root=tmp_path / "home"
+    )
+
+    (alpha,) = batch.notes
+    beta, gamma = alpha.inline_notes
+    assert beta.content.path.canonical_path == "beta.md"
+    assert gamma.content.path.canonical_path == "gamma.md"
+    assert [note.content.path.canonical_path for note in beta.inline_notes] == [
+        "delta.md"
+    ]
+    assert gamma.inline_notes == ()

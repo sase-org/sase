@@ -89,21 +89,29 @@ def build_memory_read_event_for_view(
 def _batch_targets(
     view: ResolvedMemorySelectorBatch,
 ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[tuple[str, str], ...]]:
-    resolved: list[str] = [note.content.path.canonical_path for note in view.notes]
+    resolved: list[str] = []
     included: list[str] = []
     scope_origin: list[tuple[str, str]] = []
+
+    def append_unique(values: list[str], value: str) -> None:
+        if value not in values:
+            values.append(value)
+
     for note in view.notes:
-        included.extend(
-            inline_note.content.path.canonical_path
-            for inline_note in _inline_notes(note)
-        )
+        target = note.content.path.canonical_path
+        if note.render_origin == "requested":
+            append_unique(resolved, target)
+        else:
+            append_unique(included, target)
+        for inline_note in _inline_notes(note):
+            append_unique(included, inline_note.content.path.canonical_path)
     for section in view.web_sections:
         for node in section.nodes:
             target = f"{section.web.slug}:{node.strand.slug}"
             if node.origin == "requested":
-                resolved.append(target)
+                append_unique(resolved, target)
             else:
-                included.append(target)
+                append_unique(included, target)
             scope_origin.append((target, node.scope))
     return tuple(resolved), tuple(included), tuple(scope_origin)
 
@@ -113,9 +121,14 @@ def _notes_with_inline(
 ) -> tuple[ResolvedMemoryNote, ...]:
     """Return requested notes plus inline note descendants in render order."""
     notes: list[ResolvedMemoryNote] = []
+    seen: set[str] = set()
     for note in view.notes:
-        notes.append(note)
-        notes.extend(_inline_notes(note))
+        for candidate in (note, *_inline_notes(note)):
+            key = candidate.content.path.canonical_path
+            if key in seen:
+                continue
+            seen.add(key)
+            notes.append(candidate)
     return tuple(notes)
 
 

@@ -50,6 +50,8 @@ class ResolvedMemoryNote:
     children: tuple[MemoryNote, ...]
     origin: Literal["home", "project"]
     project_name: str
+    render_origin: Literal["requested", "related"] = "requested"
+    suppress_child_paths: frozenset[str] = frozenset()
     resolved_links: tuple[MemoryLinkTarget, ...] = ()
     links: tuple[ResolvedMemoryNoteLink, ...] = ()
     inline_notes: tuple[ResolvedMemoryNote, ...] = ()
@@ -106,6 +108,11 @@ def _inline_note_reference_paths(view: ResolvedMemoryNote) -> frozenset[str]:
     return frozenset(paths)
 
 
+def _suppressed_child_paths(view: ResolvedMemoryNote) -> frozenset[str]:
+    """Return child paths whose bodies already appear in the rendered output."""
+    return _inline_note_reference_paths(view) | view.suppress_child_paths
+
+
 def _memory_note_link_items(
     view: ResolvedMemoryNote,
 ) -> tuple[tuple[MemoryLinkTarget, Literal["inline", "reference"]], ...]:
@@ -120,12 +127,11 @@ def _memory_note_link_items(
 
 def _memory_note_markdown(view: ResolvedMemoryNote) -> str:
     """Render *view* as the plain Markdown ``sase memory read`` prints today."""
-    inline_paths = _inline_note_reference_paths(view)
     body = _memory_note_body_markdown(view)
     children_section = render_children_section(
         view.children,
         view.content.path.note,
-        exclude_paths=inline_paths,
+        exclude_paths=_suppressed_child_paths(view),
     )
     linked_section = linked_references_markdown(view.resolved_links)
     return append_memory_sections(body, children_section, linked_section)
@@ -165,7 +171,12 @@ def _memory_note_json_payload(view: ResolvedMemoryNote) -> dict[str, object]:
             "links": memory_links_json(_memory_note_link_items(view)),
             "inline_notes": [_inline_note_json(note) for note in view.inline_notes],
         },
-        "children": [_child_json(child) for child in _note_children(view)],
+        "children": [
+            _child_json(child)
+            for child in _note_children(
+                view, exclude_paths=_suppressed_child_paths(view)
+            )
+        ],
         "linked_references": linked_references_json(view.resolved_links),
     }
 
@@ -200,7 +211,7 @@ def _memory_note_renderable(view: ResolvedMemoryNote) -> Group:
         blocks.append(Text(""))
         blocks.append(Markdown(_memory_note_body_markdown(inline_note)))
 
-    children = _note_children(view, exclude_paths=_inline_note_reference_paths(view))
+    children = _note_children(view, exclude_paths=_suppressed_child_paths(view))
     if children:
         blocks.append(Text(""))
         blocks.append(_build_children_block(children))
@@ -213,7 +224,6 @@ def _memory_note_renderable(view: ResolvedMemoryNote) -> Group:
 
 def _build_header(view: ResolvedMemoryNote) -> RenderableType:
     note = view.content.path.note
-    inline_paths = _inline_note_reference_paths(view)
     grid = Table.grid(expand=True, padding=(0, 0, 0, 2))
     grid.add_column(ratio=1, overflow="fold")
     grid.add_column(justify="right", no_wrap=True)
@@ -224,7 +234,7 @@ def _build_header(view: ResolvedMemoryNote) -> RenderableType:
     left.append(note.relative_path, style=f"bold {PATH_COLOR}")
 
     parts = [view.origin, note.type or "reference"]
-    child_count = len(_note_children(view, exclude_paths=inline_paths))
+    child_count = len(_note_children(view, exclude_paths=_suppressed_child_paths(view)))
     if child_count:
         word = "child" if child_count == 1 else "children"
         parts.append(f"{child_count} {word}")
