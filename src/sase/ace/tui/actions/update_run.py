@@ -66,6 +66,7 @@ class UpdateRunActionsMixin:
                 getattr(self, "_automatic_update_status", None),
                 now=time.time(),
                 rechecking=rechecking,
+                running_code=getattr(self, "_running_code_state", None),
             )
         )
 

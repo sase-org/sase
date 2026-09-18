@@ -117,6 +117,8 @@ def init_runtime_state(
         _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS
     )
     self._automatic_update_check_timer = None
+    self._running_code_state = None
+    self._running_code_stale_notified_signature = None
     self._heap_sampler_timer = None
     self._heap_sampler_async_tasks = set()
     self._screenshot_export_previous_sigusr2_handler = None

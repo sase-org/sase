@@ -18,6 +18,7 @@ from sase.updates import (
     update_status_snapshot_is_fresh,
 )
 
+from ..stale_running_code import RunningCodeState, refresh_running_code_state
 from ._update_toast_config import (
     _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS as _AUTOMATIC_UPDATE_CHECK_INTERVAL_SECONDS,
     UpdateToastConfig as _UpdateToastConfig,
@@ -52,6 +53,7 @@ class _AutomaticUpdateCheckResult:
     status: UpdateStatus
     config: _UpdateToastConfig
     sections: tuple[_ToastRepoSection, ...] | None = None
+    running_code: RunningCodeState | None = None
 
 
 class UpdateToastMixin:
@@ -63,6 +65,8 @@ class UpdateToastMixin:
     _automatic_update_check_timer: Timer | None
     _automatic_update_provider_names: tuple[str, ...] | None
     _automatic_update_status: UpdateStatus | None
+    _running_code_state: RunningCodeState | None
+    _running_code_stale_notified_signature: tuple[tuple[str, str], ...] | None
 
     def _schedule_startup_update_toast_check(self) -> None:
         """Start periodic checks and schedule the first one after first paint."""
@@ -142,6 +146,7 @@ class UpdateToastMixin:
                 result.status,
                 result.config,
                 result.sections,
+                result.running_code,
             )
 
     def _compute_automatic_update_check(
@@ -167,6 +172,9 @@ class UpdateToastMixin:
         )
         if status is None:
             return None
+        running_code = _refresh_running_code_state(
+            getattr(self, "_running_code_state", None)
+        )
 
         if config.prebuild_rust:
             try:
@@ -194,7 +202,7 @@ class UpdateToastMixin:
                     "Failed to build automatic update toast sections",
                     exc_info=True,
                 )
-        return _AutomaticUpdateCheckResult(status, config, sections)
+        return _AutomaticUpdateCheckResult(status, config, sections, running_code)
 
     def _finish_automatic_update_check_from_worker(
         self,
@@ -223,6 +231,7 @@ class UpdateToastMixin:
                     result.status,
                     result.config,
                     result.sections,
+                    result.running_code,
                 )
         finally:
             self._automatic_update_check_in_flight = False
@@ -233,6 +242,7 @@ class UpdateToastMixin:
         status: UpdateStatus,
         config: _UpdateToastConfig,
         sections: Sequence[_ToastRepoSection] | None = None,
+        running_code: RunningCodeState | None = None,
     ) -> None:
         """Apply automatic update status to all UI surfaces."""
         # This UI-thread assignment is the only authority used by the global
@@ -247,7 +257,26 @@ class UpdateToastMixin:
             self._refresh_updates_indicator(status)
         if config.startup_toast:
             self._show_startup_update_toast(status, sections)
+        if running_code is not None:
+            self._apply_running_code_state(running_code)
         _maybe_refresh_open_update_panel(self)
+
+    def _apply_running_code_state(self, state: RunningCodeState) -> None:
+        """Store stale-running-code state and emit one toast per generation."""
+        self._running_code_state = state
+        signature = state.stale_signature
+        if not signature:
+            self._running_code_stale_notified_signature = None
+            return
+        if signature == getattr(self, "_running_code_stale_notified_signature", None):
+            return
+        self._running_code_stale_notified_signature = signature
+        self.notify(  # type: ignore[attr-defined]
+            "Running SASE code changed on disk; restart from Update to load it.",
+            title="↻ Restart available",
+            severity="warning",
+            timeout=_TOAST_TIMEOUT_SECONDS,
+        )
 
     def _show_startup_update_toast(
         self,
@@ -396,6 +425,7 @@ def _build_startup_toast_sections(
 
 _fetch_incoming_commits = fetch_incoming_commits
 _schedule_rust_prebuild = schedule_rust_prebuild
+_refresh_running_code_state = refresh_running_code_state
 
 
 def _maybe_refresh_open_update_panel(host: object) -> None:

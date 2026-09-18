@@ -14,6 +14,7 @@ from ..modals.plugins_browser_comprehensive_update_models import (
 )
 from ..modals.update_panel import UpdatePanel, UpdatePanelResult
 from ..update_panel_state import build_update_panel_state
+from ..update_restart import restart_after_update_when_ready
 from ._admin_center_persistence import AdminCenterPersistenceMixin
 from .refresh_panel import RefreshPanelMixin
 
@@ -231,10 +232,14 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
         state = build_update_panel_state(
             getattr(self, "_automatic_update_status", None),
             now=time.time(),
+            running_code=getattr(self, "_running_code_state", None),
         )
 
         def on_result(result: UpdatePanelResult | None) -> None:
             if not isinstance(result, UpdatePanelResult):
+                return
+            if result.scope == "restart":
+                self._restart_running_code_when_ready()
                 return
             self._submit_scoped_update_request(
                 scope=UpdateScope(result.scope),
@@ -248,6 +253,17 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
         self._submit_scoped_update_request(
             scope=UpdateScope.EVERYTHING,
             auto_approve=True,
+        )
+
+    def _restart_running_code_when_ready(self) -> None:
+        """Restart ACE through the existing tracked-proc-aware helper."""
+        notify = getattr(self, "notify", None)
+        restart_after_update_when_ready(
+            self,
+            "Running SASE code changed on disk",
+            deferred=False,
+            notify=notify if callable(notify) else None,
+            restart_purpose="load new code",
         )
 
     def action_show_diff(self) -> None:

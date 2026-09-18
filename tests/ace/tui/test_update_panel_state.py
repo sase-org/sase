@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from sase.ace.tui.update_panel_state import build_update_panel_state
+from sase.ace.tui.stale_running_code import RunningCodeRoot, RunningCodeState
 from sase.ace.tui.widgets.update_accents import (
     AGENT_CLI_ACCENT,
     CORE_UPDATE_ACCENT,
@@ -271,3 +272,34 @@ def test_unknown_sources_do_not_claim_current() -> None:
         "unknown",
         "unknown",
     ]
+
+
+def test_stale_running_code_adds_restart_row_with_commit_preview() -> None:
+    state = build_update_panel_state(
+        _status(checked_at=_NOW),
+        now=_NOW,
+        running_code=RunningCodeState(
+            roots=(
+                RunningCodeRoot(
+                    label="sase",
+                    git_root="/repo/sase",
+                    imported_sha="1" * 40,
+                    current_sha="2" * 40,
+                    git_dir="/repo/sase/.git",
+                    head_path="/repo/sase/.git/refs/heads/main",
+                    packed_refs_path="/repo/sase/.git/packed-refs",
+                    token=object(),  # type: ignore[arg-type]
+                    incoming=None,
+                ),
+            )
+        ),
+    )
+
+    restart, everything, *_rest = state.rows
+    assert restart.scope == "restart"
+    assert restart.key == "x"
+    assert restart.chip.kind == "stale"
+    assert restart.chip.text == "↻ code changed"
+    assert restart.detail == "sase: 111111111..222222222"
+    assert everything.scope == "everything"
+    assert state.stale is True

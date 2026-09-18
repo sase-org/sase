@@ -14,6 +14,7 @@ from sase.ace.tui.modals.plugins_browser_comprehensive_update_execution import (
     scoped_preview_cl_name,
 )
 from sase.ace.tui.modals.update_panel import UpdatePanel, UpdatePanelResult
+from sase.ace.tui.stale_running_code import RunningCodeRoot, RunningCodeState
 from sase.ace.tui.update_panel_state import build_update_panel_state
 from sase.ace.update_scope import UpdateScope
 from sase.updates import UpdateStatus
@@ -32,6 +33,7 @@ class _ShortcutHarness(UpdateRunActionsMixin, BaseActionsMixin):
         self.preview_requests: list[Any] = []
         self._automatic_update_status = None
         self._automatic_update_provider_names: tuple[str, ...] | None = ("claude",)
+        self._running_code_state = None
 
     def push_screen(self, modal: Any, callback: Any = None) -> None:
         self.pushed_modals.append(modal)
@@ -114,6 +116,52 @@ def test_auto_approve_result_copies_explicit_flag_into_request(
     assert request.provider_names == ("claude",)
     assert request.scope is UpdateScope.SASE
     assert request.auto_approve is True
+
+
+def test_restart_result_uses_existing_restart_when_ready_flow(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict[str, object]] = []
+
+    def restart(app: object, message: str, **kwargs: object) -> None:
+        calls.append({"app": app, "message": message, **kwargs})
+
+    monkeypatch.setattr("time.time", lambda: _NOW)
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.base.restart_after_update_when_ready",
+        restart,
+    )
+    harness = _ShortcutHarness()
+    harness._running_code_state = RunningCodeState(
+        roots=(
+            RunningCodeRoot(
+                label="sase",
+                git_root="/repo/sase",
+                imported_sha="1" * 40,
+                current_sha="2" * 40,
+                git_dir="/repo/sase/.git",
+                head_path="/repo/sase/.git/refs/heads/main",
+                packed_refs_path="/repo/sase/.git/packed-refs",
+                token=object(),  # type: ignore[arg-type]
+            ),
+        )
+    )
+    harness.action_update_sase_shortcut()
+    callback = harness.pushed_callbacks[0]
+    assert callback is not None
+
+    callback(UpdatePanelResult(scope="restart"))
+
+    assert harness.submitted is None
+    assert calls == [
+        {
+            "app": harness,
+            "message": "Running SASE code changed on disk",
+            "deferred": False,
+            "notify": None,
+            "restart_purpose": "load new code",
+        }
+    ]
 
 
 def test_update_everything_shortcut_submits_auto_approved_request_without_panel(

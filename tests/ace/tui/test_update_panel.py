@@ -187,6 +187,28 @@ async def test_letter_keys_dismiss_with_matching_scope() -> None:
         assert dismissed == [UpdatePanelResult(scope=scope, auto_approve=False)]
 
 
+async def test_restart_key_dismisses_when_restart_row_exists() -> None:
+    restart_row = UpdateOptionRow(
+        scope="restart",
+        key="x",
+        title="Restart ACE",
+        description="Running code changed on disk; restart after tracked procs finish.",
+        chip=UpdateOptionChip(kind="stale", text="↻ code changed", count=1),
+        detail="sase: 111111111..222222222",
+        accent=CORE_UPDATE_ACCENT,
+    )
+    async with _TestApp().run_test(size=(100, 40)) as pilot:
+        dismissed = await _push(
+            pilot,
+            UpdatePanel(
+                _state(rows=(restart_row, *tuple(_row(scope) for scope in _SCOPES)))
+            ),
+        )
+        await pilot.press("x")
+        await pilot.pause()
+    assert dismissed == [UpdatePanelResult(scope="restart", auto_approve=False)]
+
+
 async def test_capital_keys_dismiss_with_auto_approve() -> None:
     expected: dict[str, UpdateOptionScope] = {
         "E": "everything",

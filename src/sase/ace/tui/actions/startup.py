@@ -101,6 +101,8 @@ class StartupMixin(
     _automatic_update_check_in_flight: bool
     _automatic_update_check_interval_seconds: float
     _automatic_update_check_timer: Timer | None
+    _running_code_state: Any
+    _running_code_stale_notified_signature: Any
     _refresh_timer: Timer | None
     _countdown_timer: Timer | None
     _countdown_remaining: int

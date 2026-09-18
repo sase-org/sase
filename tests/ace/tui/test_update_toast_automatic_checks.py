@@ -7,6 +7,7 @@ from collections.abc import Callable
 import pytest
 
 from sase.ace.tui.actions import update_toast
+from sase.ace.tui.stale_running_code import RunningCodeRoot, RunningCodeState
 from sase.updates import ProviderUpdateCandidate, UpdateStatus
 
 from tests.ace.tui._update_toast_helpers import (
@@ -364,6 +365,50 @@ def test_provider_only_status_updates_indicator_and_provider_toast(
     assert len(app.notifications) == 1
     assert "CLI Claude Code" in str(app.notifications[0]["message"])
     assert "eligible set" in str(app.notifications[0]["message"])
+
+
+def test_automatic_check_applies_stale_running_code_once_per_generation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    state = RunningCodeState(
+        roots=(
+            RunningCodeRoot(
+                label="sase",
+                git_root="/repo/sase",
+                imported_sha="1" * 40,
+                current_sha="2" * 40,
+                git_dir="/repo/sase/.git",
+                head_path="/repo/sase/.git/refs/heads/main",
+                packed_refs_path="/repo/sase/.git/packed-refs",
+                token=object(),  # type: ignore[arg-type]
+            ),
+        )
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "_load_update_toast_config",
+        lambda: update_toast._UpdateToastConfig(startup_toast=False),
+    )
+    monkeypatch.setattr(
+        update_toast,
+        "get_cached_update_status",
+        lambda **_kwargs: UpdateStatus(checked_at=100.0, components=()),
+    )
+    monkeypatch.setattr(update_toast, "_refresh_running_code_state", lambda _old: state)
+    app = _AutomaticCheckApp()
+
+    app._on_periodic_update_check()
+    app.workers.pop()[0]()
+    app._on_periodic_update_check()
+    app.workers.pop()[0]()
+
+    assert app._running_code_state is state
+    stale_notifications = [
+        notification
+        for notification in app.notifications
+        if notification.get("title") == "↻ Restart available"
+    ]
+    assert len(stale_notifications) == 1
 
 
 def test_cached_revalidation_threads_core_state_to_indicator(

@@ -57,6 +57,8 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
         ("S", "apply_sase", "Apply SASE"),
         ("p", "choose_providers", "Providers"),
         ("P", "apply_providers", "Apply providers"),
+        ("x", "choose_restart", "Restart"),
+        ("X", "choose_restart", "Restart"),
         ("enter", "choose_highlighted", "Run"),
         ("r", "recheck", "Re-check"),
     ]
@@ -105,6 +107,9 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
 
     def action_apply_providers(self) -> None:
         self._choose_scope("providers", auto_approve=True)
+
+    def action_choose_restart(self) -> None:
+        self._choose_scope("restart")
 
     def action_choose_highlighted(self) -> None:
         option_list = self.query_one("#update-panel-list", OptionList)
@@ -198,6 +203,8 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
 
 
 def _chip_style(chip: UpdateOptionChip, accent: str) -> str:
+    if chip.kind == "stale":
+        return f"bold {CORE_UPDATE_ACCENT}"
     if chip.kind == "available":
         return f"bold {accent}".strip()
     if chip.kind == "current":
