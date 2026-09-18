@@ -927,15 +927,18 @@ just bench-agent-load-tiering
 It builds a temporary synthetic `SASE_HOME` with about 13,000 artifact directories by
 default, rebuilds the agent artifact index once, then compares authoritative source-scan
 rows with bounded and full-history index rows through the same Agents-tab query
-evaluator. The report includes p50/p95/max wall time, read/decode counters, and speedups
-versus the source scan for `source_scan`, `index_bounded`, `index_full_history`, and the
-production loader's `production_bounded` and `production_full_history` paths, plus a
-periodic Tier 1 revalidate, a settled unchanged-query refresh session, and missing/extra
-row diffs. Pass `--artifact-count`, `--runs`, `--warmup`, `--requested-limit`,
-`--session-refreshes`, and repeated `--query` flags while iterating; `--fixture-root`
-reuses (or creates) the fixture under a directory, and `--sase-home` measures an
-existing archive instead (see [Measured acceptance](#measured-acceptance-sase-zu85)
-above).
+evaluator. The report includes p50/p95/max wall time, read/decode counters,
+`decoded_records_per_returned_row` on production paths, and speedups versus the source
+scan for `source_scan`, `index_bounded`, `index_full_history`, and the production
+loader's `production_bounded` and `production_full_history` paths, plus a periodic Tier
+1 revalidate, a settled unchanged-query refresh session, and missing/extra row diffs.
+The synthetic fixture includes a production-shaped population of marker-only
+waiting/question records; `production_bounded` must stay at or below 3.0 decoded records
+per returned row while still filling the requested viewport. Pass `--artifact-count`,
+`--runs`, `--warmup`, `--requested-limit`, `--session-refreshes`, and repeated `--query`
+flags while iterating; `--fixture-root` reuses (or creates) the fixture under a
+directory, and `--sase-home` measures an existing archive instead (see
+[Measured acceptance](#measured-acceptance-sase-zu85) above).
 
 Run via pytest:
 

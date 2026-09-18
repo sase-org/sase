@@ -131,6 +131,11 @@ class AgentArtifactIndexQueryWire:
             (``agent_meta.agent_family_role == "monitor"``), so
             ``sase monitor list`` can ask the index directly instead of
             scanning and filtering every record in Python.
+        agents_list_projection: When True, the index hydrates only records
+            that can become Agents-list base rows. Marker-only waiting or
+            question records stay out of the JSON decode window; clan
+            context is still derived from indexed scalar columns. Default
+            off so generic index callers keep their current record sets.
     """
 
     include_active: bool = True
@@ -144,6 +149,7 @@ class AgentArtifactIndexQueryWire:
     record_shape: AgentArtifactRecordShape = "full"
     window_limit: int | None = None
     candidate_filter: dict[str, object] | None = None
+    agents_list_projection: bool = False
 
 
 @dataclass(frozen=True)

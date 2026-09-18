@@ -194,6 +194,16 @@ def _write_generic_completed(projects_root: Path, index: int) -> None:
     model = _MODELS[index % len(_MODELS)]
     hidden = index % 97 == 0
     provenance = index % 211 == 0
+    if index % 3 == 0:
+        _write_marker_only_active(
+            projects_root,
+            index,
+            project=project,
+            workflow=workflow,
+            provider=provider,
+            model=model,
+        )
+        return
     artifact_dir = _artifact_dir(projects_root, project, workflow, index)
     project_file = projects_root / project / f"{project}.sase"
     name = f"feature-agent-{index:05d}"
@@ -221,4 +231,59 @@ def _write_generic_completed(projects_root: Path, index: int) -> None:
             hidden=hidden,
             provenance=provenance,
         ),
+    )
+
+
+def _write_marker_only_active(
+    projects_root: Path,
+    index: int,
+    *,
+    project: str,
+    workflow: str,
+    provider: str,
+    model: str,
+) -> None:
+    """Write a production-shaped waiting/question record that is not a base row.
+
+    These look SQL-active (no done marker) but the Agents-list loaders cannot
+    materialize them. They exist to prove the projection mode does not decode
+    them. Prefer a non-home project so they cannot be mistaken for home-running
+    rows.
+    """
+    if project == "home":
+        project = "gh_sase-org__sase"
+    artifact_dir = _artifact_dir(projects_root, project, workflow, index)
+    name = f"marker-only-{index:05d}"
+    cl_name = f"marker-{index % 37:02d}"
+    meta = _meta_payload(
+        index=index,
+        name=name,
+        cl_name=cl_name,
+        provider=provider,
+        model=model,
+        active=True,
+    )
+    if index % 13 == 0:
+        meta["agent_clan"] = f"marker-clan-{index % 5}"
+        meta["agent_clan_generation"] = "g1"
+        meta["clan_tribe"] = "bench"
+        meta["clan_summary"] = "Marker-only clan context"
+    _write_json(artifact_dir / "agent_meta.json", meta)
+    if index % 6 == 0:
+        _write_json(
+            artifact_dir / "pending_question.json",
+            {
+                "session_id": f"question-{index:05d}",
+                "request_path": "/tmp/question.md",
+                "submitted_at": "2026-09-12T13:01:00Z",
+            },
+        )
+        return
+    _write_json(
+        artifact_dir / "waiting.json",
+        {
+            "cl_name": cl_name,
+            "waiting_for": ["upstream"],
+            "wait_duration": 300.0,
+        },
     )

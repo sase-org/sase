@@ -95,6 +95,7 @@ def test_load_agents_from_disk_uses_artifact_index_for_initial_tier(
     assert query.include_hidden is False
     assert query.freshness == "cached"
     assert query.record_shape == "list"
+    assert query.agents_list_projection is True
 
 
 def test_tier1_large_index_result_does_not_fan_out_to_source_scan(
@@ -167,6 +168,7 @@ def test_tier1_index_revalidate_mode_reaches_query_wire(
     mock_query.assert_called_once()
     assert mock_query.call_args.kwargs["query"].freshness == "revalidate"
     assert mock_query.call_args.kwargs["query"].record_shape == "list"
+    assert mock_query.call_args.kwargs["query"].agents_list_projection is True
     mock_scan.assert_not_called()
 
 
@@ -206,4 +208,5 @@ def test_viewport_window_keeps_tier1_caps(tmp_path: Path) -> None:
         assert query.window_limit == 120
         assert query.active_limit == 1000
         assert query.recent_completed_limit == 200
+        assert query.agents_list_projection is True
         mock_scan.assert_not_called()

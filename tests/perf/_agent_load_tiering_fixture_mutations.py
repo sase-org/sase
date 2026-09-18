@@ -107,6 +107,48 @@ def write_completed_artifact(
     return artifact_dir
 
 
+def write_waiting_artifact(
+    projects_root: Path,
+    index: int,
+    *,
+    project: str = "gh_sase-org__sase",
+    workflow: str = "ace-run",
+    provider: str = "codex",
+    model: str = "gpt-5.6-sol",
+    agent_clan: str | None = None,
+    agent_clan_generation: str | None = None,
+    clan_tribe: str | None = None,
+    clan_summary: str | None = None,
+) -> Path:
+    """Write a waiting-only artifact that cannot become an Agents-list base row."""
+
+    artifact_dir = _artifact_dir(projects_root, project, workflow, index)
+    name = f"waiting-only-{index:05d}"
+    cl_name = f"waiting-{index % 37:02d}"
+    meta = _meta_payload(
+        index=index,
+        name=name,
+        cl_name=cl_name,
+        provider=provider,
+        model=model,
+        active=True,
+    )
+    if agent_clan is not None:
+        meta["agent_clan"] = agent_clan
+        if agent_clan_generation is not None:
+            meta["agent_clan_generation"] = agent_clan_generation
+    if clan_tribe is not None:
+        meta["clan_tribe"] = clan_tribe
+    if clan_summary is not None:
+        meta["clan_summary"] = clan_summary
+    _write_json(artifact_dir / "agent_meta.json", meta)
+    _write_json(
+        artifact_dir / "waiting.json",
+        {"cl_name": cl_name, "waiting_for": ["upstream"]},
+    )
+    return artifact_dir
+
+
 def set_artifact_machine_provenance(
     artifact_dir: Path,
     *,

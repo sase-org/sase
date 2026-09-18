@@ -322,7 +322,7 @@ def test_production_oracle_settles_full_history_beyond_tier1_cap(
     """
     tier1_cap = loader_artifacts._TIER1_RECENT_COMPLETED_LIMIT
     fixture = build_synthetic_agent_archive(
-        tmp_path / "fixture", artifact_count=tier1_cap + 20
+        tmp_path / "fixture", artifact_count=tier1_cap + 120
     )
     oracle = AgentLoadTieringOracle(fixture)
     result = oracle.evaluate("", requested_limit=None)

@@ -15,6 +15,7 @@ from tests.perf._agent_load_tiering_fixture_mutations import (
     set_artifact_hidden,
     set_artifact_machine_provenance,
     write_completed_artifact,
+    write_waiting_artifact,
 )
 
 __all__ = [
@@ -25,4 +26,5 @@ __all__ = [
     "rebuild_index",
     "set_artifact_hidden",
     "write_completed_artifact",
+    "write_waiting_artifact",
 ]

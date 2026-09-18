@@ -497,6 +497,7 @@ def test_full_history_index_loader_uses_pure_revalidated_history_wire(
     assert query.window_limit is None
     assert query.freshness == "revalidate"
     assert query.record_shape == "list"
+    assert query.agents_list_projection is True
     assert query.candidate_filter == {
         "kind": "equals",
         "field": "provider",
@@ -661,6 +662,10 @@ def _artifact_dir(projects: Path, timestamp: str) -> Path:
     return projects / "proj" / "artifacts" / "ace-run" / timestamp
 
 
+def _home_running_dir(projects: Path, timestamp: str) -> Path:
+    return projects / "home" / "artifacts" / "ace-run" / timestamp
+
+
 def test_windowed_loader_keeps_completed_when_active_exceeds_limit(
     tmp_path: Path,
 ) -> None:
@@ -672,10 +677,12 @@ def test_windowed_loader_keeps_completed_when_active_exceeds_limit(
         "20260827090300",
         "20260827090400",
     ):
+        artifact_dir = _home_running_dir(projects, timestamp)
         _write_json(
-            _artifact_dir(projects, timestamp) / "agent_meta.json",
-            {"name": f"active-{timestamp}"},
+            artifact_dir / "agent_meta.json",
+            {"name": f"active-{timestamp}", "pid": 42},
         )
+        _write_json(artifact_dir / "running.json", {"pid": 42})
     for timestamp in ("20260827090500", "20260827090600", "20260827090700"):
         artifact_dir = _artifact_dir(projects, timestamp)
         _write_json(

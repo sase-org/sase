@@ -24,8 +24,40 @@ from tests.perf._agent_load_tiering_stats import (
 from tests.perf._agent_load_tiering_types import (
     AgentLoadTieringOracleResult,
     LoadPathName,
+    LoadPathRows,
 )
 from tests.perf.agent_load_tiering_fixture import SyntheticArchiveFixture
+
+
+def _decoded_records_per_returned_row(path: LoadPathRows) -> float | None:
+    counters = _path_counters(path)
+    decoded = counters.get("record_json_decoded")
+    returned = path.visible_count
+    if decoded is None or returned <= 0:
+        return None
+    return round(decoded / returned, 4)
+
+
+def _path_report(
+    path: LoadPathRows,
+    samples: Sequence[float],
+    *,
+    source_p50_ms: float,
+) -> dict[str, Any]:
+    report: dict[str, Any] = {
+        "timing_ms": _summarize(samples),
+        "snapshot_record_count": path.snapshot_record_count,
+        "loaded_row_count": path.loaded_row_count,
+        "visible_row_count": path.visible_count,
+        "counters": _path_counters(path),
+        "speedup_vs_source_scan": _speedup(
+            source_p50_ms, _summarize(samples)["p50_ms"]
+        ),
+    }
+    amplification = _decoded_records_per_returned_row(path)
+    if amplification is not None:
+        report["decoded_records_per_returned_row"] = amplification
+    return report
 
 
 def benchmark_load_paths(
@@ -83,18 +115,11 @@ def benchmark_load_paths(
                     last_result.pushdown_unsupported_reason
                 ),
                 "paths": {
-                    name: {
-                        "timing_ms": _summarize(samples),
-                        "snapshot_record_count": getattr(
-                            last_result, name
-                        ).snapshot_record_count,
-                        "loaded_row_count": getattr(last_result, name).loaded_row_count,
-                        "visible_row_count": getattr(last_result, name).visible_count,
-                        "counters": _path_counters(getattr(last_result, name)),
-                        "speedup_vs_source_scan": _speedup(
-                            source_p50_ms, _summarize(samples)["p50_ms"]
-                        ),
-                    }
+                    name: _path_report(
+                        getattr(last_result, name),
+                        samples,
+                        source_p50_ms=source_p50_ms,
+                    )
                     for name, samples in path_samples.items()
                 },
                 "periodic_revalidate": _benchmark_periodic_revalidate(

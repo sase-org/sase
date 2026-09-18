@@ -20,6 +20,7 @@ def test_artifact_index_wire_helpers() -> None:
     assert AgentArtifactIndexQueryWire().active_limit is None
     assert AgentArtifactIndexQueryWire().freshness == "revalidate"
     assert AgentArtifactIndexQueryWire().record_shape == "full"
+    assert AgentArtifactIndexQueryWire().agents_list_projection is False
 
     query = AgentArtifactIndexQueryWire(
         include_active=True,
@@ -37,6 +38,7 @@ def test_artifact_index_wire_helpers() -> None:
             "field": "project",
             "value": "sase",
         },
+        agents_list_projection=True,
     )
     assert agent_artifact_index_query_to_dict(query) == {
         "include_active": True,
@@ -54,6 +56,7 @@ def test_artifact_index_wire_helpers() -> None:
             "field": "project",
             "value": "sase",
         },
+        "agents_list_projection": True,
     }
     assert AgentArtifactIndexQueryWire().only_monitors is False
 

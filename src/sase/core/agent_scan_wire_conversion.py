@@ -195,6 +195,7 @@ def agent_artifact_index_query_to_dict(
         "record_shape": query.record_shape,
         "window_limit": query.window_limit,
         "candidate_filter": query.candidate_filter,
+        "agents_list_projection": query.agents_list_projection,
     }
 
 

@@ -11,7 +11,7 @@ from pathlib import Path
 from sase.ace.tui.models import _agent_loader_artifacts as loader_artifacts
 
 DEFAULT_ARCHIVE_ARTIFACT_COUNT = 13_000
-FIXTURE_SCHEMA_VERSION = 2
+FIXTURE_SCHEMA_VERSION = 3
 
 _TUI_SCAN_OPTIONS = loader_artifacts._TUI_SCAN_OPTIONS
 _PROJECTS = ("gh_sase-org__sase", "gh_bobs-org__bob-cli", "home")

@@ -124,6 +124,7 @@ def test_bench_agent_load_tiering_smoke(tmp_path: Path) -> None:
     query_report = report["queries"][0]
     assert query_report["diffs"]["index_full_history"]["missing_count"] == 0
     assert query_report["diffs"]["production_full_history"]["missing_count"] == 0
+    assert query_report["diffs"]["production_bounded"]["missing_count"] == 0
     assert query_report["paths"]["source_scan"]["counters"]["marker_files_parsed"] > 0
     assert (
         query_report["paths"]["production_full_history"]["counters"][
@@ -131,6 +132,12 @@ def test_bench_agent_load_tiering_smoke(tmp_path: Path) -> None:
         ]
         > 0
     )
+    bounded = query_report["paths"]["production_bounded"]
+    assert bounded["visible_row_count"] > 0
+    assert bounded["decoded_records_per_returned_row"] <= 3.0
+    requested_limit = report["requested_limit"]
+    if requested_limit is not None:
+        assert bounded["visible_row_count"] <= requested_limit
     assert (
         "marker_signatures_checked" in query_report["periodic_revalidate"]["counters"]
     )

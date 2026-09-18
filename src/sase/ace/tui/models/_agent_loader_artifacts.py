@@ -315,6 +315,7 @@ def query_artifact_index_for_loader(
         record_shape="list",
         window_limit=None if full_history else requested_limit,
         candidate_filter=candidate_filter,
+        agents_list_projection=True,
     )
     root = projects_root()
     cacheable = not full_history and query_freshness == "cached"
