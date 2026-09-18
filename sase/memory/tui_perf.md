@@ -43,10 +43,16 @@ serial app message pump. Reuse these established fixes; don't invent new paths.
    (`_refilter_agents()`), then schedule a background reload
    (`_schedule_agents_async_refresh()`); coalesce concurrent requests with
    loading/pending flags (last-request-wins). Don't add new refresh code paths.
+   Unchanged committed Agents filters stay on the incremental display path
+   (`_try_refresh_agents_display_incremental`); a live query is not itself a
+   full-rebuild reason. Bounded and revalidated loads must converge without remounting
+   tribe panels (`merge_incomplete_load_after_complete_history`).
 6. **Prefer selective updates over full rebuilds.** Full agent-list rebuilds are the
    most expensive UI operation. Use `patch_row()` / `try_remove_rows()`
    (`src/sase/ace/tui/widgets/_agent_list_build.py`); mutate in-memory state
-   optimistically and persist off-thread.
+   optimistically and persist off-thread. Stable grouping membership (STANDARD,
+   BY_STATUS, BY_MACHINE) stays on that incremental path; rebuild only when membership
+   actually changes.
 7. **Debounce detail panels, never the highlight.** Highlight moves paint immediately;
    detail-panel updates go through `DetailPanelDebouncer`
    (`src/sase/ace/tui/util/debounce.py`, 150 ms).
@@ -58,7 +64,12 @@ serial app message pump. Reuse these established fixes; don't invent new paths.
 9. **Keep startup off data-scaled work.** First paint never waits on O(archive) work:
    detect stale artifact-index schema with cheap metadata, serve the bounded fallback
    scan, rebuild in the background, then coalesce a follow-up refresh. Don't add work
-   before the startup stopwatch ends.
+   before the startup stopwatch ends. An unsupported committed query marks recent
+   history incomplete (`query_incomplete`) and schedules the established quiet-time
+   reconcile (rule 5); it never expands first-paint reads. Each agents-live field must
+   explicitly declare pushdown or `KNOWN_FALLBACK_FIELDS` coverage
+   (`src/sase/ace/tui/models/agent_live_query_pushdown.py`). Treat history as complete
+   only after an authoritative reconciliation has actually landed.
 10. **Periodic ticks revalidate; recomputes get a longer cadence.** Pollers must not
     network/full-recompute every tick (update checks did when tick interval equaled
     cache TTL). Revalidate cached snapshots on ticks; recompute on a separate, much
@@ -81,6 +92,11 @@ serial app message pump. Reuse these established fixes; don't invent new paths.
     `axe.collect` events (`file_opens`) on `SASE_TUI_TRACE=1`. A quiet tick should
     reload no surfaces and open near-zero axe files. Capture commands are in
     `docs/perf_runbook.md` under Idle-host CPU diet.
+15. **Editable-install TUIs keep running the imported snapshot.** A long-running TUI
+    whose checkout has advanced still executes the code it imported at start until
+    restart (`src/sase/ace/tui/stale_running_code.py`). The detector surfaces this via a
+    notification and the Update-panel restart row; do not assume a landed disk fix is
+    live in an already-open TUI.
 
 ## Measure, don't guess
 
