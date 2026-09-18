@@ -41,6 +41,21 @@ def test_publish_depends_on_floor_exact_install_smoke() -> None:
     assert 'grep -Fq "sase chat list"' in floor_exact
 
 
+def test_publish_install_smoke_renders_screenshot_png_without_extras() -> None:
+    workflow = _load_publish_workflow()
+    run_text = _job_run_text(workflow["jobs"]["install-smoke"])
+
+    assert "Smoke screenshot renderer runtime dependency" in str(
+        workflow["jobs"]["install-smoke"]["steps"]
+    )
+    assert "from importlib.metadata import requires" in run_text
+    assert 'requires("sase")' in run_text
+    assert "resvg-py" in run_text
+    assert "from sase.ace.tui.visual_render import render_svg_to_png" in run_text
+    assert "render_svg_to_png(" in run_text
+    assert 'png.startswith(b"\\x89PNG\\r\\n\\x1a\\n")' in run_text
+
+
 def test_publish_generation_runs_on_schedule_or_manual_dispatch_only() -> None:
     workflow = _load_publish_workflow()
     triggers = _workflow_triggers(workflow)

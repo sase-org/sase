@@ -42,6 +42,7 @@ dependencies = [
     "pygments==2.19.2",
     "pyinstrument",
     "pyyaml",
+    "resvg_py==0.3.3",
     "rich",
     "ruamel.yaml>=0.18,<1.0",
     "sase-core-rs>=0.34.48,<0.35.0",

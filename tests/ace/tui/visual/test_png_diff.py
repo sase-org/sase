@@ -545,7 +545,7 @@ def test_render_svg_to_png_missing_renderer_has_actionable_error(
 
     monkeypatch.setattr(builtins, "__import__", _missing_resvg)
 
-    with pytest.raises(RuntimeError, match="visual extra"):
+    with pytest.raises(RuntimeError, match="incomplete or stale"):
         render_svg_to_png("<svg xmlns='http://www.w3.org/2000/svg'/>")
 
 

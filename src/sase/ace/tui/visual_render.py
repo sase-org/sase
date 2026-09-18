@@ -38,9 +38,10 @@ def render_svg_to_png(svg: str) -> bytes:
         import resvg_py
     except ImportError as exc:
         raise RuntimeError(
-            "ACE SVG-to-PNG rendering requires the visual extra. "
-            "Install it with `uv pip install -e '.[dev,visual]'` or an "
-            "equivalent environment setup."
+            "ACE SVG-to-PNG rendering could not import resvg_py. "
+            "The SASE installation is incomplete or stale. Run `sase update`, "
+            "or reinstall the Python environment that owns the `sase` entry "
+            "point."
         ) from exc
 
     fonts_dir = _bundled_fonts_dir()

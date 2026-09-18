@@ -163,6 +163,28 @@ jobs:
           uv pip install --python /tmp/smoke-venv/bin/python dist/sase-*.whl
       - name: Health check (Rust extension loadable)
         run: /tmp/smoke-venv/bin/sase core health --json
+      - name: Smoke screenshot renderer runtime dependency
+        run: |
+          /tmp/smoke-venv/bin/python - <<'PY'
+          from importlib.metadata import requires
+
+          from sase.ace.tui.visual_render import render_svg_to_png
+
+          requires_dist = requires("sase") or []
+          if not any(
+              requirement.split(";", 1)[0].strip().lower().startswith("resvg-py")
+              for requirement in requires_dist
+          ):
+              raise SystemExit("sase wheel metadata does not require resvg-py")
+
+          png = render_svg_to_png(
+              '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1">'
+              '<rect width="1" height="1" fill="red"/>'
+              "</svg>"
+          )
+          if not png.startswith(b"\x89PNG\r\n\x1a\n"):
+              raise SystemExit("renderer did not produce a PNG")
+          PY
       - name: Smoke public install commands
         run: |
           set -euo pipefail
