@@ -57,15 +57,11 @@ def suppress_rendered_targets[SectionT: _SectionLike](
     rendered_note_paths = _rendered_note_paths(notes)
 
     filtered_notes = tuple(
-        replace(
+        _suppress_note_rendered_targets(
             note,
-            suppress_child_paths=rendered_note_paths
-            - frozenset({note.content.path.note.relative_path}),
-            resolved_links=_filter_rendered_links(
-                note.resolved_links,
-                rendered_keys,
-                link_target_key=link_target_key,
-            ),
+            rendered_note_paths=rendered_note_paths,
+            rendered_keys=rendered_keys,
+            link_target_key=link_target_key,
         )
         for note in notes
     )
@@ -84,6 +80,35 @@ def suppress_rendered_targets[SectionT: _SectionLike](
         for section in sections
     )
     return filtered_notes, filtered_sections
+
+
+def _suppress_note_rendered_targets(
+    note: ResolvedMemoryNote,
+    *,
+    rendered_note_paths: frozenset[str],
+    rendered_keys: frozenset[str],
+    link_target_key: Callable[[MemoryLinkTarget], str],
+) -> ResolvedMemoryNote:
+    """Hide listings for rendered targets throughout an inline-note tree."""
+    return replace(
+        note,
+        suppress_child_paths=rendered_note_paths
+        - frozenset({note.content.path.note.relative_path}),
+        resolved_links=_filter_rendered_links(
+            note.resolved_links,
+            rendered_keys,
+            link_target_key=link_target_key,
+        ),
+        inline_notes=tuple(
+            _suppress_note_rendered_targets(
+                inline_note,
+                rendered_note_paths=rendered_note_paths,
+                rendered_keys=rendered_keys,
+                link_target_key=link_target_key,
+            )
+            for inline_note in note.inline_notes
+        ),
+    )
 
 
 def select_memory_selector_render_units(

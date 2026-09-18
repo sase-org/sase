@@ -99,6 +99,11 @@ def _note_children(
     return tuple(sorted(children, key=lambda note: note.relative_path))
 
 
+def memory_note_children(view: ResolvedMemoryNote) -> tuple[MemoryNote, ...]:
+    """Return visible reference children for *view* after inline suppression."""
+    return _note_children(view, exclude_paths=_suppressed_child_paths(view))
+
+
 def _inline_note_reference_paths(view: ResolvedMemoryNote) -> frozenset[str]:
     """Return relative paths for every note rendered inline under *view*."""
     paths: set[str] = set()
@@ -141,8 +146,18 @@ def _memory_note_body_markdown(view: ResolvedMemoryNote) -> str:
     """Return a note body plus the bodies of any inline note closure."""
     return append_memory_sections(
         view.content.body,
-        *(_memory_note_body_markdown(note) for note in view.inline_notes),
+        *(_inline_note_markdown(note) for note in view.inline_notes),
     )
+
+
+def _inline_note_markdown(view: ResolvedMemoryNote) -> str:
+    """Return an inline note body plus discoverable unread child rows."""
+    children_section = render_children_section(
+        view.children,
+        view.content.path.note,
+        exclude_paths=_suppressed_child_paths(view),
+    )
+    return append_memory_sections(_memory_note_body_markdown(view), children_section)
 
 
 def memory_note_markdown(view: ResolvedMemoryNote) -> str:
@@ -190,6 +205,8 @@ def _inline_note_json(view: ResolvedMemoryNote) -> dict[str, object]:
         "body": view.content.body,
         "links": memory_links_json(_memory_note_link_items(view)),
         "inline_notes": [_inline_note_json(child) for child in view.inline_notes],
+        "children": [_child_json(child) for child in memory_note_children(view)],
+        "linked_references": linked_references_json(view.resolved_links),
     }
 
 
@@ -209,7 +226,7 @@ def _memory_note_renderable(view: ResolvedMemoryNote) -> Group:
     blocks.append(Markdown(view.content.body))
     for inline_note in view.inline_notes:
         blocks.append(Text(""))
-        blocks.append(Markdown(_memory_note_body_markdown(inline_note)))
+        blocks.append(Markdown(_inline_note_markdown(inline_note)))
 
     children = _note_children(view, exclude_paths=_suppressed_child_paths(view))
     if children:

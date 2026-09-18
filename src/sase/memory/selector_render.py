@@ -29,6 +29,7 @@ from sase.memory.notes import MemoryNote
 from sase.memory.render import (
     MemoryShowFormat,
     ResolvedMemoryNote,
+    memory_note_children,
     memory_note_markdown,
     render_memory_note,
 )
@@ -100,24 +101,9 @@ def _note_json(note: ResolvedMemoryNote) -> dict[str, object]:
             or [(link, "reference") for link in note.resolved_links]
         ),
         "inline_notes": [_note_json(inline_note) for inline_note in note.inline_notes],
-        "children": [_child_json(child) for child in _note_children(note)],
+        "children": [_child_json(child) for child in memory_note_children(note)],
         "linked_references": linked_references_json(note.resolved_links),
     }
-
-
-def _note_children(note: ResolvedMemoryNote) -> tuple[MemoryNote, ...]:
-    parent_keys = {
-        note.content.path.canonical_path,
-        note.content.path.note.relative_path,
-    }
-    children = (
-        child
-        for child in note.children
-        if child.type == "reference"
-        and child.parent in parent_keys
-        and child.relative_path not in note.suppress_child_paths
-    )
-    return tuple(sorted(children, key=lambda child: child.relative_path))
 
 
 def _child_json(child: MemoryNote) -> dict[str, str | None]:

@@ -263,6 +263,152 @@ def test_note_markdown_renders_inline_child_without_children_listing(
     assert "## Linked References" not in output
 
 
+def test_inline_note_outputs_preserve_unread_grandchild_listing(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "root.md",
+        _note("# Root\n![[child]]\n"),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "child.md",
+        _note("# Child\nCHILD_BODY\n", description="Child note.").replace(
+            "parent: AGENTS.md", "parent: root.md"
+        ),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "grandchild.md",
+        _note(
+            "# Grandchild\nGRANDCHILD_BODY\n",
+            description="GRANDCHILD_DESCRIPTION",
+        ).replace("parent: AGENTS.md", "parent: child.md"),
+    )
+
+    batch = _resolve(tmp_path, ["root.md"])
+    output = memory_selector_batch_markdown(batch)
+    payload = _json_payload(batch)
+    rich = _rich_text(batch)
+
+    assert "CHILD_BODY" in output
+    assert "grandchild.md" in output
+    assert "GRANDCHILD_DESCRIPTION" in output
+    assert "GRANDCHILD_BODY" not in output
+    assert "grandchild.md" in rich
+    assert "GRANDCHILD_DESCRIPTION" in rich
+    assert "GRANDCHILD_BODY" not in rich
+    (child_payload,) = payload["note"]["inline_notes"]
+    assert child_payload["children"] == [
+        {
+            "path": "sase/memory/grandchild.md",
+            "description": "GRANDCHILD_DESCRIPTION",
+        }
+    ]
+    assert child_payload["inline_notes"] == []
+    assert "GRANDCHILD_BODY" not in json.dumps(payload)
+
+
+def test_batch_json_suppresses_rendered_nested_inline_child_rows(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "root.md",
+        _note("# Root\n![[child]]\n"),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "child.md",
+        _note("# Child\n![[grandchild]]\n", description="Child note.").replace(
+            "parent: AGENTS.md", "parent: root.md"
+        ),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "grandchild.md",
+        _note(
+            "# Grandchild\nGRANDCHILD_BODY\n",
+            description="GRANDCHILD_DESCRIPTION",
+        ).replace("parent: AGENTS.md", "parent: child.md"),
+    )
+    _write(tmp_path / "sase" / "memory" / "other.md", _note("# Other\n"))
+
+    batch = _resolve(tmp_path, ["root.md", "other.md"])
+    output = memory_selector_batch_markdown(batch)
+    payload = _json_payload(batch)
+    rich = _rich_text(batch)
+
+    assert output.count("GRANDCHILD_BODY") == 1
+    assert rich.count("GRANDCHILD_BODY") == 1
+    assert "GRANDCHILD_DESCRIPTION" not in output
+    root_payload = payload["notes"][0]
+    (child_payload,) = root_payload["inline_notes"]
+    (grandchild_payload,) = child_payload["inline_notes"]
+    assert grandchild_payload["canonical_path"] == "grandchild.md"
+    assert child_payload["children"] == []
+
+
+def test_batch_json_filters_nested_references_to_batch_rendered_notes(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "root.md",
+        _note("# Root\n![[child]]\n"),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "child.md",
+        _note("# Child\nSee [[grandchild]].\n", description="Child note.").replace(
+            "parent: AGENTS.md", "parent: root.md"
+        ),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "grandchild.md",
+        _note("# Grandchild\nGRANDCHILD_BODY\n").replace(
+            "parent: AGENTS.md", "parent: child.md"
+        ),
+    )
+
+    batch = _resolve(tmp_path, ["root.md", "grandchild.md"])
+    payload = _json_payload(batch)
+
+    root_payload = payload["notes"][0]
+    assert root_payload["linked_references"] == []
+    (child_payload,) = root_payload["inline_notes"]
+    assert child_payload["linked_references"] == []
+    assert [note["canonical_path"] for note in payload["notes"]] == [
+        "root.md",
+        "grandchild.md",
+    ]
+
+
+def test_depth_limited_inline_note_json_lists_truncated_leaf_on_nested_note(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "sase" / "memory" / "alpha.md",
+        _note("# Alpha\n![[beta]]\n"),
+    )
+    _write(
+        tmp_path / "sase" / "memory" / "beta.md",
+        _note("# Beta\n![[gamma]]\n"),
+    )
+    _write(tmp_path / "sase" / "memory" / "gamma.md", _note("# Gamma\n"))
+
+    batch = _resolve(tmp_path, ["alpha.md"], depth=1)
+    output = memory_selector_batch_markdown(batch)
+    payload = _json_payload(batch)
+
+    assert "# Beta" in output
+    assert "# Gamma" not in output
+    assert "### 1. `gamma.md`" in output
+    (beta_payload,) = payload["note"]["inline_notes"]
+    assert beta_payload["inline_notes"] == []
+    assert beta_payload["linked_references"] == [
+        {
+            "address": "gamma.md",
+            "always_loaded": False,
+            "label": "Gamma",
+            "summary": "A note.",
+        }
+    ]
+
+
 def test_multi_root_shared_inline_note_body_renders_once(tmp_path: Path) -> None:
     _write(
         tmp_path / "sase" / "memory" / "shared.md",
