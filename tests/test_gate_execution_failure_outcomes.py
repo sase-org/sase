@@ -195,7 +195,7 @@ def test_command_failure_records_a_fixed_summary_with_no_stdout_or_secret(
     assert any("topsecret" in (record.get("stderr") or "") for record in error_records)
 
 
-def test_pre_attempt_revalidation_failure_uses_command_stage_and_empty_attempt_id(
+def test_pre_attempt_revalidation_failure_uses_command_stage_and_synthetic_attempt_id(
     gate_home: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     created = create_gate(gate_spec(request_id="pre-attempt-failure"))
@@ -210,7 +210,7 @@ def test_pre_attempt_revalidation_failure_uses_command_stage_and_empty_attempt_i
     assert exc.value.code == "feedback_required"
 
     [failure] = _failures(created.bundle_path)
-    assert failure["attempt_id"] == ""
+    assert failure["attempt_id"] == "pre_attempt"
     assert failure["stage"] == "command"
     assert failure["code"] == "feedback_required"
 
@@ -301,7 +301,7 @@ def test_side_effects_resume_skips_a_launch_response_json_already_recorded(
     receipt = read_current_receipt(gate.bundle_path)
     append_journal_event(
         gate.bundle_path,
-        attempt_id="",
+        attempt_id="side-effects-attempt",
         request_hash="",
         event="attempt_failed",
         stage="side_effects",

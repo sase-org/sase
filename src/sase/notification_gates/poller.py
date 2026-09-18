@@ -9,16 +9,10 @@ from pathlib import Path
 from typing import Any, Literal
 
 from sase.notification_gates.durability import read_json_object
-from sase.notification_gates.failure_outcome import record_owner_lost_outcome
+from sase.notification_gates.failure_outcome import record_owner_lost_outcome_if_current
 from sase.notification_gates.journal import (
     ExecutionFailureFacts,
     current_gate_execution_failure,
-)
-from sase.gate_shell.lifecycle import (
-    DISPOSITION_ACCEPTED_FAILED,
-    DISPOSITION_ACCEPTED_OWNER_LOST,
-    classify_gate_lifecycle,
-    collect_gate_lifecycle_facts,
 )
 from sase.notification_gates.decision import read_current_receipt
 from sase.notification_gates.executor import cancel_gate
@@ -99,28 +93,17 @@ def _response_projection(
 def _record_owner_lost_if_needed(
     bundle_path: Path, receipt: Mapping[str, Any]
 ) -> ExecutionFailureFacts | None:
+    del receipt
     try:
         envelope, _adapter = load_and_verify_bundle(bundle_path)
-        facts = collect_gate_lifecycle_facts(
-            bundle_path,
-            envelope,
-            now=time.time(),
-            deadline=_deadline(envelope),
-            grace_seconds=0.0,
-        )
-        disposition = classify_gate_lifecycle(facts)["disposition"]
     except Exception:
         return None
-    if disposition == DISPOSITION_ACCEPTED_FAILED:
-        return current_gate_execution_failure(
-            bundle_path, receipt, response_exists=False
-        )
-    if disposition != DISPOSITION_ACCEPTED_OWNER_LOST:
-        return None
-    return record_owner_lost_outcome(
+    return record_owner_lost_outcome_if_current(
         bundle_path,
-        receipt=receipt,
         source="gate_poller",
+        now=time.time(),
+        deadline=_deadline(envelope),
+        grace_seconds=0.0,
     )
 
 

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from sase.gate_shell.lifecycle import (
+    DISPOSITION_ACCEPTED_OWNER_LOST,
     classify_gate_lifecycle,
     collect_gate_lifecycle_facts,
 )
@@ -41,7 +42,9 @@ from sase.notification_gates.executor_inputs import (
     resolve_option_inputs,
 )
 from sase.notification_gates.failure_outcome import (
+    SIDE_EFFECTS_ATTEMPT_ID,
     record_failure_outcome,
+    record_owner_lost_outcome,
     recorded_attempt_failure,
 )
 from sase.notification_gates.feedback_input import apply_feedback_input
@@ -468,7 +471,7 @@ def _resume_side_effects(
     request_hash = str(response.get("request_id") or "")
     append_journal_event(
         bundle_path,
-        attempt_id="",
+        attempt_id=SIDE_EFFECTS_ATTEMPT_ID,
         request_hash=request_hash,
         event="stage_started",
         stage="side_effects",
@@ -484,7 +487,7 @@ def _resume_side_effects(
         record_failure_outcome(
             bundle_path,
             acceptance_id=acceptance_id,
-            attempt_id="",
+            attempt_id=SIDE_EFFECTS_ATTEMPT_ID,
             stage="side_effects",
             error=exc,
             source=source,
@@ -498,7 +501,7 @@ def _resume_side_effects(
         record_failure_outcome(
             bundle_path,
             acceptance_id=acceptance_id,
-            attempt_id="",
+            attempt_id=SIDE_EFFECTS_ATTEMPT_ID,
             stage="side_effects",
             error=wrapped,
             source=source,
@@ -507,7 +510,7 @@ def _resume_side_effects(
         raise wrapped from exc
     append_journal_event(
         bundle_path,
-        attempt_id="",
+        attempt_id=SIDE_EFFECTS_ATTEMPT_ID,
         request_hash=request_hash,
         event="stage_completed",
         stage="side_effects",
@@ -673,6 +676,12 @@ def cancel_gate(
                     "already_answered",
                     str(receipt_path),
                     "gate decision is already accepted",
+                )
+            if lifecycle.get("disposition") == DISPOSITION_ACCEPTED_OWNER_LOST:
+                record_owner_lost_outcome(
+                    bundle_path,
+                    receipt=facts.receipt,
+                    source=source,
                 )
         cancellation = {
             "schema_version": GATE_RESPONSE_SCHEMA_VERSION,

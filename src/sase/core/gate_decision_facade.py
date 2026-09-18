@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from functools import lru_cache
 from typing import Any
 
 from sase.core.rust import require_rust_binding
@@ -41,6 +42,52 @@ def decide_gate_lifecycle(request: Mapping[str, Any]) -> dict[str, Any]:
     return dict(result)
 
 
+@lru_cache(maxsize=1)
+def gate_lifecycle_supports_post_response_failure() -> bool:
+    """Return whether the installed Rust binding accepts post-response evidence."""
+    binding = require_rust_binding("decide_gate_lifecycle")
+    receipt = {
+        "schema_version": GATE_DECISION_WIRE_SCHEMA_VERSION,
+        "gate_id": "__sase_capability_probe__",
+        "request_hash": "request",
+        "selected_option_ids": ["accept"],
+        "input_identity": "input",
+        "acceptance_id": "acceptance",
+        "source": "probe",
+        "accepted_at_unix": 0.0,
+        "identity_fingerprint": "probe",
+    }
+    failure = {
+        "outcome_id": "outcome",
+        "acceptance_id": "acceptance",
+        "attempt_id": "probe",
+        "stage": "side_effects",
+        "code": "side_effect_failed",
+        "message": "probe",
+        "at_unix": 0.0,
+        "error_record": "errors/probe.json",
+    }
+    request = {
+        "schema_version": GATE_LIFECYCLE_WIRE_SCHEMA_VERSION,
+        "gate_id": "__sase_capability_probe__",
+        "request_hash": "request",
+        "now_unix": 0.0,
+        "grace_seconds": 0.0,
+        "has_response": True,
+        "receipt_unreadable": False,
+        "receipt": receipt,
+        "execution_facts": {"post_response_failure": failure},
+    }
+    try:
+        binding(request)
+    except ValueError as exc:
+        message = str(exc)
+        if "post_response_failure" in message or "unknown field" in message:
+            return False
+        raise
+    return True
+
+
 def claim_gate_decision_execution(request: Mapping[str, Any]) -> dict[str, Any]:
     """Re-own a still-current receipt immediately before executing it.
 
@@ -63,4 +110,5 @@ __all__ = [
     "claim_gate_decision_execution",
     "decide_gate_decision_acceptance",
     "decide_gate_lifecycle",
+    "gate_lifecycle_supports_post_response_failure",
 ]

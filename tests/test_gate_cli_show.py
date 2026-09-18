@@ -232,6 +232,8 @@ def test_show_reports_an_accepted_unfinished_gate_without_changing_status(
     payload = json.loads(capsys.readouterr().out)
     assert payload["status"] == "pending"
     assert payload["acceptance"]["selected_option_ids"] == ["abort"]
+    assert payload["acceptance"]["execution_owner"]["kind"] == "process"
+    assert payload["acceptance"]["owner_liveness"] in {"live", "unknown"}
     assert payload["acceptance"]["execution_error"] is None
 
     assert _run("show", "-i", "show-accepted", "-k", "custom") == 0
@@ -257,7 +259,7 @@ def test_show_reports_an_accepted_failed_gate(
     assert accepted is not None
     append_journal_event(
         gate.bundle_path,
-        attempt_id="",
+        attempt_id="attempt-failed",
         request_hash=str(accepted.receipt["request_hash"]),
         event="attempt_failed",
         stage="command",

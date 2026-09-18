@@ -9,6 +9,9 @@ from pathlib import Path
 from typing import Any
 
 from sase.ace.hooks.processes import is_process_running
+from sase.core.gate_decision_facade import (
+    gate_lifecycle_supports_post_response_failure,
+)
 from sase.core.process_identity import (
     current_boot_time_utc,
     identity_from_previous_boot,
@@ -16,7 +19,10 @@ from sase.core.process_identity import (
     process_identity_token,
 )
 from sase.notification_gates.durability import file_lock
-from sase.notification_gates.journal import current_execution_failure
+from sase.notification_gates.journal import (
+    current_execution_failure,
+    current_gate_execution_failure,
+)
 from sase.notification_gates.models import GateError
 from sase.procs.identity import supervisor_is_alive
 from sase.procs.store import get_proc
@@ -55,11 +61,17 @@ def collect_gate_execution_facts(
     facts: dict[str, Any] = {
         "response_lock_held": _response_lock_is_held(bundle_path),
     }
-    failure = current_execution_failure(
-        bundle_path, receipt, response_exists=response_exists
-    )
-    if failure is not None:
-        facts["current_failure"] = failure.to_wire()
+    if response_exists:
+        if gate_lifecycle_supports_post_response_failure():
+            failure = current_gate_execution_failure(
+                bundle_path, receipt, response_exists=True
+            )
+            if failure is not None:
+                facts["post_response_failure"] = failure.to_wire()
+    else:
+        failure = current_execution_failure(bundle_path, receipt, response_exists=False)
+        if failure is not None:
+            facts["current_failure"] = failure.to_wire()
 
     if receipt is None:
         return facts

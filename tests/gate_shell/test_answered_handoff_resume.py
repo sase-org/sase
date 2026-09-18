@@ -139,7 +139,7 @@ def test_answered_resume_reruns_side_effects_then_tracks_the_follow_up_stage(
     receipt = read_current_receipt(gate.bundle_path)
     append_journal_event(
         gate.bundle_path,
-        attempt_id="",
+        attempt_id="side-effects-attempt",
         request_hash="",
         event="attempt_failed",
         stage="side_effects",

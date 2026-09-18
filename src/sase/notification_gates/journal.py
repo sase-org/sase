@@ -195,6 +195,9 @@ def append_journal_event(
     message: str | None = None,
     outcome_id: str | None = None,
     error_record: str | None = None,
+    superseded_by_acceptance_id: str | None = None,
+    owner_lost: bool | None = None,
+    owner_liveness: str | None = None,
 ) -> None:
     """Append one attempt-boundary record; never raises into the caller's path."""
     record: dict[str, Any] = {
@@ -212,6 +215,9 @@ def append_journal_event(
         "message": message,
         "outcome_id": outcome_id,
         "error_record": error_record,
+        "superseded_by_acceptance_id": superseded_by_acceptance_id,
+        "owner_lost": owner_lost,
+        "owner_liveness": owner_liveness,
         "at_unix": time.time(),
     }
     if selected_option_ids is not None:
@@ -229,6 +235,78 @@ def append_journal_event(
     finally:
         os.close(fd)
     fsync_dir(path.parent)
+
+
+def append_journal_event_once(
+    bundle_path: Path,
+    *,
+    event: str,
+    acceptance_id: str | None,
+    attempt_id: str,
+    request_hash: str,
+    option_id: str | None = None,
+    operation_id: str | None = None,
+    input_digest: str | None = None,
+    result_digest: str | None = None,
+    result: object | None = None,
+    selected_option_ids: Sequence[str] | None = None,
+    input_digests: Mapping[str, str] | None = None,
+    code: str | None = None,
+    stage: str | None = None,
+    message: str | None = None,
+    outcome_id: str | None = None,
+    error_record: str | None = None,
+    superseded_by_acceptance_id: str | None = None,
+    owner_lost: bool | None = None,
+    owner_liveness: str | None = None,
+) -> bool:
+    """Append *event* unless the same transition is already journaled.
+
+    Transition events are keyed by their name plus the receipt acceptance id
+    they close out. ``decision_superseded`` also keys on the replacement
+    acceptance id so one old receipt cannot be recorded as superseded by two
+    different decisions without being visible in the journal.
+    """
+    for record in read_journal_records(bundle_path):
+        if record.get("event") != event:
+            continue
+        if _event_acceptance_id(record) != acceptance_id:
+            continue
+        if (
+            event == "decision_superseded"
+            and record.get("superseded_by_acceptance_id") != superseded_by_acceptance_id
+        ):
+            continue
+        append_needed = False
+        break
+    else:
+        append_needed = True
+
+    if not append_needed:
+        return False
+    append_journal_event(
+        bundle_path,
+        attempt_id=attempt_id,
+        request_hash=request_hash,
+        event=event,
+        option_id=option_id,
+        operation_id=operation_id,
+        input_digest=input_digest,
+        result_digest=result_digest,
+        result=result,
+        selected_option_ids=selected_option_ids,
+        input_digests=input_digests,
+        code=code,
+        acceptance_id=acceptance_id,
+        stage=stage,
+        message=message,
+        outcome_id=outcome_id,
+        error_record=error_record,
+        superseded_by_acceptance_id=superseded_by_acceptance_id,
+        owner_lost=owner_lost,
+        owner_liveness=owner_liveness,
+    )
+    return True
 
 
 def read_journal_records(bundle_path: Path) -> tuple[dict[str, Any], ...]:
@@ -476,6 +554,7 @@ __all__ = [
     "ExecutionFailureFacts",
     "IncompleteAttempt",
     "append_journal_event",
+    "append_journal_event_once",
     "current_execution_stage",
     "current_execution_failure",
     "current_gate_execution_failure",

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import socket
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -31,9 +32,11 @@ from sase.notification_gates.durability import atomic_write_json
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.failure_notifications import GATE_EXECUTION_FAILED_ACTION
 from sase.notification_gates.journal import append_journal_event
+from sase.notification_gates.journal import read_journal_records
 from sase.notification_gates.models import GateError
 from sase.notification_gates.poller import poll_gate
 from sase.notification_gates.service import create_gate
+from sase.core.process_identity import process_identity_token
 from sase.notifications.store import load_notifications
 from tests._notification_gates_fixtures import custom_gate_spec, gate_spec
 
@@ -214,7 +217,7 @@ def test_conflicting_selection_supersedes_after_current_failure(
 
     append_journal_event(
         result.bundle_path,
-        attempt_id="",
+        attempt_id="attempt-failed",
         request_hash=str(accepted.receipt["request_hash"]),
         event="attempt_failed",
         stage="command",
@@ -231,6 +234,26 @@ def test_conflicting_selection_supersedes_after_current_failure(
     assert superseded.receipt["selected_option_ids"] == ["audit"]
     assert superseded.receipt["acceptance_id"] != acceptance_id
 
+    events = read_journal_records(result.bundle_path)
+    superseded_events = [
+        record for record in events if record["event"] == "decision_superseded"
+    ]
+    assert len(superseded_events) == 1
+    assert superseded_events[0]["acceptance_id"] == acceptance_id
+    assert (
+        superseded_events[0]["superseded_by_acceptance_id"]
+        == superseded.receipt["acceptance_id"]
+    )
+
+    replay = accept_gate_decision(result.bundle_path, ["audit"], {})
+    assert replay is not None
+    assert replay.already_accepted is True
+    assert [
+        record
+        for record in read_journal_records(result.bundle_path)
+        if record["event"] == "decision_superseded"
+    ] == superseded_events
+
 
 def test_cancel_is_permitted_after_current_failure(gate_home: Path) -> None:
     result = create_gate(gate_spec(request_id="cancel-after-failure"))
@@ -240,7 +263,7 @@ def test_cancel_is_permitted_after_current_failure(gate_home: Path) -> None:
 
     append_journal_event(
         result.bundle_path,
-        attempt_id="",
+        attempt_id="attempt-failed",
         request_hash=str(accepted.receipt["request_hash"]),
         event="attempt_failed",
         stage="command",
@@ -277,6 +300,16 @@ def test_conflicting_selection_supersedes_after_dead_process_owner(
     assert superseded.already_accepted is False
     assert superseded.receipt["selected_option_ids"] == ["audit"]
 
+    events = read_journal_records(result.bundle_path)
+    owner_lost = [record for record in events if record["event"] == "owner_lost"]
+    decision_superseded = [
+        record for record in events if record["event"] == "decision_superseded"
+    ]
+    assert len(owner_lost) == 1
+    assert owner_lost[0]["acceptance_id"] == accepted.receipt["acceptance_id"]
+    assert len(decision_superseded) == 1
+    assert decision_superseded[0]["owner_lost"] is True
+
 
 def test_poll_gate_records_dead_owner_as_failed_execution(gate_home: Path) -> None:
     result = create_gate(gate_spec(request_id="dead-owner-poll"))
@@ -307,6 +340,107 @@ def test_poll_gate_records_dead_owner_as_failed_execution(gate_home: Path) -> No
     ]
     assert len(failures) == 1
     assert failures[0].action_data["request_id"] == "dead-owner-poll"
+
+    # A later poll republishes/reuses the current failure but does not append
+    # another owner-loss transition.
+    assert poll_gate(result.bundle_path).status == "failed"
+    events = read_journal_records(result.bundle_path)
+    assert len([record for record in events if record["event"] == "owner_lost"]) == 1
+    assert (
+        len(
+            [
+                record
+                for record in events
+                if record["event"] == "attempt_failed"
+                and record.get("code") == "execution_owner_lost"
+            ]
+        )
+        == 1
+    )
+
+
+def test_simultaneous_owner_loss_pollers_journal_once(gate_home: Path) -> None:
+    result = create_gate(gate_spec(request_id="dead-owner-poll-race"))
+    accepted = accept_gate_decision(result.bundle_path, ["accept"], {})
+    assert accepted is not None
+
+    receipt_path = result.bundle_path / DECISION_RECEIPT_FILENAME
+    receipt = dict(accepted.receipt)
+    receipt["execution_owner"] = {
+        "kind": "process",
+        "host": socket.gethostname(),
+        "pid": 999_999_999,
+        "identity_token": "previous-boot:1",
+    }
+    atomic_write_json(receipt_path, receipt)
+
+    start = threading.Barrier(2)
+    results: list[str | None] = []
+    lock = threading.Lock()
+
+    def _poll() -> None:
+        start.wait(timeout=5)
+        polled = poll_gate(result.bundle_path)
+        with lock:
+            results.append(None if polled is None else polled.status)
+
+    threads = [threading.Thread(target=_poll) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5)
+
+    assert results == ["failed", "failed"]
+    events = read_journal_records(result.bundle_path)
+    assert len([record for record in events if record["event"] == "owner_lost"]) == 1
+    assert (
+        len(
+            [
+                record
+                for record in events
+                if record["event"] == "attempt_failed"
+                and record.get("code") == "execution_owner_lost"
+            ]
+        )
+        == 1
+    )
+
+
+def test_poll_gate_records_sigkilled_process_owner_once(gate_home: Path) -> None:
+    result = create_gate(gate_spec(request_id="sigkill-owner-poll"))
+    accepted = accept_gate_decision(result.bundle_path, ["accept"], {})
+    assert accepted is not None
+
+    proc = subprocess.Popen(["sleep", "30"])
+    try:
+        identity_token = process_identity_token(proc.pid)
+        receipt_path = result.bundle_path / DECISION_RECEIPT_FILENAME
+        receipt = dict(accepted.receipt)
+        owner: dict[str, object] = {
+            "kind": "process",
+            "host": socket.gethostname(),
+            "pid": proc.pid,
+        }
+        if identity_token:
+            owner["identity_token"] = identity_token
+        receipt["execution_owner"] = owner
+        atomic_write_json(receipt_path, receipt)
+
+        proc.kill()
+        proc.wait(timeout=5)
+
+        polled = poll_gate(result.bundle_path)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait(timeout=5)
+
+    assert polled is not None
+    assert polled.status == "failed"
+    assert polled.failure is not None
+    assert polled.failure["code"] == "execution_owner_lost"
+    events = read_journal_records(result.bundle_path)
+    assert len([record for record in events if record["event"] == "owner_lost"]) == 1
 
 
 def test_racing_conflicting_submissions_exactly_one_wins(gate_home: Path) -> None:

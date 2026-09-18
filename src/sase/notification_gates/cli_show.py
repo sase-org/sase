@@ -169,15 +169,22 @@ def _acceptance_payload(
     errors, _count, _artifact = error_artifacts(bundle_root / "errors")
     latest_error = errors[0] if errors else None
     current_failure = None
+    outcome_failure = outcome.get("failure")
+    if isinstance(outcome_failure, Mapping):
+        current_failure = dict(outcome_failure)
     if isinstance(facts.execution_facts, Mapping):
-        raw_failure = facts.execution_facts.get("current_failure")
-        if isinstance(raw_failure, Mapping):
-            current_failure = dict(raw_failure)
+        for key in ("current_failure", "post_response_failure"):
+            raw_failure = facts.execution_facts.get(key)
+            if current_failure is None and isinstance(raw_failure, Mapping):
+                current_failure = dict(raw_failure)
     return {
         "can_cancel": bool(outcome.get("can_cancel")),
         "can_supersede": bool(outcome.get("can_supersede")),
         "disposition": disposition,
+        "execution_owner": receipt.get("execution_owner"),
         "reason": outcome.get("reason"),
+        "owner_liveness": outcome.get("owner_liveness"),
+        "owner_loss": outcome.get("owner_loss"),
         "selected_option_ids": receipt.get("selected_option_ids", []),
         "source": receipt.get("source"),
         "accepted_at_unix": receipt.get("accepted_at_unix"),
@@ -380,6 +387,12 @@ def _print_acceptance(console: Console, acceptance: Mapping[str, Any]) -> None:
         ),
         soft_wrap=True,
     )
+    owner_liveness = acceptance.get("owner_liveness")
+    if owner_liveness:
+        console.print(
+            Text(f"  owner liveness: {owner_liveness}", style="dim"),
+            soft_wrap=True,
+        )
     failure = acceptance.get("execution_failure")
     if isinstance(failure, Mapping):
         console.print(

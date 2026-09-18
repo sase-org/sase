@@ -64,6 +64,7 @@ from sase.notification_gates.failure_notifications import (
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.input_bounds import check_input_bounds
 from sase.notification_gates.journal import value_digest
+from sase.notification_gates.journal import append_journal_event_once
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import (
     CANCELLATION_FILENAME,
@@ -202,6 +203,13 @@ def accept_gate_decision(
         if not already_accepted:
             if outcome["status"] == "superseded":
                 atomic_write_json(receipt_path, receipt, exclusive=False)
+                _journal_decision_superseded(
+                    bundle_path,
+                    existing_receipt=existing_receipt,
+                    replacement_receipt=receipt,
+                    outcome=outcome,
+                    execution_facts=request.get("execution_facts"),
+                )
                 dismiss_gate_execution_failed(
                     bundle_path=bundle_path,
                     envelope=envelope,
@@ -299,6 +307,69 @@ def receipt_acceptance_id(receipt: Mapping[str, Any] | None) -> str | None:
         return None
     value = receipt.get("acceptance_id")
     return value if isinstance(value, str) else None
+
+
+def _journal_decision_superseded(
+    bundle_path: Path,
+    *,
+    existing_receipt: Mapping[str, Any] | None,
+    replacement_receipt: Mapping[str, Any],
+    outcome: Mapping[str, Any],
+    execution_facts: object,
+) -> None:
+    if existing_receipt is None:
+        return
+    superseded_receipt = outcome.get("superseded_receipt")
+    if not isinstance(superseded_receipt, Mapping):
+        superseded_receipt = existing_receipt
+    old_acceptance_id = receipt_acceptance_id(superseded_receipt)
+    new_acceptance_id = receipt_acceptance_id(replacement_receipt)
+    if old_acceptance_id is None:
+        return
+    request_hash = str(superseded_receipt.get("request_hash") or "")
+    owner_liveness = outcome.get("owner_liveness")
+    owner_liveness_text = owner_liveness if isinstance(owner_liveness, str) else None
+    owner_lost = bool(outcome.get("owner_lost")) or _facts_show_dead_owner(
+        execution_facts
+    )
+    append_journal_event_once(
+        bundle_path,
+        event="decision_superseded",
+        acceptance_id=old_acceptance_id,
+        attempt_id="",
+        request_hash=request_hash,
+        superseded_by_acceptance_id=new_acceptance_id,
+        owner_lost=owner_lost,
+        owner_liveness=owner_liveness_text,
+    )
+    if owner_lost:
+        append_journal_event_once(
+            bundle_path,
+            event="owner_lost",
+            acceptance_id=old_acceptance_id,
+            attempt_id="",
+            request_hash=request_hash,
+            code="execution_owner_lost",
+            stage="command",
+            message="gate execution owner appears to have stopped",
+            superseded_by_acceptance_id=new_acceptance_id,
+            owner_lost=True,
+            owner_liveness=owner_liveness_text or "dead",
+        )
+
+
+def _facts_show_dead_owner(execution_facts: object) -> bool:
+    if not isinstance(execution_facts, Mapping):
+        return False
+    if execution_facts.get("owner_pid_running") is False:
+        return True
+    if execution_facts.get("owner_identity_matches") is False:
+        return True
+    if execution_facts.get("legacy_proc_status") in {"missing", "error", "killed"}:
+        return True
+    if execution_facts.get("legacy_proc_supervisor_alive") is False:
+        return True
+    return False
 
 
 def _policy_gate_error(exc: ValueError, target: str) -> GateError:
