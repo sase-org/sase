@@ -60,7 +60,11 @@ from tests._tmp_leak_guard import (
 # node IDs through a nested pytest subprocess. The imports above expose the
 # split fixture modules to pytest while preserving existing direct imports
 # from ``tests.conftest``.
-pytest_plugins = ["pytester", "tests._config_reader_probe"]
+pytest_plugins = [
+    "pytester",
+    "tests._config_reader_probe",
+    "tests._visual_capture_plugin",
+]
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _HYPOTHESIS_LOCAL_CONSTANTS_ORIGINAL: object | None = None

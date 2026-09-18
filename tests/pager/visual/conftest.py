@@ -14,6 +14,7 @@ import time
 
 import pytest
 
+from tests._visual_capture_plugin import capture_session_from_config
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
 from tests.ace.tui.visual.renderer_env import assert_renderer_environment
 
@@ -74,4 +75,5 @@ def pager_png_visual(request: pytest.FixtureRequest) -> AcePngSnapshotFixture:
         test_file=test_file,
         test_line=test_line,
         repo_root=repo_root,
+        capture_session=capture_session_from_config(request.config),
     )

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.visual_render import _bundled_fonts_dir, render_svg_to_png
@@ -41,6 +41,7 @@ __all__ = [
     "PNG_MAX_MATERIAL_DIFF_PIXELS_ENV",
     "AcePngSnapshotFixture",
     "PngDiffSummary",
+    "SnapshotCaptureSession",
     "SvgExporter",
     "assert_png_matches",
     "bundled_fonts_dir",
@@ -65,6 +66,29 @@ class SvgExporter(Protocol):
     ) -> str: ...
 
 
+@runtime_checkable
+class SnapshotCaptureSession(Protocol):
+    """Optional candidate-capture session used by fixture-driven snapshots."""
+
+    def owns_root(self, snapshot_root: Path) -> bool: ...
+
+    def record_capture(
+        self,
+        *,
+        name: str,
+        png_bytes: bytes,
+        snapshot_root: Path,
+        node_id: str,
+        source_svg: str | None = None,
+        test_file: str | None = None,
+        test_line: int | None = None,
+        max_diff_pixels: int | None = None,
+        max_diff_ratio: float | None = None,
+        material_diff_threshold: int | None = None,
+        max_material_diff_pixels: int | None = None,
+    ) -> object: ...
+
+
 @dataclass(frozen=True)
 class AcePngSnapshotFixture:
     """Assert ACE PNG captures against committed golden snapshots."""
@@ -76,6 +100,7 @@ class AcePngSnapshotFixture:
     test_file: str | None = None
     test_line: int | None = None
     repo_root: Path | None = None
+    capture_session: SnapshotCaptureSession | None = None
 
     def assert_page_png(
         self,
@@ -130,7 +155,28 @@ class AcePngSnapshotFixture:
         material_diff_threshold: int | None = None,
         max_material_diff_pixels: int | None = None,
     ) -> None:
-        """Assert that *png_bytes* matches the named golden."""
+        """Assert that *png_bytes* matches the named golden.
+
+        When a capture session owns this fixture's snapshot root, write the
+        candidate into that session instead of comparing or updating goldens.
+        Direct ``assert_png_matches`` calls never enter capture mode.
+        """
+        session = self.capture_session
+        if session is not None and session.owns_root(self.snapshot_root):
+            session.record_capture(
+                name=name,
+                png_bytes=png_bytes,
+                snapshot_root=self.snapshot_root,
+                node_id=self.node_id,
+                source_svg=source_svg,
+                test_file=self.test_file,
+                test_line=self.test_line,
+                max_diff_pixels=max_diff_pixels,
+                max_diff_ratio=max_diff_ratio,
+                material_diff_threshold=material_diff_threshold,
+                max_material_diff_pixels=max_material_diff_pixels,
+            )
+            return
         assert_png_matches(
             name,
             png_bytes,
