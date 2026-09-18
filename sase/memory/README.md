@@ -116,8 +116,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Kind: memory web descriptor
 - Description: Architectural decision records — accepted choices, their rejected
   alternatives, and what would reopen them.
-- Lines: 64
-- Approx. tokens: 925
+- Lines: 68
+- Approx. tokens: 935
 
 ### `sase/memory/glossary.md`
 
@@ -158,8 +158,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: If you changed any file tracked by git in the sase repo (excluding file
   changes in the separate repos contained in the sase/repos/ directory), you MUST read
   this note before you finish your turn.
-- Lines: 66
-- Approx. tokens: 865
+- Lines: 69
+- Approx. tokens: 888
 
 ### `sase/memory/sase_artifacts.md`
 
@@ -209,15 +209,33 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Lines: 105
 - Approx. tokens: 1253
 
-### `sase/memory/tui_perf.md`
+### `sase/memory/tui.md`
 
 - Type: `reference`
 - Parent: `AGENTS.md`
+- Description: Read before changing the SASE TUI, its live screenshot tooling, visual
+  snapshots, or performance-sensitive UI paths.
+- Lines: 17
+- Approx. tokens: 110
+
+### `sase/memory/tui_perf.md`
+
+- Type: `reference`
+- Parent: `sase/memory/tui.md`
 - Description: Read before changing anything that affects TUI performance or
   responsiveness (navigation, refresh, rendering, startup), and before diagnosing TUI
   freezes or stalls.
 - Lines: 103
-- Approx. tokens: 1649
+- Approx. tokens: 1651
+
+### `sase/memory/tui_screenshot.md`
+
+- Type: `reference`
+- Parent: `sase/memory/tui.md`
+- Description: Read before using or changing `sase screenshot`, live TUI SVG export, or
+  TUI PNG visual snapshot capture.
+- Lines: 46
+- Approx. tokens: 585
 
 ### `sase/memory/xprompts.md`
 
@@ -230,12 +248,12 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 
 ## Statistics
 
-- Total notes: 16
+- Total notes: 18
 - Core notes: 3
-- Reference notes: 10
+- Reference notes: 12
 - Web descriptor notes: 3
-- Total lines: 1113
-- Total approx. tokens: 14408
+- Total lines: 1183
+- Total approx. tokens: 15138
 
 ## Commands
 

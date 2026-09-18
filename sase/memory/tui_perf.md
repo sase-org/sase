@@ -1,6 +1,6 @@
 ---
 type: reference
-parent: AGENTS.md
+parent: sase/memory/tui.md
 description:
   Read before changing anything that affects TUI performance or responsiveness
   (navigation, refresh, rendering, startup), and before diagnosing TUI freezes or

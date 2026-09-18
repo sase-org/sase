@@ -64,3 +64,6 @@ for actual/expected/diff/source artifacts, and use `--sase-update-visual-snapsho
 accept intentional visual changes. Local runs use exact pixel equality by default, while
 CI allows a small ratio-only renderer drift tolerance; the visual fixtures pin color and
 fontconfig/Fira Code to keep rendering deterministic.
+
+For live TUI screenshots outside the visual snapshot harness, read
+[[tui_screenshot.md]].

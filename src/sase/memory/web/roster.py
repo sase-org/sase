@@ -77,6 +77,22 @@ def _inline_entry(
     return f"{entry} {format_inline_roster_supersession_suffix(supersession)}"
 
 
+def _list_entry(
+    number: int, keyword: str, slug: str, detail: str, *, width: int
+) -> str:
+    prefix = f"{number}. **{keyword}** (`{slug}`)"
+    inline = f"{prefix} - {detail}".rstrip()
+    if "\n" not in wrap_markdown(inline, width=width):
+        return inline
+
+    if "\n" in wrap_markdown(prefix, width=width):
+        return wrap_markdown(inline, width=width)
+
+    detail_prefix = " " * len(f"{number}. ")
+    detail_lines = wrap_markdown(f"{detail_prefix}- {detail}", width=width)
+    return f"{prefix}\n{detail_lines}"
+
+
 def render_strand_roster(web: MemoryWeb) -> str:
     """Render the managed roster payload for *web*."""
 
@@ -100,15 +116,13 @@ def render_strand_roster(web: MemoryWeb) -> str:
         summary = strand.summary or ""
         supersession = parse_strand_supersession(strand)
         if supersession is None:
-            bullet = (
-                f"{number}. **{strand.keyword}** (`{strand.slug}`) - {summary}"
-            ).rstrip()
+            detail = summary
         else:
             marker = format_roster_supersession_marker(supersession, web_slug=web.slug)
-            bullet = (
-                f"{number}. **{strand.keyword}** (`{strand.slug}`) - {marker} {summary}"
-            ).rstrip()
-        lines.append(wrap_markdown(bullet, width=width))
+            detail = f"{marker} {summary}"
+        lines.append(
+            _list_entry(number, strand.keyword, strand.slug, detail, width=width)
+        )
     return "\n".join(lines)
 
 

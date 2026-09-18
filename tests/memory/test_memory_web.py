@@ -447,8 +447,38 @@ def test_roster_wraps_long_list_entries_to_the_configured_prose_width(
     assert content is not None
     width = markdown_print_width()
     assert all(len(line) <= width for line in content.splitlines())
-    assert "1. **Alpha Term** (`alpha`) - This decision summary" in content
-    assert "\n   round-tripping as one unwrapped line." in content
+    assert "1. **Alpha Term** (`alpha`)\n   - This decision summary" in content
+    assert "\n     one unwrapped line." in content
+
+
+def test_roster_wraps_two_digit_list_entries_with_matching_indent(
+    tmp_path: Path,
+) -> None:
+    long_summary = (
+        "summary: This summary is long enough to force the roster renderer onto a "
+        "nested detail line.\n"
+    )
+    body = f"Intro.\n\n{START_MARKER}\n{END_MARKER}\n"
+    _write(
+        tmp_path / "sase" / "memory" / "terms.md", _descriptor(roster="list", body=body)
+    )
+    for number in range(1, 11):
+        _write(
+            tmp_path / "sase" / "memory" / "terms" / f"term-{number:02}.md",
+            _strand(
+                keyword=f"Term {number:02}",
+                aliases="",
+                summary=long_summary,
+            ),
+        )
+
+    (web,) = discover_memory_webs(tmp_path).webs
+    content, error = render_web_descriptor_with_roster(web)
+
+    assert error is None
+    assert content is not None
+    assert "9. **Term 09** (`term-09`)\n   - This summary" in content
+    assert "10. **Term 10** (`term-10`)\n    - This summary" in content
 
 
 def test_roster_marker_validation_blocks_unbalanced_or_duplicate_regions(
