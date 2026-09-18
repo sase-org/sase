@@ -226,6 +226,26 @@ def ownership_context_for_commit(context: BeadOperationContext | None) -> Any | 
     return None if context is None else context.ownership_context
 
 
+def symbol_scan_start_for_operation_context(
+    context: BeadOperationContext | None,
+) -> Path | None:
+    """Return the checkout root whose Justfile should be scanned for symbols.
+
+    Target routing may choose an owner's canonical bead store while the
+    invocation came from a numbered checkout for the same project. In that
+    same-project case the implementing checkout's Justfile is authoritative;
+    foreign-project targets and non-checkout invocations fall back to the
+    routed owner's primary workspace.
+    """
+
+    if context is None:
+        return None
+    local_checkout = _same_project_invocation_checkout(context)
+    if local_checkout is not None:
+        return local_checkout
+    return context.primary_workspace
+
+
 def _invocation_cwd(cwd: Path | None) -> Path:
     return (Path.cwd() if cwd is None else cwd).expanduser().resolve()
 
@@ -421,6 +441,43 @@ def _writable_beads_dir_for_context(context: Any | None) -> Path | None:
         ) from exc
 
 
+def _same_project_invocation_checkout(
+    context: BeadOperationContext,
+) -> Path | None:
+    try:
+        from sase.workspace_provider import ownership
+
+        invocation_context = ownership.user_directed_context(cwd=context.invocation_cwd)
+    except Exception:
+        return None
+
+    checkout = getattr(invocation_context, "checkout_dir", None)
+    if checkout is None:
+        return None
+
+    primary = context.primary_workspace
+    invocation_primary = getattr(invocation_context, "primary_checkout_dir", None)
+    if (
+        primary is not None
+        and invocation_primary is not None
+        and _same_path(Path(invocation_primary), Path(primary))
+    ):
+        return Path(checkout)
+
+    routed_refs = {
+        ref
+        for ref in (context.project_key, context.project_label)
+        if isinstance(ref, str) and ref
+    }
+    if not routed_refs:
+        return Path(checkout)
+
+    invocation_project = getattr(invocation_context, "project", None)
+    if isinstance(invocation_project, str) and invocation_project in routed_refs:
+        return Path(checkout)
+    return None
+
+
 def _location_from_beads_dir(beads_dir: Path) -> BeadsLocation:
     beads_dir = beads_dir.expanduser().resolve(strict=False)
     parts = beads_dir.parts
@@ -488,4 +545,5 @@ __all__ = [
     "project_for_operation_context",
     "read_view_for_operation_context",
     "resolve_operation_context_for_targets",
+    "symbol_scan_start_for_operation_context",
 ]

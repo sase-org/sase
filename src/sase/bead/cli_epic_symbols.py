@@ -76,8 +76,6 @@ def _resolve_symbol_bead_context(target_id: str) -> Any:
 
 
 def _symbol_scan_start(context: Any) -> Path | None:
-    project_key = getattr(context, "project_key", None)
-    primary = getattr(context, "primary_workspace", None)
-    if not project_key or primary is None:
-        return None
-    return Path(primary)
+    from sase.bead.operation_context import symbol_scan_start_for_operation_context
+
+    return symbol_scan_start_for_operation_context(context)

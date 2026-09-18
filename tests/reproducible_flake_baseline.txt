@@ -19,36 +19,57 @@
 # out at `RETENTION_DAYS`, not the permanent evidence this directive exists
 # to remove.
 #
-# sase-ob: stop exact == on TemporaryProviderDisable timestamps after the
-# JSON store round-trip. The sibling disable is checked by provider/source/
-# duration and pytest.approx on created_at/expires_at.
-# fixed-at: 2026-08-17T15:40:00Z tests/fakey/test_usage_limit_e2e.py::test_usage_limit_failure_disables_only_fakey_and_preserves_error
+# 2026-09-18 selection-health baseline hygiene from the hold-launch closure
+# branch: these ready flake tasks preserve the current gate evidence while the
+# owning workers root-cause each node.
+# sase-12a
+tests/ace/tui/test_agents_fleet_refresh_laziness.py::test_fleet_refresh_apply_defers_behind_active_navigation
+# sase-12b
+tests/ace/tui/test_commits_pane_rendering.py::test_commits_renderer_builds_compact_single_line_rows
+# sase-12c
+tests/ace/tui/test_feature_flags_pane.py::test_confirmed_toggle_restarts_axe_and_suppresses_duplicates
+# sase-12d
+tests/ace/tui/test_visual_fixture_host_paths.py::test_visual_fixtures_embed_no_host_home_paths
+# sase-12e
+tests/completion/test_build.py::test_mutex_groups_found
+# sase-12f
+tests/fakey/test_monitor_capacity_e2e.py::test_weight_two_land_family_retains_one_claim_through_real_dispatch_and_delayed_child_bootstrap
+# sase-120
+tests/sdd/test_git_identity_fixture.py::test_sdd_git_identity_survives_empty_home_subprocess
+# sase-12g
+tests/test_artifact_capture_policy.py::test_capture_config_default_and_schema
+# sase-12h
+tests/test_bead/test_claimed_status.py::test_show_explains_claim_owner
+# sase-121
+tests/test_command_availability_scope.py::test_grouping_cycle_palette_commands_follow_grouping_capability
+# sase-12i
+tests/test_managed_tmp_reaper.py::test_every_literal_managed_tmpdir_bucket_has_a_horizon
+# sase-12j
+tests/test_suite_gate_lease.py::test_default_automatic_range_keeps_room_for_a_peer_full_run
+# sase-12k
+tests/test_suite_gate_scoped_integration.py::test_scoped_run_takes_no_token_while_the_pool_is_exhausted
 #
-# sase-mv / sase-ns.6.6.6.1: fixed by 2959d3992 "fix(ace-tui): stop leaked
-# proc-observer threads between tests" (committed 2026-08-17T15:32:01Z). This
-# retires the still-collectable tests/test_config_cache.py pre-fix evidence
-# that the c715bacbc file split left uncovered by the sase-nv block above.
-# test_clear_config_cache_forces_reload carried a fixed-at entry in the
-# sase-nv block too; a node may have only one fixed-at entry, and this later
-# instant is a strict superset of that earlier retirement, so the sase-nv
-# line was removed rather than duplicated.
-# fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_selector_change_eventually_invalidates_merged_config
-# fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_load_merged_config_caches_plugin_layer
-# fixed-at: 2026-08-17T15:32:01Z tests/test_config_cache.py::test_drain_config_token_refresh_joins_worker_and_advances_epoch
-#
-# sase-ng.1.1: fixed by 13e9ccbc9 "fix(agent): consume force-reuse plans on
-# the durable launch path" (committed 2026-08-17T20:21:41Z). The unauthorized
-# path never builds a force-reuse plan, so launch_query calls
-# launch_agents_from_cwd without segment_extra_env at all; the two seam tests
-# had asserted the keyword was passed as None. This retires the pre-fix
-# evidence three workspaces recorded against the sase-ng.1 epic's own trees.
-# fixed-at: 2026-08-17T20:21:41Z tests/test_force_reuse_launch_seam.py::test_plain_sase_run_without_request_sidecar_still_rejects_forced_reuse
-# fixed-at: 2026-08-17T20:21:41Z tests/test_force_reuse_launch_seam.py::test_sidecar_without_authorization_still_rejects_forced_reuse
-#
-# sase-pn: fixed by cbed33584 "fix(amd): move the Tier 2 reference-material
-# paragraph under Long-Term Memory Files" (committed 2026-08-18T11:39:40Z),
-# which made the assertion wrap-tolerant via ' '.join(tier2.split()).
-# fixed-at: 2026-08-18T11:39:40Z tests/main/test_init_memory_glossary.py::test_memory_plan_renders_glossary_terms_block_in_tier2
+# Existing exact-node CI tasks now pass on current source; retire their
+# pre-fix full-run records instead of keeping them as live flakes.
+# sase-10s: fixed by d2687b6799, which moved the reviewed dismissed-save audit
+# context to _agent_cleanup.py; focused audit rerun passed in this branch.
+# fixed-at: 2026-09-14T12:28:52Z tests/test_agent_artifact_dismissed_save_audit.py::test_dismissed_agent_save_sites_are_reviewed
+# fixed-at: 2026-09-14T12:28:52Z tests/test_agent_artifact_dismissed_save_audit.py::test_reviewed_dismissed_agent_save_sites_sync_projection
+# sase-11l.5.1.2.1: branch-local hold-launch fix changed the created_at
+# round-trip assertion to microsecond tolerance; focused rerun and just check
+# passed after the edit.
+# fixed-at: 2026-09-18T05:26:24Z tests/test_agent_hold_service.py::test_rebind_agent_hold_round_trips_and_keeps_created_at
+# sase-11z: fixed by e17d4e0c0 (noted on the task), but stale pre-fix
+# workspaces recorded five later failures through 2026-09-16T19:02:08Z;
+# focused skill-source suite passed in this branch.
+# fixed-at: 2026-09-16T19:02:09Z tests/main/test_init_skills_sources.py::test_shipped_skill_source_is_discoverable_for_all_skill_providers[sase_questions-expected_phrases11]
+# sase-10p: fixed by cb1076e855 moving the known shell done writer to
+# start_runtime.py; focused shell substrate rerun passed in this branch.
+# fixed-at: 2026-09-14T12:36:46Z tests/shells/test_shells_substrate.py::test_shell_done_marker_writers_stamp_finished_at_through_shared_helper
+# sase-10v: fixed by 5024571a32 updating the rust-dev-install assertions for
+# both incremental cache paths; focused Justfile lint rerun passed in this
+# branch.
+# fixed-at: 2026-09-14T13:28:11Z tests/test_justfile_lint.py::test_rust_dev_install_disables_cargo_incremental_cache
 #
 # sase-jb
 tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extremes
@@ -56,12 +77,10 @@ tests/ace/tui/test_logs_pane.py::test_logs_tab_g_and_shift_g_scroll_detail_extre
 tests/test_bead/test_plus_one_presentation.py::test_post_close_plus_one_badge_marker_search_and_json_agree
 # sase-rm.9 (sase-ke, sase-og, sase-r7, sase-rf): snippet-name modal tests
 # wait for the settled verdict or matches instead of pause(0.25) after
-# the 150ms-debounced off-thread collision analysis. Retires the two
-# live baseline nodes and the two sibling nodes that shared the same
-# mechanism.
+# the 150ms-debounced off-thread collision analysis. Retires baseline
+# nodes and siblings that shared the same mechanism.
 # fixed-at: 2026-08-20T19:05:00Z tests/ace/tui/modals/test_snippet_name_modal.py::test_matches_filter_order_and_tab_completion
 # fixed-at: 2026-08-20T19:05:00Z tests/ace/tui/modals/test_snippet_name_modal.py::test_new_trigger_returns_empty_starting_body
-# fixed-at: 2026-08-20T19:05:00Z tests/ace/tui/modals/test_snippet_name_modal.py::test_derived_only_collision_returns_composed_template
 # fixed-at: 2026-08-20T19:05:00Z tests/ace/tui/modals/test_snippet_name_modal.py::test_elsewhere_collision_loads_other_template_but_keeps_destination
 # sase-le
 tests/ace/tui/widgets/test_prompt_panel_header.py::test_family_header_renders_followup_role_attribution
@@ -103,11 +122,6 @@ tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wal
 # sase-rm.10 (sase-qm): the commits interaction test now waits for collection
 # and diff worker completion/callback delivery instead of a generic pause.
 # fixed-at: 2026-08-21T10:03:43Z tests/ace/tui/test_commits_pane_interactions.py::test_commits_pilot_drives_live_filter_bar_detail_copy_and_toggles
-# sase-qo: fixed by b6779c4d6 "fix(tui): keep the Projects highlight when a
-# current-project resolve lands" (committed 2026-08-19T01:29:14Z). One stale
-# pre-fix tree recorded a later failure after this instant; see the baseline
-# header's stale-tree limitation.
-# fixed-at: 2026-08-19T01:29:14Z tests/ace/tui/modals/test_project_inventory_subtabs.py::test_cross_navigation_and_escape_surface_disabled_workspaces
 # sase-n4.5: the epic that added both try_disable_provider and this contention
 # test (665a22ac5) owns the Rust lock-acquire timeout that starves. Two
 # independent failures on unrelated dirty trees -- workspace sase_18 at
@@ -115,16 +129,6 @@ tests/main/test_completion_candidates_contract.py::test_candidates_fast_path_wal
 # passes 3/3 serially at 0e36971e0. When the epic raises or derives that timeout,
 # replace this entry with a `# fixed-at:` line naming the commit.
 tests/test_provider_disable.py::test_facade_try_disable_one_winner_under_process_contention
-#
-# sase-qn.5: fixed by ce5ddf13c "perf(plugins): enforce catalog-scale budgets
-# and keep lazy latest" (committed 2026-08-19T03:02:02Z). Phase sase-qn.2 added
-# _apply_plugin_latest, which rewrote _catalog and _grouped; phase sase-qn.4
-# then added the name-keyed _plugin_entry_by_name map that _entry_by_name reads.
-# Between those two commits the map kept the pre-enrichment entry, so the node
-# failed 3/3 serially rather than intermittently. Every recorded failure is from
-# a tree at 17592d904 or 2633d3c2b, both ancestors of the fix; the node passes
-# 3/3 serially at 0e36971e0.
-# fixed-at: 2026-08-19T03:02:02Z tests/ace/tui/test_plugins_browser_pane_detail.py::test_plugins_pane_lazy_fetches_highlighted_latest_when_flag_on
 #
 # sase-oe: retired by f1914962c "feat(ace): retire Admin Center auto-update
 # plumbing" (committed 2026-08-19T21:03:49Z); the node no longer exists on this

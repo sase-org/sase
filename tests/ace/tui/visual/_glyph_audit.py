@@ -12,11 +12,11 @@ from functools import lru_cache
 
 import pytest
 
-from sase.ace.tui.visual_render import _bundled_fonts_dir, render_svg_to_png
+from tests.ace.tui.visual.png_diff import bundled_fonts_dir, render_svg_to_png
 
 TTFont = pytest.importorskip("fontTools.ttLib").TTFont
 
-FONTS_DIR = _bundled_fonts_dir()
+FONTS_DIR = bundled_fonts_dir()
 
 GLYPH_SVG = (
     '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64">'

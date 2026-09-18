@@ -324,19 +324,22 @@ def reanchor_pending_unit_holds(
         key = _marker_key(root, unit.logical_id)
         if key is None:
             continue
-        record = _hold_record_without_liveness(key)
-        if record is None:
-            continue
-        armer = _bundle_launch_armer(record, root)
-        if armer is None:
-            continue
-        new_armer = dict(armer)
-        new_armer["pid"] = pid
         try:
+            record = _hold_record_without_liveness(key)
+            if record is None:
+                continue
+            armer = _bundle_launch_armer(record, root)
+            if armer is None:
+                continue
+            new_armer = dict(armer)
+            new_armer["pid"] = pid
             rebind_hold(key, new_armer)
-        except LaunchHoldError as exc:
+        except Exception as exc:  # noqa: BLE001 - startup ack must stay best-effort.
             LOGGER.warning(
-                "launch hold coordinator re-anchor failed for %s: %s", key, exc
+                "launch hold coordinator re-anchor failed for unit %s (%s): %s",
+                unit.logical_id,
+                key,
+                exc,
             )
 
 
@@ -357,18 +360,23 @@ def reanchor_dispatched_agent_hold(
     key = _marker_key(root, unit.logical_id)
     if key is None:
         return
-    record = _hold_record_without_liveness(key)
-    if record is None:
-        return
-    armer = _bundle_launch_armer(record, root)
-    if armer is None:
-        return
     try:
+        record = _hold_record_without_liveness(key)
+        if record is None:
+            return
+        armer = _bundle_launch_armer(record, root)
+        if armer is None:
+            return
         rebind_hold(
             key, _runner_anchor_armer(armer, pid=pid, artifacts_dir=artifacts_dir)
         )
-    except LaunchHoldError as exc:
-        LOGGER.warning("launch hold runner re-anchor failed for %s: %s", key, exc)
+    except Exception as exc:  # noqa: BLE001 - receipt persistence must continue.
+        LOGGER.warning(
+            "launch hold runner re-anchor failed for unit %s (%s): %s",
+            unit.logical_id,
+            key,
+            exc,
+        )
 
 
 def release_unit_hold_if_terminal(

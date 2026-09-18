@@ -10,6 +10,10 @@ from sase.bead import cli as bead_cli
 from sase.bead.model import BeadTier, IssueType, Status
 from sase.bead.project import BeadProject
 from sase.main.parser import create_parser
+from tests.test_bead.resolution_test_helpers import (
+    bead_store_snapshot,
+    isolate_bead_store_resolution,
+)
 
 
 def _write_justfile(project_dir: Path, *flags: str) -> None:
@@ -17,6 +21,23 @@ def _write_justfile(project_dir: Path, *flags: str) -> None:
     project_dir.joinpath("Justfile").write_text(
         f"symvision src \\\n        {lines}\n",
         encoding="utf-8",
+    )
+
+
+def _route_to_owner_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    owner: Path,
+    project_name: str,
+    issue_ids: tuple[str, ...],
+) -> None:
+    monkeypatch.setattr(
+        "sase.bead.operation_context._local_location_for_resolution",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "sase.bead.operation_context.enabled_project_store_snapshots",
+        lambda: (bead_store_snapshot(project_name, owner, *issue_ids),),
     )
 
 
@@ -144,3 +165,170 @@ def test_force_close_still_refuses_leftover_epic_symbols(
     assert f'--epic-symbol "{epic.id}(TempSymbol)"' in error
     with BeadProject(project_dir) as project:
         assert project.show(epic.id).status is not Status.CLOSED
+
+
+def test_close_same_project_uses_invocation_checkout_not_stale_primary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner = tmp_path / "owner"
+    caller = tmp_path / "owner_21"
+    with BeadProject.init(owner) as project:
+        issue = project.create("Cleanup", IssueType.PLAN)
+    isolate_bead_store_resolution(monkeypatch, owner, project_name="owner")
+    isolate_bead_store_resolution(
+        monkeypatch,
+        caller,
+        primary=owner,
+        workspace_num=21,
+        project_name="owner",
+    )
+    _route_to_owner_snapshot(
+        monkeypatch,
+        owner=owner,
+        project_name="owner",
+        issue_ids=(issue.id,),
+    )
+    _write_justfile(owner, f'--epic-symbol "{issue.id}(PrimaryStale)"')
+    caller.joinpath("Justfile").write_text("symvision src\n", encoding="utf-8")
+
+    bead_cli.handle_bead_close(create_parser().parse_args(["bead", "close", issue.id]))
+
+    with BeadProject(owner) as project:
+        assert project.show(issue.id).status is Status.CLOSED
+
+
+def test_close_same_project_invocation_checkout_exemption_still_blocks(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    owner = tmp_path / "owner"
+    caller = tmp_path / "owner_21"
+    with BeadProject.init(owner) as project:
+        issue = project.create("Cleanup", IssueType.PLAN)
+    isolate_bead_store_resolution(monkeypatch, owner, project_name="owner")
+    isolate_bead_store_resolution(
+        monkeypatch,
+        caller,
+        primary=owner,
+        workspace_num=21,
+        project_name="owner",
+    )
+    _route_to_owner_snapshot(
+        monkeypatch,
+        owner=owner,
+        project_name="owner",
+        issue_ids=(issue.id,),
+    )
+    _write_justfile(caller, f'--epic-symbol "{issue.id}(ImplementingStale)"')
+
+    with pytest.raises(SystemExit, match="1"):
+        bead_cli.handle_bead_close(
+            create_parser().parse_args(["bead", "close", issue.id])
+        )
+
+    error = capsys.readouterr().err
+    assert "ImplementingStale" in error
+    with BeadProject(owner) as project:
+        assert project.show(issue.id).status is not Status.CLOSED
+
+
+def test_close_foreign_project_ignores_caller_decoy_and_checks_owner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    owner = tmp_path / "owner"
+    caller = tmp_path / "caller"
+    with BeadProject.init(owner) as project:
+        issue = project.create("Cleanup", IssueType.PLAN)
+    isolate_bead_store_resolution(monkeypatch, owner, project_name="owner")
+    isolate_bead_store_resolution(monkeypatch, caller, project_name="caller")
+    _route_to_owner_snapshot(
+        monkeypatch,
+        owner=owner,
+        project_name="owner",
+        issue_ids=(issue.id,),
+    )
+    _write_justfile(owner, f'--epic-symbol "{issue.id}(OwnerStale)"')
+    _write_justfile(caller, f'--epic-symbol "{issue.id}(CallerDecoy)"')
+
+    with pytest.raises(SystemExit, match="1"):
+        bead_cli.handle_bead_close(
+            create_parser().parse_args(["bead", "close", issue.id])
+        )
+
+    error = capsys.readouterr().err
+    assert "OwnerStale" in error
+    assert "CallerDecoy" not in error
+    with BeadProject(owner) as project:
+        assert project.show(issue.id).status is not Status.CLOSED
+
+
+def test_close_same_project_subdirectory_uses_checkout_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    owner = tmp_path / "owner"
+    caller = tmp_path / "owner_21"
+    subdir = caller / "src" / "pkg"
+    with BeadProject.init(owner) as project:
+        issue = project.create("Cleanup", IssueType.PLAN)
+    isolate_bead_store_resolution(monkeypatch, owner, project_name="owner")
+    isolate_bead_store_resolution(
+        monkeypatch,
+        caller,
+        primary=owner,
+        workspace_num=21,
+        project_name="owner",
+    )
+    subdir.mkdir(parents=True)
+    monkeypatch.chdir(subdir)
+    _route_to_owner_snapshot(
+        monkeypatch,
+        owner=owner,
+        project_name="owner",
+        issue_ids=(issue.id,),
+    )
+    _write_justfile(caller, f'--epic-symbol "{issue.id}(NestedCheckoutStale)"')
+
+    with pytest.raises(SystemExit, match="1"):
+        bead_cli.handle_bead_close(
+            create_parser().parse_args(["bead", "close", issue.id])
+        )
+
+    assert "NestedCheckoutStale" in capsys.readouterr().err
+    with BeadProject(owner) as project:
+        assert project.show(issue.id).status is not Status.CLOSED
+
+
+def test_close_without_usable_local_checkout_falls_back_to_owner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    owner = tmp_path / "owner"
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    with BeadProject.init(owner) as project:
+        issue = project.create("Cleanup", IssueType.PLAN)
+    isolate_bead_store_resolution(monkeypatch, owner, project_name="owner")
+    monkeypatch.chdir(outside)
+    _route_to_owner_snapshot(
+        monkeypatch,
+        owner=owner,
+        project_name="owner",
+        issue_ids=(issue.id,),
+    )
+    _write_justfile(owner, f'--epic-symbol "{issue.id}(OwnerFallback)"')
+
+    with pytest.raises(SystemExit, match="1"):
+        bead_cli.handle_bead_close(
+            create_parser().parse_args(["bead", "close", issue.id])
+        )
+
+    assert "OwnerFallback" in capsys.readouterr().err
+    with BeadProject(owner) as project:
+        assert project.show(issue.id).status is not Status.CLOSED

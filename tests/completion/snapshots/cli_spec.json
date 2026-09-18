@@ -11523,7 +11523,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "9fc60d042986936b",
+            "description_digest": "ce92c2b1942e78c9",
             "hidden": false,
             "mutex_groups": [],
             "name": "cancel",
@@ -11542,6 +11542,18 @@
               },
               {
                 "choices": null,
+                "dest": "id",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-i",
+                  "--id"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
                 "dest": "json",
                 "hidden": false,
                 "kind": null,
@@ -11551,6 +11563,18 @@
                   "--json"
                 ],
                 "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "kind",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-k",
+                  "--kind"
+                ],
+                "takes_value": true
               },
               {
                 "choices": null,
@@ -11576,7 +11600,7 @@
                 "is_remainder": false,
                 "kind": null,
                 "metavar": "ID",
-                "nargs": null
+                "nargs": "?"
               }
             ],
             "subcommands": []

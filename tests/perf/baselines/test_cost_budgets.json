@@ -12,7 +12,7 @@
       "count_enforce": "hard",
       "count_limit": 12000,
       "cpu_enforce": "hard",
-      "cpu_limit": 410.0,
+      "cpu_limit": 420.0,
       "enforce": "advisory",
       "limit": 340.0
     },
@@ -20,7 +20,7 @@
       "count_enforce": "hard",
       "count_limit": 2300,
       "cpu_enforce": "hard",
-      "cpu_limit": 63.0,
+      "cpu_limit": 68.0,
       "enforce": "advisory",
       "limit": 52.0
     },
@@ -36,7 +36,7 @@
       "count_enforce": "hard",
       "count_limit": 52000,
       "cpu_enforce": "hard",
-      "cpu_limit": 38.0,
+      "cpu_limit": 39.0,
       "enforce": "advisory",
       "limit": 540.0
     },
@@ -44,7 +44,7 @@
       "count_enforce": "hard",
       "count_limit": 4500,
       "cpu_enforce": "hard",
-      "cpu_limit": 720.0,
+      "cpu_limit": 730.0,
       "enforce": "advisory",
       "limit": 470.0
     },
@@ -81,7 +81,8 @@
     "2026-09-12 count-only recalibration after bead sase-zl.13.10's monitor continuation acceptance gate: `just check-full` passed every lint gate, SASE validation, committed plans, and the whole pytest cost lane (41,069 passed, 14 skipped, 0 failed in 31m58s), then failed three hard count ceilings on recording 20260912T225003Z-1360318.json: causes.ace_settle_pilot.count 8889 > 8600, causes.pilot_pause_delay.count 18045 > 18000, and causes.yaml_load.count 56032 > 56000. `tools/check_test_cost_budgets --suggest --history 8` sampled the 8 retained athena recordings from 2026-09-10T08:37:05Z through 2026-09-12T22:50:03Z (4-14 workers, 40,149-41,083 nodes) and reports count min/median/max: ace_settle_pilot 8058/8509.5/9011, pilot_pause_delay 16383/17286.0/18289, yaml_load 55184/55648.5/56032. Raised only the failing existing hard count limits to the suggested values: ace_settle_pilot.count 8600 -> 12000, pilot_pause_delay.count 18000 -> 23000, and yaml_load.count 56000 -> 71000. Advisory wall limits, CPU limits, RSS budgets, lower suggestions, non-failing count suggestions, and every new cause key the suggestion proposes are left unchanged.",
     "2026-09-15 acceptance recalibration for bead sase-zw.8.7.7 after `just check-full` passed every lint gate, SASE validation, committed plans, and the whole pytest cost lane (41,993 passed, 14 skipped, 0 failed in 21m47s), then failed one hard ceiling on recording 20260915T202219Z-3620701.json: causes.ace_page_enter.cpu 1063.131 against the 1050.000 allowance. `tools/check_test_cost_budgets --suggest --history 8` sampled 8 retained athena recordings from 2026-09-14T19:52:43Z through 2026-09-15T20:22:19Z (4-14 workers, 41,679-42,006 nodes). Existing hard summary/cause suggestions whose retained medians or maxima crossed the committed effective allowance were raised: total_file_cpu_seconds 2600 -> 2700, peak_worker_rss_kib 1700000 -> 1800000, ace_page_enter.cpu 840 -> 910, ace_settle_pilot.cpu 390 -> 410, pilot_pause_delay.cpu 350 -> 360, textual_app_run_test_enter.cpu 690 -> 720, and yaml_load.cpu 21 -> 23. Advisory wall limits, count limits, lower suggestions, and every new cause key the suggestion proposes are left unchanged.",
     "2026-09-16 acceptance recalibration for bead sase-11e.8.5 after `just check-full` passed every lint gate, SASE validation, committed plans, and the whole pytest cost lane (42,117 passed, 12 skipped, 0 failed in 20m58s), then failed one hard ceiling on recording 20260916T093639Z-1189224.json: causes.parser_create.cpu 68.661 against the 56.250 allowance. `tools/check_test_cost_budgets --suggest --history 8` sampled 8 retained athena recordings from 2026-09-15T19:52:45Z through 2026-09-16T09:36:39Z, all with 14 workers and 42,006-42,128 nodes. The retained parser_create CPU min/median/max was 46.564/50.403/68.661 seconds with count 1,996-2,000. Raised only the existing failing hard CPU limit: parser_create.cpu 45 -> 55. Advisory wall limits, count limits, RSS budgets, lower suggestions, and every new cause key the suggestion proposes are left unchanged.",
-    "2026-09-16 afternoon CPU-only recalibration for bead sase-11r.1 after `just check-full` passed every lint gate, SASE validation, committed plans, and the whole pytest cost lane (42,148 passed, 15 skipped, 0 failed in 49m38s), then failed two hard ceilings on recording 20260916T160928Z-2379592.json: summary.total_file_cpu_seconds 3492.865 against the 3375.000 allowance (2700.0 + 25% tolerance), and causes.parser_create.cpu 78.744 against the 68.750 allowance (55.0 + 25% tolerance). `tools/check_test_cost_budgets --suggest --history 8` sampled 8 retained athena recordings from 2026-09-15T19:57:29Z through 2026-09-16T16:09:28Z (8-14 workers, 42,006-42,162 nodes) and reports total_file_cpu min/median/max = 2991.793/3122.683/3492.865 and causes.parser_create.cpu min/median/max = 46.564/50.403/78.744 with count 1,996-2,000. Raised only the existing failing hard CPU limits to the suggested values: total_file_cpu_seconds 2700 -> 2800, and parser_create.cpu 55 -> 63. Advisory wall limits, count limits, RSS budgets, lower suggestions, and every new cause key the suggestion proposes are left unchanged. This gate failed twice within the same day purely from organic suite growth across unrelated concurrently landing epics, not from this phase's starter-race fix."
+    "2026-09-16 afternoon CPU-only recalibration for bead sase-11r.1 after `just check-full` passed every lint gate, SASE validation, committed plans, and the whole pytest cost lane (42,148 passed, 15 skipped, 0 failed in 49m38s), then failed two hard ceilings on recording 20260916T160928Z-2379592.json: summary.total_file_cpu_seconds 3492.865 against the 3375.000 allowance (2700.0 + 25% tolerance), and causes.parser_create.cpu 78.744 against the 68.750 allowance (55.0 + 25% tolerance). `tools/check_test_cost_budgets --suggest --history 8` sampled 8 retained athena recordings from 2026-09-15T19:57:29Z through 2026-09-16T16:09:28Z (8-14 workers, 42,006-42,162 nodes) and reports total_file_cpu min/median/max = 2991.793/3122.683/3492.865 and causes.parser_create.cpu min/median/max = 46.564/50.403/78.744 with count 1,996-2,000. Raised only the existing failing hard CPU limits to the suggested values: total_file_cpu_seconds 2700 -> 2800, and parser_create.cpu 55 -> 63. Advisory wall limits, count limits, RSS budgets, lower suggestions, and every new cause key the suggestion proposes are left unchanged. This gate failed twice within the same day purely from organic suite growth across unrelated concurrently landing epics, not from this phase's starter-race fix.",
+    "2026-09-18 CPU-only recalibration while landing bead sase-11l.5.1.2.1: `just check-full` passed every lint gate, SASE validation, committed plans, and the whole pytest cost lane (42,634 passed, 15 skipped, 0 failed in 2h13m36s), then failed hard CPU ceilings on recording 20260918T025847Z-3409454.json: summary.total_file_cpu_seconds 3786.843 against the 3500.000 allowance, causes.ace_settle_pilot.cpu 512.996 against 512.500, causes.parser_create.cpu 84.554 against 78.750, and causes.textual_app_run_test_enter.cpu 904.450 against 900.000. `tools/check_test_cost_budgets --suggest --history 8` sampled 8 retained athena recordings from 2026-09-16T16:09:28Z through 2026-09-18T02:58:47Z (4-14 workers, 42,159-42,648 nodes) and reports total_file_cpu min/median/max = 3257.191/3510.857/3786.843; ace_settle_pilot.cpu = 454.696/492.650/514.980; parser_create.cpu = 68.922/78.241/84.554; subprocess_run.cpu = 37.897/41.000/48.072; textual_app_run_test_enter.cpu = 811.432/855.872/904.450. Raised only existing hard CPU limits whose suggested values exceed the committed file: total_file_cpu_seconds 2800 -> 3100, ace_settle_pilot.cpu 410 -> 420, parser_create.cpu 63 -> 68, subprocess_run.cpu 38 -> 39, and textual_app_run_test_enter.cpu 720 -> 730. Advisory wall limits, count limits, RSS budgets, lower suggestions, and every new suggested key are left unchanged."
   ],
   "schema": 1,
   "summary": {
@@ -105,7 +106,7 @@
     },
     "total_file_cpu_seconds": {
       "enforce": "hard",
-      "limit": 2800.0
+      "limit": 3100.0
     },
     "total_file_wall_seconds": {
       "enforce": "advisory",

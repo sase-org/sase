@@ -19,6 +19,23 @@ from tests.test_bead.resolution_test_helpers import (
 )
 
 
+def _route_to_owner_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    owner: Path,
+    project_name: str,
+    issue_ids: tuple[str, ...],
+) -> None:
+    monkeypatch.setattr(
+        "sase.bead.operation_context._local_location_for_resolution",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        "sase.bead.operation_context.enabled_project_store_snapshots",
+        lambda: (bead_store_snapshot(project_name, owner, *issue_ids),),
+    )
+
+
 def test_epic_symbols_parser_accepts_optional_id_and_format() -> None:
     parser = create_parser()
 
@@ -122,6 +139,50 @@ def test_epic_symbols_foreign_full_id_scans_owner_justfile(
     assert f'--epic-symbol "{epic.id}(OwnerIndex)"' in output
     assert f'--epic-symbol "{phase.id}(OwnerPlaceholder)"' in output
     assert "CallerDecoy" not in output
+
+
+def test_epic_symbols_same_project_full_id_scans_invocation_checkout(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    owner = tmp_path / "owner"
+    caller = tmp_path / "owner_21"
+    with BeadProject.init(owner) as project:
+        epic = project.create("Ranking", IssueType.PLAN, tier=BeadTier.EPIC)
+    isolate_bead_store_resolution(monkeypatch, owner, project_name="owner")
+    isolate_bead_store_resolution(
+        monkeypatch,
+        caller,
+        primary=owner,
+        workspace_num=21,
+        project_name="owner",
+    )
+    owner.joinpath("Justfile").write_text(
+        f'--epic-symbol "{epic.id}(PrimaryStale)"\n',
+        encoding="utf-8",
+    )
+    caller.joinpath("Justfile").write_text(
+        f'--epic-symbol "{epic.id}(ImplementingSymbol)"\n',
+        encoding="utf-8",
+    )
+    _route_to_owner_snapshot(
+        monkeypatch,
+        owner=owner,
+        project_name="owner",
+        issue_ids=(epic.id,),
+    )
+
+    bead_cli.handle_bead_epic_symbols(
+        create_parser().parse_args(
+            ["bead", "epic-symbols", epic.id, "--color", "never"]
+        )
+    )
+
+    output = capsys.readouterr().out
+    assert f"Justfile: {caller / 'Justfile'}" in output
+    assert "ImplementingSymbol" in output
+    assert "PrimaryStale" not in output
 
 
 def test_epic_symbols_json_includes_empty_result_for_unrelated_bead(

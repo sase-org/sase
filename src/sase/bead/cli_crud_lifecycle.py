@@ -228,9 +228,9 @@ def _settle_close_task_gates(
 def _owner_symbol_start(
     bead_context: BeadOperationContext | None,
 ) -> Path | None:
-    if bead_context is None:
-        return None
-    return bead_context.primary_workspace
+    from sase.bead.operation_context import symbol_scan_start_for_operation_context
+
+    return symbol_scan_start_for_operation_context(bead_context)
 
 
 def handle_bead_rm(args: argparse.Namespace) -> None:

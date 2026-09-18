@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from sase.ace.tui.visual_render import render_svg_to_png
 from sase.ace.testing import AcePage
+from sase.ace.tui.visual_render import _bundled_fonts_dir, render_svg_to_png
 from tests.ace.tui.visual._png_diff_artifacts import (
     repo_relative,
     snapshot_path,
@@ -43,10 +43,16 @@ __all__ = [
     "PngDiffSummary",
     "SvgExporter",
     "assert_png_matches",
+    "bundled_fonts_dir",
     "diff_pngs",
     "render_svg_to_png",
     "snapshot_path",
 ]
+
+
+def bundled_fonts_dir() -> Path:
+    """Return the directory containing the bundled renderer fonts."""
+    return _bundled_fonts_dir()
 
 
 class SvgExporter(Protocol):

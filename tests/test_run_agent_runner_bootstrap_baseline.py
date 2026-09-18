@@ -19,10 +19,14 @@ from sase.agent.launch_hold import LAUNCH_HOLD_KEY_ENV
 from sase.axe import run_agent_runner, run_agent_runner_bootstrap
 from sase.axe.run_agent_runner_bootstrap import _capture_commit_finalizer_baseline
 from sase.axe.run_agent_runner_refresh import RUNNER_CODE_REFRESHED_ENV
+from sase.core.agent_hold_facade import list_agent_holds_without_liveness
+from sase.core.agent_hold_types import PendingCapture
+from sase.feature_flags import override_flags
 from sase.llm_provider.commit_finalizer_baseline import (
     BASELINE_FILENAME,
     FINALIZER_BASELINE_FILENAME,
 )
+from sase.xprompt.hold_directive import HoldFields
 
 
 def _runner_args(tmp_path: Path) -> SimpleNamespace:
@@ -371,6 +375,143 @@ def test_bootstrap_arms_launch_hold_before_dependency_wait_claim(
     assert bootstrap.has_wait is True
     assert events == ["arm", "claim"]
     arm.assert_called_once_with(state, info, None, "launch:req/u1")
+    assert LAUNCH_HOLD_KEY_ENV not in os.environ
+
+
+def test_bootstrap_real_hold_exists_before_dependency_wait_claim(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pytest.importorskip("sase_core_rs")
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.delenv(LAUNCH_HOLD_KEY_ENV, raising=False)
+    artifacts_dir = tmp_path / "artifacts"
+    artifacts_dir.mkdir()
+    state = run_agent_runner_bootstrap.RunnerRunState(
+        cl_name="bootstrap-hold",
+        project_file="/tmp/projects/sase/sase.sase",
+        prompt_file=str(tmp_path / "prompt.md"),
+        output_path=str(tmp_path / "output.log"),
+        workflow_name="ace(run)-260701_010202",
+        timestamp="260701_010202",
+        update_target="",
+        is_home_mode=False,
+        workspace_dir=str(tmp_path / "workspace"),
+        workspace_num=7,
+        project_name="sase",
+        artifacts_timestamp="20260701_010202",
+        artifacts_dir=str(artifacts_dir),
+    )
+    info = SimpleNamespace(
+        name="bootstrap.agent",
+        bead_id="sase-1",
+        wait_names=["dependency"],
+        wait_identity_deps=[],
+        wait_fork_sources=[],
+        wait_beads=[],
+        wait_duration=None,
+        wait_until=None,
+        wait_runners=None,
+        wait_priority=None,
+        queue_weight_explicit=False,
+        model=None,
+        llm_provider=None,
+        vcs_provider=None,
+        hidden=False,
+        hold=HoldFields(pending=True),
+        meta={"agent_name": "bootstrap.agent"},
+    )
+    events: list[str] = []
+    pending_dir = str(tmp_path / "waiting-agent")
+
+    def load_prompt(current: object) -> None:
+        current.prompt = "%wait:dependency %hold(pending)\nDo work"
+        current.submitted_xprompt = current.prompt
+
+    def extract_directives(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        (artifacts_dir / "agent_meta.json").write_text(
+            json.dumps(
+                {
+                    "name": "bootstrap.agent",
+                    "pid": os.getpid(),
+                    "agent_family": "bootstrap",
+                    "output_path": state.output_path,
+                }
+            ),
+            encoding="utf-8",
+        )
+        return info
+
+    def claim_before_wait(*args: object, **kwargs: object) -> None:
+        del args, kwargs
+        holds = list_agent_holds_without_liveness()
+        assert [hold["armer"]["key"] for hold in holds] == ["agent:bootstrap.agent"]
+        assert holds[0]["selectors"]["artifact_dirs"] == [pending_dir]
+        events.append("claim")
+
+    with (
+        override_flags(agent_holds=True),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "install_workspace_release_sigterm_handler",
+        ),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "setup_artifacts_directory",
+            return_value=("sase", "20260701010202", str(artifacts_dir)),
+        ),
+        patch.object(run_agent_runner_bootstrap, "_load_submitted_prompt", load_prompt),
+        patch.object(run_agent_runner_bootstrap, "init_telemetry"),
+        patch.object(run_agent_runner_bootstrap, "register_flush_on_exit"),
+        patch.object(run_agent_runner_bootstrap, "print_agent_start_banner"),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "preprocess_prompt_xprompts",
+            return_value=("%wait:dependency %hold(pending)\nDo work", None, "Do work"),
+        ),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "load_retry_handoff_from_env",
+            return_value=None,
+        ),
+        patch.object(run_agent_runner_bootstrap, "enter_agent_workspace"),
+        patch.object(run_agent_runner_bootstrap, "_capture_commit_finalizer_baseline"),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "extract_directives_and_write_meta",
+            side_effect=extract_directives,
+        ),
+        patch(
+            "sase.core.agent_hold_facade._capture_pending_targets",
+            return_value=PendingCapture(
+                artifact_dirs=(pending_dir,),
+                waiting_count=1,
+                queued_count=0,
+                skipped_running_count=0,
+            ),
+        ),
+        patch("sase.core.agent_hold_facade._project_for_cwd", return_value="sase"),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "_force_reuse_bead_association_for_run",
+            return_value=None,
+        ),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "apply_retry_chain_to_meta",
+            return_value=dict(info.meta),
+        ),
+        patch.object(
+            run_agent_runner_bootstrap,
+            "_claim_bead_before_wait",
+            side_effect=claim_before_wait,
+        ),
+    ):
+        bootstrap = run_agent_runner_bootstrap.bootstrap_agent_run(state)
+
+    assert bootstrap.has_dependency_wait is True
+    assert events == ["claim"]
     assert LAUNCH_HOLD_KEY_ENV not in os.environ
 
 

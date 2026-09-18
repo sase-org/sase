@@ -487,7 +487,7 @@ def test_rebind_agent_hold_round_trips_and_keeps_created_at(
     rebound = rebind_agent_hold(old_key, new_armer)
 
     assert rebound is not None
-    assert rebound["created_at"] == pytest.approx(created_at)
+    assert rebound["created_at"] == pytest.approx(created_at, abs=1e-6)
     assert rebound["armer"]["pid"] == os.getpid()
     assert list_current_agent_holds()[0]["armer"]["key"] == old_key
 
