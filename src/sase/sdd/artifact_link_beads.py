@@ -101,34 +101,6 @@ def remove_bead_endpoint_link(
     return outcome
 
 
-def set_bead_endpoint_projection(
-    beads_dir: Path,
-    *,
-    issue_id: str,
-    target_ref: str,
-    relation: str,
-    direction: str,
-    operation_id: str,
-    row: Mapping[str, Any] | None,
-    now: str | None = None,
-) -> dict[str, Any]:
-    """Install the exact event-reduced projection for one bead endpoint."""
-    return set_bead_endpoint_projections(
-        beads_dir,
-        (
-            {
-                "issue_id": issue_id,
-                "target_ref": target_ref,
-                "relation": relation,
-                "direction": direction,
-                "operation_id": operation_id,
-                "row": row,
-                "now": now,
-            },
-        ),
-    )
-
-
 def set_bead_endpoint_projections(
     beads_dir: Path,
     requests: Sequence[Mapping[str, Any]],
@@ -286,6 +258,5 @@ __all__ = [
     "remove_bead_endpoint_link",
     "rows_from_bead_issues",
     "rows_touching_bead",
-    "set_bead_endpoint_projection",
     "set_bead_endpoint_projections",
 ]

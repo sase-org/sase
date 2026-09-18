@@ -414,40 +414,6 @@ def add_link(
     return _issue_payload(payload), payload
 
 
-def set_link_projection(
-    beads_dir: Path | str,
-    issue_id: str,
-    target_ref: str,
-    relation: str,
-    *,
-    direction: str,
-    present: bool,
-    operation_id: str,
-    description: str | None = None,
-    origin: str | None = None,
-    uses: int = 1,
-    now: str | None = None,
-) -> tuple[Issue, dict[str, Any]]:
-    payload = set_link_projections(
-        beads_dir,
-        (
-            {
-                "issue_id": issue_id,
-                "target_ref": target_ref,
-                "relation": relation,
-                "direction": direction,
-                "present": present,
-                "operation_id": operation_id,
-                "description": description,
-                "origin": origin,
-                "uses": uses,
-                "now": now,
-            },
-        ),
-    )
-    return _issue_payload(payload), payload
-
-
 def set_link_projections(
     beads_dir: Path | str,
     requests: Sequence[Mapping[str, Any]],
@@ -654,7 +620,6 @@ __all__ = [
     "remove_dependencies",
     "remove_link",
     "remove_many",
-    "set_link_projection",
     "set_link_projections",
     "snooze",
     "unmark_ready_to_work",

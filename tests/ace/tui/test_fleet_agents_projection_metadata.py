@@ -124,6 +124,22 @@ def test_project_fleet_agents_sets_run_start_time_for_active_duration() -> None:
     row's elapsed time; without it a live remote row renders no runtime
     suffix at all.
     """
+    summary = fleet_summary(
+        status="running",
+        started_at_unix=1_800_000_000.0,
+        run_started_at_unix=1_800_000_030.0,
+    )
+    response = fleet_host_response(alias="apollo", summaries=(summary,))
+
+    projection = project_fleet_agents(catalog_response=response)
+
+    row = projection.fleet_rows[0]
+    assert row.start_time is not None
+    assert row.run_start_time is not None
+    assert row.run_start_time > row.start_time
+
+
+def test_project_fleet_agents_falls_back_to_started_at_for_legacy_runtime() -> None:
     summary = fleet_summary(status="running", started_at_unix=1_800_000_000.0)
     response = fleet_host_response(alias="apollo", summaries=(summary,))
 

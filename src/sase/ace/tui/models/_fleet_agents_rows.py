@@ -222,14 +222,13 @@ def _agent_from_summary(
         summary.get("finished_at_unix"),
         lifecycle.get("stopped_at_unix"),
     )
-    # The wire carries one owner-resolved "started" moment (preferring the
-    # actual run start over the launch/queue time; see sase-core
-    # started_at_unix_for_record). Remote rows have no separate queued-vs
-    # -running signal to split it further, so it doubles as both
-    # ``start_time`` and ``run_start_time`` -- the latter is what
-    # ``leaf_runtime_interval`` needs to compute an active row's elapsed
-    # duration instead of rendering ``0s``.
-    run_start_time = start_time
+    run_start_time = (
+        datetime_from_unix(
+            summary.get("run_started_at_unix"),
+            summary.get("run_start_time_unix"),
+        )
+        or start_time
+    )
     freshness = combine_freshness(
         optional_str(
             summary.get("freshness"),

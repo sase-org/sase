@@ -248,7 +248,7 @@ def test_machine_status_json_includes_gateway_version_and_skew() -> None:
         local={
             "sase": "0.17.1+645",
             "sase-core": "0.34.28",
-            "fleet_contract_schema": 3,
+            "fleet_contract_schema": 4,
         },
     )
 
@@ -260,7 +260,7 @@ def test_machine_status_json_includes_gateway_version_and_skew() -> None:
     assert row["capability_schema_version"] == 1
     assert row["version_skew"] == [
         "sase-gateway remote 0.34.9 != local sase-core-rs 0.34.28",
-        "fleet contract remote schema v1 != local v3",
+        "fleet contract remote schema v1 != local v4",
     ]
     assert "version skew:" in row["message"]
 
@@ -280,15 +280,17 @@ def test_machine_status_json_reports_unknown_gateway_version_for_old_hello() -> 
         status,
         local={
             "sase-core": "0.34.28",
-            "fleet_contract_schema": 3,
+            "fleet_contract_schema": 4,
         },
     )
 
     assert row["gateway_version"] is None
-    assert row["version_skew"] == []
+    assert row["version_skew"] == [
+        "fleet contract remote schema v3 != local v4",
+    ]
     assert row["message"] == (
-        "hello ok; versions: sase-gateway unknown, "
-        "sase 0.17.1+628, sase-core 0.34.9, fleet contract schema v3"
+        "hello ok; version skew: fleet contract remote schema v3 != local v4; "
+        "restart target gateway"
     )
 
 

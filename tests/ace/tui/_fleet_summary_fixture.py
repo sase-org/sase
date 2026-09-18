@@ -50,6 +50,7 @@ def fleet_summary(
     container_projected_concrete_agent: bool = False,
     project_label: str | None = None,
     started_at_unix: float | None = None,
+    run_started_at_unix: float | None = None,
     stopped_at_unix: float | None = None,
     workspace_num: int | None = None,
     agent_clan: str | None = None,
@@ -141,6 +142,8 @@ def fleet_summary(
         summary["parent_timestamp"] = parent_timestamp
     if started_at_unix is not None:
         summary["started_at_unix"] = started_at_unix
+    if run_started_at_unix is not None:
+        summary["run_started_at_unix"] = run_started_at_unix
     if stopped_at_unix is not None:
         summary["stopped_at_unix"] = stopped_at_unix
     if workspace_num is not None:

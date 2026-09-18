@@ -11,7 +11,7 @@ from sase.bead.model import IssueType
 from sase.sdd._artifact_link_event_canonical import canonical_artifact_link_event_object
 from sase.sdd._artifact_link_cutover_state import read_artifact_link_cutover_marker
 from sase.sdd._artifact_link_event_project import apply_events_to_beads
-from sase.sdd.artifact_link_beads import set_bead_endpoint_projection
+from sase.sdd.artifact_link_beads import set_bead_endpoint_projections
 from sase.sdd.artifact_link_event_publisher import publish_artifact_link_events
 from sase.sdd.artifact_link_event_publisher import rows_from_events
 from sase.sdd.artifact_link_import_indexes import import_artifact_link_indexes
@@ -182,15 +182,19 @@ def test_bead_projection_rebuild_repairs_already_receipted_partial_state(
     _write_event_object(cluster.machine_b.plans, events[1])
     for event in events:
         [row] = rows_from_events((event,))
-        outcome = set_bead_endpoint_projection(
+        outcome = set_bead_endpoint_projections(
             cluster.bead_project.beads_dir,
-            issue_id=tracked_bead.id,
-            target_ref=str(row["source_ref"]),
-            relation=str(row["relation"]),
-            direction="in",
-            operation_id=str(event["operation_id"]),
-            row=row,
-            now=str(row["created_at"]),
+            (
+                {
+                    "issue_id": tracked_bead.id,
+                    "target_ref": str(row["source_ref"]),
+                    "relation": str(row["relation"]),
+                    "direction": "in",
+                    "operation_id": str(event["operation_id"]),
+                    "row": row,
+                    "now": str(row["created_at"]),
+                },
+            ),
         )
         assert outcome["changed"] is True
 
