@@ -68,17 +68,17 @@ def handle_view_error_report(app: object, notification: Notification) -> bool:
     from sase.ace.hints import build_editor_args
 
     error_report = notification.action_data.get("error_report_path")
-    if not error_report:
+    if not isinstance(error_report, str) or not error_report.strip():
         # Fall back to first attached file
         if notification.files:
-            error_report = notification.files[0]
+            error_report = str(notification.files[0])
         else:
-            app.notify("No error report available", severity="warning")  # type: ignore[attr-defined]
+            app.notify(_missing_error_report_message(notification), severity="warning")  # type: ignore[attr-defined]
             return False
 
     expanded = os.path.expanduser(error_report)
     if not os.path.exists(expanded):
-        app.notify("Error report file not found", severity="warning")  # type: ignore[attr-defined]
+        app.notify(_missing_error_report_message(notification), severity="warning")  # type: ignore[attr-defined]
         return False
 
     editor = os.environ.get("EDITOR") or "nvim"
@@ -88,6 +88,25 @@ def handle_view_error_report(app: object, notification: Notification) -> bool:
         subprocess.run(editor_args, check=False)
 
     return True
+
+
+def _missing_error_report_message(notification: Notification) -> str:
+    if notification.action != "GateExecutionFailed":
+        return "No error report available"
+    data = notification.action_data
+    message = data.get("message") or data.get("code") or "gate execution failed"
+    commands = [
+        data.get("resume_command"),
+        data.get("restart_command"),
+        data.get("cancel_command"),
+    ]
+    usable = [command for command in commands if command]
+    if not usable:
+        return f"Gate execution failed: {message}. No error report is available."
+    return (
+        f"Gate execution failed: {message}. No error report is available. "
+        f"Recovery: {'; '.join(usable)}"
+    )
 
 
 def handle_view_report(app: object, notification: Notification) -> bool:

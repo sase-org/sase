@@ -212,6 +212,42 @@ def test_failed_gate_reports_failure_payload(
     assert payload["option_results"] == []
     assert payload["failure"]["code"] == "command_failed"
     assert payload["failure"]["stage"] == "command"
+    recovery = payload["failure_recovery"]
+    assert recovery["error_report_path"].endswith(recovery["error_record"])
+    assert (
+        recovery["resume_command"]
+        == "sase gate answer --kind custom --id wait-failed --option deploy --resume"
+    )
+    assert (
+        recovery["restart_command"]
+        == "sase gate answer --kind custom --id wait-failed --option deploy --restart"
+    )
+    assert (
+        recovery["cancel_command"] == "sase gate cancel --kind custom --id wait-failed"
+    )
+
+
+def test_gate_cancel_by_kind_and_id_cancels_pending_gate(
+    gate_home: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    request_id = "cancel-kind-id"
+    create_gate(_spec(request_id))
+    parser = argparse.ArgumentParser(prog="sase")
+    register_gate_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(
+        ["gate", "cancel", "--id", request_id, "--kind", "custom", "--json"]
+    )
+
+    with pytest.raises(SystemExit) as excinfo:
+        handle_gate_command(args)
+
+    assert int(excinfo.value.code or 0) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["reason"] == "cancelled via sase gate cancel"
+
+    code, wait_payload = _wait_json(gate_home, capsys, request_id)
+    assert code == 3
+    assert wait_payload["status"] == "cancelled"
 
 
 def test_agent_gate_wait_refuses_shell_gate(

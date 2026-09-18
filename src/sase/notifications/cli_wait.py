@@ -17,6 +17,10 @@ from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import bundle_paths
 from sase.notification_gates.poller import GatePollResult, wait_for_gate
 from sase.notification_gates.hashing import load_and_verify_bundle
+from sase.notification_gates.failure_notifications import (
+    gate_failure_action_data,
+    gate_failure_requester_message,
+)
 
 _EXIT_CODES = {"answered": 0, "cancelled": 3, "timeout": 4, "failed": 5}
 _STATUS_PROJECTION = {
@@ -101,6 +105,12 @@ def _terminal_payload(
     }
     if result.failure is not None:
         payload["failure"] = result.failure
+        envelope, _adapter = load_and_verify_bundle(bundle_path)
+        payload["failure_recovery"] = gate_failure_action_data(
+            bundle_path,
+            envelope,
+            result.failure,
+        )
     return payload
 
 
@@ -143,6 +153,17 @@ def _print_human_summary(
 
     console = Console()
     console.print(summary, soft_wrap=True)
+    recovery = payload.get("failure_recovery")
+    if isinstance(failure, dict) and isinstance(recovery, dict):
+        details = gate_failure_requester_message(
+            "Gate execution failed",
+            failure,
+            {str(key): str(value) for key, value in recovery.items()},
+        )
+        for line in details.splitlines()[1:]:
+            detail = Text("  ")
+            detail.append(line, style="red" if ":" in line else "")
+            console.print(detail, soft_wrap=True)
     response = Text("Response path: ", style="dim")
     response.append(str(payload["response_path"]))
     console.print(response, soft_wrap=True)

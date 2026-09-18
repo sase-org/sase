@@ -141,6 +141,9 @@ class AgentNotificationModalMixin:
             initial_index: Index of the notification to highlight initially.
         """
         from sase.notifications import mark_read
+        from sase.notification_gates.failure_notifications import (
+            GATE_EXECUTION_FAILED_ACTION,
+        )
 
         from ._notification_actions import (
             REMOTE_ATTENTION_NOTIFICATION_ACTION,
@@ -208,6 +211,8 @@ class AgentNotificationModalMixin:
             elif gate_adapter is not None and gate_adapter.generic_form:
                 handle_custom_gate(self, result)
             elif result.action == "ViewErrorReport":
+                handle_view_error_report(self, result)
+            elif result.action == GATE_EXECUTION_FAILED_ACTION:
                 handle_view_error_report(self, result)
             elif result.action == "ViewReport":
                 handle_view_report(self, result)

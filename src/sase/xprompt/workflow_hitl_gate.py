@@ -172,8 +172,35 @@ def wait_for_workflow_hitl_gate(bundle_path: Path) -> HITLResult:
             break
         time.sleep(poll_interval)
     if result.status != "responded":
+        if result.status == "failed":
+            return HITLResult(
+                action="reject",
+                approved=False,
+                feedback=_failed_workflow_hitl_message(bundle_path, result.failure),
+            )
         return HITLResult(action="reject", approved=False)
     return _translate_workflow_hitl_response(result.payload)
+
+
+def _failed_workflow_hitl_message(
+    bundle_path: Path, failure: Mapping[str, Any] | None
+) -> str:
+    from sase.notification_gates.failure_notifications import (
+        gate_failure_action_data,
+        gate_failure_requester_message,
+    )
+    from sase.notification_gates.hashing import load_and_verify_bundle
+
+    try:
+        envelope, _adapter = load_and_verify_bundle(bundle_path)
+        recovery = gate_failure_action_data(bundle_path, envelope, failure or {})
+    except Exception:
+        recovery = {}
+    return gate_failure_requester_message(
+        "Workflow HITL execution failed",
+        failure,
+        recovery,
+    )
 
 
 def workflow_hitl_should_handoff_from_agent() -> bool:

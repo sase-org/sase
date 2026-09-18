@@ -1066,14 +1066,15 @@ sase gate wait --id <request_id> --kind <kind> --json
 sase gate wait --id <request_id> --kind <kind> --timeout 60
 ```
 
-Human output is colored and summarizes the selected options, feedback, and response
-path. `-j/--json` emits the stable shape `status`, `selected_option_ids`, `feedback`,
-and `response_path`, plus `input`, `option_inputs`, and `option_results` off the
-write-once response (populated only once the gate is answered) and `operations` — the
-repeatable actions a reviewer ran before deciding, from the execution journal, reported
-regardless of how the gate ended. Status is `answered`, `cancelled`, or `timeout`, with
-exit codes 0, 3, and 4 respectively. A CLI timeout can shorten but never extend the
-request's own gate timeout.
+Human output is colored and summarizes the selected options, feedback, response path,
+and any failed execution recovery commands. `-j/--json` emits the stable shape `status`,
+`selected_option_ids`, `feedback`, and `response_path`, plus `input`, `option_inputs`,
+and `option_results` off the write-once response (populated only once the gate is
+answered), `operations` from the execution journal, and for failed execution `failure`
+plus `failure_recovery` (`error_report_path` and exact resume, restart, or cancel
+commands when they are safe to run). Status is `answered`, `cancelled`, `timeout`, or
+`failed`, with exit codes 0, 3, 4, and 5 respectively. A CLI timeout can shorten but
+never extend the request's own gate timeout.
 
 `sase gate answer`, `sase gate act`, and `sase gate show` are the headless counterparts
 to sase's TUI modals: `answer` selects a branch and supplies each selected option's
@@ -1134,7 +1135,10 @@ sase notify show --id <notification_id> -f markdown
 The default `show` format is markdown. It includes the notification tags, notes,
 attached file paths, action data, and state flags. Axe error digest notifications
 usually point to the actionable report through `files` or
-`action_data.error_report_path`; read that attached file for the detailed errors.
+`action_data.error_report_path`; read that attached file for the detailed errors. Gate
+execution failures use action `GateExecutionFailed`, deterministic ids scoped to the
+gate and accepted receipt, tags `gate`, `execution`, and `error`, and action data with
+`error_report_path` plus the exact safe resume, restart, and cancel commands.
 
 To create a local test notification with a persistent PNG attachment for sase's TUI
 modal image-preview checks, run `tools/test_image_notification` from the repository

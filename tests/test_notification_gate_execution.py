@@ -8,6 +8,7 @@ import threading
 import time
 from pathlib import Path
 from typing import Any
+from uuid import NAMESPACE_URL, uuid5
 
 import pytest
 
@@ -203,9 +204,39 @@ def test_execution_failure_polls_failed_and_dedupes_recovery_notification(
     ]
     assert len(failures) == 1
     failure = failures[0]
+    assert failure.tags == ["gate", "execution", "error"]
     assert failure.action_data["request_id"] == "failure-notify"
+    assert failure.action_data["request_kind"] == "hitl"
+    assert failure.action_data["gate_ref"] == "hitl/failure-notify"
     assert failure.action_data["stage"] == "command"
+    assert failure.action_data["message"]
+    assert "nope" not in failure.action_data["message"]
+    assert failure.action_data["error_report_path"].endswith(
+        failure.action_data["error_record"]
+    )
+    assert Path(failure.action_data["error_report_path"]).is_file()
     assert failure.action_data["recovery_actions"] == "resume,restart,cancel"
+    assert (
+        failure.action_data["resume_command"]
+        == "sase gate answer --kind hitl --id failure-notify --option accept --resume"
+    )
+    assert (
+        failure.action_data["restart_command"]
+        == "sase gate answer --kind hitl --id failure-notify --option accept --restart"
+    )
+    assert (
+        failure.action_data["cancel_command"]
+        == "sase gate cancel --kind hitl --id failure-notify"
+    )
+    namespace = uuid5(
+        NAMESPACE_URL, "https://sase.dev/notifications/gate-execution-failed"
+    )
+    assert failure.id == str(
+        uuid5(
+            namespace,
+            f"hitl\x00failure-notify\x00{failure.action_data['acceptance_id']}",
+        )
+    )
 
     fail_sentinel.unlink()
     recovered = execute_gate_selection(

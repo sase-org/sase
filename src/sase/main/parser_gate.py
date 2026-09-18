@@ -244,34 +244,51 @@ def _register_cancel_parser(gate_subparsers: argparse._SubParsersAction) -> None
     """Register ``sase gate cancel``."""
     cancel_parser = gate_subparsers.add_parser(
         "cancel",
-        help="Cancel one pending gate shell",
+        help="Cancel one pending gate or gate shell",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
-            "Cancel a pending gate shell by id (or unique id prefix), member "
-            "agent name, or owning agent name, mirroring `sase monitor stop`. "
-            "No follow-up agent is launched, even when one was recorded, "
-            "unless the gate had already been answered concurrently -- that "
-            "settles as answered instead."
+            "Cancel a pending gate by kind/request id, or cancel a pending gate "
+            "shell by id (or unique id prefix), member agent name, or owning "
+            "agent name. No follow-up agent is launched, even when one was "
+            "recorded, unless the gate had already been answered concurrently "
+            "-- that settles as answered instead."
         ),
         epilog=(
             "exit codes:\n"
             "  0  cancelled (or already terminal; nothing to do)\n"
             "  2  the gate-shell reference is unknown or ambiguous\n\n"
             "examples:\n"
+            "  sase gate cancel --kind custom --id custom-123\n"
             "  sase gate cancel acme--gate\n"
             "  sase gate cancel a1b2c3 --json"
         ),
     )
     cancel_parser.add_argument(
         "gate_ref",
+        nargs="?",
         metavar="ID",
-        help="Gate-shell id (or unique prefix), member agent name, or owning agent name",
+        help=(
+            "Gate-shell id (or unique prefix), member agent name, or owning agent name"
+        ),
+    )
+    cancel_parser.add_argument(
+        "-i",
+        "--id",
+        default=None,
+        metavar="REQUEST_ID",
+        help="Gate request id from the creation descriptor",
     )
     cancel_parser.add_argument(
         "-j",
         "--json",
         action="store_true",
         help="Emit a machine-readable JSON result",
+    )
+    cancel_parser.add_argument(
+        "-k",
+        "--kind",
+        default=None,
+        help="Gate kind from the creation descriptor",
     )
     cancel_parser.add_argument(
         "-r",
@@ -531,7 +548,8 @@ def _register_wait_parser(gate_subparsers: argparse._SubParsersAction) -> None:
             "terminal exit codes:\n"
             "  0  answered\n"
             "  3  cancelled\n"
-            "  4  timeout\n\n"
+            "  4  timeout\n"
+            "  5  execution failed; see the failure payload for recovery commands\n\n"
             "examples:\n"
             "  sase gate wait --id custom-123 --kind custom\n"
             "  sase gate wait -i custom-123 -k custom --json\n"

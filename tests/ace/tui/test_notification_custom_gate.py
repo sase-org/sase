@@ -7,12 +7,15 @@ from typing import Any
 
 import pytest
 
+from sase.ace.tui.actions.agents._notification_handlers import handle_view_error_report
 from sase.ace.tui.actions.agents._notification_provider_direct import (
     direct_unread_notification_page,
 )
 from sase.feature_flags import override_flags
+from sase.notification_gates.failure_notifications import GATE_EXECUTION_FAILED_ACTION
 from sase.notification_gates.service import create_gate
 from sase.bead.task_gate import create_task_triage_gate
+from sase.notifications.models import Notification
 from sase.notifications.store import load_notifications
 from sase.sudo.gate import build_sudo_gate_request
 
@@ -179,6 +182,65 @@ def test_notification_flow_dispatches_open_launch_control(
     assert app.pending_reads == 0
     assert app.refresh_count == 1
     assert app.notices == []
+
+
+def test_notification_flow_dispatches_gate_execution_failed_to_error_report(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    create_gate(_spec())
+    notification = load_notifications()[0]
+    notification.action = GATE_EXECUTION_FAILED_ACTION
+    notification.action_data = {"message": "redacted failure"}
+    app = _NotificationFlowApp(notification)
+    dispatched: list[Any] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_actions.handle_view_error_report",
+        lambda _app, selected: dispatched.append(selected),
+    )
+
+    app._show_notification_modal()
+
+    assert dispatched == [notification]
+    assert app.notices == []
+    assert app.refresh_count == 1
+
+
+def test_gate_execution_failed_report_action_has_actionable_missing_report_fallback() -> (
+    None
+):
+    notification = Notification(
+        id="failed-gate",
+        timestamp="2026-09-18T00:00:00+00:00",
+        sender="gate",
+        action=GATE_EXECUTION_FAILED_ACTION,
+        action_data={
+            "message": "command failed for option accept",
+            "resume_command": "sase gate answer --kind hitl --id demo --option accept --resume",
+            "cancel_command": "sase gate cancel --kind hitl --id demo",
+        },
+    )
+
+    class _App:
+        def __init__(self) -> None:
+            self.notices: list[tuple[str, str]] = []
+
+        def notify(self, message: str, *, severity: str = "information") -> None:
+            self.notices.append((message, severity))
+
+    app = _App()
+
+    assert handle_view_error_report(app, notification) is False
+    assert app.notices == [
+        (
+            "Gate execution failed: command failed for option accept. "
+            "No error report is available. Recovery: "
+            "sase gate answer --kind hitl --id demo --option accept --resume; "
+            "sase gate cancel --kind hitl --id demo",
+            "warning",
+        )
+    ]
 
 
 @pytest.mark.parametrize("action", [None, "", "   "])

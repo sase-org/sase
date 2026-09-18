@@ -36,22 +36,20 @@ def wait_for_launch_approval(
     if result.status != "responded":
         if result.status == "failed":
             status: LaunchRequestStatus = "failed"
+            message = _failed_launch_approval_message(request, result)
         else:
             status = "timed_out" if result.status == "timed_out" else "cancelled"
+            message = (
+                "Launch approval timed out"
+                if status == "timed_out"
+                else "Launch approval cancelled"
+            )
         return LaunchRequestOutcome(
             status=status,
             request_id=request.request_id,
             notification_id=request.notification_id,
             selected_option_ids=(),
-            message=(
-                "Launch approval timed out"
-                if status == "timed_out"
-                else (
-                    "Launch approval execution failed"
-                    if status == "failed"
-                    else "Launch approval cancelled"
-                )
-            ),
+            message=message,
             response=result.payload,
         )
     return _launch_outcome_from_response(request, result.payload)
@@ -91,6 +89,29 @@ def _wait_for_terminal_gate(bundle_path: Path, poll_interval: float) -> Any:
         if deadline is not None:
             sleep_for = min(sleep_for, max(0.0, deadline - time.monotonic()))
         time.sleep(sleep_for)
+
+
+def _failed_launch_approval_message(
+    request: LaunchRequestCreationResult,
+    result: Any,
+) -> str:
+    from sase.notification_gates.failure_notifications import (
+        gate_failure_action_data,
+        gate_failure_requester_message,
+    )
+    from sase.notification_gates.hashing import load_and_verify_bundle
+
+    failure = result.failure if isinstance(result.failure, dict) else {}
+    try:
+        envelope, _adapter = load_and_verify_bundle(request.response_dir)
+        recovery = gate_failure_action_data(request.response_dir, envelope, failure)
+    except Exception:
+        recovery = {}
+    return gate_failure_requester_message(
+        "Launch approval execution failed",
+        failure,
+        recovery,
+    )
 
 
 def _gate_deadline(envelope: Mapping[str, Any]) -> float | None:

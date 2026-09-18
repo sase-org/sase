@@ -13,6 +13,9 @@ from sase.gate_shell.cancel import DEFAULT_CANCEL_REASON, cancel_gate_shell
 from sase.gate_shell.models import GateShellRefError
 from sase.gate_shell.naming import short_gate_shell_id
 from sase.gate_shell.store import list_gate_shells, resolve_gate_shell_ref
+from sase.notification_gates.cli_support import resolve_gate_cli_bundle
+from sase.notification_gates.executor import cancel_gate
+from sase.notification_gates.models import GateError
 
 from .gate_shell_render import (
     empty_gate_shell_panel,
@@ -85,10 +88,20 @@ def handle_gate_shell_list(args: argparse.Namespace) -> NoReturn:
 
 def handle_gate_shell_cancel(args: argparse.Namespace) -> NoReturn:
     """Cancel one pending gate shell, resolving the same refs as ``gate show``."""
-    try:
-        record = resolve_gate_shell_ref(
-            str(getattr(args, "gate_ref", "") or ""), list_gate_shells()
+    request_id = getattr(args, "id", None)
+    kind = getattr(args, "kind", None)
+    gate_ref = str(getattr(args, "gate_ref", "") or "")
+    if request_id or kind:
+        _handle_gate_cancel_by_kind_and_id(args, kind=kind, request_id=request_id)
+
+    if not gate_ref:
+        print(
+            "sase gate cancel: pass a gate-shell reference, or -i/--id plus -k/--kind",
+            file=sys.stderr,
         )
+        sys.exit(1)
+    try:
+        record = resolve_gate_shell_ref(gate_ref, list_gate_shells())
     except GateShellRefError as exc:
         message = f"sase gate cancel: {exc}"
         print(message, file=sys.stderr)
@@ -111,6 +124,59 @@ def handle_gate_shell_cancel(args: argparse.Namespace) -> NoReturn:
         sys.exit(0)
 
     print(message)
+    sys.exit(0)
+
+
+def _handle_gate_cancel_by_kind_and_id(
+    args: argparse.Namespace, *, kind: object, request_id: object
+) -> NoReturn:
+    if not kind or not request_id:
+        print(
+            "sase gate cancel: -i/--id and -k/--kind must be given together",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if getattr(args, "gate_ref", None):
+        print(
+            "sase gate cancel: pass either a gate-shell reference or -i/--id plus -k/--kind",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    try:
+        bundle = resolve_gate_cli_bundle(str(kind), str(request_id))
+        cancellation = cancel_gate(
+            bundle.root,
+            reason=getattr(args, "reason", None) or DEFAULT_CANCEL_REASON,
+            source="cli",
+        )
+    except GateError as exc:
+        if bool(getattr(args, "json", False)):
+            json.dump(
+                {
+                    "success": False,
+                    "code": exc.code,
+                    "target": exc.target,
+                    "message": str(exc),
+                },
+                sys.stdout,
+                indent=2,
+            )
+            sys.stdout.write("\n")
+        else:
+            print(
+                f"sase gate cancel: error [{exc.code}] {exc.target}: {exc}",
+                file=sys.stderr,
+            )
+        sys.exit(1)
+    except Exception as exc:
+        print(f"sase gate cancel: cannot cancel gate: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if bool(getattr(args, "json", False)):
+        json.dump(cancellation, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+    else:
+        print(f"Cancelled gate {kind}/{request_id}.")
     sys.exit(0)
 
 

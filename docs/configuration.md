@@ -6323,18 +6323,20 @@ gate-shell family members.
 | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
 | `sase gate act`    | `-i/--id`, `-k/--kind`, `-o/--operation`, `-I/--input`, `-j/--json`                                                                                                                                                                      | Run one repeatable declared action without answering the gate                               |
 | `sase gate answer` | `-i/--id`, `-k/--kind`, repeatable `-o/--option`, `-s/--set`, `-O/--option-input`, `-I/--input`, `-f/--feedback`, `-d/--detach` / `-D/--no-detach`, `-r/--resume` / `-R/--restart`, `-j/--json`                                          | Answer one branch; `--resume` continues a partial option run or an unfinished coder handoff |
-| `sase gate cancel` | `<shell>`, `-r/--reason`, `-j/--json`                                                                                                                                                                                                    | Cancel a pending shell by id/prefix, member name, or owner; launches no follow-up           |
+| `sase gate cancel` | `<shell>` or `-i/--id -k/--kind`, `-r/--reason`, `-j/--json`                                                                                                                                                                             | Cancel a pending gate or shell; launches no follow-up                                       |
 | `sase gate create` | `-G/--shell`, `-n/--next`, `-f/--next-fork`, `-m/--next-model`, repeatable `-N/--next-output`, `-o/--origin-agent`, `-g/--shell-status`, `-E/--shell-stop-status`, `-p/--panel`, `-P/--panel-icon`, `-s/--sender`, repeatable `-t/--tag` | Create a gate from JSON on stdin, optionally handing an agent to a gate shell               |
 | `sase gate list`   | `-a/--all`, `-l/--agent`, `-p/--project`, repeatable `-s/--state`, `-n/--limit`, `-f/--format`, `-j/--json`                                                                                                                              | List pending gate shells newest first; `--all` includes settled shells                      |
 | `sase gate show`   | `[shell]` or `-i/--id -k/--kind`, `-j/--json`                                                                                                                                                                                            | Show branches, inputs, actions, runtime state, workspace claim, and follow-up disposition   |
-| `sase gate wait`   | `-i/--id`, `-j/--json`, `-k/--kind`, `-t/--timeout`                                                                                                                                                                                      | Wait for a gate; exits 0 answered, 3 cancelled, 4 timeout                                   |
+| `sase gate wait`   | `-i/--id`, `-j/--json`, `-k/--kind`, `-t/--timeout`                                                                                                                                                                                      | Wait for a gate; exits 0 answered, 3 cancelled, 4 timeout, 5 failed                         |
 
 Gate creation accepts one option `query`, a required complete `primary_branch`, an
 `options` list with configurable labels, icons, default selections, and feedback modes,
 plus optional `groups` metadata for AND-branch submit controls. It returns a stable JSON
 descriptor with the request identity, owned paths, continuation/auto state, and hashes.
 `sase gate wait -j` emits `status`, `selected_option_ids`, `feedback`, and
-`response_path`; a CLI timeout can shorten but not extend the request timeout.
+`response_path`; failed execution also emits `failure` and `failure_recovery` with the
+error report path and exact safe recovery commands. A CLI timeout can shorten but not
+extend the request timeout.
 
 `--shell` creates a processless family member that owns the pending decision and ends an
 agent-side creator's turn. `--next` is the default answered-branch follow-up prompt;
