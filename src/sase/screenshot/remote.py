@@ -259,8 +259,10 @@ def _parse_remote_metadata(stdout: str, *, host: str) -> _RemoteScreenshotMetada
 
 
 def _remote_send_keys_hint(host: str, tmux_target: str) -> str:
-    remote_command = shlex.join(["tmux", "send-keys", "-t", tmux_target, "<KEY>"])
-    return shlex.join(["ssh", host, remote_command])
+    remote_command = (
+        f'IFS= read -r key && tmux send-keys -t {shlex.quote(tmux_target)} "$key"'
+    )
+    return f"printf '%s\\n' <KEY> | {shlex.join(['ssh', host, remote_command])}"
 
 
 def _fetch_remote_svg(

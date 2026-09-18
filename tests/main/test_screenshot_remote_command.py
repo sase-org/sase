@@ -7,6 +7,7 @@ from pathlib import Path
 from collections.abc import Sequence
 import json
 import os
+import shlex
 import subprocess
 from typing import Any
 
@@ -493,8 +494,8 @@ def test_remote_send_keys_hint_survives_local_and_remote_shells(
     tmp_path: Path,
 ) -> None:
     runner = _FakeSshRunner(tmp_path)
-    target = '@42 target "quoted" | ok; $literal'
-    key = 'literal key "quoted" $HOME | echo; true'
+    target = "@42 target 'single' \"quoted\" | ok; $literal"
+    key = 'literal key\'s "quoted" $HOME | echo; true'
     result = _FakeRemoteResult(
         svg=tmp_path / "shot.svg",
         png=tmp_path / "shot.png",
@@ -508,7 +509,7 @@ def test_remote_send_keys_hint_survives_local_and_remote_shells(
     )
 
     completed = subprocess.run(
-        ["/bin/sh", "-c", result.send_keys_hint.replace("<KEY>", key)],
+        ["/bin/sh", "-c", result.send_keys_hint.replace("<KEY>", shlex.quote(key))],
         capture_output=True,
         text=True,
         check=False,
@@ -517,6 +518,8 @@ def test_remote_send_keys_hint_survives_local_and_remote_shells(
     )
 
     assert completed.returncode == 0, completed.stderr
+    assert completed.stdout == ""
+    assert completed.stderr == ""
     assert ["tmux", "send-keys", "-t", target, key] in runner.remote_invocations
 
 
@@ -743,5 +746,7 @@ def test_remote_handler_prints_version_and_keep_hint(
     assert "png=" in out
     assert "svg=" in out
     assert "sase_tmux_target=@42\n" in out
-    assert "remote_send_keys_hint=ssh apollo.tailnet " in out
-    assert "tmux send-keys -t @42" in out
+    assert (
+        "remote_send_keys_hint=printf '%s\\n' <KEY> | ssh apollo.tailnet "
+        "'IFS= read -r key && tmux send-keys -t @42 \"$key\"'\n"
+    ) in out
