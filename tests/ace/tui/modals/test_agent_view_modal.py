@@ -34,11 +34,11 @@ def _choices(*, cycle_enabled: bool = True) -> tuple[AgentViewChoice, ...]:
             disabled_reason="Unavailable for this entry",
         ),
         AgentViewChoice(
-            "0",
-            "None",
+            "[",
+            "Metadata only",
             "Metadata fills the detail area",
-            "view",
-            AgentViewResult.mode_choice(DetailPanelMode.INFO),
+            "layout",
+            AgentViewResult.layout_choice(DetailLayoutMode.METADATA_ONLY),
         ),
         AgentViewChoice(
             "1",
@@ -60,6 +60,13 @@ def _choices(*, cycle_enabled: bool = True) -> tuple[AgentViewChoice, ...]:
             "Metadata 30% / File 70%",
             "layout",
             AgentViewResult.layout_choice(DetailLayoutMode.SECONDARY_LARGER),
+        ),
+        AgentViewChoice(
+            "]",
+            "File only",
+            "File fills the detail area",
+            "layout",
+            AgentViewResult.layout_choice(DetailLayoutMode.SECONDARY_ONLY),
         ),
         AgentViewChoice(
             "p",
@@ -89,7 +96,7 @@ async def test_agent_view_modal_direct_keys_disabled_and_cancel() -> None:
         page.app.push_screen(modal, results.append)
         await page.expect_modal("AgentViewModal")
 
-        await page.press("[", "]", "t")
+        await page.press("t")
         await page.pause()
 
         assert page.state["modal"] == "AgentViewModal"
@@ -114,9 +121,11 @@ async def test_agent_view_modal_n_is_contained_without_selecting() -> None:
         assert page.state["modal"] == "AgentViewModal"
         assert results == []
 
-        await page.press("0")
+        await page.press("[")
         await page.expect_no_modal()
-        assert results == [AgentViewResult.mode_choice(DetailPanelMode.INFO)]
+        assert results == [
+            AgentViewResult.layout_choice(DetailLayoutMode.METADATA_ONLY)
+        ]
 
 
 async def test_agent_view_modal_navigation_skips_disabled_and_enter_selects() -> None:
@@ -132,7 +141,9 @@ async def test_agent_view_modal_navigation_skips_disabled_and_enter_selects() ->
 
         await page.press("enter")
         await page.expect_no_modal()
-        assert results == [AgentViewResult.mode_choice(DetailPanelMode.INFO)]
+        assert results == [
+            AgentViewResult.layout_choice(DetailLayoutMode.METADATA_ONLY)
+        ]
 
 
 async def test_agent_view_modal_click_selects_row() -> None:
@@ -189,4 +200,18 @@ async def test_agent_view_modal_disabled_cycle_rows_warn_in_place() -> None:
 
         assert page.state["modal"] == "AgentViewModal"
         assert results == []
-        assert modal.query_one("#agent-view-row-7").has_class("blocked")
+        assert modal.query_one("#agent-view-row-8").has_class("blocked")
+
+
+async def test_agent_view_modal_zero_is_contained_without_selecting() -> None:
+    results: list[AgentViewResult | None] = []
+    async with AcePage() as page:
+        modal = AgentViewModal(_choices(), selected_key="f")
+        page.app.push_screen(modal, results.append)
+        await page.expect_modal("AgentViewModal")
+
+        await page.press("0")
+        await page.pause()
+
+        assert page.state["modal"] == "AgentViewModal"
+        assert results == []

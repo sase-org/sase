@@ -1289,42 +1289,42 @@ somewhere stale.
 
 ### Agent Actions
 
-| Key                 | Action                                                                                                         |
-| ------------------- | -------------------------------------------------------------------------------------------------------------- |
-| `!R`                | Revive a previously dismissed agent                                                                            |
-| `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                 |
-| `+`                 | Run custom agent                                                                                               |
-| `A`                 | Open auto-approve menu / answer HITL                                                                           |
-| `F`                 | Prepare a fork of the selected agent/family, proc shell, monitor, clan container, or focused named tribe panel |
-| `n`                 | Name agent                                                                                                     |
-| `r`                 | Refresh the Agents tab, or open the Refresh panel when that panel is enabled                                   |
-| `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                          |
-| `v`                 | View files (hint mode; annotates clan/family containers in place)                                              |
-| `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                              |
-| `V`                 | Open the focused agent's metadata as a sectioned document in the pager (see below)                             |
-| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                                |
-| `W`                 | Prepare a prompt that waits for the selected agent/family, clan, or named tribe; marks produce `%w:a,b,c`      |
-| `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)        |
-| `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                          |
-| `U`                 | Toggle the focused agent's unread marker                                                                       |
-| `u`                 | Clear all agent marks                                                                                          |
-| `x`                 | Kill / dismiss the agent, clan, or focused panel or group (or every marked agent); stop a monitor or proc      |
-| `X`                 | Open the cleanup panel for panel, all-panel, tribe, marked, group, or custom cleanup                           |
-| `Enter`             | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                       |
-| `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                 |
-| `E`                 | Edit panel content in editor                                                                                   |
-| `t`                 | Open the focused agent's tmux target; agents with opened linked-workspace context show a workspace chooser     |
-| `T`                 | Open tmux window in the agent's primary project workspace                                                      |
-| `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it)     |
-| `p`                 | Open Agent view picker: `f` file, `t` LLM Calls, `0` metadata only, `1`/`=`/`2` layout sizes                   |
-| `pp`                | Next detail layout in the picker-local cycle                                                                   |
-| `pP`                | Previous detail layout in the picker-local cycle                                                               |
-| `z`                 | Start metadata fold mode for clan, agent node (family or single agent), or selected whole-tribe detail panels  |
-| `Z`                 | Zoom the active agent or tribe detail panel                                                                    |
-| `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                |
-| `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds         |
-| `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds      |
-| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                  |
+| Key                 | Action                                                                                                          |
+| ------------------- | --------------------------------------------------------------------------------------------------------------- |
+| `!R`                | Revive a previously dismissed agent                                                                             |
+| `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                  |
+| `+`                 | Run custom agent                                                                                                |
+| `A`                 | Open auto-approve menu / answer HITL                                                                            |
+| `F`                 | Prepare a fork of the selected agent/family, proc shell, monitor, clan container, or focused named tribe panel  |
+| `n`                 | Name agent                                                                                                      |
+| `r`                 | Refresh the Agents tab, or open the Refresh panel when that panel is enabled                                    |
+| `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                           |
+| `v`                 | View files (hint mode; annotates clan/family containers in place)                                               |
+| `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                               |
+| `V`                 | Open the focused agent's metadata as a sectioned document in the pager (see below)                              |
+| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                                 |
+| `W`                 | Prepare a prompt that waits for the selected agent/family, clan, or named tribe; marks produce `%w:a,b,c`       |
+| `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)         |
+| `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                           |
+| `U`                 | Toggle the focused agent's unread marker                                                                        |
+| `u`                 | Clear all agent marks                                                                                           |
+| `x`                 | Kill / dismiss the agent, clan, or focused panel or group (or every marked agent); stop a monitor or proc       |
+| `X`                 | Open the cleanup panel for panel, all-panel, tribe, marked, group, or custom cleanup                            |
+| `Enter`             | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                        |
+| `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                  |
+| `E`                 | Edit panel content in editor                                                                                    |
+| `t`                 | Open the focused agent's tmux target; agents with opened linked-workspace context show a workspace chooser      |
+| `T`                 | Open tmux window in the agent's primary project workspace                                                       |
+| `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it)      |
+| `p`                 | Open Agent view picker: `f` file, `t` LLM Calls, `[` metadata only, `1`/`=`/`2` split sizes, `]` secondary only |
+| `pp`                | Next split layout; from either fullscreen layout, return to equal split                                         |
+| `pP`                | Previous split layout; from either fullscreen layout, return to equal split                                     |
+| `z`                 | Start metadata fold mode for clan, agent node (family or single agent), or selected whole-tribe detail panels   |
+| `Z`                 | Zoom the active agent or tribe detail panel                                                                     |
+| `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                 |
+| `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds          |
+| `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds       |
+| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                   |
 
 On Artifacts and Axe, `r` still runs a Patch workflow or an Axe job/bgcmd, and `R` still
 opens the [Refresh panel](#refresh-panel) (or refreshes immediately when that panel is
@@ -4829,24 +4829,24 @@ skips legacy dismissal-prefixed candidates so it anchors on a live, visible agen
 
 Press `p` on an agent row to choose the detail view without cycling through hidden
 panels. Inside the picker, `f` shows the selected file, `t` shows the LLM Calls
-timeline, and `0` shows metadata only. `1` makes metadata larger, `=` makes metadata and
-the selected secondary panel equal height, and `2` makes the file/LLM Calls side larger.
-The picker-local `p` key moves to the next layout and `P` moves to the previous layout
-in the circular order metadata-larger -> equal -> secondary-larger -> metadata-larger.
-With the default secondary-larger split, `pp` selects metadata-larger and `pP` selects
-equal.
+timeline, `[` shows metadata only, and `]` shows only the selected File or LLM Calls
+panel. `1` makes metadata larger, `=` makes metadata and the selected secondary panel
+equal height, and `2` makes the File/LLM Calls side larger. The picker-local `p` key
+moves to the next layout and `P` moves to the previous layout only within the circular
+split order metadata-larger -> equal -> secondary-larger -> metadata-larger. From either
+fullscreen endpoint, both `p` and `P` return directly to equal split. With the default
+secondary-larger split, `pp` selects metadata-larger and `pP` selects equal.
 
 The layout choice is session-local and independent from the view mode: switching between
-file, LLM Calls, and metadata-only keeps the same saved split for the next visible
-secondary panel. Layout options are disabled when there is no visible secondary panel to
-resize, such as metadata-only view, a file view with no selected file content,
-summaries, or pinned historical attempts. Bare `[` and `]` no longer change the Agents
-detail view; their existing uses in help, zoom, and other surface-local panels are
-unchanged.
+file and LLM Calls keeps the same saved fullscreen or split layout. Split and
+secondary-only layout options are disabled when the selected secondary panel has no
+content to resize, such as a file view with no selected file content, summaries, or
+pinned historical attempts. Bare `[` and `]` remain inert on the Agents tab outside the
+picker; their existing uses in help, zoom, and other surface-local panels are unchanged.
 
 ## Agents Tab Metadata Panel
 
-The Agents tab metadata panel (choose `0` from the Agent view picker) shows structured
+The Agents tab metadata panel (choose `[` from the Agent view picker) shows structured
 information about the selected agent:
 
 Pressing `V` on any local Agents-tab row (running or done) opens that same agent's

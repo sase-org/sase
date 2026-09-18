@@ -205,6 +205,9 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         prev_agent = self._current_agent
         self._current_agent = agent
         self._current_attempt_number = attempt_number
+        if self._panel_mode is DetailPanelMode.INFO:
+            self._panel_mode = DetailPanelMode.AUTO
+            self._detail_layout_mode = DetailLayoutMode.METADATA_ONLY
         if prev_agent is not None and prev_agent.identity != agent.identity:
             self._has_file_content = False
             self._has_llm_calls_content = False
@@ -290,27 +293,10 @@ class AgentDetail(AgentDetailPanelMixin, Static):
 
         # Probe LLM Calls availability in the background so that
         # _has_llm_calls_content is accurate for panel mode cycling.
-        # Skip the probe when the same agent is still selected and we're in
-        # INFO mode — the LLM Calls panel is hidden anyway and the cache will
-        # be checked when the user toggles to LLM Calls mode.
-        same_agent = prev_agent is not None and prev_agent.identity == agent.identity
-        if supports_slow_tool_sources(agent) and not (
-            same_agent and self._panel_mode == DetailPanelMode.INFO
-        ):
+        if supports_slow_tool_sources(agent):
             llm_calls_panel.update_display(
                 agent, stale_threshold_seconds=stale_threshold_seconds
             )
-
-        # INFO mode: only update prompt, hide both secondary panels
-        if self._panel_mode == DetailPanelMode.INFO:
-            file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
-            llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
-            prompt_scroll = self._active_metadata_scroll()
-            file_scroll.add_class("hidden")
-            llm_calls_scroll.add_class("hidden")
-            self._clear_detail_layout_classes()
-            prompt_scroll.add_class("expanded")
-            return
 
         # When LLM Calls is visible, keep it showing and just refresh data
         if self._panel_mode == DetailPanelMode.LLM_CALLS:
@@ -319,6 +305,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 file_panel.update_display(
                     agent, stale_threshold_seconds=stale_threshold_seconds
                 )
+            self._apply_detail_layout_classes()
             return
 
         # Bash/python workflow steps don't have files - expand prompt
@@ -551,9 +538,10 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         Returns:
             True if the LLM Calls panel is visible, False otherwise.
         """
-        return self._current_agent is not None and (
-            self._panel_mode == DetailPanelMode.LLM_CALLS
-        )
+        if self._current_agent is None or self._panel_mode != DetailPanelMode.LLM_CALLS:
+            return False
+        llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
+        return not llm_calls_scroll.has_class("hidden")
 
     @property
     def llm_calls_detail_level(self) -> ToolDetailLevel:
@@ -594,9 +582,9 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         """Check if the panel is in info-only mode.
 
         Returns:
-            True if in INFO mode (prompt at 100%), False otherwise.
+            True if metadata is the effective visible detail panel.
         """
-        return self._panel_mode == DetailPanelMode.INFO
+        return not self.is_file_visible() and not self.is_llm_calls_visible()
 
     def is_file_visible(self) -> bool:
         """Check if the file panel is currently visible.
@@ -608,6 +596,25 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             return False
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         return not file_scroll.has_class("hidden")
+
+    def is_metadata_visible(self) -> bool:
+        """Return whether either metadata scroll variant is visible."""
+        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        search_scroll = self.query_one("#agent-search-scroll", VerticalScroll)
+        return not (
+            prompt_scroll.has_class("hidden") and search_scroll.has_class("hidden")
+        )
+
+    def effective_detail_scroll_id(self) -> str:
+        """Return the scroll container that currently owns detail navigation."""
+        if self.is_llm_calls_visible():
+            return "#agent-llm-calls-scroll"
+        if self.is_file_visible():
+            return "#agent-file-scroll"
+        search_scroll = self.query_one("#agent-search-scroll", VerticalScroll)
+        if not search_scroll.has_class("hidden"):
+            return "#agent-search-scroll"
+        return "#agent-prompt-scroll"
 
     def get_editor_file_info(self) -> tuple[str | None, str | None, str]:
         """Get file path, content, and suffix for opening in an editor.

@@ -3985,6 +3985,11 @@ HintInputBar #hint-escape-hint {
     height: 100%;
 }
 
+#agent-file-scroll.expanded,
+#agent-llm-calls-scroll.expanded {
+    height: 100%;
+}
+
 #agent-search-scroll.expanded {
     height: 1fr;
 }

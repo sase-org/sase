@@ -87,7 +87,24 @@ def _build_detail(file_panel: Any) -> Any:
     detail._clear_detail_layout_classes = types.MethodType(
         AgentDetailPanelMixin._clear_detail_layout_classes, detail
     )
-
+    detail._show_active_metadata_scroll = types.MethodType(
+        AgentDetailPanelMixin._show_active_metadata_scroll, detail
+    )
+    detail._hide_metadata_scrolls = types.MethodType(
+        AgentDetailPanelMixin._hide_metadata_scrolls, detail
+    )
+    detail._selected_secondary_mode = types.MethodType(
+        AgentDetailPanelMixin._selected_secondary_mode, detail
+    )
+    detail._selected_secondary_scroll = types.MethodType(
+        AgentDetailPanelMixin._selected_secondary_scroll, detail
+    )
+    detail._hide_unselected_secondary_scroll = types.MethodType(
+        AgentDetailPanelMixin._hide_unselected_secondary_scroll, detail
+    )
+    detail.selected_secondary_available = types.MethodType(
+        AgentDetailPanelMixin.selected_secondary_available, detail
+    )
     detail._apply_panel_mode = types.MethodType(
         AgentDetailPanelMixin._apply_panel_mode, detail
     )

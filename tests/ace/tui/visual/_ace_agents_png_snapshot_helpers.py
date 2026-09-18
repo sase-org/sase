@@ -14,7 +14,7 @@ async def choose_agent_metadata_view(page: AcePage) -> None:
     """Choose the metadata-only Agents detail view through the current picker."""
     await page.press("p")
     await page.expect_modal("AgentViewModal")
-    await page.press("n")
+    await page.press("[")
     await page.expect_no_modal()
 
 

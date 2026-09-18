@@ -53,7 +53,7 @@ class EventAutoRefreshSurfacesMixin(
         except NoMatches:
             return False
 
-        if getattr(agent_detail, "panel_mode_label", "file") != "file":
+        if not agent_detail.is_file_visible():
             return False
 
         agent_detail.refresh_current_file(agent)

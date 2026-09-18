@@ -204,7 +204,7 @@ async def test_agents_unread_highlight_png_snapshot(
         )
 
 
-async def test_agents_view_picker_three_layouts_png_snapshot(
+async def test_agents_view_picker_five_layouts_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -227,14 +227,16 @@ async def test_agents_view_picker_three_layouts_png_snapshot(
         )
 
         await page.press("p")
+        await wait_for_svg_contains(page, "Metadata only")
         await wait_for_svg_contains(page, "Equal split")
+        await wait_for_svg_contains(page, "File only")
         await wait_for_svg_contains(page, "Previous layout")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(
             page,
-            "agents_view_picker_three_layouts_120x40",
-            title="ACE agents view picker three layouts",
+            "agents_view_picker_five_layouts_120x40",
+            title="ACE agents view picker five layouts",
         )
 
 
@@ -285,4 +287,50 @@ async def test_agents_equal_file_layout_png_snapshot(
             page,
             "agents_equal_file_layout_120x40",
             title="ACE agents equal file layout",
+        )
+
+
+async def test_agents_file_only_layout_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    file_path = _write_visual_file(
+        _VISUAL_LAYOUT_DIR / "file-only-layout-notes.md",
+        "# Layout notes\n\n"
+        "This file panel should consume the full detail height.\n"
+        "The metadata panel should not be visible in this snapshot.\n",
+    )
+    patch_startup_loaders(monkeypatch, agents=[_file_detail_agent(file_path)])
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        await wait_for_state(
+            page,
+            lambda: detail.is_file_visible() and detail._has_file_content,
+            description="file detail visible",
+        )
+
+        await page.press("p")
+        await wait_for_svg_contains(page, "File only")
+        await page.press("]")
+        await wait_for_state(
+            page,
+            lambda: detail.detail_layout_mode is DetailLayoutMode.SECONDARY_ONLY,
+            description="file-only detail layout",
+        )
+        await wait_for_state(
+            page,
+            lambda: detail.is_file_visible() and not detail.is_metadata_visible(),
+            description="only file detail visible",
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_file_only_layout_120x40",
+            title="ACE agents file-only layout",
         )

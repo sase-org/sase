@@ -255,9 +255,15 @@ class AgentPanelDetailMixin:
 
         if getattr(self, "current_attempt_number", None) is not None:
             return ZoomPanelTarget.METADATA
-        if agent_detail.is_info_mode():
-            return ZoomPanelTarget.METADATA
         layout_mode = agent_detail.detail_layout_mode
+        if layout_mode is DetailLayoutMode.METADATA_ONLY or agent_detail.is_info_mode():
+            return ZoomPanelTarget.METADATA
+        if layout_mode is DetailLayoutMode.SECONDARY_ONLY:
+            if agent_detail.is_llm_calls_visible():
+                return ZoomPanelTarget.LLM_CALLS
+            if agent_detail.is_file_visible():
+                return ZoomPanelTarget.FILE
+            return ZoomPanelTarget.METADATA
         if layout_mode is DetailLayoutMode.METADATA_LARGER:
             return ZoomPanelTarget.METADATA
         if agent_detail.is_llm_calls_visible():

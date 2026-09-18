@@ -21,19 +21,21 @@ from .llm_calls_panel import AgentLLMCallsPanel, LLMCallsVisibilityChanged
 
 
 class DetailPanelMode(Enum):
-    """Three-state cycle for the detail panel view mode."""
+    """Secondary content selection for the detail panel."""
 
     AUTO = "auto"  # File shown (prompt expanded when no file)
     LLM_CALLS = "llm_calls"  # LLM Calls panel forced on
-    INFO = "info"  # Metadata only, prompt at 100%
+    INFO = "info"  # Compatibility alias for metadata-only layout
 
 
 class DetailLayoutMode(Enum):
     """Saved vertical detail-layout proportions."""
 
+    METADATA_ONLY = "metadata_only"  # Metadata 100% / File/LLM Calls 0%
     METADATA_LARGER = "metadata_larger"  # Metadata 70% / File/LLM Calls 30%
     EQUAL = "equal"  # Metadata 50% / File/LLM Calls 50%
     SECONDARY_LARGER = "secondary_larger"  # Metadata 30% / File/LLM Calls 70%
+    SECONDARY_ONLY = "secondary_only"  # Metadata 0% / File/LLM Calls 100%
 
 
 DETAIL_LAYOUT_CYCLE: Final[tuple[DetailLayoutMode, ...]] = (
@@ -54,6 +56,8 @@ def next_detail_layout_mode(
     layout: DetailLayoutMode, *, direction: int = 1
 ) -> DetailLayoutMode:
     """Return the next saved detail layout in the canonical circular order."""
+    if layout not in DETAIL_LAYOUT_CYCLE:
+        return DetailLayoutMode.EQUAL
     index = DETAIL_LAYOUT_CYCLE.index(layout)
     return DETAIL_LAYOUT_CYCLE[(index + direction) % len(DETAIL_LAYOUT_CYCLE)]
 
@@ -90,11 +94,21 @@ class AgentDetailPanelMixin(Static):
         self, agent: Agent, stale_threshold_seconds: int = 10
     ) -> None: ...
 
+    def is_info_mode(self) -> bool:
+        raise NotImplementedError
+
+    def is_file_visible(self) -> bool:
+        raise NotImplementedError
+
+    def is_llm_calls_visible(self) -> bool:
+        raise NotImplementedError
+
     def _expand_prompt_only(self) -> None:
         """Hide the file panel and expand the prompt panel to fill the space."""
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
         prompt_scroll = self._active_metadata_scroll()
+        self._show_active_metadata_scroll(prompt_scroll)
         file_scroll.add_class("hidden")
         llm_calls_scroll.add_class("hidden")
         self._clear_detail_layout_classes()
@@ -107,7 +121,13 @@ class AgentDetailPanelMixin(Static):
         Returns:
             ``"file"``, ``"llm calls"``, or ``"none"``.
         """
-        return _MODE_LABELS[self._panel_mode]
+        if self.is_info_mode():
+            return _MODE_LABELS[DetailPanelMode.INFO]
+        if self.is_llm_calls_visible():
+            return _MODE_LABELS[DetailPanelMode.LLM_CALLS]
+        if self.is_file_visible():
+            return _MODE_LABELS[DetailPanelMode.AUTO]
+        return _MODE_LABELS[self._selected_secondary_mode()]
 
     @property
     def panel_mode(self) -> DetailPanelMode:
@@ -145,38 +165,82 @@ class AgentDetailPanelMixin(Static):
         search_scroll = self.query_one("#agent-search-scroll", VerticalScroll)
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
-        for metadata_scroll in (prompt_scroll, search_scroll):
-            metadata_scroll.remove_class("layout-priority")
-            metadata_scroll.remove_class("layout-equal")
-        for secondary_scroll in (file_scroll, llm_calls_scroll):
-            secondary_scroll.remove_class("layout-secondary")
-            secondary_scroll.remove_class("layout-equal")
+        for scroll in (prompt_scroll, search_scroll, file_scroll, llm_calls_scroll):
+            scroll.remove_class("expanded")
+            scroll.remove_class("layout-priority")
+            scroll.remove_class("layout-secondary")
+            scroll.remove_class("layout-equal")
+
+    def _show_active_metadata_scroll(self, active_scroll: VerticalScroll) -> None:
+        """Show the native metadata scroll or its active search overlay."""
+        prompt_scroll = self.query_one("#agent-prompt-scroll", VerticalScroll)
+        search_scroll = self.query_one("#agent-search-scroll", VerticalScroll)
+        if active_scroll is search_scroll:
+            prompt_scroll.add_class("hidden")
+            search_scroll.remove_class("hidden")
+        else:
+            prompt_scroll.remove_class("hidden")
+            search_scroll.add_class("hidden")
+
+    def _hide_metadata_scrolls(self) -> None:
+        """Hide both metadata scroll variants."""
+        self.query_one("#agent-prompt-scroll", VerticalScroll).add_class("hidden")
+        self.query_one("#agent-search-scroll", VerticalScroll).add_class("hidden")
+
+    def _selected_secondary_mode(self) -> DetailPanelMode:
+        """Return the selected secondary content mode, normalizing legacy INFO."""
+        if self._panel_mode is DetailPanelMode.LLM_CALLS:
+            return DetailPanelMode.LLM_CALLS
+        return DetailPanelMode.AUTO
+
+    def _selected_secondary_scroll(self) -> VerticalScroll:
+        """Return the File or LLM Calls scroll for the selected secondary mode."""
+        if self._selected_secondary_mode() is DetailPanelMode.LLM_CALLS:
+            return self.query_one("#agent-llm-calls-scroll", VerticalScroll)
+        return self.query_one("#agent-file-scroll", VerticalScroll)
+
+    def _hide_unselected_secondary_scroll(self) -> None:
+        """Hide the secondary scroll that is not currently selected."""
+        selected = self._selected_secondary_scroll()
+        for selector in ("#agent-file-scroll", "#agent-llm-calls-scroll"):
+            scroll = self.query_one(selector, VerticalScroll)
+            if scroll is not selected:
+                scroll.add_class("hidden")
+
+    def selected_secondary_available(self) -> bool:
+        """Return whether the selected secondary panel has content to show."""
+        if self._selected_secondary_mode() is DetailPanelMode.LLM_CALLS:
+            return self._has_llm_calls_content
+        return self._has_file_content
 
     def _apply_detail_layout_classes(self) -> None:
-        """Apply the saved layout to the currently visible secondary panel."""
+        """Apply the saved layout to the selected secondary panel."""
         prompt_scroll = self._active_metadata_scroll()
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
         self._clear_detail_layout_classes()
+        self._hide_unselected_secondary_scroll()
 
-        if self._panel_mode == DetailPanelMode.INFO:
-            return
-
-        secondary_scroll = None
+        secondary_scroll = self._selected_secondary_scroll()
+        secondary_available = self.selected_secondary_available()
         if (
-            self._panel_mode == DetailPanelMode.LLM_CALLS
-            and not llm_calls_scroll.has_class("hidden")
+            self._detail_layout_mode is DetailLayoutMode.METADATA_ONLY
+            or not secondary_available
         ):
-            secondary_scroll = llm_calls_scroll
-        elif self._panel_mode == DetailPanelMode.AUTO and not file_scroll.has_class(
-            "hidden"
-        ):
-            secondary_scroll = file_scroll
-
-        if secondary_scroll is None:
+            self._show_active_metadata_scroll(prompt_scroll)
+            file_scroll.add_class("hidden")
+            llm_calls_scroll.add_class("hidden")
+            prompt_scroll.add_class("expanded")
             return
 
-        prompt_scroll.remove_class("expanded")
+        if self._detail_layout_mode is DetailLayoutMode.SECONDARY_ONLY:
+            self._hide_metadata_scrolls()
+            secondary_scroll.remove_class("hidden")
+            secondary_scroll.add_class("expanded")
+            return
+
+        self._show_active_metadata_scroll(prompt_scroll)
+        secondary_scroll.remove_class("hidden")
         if self._detail_layout_mode is DetailLayoutMode.METADATA_LARGER:
             prompt_scroll.add_class("layout-priority")
             secondary_scroll.add_class("layout-secondary")
@@ -197,7 +261,8 @@ class AgentDetailPanelMixin(Static):
         belongs to the selected row and attempt.
         """
         if (
-            mode is self._panel_mode
+            mode is not DetailPanelMode.INFO
+            and mode is self._panel_mode
             and self._current_agent is not None
             and self._current_agent.identity == agent.identity
             and getattr(self, "_current_attempt_number", None) == attempt_number
@@ -217,34 +282,23 @@ class AgentDetailPanelMixin(Static):
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
         llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
         llm_calls_panel = self.query_one("#agent-llm-calls-panel", AgentLLMCallsPanel)
-        prompt_scroll = self._active_metadata_scroll()
 
         if mode == DetailPanelMode.LLM_CALLS:
-            # Show LLM Calls, hide file.
-            file_scroll.add_class("hidden")
-            llm_calls_scroll.remove_class("hidden")
-            prompt_scroll.remove_class("expanded")
-
             self._panel_mode = DetailPanelMode.LLM_CALLS
-            self._apply_detail_layout_classes()
             llm_calls_panel.update_display(agent)
+            file_scroll.add_class("hidden")
+            self._apply_detail_layout_classes()
 
         elif mode == DetailPanelMode.INFO:
-            # Hide both secondary panels, prompt at 100%
-            file_scroll.add_class("hidden")
-            llm_calls_scroll.add_class("hidden")
-            self._clear_detail_layout_classes()
-            prompt_scroll.add_class("expanded")
-
-            self._panel_mode = DetailPanelMode.INFO
+            self._detail_layout_mode = DetailLayoutMode.METADATA_ONLY
+            if self._panel_mode is DetailPanelMode.INFO:
+                self._panel_mode = DetailPanelMode.AUTO
+            self._apply_detail_layout_classes()
 
         else:
             # AUTO: re-evaluate what to show
             self._panel_mode = DetailPanelMode.AUTO
-            prompt_scroll.remove_class("expanded")
             llm_calls_scroll.add_class("hidden")
-            file_scroll.remove_class("hidden")
-            self._apply_detail_layout_classes()
             # Invalidate file_panel state so the next dispatch skips the
             # same-agent fast paths in both `_update_display_body` and
             # `set_file_list` and forces a fresh render. Required because the
@@ -259,6 +313,8 @@ class AgentDetailPanelMixin(Static):
             # leaving an empty "No changes detected" panel visible.
             if not self._has_file_content:
                 self._expand_prompt_only()
+            else:
+                self._apply_detail_layout_classes()
 
     # ------------------------------------------------------------------
     # Event handlers
@@ -299,12 +355,6 @@ class AgentDetailPanelMixin(Static):
 
         if self._panel_mode != DetailPanelMode.LLM_CALLS:
             return
-
-        prompt_scroll = self._active_metadata_scroll()
-        llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
-
-        llm_calls_scroll.remove_class("hidden")
-        prompt_scroll.remove_class("expanded")
         self._apply_detail_layout_classes()
 
     def on_file_visibility_changed(self, message: FileVisibilityChanged) -> None:
@@ -319,17 +369,11 @@ class AgentDetailPanelMixin(Static):
         self._update_panel_indicators()
         self._update_file_scroll_title()
 
-        # Skip file visibility changes in LLM Calls or INFO modes.
-        if self._panel_mode in (DetailPanelMode.LLM_CALLS, DetailPanelMode.INFO):
+        # Skip file visibility changes while LLM Calls is the selected secondary.
+        if self._panel_mode == DetailPanelMode.LLM_CALLS:
             return
 
-        prompt_scroll = self._active_metadata_scroll()
-        file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
-
         if message.has_file:
-            # Show file panel
-            file_scroll.remove_class("hidden")
-            prompt_scroll.remove_class("expanded")
             self._apply_detail_layout_classes()
         else:
             self._expand_prompt_only()
@@ -391,9 +435,7 @@ class AgentDetailPanelMixin(Static):
         text = Text()
 
         # Files indicator
-        file_active = (
-            self._panel_mode == DetailPanelMode.AUTO and self._has_file_content
-        )
+        file_active = self.is_file_visible()
         if file_active:
             text.append("●", style="bold green")
             text.append(" files", style="bold green")
@@ -425,10 +467,9 @@ class AgentDetailPanelMixin(Static):
             text.append("  ")
 
             llm_calls_active = (
-                self._panel_mode == DetailPanelMode.LLM_CALLS
-                and self._has_llm_calls_content
+                self.is_llm_calls_visible() and self._has_llm_calls_content
             )
-            if llm_calls_active and self._panel_mode != DetailPanelMode.INFO:
+            if llm_calls_active:
                 text.append("●", style="bold #87D7FF")
                 text.append(" llm calls", style="bold #87D7FF")
             elif self._has_llm_calls_content:

@@ -102,6 +102,9 @@ class _FakeAgentDetail:
         self.refreshed_agents.append(agent)
         self._refresh_calls.append("file")
 
+    def is_file_visible(self) -> bool:
+        return self.panel_mode_label == "file"
+
 
 class _FakeApp(EventHandlersMixin):
     """Minimal stand-in mirroring ``test_event_handlers_nav_gate``'s fake.

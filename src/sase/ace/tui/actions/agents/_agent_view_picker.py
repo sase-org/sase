@@ -42,7 +42,8 @@ class _AgentViewCapabilities:
     layout_enabled: bool
     layout_reason: str | None
     secondary_label: str
-    effective_mode: DetailPanelMode
+    current_mode: DetailPanelMode
+    effective_layout: DetailLayoutMode
 
 
 class AgentViewPickerMixin:
@@ -126,7 +127,7 @@ class AgentViewPickerMixin:
             forced_metadata_reason=capabilities.forced_metadata_reason,
         )
         choices = self._agent_view_choices(agent_detail, capabilities)
-        selected_key = self._agent_view_selected_key(capabilities.effective_mode)
+        selected_key = self._agent_view_selected_key(capabilities)
 
         def _on_choice(result: AgentViewResult | None) -> None:
             if result is None:
@@ -144,10 +145,10 @@ class AgentViewPickerMixin:
         agent: Agent,
     ) -> _AgentViewCapabilities:
         forced_reason = self._forced_metadata_reason(agent)
-        effective_mode = (
-            DetailPanelMode.INFO
-            if forced_reason is not None
-            else agent_detail.panel_mode
+        current_mode = (
+            DetailPanelMode.LLM_CALLS
+            if agent_detail.panel_mode is DetailPanelMode.LLM_CALLS
+            else DetailPanelMode.AUTO
         )
         file_enabled = forced_reason is None
         file_has_content = bool(getattr(agent_detail, "_has_file_content", False))
@@ -168,14 +169,22 @@ class AgentViewPickerMixin:
         layout_reason: str | None = "Choose File or LLM Calls first"
         if forced_reason is not None:
             layout_reason = forced_reason
-        elif effective_mode == DetailPanelMode.AUTO:
-            secondary_label = "File"
-            layout_enabled = agent_detail.is_file_visible()
-            layout_reason = None if layout_enabled else "No file to resize"
-        elif effective_mode == DetailPanelMode.LLM_CALLS:
+        elif current_mode == DetailPanelMode.LLM_CALLS:
             secondary_label = "LLM Calls"
-            layout_enabled = agent_detail.is_llm_calls_visible()
-            layout_reason = None if layout_enabled else "Choose File or LLM Calls first"
+            llm_calls_has_content = bool(
+                getattr(agent_detail, "_has_llm_calls_content", False)
+            )
+            layout_enabled = llm_calls_enabled and llm_calls_has_content
+            layout_reason = None if layout_enabled else "No LLM Calls to resize"
+        else:
+            secondary_label = "File"
+            layout_enabled = file_has_content
+            layout_reason = None if layout_enabled else "No file to resize"
+
+        saved_layout = agent_detail.detail_layout_mode
+        effective_layout = saved_layout
+        if forced_reason is not None or not layout_enabled:
+            effective_layout = DetailLayoutMode.METADATA_ONLY
 
         return _AgentViewCapabilities(
             agent=agent,
@@ -187,7 +196,8 @@ class AgentViewPickerMixin:
             layout_enabled=layout_enabled,
             layout_reason=layout_reason,
             secondary_label=secondary_label,
-            effective_mode=effective_mode,
+            current_mode=current_mode,
+            effective_layout=effective_layout,
         )
 
     def _forced_metadata_reason(self, agent: Agent) -> str | None:
@@ -206,7 +216,7 @@ class AgentViewPickerMixin:
     ) -> tuple[AgentViewChoice, ...]:
         from ...modals.agent_view_modal import AgentViewChoice, AgentViewResult
 
-        current_mode = capabilities.effective_mode
+        current_mode = capabilities.current_mode
         forced_reason = capabilities.forced_metadata_reason
         choices: list[AgentViewChoice] = [
             AgentViewChoice(
@@ -229,21 +239,9 @@ class AgentViewPickerMixin:
                 badge="Current" if current_mode is DetailPanelMode.LLM_CALLS else None,
                 disabled_reason=capabilities.llm_calls_reason,
             ),
-            AgentViewChoice(
-                "0",
-                "None",
-                "Metadata fills the detail area",
-                "view",
-                AgentViewResult.mode_choice(DetailPanelMode.INFO),
-                enabled=True,
-                badge="Current" if current_mode is DetailPanelMode.INFO else None,
-            ),
         ]
 
         saved_layout = agent_detail.detail_layout_mode
-        layout_badge_kind: Literal["Current", "Saved"] = (
-            "Current" if capabilities.layout_enabled else "Saved"
-        )
         secondary_label = capabilities.secondary_label
         if current_mode == DetailPanelMode.AUTO:
             secondary_label = "File"
@@ -251,8 +249,27 @@ class AgentViewPickerMixin:
             secondary_label = "LLM Calls"
         next_layout = next_detail_layout_mode(saved_layout, direction=1)
         previous_layout = next_detail_layout_mode(saved_layout, direction=-1)
+
+        def layout_badge(
+            layout: DetailLayoutMode,
+        ) -> Literal["Current", "Saved"] | None:
+            if capabilities.effective_layout is layout:
+                return "Current"
+            if saved_layout is layout:
+                return "Saved"
+            return None
+
         choices.extend(
             [
+                AgentViewChoice(
+                    "[",
+                    "Metadata only",
+                    "Metadata fills the detail area",
+                    "layout",
+                    AgentViewResult.layout_choice(DetailLayoutMode.METADATA_ONLY),
+                    enabled=True,
+                    badge=layout_badge(DetailLayoutMode.METADATA_ONLY),
+                ),
                 AgentViewChoice(
                     "1",
                     "Metadata larger",
@@ -260,11 +277,7 @@ class AgentViewPickerMixin:
                     "layout",
                     AgentViewResult.layout_choice(DetailLayoutMode.METADATA_LARGER),
                     enabled=capabilities.layout_enabled,
-                    badge=(
-                        layout_badge_kind
-                        if saved_layout is DetailLayoutMode.METADATA_LARGER
-                        else None
-                    ),
+                    badge=layout_badge(DetailLayoutMode.METADATA_LARGER),
                     disabled_reason=capabilities.layout_reason,
                 ),
                 AgentViewChoice(
@@ -274,11 +287,7 @@ class AgentViewPickerMixin:
                     "layout",
                     AgentViewResult.layout_choice(DetailLayoutMode.EQUAL),
                     enabled=capabilities.layout_enabled,
-                    badge=(
-                        layout_badge_kind
-                        if saved_layout is DetailLayoutMode.EQUAL
-                        else None
-                    ),
+                    badge=layout_badge(DetailLayoutMode.EQUAL),
                     disabled_reason=capabilities.layout_reason,
                 ),
                 AgentViewChoice(
@@ -288,11 +297,17 @@ class AgentViewPickerMixin:
                     "layout",
                     AgentViewResult.layout_choice(DetailLayoutMode.SECONDARY_LARGER),
                     enabled=capabilities.layout_enabled,
-                    badge=(
-                        layout_badge_kind
-                        if saved_layout is DetailLayoutMode.SECONDARY_LARGER
-                        else None
-                    ),
+                    badge=layout_badge(DetailLayoutMode.SECONDARY_LARGER),
+                    disabled_reason=capabilities.layout_reason,
+                ),
+                AgentViewChoice(
+                    "]",
+                    f"{secondary_label} only",
+                    f"{secondary_label} fills the detail area",
+                    "layout",
+                    AgentViewResult.layout_choice(DetailLayoutMode.SECONDARY_ONLY),
+                    enabled=capabilities.layout_enabled,
+                    badge=layout_badge(DetailLayoutMode.SECONDARY_ONLY),
                     disabled_reason=capabilities.layout_reason,
                 ),
                 AgentViewChoice(
@@ -341,14 +356,20 @@ class AgentViewPickerMixin:
             return "Metadata larger"
         if layout is DetailLayoutMode.EQUAL:
             return "Equal split"
-        return f"{secondary_label} larger"
+        if layout is DetailLayoutMode.SECONDARY_LARGER:
+            return f"{secondary_label} larger"
+        if layout is DetailLayoutMode.SECONDARY_ONLY:
+            return f"{secondary_label} only"
+        return "Metadata only"
 
-    def _agent_view_selected_key(self, mode: DetailPanelMode) -> str:
-        return {
-            DetailPanelMode.AUTO: "f",
-            DetailPanelMode.LLM_CALLS: "t",
-            DetailPanelMode.INFO: "0",
-        }[mode]
+    def _agent_view_selected_key(self, capabilities: _AgentViewCapabilities) -> str:
+        if capabilities.effective_layout is DetailLayoutMode.METADATA_ONLY:
+            return "["
+        if capabilities.effective_layout is DetailLayoutMode.SECONDARY_ONLY:
+            return "]"
+        if capabilities.current_mode is DetailPanelMode.LLM_CALLS:
+            return "t"
+        return "f"
 
     def _apply_agent_view_result(
         self,
@@ -432,7 +453,15 @@ class AgentViewPickerMixin:
         layout = result.layout
         if layout is None:
             return
-        if not capabilities.layout_enabled:
+        if (
+            capabilities.forced_metadata_reason is not None
+            and layout is DetailLayoutMode.METADATA_ONLY
+        ):
+            return
+        if (
+            layout is not DetailLayoutMode.METADATA_ONLY
+            and not capabilities.layout_enabled
+        ):
             self.notify(  # type: ignore[attr-defined]
                 capabilities.layout_reason or "Choose File or LLM Calls first",
                 severity="warning",

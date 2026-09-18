@@ -239,13 +239,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         from ...widgets import AgentDetail
 
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-        if agent_detail.is_info_mode():
-            return "#agent-prompt-scroll"
-        if agent_detail.is_llm_calls_visible():
-            return "#agent-llm-calls-scroll"
-        if agent_detail._has_file_content:
-            return "#agent-file-scroll"
-        return "#agent-prompt-scroll"
+        return agent_detail.effective_detail_scroll_id()
 
     def action_scroll_detail_down(self) -> None:
         """Scroll the detail panel down by half a page (vim Ctrl+D style)."""
@@ -257,7 +251,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         elif self.current_tab == "agents":
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
-            if scroll_id == "#agent-prompt-scroll":
+            if scroll_id in {"#agent-prompt-scroll", "#agent-search-scroll"}:
                 self._release_agent_metadata_bottom_pin()
 
         else:  # axe
@@ -276,7 +270,7 @@ class BasicNavigationMixin(NavigationMixinBase):
         elif self.current_tab == "agents":
             scroll_id = self._get_agent_detail_scroll_id()
             scroll_container = self.query_one(scroll_id, VerticalScroll)  # type: ignore[attr-defined]
-            if scroll_id == "#agent-prompt-scroll":
+            if scroll_id in {"#agent-prompt-scroll", "#agent-search-scroll"}:
                 self._release_agent_metadata_bottom_pin()
         else:  # axe
             self._axe_pinned_to_bottom = False

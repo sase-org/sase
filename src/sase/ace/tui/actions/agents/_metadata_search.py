@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from ...widgets.prompt_panel import AgentPromptPanel
 
 
-_METADATA_LAYOUT_CLASSES = ("expanded", "layout-priority")
+_METADATA_LAYOUT_CLASSES = ("expanded", "layout-priority", "layout-equal")
 
 
 def _agent_prompt_panel_type() -> type[AgentPromptPanel]:
@@ -56,10 +56,16 @@ class AgentMetadataSearchMixin:
 
         from textual.screen import ModalScreen
 
-        return not (
+        if (
             bool(getattr(self, "_screen_stack", ()))
             and isinstance(self.screen, ModalScreen)  # type: ignore[attr-defined]
-        )
+        ):
+            return False
+        try:
+            detail = self._agent_detail()
+        except Exception:
+            return False
+        return detail.is_metadata_visible()
 
     def action_search_forward(self) -> None:
         """Start forward incremental search over the Agents metadata panel."""
@@ -251,6 +257,7 @@ class AgentMetadataSearchMixin:
         native.add_class("hidden")
         search_scroll.remove_class("hidden")
         detail.query_one("#agent-search-command", Static).remove_class("hidden")
+        detail._apply_detail_layout_classes()
 
     def vim_search_hide_overlay(self) -> None:
         """Reveal the refreshed native panel and clear the frozen widgets."""
@@ -268,6 +275,7 @@ class AgentMetadataSearchMixin:
         command.border_title = ""
         command.border_subtitle = ""
         command.add_class("hidden")
+        detail._apply_detail_layout_classes()
 
     def vim_search_paint_overlay(self, content: Text) -> None:
         """Render highlighted corpus text in the frozen inline overlay."""

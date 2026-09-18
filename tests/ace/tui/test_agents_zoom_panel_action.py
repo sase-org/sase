@@ -52,6 +52,32 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
             None,
             ZoomPanelTarget.LLM_CALLS,
         ),
+        (
+            _FakeDetail(
+                layout_mode=DetailLayoutMode.METADATA_ONLY,
+                file_visible=False,
+            ),
+            None,
+            ZoomPanelTarget.METADATA,
+        ),
+        (
+            _FakeDetail(
+                layout_mode=DetailLayoutMode.SECONDARY_ONLY,
+                file_visible=True,
+            ),
+            None,
+            ZoomPanelTarget.FILE,
+        ),
+        (
+            _FakeDetail(
+                layout_mode=DetailLayoutMode.SECONDARY_ONLY,
+                file_visible=False,
+                llm_calls_visible=True,
+                has_llm_calls=True,
+            ),
+            None,
+            ZoomPanelTarget.LLM_CALLS,
+        ),
         (_FakeDetail(info=True, file_visible=False), None, ZoomPanelTarget.METADATA),
         (_FakeDetail(file_visible=True), 2, ZoomPanelTarget.METADATA),
     ],
