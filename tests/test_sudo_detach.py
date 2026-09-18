@@ -431,7 +431,14 @@ def test_sudo_show_and_list_include_executing_state(
             finalize_proc_id="proc-show",
         ),
     )
-    monkeypatch.setattr("sase.sudo.execution.execution_is_live", lambda _state: True)
+    monkeypatch.setattr(
+        "sase.sudo.core._RustSudoCoreBinding.classify_attempt_liveness",
+        lambda _self, _attempt, _facts: {
+            "schema_version": 1,
+            "classification": "live",
+            "reason": "test",
+        },
+    )
     parser = argparse.ArgumentParser(prog="sase")
     register_sudo_parser(parser.add_subparsers(dest="command"))
     show_args = parser.parse_args(["sudo", "show", gate.request_id, "--json"])

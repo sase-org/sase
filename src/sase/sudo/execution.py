@@ -54,17 +54,27 @@ class SudoExecutionState:
     handoff_dir: str
     handshake: dict[str, Any] | None = None
     finalize_proc_id: str | None = None
+    target_kind: str = "local"
+    target_host: str | None = None
+    startup_state: str = "legacy"
+    operation_payload_digest: str | None = None
+    authorization_id: str | None = None
     schema_version: int = EXECUTION_STATE_SCHEMA_VERSION
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "authorization_id": self.authorization_id,
             "finalize_proc_id": self.finalize_proc_id,
             "gate_id": self.gate_id,
             "handoff_dir": self.handoff_dir,
             "handshake": None if self.handshake is None else dict(self.handshake),
             "manifest_sha256": self.manifest_sha256,
+            "operation_payload_digest": self.operation_payload_digest,
             "schema_version": self.schema_version,
             "selected_command_ids": list(self.selected_command_ids),
+            "startup_state": self.startup_state,
+            "target_host": self.target_host,
+            "target_kind": self.target_kind,
         }
 
 
@@ -75,6 +85,7 @@ class _SudoExecutionProjection:
     executing: bool
     finalize_proc_id: str | None = None
     executor_pid: int | None = None
+    liveness: str = "dead"
 
 
 def _sudo_exec_root() -> Path:
@@ -183,8 +194,42 @@ def claim_execution_record(
 
 
 def execution_is_live(state: SudoExecutionState) -> bool:
-    """Return whether the finalize proc or the root executor is still live."""
-    return _proc_is_live(state.finalize_proc_id) or executor_is_live(state.handshake)
+    """Return whether the attempt still owns the gate.
+
+    This is intentionally conservative: unknown executor ownership is still
+    live for duplicate-answer purposes. Use ``execution_liveness`` when the
+    distinction matters.
+    """
+    return execution_liveness(state)["classification"] != "dead"
+
+
+def execution_liveness(state: SudoExecutionState) -> dict[str, Any]:
+    """Return the Rust-classified live/dead/unknown attempt decision."""
+    from sase.sudo.core import DEFAULT_SUDO_CORE
+
+    try:
+        return DEFAULT_SUDO_CORE.classify_attempt_liveness(
+            state.to_dict(),
+            _attempt_liveness_facts(state),
+        )
+    except GateError:
+        if _proc_is_live(state.finalize_proc_id) or executor_is_live(state.handshake):
+            return {
+                "schema_version": EXECUTION_STATE_SCHEMA_VERSION,
+                "classification": "live",
+                "reason": "legacy Python liveness fallback",
+            }
+        if state.startup_state == "legacy":
+            return {
+                "schema_version": EXECUTION_STATE_SCHEMA_VERSION,
+                "classification": "dead",
+                "reason": "legacy Python liveness fallback",
+            }
+        return {
+            "schema_version": EXECUTION_STATE_SCHEMA_VERSION,
+            "classification": "unknown",
+            "reason": "invalid attempt state needs recovery",
+        }
 
 
 def _proc_is_live(proc_id: str | None) -> bool:
@@ -212,13 +257,14 @@ def executor_is_live(handshake: Mapping[str, Any] | None) -> bool:
 
 
 def live_execution_error(state: SudoExecutionState) -> GateError:
-    """Return the duplicate-approval error naming the live finalize proc."""
+    """Return the duplicate-approval error naming the live or unknown owner."""
     proc_id = state.finalize_proc_id or "unknown"
+    liveness = execution_liveness(state)["classification"]
     return GateError(
         "execution_in_progress",
         proc_id,
         (
-            "sudo execution is already in progress for this gate "
+            f"sudo execution ownership is {liveness} for this gate "
             f"(finalize proc {proc_id}); the gate remains pending"
         ),
     )
@@ -227,7 +273,11 @@ def live_execution_error(state: SudoExecutionState) -> GateError:
 def project_execution(bundle_root: Path) -> _SudoExecutionProjection:
     """Project live executing state without mutating the record."""
     state = load_execution_state(bundle_root)
-    if state is None or not execution_is_live(state):
+    if state is None:
+        return _SudoExecutionProjection(executing=False)
+    liveness = execution_liveness(state)
+    classification = str(liveness.get("classification") or "unknown")
+    if classification == "dead":
         return _SudoExecutionProjection(executing=False)
     handshake = state.handshake or {}
     pid = handshake.get("executor_pid")
@@ -235,15 +285,21 @@ def project_execution(bundle_root: Path) -> _SudoExecutionProjection:
         executing=True,
         finalize_proc_id=state.finalize_proc_id,
         executor_pid=pid
-        if isinstance(pid, int) and not isinstance(pid, bool)
+        if (
+            state.target_kind == "local"
+            and classification == "live"
+            and isinstance(pid, int)
+            and not isinstance(pid, bool)
+        )
         else None,
+        liveness=classification,
     )
 
 
 def recover_dead_attempt(bundle_root: Path) -> None:
     """Clear a record and handoff when neither proc nor executor is live."""
     state = load_execution_state(bundle_root)
-    if state is None or execution_is_live(state):
+    if state is None or execution_liveness(state)["classification"] != "dead":
         return
     if state.handoff_dir:
         cleanup_handoff(Path(state.handoff_dir))
@@ -438,6 +494,57 @@ def _state_from_payload(
             "finalize_proc_id",
             "sudo execution record finalize_proc_id must be a string",
         )
+    target_kind = payload.get("target_kind")
+    startup_state = payload.get("startup_state")
+    target_host = payload.get("target_host")
+    operation_payload_digest = payload.get("operation_payload_digest")
+    authorization_id = payload.get("authorization_id")
+    if target_kind is None:
+        target_kind = "unknown"
+    if startup_state is None:
+        startup_state = "unknown"
+    if target_kind not in {"local", "remote", "unknown"}:
+        raise GateError(
+            "invalid_sudo_execution_state",
+            "target_kind",
+            "sudo execution record target_kind is invalid",
+        )
+    if startup_state not in {
+        "legacy",
+        "reserved",
+        "authenticating",
+        "starting",
+        "started",
+        "settling",
+        "settled",
+        "terminal",
+        "unknown",
+    }:
+        raise GateError(
+            "invalid_sudo_execution_state",
+            "startup_state",
+            "sudo execution record startup_state is invalid",
+        )
+    if target_host is not None and not isinstance(target_host, str):
+        raise GateError(
+            "invalid_sudo_execution_state",
+            "target_host",
+            "sudo execution record target_host must be a string",
+        )
+    if operation_payload_digest is not None and not isinstance(
+        operation_payload_digest, str
+    ):
+        raise GateError(
+            "invalid_sudo_execution_state",
+            "operation_payload_digest",
+            "sudo execution record operation_payload_digest must be a string",
+        )
+    if authorization_id is not None and not isinstance(authorization_id, str):
+        raise GateError(
+            "invalid_sudo_execution_state",
+            "authorization_id",
+            "sudo execution record authorization_id must be a string",
+        )
     return SudoExecutionState(
         schema_version=EXECUTION_STATE_SCHEMA_VERSION,
         gate_id=gate_id,
@@ -446,7 +553,37 @@ def _state_from_payload(
         handoff_dir=handoff_dir,
         handshake=None if handshake is None else dict(handshake),
         finalize_proc_id=proc_id,
+        target_kind=target_kind,
+        target_host=target_host,
+        startup_state=startup_state,
+        operation_payload_digest=operation_payload_digest,
+        authorization_id=authorization_id,
     )
+
+
+def _attempt_liveness_facts(state: SudoExecutionState) -> dict[str, Any]:
+    facts: dict[str, Any] = {
+        "finalize_proc_live": (
+            None
+            if state.finalize_proc_id is None
+            else _proc_is_live(state.finalize_proc_id)
+        ),
+        "executor_identity_matches": None,
+        "executor_pid_live": None,
+    }
+    if state.target_kind != "local" or state.handshake is None:
+        return facts
+    pid = state.handshake.get("executor_pid")
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0:
+        return facts
+    live = _pid_is_running(pid)
+    facts["executor_pid_live"] = live
+    facts["executor_identity_matches"] = (
+        process_identity_matches(pid, state.handshake.get("executor_identity"))
+        if live
+        else False
+    )
+    return facts
 
 
 def _write_sealed_manifest(path: Path, manifest: Mapping[str, Any]) -> None:
@@ -575,6 +712,7 @@ __all__ = [
     "copy_output_log",
     "create_handoff_dir",
     "execution_is_live",
+    "execution_liveness",
     "execution_lock",
     "executor_is_live",
     "handshake_from_runner_payload",

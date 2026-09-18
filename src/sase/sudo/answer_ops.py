@@ -89,6 +89,7 @@ def apply_approved_receipt(
     manifest_sha256: str,
     feedback: str | None,
     retry: Literal["resume", "restart"] | None,
+    settlement_authorization: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Validate a terminal ledger, execute the approve option, and settle."""
     _reject_non_terminal_auth(receipt)
@@ -102,7 +103,7 @@ def apply_approved_receipt(
         bundle.root,
         [APPROVE_OPTION_ID],
         feedback=feedback,
-        source="sudo_cli",
+        source="sudo_finalize" if settlement_authorization is not None else "sudo_cli",
         retry=retry,
         option_inputs={
             APPROVE_OPTION_ID: {
@@ -110,6 +111,7 @@ def apply_approved_receipt(
                 "receipt": normalized_receipt,
             }
         },
+        sudo_headless_authorization=settlement_authorization,
     )
     settle_shell(bundle.request_id, retry=retry)
     return answer_payload(

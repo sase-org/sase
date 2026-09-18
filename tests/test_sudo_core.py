@@ -73,3 +73,49 @@ def test_validate_handshake_rejects_non_object_result(
 
     assert excinfo.value.code == "invalid_sudo_handshake"
     assert "non-object" in str(excinfo.value)
+
+
+def test_classify_attempt_liveness_calls_rust_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[dict[str, Any], dict[str, Any]]] = []
+
+    def fake_require(name: str) -> Any:
+        assert name == "sudo_classify_attempt_liveness"
+
+        def binding(
+            attempt: dict[str, Any],
+            facts: dict[str, Any],
+        ) -> dict[str, Any]:
+            calls.append((attempt, facts))
+            return {
+                "schema_version": 1,
+                "classification": "unknown",
+                "reason": "remote",
+            }
+
+        return binding
+
+    monkeypatch.setattr("sase.sudo.core.require_rust_binding", fake_require)
+
+    result = _RustSudoCoreBinding().classify_attempt_liveness(
+        {"gate_id": "sudo-1"}, {"finalize_proc_live": None}
+    )
+
+    assert calls == [({"gate_id": "sudo-1"}, {"finalize_proc_live": None})]
+    assert result["classification"] == "unknown"
+
+
+def test_authorize_settlement_calls_rust_binding(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_require(name: str) -> Any:
+        assert name == "sudo_authorize_settlement"
+        return lambda request: {"authorized": True, **request}
+
+    monkeypatch.setattr("sase.sudo.core.require_rust_binding", fake_require)
+
+    result = _RustSudoCoreBinding().authorize_settlement({"gate_id": "sudo-1"})
+
+    assert result["authorized"] is True
+    assert result["gate_id"] == "sudo-1"

@@ -6,6 +6,7 @@ import argparse
 import json
 import sys
 from collections.abc import Mapping
+from dataclasses import replace as dataclass_replace
 from pathlib import Path
 from typing import Any, Literal
 
@@ -37,7 +38,20 @@ from sase.sudo.detach import (
     approve_remote_detached,
     finalize,
 )
-from sase.sudo.execution import handshake_from_runner_payload, project_execution
+from sase.sudo.execution import (
+    SudoExecutionState,
+    claim_execution_record,
+    cleanup_handoff,
+    clear_execution_state,
+    create_handoff_dir,
+    execution_lock,
+    handshake_from_runner_payload,
+    live_execution_error,
+    load_execution_state,
+    project_execution,
+    recover_dead_attempt,
+    write_execution_state,
+)
 from sase.sudo.feature import require_sudo_requests_enabled
 from sase.sudo.gate import DENY_OPTION_ID, build_sudo_gate_request
 from sase.sudo.lease import sudo_auth_lease
@@ -265,9 +279,13 @@ def _approve(
     )
     target = payload.get("target")
     remote = isinstance(target, Mapping) and bool(target.get("remote"))
+    host = str(target.get("host") or "") if isinstance(target, Mapping) else ""
+    with execution_lock(bundle.root):
+        existing = claim_execution_record(bundle.root, gate_id=gate_id)
+        if existing is not None:
+            raise live_execution_error(existing)
     if detach and remote:
         assert isinstance(target, Mapping)
-        host = str(target.get("host") or "")
         if remote_supports_detached_execution(host):
             return approve_remote_detached(
                 bundle,
@@ -292,35 +310,76 @@ def _approve(
             feedback=feedback,
             retry=retry,
         )
-    with sudo_auth_lease(
-        request_id=gate_id,
-        run_as=str(manifest.get("run_as") or "root"),
-        cwd=str(manifest.get("cwd") or ""),
-        command_ids=selected_command_ids,
-    ):
-        if remote:
-            host = str(target.get("host") or "") if isinstance(target, Mapping) else ""
-            receipt = run_remote_sudo(
-                host,
-                manifest,
-                manifest_sha256=manifest_sha256,
-                timeout_seconds=runner_timeout_seconds(manifest),
+    with execution_lock(bundle.root):
+        existing = claim_execution_record(bundle.root, gate_id=gate_id)
+        if existing is not None:
+            raise live_execution_error(existing)
+        handoff = create_handoff_dir(gate_id, manifest)
+        state = SudoExecutionState(
+            gate_id=gate_id,
+            selected_command_ids=selected_command_ids,
+            manifest_sha256=manifest_sha256,
+            handoff_dir=str(handoff),
+            target_kind="remote" if remote else "local",
+            target_host=host if remote else None,
+            startup_state="reserved",
+        )
+        write_execution_state(bundle.root, state)
+    try:
+        with execution_lock(bundle.root):
+            write_execution_state(
+                bundle.root, dataclass_replace(state, startup_state="authenticating")
             )
-        else:
-            receipt = run_sudo_runner(
-                manifest,
-                manifest_sha256=manifest_sha256,
-                timeout_seconds=runner_timeout_seconds(manifest),
+        with sudo_auth_lease(
+            request_id=gate_id,
+            run_as=str(manifest.get("run_as") or "root"),
+            cwd=str(manifest.get("cwd") or ""),
+            command_ids=selected_command_ids,
+        ):
+            with execution_lock(bundle.root):
+                write_execution_state(
+                    bundle.root, dataclass_replace(state, startup_state="starting")
+                )
+            if remote:
+                receipt = run_remote_sudo(
+                    host,
+                    manifest,
+                    manifest_sha256=manifest_sha256,
+                    timeout_seconds=runner_timeout_seconds(manifest),
+                )
+            else:
+                receipt = run_sudo_runner(
+                    manifest,
+                    manifest_sha256=manifest_sha256,
+                    timeout_seconds=runner_timeout_seconds(manifest),
+                )
+        with execution_lock(bundle.root):
+            settlement_state = (
+                "terminal"
+                if str(receipt.get("outcome") or "")
+                in {"auth_failed", "cancelled", "tty_unavailable"}
+                else "settling"
             )
-    return apply_approved_receipt(
-        bundle,
-        receipt,
-        selected_command_ids=selected_command_ids,
-        manifest=manifest,
-        manifest_sha256=manifest_sha256,
-        feedback=feedback,
-        retry=retry,
-    )
+            write_execution_state(
+                bundle.root, dataclass_replace(state, startup_state=settlement_state)
+            )
+        result = apply_approved_receipt(
+            bundle,
+            receipt,
+            selected_command_ids=selected_command_ids,
+            manifest=manifest,
+            manifest_sha256=manifest_sha256,
+            feedback=feedback,
+            retry=retry,
+        )
+    except Exception:
+        _retire_pre_start_attempt(bundle.root)
+        recover_dead_attempt(bundle.root)
+        raise
+    with execution_lock(bundle.root):
+        cleanup_handoff(handoff)
+        clear_execution_state(bundle.root)
+    return result
 
 
 def _deny(
@@ -330,6 +389,10 @@ def _deny(
     retry: Literal["resume", "restart"] | None,
 ) -> dict[str, Any]:
     bundle = resolve_gate_cli_bundle("sudo", gate_id)
+    with execution_lock(bundle.root):
+        existing = claim_execution_record(bundle.root, gate_id=gate_id)
+        if existing is not None:
+            raise live_execution_error(existing)
     execution = execute_gate_selection(
         bundle.root,
         [DENY_OPTION_ID],
@@ -339,6 +402,15 @@ def _deny(
     )
     settle_shell(gate_id, retry=retry)
     return answer_payload(bundle.kind, gate_id, execution.response)
+
+
+def _retire_pre_start_attempt(bundle_root: Path) -> None:
+    state = load_execution_state(bundle_root)
+    if state is None or state.startup_state not in {"reserved", "authenticating"}:
+        return
+    write_execution_state(
+        bundle_root, dataclass_replace(state, startup_state="terminal")
+    )
 
 
 def _list(args: argparse.Namespace) -> int:

@@ -16,6 +16,7 @@ from sase.gate_shell.store import find_gate_shell_by_gate_id
 from sase.notification_gates.cli_support import emit_json, resolve_gate_cli_bundle
 from sase.notification_gates.command_runner import record_execution_error
 from sase.notification_gates.durability import read_json_object
+from sase.notification_gates.durability import canonical_json_bytes, sha256_bytes
 from sase.notification_gates.journal import append_journal_event
 from sase.notification_gates.models import GateError
 from sase.notification_gates.paths import RESPONSE_FILENAME
@@ -84,25 +85,36 @@ def approve_detached(
     """Authenticate, spawn the executor, and submit the finalize proc."""
     gate_id = bundle.request_id
     runner_payload: dict[str, Any] | None = None
+    with execution_lock(bundle.root):
+        existing = claim_execution_record(bundle.root, gate_id=gate_id)
+        if existing is not None:
+            raise live_execution_error(existing)
+        handoff = create_handoff_dir(gate_id, manifest)
+        state = SudoExecutionState(
+            gate_id=gate_id,
+            selected_command_ids=selected_command_ids,
+            manifest_sha256=manifest_sha256,
+            handoff_dir=str(handoff),
+            target_kind="local",
+            startup_state="reserved",
+        )
+        write_execution_state(bundle.root, state)
+    proc: Any
+    with execution_lock(bundle.root):
+        write_execution_state(
+            bundle.root, replace(state, startup_state="authenticating")
+        )
     with sudo_auth_lease(
         request_id=gate_id,
         run_as=str(manifest.get("run_as") or "root"),
         cwd=str(manifest.get("cwd") or ""),
         command_ids=selected_command_ids,
     ):
-        with execution_lock(bundle.root):
-            existing = claim_execution_record(bundle.root, gate_id=gate_id)
-            if existing is not None:
-                raise live_execution_error(existing)
-            handoff = create_handoff_dir(gate_id, manifest)
-            state = SudoExecutionState(
-                gate_id=gate_id,
-                selected_command_ids=selected_command_ids,
-                manifest_sha256=manifest_sha256,
-                handoff_dir=str(handoff),
-            )
-            write_execution_state(bundle.root, state)
         try:
+            with execution_lock(bundle.root):
+                write_execution_state(
+                    bundle.root, replace(state, startup_state="starting")
+                )
             runner_payload = run_sudo_runner_detached(
                 handoff / MANIFEST_FILENAME,
                 manifest_sha256=manifest_sha256,
@@ -114,6 +126,10 @@ def approve_detached(
                     runner_payload, dict(manifest)
                 )
             else:
+                with execution_lock(bundle.root):
+                    write_execution_state(
+                        bundle.root, replace(state, startup_state="terminal")
+                    )
                 recover_dead_attempt(bundle.root)
                 return apply_approved_receipt(
                     bundle,
@@ -129,10 +145,10 @@ def approve_detached(
             raise
         with execution_lock(bundle.root):
             state = load_execution_state(bundle.root) or state
-            state = replace(state, handshake=dict(handshake))
+            state = replace(state, handshake=dict(handshake), startup_state="started")
             write_execution_state(bundle.root, state)
             try:
-                proc = _submit_finalize_proc(
+                proc, operation_payload_digest = _submit_finalize_proc(
                     bundle,
                     manifest,
                     state=state,
@@ -143,7 +159,11 @@ def approve_detached(
             except Exception:
                 write_execution_state(bundle.root, state)
                 raise
-            state = replace(state, finalize_proc_id=proc.proc_id)
+            state = replace(
+                state,
+                finalize_proc_id=proc.proc_id,
+                operation_payload_digest=operation_payload_digest,
+            )
             write_execution_state(bundle.root, state)
     return {
         "kind": bundle.kind,
@@ -168,25 +188,37 @@ def approve_remote_detached(
     gate_id = bundle.request_id
     runner_payload: dict[str, Any] | None = None
     remote_paths: dict[str, Any] | None = None
+    with execution_lock(bundle.root):
+        existing = claim_execution_record(bundle.root, gate_id=gate_id)
+        if existing is not None:
+            raise live_execution_error(existing)
+        handoff = create_handoff_dir(gate_id, manifest)
+        state = SudoExecutionState(
+            gate_id=gate_id,
+            selected_command_ids=selected_command_ids,
+            manifest_sha256=manifest_sha256,
+            handoff_dir=str(handoff),
+            target_kind="remote",
+            target_host=host,
+            startup_state="reserved",
+        )
+        write_execution_state(bundle.root, state)
+    proc: Any
+    with execution_lock(bundle.root):
+        write_execution_state(
+            bundle.root, replace(state, startup_state="authenticating")
+        )
     with sudo_auth_lease(
         request_id=gate_id,
         run_as=str(manifest.get("run_as") or "root"),
         cwd=str(manifest.get("cwd") or ""),
         command_ids=selected_command_ids,
     ):
-        with execution_lock(bundle.root):
-            existing = claim_execution_record(bundle.root, gate_id=gate_id)
-            if existing is not None:
-                raise live_execution_error(existing)
-            handoff = create_handoff_dir(gate_id, manifest)
-            state = SudoExecutionState(
-                gate_id=gate_id,
-                selected_command_ids=selected_command_ids,
-                manifest_sha256=manifest_sha256,
-                handoff_dir=str(handoff),
-            )
-            write_execution_state(bundle.root, state)
         try:
+            with execution_lock(bundle.root):
+                write_execution_state(
+                    bundle.root, replace(state, startup_state="starting")
+                )
             runner_payload, remote_paths = run_remote_sudo_detached(
                 host,
                 manifest,
@@ -198,6 +230,10 @@ def approve_remote_detached(
                     runner_payload, dict(manifest)
                 )
             else:
+                with execution_lock(bundle.root):
+                    write_execution_state(
+                        bundle.root, replace(state, startup_state="terminal")
+                    )
                 recover_dead_attempt(bundle.root)
                 return apply_approved_receipt(
                     bundle,
@@ -213,10 +249,10 @@ def approve_remote_detached(
             raise
         with execution_lock(bundle.root):
             state = load_execution_state(bundle.root) or state
-            state = replace(state, handshake=dict(handshake))
+            state = replace(state, handshake=dict(handshake), startup_state="started")
             write_execution_state(bundle.root, state)
             try:
-                proc = _submit_finalize_proc(
+                proc, operation_payload_digest = _submit_finalize_proc(
                     bundle,
                     manifest,
                     state=state,
@@ -228,7 +264,11 @@ def approve_remote_detached(
             except Exception:
                 write_execution_state(bundle.root, state)
                 raise
-            state = replace(state, finalize_proc_id=proc.proc_id)
+            state = replace(
+                state,
+                finalize_proc_id=proc.proc_id,
+                operation_payload_digest=operation_payload_digest,
+            )
             write_execution_state(bundle.root, state)
     return {
         "kind": bundle.kind,
@@ -271,17 +311,12 @@ def _preserve_or_recover_attempt(
     state = load_execution_state(bundle_root)
     if state is None:
         return
-    handshake = state.handshake
-    if handshake is None and runner_payload is not None:
-        pid = runner_payload.get("executor_pid")
-        identity = runner_payload.get("executor_identity")
-        if isinstance(pid, int) and not isinstance(pid, bool) and pid > 0:
-            handshake = {
-                "executor_pid": pid,
-                "executor_identity": identity if isinstance(identity, str) else "",
-            }
-            write_execution_state(bundle_root, replace(state, handshake=handshake))
-            state = replace(state, handshake=handshake)
+    if state.handshake is None and runner_payload is not None:
+        if handshake_from_runner_payload(runner_payload):
+            state = replace(
+                state, handshake=dict(runner_payload), startup_state="started"
+            )
+            write_execution_state(bundle_root, state)
     if execution_is_live(state):
         return
     recover_dead_attempt(bundle_root)
@@ -296,7 +331,7 @@ def _submit_finalize_proc(
     feedback: str | None,
     retry: Literal["resume", "restart"] | None,
     remote: Mapping[str, Any] | None = None,
-) -> Any:
+) -> tuple[Any, str]:
     payload: dict[str, Any] = {
         "gate_id": state.gate_id,
         "handoff_dir": state.handoff_dir,
@@ -310,9 +345,10 @@ def _submit_finalize_proc(
         payload["retry"] = retry
     if remote is not None:
         payload["remote"] = dict(remote)
+    operation_payload_digest = _operation_payload_digest(payload)
     shell = find_gate_shell_by_gate_id(None, state.gate_id)
     try:
-        return submit_proc_request(
+        proc = submit_proc_request(
             ProcSubmitRequest(
                 argv=["sase", "sudo", "finalize", state.gate_id, "--json"],
                 label=_sudo_run_label(manifest, state.gate_id),
@@ -325,6 +361,7 @@ def _submit_finalize_proc(
                 operation_payload=payload,
             )
         )
+        return proc, operation_payload_digest
     except ProcSubmitError as exc:
         raise GateError(
             "proc_submit_failed",
@@ -368,6 +405,14 @@ def _run_finalize(args: argparse.Namespace) -> dict[str, Any]:
             "sudo finalize is missing an in-flight execution record",
         )
     _cross_check_finalize_payload(payload, gate_id=gate_id, state=state)
+    if state.operation_payload_digest is not None:
+        actual_digest = _operation_payload_digest(payload)
+        if actual_digest != state.operation_payload_digest:
+            raise GateError(
+                "invalid_sudo_finalize",
+                "operation_payload_digest",
+                "finalize operation payload digest does not match the execution record",
+            )
     handshake = dict(state.handshake or {})
     if payload.get("handshake") and not handshake:
         raw = payload.get("handshake")
@@ -400,6 +445,13 @@ def _run_finalize(args: argparse.Namespace) -> dict[str, Any]:
                 handshake=handshake,
                 timeout_seconds=runner_timeout_seconds(manifest),
             )
+        authorization = _authorize_finalize_settlement(
+            bundle.root,
+            state=state,
+            payload=payload,
+            receipt=receipt,
+            handshake=handshake,
+        )
         result = apply_approved_receipt(
             bundle,
             receipt,
@@ -408,6 +460,7 @@ def _run_finalize(args: argparse.Namespace) -> dict[str, Any]:
             manifest_sha256=manifest_sha256,
             feedback=feedback,
             retry=retry,
+            settlement_authorization=authorization,
         )
     except GateError as exc:
         _record_finalize_failure(bundle.root, exc)
@@ -440,11 +493,49 @@ def _finalize_existing_response(
     settle_shell(bundle.request_id, retry=retry)
     if state is not None:
         with execution_lock(bundle.root):
+            write_execution_state(bundle.root, replace(state, startup_state="settled"))
             cleanup_handoff(Path(state.handoff_dir))
             clear_execution_state(bundle.root)
     return answer_payload(
         bundle.kind, bundle.request_id, response, selected_command_ids=selected
     )
+
+
+def _authorize_finalize_settlement(
+    bundle_root: Path,
+    *,
+    state: SudoExecutionState,
+    payload: Mapping[str, Any],
+    receipt: Mapping[str, Any],
+    handshake: Mapping[str, Any],
+) -> dict[str, Any]:
+    request: dict[str, Any] = {
+        "attempt": state.to_dict(),
+        "ledger": dict(receipt),
+    }
+    if handshake:
+        request["handshake"] = dict(handshake)
+    if state.operation_payload_digest is not None:
+        request["operation_payload_digest"] = _operation_payload_digest(payload)
+    authorization = DEFAULT_SUDO_CORE.authorize_settlement(request)
+    authorization_id = authorization.get("authorization_id")
+    if not isinstance(authorization_id, str) or not authorization_id:
+        raise GateError(
+            "invalid_sudo_finalize",
+            "authorization_id",
+            "sudo settlement authorization did not include an authorization id",
+        )
+    with execution_lock(bundle_root):
+        current = load_execution_state(bundle_root) or state
+        write_execution_state(
+            bundle_root,
+            replace(
+                current,
+                authorization_id=authorization_id,
+                startup_state="settling",
+            ),
+        )
+    return authorization
 
 
 def _cross_check_finalize_payload(
@@ -520,6 +611,10 @@ def _finalize_feedback(payload: Mapping[str, Any]) -> str | None:
     if feedback is None:
         return None
     return str(feedback)
+
+
+def _operation_payload_digest(payload: Mapping[str, Any]) -> str:
+    return sha256_bytes(canonical_json_bytes(dict(payload)))
 
 
 def _finalize_remote(payload: Mapping[str, Any]) -> dict[str, Any] | None:

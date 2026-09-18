@@ -36,6 +36,16 @@ class SudoCoreBinding(Protocol):
     ) -> dict[str, Any]:
         """Return the canonical Rust sudo_exec_started handshake."""
 
+    def classify_attempt_liveness(
+        self,
+        attempt: Mapping[str, Any],
+        facts: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        """Classify a persisted sudo attempt as live, dead, or unknown."""
+
+    def authorize_settlement(self, request: Mapping[str, Any]) -> dict[str, Any]:
+        """Authorize headless settlement from durable sudo facts."""
+
 
 @dataclass(frozen=True)
 class _RustSudoCoreBinding:
@@ -110,6 +120,39 @@ class _RustSudoCoreBinding:
                 "invalid_sudo_handshake",
                 "handshake",
                 "sase_core_rs returned a non-object sudo handshake",
+            )
+        return dict(result)
+
+    def classify_attempt_liveness(
+        self,
+        attempt: Mapping[str, Any],
+        facts: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        try:
+            result = require_rust_binding("sudo_classify_attempt_liveness")(
+                dict(attempt),
+                dict(facts),
+            )
+        except Exception as exc:
+            raise _gate_error("invalid_sudo_execution_state", "attempt", exc) from exc
+        if not isinstance(result, Mapping):
+            raise GateError(
+                "invalid_sudo_execution_state",
+                "attempt",
+                "sase_core_rs returned a non-object sudo liveness decision",
+            )
+        return dict(result)
+
+    def authorize_settlement(self, request: Mapping[str, Any]) -> dict[str, Any]:
+        try:
+            result = require_rust_binding("sudo_authorize_settlement")(dict(request))
+        except Exception as exc:
+            raise _gate_error("invalid_sudo_finalize", "authorization", exc) from exc
+        if not isinstance(result, Mapping):
+            raise GateError(
+                "invalid_sudo_finalize",
+                "authorization",
+                "sase_core_rs returned a non-object sudo settlement authorization",
             )
         return dict(result)
 

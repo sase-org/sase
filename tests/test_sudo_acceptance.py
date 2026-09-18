@@ -288,6 +288,45 @@ def test_sudo_headless_entrypoints_refuse_without_accepting_decision(
     assert not (gate.bundle_path / DECISION_RECEIPT_FILENAME).exists()
 
 
+def test_forged_sudo_headless_authorization_refuses_without_attempt_state(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    del gate_home
+    with override_flags(agent_sudo_requests=True):
+        gate = create_gate(build_sudo_gate_request(_request()))
+    receipt = _runner_receipt(read_json_object(gate.request_path))
+    sudo_payload = read_json_object(gate.request_path)["payload"]["sudo"]
+    monkeypatch.setattr(
+        "sase.notification_gates.executor.has_controlling_tty",
+        lambda: False,
+    )
+
+    with pytest.raises(GateError) as excinfo:
+        execute_gate_selection(
+            gate.bundle_path,
+            [APPROVE_OPTION_ID],
+            source="sudo_finalize",
+            option_inputs={
+                APPROVE_OPTION_ID: {
+                    "command_ids": ["refresh"],
+                    "receipt": receipt,
+                }
+            },
+            sudo_headless_authorization={
+                "authorized": True,
+                "authorization_id": "f" * 64,
+                "gate_id": gate.request_id,
+                "manifest_sha256": sudo_payload["manifest_sha256"],
+                "selected_command_ids": ["refresh"],
+            },
+        )
+
+    assert excinfo.value.code == "tty_required"
+    assert not gate.response_path.exists()
+    assert not (gate.bundle_path / DECISION_RECEIPT_FILENAME).exists()
+
+
 def test_sudo_runner_manifest_refusal_stays_pending(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -449,6 +488,18 @@ def test_sudo_detached_answer_finalizes_like_synchronous(
         "sase.sudo.core._RustSudoCoreBinding.validate_handshake",
         lambda self, handshake, manifest=None: dict(handshake),
     )
+    monkeypatch.setattr(
+        "sase.sudo.core._RustSudoCoreBinding.authorize_settlement",
+        lambda self, request: {
+            "authorized": True,
+            "authorization_id": "e" * 64,
+            "gate_id": request["attempt"]["gate_id"],
+            "manifest_sha256": request["attempt"]["manifest_sha256"],
+            "schema_version": 1,
+            "selected_command_ids": request["attempt"]["selected_command_ids"],
+            "status": "authorized",
+        },
+    )
     captured: dict[str, Any] = {}
 
     def fake_submit(request: Any) -> Any:
@@ -493,6 +544,10 @@ def test_sudo_detached_answer_finalizes_like_synchronous(
             "--request-path",
             str(sidecar),
         ]
+    )
+    monkeypatch.setattr(
+        "sase.notification_gates.executor.has_controlling_tty",
+        lambda: False,
     )
 
     with override_flags(agent_sudo_requests=True):
