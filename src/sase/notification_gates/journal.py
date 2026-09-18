@@ -115,7 +115,7 @@ class ExecutionFailureFacts:
         """Return this failure as a ``GateDecisionFailureOutcomeWire`` JSON dict."""
         wire: dict[str, Any] = {
             "outcome_id": self.outcome_id,
-            "attempt_id": self.attempt_id,
+            "attempt_id": self._wire_attempt_id(),
             "stage": self.stage,
             "code": self.code,
             "message": self.message,
@@ -125,6 +125,20 @@ class ExecutionFailureFacts:
         if self.acceptance_id is not None:
             wire["acceptance_id"] = self.acceptance_id
         return wire
+
+    def _wire_attempt_id(self) -> str:
+        """Return a nonempty attempt id for the Rust lifecycle policy.
+
+        Pre-attempt command failures and post-response stage failures are
+        journaled with an empty attempt id by design. The Rust policy wire
+        requires a stable nonempty id, so use the failure outcome id as the
+        policy-only identity without changing the durable journal record.
+        """
+        if self.attempt_id:
+            return self.attempt_id
+        if self.outcome_id:
+            return f"failure:{self.outcome_id}"
+        return f"failure:{self.stage or 'unknown'}"
 
     @classmethod
     def _from_record(cls, record: Mapping[str, Any]) -> ExecutionFailureFacts:
