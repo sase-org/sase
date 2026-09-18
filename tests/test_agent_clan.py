@@ -8,6 +8,7 @@ from sase.ace.tui.actions.agents._clan_cleanup import clan_members_for_container
 from sase.ace.tui.models._agent_clan import (
     ClanStatusCounts,
     aggregate_clan_status,
+    apply_clan_container_status,
     clan_member_counts,
     clan_members,
     clan_running_lane_rows,
@@ -49,6 +50,29 @@ def test_clan_pending_plan_status_uses_review_priority() -> None:
     assert aggregate_clan_status(["PLAN", "TALE"]) == "TALE"
     assert aggregate_clan_status(["TALE", "EPIC"]) == "EPIC"
     assert aggregate_clan_status(["EPIC", "QUESTION"]) == "QUESTION"
+
+
+def test_apply_clan_container_status_empty_input_uses_fallback_and_clears_source() -> (
+    None
+):
+    container = _agent("research", "TESTED", suffix=None)
+    container.is_clan_container = True
+    container.status_bucket = "Failed"
+    container.monitor_start_status = "TESTING"
+    container.monitor_stop_status = "TESTED"
+    container.monitor_state = "failed"
+    container.gate_execution_active = True
+    container.gate_finalize_proc_id = "proc-detach-1"
+
+    apply_clan_container_status(container, [], fallback="RUNNING")
+
+    assert container.status == "RUNNING"
+    assert container.status_bucket is None
+    assert container.monitor_start_status is None
+    assert container.monitor_stop_status is None
+    assert container.monitor_state is None
+    assert container.gate_execution_active is False
+    assert container.gate_finalize_proc_id is None
 
 
 def test_clan_queued_outranks_waiting() -> None:

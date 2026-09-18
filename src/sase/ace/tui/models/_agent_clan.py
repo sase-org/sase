@@ -91,6 +91,13 @@ _SHELL_STATUS_PRESENTATION_FIELDS: tuple[str, ...] = (
     "gate_finalize_proc_id",
 )
 
+_CLAN_INHERITABLE_STATUS_BUCKETS: frozenset[str] = frozenset(
+    {"Failed", "Running", "Stopped"}
+)
+_CLAN_IGNORED_MEMBER_STATUS_BUCKETS: frozenset[str] = frozenset(
+    {QUEUED_STATUS_BUCKET, "Waiting", "Done"}
+)
+
 
 def aggregate_clan_status(statuses: Iterable[str]) -> str | None:
     """Return the shared aggregate agent-group display status."""
@@ -123,17 +130,20 @@ def apply_clan_container_status(
     row-level bucket override (for example ``TESTED`` with bucket ``Done``)
     participates in the existing precedence ladder.
 
-    When that aggregate is ``RUNNING`` and exactly one member's effective
-    bucket is ``Running`` (with no other Running or Starting members), the
-    clan copies that member's status label, effective bucket, and the seven
-    monitor/gate presentation fields. The bucket stays ``Running``, so
-    ``BY_STATUS`` grouping, member ordering, count chips, and summary counts
-    are unchanged. A lone ``STARTING`` member therefore still leaves the
-    clan at ``RUNNING``.
+    When exactly one member is outside the queued/waiting/done buckets and
+    its effective bucket is the canonical aggregate bucket, the clan can
+    inherit that member's refined display label, effective bucket, and the
+    monitor/gate presentation fields. This preserves authored shell labels
+    such as ``TESTING``/``TESTED`` and gate labels while keeping the
+    aggregate's outcome bucket, ``BY_STATUS`` grouping, member ordering,
+    count chips, and summary counts unchanged. ``Starting`` is a competing
+    member, not an inheritable source, so a lone ``STARTING`` member still
+    leaves the clan at ``RUNNING``.
 
-    Any other aggregate, including an empty member list (which falls back to
-    *fallback*), clears ``status_bucket`` and those presentation fields so
-    repeated projections stay idempotent after the lone runner finishes.
+    Any non-inheritable aggregate, including an empty member list (which
+    falls back to *fallback*), clears ``status_bucket`` and those presentation
+    fields so repeated projections stay idempotent after the source member
+    changes or a second active member appears.
     """
     unique_members: list[Agent] = []
     seen: set[tuple[AgentType, str, str | None]] = set()
@@ -147,19 +157,23 @@ def apply_clan_container_status(
         (member.status, agent_status_bucket(member)) for member in unique_members
     )
     aggregate = aggregate_agent_group_effective_status(entries)
-    running_members = [
+    aggregate_bucket = (
+        None if aggregate is None else status_bucket_for_values(aggregate)
+    )
+    relevant_members = [
         member
         for member in unique_members
-        if agent_status_bucket(member) in {"Running", "Starting"}
+        if agent_status_bucket(member) not in _CLAN_IGNORED_MEMBER_STATUS_BUCKETS
     ]
+    source = relevant_members[0] if len(relevant_members) == 1 else None
+    source_bucket = None if source is None else agent_status_bucket(source)
     if (
-        aggregate == "RUNNING"
-        and len(running_members) == 1
-        and agent_status_bucket(running_members[0]) == "Running"
+        source is not None
+        and source_bucket in _CLAN_INHERITABLE_STATUS_BUCKETS
+        and source_bucket == aggregate_bucket
     ):
-        source = running_members[0]
         container.status = source.status
-        container.status_bucket = agent_status_bucket(source)
+        container.status_bucket = source_bucket
         _copy_shell_status_presentation(container, source)
         return
 

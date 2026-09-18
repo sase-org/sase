@@ -6,9 +6,11 @@ from datetime import datetime
 
 import pytest
 
+from sase.ace.tui.models._agent_clan import clan_member_counts, sase_agent_status_counts
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
+from sase.agent.status_buckets import agent_status_bucket
 
 from ._agent_runner_slots_helpers import _agent, _assert_capacity_metrics
 
@@ -221,6 +223,32 @@ def _testing_clan_rows():
     return project_clan_tree([testing, waiting])
 
 
+def _failed_testing_clan_rows():
+    tested = _agent(
+        "research.tested",
+        status="TESTED",
+        status_bucket="Failed",
+        agent_clan="research",
+        agent_clan_generation="20260712120000",
+        monitor_start_status="TESTING",
+        monitor_stop_status="TESTED",
+        monitor_state="failed",
+    )
+    waiting = _agent(
+        "research.waiting",
+        agent_clan="research",
+        agent_clan_generation="20260712120000",
+    )
+    done = _agent(
+        "research.done",
+        status="DONE",
+        pid=None,
+        agent_clan="research",
+        agent_clan_generation="20260712120000",
+    )
+    return project_clan_tree([tested, waiting, done])
+
+
 def test_refresh_runner_slot_context_keeps_lone_testing_clan_status() -> None:
     fallback_rows = _testing_clan_rows()
     refresh_runner_slot_context(fallback_rows)
@@ -229,3 +257,27 @@ def test_refresh_runner_slot_context_keeps_lone_testing_clan_status() -> None:
     snapshot_rows = _testing_clan_rows()
     refresh_runner_slot_context(snapshot_rows, effective_limit=10)
     assert snapshot_rows[0].status == "TESTING"
+
+
+@pytest.mark.parametrize("effective_limit", [None, 10])
+def test_refresh_runner_slot_context_keeps_lone_failed_testing_clan_status(
+    effective_limit: int | None,
+) -> None:
+    rows = _failed_testing_clan_rows()
+
+    for _ in range(2):
+        if effective_limit is None:
+            refresh_runner_slot_context(rows)
+        else:
+            refresh_runner_slot_context(rows, effective_limit=effective_limit)
+
+    clan = rows[0]
+    counts = clan_member_counts(clan)
+    summary = sase_agent_status_counts(rows, unread_ids=())
+    assert clan.status == "TESTED"
+    assert agent_status_bucket(clan) == "Failed"
+    assert clan.monitor_start_status == "TESTING"
+    assert clan.monitor_stop_status == "TESTED"
+    assert clan.monitor_state == "failed"
+    assert (counts.failed, counts.waiting, counts.done) == (1, 1, 1)
+    assert summary.failed == 1
