@@ -108,3 +108,113 @@ def test_sudo_runner_unavailable_names_checked_locations(
     assert excinfo.value.target == "sase_sudo_runner"
     assert str(venv_bin / "sase_sudo_runner") in str(excinfo.value)
     assert "PATH" in str(excinfo.value)
+
+
+def test_sudo_runner_probe_parses_detached_capability(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    venv_bin = tmp_path / "venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    runner = venv_bin / "sase_sudo_runner"
+    runner.write_text(
+        "#!/bin/sh\n"
+        "printf '%s\\n' "
+        '\'{"schema_version":1,"capabilities":["detached_execution"]}\'\n',
+        encoding="utf-8",
+    )
+    runner.chmod(0o755)
+    monkeypatch.setattr(sudo_runner.sys, "executable", str(venv_bin / "python"))
+    monkeypatch.setattr(sudo_runner.shutil, "which", lambda _name: None)
+
+    assert sudo_runner.runner_supports_detached_execution() is True
+
+
+def test_sudo_runner_probe_treats_unknown_output_as_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    venv_bin = tmp_path / "venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    runner = venv_bin / "sase_sudo_runner"
+    runner.write_text("#!/bin/sh\necho usage >&2\nexit 2\n", encoding="utf-8")
+    runner.chmod(0o755)
+    monkeypatch.setattr(sudo_runner.sys, "executable", str(venv_bin / "python"))
+    monkeypatch.setattr(sudo_runner.shutil, "which", lambda _name: None)
+
+    assert sudo_runner.runner_supports_detached_execution() is False
+
+
+def test_sudo_runner_detached_passes_detach_dir(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    venv_bin = tmp_path / "venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    runner = venv_bin / "sase_sudo_runner"
+    _write_executable(runner)
+    monkeypatch.setattr(sudo_runner.sys, "executable", str(venv_bin / "python"))
+    calls: list[list[str]] = []
+
+    def fake_run(
+        argv: list[str],
+        **_kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(list(argv))
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout='{"kind":"sudo_exec_started","executor_pid":7}\n',
+        )
+
+    monkeypatch.setattr(sudo_runner.subprocess, "run", fake_run)
+    detach_dir = tmp_path / "exec"
+    detach_dir.mkdir()
+
+    result = sudo_runner.run_sudo_runner_detached(
+        tmp_path / "manifest.json",
+        manifest_sha256="abc123",
+        detach_dir=detach_dir,
+    )
+
+    assert result == {"kind": "sudo_exec_started", "executor_pid": 7}
+    assert calls[0] == [
+        str(runner),
+        "--manifest",
+        str(tmp_path / "manifest.json"),
+        "--expected-sha256",
+        "abc123",
+        "--detach-dir",
+        str(detach_dir),
+    ]
+
+
+def test_sudo_runner_detached_returns_auth_failure_ledger(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    venv_bin = tmp_path / "venv" / "bin"
+    venv_bin.mkdir(parents=True)
+    runner = venv_bin / "sase_sudo_runner"
+    _write_executable(runner)
+    monkeypatch.setattr(sudo_runner.sys, "executable", str(venv_bin / "python"))
+
+    def fake_run(
+        argv: list[str],
+        **_kwargs: Any,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(
+            argv,
+            10,
+            stdout='{"outcome":"auth_failed","entries":[]}\n',
+        )
+
+    monkeypatch.setattr(sudo_runner.subprocess, "run", fake_run)
+
+    result = sudo_runner.run_sudo_runner_detached(
+        tmp_path / "manifest.json",
+        manifest_sha256="abc123",
+        detach_dir=tmp_path / "exec",
+    )
+
+    assert result == {"outcome": "auth_failed", "entries": []}

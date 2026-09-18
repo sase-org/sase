@@ -25947,7 +25947,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "17d4f233c2275d19",
+            "description_digest": "cdd446aa378addcd",
             "hidden": false,
             "mutex_groups": [
               [
@@ -25956,8 +25956,12 @@
                 "run"
               ],
               [
-                "resume",
-                "restart"
+                "detach",
+                "no_detach"
+              ],
+              [
+                "restart",
+                "resume"
               ]
             ],
             "name": "answer",
@@ -25988,6 +25992,18 @@
               },
               {
                 "choices": null,
+                "dest": "sudo_command",
+                "hidden": false,
+                "kind": null,
+                "repeatable": true,
+                "strings": [
+                  "-c",
+                  "--command"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
                 "dest": "deny",
                 "hidden": false,
                 "kind": null,
@@ -26000,27 +26016,15 @@
               },
               {
                 "choices": null,
-                "dest": "run",
+                "dest": "detach",
                 "hidden": false,
                 "kind": null,
                 "repeatable": false,
                 "strings": [
-                  "-u",
-                  "--run"
+                  "-D",
+                  "--detach"
                 ],
                 "takes_value": false
-              },
-              {
-                "choices": null,
-                "dest": "sudo_command",
-                "hidden": false,
-                "kind": null,
-                "repeatable": true,
-                "strings": [
-                  "-c",
-                  "--command"
-                ],
-                "takes_value": true
               },
               {
                 "choices": null,
@@ -26048,13 +26052,13 @@
               },
               {
                 "choices": null,
-                "dest": "resume",
+                "dest": "no_detach",
                 "hidden": false,
                 "kind": null,
                 "repeatable": false,
                 "strings": [
-                  "-r",
-                  "--resume"
+                  "-N",
+                  "--no-detach"
                 ],
                 "takes_value": false
               },
@@ -26067,6 +26071,30 @@
                 "strings": [
                   "-R",
                   "--restart"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "resume",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-r",
+                  "--resume"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "run",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-u",
+                  "--run"
                 ],
                 "takes_value": false
               }

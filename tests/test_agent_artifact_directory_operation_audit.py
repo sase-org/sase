@@ -213,6 +213,13 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "workspace-local SDD sidecar clone, not an agent artifact directory."
         ),
     ),
+    "src/sase/sudo/execution.py:cleanup_handoff": DirOpReview(
+        exemption=(
+            "Deletes only a user-owned sudo executor handoff directory under "
+            "SASE_HOME/sudo/exec after ownership and containment checks, not "
+            "an agent artifact directory."
+        ),
+    ),
     "src/sase/main/project_handler_lifecycle.py:delete_project_locked": DirOpReview(
         exemption=(
             "Deletes the entire SASE project state directory only after blocking "

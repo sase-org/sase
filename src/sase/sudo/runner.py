@@ -16,6 +16,8 @@ from sase.notification_gates.models import GateError
 
 
 _RUNNER_COMMAND = "sase_sudo_runner"
+_DETACHED_EXECUTION_CAPABILITY = "detached_execution"
+_CAPABILITIES_TIMEOUT_SECONDS = 5.0
 _RUNNER_EXIT_CODES = {
     10: "authentication_failed",
     11: "cancelled",
@@ -58,16 +60,91 @@ def run_sudo_runner_file(
     timeout_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Invoke the installed runner against a sealed manifest file."""
+    return _run_sudo_runner_argv(
+        [
+            _resolve_runner_executable(),
+            "--manifest",
+            str(manifest_path),
+            "--expected-sha256",
+            manifest_sha256,
+        ],
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def run_sudo_runner_detached(
+    manifest_path: Path | str,
+    *,
+    manifest_sha256: str,
+    detach_dir: Path | str,
+    timeout_seconds: float | None = None,
+) -> dict[str, Any]:
+    """Invoke the installed runner in auth-then-spawn detach mode."""
+    return _run_sudo_runner_argv(
+        [
+            _resolve_runner_executable(),
+            "--manifest",
+            str(manifest_path),
+            "--expected-sha256",
+            manifest_sha256,
+            "--detach-dir",
+            str(detach_dir),
+        ],
+        timeout_seconds=timeout_seconds,
+    )
+
+
+def _probe_sudo_runner_capabilities() -> tuple[str, ...]:
+    """Return advertised runner capabilities, or empty when the probe fails."""
     runner = _resolve_runner_executable()
     try:
         completed = subprocess.run(
-            [
-                runner,
-                "--manifest",
-                str(manifest_path),
-                "--expected-sha256",
-                manifest_sha256,
-            ],
+            [runner, "--capabilities"],
+            check=False,
+            stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            text=True,
+            timeout=_CAPABILITIES_TIMEOUT_SECONDS,
+        )
+    except FileNotFoundError as exc:
+        raise _runner_unavailable_error() from exc
+    except OSError:
+        return ()
+    except subprocess.TimeoutExpired:
+        return ()
+    return _parse_capabilities(completed.stdout)
+
+
+def runner_supports_detached_execution() -> bool:
+    """Return whether the installed runner advertises detached execution."""
+    return _DETACHED_EXECUTION_CAPABILITY in _probe_sudo_runner_capabilities()
+
+
+def _parse_capabilities(stdout: str) -> tuple[str, ...]:
+    if not stdout.strip():
+        return ()
+    try:
+        value = json.loads(stdout)
+    except json.JSONDecodeError:
+        return ()
+    if not isinstance(value, dict):
+        return ()
+    capabilities = value.get("capabilities")
+    if not isinstance(capabilities, list):
+        return ()
+    return tuple(
+        item for item in capabilities if isinstance(item, str) and item.strip()
+    )
+
+
+def _run_sudo_runner_argv(
+    argv: list[str],
+    *,
+    timeout_seconds: float | None,
+) -> dict[str, Any]:
+    try:
+        completed = subprocess.run(
+            argv,
             check=False,
             stderr=None,
             stdout=subprocess.PIPE,
@@ -144,4 +221,9 @@ def _runner_unavailable_error() -> GateError:
     )
 
 
-__all__ = ["run_sudo_runner", "run_sudo_runner_file"]
+__all__ = [
+    "run_sudo_runner",
+    "run_sudo_runner_detached",
+    "run_sudo_runner_file",
+    "runner_supports_detached_execution",
+]

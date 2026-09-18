@@ -13,28 +13,45 @@ from rich.console import Console
 from rich.table import Table
 
 from sase.agent.gate_intent import begin_gate_intent, clear_gate_intent
-from sase.gate_shell.models import GateShellRefError, GateShellRecord
+from sase.gate_shell.models import GateShellRecord
 from sase.gate_shell.status import effective_gate_status, gate_status_pair
-from sase.gate_shell.settlement import settle_gate_shell
-from sase.gate_shell.store import (
-    find_gate_shell_by_gate_id,
-    list_gate_shells,
-    resolve_gate_shell_ref,
-)
-from sase.notification_gates.cli_support import (
-    GateCliError,
-    emit_json,
-    resolve_gate_cli_bundle,
-)
+from sase.notification_gates.cli_support import emit_json, resolve_gate_cli_bundle
 from sase.notification_gates.executor import execute_gate_selection, has_controlling_tty
 from sase.notification_gates.models import GateError
+from sase.notification_gates.paths import bundle_paths
+from sase.sudo.answer_ops import (
+    apply_approved_receipt,
+    error_exit_code,
+    error_payload,
+    print_answer,
+    resolve_sudo_gate_id,
+    runner_timeout_seconds,
+    settle_shell,
+    sudo_payload as _sudo_payload,
+    sudo_shells,
+    answer_payload,
+)
+from sase.sudo.detach import (
+    SUDO_ANSWER_DETACH_ORIGIN,
+    approve_detached,
+    finalize,
+)
+from sase.sudo.execution import project_execution
 from sase.sudo.feature import require_sudo_requests_enabled
-from sase.sudo.gate import APPROVE_OPTION_ID, DENY_OPTION_ID, build_sudo_gate_request
+from sase.sudo.gate import DENY_OPTION_ID, build_sudo_gate_request
 from sase.sudo.lease import sudo_auth_lease
 from sase.sudo.manifest import selected_sudo_manifest
-from sase.sudo.receipt import validate_sudo_receipt
-from sase.sudo.runner import run_sudo_runner, run_sudo_runner_file
+from sase.sudo.runner import (
+    run_sudo_runner,
+    run_sudo_runner_file,
+    runner_supports_detached_execution,
+)
 from sase.sudo.ssh import run_remote_sudo
+
+_DETACH_FALLBACK_NOTICE = (
+    "installed sase_sudo_runner does not advertise detached_execution; "
+    "running synchronously"
+)
 
 
 def handle_sudo_command(args: argparse.Namespace) -> int:
@@ -46,6 +63,8 @@ def handle_sudo_command(args: argparse.Namespace) -> int:
         require_sudo_requests_enabled("sudo")
         if subcommand == "exec":
             return _exec(args)
+        if subcommand == "finalize":
+            return finalize(args)
         if subcommand == "list":
             return _list(args)
         if subcommand == "request":
@@ -53,11 +72,18 @@ def handle_sudo_command(args: argparse.Namespace) -> int:
         if subcommand == "show":
             return _show(args)
     except GateError as exc:
-        if bool(getattr(args, "json", False)) and subcommand in {"list", "show"}:
-            emit_json(_error_payload(_raw_request_ref(args), exc))
-            return _error_exit_code(exc)
+        if bool(getattr(args, "json", False)) and subcommand in {
+            "finalize",
+            "list",
+            "show",
+        }:
+            emit_json(error_payload(_raw_request_ref(args), exc))
+            return error_exit_code(exc)
         raise
-    print("Usage: sase sudo {answer,exec,list,request,show}", file=sys.stderr)
+    print(
+        "Usage: sase sudo {answer,exec,finalize,list,request,show}",
+        file=sys.stderr,
+    )
     return 1
 
 
@@ -138,7 +164,7 @@ def _answer(args: argparse.Namespace) -> int:
     gate_id = raw_ref
     try:
         require_sudo_requests_enabled("sudo")
-        gate_id = _resolve_sudo_gate_id(raw_ref)
+        gate_id = resolve_sudo_gate_id(raw_ref)
         decision = _decision(args)
         retry = _retry(args)
         if decision == "deny":
@@ -151,16 +177,17 @@ def _answer(args: argparse.Namespace) -> int:
                 command_ids=_selected_command_ids(args),
                 feedback=getattr(args, "feedback", None),
                 retry=retry,
+                detach=_wants_detach(args),
             )
     except GateError as exc:
         if not bool(getattr(args, "json", False)):
             raise
-        emit_json(_error_payload(gate_id, exc))
-        return _error_exit_code(exc)
+        emit_json(error_payload(gate_id, exc))
+        return error_exit_code(exc)
     if bool(getattr(args, "json", False)):
         emit_json(payload)
     else:
-        _print_answer(payload)
+        print_answer(payload)
     return 0
 
 
@@ -179,12 +206,21 @@ def _selected_command_ids(args: argparse.Namespace) -> tuple[str, ...]:
     return tuple(value or ())
 
 
+def _wants_detach(args: argparse.Namespace) -> bool:
+    if bool(getattr(args, "detach", False)):
+        return True
+    if bool(getattr(args, "no_detach", False)):
+        return False
+    return False
+
+
 def _approve(
     gate_id: str,
     *,
     command_ids: tuple[str, ...],
     feedback: str | None,
     retry: Literal["resume", "restart"] | None,
+    detach: bool = False,
 ) -> dict[str, Any]:
     if not has_controlling_tty():
         raise GateError(
@@ -193,58 +229,62 @@ def _approve(
             "sudo approval requires a controlling TTY; the gate remains pending",
         )
     bundle = resolve_gate_cli_bundle("sudo", gate_id)
-    sudo_payload = _sudo_payload(bundle.envelope)
+    payload = _sudo_payload(bundle.envelope)
     manifest, selected_command_ids, manifest_sha256 = selected_sudo_manifest(
-        dict(sudo_payload["manifest"]),
+        dict(payload["manifest"]),
         command_ids,
     )
-    target = sudo_payload.get("target")
+    target = payload.get("target")
+    remote = isinstance(target, Mapping) and bool(target.get("remote"))
+    if detach and remote:
+        assert isinstance(target, Mapping)
+        host = str(target.get("host") or "remote")
+        raise GateError(
+            "detach_unsupported",
+            host,
+            "detached sudo execution is local-only for this phase; "
+            "retry without --detach",
+        )
+    if detach and not runner_supports_detached_execution():
+        print(f"sase sudo: {_DETACH_FALLBACK_NOTICE}", file=sys.stderr)
+        detach = False
+    if detach:
+        return approve_detached(
+            bundle,
+            manifest,
+            selected_command_ids=selected_command_ids,
+            manifest_sha256=manifest_sha256,
+            feedback=feedback,
+            retry=retry,
+        )
     with sudo_auth_lease(
         request_id=gate_id,
         run_as=str(manifest.get("run_as") or "root"),
         cwd=str(manifest.get("cwd") or ""),
         command_ids=selected_command_ids,
     ):
-        if isinstance(target, Mapping) and bool(target.get("remote")):
-            host = str(target.get("host") or "")
+        if remote:
+            host = str(target.get("host") or "") if isinstance(target, Mapping) else ""
             receipt = run_remote_sudo(
                 host,
                 manifest,
                 manifest_sha256=manifest_sha256,
-                timeout_seconds=_runner_timeout_seconds(manifest),
+                timeout_seconds=runner_timeout_seconds(manifest),
             )
         else:
             receipt = run_sudo_runner(
                 manifest,
                 manifest_sha256=manifest_sha256,
-                timeout_seconds=_runner_timeout_seconds(manifest),
+                timeout_seconds=runner_timeout_seconds(manifest),
             )
-    _reject_non_terminal_auth(receipt)
-    normalized_receipt = validate_sudo_receipt(
+    return apply_approved_receipt(
+        bundle,
         receipt,
-        manifest_sha256=manifest_sha256,
         selected_command_ids=selected_command_ids,
         manifest=manifest,
-    )
-    execution = execute_gate_selection(
-        bundle.root,
-        [APPROVE_OPTION_ID],
+        manifest_sha256=manifest_sha256,
         feedback=feedback,
-        source="sudo_cli",
         retry=retry,
-        option_inputs={
-            APPROVE_OPTION_ID: {
-                "command_ids": list(selected_command_ids),
-                "receipt": normalized_receipt,
-            }
-        },
-    )
-    _settle_shell(gate_id, retry=retry)
-    return _answer_payload(
-        bundle.kind,
-        gate_id,
-        execution.response,
-        selected_command_ids=selected_command_ids,
     )
 
 
@@ -262,12 +302,12 @@ def _deny(
         source="sudo_cli",
         retry=retry,
     )
-    _settle_shell(gate_id, retry=retry)
-    return _answer_payload(bundle.kind, gate_id, execution.response)
+    settle_shell(gate_id, retry=retry)
+    return answer_payload(bundle.kind, gate_id, execution.response)
 
 
 def _list(args: argparse.Namespace) -> int:
-    rows = _sudo_shells(project=getattr(args, "project", None))
+    rows = sudo_shells(project=getattr(args, "project", None))
     if not getattr(args, "all", False):
         rows = [row for row in rows if not row.is_terminal]
     limit = getattr(args, "limit", None)
@@ -282,16 +322,19 @@ def _list(args: argparse.Namespace) -> int:
 
 
 def _show(args: argparse.Namespace) -> int:
-    gate_id = _resolve_sudo_gate_id(str(args.gate_ref))
+    gate_id = resolve_sudo_gate_id(str(args.gate_ref))
     from sase.notification_gates.cli_show import print_human_gate, show_gate
 
     payload = show_gate("sudo", gate_id)
     bundle = resolve_gate_cli_bundle("sudo", gate_id)
-    payload["sudo"] = _sudo_payload(bundle.envelope)
+    sudo = _sudo_payload(bundle.envelope)
+    sudo.update(_execution_fields(gate_id))
+    payload["sudo"] = sudo
     if bool(getattr(args, "json", False)):
         emit_json(payload)
     else:
         print_human_gate(payload)
+        _print_execution(sudo)
     return 0
 
 
@@ -318,145 +361,20 @@ def _retry(args: argparse.Namespace) -> Literal["resume", "restart"] | None:
     return None
 
 
-def _reject_non_terminal_auth(receipt: Mapping[str, Any]) -> None:
-    outcome = str(receipt.get("outcome") or "")
-    code_by_outcome = {
-        "auth_failed": "authentication_failed",
-        "cancelled": "cancelled",
-        "tty_unavailable": "tty_required",
-        "runner_error": "runner_failed",
-    }
-    if outcome in code_by_outcome:
-        code = code_by_outcome[outcome]
-        raise GateError(
-            code,
-            "sase_sudo_runner",
-            "sudo runner did not approve execution; the gate remains pending",
-        )
-
-
-def _sudo_payload(envelope: Mapping[str, Any]) -> dict[str, Any]:
-    payload = envelope.get("payload")
-    sudo_payload = payload.get("sudo") if isinstance(payload, Mapping) else None
-    if not isinstance(sudo_payload, Mapping):
-        raise GateError(
-            "invalid_sudo_payload", "payload.sudo", "sudo payload is missing"
-        )
-    return dict(sudo_payload)
-
-
-def _resolve_sudo_gate_id(ref: str) -> str:
+def _execution_fields(gate_id: str) -> dict[str, Any]:
     try:
-        resolve_gate_cli_bundle("sudo", ref)
-        return ref
-    except GateCliError:
-        pass
-    try:
-        record = resolve_gate_shell_ref(ref, _sudo_shells(project=None))
-    except GateShellRefError as exc:
-        raise GateError("not_found", ref, str(exc)) from exc
-    return record.gate_id
-
-
-def _sudo_shells(*, project: str | None) -> list[GateShellRecord]:
-    return [row for row in list_gate_shells(project=project) if row.kind == "sudo"]
-
-
-def _settle_shell(gate_id: str, *, retry: Literal["resume", "restart"] | None) -> None:
-    gate_shell = find_gate_shell_by_gate_id(None, gate_id)
-    if gate_shell is None:
-        return
-    settle_gate_shell(
-        gate_shell,
-        gate_state="answered",
-        reason="sudo gate answered",
-        resume=retry == "resume",
-    )
-
-
-def _answer_payload(
-    kind: str,
-    gate_id: str,
-    response: Mapping[str, Any],
-    *,
-    selected_command_ids: tuple[str, ...] = (),
-) -> dict[str, Any]:
-    option_results = response.get("option_results", [])
+        root = bundle_paths("sudo", gate_id).root
+    except GateError:
+        return {"executing": False, "finalize_proc_id": None}
+    projection = project_execution(root)
     return {
-        "kind": kind,
-        "request_id": gate_id,
-        "selected_option_ids": list(response.get("selected_option_ids", [])),
-        "selected_command_ids": list(selected_command_ids),
-        "option_results": option_results,
-        "outcome": _response_outcome(option_results),
-        "status": "answered",
+        "executing": projection.executing,
+        "finalize_proc_id": projection.finalize_proc_id,
     }
-
-
-def _error_payload(gate_id: str, exc: GateError) -> dict[str, Any]:
-    return {
-        "request_id": gate_id,
-        "status": "pending",
-        "settled": False,
-        "outcome": _error_outcome(exc.code),
-        "code": exc.code,
-        "target": exc.target,
-        "message": str(exc),
-    }
-
-
-def _response_outcome(option_results: object) -> str:
-    if isinstance(option_results, list):
-        for option in option_results:
-            if not isinstance(option, Mapping):
-                continue
-            result = option.get("result")
-            if not isinstance(result, Mapping):
-                continue
-            ledger = result.get("ledger")
-            if isinstance(ledger, list):
-                for entry in ledger:
-                    if isinstance(entry, Mapping) and entry.get("status") == "failed":
-                        return "command_failed"
-    return "completed"
-
-
-def _error_outcome(code: str) -> str:
-    if code == "authentication_failed":
-        return "authentication_failed"
-    if code in {"cancelled", "canceled"}:
-        return "cancellation"
-    if code == "timeout":
-        return "timeout"
-    if code in {"auth_lease_busy", "lock_timeout"}:
-        return "lock_contention"
-    if code == "tty_required":
-        return "missing_tty"
-    return "runner_error"
-
-
-def _error_exit_code(exc: GateError) -> int:
-    return 2 if _error_outcome(exc.code) != "runner_error" else 1
-
-
-def _runner_timeout_seconds(manifest: Mapping[str, Any]) -> float | None:
-    commands = manifest.get("commands")
-    if not isinstance(commands, list):
-        return None
-    total = 0.0
-    for command in commands:
-        if not isinstance(command, Mapping):
-            continue
-        value = command.get("timeout_seconds")
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
-            total += 300.0
-        else:
-            total += max(1.0, float(value))
-    return total + 30.0 if total else None
 
 
 def _shell_payload(row: GateShellRecord) -> dict[str, Any]:
-    return {
+    payload = {
         "gate_id": row.gate_id,
         "member_agent_name": row.member_agent_name,
         "project_name": row.project_name,
@@ -464,6 +382,8 @@ def _shell_payload(row: GateShellRecord) -> dict[str, Any]:
         "status": _shell_status_label(row),
         "reason": row.reason,
     }
+    payload.update(_execution_fields(row.gate_id))
+    return payload
 
 
 def _shell_status_label(row: GateShellRecord) -> str:
@@ -475,9 +395,11 @@ def _shell_status_label(row: GateShellRecord) -> str:
     )
 
 
-def _print_answer(payload: Mapping[str, Any]) -> None:
-    selected = ", ".join(str(item) for item in payload.get("selected_option_ids", []))
-    print(f"Sudo gate {payload['request_id']} answered: {selected}")
+def _print_execution(sudo: Mapping[str, Any]) -> None:
+    if not bool(sudo.get("executing")):
+        return
+    proc_id = sudo.get("finalize_proc_id") or "unknown"
+    print(f"Executing in background proc {proc_id}")
 
 
 def _print_list(rows: list[GateShellRecord]) -> None:
@@ -485,13 +407,19 @@ def _print_list(rows: list[GateShellRecord]) -> None:
     table.add_column("ID")
     table.add_column("State")
     table.add_column("Status")
+    table.add_column("Exec")
     table.add_column("Member")
     table.add_column("Reason")
     for row in rows:
+        fields = _execution_fields(row.gate_id)
+        executing = "executing" if fields.get("executing") else ""
+        proc_id = str(fields.get("finalize_proc_id") or "")
+        exec_label = proc_id or executing
         table.add_row(
             row.gate_id,
             row.gate_state,
             _shell_status_label(row),
+            exec_label,
             row.member_agent_name,
             row.reason,
         )
@@ -513,4 +441,4 @@ def _read_stdin_object() -> dict[str, Any]:
     return value
 
 
-__all__ = ["handle_sudo_command"]
+__all__ = ["SUDO_ANSWER_DETACH_ORIGIN", "handle_sudo_command"]

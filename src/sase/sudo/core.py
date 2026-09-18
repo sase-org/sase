@@ -29,6 +29,13 @@ class SudoCoreBinding(Protocol):
     ) -> dict[str, Any]:
         """Return the canonical Rust sudo ledger wire object."""
 
+    def validate_handshake(
+        self,
+        handshake: Mapping[str, Any],
+        manifest: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Return the canonical Rust sudo_exec_started handshake."""
+
 
 @dataclass(frozen=True)
 class _RustSudoCoreBinding:
@@ -81,6 +88,28 @@ class _RustSudoCoreBinding:
                 "invalid_sudo_ledger",
                 "ledger",
                 "sase_core_rs returned a non-object sudo ledger",
+            )
+        return dict(result)
+
+    def validate_handshake(
+        self,
+        handshake: Mapping[str, Any],
+        manifest: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        try:
+            binding = require_rust_binding("sudo_validate_handshake")
+            result = (
+                binding(dict(handshake), dict(manifest))
+                if manifest is not None
+                else binding(dict(handshake))
+            )
+        except Exception as exc:
+            raise _gate_error("invalid_sudo_handshake", "handshake", exc) from exc
+        if not isinstance(result, Mapping):
+            raise GateError(
+                "invalid_sudo_handshake",
+                "handshake",
+                "sase_core_rs returned a non-object sudo handshake",
             )
         return dict(result)
 

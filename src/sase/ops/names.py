@@ -46,6 +46,7 @@ MONITOR_STOP = "monitor.stop"
 PROC_KILL = "proc.kill"
 RUN_LAUNCH = "run.launch"
 SASE_UPDATE = "sase.update"
+SUDO_FINALIZE = "sudo.finalize"
 
 
 __all__ = [
@@ -84,4 +85,5 @@ __all__ = [
     "PROC_KILL",
     "RUN_LAUNCH",
     "SASE_UPDATE",
+    "SUDO_FINALIZE",
 ]
