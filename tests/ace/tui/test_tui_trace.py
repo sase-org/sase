@@ -5,7 +5,9 @@ Bead sase-w.1 / sdd/plans/202604/tui_perf_overhaul_1.md.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import threading
 from pathlib import Path
 
 import pytest
@@ -16,6 +18,7 @@ from sase.ace.tui.util import trace
 @pytest.fixture(autouse=True)
 def _reset_context() -> None:
     """Each test starts with a clean global trace context."""
+    trace._flush_trace_writes()
     trace._context.clear()
 
 
@@ -55,6 +58,37 @@ def test_enabled_writes_record(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
     assert row["duration_ms"] >= 0.0
     assert "ts" in row
     assert row["current_tab"] is None
+
+
+@pytest.mark.asyncio
+async def test_running_event_loop_defers_filesystem_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A live TUI loop must not perform trace file I/O inline."""
+    log = tmp_path / "trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+    entered = threading.Event()
+    release = threading.Event()
+    calls: list[tuple[Path, str]] = []
+
+    def _slow_write(path: Path, line: str) -> None:
+        entered.set()
+        release.wait(1.0)
+        calls.append((path, line))
+
+    monkeypatch.setattr(trace, "_write_line", _slow_write)
+
+    with trace.tui_trace("phase.demo", count=42):
+        pass
+
+    assert await asyncio.to_thread(entered.wait, 1.0)
+    assert calls == []
+    release.set()
+    trace._flush_trace_writes()
+    assert len(calls) == 1
+    assert calls[0][0] == log
+    assert json.loads(calls[0][1])["span"] == "phase.demo"
 
 
 def test_global_context_merges(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

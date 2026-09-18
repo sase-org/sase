@@ -27,9 +27,13 @@ context, per-call kwargs.
 
 from __future__ import annotations
 
+import atexit
+import asyncio
 import json
 import logging
 import os
+import queue
+import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
@@ -44,6 +48,11 @@ ENV_FLAG = "SASE_TUI_TRACE"
 ENV_PATH = "SASE_TUI_TRACE_PATH"
 
 _context: dict[str, Any] = {}
+_writer_queue: queue.Queue[tuple[Path, str]] = queue.Queue()
+_writer_started = False
+_writer_lock = threading.Lock()
+_prepared_parent_dirs: set[Path] = set()
+_prepared_parent_dirs_lock = threading.Lock()
 
 
 def is_enabled() -> bool:
@@ -87,14 +96,75 @@ def get_trace_context() -> dict[str, Any]:
         return {}
 
 
-def _write(record: dict[str, Any]) -> None:
-    path = _trace_log_path()
+def _ensure_parent_dir(path: Path) -> None:
+    parent = path.parent
+    with _prepared_parent_dirs_lock:
+        if parent in _prepared_parent_dirs:
+            return
+    parent.mkdir(parents=True, exist_ok=True)
+    with _prepared_parent_dirs_lock:
+        _prepared_parent_dirs.add(parent)
+
+
+def _write_line(path: Path, line: str) -> None:
     try:
-        path.parent.mkdir(parents=True, exist_ok=True)
+        _ensure_parent_dir(path)
         with open(path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record, default=str) + "\n")
+            f.write(line)
     except OSError as e:
         log.debug("trace log write failed: %s", e)
+
+
+def _writer_loop() -> None:
+    while True:
+        path, line = _writer_queue.get()
+        try:
+            _write_line(path, line)
+        finally:
+            _writer_queue.task_done()
+
+
+def _start_writer() -> None:
+    global _writer_started
+    if _writer_started:
+        return
+    with _writer_lock:
+        if _writer_started:
+            return
+        thread = threading.Thread(
+            target=_writer_loop,
+            name="sase-tui-trace-writer",
+            daemon=True,
+        )
+        thread.start()
+        _writer_started = True
+
+
+def _running_event_loop_active() -> bool:
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    return True
+
+
+def _flush_trace_writes() -> None:
+    """Wait until all deferred trace records have reached the JSONL file."""
+    if _writer_started:
+        _writer_queue.join()
+
+
+atexit.register(_flush_trace_writes)
+
+
+def _write(record: dict[str, Any]) -> None:
+    path = _trace_log_path()
+    line = json.dumps(record, default=str) + "\n"
+    if _running_event_loop_active():
+        _start_writer()
+        _writer_queue.put((path, line))
+        return
+    _write_line(path, line)
 
 
 def trace_event(event: str, **fields: Any) -> None:

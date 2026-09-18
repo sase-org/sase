@@ -554,6 +554,7 @@ async def test_auto_refresh_tick_emits_surface_reload_trace(
     with override_flags(ace_refresh_tokens=True):
         await app._run_auto_refresh()
 
+    trace._flush_trace_writes()
     rows = [json.loads(line) for line in log.read_text().splitlines() if line.strip()]
     ticks = [row for row in rows if row.get("span") == "refresh.auto_tick"]
     assert len(ticks) == 1

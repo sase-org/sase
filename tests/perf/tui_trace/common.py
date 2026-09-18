@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.ace.tui.app import AceApp
+from sase.ace.tui.util.trace import _flush_trace_writes
 
 
 async def _wait_for_startup(app: AceApp, pilot: object) -> None:
@@ -26,6 +27,7 @@ async def _wait_for_startup(app: AceApp, pilot: object) -> None:
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    _flush_trace_writes()
     if not path.exists():
         return []
     return [json.loads(line) for line in path.read_text().splitlines() if line.strip()]
