@@ -48,6 +48,7 @@ ENV_FLAG = "SASE_TUI_TRACE"
 ENV_PATH = "SASE_TUI_TRACE_PATH"
 
 _context: dict[str, Any] = {}
+_startup_window = False
 _writer_queue: queue.Queue[tuple[Path, str]] = queue.Queue()
 _writer_started = False
 _writer_lock = threading.Lock()
@@ -80,6 +81,17 @@ def set_trace_context(**fields: Any) -> None:
             _context.pop(key, None)
         else:
             _context[key] = value
+
+
+def set_startup_window(active: bool) -> None:
+    """Tag subsequently emitted spans as inside the startup stopwatch window.
+
+    Distinct from :func:`set_trace_context` so a leftover flag cannot leak
+    into ``current_tab`` / ``current_idx`` dumps. Emit ``startup_window=true``
+    only while the window is open; later spans omit the field.
+    """
+    global _startup_window
+    _startup_window = bool(active)
 
 
 def get_trace_context() -> dict[str, Any]:
@@ -185,6 +197,8 @@ def trace_event(event: str, **fields: Any) -> None:
         if key == "current_tab":
             continue
         record.setdefault(key, value)
+    if _startup_window:
+        record.setdefault("startup_window", True)
     record.update(fields)
     _write(record)
 
@@ -233,6 +247,8 @@ def tui_trace(span: str, **counters: Any) -> Generator[dict[str, Any], None, Non
             if key == "current_tab":
                 continue
             record.setdefault(key, value)
+        if _startup_window:
+            record.setdefault("startup_window", True)
         record.update(counters)
         record.update(extra)
         _write(record)

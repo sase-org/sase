@@ -84,10 +84,11 @@ def init_runtime_state(
     self._axe_first_load_done = False
     self._mount_state_loads_done = False
     # Durable one-record-per-session startup telemetry (StartupTelemetryMixin).
-    # ``_startup_process_start_mono`` is stamped by ``AceApp.__init__`` itself,
-    # the earliest point in the ACE-specific code path; it excludes interpreter
-    # startup and argument parsing, which are shared by every ``sase``
-    # subcommand and already measured separately via ``-X importtime``.
+    # ``_startup_process_start_mono`` is stamped during ``AceApp.__init__`` and
+    # is the historical ``process_start_to_on_mount_seconds`` origin; do not
+    # move it. Interpreter/CLI import, app-module import, construct, and
+    # compose are recorded separately by ``startup_clock`` as new additive
+    # fields so this stamp's meaning stays load-bearing for history.
     self._startup_process_start_mono = time.monotonic()
     self._startup_on_mount_mono = None
     self._startup_first_paint_mono = None

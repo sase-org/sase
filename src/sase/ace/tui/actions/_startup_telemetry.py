@@ -131,7 +131,9 @@ class StartupTelemetryMixin:
                 return None
             return round(end - start, 6)
 
-        return {
+        from ..util.startup_clock import pre_mount_split_fields
+
+        record = {
             "timestamp": datetime.now(UTC).isoformat(),
             "event": "tui_startup",
             "pid": os.getpid(),
@@ -148,3 +150,5 @@ class StartupTelemetryMixin:
             "visible_ready_seconds": _since(on_mount, visible_ready),
             "all_surfaces_ready_seconds": _since(on_mount, all_ready),
         }
+        record.update(pre_mount_split_fields())
+        return record

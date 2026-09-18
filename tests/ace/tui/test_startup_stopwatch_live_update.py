@@ -368,6 +368,21 @@ def test_maybe_end_startup_stopwatch_gates_on_visible_tab_only() -> None:
     footer.end_startup_stopwatch.assert_called_once()
 
 
+def test_maybe_end_startup_stopwatch_clears_startup_window_flag() -> None:
+    """Visible-ready ends the tagged startup window so later spans omit it."""
+    from sase.ace.tui.util import trace
+
+    app = AceApp()
+    footer = MagicMock()
+    trace.set_startup_window(True)
+    with patch.object(app, "query_one", return_value=footer):
+        app._startup_initial_tab = "agents"
+        app._agents_first_load_done = True
+        app._maybe_end_startup_stopwatch()
+    assert trace._startup_window is False
+    footer.end_startup_stopwatch.assert_called_once()
+
+
 def test_maybe_end_startup_stopwatch_gates_on_axe_when_axe_is_visible() -> None:
     """When axe is the initially visible tab, only its readiness gates."""
     app = AceApp()

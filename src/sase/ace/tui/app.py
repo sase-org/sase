@@ -301,25 +301,30 @@ class AceApp(
         sanity_refresh_interval: int = int(FULL_SANITY_REFRESH_SECONDS),
     ) -> None:
         """Initialize sase's TUI app."""
-        super().__init__()
-        from .util.app_version import format_app_title, initial_app_version
+        from .util.startup_clock import app_constructing
+        from .util.trace import set_startup_window
 
-        self.title = format_app_title(initial_app_version())
-        current_toast_session()
-        register_ace_session(self.title)
-        self._jk_perf = JKPerfTimer() if _perf_enabled() else None
-        self._heap_sampler = TUIHeapSampler.from_env()
-        if self._heap_sampler is not None:
-            self._heap_sampler.start_tracing()
-        self._init_app_state(
-            query=query,
-            model_tier_override=model_tier_override,
-            refresh_interval=refresh_interval,
-            auto_start_axe=auto_start_axe,
-            restart_axe=restart_axe,
-            initial_tab=normalize_tab_name(initial_tab),
-            sanity_refresh_interval=sanity_refresh_interval,
-        )
+        set_startup_window(True)
+        with app_constructing():
+            super().__init__()
+            from .util.app_version import format_app_title, initial_app_version
+
+            self.title = format_app_title(initial_app_version())
+            current_toast_session()
+            register_ace_session(self.title)
+            self._jk_perf = JKPerfTimer() if _perf_enabled() else None
+            self._heap_sampler = TUIHeapSampler.from_env()
+            if self._heap_sampler is not None:
+                self._heap_sampler.start_tracing()
+            self._init_app_state(
+                query=query,
+                model_tier_override=model_tier_override,
+                refresh_interval=refresh_interval,
+                auto_start_axe=auto_start_axe,
+                restart_axe=restart_axe,
+                initial_tab=normalize_tab_name(initial_tab),
+                sanity_refresh_interval=sanity_refresh_interval,
+            )
 
     def notify(
         self,

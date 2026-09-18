@@ -17,6 +17,7 @@ from sase.core.agent_scan_wire import (
 )
 from sase.core.paths import sase_projects_dir
 
+from ..util.trace import tui_trace
 from ...patch import Patch, find_all_patches
 from ...hooks.processes import is_process_running
 from . import _agent_loader_artifacts as _artifacts
@@ -367,17 +368,26 @@ def _load_agents_with_load_state(
 ) -> _AgentLoadResult:
     """Load agents for the TUI and report whether history is complete."""
 
-    artifact_snapshot, state = _artifact_snapshot_for_tui_load(
-        full_history=full_history,
-        use_artifact_index=use_artifact_index,
+    with tui_trace(
+        "agents.load_from_disk.index",
         index_freshness=index_freshness,
-        requested_limit=requested_limit,
-        candidate_filter=candidate_filter,
-    )
-    agents, workflow_agent_steps = _load_agents_from_all_sources(
-        patch_snapshot=patch_snapshot,
-        artifact_snapshot=artifact_snapshot,
-    )
+    ) as extra:
+        artifact_snapshot, state = _artifact_snapshot_for_tui_load(
+            full_history=full_history,
+            use_artifact_index=use_artifact_index,
+            index_freshness=index_freshness,
+            requested_limit=requested_limit,
+            candidate_filter=candidate_filter,
+        )
+        extra["artifact_source"] = state.artifact_source
+        extra["record_count"] = state.record_count
+        extra["used_artifact_index"] = state.used_artifact_index
+    with tui_trace("agents.load_from_disk.decode") as extra:
+        agents, workflow_agent_steps = _load_agents_from_all_sources(
+            patch_snapshot=patch_snapshot,
+            artifact_snapshot=artifact_snapshot,
+        )
+        extra["decoded_count"] = len(agents) + len(workflow_agent_steps)
     return _AgentLoadResult(
         agents=agents,
         workflow_agent_steps=workflow_agent_steps,

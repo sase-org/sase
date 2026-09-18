@@ -20,6 +20,7 @@ from ...bgcmd import (
     read_slot_output_tail,
 )
 from ...util.pump_tasks import spawn_pump_free_task
+from ...util.trace import tui_trace
 from ...widgets.bgcmd_list import AxeItem, ChopItem, ServiceProcItem
 from ._data import (
     AxeCollectedData,
@@ -226,18 +227,21 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
         """Load axe status with disk I/O in a background thread."""
         import asyncio
 
-        kwargs = self._axe_collector_kwargs(
-            include_full_snapshots=include_full_snapshots,
-            tail_all_chop_logs=tail_all_chop_logs,
-        )
-        data = await asyncio.to_thread(
-            collect_axe_status_data,
-            cache=kwargs["cache"],
-            include_full_snapshots=kwargs["include_full_snapshots"],
-            tail_chop_keys=kwargs["tail_chop_keys"],
-            tail_service_name=kwargs["tail_service_name"],
-        )
-        self._apply_axe_status_data(data)
+        with tui_trace("axe.load_status") as extra:
+            kwargs = self._axe_collector_kwargs(
+                include_full_snapshots=include_full_snapshots,
+                tail_all_chop_logs=tail_all_chop_logs,
+            )
+            data = await asyncio.to_thread(
+                collect_axe_status_data,
+                cache=kwargs["cache"],
+                include_full_snapshots=kwargs["include_full_snapshots"],
+                tail_chop_keys=kwargs["tail_chop_keys"],
+                tail_service_name=kwargs["tail_service_name"],
+            )
+            extra["file_opens"] = data.stats.file_opens
+            extra["include_full_snapshots"] = data.include_full_snapshots
+            self._apply_axe_status_data(data)
 
     def _schedule_axe_async_refresh(self) -> None:
         """Schedule an async axe status reload without blocking."""
@@ -642,6 +646,11 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
 
     async def _run_axe_startup_init(self) -> None:
         """Load axe status and trigger startup auto-start/restart off the critical path."""
+        with tui_trace("axe.startup"):
+            await self._run_axe_startup_init_body()
+
+    async def _run_axe_startup_init_body(self) -> None:
+        """Inner axe startup body; wrapped by :meth:`_run_axe_startup_init`."""
         import asyncio
 
         await self._load_axe_status_async()

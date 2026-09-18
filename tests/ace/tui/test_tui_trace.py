@@ -20,6 +20,7 @@ def _reset_context() -> None:
     """Each test starts with a clean global trace context."""
     trace._flush_trace_writes()
     trace._context.clear()
+    trace.set_startup_window(False)
 
 
 def _records(path: Path) -> list[dict]:
@@ -184,6 +185,31 @@ def test_yielded_mapping_overrides_kwargs(
 
     rows = _records(log)
     assert rows[0]["tier"] == "tier1"
+
+
+def test_startup_window_tags_spans_and_events(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Spans and events inside the stopwatch window carry startup_window=true."""
+    log = tmp_path / "trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+
+    trace.set_startup_window(True)
+    with trace.tui_trace("phase.startup"):
+        pass
+    trace.trace_event("axe.collect", file_opens=3)
+    trace.set_startup_window(False)
+    with trace.tui_trace("phase.after"):
+        pass
+
+    rows = _records(log)
+    assert rows[0]["span"] == "phase.startup"
+    assert rows[0]["startup_window"] is True
+    assert rows[1]["event"] == "axe.collect"
+    assert rows[1]["startup_window"] is True
+    assert rows[2]["span"] == "phase.after"
+    assert "startup_window" not in rows[2]
 
 
 def test_disabled_path_yields_usable_mapping(

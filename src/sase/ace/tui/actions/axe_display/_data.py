@@ -46,7 +46,7 @@ from ...bgcmd import (
     mark_slot_finished,
     read_slot_output_tail,
 )
-from ...util.trace import trace_event
+from ...util.trace import trace_event, tui_trace
 from ._read_cache import AxeCollectorStats, AxeStatusReadCache
 
 # Type alias for tab names
@@ -328,6 +328,30 @@ def collect_axe_status_data(
     Returns:
         Collected axe status data ready to be applied to the app.
     """
+    with tui_trace("axe.collect") as extra:
+        data = _collect_axe_status_data_impl(
+            cache=cache,
+            include_full_snapshots=include_full_snapshots,
+            tail_chop_keys=tail_chop_keys,
+            tail_service_name=tail_service_name,
+        )
+        stats = data.stats
+        extra["include_full_snapshots"] = include_full_snapshots
+        extra["run_json_parses"] = stats.run_json_parses
+        extra["run_index_reads"] = stats.run_index_reads
+        extra["log_tail_reads"] = stats.log_tail_reads
+        extra["file_opens"] = stats.file_opens
+        return data
+
+
+def _collect_axe_status_data_impl(
+    *,
+    cache: AxeStatusReadCache | None,
+    include_full_snapshots: bool,
+    tail_chop_keys: frozenset[tuple[str, str]] | None,
+    tail_service_name: str | None,
+) -> AxeCollectedData:
+    """Inner collector; callers go through :func:`collect_axe_status_data`."""
     read_cache = cache if cache is not None else AxeStatusReadCache()
     read_cache.begin_tick()
 

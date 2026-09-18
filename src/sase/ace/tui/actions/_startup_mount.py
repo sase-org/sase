@@ -190,6 +190,9 @@ class StartupMountMixin:
         """
         if not self._startup_visible_surface_ready():
             return
+        from ..util.trace import set_startup_window
+
+        set_startup_window(False)
         try:
             from ..widgets import KeybindingFooter
 

@@ -61,6 +61,13 @@ class AppLayoutMixin:
 
     def compose(self: Any) -> ComposeResult:
         """Compose the app layout."""
+        from .util.startup_clock import composing
+
+        with composing():
+            yield from self._compose_layout()
+
+    def _compose_layout(self: Any) -> ComposeResult:
+        """Yield the top-level ACE widgets (timed by :meth:`compose`)."""
         initial_tab = self.current_tab
         cs_classes = "" if initial_tab == "artifacts" else "hidden"
         agents_classes = "" if initial_tab == "agents" else "hidden"

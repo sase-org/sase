@@ -65,6 +65,20 @@ SASE_PLUGIN_CATALOG_SCALE_WRITE_BASELINE=1 pytest -s -m slow \
     tests/ace/tui/bench_plugins_catalog_scale.py
 ```
 
+## TUI startup attribution
+
+Capture the sase-132 baseline (quiet/busy loader benches, traced live startups,
+importtime) with:
+
+```bash
+.venv/bin/python tests/perf/capture_tui_startup.py all --output-dir ~/.sase/perf
+```
+
+Individual steps and the jq recipes live in `docs/perf_runbook.md` under
+[Attributed startup capture (sase-132.1)](../../docs/perf_runbook.md#attributed-startup-capture-sase-1321).
+Label each bench from the script's `host_state` (`quiet` vs `busy`). Startup-window
+contention is `startup_window=true` on `tui_trace.jsonl` spans.
+
 ## Admin Center First Paint
 
 Measure `#` dispatch through the painted, home-first SASE Admin Center under both empty

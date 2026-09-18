@@ -781,6 +781,72 @@ process start), `initial_tab`, `agent_row_count`, `index_row_count` (the Tier-1 
 query's row count when the load went through the persistent index, `null` otherwise),
 and `source` / `tier` / `artifact_source` from the load's `AgentLoadState`.
 
+`process_start_to_on_mount_seconds` keeps its historical meaning (the AceApp init stamp
+to `on_mount`). Four additive fields split the wider OS-process-start → compose path
+without changing that field:
+
+- `interpreter_cli_import_seconds` — OS process start to just before `AceApp` import
+- `app_module_import_seconds` — `from sase.ace.tui import AceApp`
+- `app_construct_seconds` — `AceApp()` construction
+- `compose_seconds` — Textual consumption of `compose()`
+
+Missing stamps record as `null` (unit tests and non-CLI constructions).
+
+### Attributed startup capture (sase-132.1)
+
+One command sequence reproduces a fully attributed capture at a recorded SHA. Store
+outputs under `~/.sase/perf/` with the epic prefix and label the host as `quiet` or
+`busy` from load average plus `run_agent_runner.py` count (see the script's
+`host_state`).
+
+```bash
+# 1. Standalone loader bench against the real archive (label host state)
+.venv/bin/python tests/perf/capture_tui_startup.py bench \
+  --sase-home ~/.sase \
+  --output-dir ~/.sase/perf
+
+# 2. Three live traced startups + one pyinstrument profile
+.venv/bin/python tests/perf/capture_tui_startup.py live \
+  --runs 3 --profile \
+  --output-dir ~/.sase/perf
+
+# 3. Import-time of the TUI app module in this environment
+.venv/bin/python tests/perf/capture_tui_startup.py importtime \
+  --output-dir ~/.sase/perf
+```
+
+Or all three:
+
+```bash
+.venv/bin/python tests/perf/capture_tui_startup.py all --output-dir ~/.sase/perf
+```
+
+Query startup-window contention without reconstructing the window from timestamps:
+
+```bash
+jq -c 'select(.startup_window==true)' ~/.sase/perf/sase-132.1-*/tui_trace.jsonl
+```
+
+Loader wait-vs-work inside the startup `agents.load_from_disk` span:
+
+```bash
+jq -c 'select(.span=="agents.load_from_disk"
+        or .span=="agents.load_from_disk.dismissed_snapshot"
+        or .span=="agents.load_from_disk.provider"
+        or .span=="agents.load_from_disk.index"
+        or .span=="agents.load_from_disk.decode"
+        or .span=="agents.load_from_disk.projections")' \
+  ~/.sase/perf/sase-132.1-*/tui_trace.jsonl
+```
+
+Axe first load (duration span plus the legacy point event, both with `file_opens`):
+
+```bash
+jq -c 'select(.span=="axe.startup" or .span=="axe.load_status"
+        or .span=="axe.collect" or .event=="axe.collect")' \
+  ~/.sase/perf/sase-132.1-*/tui_trace.jsonl
+```
+
 To capture a before/after pair:
 
 ```bash
@@ -798,7 +864,10 @@ Then compare the two sets of records:
 ```bash
 jq -c '{timestamp, all_surfaces_ready_seconds, visible_ready_seconds,
         agents_ready_seconds, axe_ready_seconds, agent_row_count,
-        index_row_count, source, tier, artifact_source}' \
+        index_row_count, source, tier, artifact_source,
+        process_start_to_on_mount_seconds,
+        interpreter_cli_import_seconds, app_module_import_seconds,
+        app_construct_seconds, compose_seconds}' \
   ~/.sase/logs/tui_startup.jsonl
 ```
 

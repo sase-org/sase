@@ -11,7 +11,43 @@ import pytest
 
 from sase.ace.tui.actions._startup_telemetry import StartupTelemetryMixin
 from sase.ace.tui.models.agent_loader import AgentLoadState
+from sase.ace.tui.util import startup_clock
 from sase.logs import tui_telemetry
+
+_LEGACY_STARTUP_FIELDS = (
+    "timestamp",
+    "event",
+    "pid",
+    "initial_tab",
+    "source",
+    "tier",
+    "artifact_source",
+    "agent_row_count",
+    "index_row_count",
+    "process_start_to_on_mount_seconds",
+    "on_mount_to_first_paint_seconds",
+    "agents_ready_seconds",
+    "axe_ready_seconds",
+    "visible_ready_seconds",
+    "all_surfaces_ready_seconds",
+)
+
+_PRE_MOUNT_SPLIT_FIELDS = (
+    "interpreter_cli_import_seconds",
+    "app_module_import_seconds",
+    "app_construct_seconds",
+    "compose_seconds",
+)
+
+
+def _clear_startup_clock() -> None:
+    startup_clock._process_start_mono = None
+    startup_clock._cli_ready_mono = None
+    startup_clock._app_imported_mono = None
+    startup_clock._app_construct_start_mono = None
+    startup_clock._app_construct_end_mono = None
+    startup_clock._compose_start_mono = None
+    startup_clock._compose_end_mono = None
 
 
 class _TelemetryApp(StartupTelemetryMixin):
@@ -80,6 +116,7 @@ async def test_record_waits_for_both_surfaces_then_writes_once(
 ) -> None:
     path = tmp_path / "tui_startup.jsonl"
     monkeypatch.setattr(tui_telemetry, "TUI_STARTUP_JSONL", str(path))
+    _clear_startup_clock()
 
     app = _TelemetryApp(current_tab="agents")
     app._mark_startup_on_mount()
@@ -116,6 +153,12 @@ async def test_record_waits_for_both_surfaces_then_writes_once(
     assert record["on_mount_to_first_paint_seconds"] >= 0
     assert record["agents_ready_seconds"] >= 0
     assert record["axe_ready_seconds"] >= 0
+    for field in _LEGACY_STARTUP_FIELDS:
+        assert field in record
+    for field in _PRE_MOUNT_SPLIT_FIELDS:
+        assert field in record
+        value = record[field]
+        assert value is None or isinstance(value, (int, float))
 
     # A repeat "ready" signal (e.g. a redundant call) must not write again.
     app._mark_startup_agents_ready()
@@ -123,3 +166,32 @@ async def test_record_waits_for_both_surfaces_then_writes_once(
     await _drain(app)
     lines = path.read_text().strip().splitlines()
     assert len(lines) == 1
+
+
+def test_pre_mount_split_fields_are_additive_and_optional() -> None:
+    """New split fields are additive when stamped; missing stamps stay None."""
+    _clear_startup_clock()
+    fields = startup_clock.pre_mount_split_fields()
+    for name in _PRE_MOUNT_SPLIT_FIELDS:
+        assert name in fields
+        assert fields[name] is None or isinstance(fields[name], float)
+
+    _clear_startup_clock()
+    startup_clock._process_start_mono = 1.0
+    startup_clock._cli_ready_mono = 1.4
+    startup_clock._app_imported_mono = 2.1
+    startup_clock._app_construct_start_mono = 2.2
+    startup_clock._app_construct_end_mono = 2.5
+    startup_clock._compose_start_mono = 2.6
+    startup_clock._compose_end_mono = 3.0
+    fields = startup_clock.pre_mount_split_fields()
+    assert fields["interpreter_cli_import_seconds"] == pytest.approx(0.4)
+    assert fields["app_module_import_seconds"] == pytest.approx(0.7)
+    assert fields["app_construct_seconds"] == pytest.approx(0.3)
+    assert fields["compose_seconds"] == pytest.approx(0.4)
+    assert fields["interpreter_cli_import_seconds"] + fields[
+        "app_module_import_seconds"
+    ] + fields["app_construct_seconds"] + fields["compose_seconds"] == pytest.approx(
+        1.8
+    )
+    _clear_startup_clock()

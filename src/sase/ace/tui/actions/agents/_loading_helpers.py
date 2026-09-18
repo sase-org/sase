@@ -260,25 +260,28 @@ def load_agents_from_disk_with_state(
         full_history=full_history,
         index_freshness=index_freshness,
     ) as counters:
-        dismissed_bundle_identities = dismissed_bundle_identities_snapshot()
+        with tui_trace("agents.load_from_disk.dismissed_snapshot"):
+            dismissed_bundle_identities = dismissed_bundle_identities_snapshot()
         if data_provider is None:
             from ...data_providers import make_agents_data_provider
 
             data_provider = make_agents_data_provider()
-        provider_snapshot = data_provider.load_agents(
-            patch_snapshot=patch_snapshot,
-            full_history=full_history,
-            use_artifact_index=use_artifact_index,
-            index_freshness=index_freshness,
-            search_query=search_query,
-            viewport=viewport,
-        )
-        result = _apply_loaded_agent_disk_projections(
-            provider_snapshot.agents,
-            dismissed_agents,
-            dismissed_bundle_identities,
-            provider_snapshot.load_state,
-        )
+        with tui_trace("agents.load_from_disk.provider"):
+            provider_snapshot = data_provider.load_agents(
+                patch_snapshot=patch_snapshot,
+                full_history=full_history,
+                use_artifact_index=use_artifact_index,
+                index_freshness=index_freshness,
+                search_query=search_query,
+                viewport=viewport,
+            )
+        with tui_trace("agents.load_from_disk.projections"):
+            result = _apply_loaded_agent_disk_projections(
+                provider_snapshot.agents,
+                dismissed_agents,
+                dismissed_bundle_identities,
+                provider_snapshot.load_state,
+            )
         result = replace(result, provider_snapshot=provider_snapshot)
         state = result.load_state
         counters["data_cost"] = classify_agents_data_cost(

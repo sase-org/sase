@@ -336,6 +336,10 @@ def test_load_from_disk_span_carries_load_state_fields(
     assert row["truncated"] is False
     assert row["used_artifact_index"] is True
     assert row["index_error"] is None
+    span_names = [r.get("span") for r in rows]
+    assert "agents.load_from_disk.dismissed_snapshot" in span_names
+    assert "agents.load_from_disk.provider" in span_names
+    assert "agents.load_from_disk.projections" in span_names
 
 
 def test_load_agents_from_disk_uses_data_provider() -> None:

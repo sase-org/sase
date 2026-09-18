@@ -172,7 +172,12 @@ def handle_ace_command(args: argparse.Namespace) -> None:
         launch_ace_in_tmux(args)
         sys.exit(0)
 
+    from sase.ace.tui.util.startup_clock import mark_app_imported, mark_cli_ready
+
+    mark_cli_ready()
     from sase.ace.tui import AceApp
+
+    mark_app_imported()
     from sase.ace.tui.log_setup import install_tui_file_logging
     from sase.config.core import set_include_local_config
     from sase.feature_flags import install_process_feature_flags

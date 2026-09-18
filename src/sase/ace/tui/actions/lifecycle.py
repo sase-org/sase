@@ -37,7 +37,9 @@ class LifecycleMixin:
         """Clean up resources when Textual tears the app down."""
         from ..util.heap import stop_tui_heap_sampler
         from ..util.pump_tasks import cancel_pump_free_tasks
+        from ..util.trace import set_startup_window
 
+        set_startup_window(False)
         stop_tui_heap_sampler(self)
         cancel_agent_hint_render = getattr(
             self, "_cancel_agent_hint_render_tasks", None
