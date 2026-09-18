@@ -11,6 +11,7 @@ from ..util.shutdown import request_shutdown
 if TYPE_CHECKING:
     from ...patch import Patch
     from ..modals.notification_modal_tags import NotificationTagTab
+    from textual.timer import Timer
 
 # Type alias for tab names (used in type hints)
 TabName = Literal["artifacts", "agents", "axe"]
@@ -32,6 +33,7 @@ class LifecycleMixin:
     _patches_last_idx: int
     _last_unread_ids: set[str]
     _delivered_notification_activity_cursors: set[NotificationActivityCursor]
+    _startup_deferred_fallback_timer: Timer | None
 
     def on_unmount(self) -> None:
         """Clean up resources when Textual tears the app down."""
@@ -41,6 +43,13 @@ class LifecycleMixin:
 
         set_startup_window(False)
         stop_tui_heap_sampler(self)
+        fallback_timer = getattr(self, "_startup_deferred_fallback_timer", None)
+        self._startup_deferred_fallback_timer = None
+        if fallback_timer is not None:
+            try:
+                fallback_timer.stop()
+            except Exception:
+                pass
         cancel_agent_hint_render = getattr(
             self, "_cancel_agent_hint_render_tasks", None
         )

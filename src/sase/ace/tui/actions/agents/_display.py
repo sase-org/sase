@@ -480,7 +480,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             agent = self._agents[idx]
             if current_keys.get(agent.identity) in panel_rebuild_keys:
                 continue
-            if not self._try_patch_agent_row(agent):
+            if not self._try_patch_agent_row(agent, refresh_info=False):
                 return False
 
         if panel_rebuild_keys:

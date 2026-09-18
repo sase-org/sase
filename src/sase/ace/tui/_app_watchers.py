@@ -121,6 +121,14 @@ class AppWatchersMixin:
             axe_view.add_class("hidden")
             axe_view.disabled = True
             self._sync_artifact_file_viewer_layout()
+            startup_surface_started = False
+            maybe_start_startup_surface = getattr(
+                self,
+                "_maybe_start_startup_surface_for_tab",
+                None,
+            )
+            if callable(maybe_start_startup_surface):
+                startup_surface_started = bool(maybe_start_startup_surface("agents"))
             # During mount, on_mount schedules the initial async load. On a
             # later tab switch, show cached data immediately and only re-fetch
             # when there is pending work to consume.
@@ -143,8 +151,10 @@ class AppWatchersMixin:
                 )
                 if callable(schedule_fleet_refresh):
                     schedule_fleet_refresh(source="tab_switch")
-                if getattr(self, "_dirty_agents", False) and not getattr(
-                    self, "_agents_loading", False
+                if (
+                    getattr(self, "_dirty_agents", False)
+                    and not getattr(self, "_agents_loading", False)
+                    and not startup_surface_started
                 ):
                     if hasattr(self, "_schedule_agents_async_refresh"):
                         self._schedule_agents_async_refresh(source="tab_switch")
@@ -155,8 +165,17 @@ class AppWatchersMixin:
             agents_view.disabled = True
             axe_view.remove_class("hidden")
             axe_view.disabled = False
+            startup_surface_started = False
+            maybe_start_startup_surface = getattr(
+                self,
+                "_maybe_start_startup_surface_for_tab",
+                None,
+            )
+            if callable(maybe_start_startup_surface):
+                startup_surface_started = bool(maybe_start_startup_surface("axe"))
             self._refresh_axe_display()
-            self._schedule_axe_async_refresh()
+            if not startup_surface_started:
+                self._schedule_axe_async_refresh()
 
         # Refresh an open tab-scoped help panel with the new context.
         from .modals import HelpModal

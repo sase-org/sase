@@ -8,8 +8,6 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from textual.timer import Timer
-
 from sase.xprompt.highlight_theme import ACE_THEME_NAME
 
 from ...config import get_ace_page_size
@@ -97,6 +95,19 @@ def init_runtime_state(
     self._startup_axe_ready_mono = None
     self._startup_visible_ready_mono = None
     self._startup_telemetry_recorded = False
+    self._startup_agents_surface_started = False
+    self._startup_axe_surface_started = False
+    self._startup_deferred_loads_released = False
+    self._startup_deferred_release_reason = None
+    self._startup_deferred_fallback_timer = None
+    self._startup_deferred_post_roster_warmups_pending = False
+    self._startup_deferred_post_roster_warmups_source = "unknown"
+    self._startup_deferred_monitor_reconcile_pending = False
+    self._startup_deferred_monitor_reconcile_source = "unknown"
+    self._mount_notification_state_load_started = False
+    self._mount_notification_state_load_done = False
+    self._mount_deferred_state_load_started = False
+    self._mount_deferred_state_load_done = False
     self._feature_flag_cleanup_notice_scheduled = False
     self._feature_flag_cleanup_async_tasks = set()
     self._agents_onboarding_launch_targets_available = False

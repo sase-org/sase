@@ -10,7 +10,6 @@ nudges an agents refresh when the projection actually changed.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -51,6 +50,7 @@ def test_init_app_state_performs_no_sync_and_no_bundle_reads(
 def test_start_post_mount_background_loads_schedules_dismissed_sync_once() -> None:
     """The startup launcher chains dismissed sync after agents load."""
     app = AceApp()
+    app._mark_startup_on_mount()
     scheduled: list[object] = []
 
     with (
@@ -60,7 +60,9 @@ def test_start_post_mount_background_loads_schedules_dismissed_sync_once() -> No
             side_effect=lambda fn, **kwargs: scheduled.append(fn),
         ),
         patch.object(app, "_start_post_first_paint_services"),
-        patch.object(app, "_schedule_startup_update_toast_check"),
+        patch.object(app, "set_timer"),
+        patch.object(app, "_start_artifact_watcher"),
+        patch.object(app, "_start_prompt_source_watcher"),
     ):
         app._start_post_mount_background_loads()
         app._start_post_mount_background_loads()
@@ -74,73 +76,83 @@ def test_start_post_mount_background_loads_schedules_dismissed_sync_once() -> No
 
 
 @pytest.mark.asyncio
-async def test_startup_dismissed_sync_waits_for_initial_agents_refresh() -> None:
+async def test_startup_dismissed_sync_waits_for_initial_agents_refresh(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Dismissed-index maintenance starts only after startup agents load."""
+    app = AceApp()
+    app._mark_startup_on_mount()
+    agent_started = asyncio.Event()
+    agent_release = asyncio.Event()
+    dismissed_done = asyncio.Event()
+    events: list[str] = []
+    tasks: list[asyncio.Task[None]] = []
 
-    class _StartupHarness:
-        def __init__(self) -> None:
-            self._post_mount_background_loads_started = False
-            self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
-            self.agent_started = asyncio.Event()
-            self.agent_release = asyncio.Event()
-            self.dismissed_done = asyncio.Event()
-            self.events: list[str] = []
-            self.tasks: list[asyncio.Task[None]] = []
+    async def agents() -> None:
+        events.append("prepare-start")
+        events.append("agents-start")
+        agent_started.set()
+        await agent_release.wait()
+        events.append("agents-complete")
+        app._agents_first_load_done = True
+        app._mark_startup_agents_ready()
+        app._maybe_end_startup_stopwatch()
+        callbacks = list(app._agents_refresh_pending_callbacks)
+        app._agents_refresh_pending_callbacks.clear()
+        for callback in callbacks:
+            callback()
 
-        async def _run_agent_index_startup_prepare_and_refresh(self) -> None:
-            self.events.append("prepare-start")
-            await self._run_agents_async_refresh()
+    async def axe() -> None:
+        events.append("axe-start")
 
-        async def _run_agents_async_refresh(self) -> None:
-            self.events.append("agents-start")
-            self.agent_started.set()
-            await self.agent_release.wait()
-            self.events.append("agents-complete")
-            callbacks = list(self._agents_refresh_pending_callbacks)
-            self._agents_refresh_pending_callbacks.clear()
-            for callback in callbacks:
-                callback()
+    async def dismissed_sync() -> None:
+        events.append("dismissed-start")
+        dismissed_done.set()
 
-        async def _run_axe_startup_init(self) -> None:
-            self.events.append("axe-start")
+    async def notifications() -> None:
+        app._mount_notification_state_load_done = True
+        app._maybe_mark_mount_state_loads_done()
 
-        def _schedule_agents_fold_state_load(self) -> None:
-            self.events.append("fold-load-scheduled")
+    async def deferred_state() -> None:
+        app._mount_deferred_state_load_done = True
+        app._maybe_mark_mount_state_loads_done()
 
-        async def _run_dismissed_index_startup_sync(self) -> None:
-            self.events.append("dismissed-start")
-            self.dismissed_done.set()
+    def run_worker(fn, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        del kwargs
+        tasks.append(asyncio.create_task(fn()))
 
-        def run_worker(self, fn, **kwargs) -> None:  # type: ignore[no-untyped-def]
-            del kwargs
-            self.tasks.append(asyncio.create_task(fn()))
-
-        def _schedule_dismissed_index_startup_sync(self) -> None:
-            AceApp._schedule_dismissed_index_startup_sync(self)  # type: ignore[arg-type]
-
-        def _start_artifact_watcher(self) -> None:
-            self.events.append("watcher-start")
-
-        def _mark_startup_first_paint(self) -> None:
-            pass
-
-        def _start_post_first_paint_services(self) -> None:
-            pass
-
-    harness = _StartupHarness()
-    AceApp._start_post_mount_background_loads(harness)  # type: ignore[arg-type]
-
-    await asyncio.wait_for(harness.agent_started.wait(), timeout=0.2)
-    assert "dismissed-start" not in harness.events
-    assert harness.events.index("prepare-start") < harness.events.index("agents-start")
-
-    harness.agent_release.set()
-    await asyncio.wait_for(harness.dismissed_done.wait(), timeout=0.2)
-
-    assert harness.events.index("agents-complete") < harness.events.index(
-        "dismissed-start"
+    monkeypatch.setattr(app, "_start_post_first_paint_services", lambda: None)
+    monkeypatch.setattr(app, "run_worker", run_worker)
+    monkeypatch.setattr(
+        app,
+        "_run_agent_index_startup_prepare_and_refresh",
+        agents,
     )
-    await asyncio.wait_for(asyncio.gather(*harness.tasks), timeout=0.2)
+    monkeypatch.setattr(app, "_run_axe_startup_init", axe)
+    monkeypatch.setattr(app, "_run_dismissed_index_startup_sync", dismissed_sync)
+    monkeypatch.setattr(app, "_run_mount_notification_state_loads", notifications)
+    monkeypatch.setattr(app, "_run_deferred_mount_state_loads", deferred_state)
+    monkeypatch.setattr(app, "_schedule_agents_fold_state_load", lambda: None)
+    monkeypatch.setattr(app, "_start_artifact_watcher", lambda: None)
+    monkeypatch.setattr(app, "_start_prompt_source_watcher", lambda: None)
+    monkeypatch.setattr(
+        app,
+        "_schedule_deferred_startup_maintenance",
+        lambda *, reason: None,
+    )
+    monkeypatch.setattr(app, "set_timer", lambda *_args, **_kwargs: object())
+
+    app._start_post_mount_background_loads()
+
+    await asyncio.wait_for(agent_started.wait(), timeout=0.2)
+    assert "dismissed-start" not in events
+    assert events.index("prepare-start") < events.index("agents-start")
+
+    agent_release.set()
+    await asyncio.wait_for(dismissed_done.wait(), timeout=1.0)
+
+    assert events.index("agents-complete") < events.index("dismissed-start")
+    await asyncio.wait_for(asyncio.gather(*tasks), timeout=1.0)
 
 
 class _SyncHarness:

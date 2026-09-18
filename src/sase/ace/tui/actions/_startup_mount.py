@@ -140,11 +140,6 @@ class StartupMountMixin:
             except Exception:
                 log.exception("Failed to wire deferred Artifacts widgets")
 
-        try:
-            self._schedule_link_index_refresh(source="mount")
-        except Exception:
-            log.exception("Failed to schedule startup link-index refresh")
-
         start_proc_reconciler = getattr(self, "_start_proc_reconciler", None)
         if callable(start_proc_reconciler):
             try:
@@ -228,7 +223,13 @@ class StartupMountMixin:
         ``StartupTelemetryMixin``) is the single source of truth for which
         tab's readiness gates this.
         """
-        if not self._startup_visible_surface_ready():
+        mark_visible_ready = getattr(self, "_mark_startup_visible_ready_if_ready", None)
+        visible_ready = (
+            bool(mark_visible_ready())
+            if callable(mark_visible_ready)
+            else self._startup_visible_surface_ready()
+        )
+        if not visible_ready:
             return
         from ..util.trace import set_startup_window
 
@@ -245,6 +246,11 @@ class StartupMountMixin:
             self._schedule_feature_flag_cleanup_notice()
         except Exception:
             log.debug("Failed to schedule feature-flag cleanup notice", exc_info=True)
+        release_deferred = getattr(self, "_release_startup_deferred_loads", None)
+        if callable(release_deferred) and getattr(
+            self, "_post_mount_background_loads_started", False
+        ):
+            release_deferred(reason="visible_ready")
 
     def _apply_startup_loading_state(self: Any) -> None:
         """Mark async-loaded panels as loading so the user sees spinners.

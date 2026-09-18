@@ -75,12 +75,14 @@ function __sase_loader_run
     command sase $argv
 end
 
-if not set -q __SASE_COMPLETION_LOADER_ACTIVE
+if not set -q __SASE_COMPLETION_LOADER_ACTIVE; and not set -q __SASE_COMPLETION_LOADER_SOURCED
     set -g __SASE_COMPLETION_LOADER_ACTIVE 1
     set -l loader (status filename)
     set -l grammar (__sase_loader_run completion ensure fish --loader-path "$loader" {owner_args}2>/dev/null)
     if test -n "$grammar"; and test -r "$grammar"
-        source "$grammar"
+        if source "$grammar"
+            set -gx __SASE_COMPLETION_LOADER_SOURCED 1
+        end
     end
     set -e __SASE_COMPLETION_LOADER_ACTIVE
 end

@@ -79,17 +79,25 @@ class _CloneMaterializationTransaction:
     def discard_stage(self) -> None:
         _remove_clone_stage_path(self.entry_path)
 
-    def publish(self, *, expected_remote: str | None, deadline: float | None) -> None:
+    def publish(
+        self,
+        *,
+        expected_remote: str | None,
+        deadline: float | None,
+        allow_unborn_head: bool = False,
+    ) -> None:
         validate_staged_sdd_clone(
             self.clone_path,
             expected_remote=expected_remote,
             deadline=deadline,
+            allow_unborn_head=allow_unborn_head,
         )
         if os.path.lexists(self.target):
             if valid_published_sdd_clone(
                 self.target,
                 expected_remote=expected_remote,
                 deadline=deadline,
+                allow_unborn_head=allow_unborn_head,
             ):
                 self.discard_stage()
                 return
@@ -137,13 +145,18 @@ def _remove_clone_stage_path(path: Path) -> None:
 
 
 def valid_published_sdd_clone(
-    path: Path, *, expected_remote: str | None, deadline: float | None
+    path: Path,
+    *,
+    expected_remote: str | None,
+    deadline: float | None,
+    allow_unborn_head: bool = False,
 ) -> bool:
     try:
         validate_staged_sdd_clone(
             path,
             expected_remote=expected_remote,
             deadline=deadline,
+            allow_unborn_head=allow_unborn_head,
         )
     except ClonePublicationError:
         return False
@@ -151,7 +164,11 @@ def valid_published_sdd_clone(
 
 
 def validate_staged_sdd_clone(
-    path: Path, *, expected_remote: str | None, deadline: float | None
+    path: Path,
+    *,
+    expected_remote: str | None,
+    deadline: float | None,
+    allow_unborn_head: bool = False,
 ) -> None:
     if not (path / ".git").is_dir():
         raise ClonePublicationError(f"staged SDD clone at {path} has no .git directory")

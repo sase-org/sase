@@ -49,6 +49,7 @@ def clone_sdd_store(
     reference_repo: Path | None = None,
     strict: bool = False,
     deadline: float | None = None,
+    allow_unborn_head: bool = False,
 ) -> bool:
     workspace_sdd = workspace_sdd.expanduser()
     if is_http_git_remote(remote_url):
@@ -71,6 +72,7 @@ def clone_sdd_store(
                     workspace_sdd,
                     expected_remote=remote_url,
                     deadline=deadline,
+                    allow_unborn_head=allow_unborn_head,
                 ):
                     return True
                 return handle_failed_sdd_clone(
@@ -96,6 +98,7 @@ def clone_sdd_store(
                 transaction.publish(
                     expected_remote=remote_url,
                     deadline=deadline,
+                    allow_unborn_head=allow_unborn_head,
                 )
             except _ClonePublicationError as exc:
                 return handle_failed_sdd_clone(
@@ -393,6 +396,7 @@ def staged_sdd_clone_replacement(
     remote_url: str | None,
     *,
     deadline: float | None = None,
+    allow_unborn_head: bool = False,
 ) -> Iterator[Path]:
     """Yield a validated staged clone for replacing an existing workspace path."""
 
@@ -424,6 +428,7 @@ def staged_sdd_clone_replacement(
             transaction.clone_path,
             expected_remote=expected_remote,
             deadline=deadline,
+            allow_unborn_head=allow_unborn_head,
         )
         yield transaction.clone_path
 

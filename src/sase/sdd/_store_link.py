@@ -66,6 +66,7 @@ def ensure_sidecar_sdd_clone(
     fresh: bool = False,
     require_upstream_alignment: bool = False,
     deadline: float | None = None,
+    allow_unborn_head: bool = False,
 ) -> None:
     """Ensure a split-store sidecar clone exists and tracks its real remote.
 
@@ -86,6 +87,7 @@ def ensure_sidecar_sdd_clone(
                         clone_dir.with_name(".missing-primary"),
                         remote_url,
                         deadline=deadline,
+                        allow_unborn_head=allow_unborn_head,
                     )
                     return
                 _logger.warning(
@@ -101,6 +103,8 @@ def ensure_sidecar_sdd_clone(
                 raise SddMaterializationError(
                     f"could not normalize SDD sidecar origin at {clone_dir}"
                 )
+            if allow_unborn_head and not _has_resolvable_head(clone_dir):
+                return
             _pull_sdd_clone(
                 clone_dir,
                 strict=strict,
@@ -118,6 +122,7 @@ def ensure_sidecar_sdd_clone(
             clone_dir,
             reference_repo=reference_repo,
             strict=strict,
+            allow_unborn_head=allow_unborn_head,
             **clone_kwargs,
         )
         if not cloned and strict:
@@ -136,6 +141,23 @@ def ensure_sidecar_sdd_clone(
         from sase.workspace_provider.git_exclude import ensure_sase_git_info_excludes
 
         ensure_sase_git_info_excludes(str(clone_dir))
+
+
+def _has_resolvable_head(clone_dir: Path) -> bool:
+    try:
+        from sase.sdd._commit import run_sdd_git
+
+        result = run_sdd_git(
+            ["rev-parse", "--verify", "HEAD"],
+            cwd=clone_dir,
+            op="sdd.clone.head_probe",
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except Exception:
+        return False
+    return result.returncode == 0
 
 
 def ensure_workspace_sdd_clone(
@@ -281,6 +303,7 @@ def _replace_workspace_sdd_clone(
     remote_url: str | None,
     *,
     deadline: float | None = None,
+    allow_unborn_head: bool = False,
 ) -> None:
     """Atomically replace legacy workspace content after primary adoption."""
 
@@ -291,6 +314,7 @@ def _replace_workspace_sdd_clone(
             primary_sdd,
             remote_url,
             deadline=deadline,
+            allow_unborn_head=allow_unborn_head,
         ) as staged:
             had_existing = os.path.lexists(workspace_sdd)
             if had_existing:

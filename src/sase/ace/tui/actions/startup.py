@@ -89,6 +89,19 @@ class StartupMixin(
     _startup_axe_ready_mono: float | None
     _startup_visible_ready_mono: float | None
     _startup_telemetry_recorded: bool
+    _startup_agents_surface_started: bool
+    _startup_axe_surface_started: bool
+    _startup_deferred_loads_released: bool
+    _startup_deferred_release_reason: str | None
+    _startup_deferred_fallback_timer: Timer | None
+    _startup_deferred_post_roster_warmups_pending: bool
+    _startup_deferred_post_roster_warmups_source: str
+    _startup_deferred_monitor_reconcile_pending: bool
+    _startup_deferred_monitor_reconcile_source: str
+    _mount_notification_state_load_started: bool
+    _mount_notification_state_load_done: bool
+    _mount_deferred_state_load_started: bool
+    _mount_deferred_state_load_done: bool
     _feature_flag_cleanup_notice_scheduled: bool
     _agents_onboarding_launch_targets_available: bool
     _agents_onboarding_launch_targets_refresh_scheduled: bool

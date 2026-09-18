@@ -205,18 +205,28 @@ async def test_ace_page_real_startup_policy_invokes_production_boundaries(
     """Lifecycle tests can explicitly opt back into every startup boundary."""
     calls: set[str] = set()
 
-    async def mount_state(app: AceApp) -> None:
-        calls.add("mount-state")
+    async def notification_state(app: AceApp) -> None:
+        calls.add("notification-state")
+        app._mount_notification_state_load_done = True
+        app._maybe_mark_mount_state_loads_done()
+
+    async def deferred_state(app: AceApp) -> None:
+        calls.add("deferred-state")
         app._apply_patches(app._read_patches_from_disk())
-        app._mount_state_loads_done = True
+        app._mount_deferred_state_load_done = True
+        app._maybe_mark_mount_state_loads_done()
 
     async def agents(app: AceApp) -> None:
         calls.add("agents")
         app._agents_first_load_done = True
+        app._mark_startup_agents_ready()
+        app._maybe_end_startup_stopwatch()
 
     async def axe(app: AceApp) -> None:
         calls.add("axe")
         app._axe_first_load_done = True
+        app._mark_startup_axe_ready()
+        app._maybe_end_startup_stopwatch()
 
     def record(name: str) -> Callable[..., None]:
         def callback(*_args: object, **_kwargs: object) -> None:
@@ -224,7 +234,12 @@ async def test_ace_page_real_startup_policy_invokes_production_boundaries(
 
         return callback
 
-    monkeypatch.setattr(AceApp, "_run_mount_state_loads", mount_state)
+    monkeypatch.setattr(
+        AceApp,
+        "_run_mount_notification_state_loads",
+        notification_state,
+    )
+    monkeypatch.setattr(AceApp, "_run_deferred_mount_state_loads", deferred_state)
     monkeypatch.setattr(
         AceApp,
         "_schedule_agents_fold_state_load",
@@ -270,7 +285,8 @@ async def test_ace_page_real_startup_policy_invokes_production_boundaries(
     assert fast_stylesheet_cache_stats().hits == 0
     assert fast_stylesheet_cache_stats().stores == 0
     assert calls >= {
-        "mount-state",
+        "notification-state",
+        "deferred-state",
         "fold-state",
         "agents",
         "axe",
@@ -284,7 +300,8 @@ async def test_ace_page_real_startup_policy_invokes_production_boundaries(
 
 async def test_ace_page_restores_fast_startup_overrides_after_success() -> None:
     originals = (
-        AceApp._run_mount_state_loads,
+        AceApp._run_mount_notification_state_loads,
+        AceApp._run_deferred_mount_state_loads,
         AceApp._run_agent_index_startup_prepare_and_refresh,
         AceApp._start_artifact_watcher,
         testing_module._stall_watchdog.start_event_loop_stall_watchdog,
@@ -292,17 +309,19 @@ async def test_ace_page_restores_fast_startup_overrides_after_success() -> None:
     )
 
     async with AcePage():
-        assert AceApp._run_mount_state_loads is not originals[0]
-        assert AceApp._run_agent_index_startup_prepare_and_refresh is not originals[1]
-        assert AceApp._start_artifact_watcher is not originals[2]
+        assert AceApp._run_mount_notification_state_loads is not originals[0]
+        assert AceApp._run_deferred_mount_state_loads is not originals[1]
+        assert AceApp._run_agent_index_startup_prepare_and_refresh is not originals[2]
+        assert AceApp._start_artifact_watcher is not originals[3]
         assert (
             testing_module._stall_watchdog.start_event_loop_stall_watchdog
-            is not originals[3]
+            is not originals[4]
         )
-        assert artifacts_actions._collect_artifacts_project_choices is not originals[4]
+        assert artifacts_actions._collect_artifacts_project_choices is not originals[5]
 
     assert (
-        AceApp._run_mount_state_loads,
+        AceApp._run_mount_notification_state_loads,
+        AceApp._run_deferred_mount_state_loads,
         AceApp._run_agent_index_startup_prepare_and_refresh,
         AceApp._start_artifact_watcher,
         testing_module._stall_watchdog.start_event_loop_stall_watchdog,
@@ -549,7 +568,8 @@ async def test_ace_page_restores_overrides_when_entry_fails(
     monkeypatch: pytest.MonkeyPatch,
     failure_phase: str,
 ) -> None:
-    original_mount_state = AceApp._run_mount_state_loads
+    original_notification_state = AceApp._run_mount_notification_state_loads
+    original_deferred_state = AceApp._run_deferred_mount_state_loads
     original_find = patch_module.find_all_patches
 
     if failure_phase == "construction":
@@ -583,7 +603,8 @@ async def test_ace_page_restores_overrides_when_entry_fails(
     with pytest.raises(RuntimeError, match=f"{failure_phase} failed"):
         await page.__aenter__()
 
-    assert AceApp._run_mount_state_loads is original_mount_state
+    assert AceApp._run_mount_notification_state_loads is original_notification_state
+    assert AceApp._run_deferred_mount_state_loads is original_deferred_state
     assert patch_module.find_all_patches is original_find
     assert not any(
         thread.name == PROC_OBSERVER_THREAD_NAME and thread.is_alive()

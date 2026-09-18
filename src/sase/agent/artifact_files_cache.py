@@ -315,8 +315,8 @@ class _ArtifactFileCache:
             self._tail_caches.clear()
 
 
-TailCache = _TailCache
 ArtifactFileCache = _ArtifactFileCache
+TailCache = _TailCache
 
 _GLOBAL_CACHE = _ArtifactFileCache()
 

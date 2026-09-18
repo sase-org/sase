@@ -71,33 +71,42 @@ class StartupTelemetryMixin:
         # has no analogous async "first load" gate to wait on.
         return True
 
+    def _mark_startup_visible_ready_if_ready(self: Any) -> bool:
+        """Stamp visible-ready exactly once when the initial surface is ready."""
+        if self._startup_visible_ready_mono is not None:
+            return True
+        if not self._startup_visible_surface_ready():
+            return False
+        self._startup_visible_ready_mono = time.monotonic()
+        return True
+
     def _mark_startup_agents_ready(self: Any) -> None:
         """Record the agents surface becoming ready and maybe finish telemetry."""
         if self._startup_agents_ready_mono is None:
             self._startup_agents_ready_mono = time.monotonic()
+        self._mark_startup_visible_ready_if_ready()
         self._maybe_record_startup_telemetry()
 
     def _mark_startup_axe_ready(self: Any) -> None:
         """Record the axe surface becoming ready and maybe finish telemetry."""
         if self._startup_axe_ready_mono is None:
             self._startup_axe_ready_mono = time.monotonic()
+        self._mark_startup_visible_ready_if_ready()
         self._maybe_record_startup_telemetry()
 
     def _maybe_record_startup_telemetry(self: Any) -> None:
         """Schedule the durable startup record once both surfaces are ready.
 
-        Matches ``_maybe_end_startup_stopwatch``'s gating exactly so the
-        durable record and the visible stopwatch always settle together.
+        ``visible_ready_seconds`` is stamped by the visible transition itself.
+        The durable record is emitted only when both asynchronous surfaces
+        have settled so ``all_surfaces_ready_seconds`` keeps its historical
+        meaning.
         """
         if self._startup_telemetry_recorded:
             return
         if not (self._agents_first_load_done and self._axe_first_load_done):
             return
-        if (
-            self._startup_visible_ready_mono is None
-            and self._startup_visible_surface_ready()
-        ):
-            self._startup_visible_ready_mono = time.monotonic()
+        self._mark_startup_visible_ready_if_ready()
         if self._startup_visible_ready_mono is None:
             return
         self._startup_telemetry_recorded = True

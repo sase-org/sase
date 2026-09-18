@@ -247,6 +247,10 @@ class AgentLoadingDiskSupportMixin(AgentLoadingStateMixin):
         """Queue one latest-wins dead-supervisor settle pass after a load."""
         if source == MONITOR_RECONCILE_REFRESH_SOURCE:
             return
+        if not getattr(self, "_startup_deferred_loads_released", True):
+            self._startup_deferred_monitor_reconcile_pending = True
+            self._startup_deferred_monitor_reconcile_source = source
+            return
         # Incomplete test harnesses skip; AceApp always initializes these flags.
         if not hasattr(self, "_monitor_reconcile_running"):
             return

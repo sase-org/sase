@@ -63,8 +63,9 @@ def test_first_paint_marker_precedes_non_frame_startup_services() -> None:
     launcher_src = inspect.getsource(AceApp._start_post_mount_background_loads)
     first_paint_idx = launcher_src.index("self._mark_startup_first_paint()")
     services_idx = launcher_src.index("self._start_post_first_paint_services()")
-    first_worker_idx = launcher_src.index("self.run_worker")
-    assert first_paint_idx < services_idx < first_worker_idx
+    fallback_idx = launcher_src.index("self._arm_startup_deferred_fallback()")
+    immediate_idx = launcher_src.index("self._start_immediate_startup_loads()")
+    assert first_paint_idx < services_idx < fallback_idx < immediate_idx
 
 
 def test_read_patches_from_disk_returns_list() -> None:
@@ -201,11 +202,21 @@ def test_read_last_selection_name_delegates_to_loader() -> None:
         assert mixin._read_last_selection_name() is None
 
 
-def test_start_post_mount_background_loads_schedules_all_once() -> None:
-    """Startup launcher schedules fold, agent, and axe paths independently."""
+def test_start_post_mount_background_loads_starts_visible_agents_first() -> None:
+    """Default startup keeps hidden/deferred work behind the Agents first load."""
     app = AceApp()
+    app._mark_startup_on_mount()
     scheduled: list[object] = []
-    intervals: list[tuple[float, object, str | None]] = []
+    timers: list[tuple[float, object, str | None, MagicMock]] = []
+
+    def capture_timer(
+        seconds: float,
+        callback: Callable[[], None],
+        **kwargs: object,
+    ) -> MagicMock:
+        timer = MagicMock()
+        timers.append((seconds, callback, kwargs.get("name"), timer))
+        return timer
 
     with (
         patch.object(
@@ -213,28 +224,172 @@ def test_start_post_mount_background_loads_schedules_all_once() -> None:
             "run_worker",
             side_effect=lambda fn, **kwargs: scheduled.append(fn),
         ),
-        patch.object(
-            app,
-            "set_interval",
-            side_effect=lambda seconds, callback, **kwargs: (
-                intervals.append((seconds, callback, kwargs.get("name"))) or MagicMock()
-            ),
-        ),
-        patch.object(app, "_start_post_first_paint_services"),
+        patch.object(app, "_start_post_first_paint_services") as post_paint_services,
+        patch.object(app, "set_timer", side_effect=capture_timer),
+        patch.object(app, "set_interval", return_value=MagicMock()),
+        patch.object(app, "_start_artifact_watcher"),
+        patch.object(app, "_start_prompt_source_watcher"),
+        patch.object(app, "_maybe_show_post_update_toast", return_value=False),
+        patch.object(app, "_schedule_link_index_refresh") as link_refresh,
     ):
         app._start_post_mount_background_loads()
         app._start_post_mount_background_loads()
 
+        assert scheduled.count(app._run_mount_notification_state_loads) == 1
+        assert scheduled.count(app._run_agent_index_startup_prepare_and_refresh) == 1
+        assert scheduled.count(app._run_agents_fold_state_load) == 1
+        assert app._run_axe_startup_init not in scheduled
+        assert app._run_deferred_mount_state_loads not in scheduled
+        assert app._run_dismissed_proc_shells_startup_prune not in scheduled
+        assert app._run_startup_update_toast_check not in scheduled
+        post_paint_services.assert_called_once_with()
+        link_refresh.assert_not_called()
+        assert timers == [
+            (
+                3.0,
+                app._release_startup_deferred_loads_from_fallback,
+                "startup-deferred-fallback",
+                timers[0][3],
+            ),
+        ]
+        assert app._post_mount_background_loads_started is True
+
+        app._agents_first_load_done = True
+        app._mark_startup_agents_ready()
+        app._maybe_end_startup_stopwatch()
+        link_refresh.assert_called_once_with(source="startup_visible_ready")
+
     assert scheduled.count(app._run_agent_index_startup_prepare_and_refresh) == 1
     assert scheduled.count(app._run_axe_startup_init) == 1
-    assert scheduled.count(app._run_mount_state_loads) == 1
-    assert scheduled.count(app._run_agents_fold_state_load) == 1
+    assert scheduled.count(app._run_deferred_mount_state_loads) == 1
     assert scheduled.count(app._run_dismissed_proc_shells_startup_prune) == 1
     assert scheduled.count(app._run_startup_update_toast_check) == 1
-    assert intervals == [
-        (600.0, app._on_periodic_update_check, "automatic-update-check"),
-    ]
-    assert app._post_mount_background_loads_started is True
+    timers[0][3].stop.assert_called_once()
+    assert app._startup_deferred_loads_released is True
+
+
+def test_startup_fallback_releases_deferred_without_visible_ready() -> None:
+    """Fallback starts hidden work but does not falsely stamp visible-ready."""
+    app = AceApp()
+    app._mark_startup_on_mount()
+    scheduled: list[object] = []
+    fallback: Callable[[], None] | None = None
+
+    def capture_timer(
+        _seconds: float,
+        callback: Callable[[], None],
+        **_kwargs: object,
+    ) -> MagicMock:
+        nonlocal fallback
+        fallback = callback
+        return MagicMock()
+
+    with (
+        patch.object(
+            app,
+            "run_worker",
+            side_effect=lambda fn, **kwargs: scheduled.append(fn),
+        ),
+        patch.object(app, "_start_post_first_paint_services"),
+        patch.object(app, "set_timer", side_effect=capture_timer),
+        patch.object(app, "set_interval", return_value=MagicMock()),
+        patch.object(app, "_start_artifact_watcher"),
+        patch.object(app, "_start_prompt_source_watcher"),
+        patch.object(app, "_maybe_show_post_update_toast", return_value=False),
+    ):
+        app._start_post_mount_background_loads()
+        assert fallback is not None
+        fallback()
+
+    assert app._startup_visible_ready_mono is None
+    assert app._startup_deferred_loads_released is True
+    assert app._startup_deferred_release_reason == "fallback"
+    assert scheduled.count(app._run_agent_index_startup_prepare_and_refresh) == 1
+    assert scheduled.count(app._run_axe_startup_init) == 1
+    assert scheduled.count(app._run_deferred_mount_state_loads) == 1
+    assert scheduled.count(app._run_dismissed_proc_shells_startup_prune) == 1
+
+
+def test_initial_axe_startup_starts_axe_before_agents() -> None:
+    """Initial AXE mode makes AXE the visible startup prerequisite."""
+    app = AceApp(initial_tab="axe")
+    app._mark_startup_on_mount()
+    scheduled: list[object] = []
+
+    with (
+        patch.object(
+            app,
+            "run_worker",
+            side_effect=lambda fn, **kwargs: scheduled.append(fn),
+        ),
+        patch.object(app, "_start_post_first_paint_services"),
+        patch.object(app, "set_timer", return_value=MagicMock()),
+        patch.object(app, "set_interval", return_value=MagicMock()),
+        patch.object(app, "_start_artifact_watcher"),
+        patch.object(app, "_start_prompt_source_watcher"),
+    ):
+        app._start_post_mount_background_loads()
+
+    assert scheduled.count(app._run_axe_startup_init) == 1
+    assert app._run_agent_index_startup_prepare_and_refresh not in scheduled
+    assert app._run_deferred_mount_state_loads not in scheduled
+
+
+def test_initial_artifacts_startup_releases_after_first_paint() -> None:
+    """Initial Artifacts mode has no async visible-surface prerequisite."""
+    app = AceApp(initial_tab="patches")
+    app._mark_startup_on_mount()
+    scheduled: list[object] = []
+
+    with (
+        patch.object(
+            app,
+            "run_worker",
+            side_effect=lambda fn, **kwargs: scheduled.append(fn),
+        ),
+        patch.object(app, "_start_post_first_paint_services"),
+        patch.object(app, "set_timer", return_value=MagicMock()),
+        patch.object(app, "set_interval", return_value=MagicMock()),
+        patch.object(app, "_start_artifact_watcher"),
+        patch.object(app, "_start_prompt_source_watcher"),
+        patch.object(app, "_maybe_show_post_update_toast", return_value=False),
+    ):
+        app._start_post_mount_background_loads()
+
+    assert app._startup_initial_tab == "artifacts"
+    assert app._startup_visible_ready_mono is not None
+    assert app._startup_deferred_loads_released is True
+    assert scheduled.count(app._run_deferred_mount_state_loads) == 1
+    assert scheduled.count(app._run_agent_index_startup_prepare_and_refresh) == 1
+    assert scheduled.count(app._run_axe_startup_init) == 1
+
+
+def test_startup_tab_switch_does_not_duplicate_surface_load() -> None:
+    """A startup tab switch can request the hidden surface once."""
+    app = AceApp()
+    app._mark_startup_on_mount()
+    scheduled: list[object] = []
+
+    with (
+        patch.object(
+            app,
+            "run_worker",
+            side_effect=lambda fn, **kwargs: scheduled.append(fn),
+        ),
+        patch.object(app, "_start_post_first_paint_services"),
+        patch.object(app, "set_timer", return_value=MagicMock()),
+        patch.object(app, "set_interval", return_value=MagicMock()),
+        patch.object(app, "_start_artifact_watcher"),
+        patch.object(app, "_start_prompt_source_watcher"),
+    ):
+        app._start_post_mount_background_loads()
+        assert app._maybe_start_startup_surface_for_tab("axe") is True
+        app._agents_first_load_done = True
+        app._mark_startup_agents_ready()
+        app._maybe_end_startup_stopwatch()
+
+    assert scheduled.count(app._run_agent_index_startup_prepare_and_refresh) == 1
+    assert scheduled.count(app._run_axe_startup_init) == 1
 
 
 @pytest.mark.asyncio
@@ -300,118 +455,86 @@ def test_startup_configures_periodic_update_interval_from_loaded_config() -> Non
 
 
 @pytest.mark.asyncio
-async def test_start_post_mount_background_loads_does_not_gate_axe_on_agents() -> None:
-    """Axe startup should complete even while agents startup is still running."""
+async def test_start_post_mount_background_loads_gates_axe_on_agents_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Axe startup waits for the visible Agents surface unless fallback releases it."""
+    app = AceApp()
+    app._mark_startup_on_mount()
+    agent_started = asyncio.Event()
+    agent_release = asyncio.Event()
+    agent_done = asyncio.Event()
+    axe_done = asyncio.Event()
+    fold_started = asyncio.Event()
+    fold_release = asyncio.Event()
+    fold_done = asyncio.Event()
+    deferred_done = asyncio.Event()
+    tasks: list[asyncio.Task[None]] = []
 
-    class _Harness:
-        def __init__(self) -> None:
-            self._post_mount_background_loads_started = False
-            self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
-            self.agent_started = asyncio.Event()
-            self.agent_release = asyncio.Event()
-            self.agent_done = asyncio.Event()
-            self.axe_done = asyncio.Event()
-            self.fold_started = asyncio.Event()
-            self.fold_release = asyncio.Event()
-            self.fold_done = asyncio.Event()
-            self.tasks: list[asyncio.Task[None]] = []
+    async def agents() -> None:
+        agent_started.set()
+        await agent_release.wait()
+        app._agents_first_load_done = True
+        app._mark_startup_agents_ready()
+        app._maybe_end_startup_stopwatch()
+        agent_done.set()
 
-        async def _run_agent_index_startup_prepare_and_refresh(self) -> None:
-            await self._run_agents_async_refresh()
+    async def axe() -> None:
+        axe_done.set()
 
-        async def _run_agents_async_refresh(self) -> None:
-            self.agent_started.set()
-            await self.agent_release.wait()
-            self.agent_done.set()
+    async def fold() -> None:
+        fold_started.set()
+        await fold_release.wait()
+        fold_done.set()
 
-        async def _run_axe_startup_init(self) -> None:
-            self.axe_done.set()
+    async def notifications() -> None:
+        app._mount_notification_state_load_done = True
+        app._maybe_mark_mount_state_loads_done()
 
-        async def _run_agents_fold_state_load(self) -> None:
-            self.fold_started.set()
-            await self.fold_release.wait()
-            self.fold_done.set()
+    async def deferred_mount_state() -> None:
+        app._mount_deferred_state_load_done = True
+        app._maybe_mark_mount_state_loads_done()
+        deferred_done.set()
 
-        def _schedule_agents_fold_state_load(self) -> None:
-            self.run_worker(self._run_agents_fold_state_load)
+    def run_worker(fn, **kwargs) -> None:  # type: ignore[no-untyped-def]
+        del kwargs
+        tasks.append(asyncio.create_task(fn()))
 
-        def _schedule_dismissed_index_startup_sync(self) -> None:
-            pass
+    monkeypatch.setattr(app, "run_worker", run_worker)
+    monkeypatch.setattr(
+        app,
+        "_run_agent_index_startup_prepare_and_refresh",
+        agents,
+    )
+    monkeypatch.setattr(app, "_run_axe_startup_init", axe)
+    monkeypatch.setattr(app, "_run_agents_fold_state_load", fold)
+    monkeypatch.setattr(app, "_run_mount_notification_state_loads", notifications)
+    monkeypatch.setattr(app, "_run_deferred_mount_state_loads", deferred_mount_state)
+    monkeypatch.setattr(app, "_start_post_first_paint_services", lambda: None)
+    monkeypatch.setattr(
+        app,
+        "_schedule_deferred_startup_maintenance",
+        lambda *, reason: None,
+    )
+    monkeypatch.setattr(app, "_start_artifact_watcher", lambda: None)
+    monkeypatch.setattr(app, "_start_prompt_source_watcher", lambda: None)
+    monkeypatch.setattr(app, "set_timer", lambda *_args, **_kwargs: MagicMock())
 
-        def _start_artifact_watcher(self) -> None:
-            pass
+    app._start_post_mount_background_loads()
 
-        def _mark_startup_first_paint(self) -> None:
-            pass
+    await asyncio.wait_for(agent_started.wait(), timeout=0.2)
+    await asyncio.wait_for(fold_started.wait(), timeout=0.2)
+    assert not axe_done.is_set()
+    assert not deferred_done.is_set()
+    assert not agent_done.is_set()
+    assert not fold_done.is_set()
 
-        def _start_post_first_paint_services(self) -> None:
-            pass
-
-        def run_worker(self, fn, **kwargs) -> None:  # type: ignore[no-untyped-def]
-            del kwargs
-            self.tasks.append(asyncio.create_task(fn()))
-
-    harness = _Harness()
-    AceApp._start_post_mount_background_loads(harness)  # type: ignore[arg-type]
-
-    await asyncio.wait_for(harness.agent_started.wait(), timeout=0.2)
-    await asyncio.wait_for(harness.axe_done.wait(), timeout=0.2)
-    await asyncio.wait_for(harness.fold_started.wait(), timeout=0.2)
-    assert not harness.agent_done.is_set()
-    assert not harness.fold_done.is_set()
-
-    harness.agent_release.set()
-    harness.fold_release.set()
-    await asyncio.wait_for(asyncio.gather(*harness.tasks), timeout=0.2)
-
-
-@pytest.mark.asyncio
-async def test_start_post_mount_background_loads_does_not_gate_agents_on_axe() -> None:
-    """Agents startup should complete even while axe first load is still running."""
-
-    class _Harness:
-        def __init__(self) -> None:
-            self._post_mount_background_loads_started = False
-            self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
-            self.agent_done = asyncio.Event()
-            self.axe_started = asyncio.Event()
-            self.axe_release = asyncio.Event()
-            self.axe_done = asyncio.Event()
-            self.tasks: list[asyncio.Task[None]] = []
-
-        async def _run_agent_index_startup_prepare_and_refresh(self) -> None:
-            self.agent_done.set()
-
-        async def _run_axe_startup_init(self) -> None:
-            self.axe_started.set()
-            await self.axe_release.wait()
-            self.axe_done.set()
-
-        def _schedule_agents_fold_state_load(self) -> None:
-            pass
-
-        def _schedule_dismissed_index_startup_sync(self) -> None:
-            pass
-
-        def _start_artifact_watcher(self) -> None:
-            pass
-
-        def _mark_startup_first_paint(self) -> None:
-            pass
-
-        def run_worker(self, fn, **kwargs) -> None:  # type: ignore[no-untyped-def]
-            del kwargs
-            self.tasks.append(asyncio.create_task(fn()))
-
-    harness = _Harness()
-    AceApp._start_post_mount_background_loads(harness)  # type: ignore[arg-type]
-
-    await asyncio.wait_for(harness.axe_started.wait(), timeout=0.2)
-    await asyncio.wait_for(harness.agent_done.wait(), timeout=0.2)
-    assert not harness.axe_done.is_set()
-
-    harness.axe_release.set()
-    await asyncio.wait_for(asyncio.gather(*harness.tasks), timeout=0.2)
+    agent_release.set()
+    fold_release.set()
+    await asyncio.wait_for(agent_done.wait(), timeout=1.0)
+    await asyncio.wait_for(axe_done.wait(), timeout=1.0)
+    await asyncio.wait_for(deferred_done.wait(), timeout=1.0)
+    await asyncio.wait_for(asyncio.gather(*tasks), timeout=1.0)
 
 
 def test_maybe_end_startup_stopwatch_gates_on_visible_tab_only() -> None:

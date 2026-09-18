@@ -541,6 +541,10 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             on_agents_tab=on_agents_tab,
             selected_identity=selected_identity,
         )
+        if first_agents_load:
+            debouncer = getattr(self, "_agent_detail_debouncer", None)
+            if debouncer is not None:
+                debouncer.cancel()
         self._finalize_agent_list(
             on_agents_tab,
             selected_identity,
@@ -561,8 +565,8 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 info_panel.set_loading(False)
             except Exception:
                 pass
-            self._maybe_end_startup_stopwatch()  # type: ignore[attr-defined]
             self._mark_startup_agents_ready()  # type: ignore[attr-defined]
+            self._maybe_end_startup_stopwatch()  # type: ignore[attr-defined]
         from ...repro.capture import record_agents_tab_app_projection
 
         record_agents_tab_app_projection(
@@ -577,30 +581,27 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         if callable(sync_proc_shells):
             sync_proc_shells()
 
-        # Live workspace pencil hints for active rows without a persisted
-        # diff_path are computed off the loader path. Schedule the deferred,
-        # coalesced background scan now that the agent list is finalized; it
-        # no-ops cheaply when there are no active candidates.
-        self._schedule_live_hint_refresh(source="apply")  # type: ignore[attr-defined]
-
-        # Confirmed-bead glyph/field can only render from a warm cache, so
-        # confirm visible bead candidates off the event loop now that the list
-        # has painted; it no-ops cheaply when no visible row has an unconfirmed
-        # candidate.
-        self._schedule_bead_confirmation_warmup(source="apply")  # type: ignore[attr-defined]
-
-        # Family completion previews resolve plan/bead context off the render
-        # path. The warmed cache feeds the next prompt-target completion menu.
-        schedule_family_preview_warmup = getattr(
+        schedule_post_roster_work = getattr(
             self,
-            "_schedule_family_plan_preview_warmup",
+            "_schedule_agents_post_roster_startup_work",
             None,
         )
-        if callable(schedule_family_preview_warmup) and hasattr(
-            self,
-            "_family_preview_scan_running",
-        ):
-            schedule_family_preview_warmup(source="apply")
+        if callable(schedule_post_roster_work):
+            schedule_post_roster_work(source="apply")
+        else:
+            self._schedule_live_hint_refresh(source="apply")  # type: ignore[attr-defined]
+            self._schedule_bead_confirmation_warmup(source="apply")  # type: ignore[attr-defined]
+            schedule_family_preview_warmup = getattr(
+                self,
+                "_schedule_family_plan_preview_warmup",
+                None,
+            )
+            if callable(schedule_family_preview_warmup) and hasattr(
+                self,
+                "_family_preview_scan_running",
+            ):
+                schedule_family_preview_warmup(source="apply")
+            self._schedule_diff_badge_classification(source="apply")  # type: ignore[attr-defined]
 
         arm_index_revalidate = getattr(
             self,
@@ -622,11 +623,6 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 load_state,
                 source=getattr(self, "_agents_refresh_active_source", "unknown"),
             )
-
-        # Persisted diff-badge classification reads every referenced diff
-        # file, so it is deferred off the loader path the same way; it
-        # no-ops cheaply when every visible row is already classified.
-        self._schedule_diff_badge_classification(source="apply")  # type: ignore[attr-defined]
 
         schedule_fleet_refresh = getattr(self, "_schedule_agents_fleet_refresh", None)
         if callable(schedule_fleet_refresh):

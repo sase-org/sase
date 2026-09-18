@@ -16,7 +16,10 @@ from sase.ace.tui.util import stall_watchdog as _stall_watchdog
 from sase.repo_inventory import RepoInventory
 from sase.workspace_provider.inventory import WorkspaceInventory
 
-_ORIGINAL_RUN_MOUNT_STATE_LOADS = AceApp._run_mount_state_loads
+_ORIGINAL_RUN_MOUNT_NOTIFICATION_STATE_LOADS = (
+    AceApp._run_mount_notification_state_loads
+)
+_ORIGINAL_RUN_DEFERRED_MOUNT_STATE_LOADS = AceApp._run_deferred_mount_state_loads
 _ORIGINAL_RUN_AGENT_STARTUP = AceApp._run_agent_index_startup_prepare_and_refresh
 _ORIGINAL_RUN_AXE_STARTUP = AceApp._run_axe_startup_init
 _ORIGINAL_LOAD_AXE_STATUS_ASYNC = AceApp._load_axe_status_async
@@ -93,8 +96,8 @@ def _noop_startup_service(*_args: Any, **_kwargs: Any) -> None:
     """Stand in for a background service suppressed by fast pilot startup."""
 
 
-async def _run_fast_mount_state_loads(app: AceApp) -> None:
-    """Install deterministic mount state without reading the host filesystem."""
+async def _run_fast_mount_notification_state_loads(app: AceApp) -> None:
+    """Install deterministic notification state without host filesystem reads."""
     try:
         notification_state: NotificationStartupState = (set(), set(), [])
         if (
@@ -108,12 +111,21 @@ async def _run_fast_mount_state_loads(app: AceApp) -> None:
                 app._read_notifications_for_startup
             )
         app._initialize_agent_tracking(notification_state)
+    finally:
+        app._mount_notification_state_load_done = True
+        app._maybe_mark_mount_state_loads_done()
+
+
+async def _run_fast_deferred_mount_state_loads(app: AceApp) -> None:
+    """Install deterministic deferred mount state without host filesystem reads."""
+    try:
         app._apply_prompt_stash_counts(0, 0)
         # AcePage owns both Patch loader patches, so this retains the real
         # filtering, selection, and widget-application path without a disk scan.
         app._apply_patches(app._read_patches_from_disk())
     finally:
-        app._mount_state_loads_done = True
+        app._mount_deferred_state_load_done = True
+        app._maybe_mark_mount_state_loads_done()
 
 
 def _finish_fast_agent_startup(app: AceApp) -> None:
@@ -135,6 +147,7 @@ def _finish_fast_agent_startup(app: AceApp) -> None:
         app.query_one("#agent-info-panel", AgentInfoPanel).set_loading(False)
     except Exception:
         pass
+    app._mark_startup_agents_ready()
     app._maybe_end_startup_stopwatch()
 
 
@@ -155,6 +168,7 @@ async def _run_fast_axe_startup(app: AceApp) -> None:
         app.query_one("#axe-info-panel", AxeInfoPanel).set_loading(False)
     except Exception:
         pass
+    app._mark_startup_axe_ready()
     app._maybe_end_startup_stopwatch()
 
 
@@ -237,9 +251,15 @@ def _install_fast_startup_overrides(stack: AsyncExitStack) -> None:
 
     _patch_method_if_unchanged(
         stack,
-        "_run_mount_state_loads",
-        _ORIGINAL_RUN_MOUNT_STATE_LOADS,
-        _run_fast_mount_state_loads,
+        "_run_mount_notification_state_loads",
+        _ORIGINAL_RUN_MOUNT_NOTIFICATION_STATE_LOADS,
+        _run_fast_mount_notification_state_loads,
+    )
+    _patch_method_if_unchanged(
+        stack,
+        "_run_deferred_mount_state_loads",
+        _ORIGINAL_RUN_DEFERRED_MOUNT_STATE_LOADS,
+        _run_fast_deferred_mount_state_loads,
     )
 
     if (

@@ -36,6 +36,27 @@ def test_same_position_row_change_patches_without_panel_rebuild(
     assert app._agent_detail_debouncer.is_pending
 
 
+def test_incremental_row_patch_batch_refreshes_info_panel_once(
+    monkeypatch: Any,
+) -> None:
+    first = _agent("alpha", tribe="apple", suffix="a1", status="RUNNING")
+    second = _agent("beta", tribe="apple", suffix="b1", status="RUNNING")
+    updated_first = replace(first, status="DONE")
+    updated_second = replace(second, status="FAILED")
+    app = _DisplayDiffApp([first, second], monkeypatch)
+    app.info_updates = 0
+
+    app._agents = [updated_first, updated_second]
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[first, second],
+        defer_detail=True,
+    )
+
+    assert app.info_updates == 1
+    assert app.full_rebuilds == 0
+    assert _display_costs(app).count("row_patch") == 2
+
+
 def test_unchanged_active_search_uses_incremental_without_panel_rebuild(
     monkeypatch: Any,
 ) -> None:

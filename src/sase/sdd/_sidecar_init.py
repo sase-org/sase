@@ -201,7 +201,12 @@ def initialize_sidecars(
         for spec in sidecar_specs:
             root = roots[spec.role]
             sidecar = sidecars[spec.role]
-            ensure_sidecar_sdd_clone(root, sidecar.remote_url, strict=True)
+            ensure_sidecar_sdd_clone(
+                root,
+                sidecar.remote_url,
+                strict=True,
+                allow_unborn_head=True,
+            )
         _seed_sidecars(
             sidecar_specs,
             roots,

@@ -133,6 +133,7 @@ async def test_record_waits_for_both_surfaces_then_writes_once(
     app._agents_first_load_done = True
     app._mark_startup_agents_ready()
     await _drain(app)
+    assert app._startup_visible_ready_mono is not None
     assert not path.exists()  # axe surface is not ready yet
 
     app._axe_first_load_done = True

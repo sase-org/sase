@@ -5,6 +5,7 @@ from __future__ import annotations
 import shlex
 import shutil
 import subprocess
+import os
 from pathlib import Path
 
 import pytest
@@ -191,6 +192,10 @@ def test_fish_loader_sources_grammar_once_and_skips_later_ensure(
         check=False,
         capture_output=True,
         text=True,
+        env={
+            **os.environ,
+            "XDG_CONFIG_HOME": str(tmp_path / "xdg-config"),
+        },
     )
 
     assert result.returncode == 0, result.stderr

@@ -267,6 +267,7 @@ class PanelPatchMixin:
         agent: Agent,
         *,
         wait_dependency_counts: WaitDependencyStatusCounts | None = None,
+        refresh_info: bool = True,
     ) -> bool:
         """Patch a single agent's row in place when no group membership changed."""
         from textual.css.query import NoMatches
@@ -416,6 +417,7 @@ class PanelPatchMixin:
                 merge_tribe_panels=getattr(self, "_agent_panels_grouped", False),
                 counts=counts,
             )
-        self._update_agents_info_panel()  # type: ignore[attr-defined]
+        if refresh_info:
+            self._update_agents_info_panel()  # type: ignore[attr-defined]
         self._record_display_patch_trace(display_cost="row_patch", count=1)
         return True

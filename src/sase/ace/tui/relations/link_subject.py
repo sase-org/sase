@@ -142,7 +142,7 @@ def _subject_from_axe(app: Any) -> LinkSubject | None:
     from ..actions.axe_display._loader_items import axe_item_key
 
     key = axe_item_key(items[current_idx])
-    if key[0] != "chop":
+    if key is None or key[0] != "chop":
         return None
     lumberjack, chop_name = key[1], key[2]
     snapshots = getattr(app, "_axe_chop_snapshots", {})
