@@ -87,9 +87,6 @@ def run_changed_plans(
     config_changed_since_plan = False
     for plan in plans:
         if plan.command == "machine" and config_changed_since_plan:
-            context = getattr(args, "_init_onboarding_context", None)
-            if context is not None:
-                context.machine_assessment_cache.clear()
             plan_args = copy.copy(args)
             plan_args._init_stdin = stdin
             plan = spec_by_name["machine"].plan(plan_args)

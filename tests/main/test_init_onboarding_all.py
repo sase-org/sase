@@ -8,12 +8,17 @@ from pathlib import Path
 
 import pytest
 
+from sase.dispatch._machine_init_review import MachineInitReviewStore
+from sase.dispatch.machine_service import MachineService
+from sase.dispatch.models import DiscoveryResult, MachineDiagnostic
 from sase.main._init_chezmoi_deploy import defer_chezmoi_paths
 from sase.main import init_onboarding
+from sase.main.init_machine_handler import plan_init_machine
 from sase.main.init_onboarding import run_init_onboarding, run_init_onboarding_all
 from sase.main.init_plan import InitAction, InitPlan
 from sase.main.init_project_scope import InitProjectInventory, InitProjectTarget
 from sase.main.init_registry import InitCommandSpec
+from tests.dispatch.machine_init_helpers import _candidate, _config, _pin
 from tests.main.init_onboarding_helpers import _args, _reject_prompt
 
 
@@ -354,6 +359,69 @@ def test_batch_machine_yes_runs_only_once(
 
     assert exit_code == 0
     assert calls == ["alpha"]
+
+
+def test_batch_completed_machine_review_stays_quiet_across_projects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    original = tmp_path / "original"
+    original.mkdir()
+    monkeypatch.chdir(original)
+    targets = tuple(_target(tmp_path, name) for name in ("alpha", "beta", "gamma"))
+    monkeypatch.setattr(
+        init_onboarding,
+        "resolve_init_project_inventory",
+        lambda: InitProjectInventory(targets),
+    )
+    monkeypatch.setattr(
+        "sase.dispatch.machine_init.load_dispatch_config",
+        lambda: _config(),
+    )
+    review_store = MachineInitReviewStore(tmp_path / "review.json")
+    assert (
+        review_store.record_completed_review(
+            (_candidate(endpoint="https://fleet.example.test", pin=_pin("a")),)
+        )
+        is None
+    )
+    diagnostic = MachineDiagnostic(
+        code="tailnet_probe_timeout",
+        severity="warning",
+        message="tailnet health probe timed out",
+    )
+    calls = {"discover": 0}
+
+    def discover_result(**_kwargs: object) -> DiscoveryResult:
+        calls["discover"] += 1
+        return DiscoveryResult(diagnostics=(diagnostic,))
+
+    args = _args(all_projects=True)
+    args._init_machine_service = MachineService(discover_result_fn=discover_result)
+    args._init_review_store = review_store
+    run_calls: list[str] = []
+
+    exit_code = run_init_onboarding_all(
+        args,
+        specs=(
+            InitCommandSpec(
+                name="machine",
+                label="Machine",
+                plan=plan_init_machine,
+                run=lambda args: run_calls.append(Path.cwd().name) or 0,
+            ),
+        ),
+        stdin=type("TTY", (StringIO,), {"isatty": lambda self: True})(),
+        input_func=_reject_prompt,
+    )
+
+    out = capsys.readouterr().out
+    assert exit_code == 0
+    assert calls["discover"] == 0
+    assert run_calls == []
+    assert out.count("Project:") == 3
+    assert "tailnet health probe timed out" not in out
 
 
 def test_batch_machine_failure_consumes_offer_but_continues(

@@ -9,7 +9,12 @@ import pytest
 
 from sase.dispatch.machine_init import MachineInitService
 from sase.dispatch.machine_service import MachineService
-from sase.dispatch.models import DiscoveryCandidate, DiscoveryResult, DispatchConfig
+from sase.dispatch.models import (
+    DiscoveryCandidate,
+    DiscoveryResult,
+    DispatchConfig,
+    MachineDiagnostic,
+)
 from sase.dispatch._machine_init_review import MachineInitReviewStore
 from sase.main.init_machine_handler import plan_init_machine
 from tests.dispatch.machine_init_helpers import (
@@ -152,57 +157,87 @@ def test_onboarding_assessment_offers_initial_review_without_discovery(
     assert calls["discover"] == 0
 
 
-def test_onboarding_assessment_suppresses_reviewed_candidate_and_caches(
+def test_onboarding_assessment_offers_incomplete_review_without_discovery(
     tmp_path,
 ) -> None:
-    candidate = _candidate(endpoint="https://fleet.example.test", pin=_pin("a"))
-    review_store = MachineInitReviewStore(tmp_path / "review.json")
-    assert review_store.record_completed_review((candidate,)) is None
     calls = {"discover": 0}
 
     def discover_result(**_kwargs: object) -> DiscoveryResult:
         calls["discover"] += 1
-        return DiscoveryResult(candidates=(candidate,))
+        raise AssertionError("incomplete review offer must stay offline")
+
+    review_path = tmp_path / "review.json"
+    review_path.write_text(
+        ('{"schema_version": 1, "initial_review_completed": false, "reviewed": []}'),
+        encoding="utf-8",
+    )
+    service = MachineInitService(
+        machine_service=MachineService(discover_result_fn=discover_result),
+        load_config_fn=lambda: _config(),
+        review_store=MachineInitReviewStore(review_path),
+    )
+
+    plan = service.assess_onboarding(check_mode=False, is_tty=True)
+
+    assert plan.offer_enrollment is True
+    assert calls["discover"] == 0
+
+
+def test_onboarding_assessment_offers_invalid_review_without_discovery(
+    tmp_path,
+) -> None:
+    calls = {"discover": 0}
+
+    def discover_result(**_kwargs: object) -> DiscoveryResult:
+        calls["discover"] += 1
+        raise AssertionError("catch-up review offer must stay offline")
+
+    review_path = tmp_path / "review.json"
+    review_path.write_text("not json", encoding="utf-8")
+    service = MachineInitService(
+        machine_service=MachineService(discover_result_fn=discover_result),
+        load_config_fn=lambda: _config(),
+        review_store=MachineInitReviewStore(review_path),
+    )
+
+    plan = service.assess_onboarding(check_mode=False, is_tty=True)
+
+    assert plan.offer_enrollment is True
+    assert calls["discover"] == 0
+    assert len(plan.warnings) == 1
+    assert "catch-up review is required" in plan.warnings[0]
+
+
+def test_onboarding_assessment_completed_review_is_current_without_discovery(
+    tmp_path,
+) -> None:
+    reviewed = _candidate(endpoint="https://fleet.example.test", pin=_pin("a"))
+    unreviewed = _candidate(endpoint="https://new.example.test", pin=_pin("b"))
+    diagnostic = MachineDiagnostic(
+        code="tailnet_probe_timeout",
+        severity="warning",
+        message="tailnet health probe timed out",
+    )
+    review_store = MachineInitReviewStore(tmp_path / "review.json")
+    assert review_store.record_completed_review((reviewed,)) is None
+    calls = {"discover": 0}
+
+    def discover_result(**_kwargs: object) -> DiscoveryResult:
+        calls["discover"] += 1
+        return DiscoveryResult(
+            candidates=(reviewed, unreviewed),
+            diagnostics=(diagnostic,),
+        )
 
     service = MachineInitService(
         machine_service=MachineService(discover_result_fn=discover_result),
         load_config_fn=lambda: _config(),
         review_store=review_store,
     )
-    cache = {}
-
-    first = service.assess_onboarding(
-        check_mode=False,
-        is_tty=True,
-        cache=cache,
-    )
-    second = service.assess_onboarding(
-        check_mode=False,
-        is_tty=True,
-        cache=cache,
-    )
-
-    assert first.offer_enrollment is False
-    assert second.offer_enrollment is False
-    assert calls["discover"] == 1
-
-
-def test_onboarding_assessment_offers_new_unreviewed_candidate(tmp_path) -> None:
-    reviewed = _candidate(endpoint="https://fleet.example.test", pin=_pin("a"))
-    unreviewed = _candidate(endpoint="https://new.example.test", pin=_pin("b"))
-    review_store = MachineInitReviewStore(tmp_path / "review.json")
-    assert review_store.record_completed_review((reviewed,)) is None
-    service = MachineInitService(
-        machine_service=MachineService(
-            discover_result_fn=lambda **_kwargs: DiscoveryResult(
-                candidates=(reviewed, unreviewed)
-            )
-        ),
-        load_config_fn=lambda: _config(),
-        review_store=review_store,
-    )
 
     plan = service.assess_onboarding(check_mode=False, is_tty=True)
 
-    assert plan.offer_enrollment is True
-    assert "unreviewed" in plan.summary
+    assert plan.offer_enrollment is False
+    assert plan.summary == "remote machine enrollment review is current"
+    assert calls["discover"] == 0
+    assert diagnostic.message not in plan.warnings

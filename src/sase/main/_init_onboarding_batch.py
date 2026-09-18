@@ -6,10 +6,9 @@ import argparse
 from collections.abc import Iterator
 from contextlib import contextmanager
 import copy
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 import os
 from pathlib import Path
-from typing import Any
 
 from rich.console import Console
 
@@ -22,7 +21,6 @@ class InitOnboardingBatchContext:
     """Invocation-local context shared across project onboarding passes."""
 
     machine_offer_handled: bool = False
-    machine_assessment_cache: dict[tuple[Any, ...], Any] = field(default_factory=dict)
 
 
 @contextmanager

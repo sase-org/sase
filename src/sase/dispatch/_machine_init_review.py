@@ -38,7 +38,7 @@ class _MachineInitReviewRead:
 
 @dataclass(frozen=True)
 class _MachineInitReviewAssessment:
-    """Onboarding offer decision from persisted review state and discovery."""
+    """Onboarding offer decision from persisted review state."""
 
     offer_enrollment: bool
     initial_review_required: bool

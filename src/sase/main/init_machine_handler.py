@@ -42,7 +42,6 @@ def plan_init_machine(args: argparse.Namespace) -> InitPlan:
         plan = service.assess_onboarding(
             check_mode=check_mode,
             is_tty=stdin.isatty(),
-            cache=context.machine_assessment_cache,
         )
     action_detail = (
         "discover providers and review newly discovered machines"

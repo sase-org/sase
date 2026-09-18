@@ -38,7 +38,7 @@ def reconcile_machine_enrollments(request: dict[str, Any]) -> dict[str, Any]:
 
 
 def assess_machine_init_review(request: dict[str, Any]) -> dict[str, Any]:
-    """Decide whether onboarding has unreviewed new machine candidates."""
+    """Decide whether onboarding should offer the initial machine review."""
     return _call_machine_setup(
         "assess_machine_init_review",
         request,
