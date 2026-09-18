@@ -65,7 +65,21 @@ class _FakeTmux:
                 stdout="\n".join(str(window["name"]) for window in self.windows) + "\n",
             )
         if sub == "new-session":
-            return _completed(cmd)
+            session = cmd[cmd.index("-s") + 1]
+            window_name = cmd[cmd.index("-n") + 1]
+            n = len(self.windows) + 1
+            window_id = f"@{n}"
+            pane_pid = self.pane_pid_base + n
+            self.windows.append(
+                {
+                    "id": window_id,
+                    "name": window_name,
+                    "metadata": {},
+                    "pane_pid": pane_pid,
+                }
+            )
+            stdout = f"{session}\t{window_id}\t{window_name}\n" if "-P" in cmd else ""
+            return _completed(cmd, stdout=stdout)
         if sub == "set-option":
             if "-w" not in cmd:
                 return _completed(cmd)
@@ -280,6 +294,215 @@ def test_create_agent_tmux_window_uses_real_window_ids_on_isolated_socket(
         for window in (first, second):
             if window is not None:
                 ace_tmux.release_tmux_window_claim(window.screenshot_dir)
+        runner.run(
+            ["tmux", "kill-server"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        try:
+            socket_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def test_fresh_agent_session_disappears_after_owned_window_cleanup(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    if shutil.which("tmux") is None:
+        pytest.skip("tmux is not installed")
+    monkeypatch.setattr(
+        ace_tmux,
+        "screenshot_request_dir",
+        lambda session, window_name: tmp_path / "requests" / session / window_name,
+    )
+    socket_path = Path("/tmp") / f"sase-test-tmux-{uuid.uuid4().hex}.sock"
+    runner = _SocketTmuxRunner(socket_path)
+    window: Any = None
+    try:
+        window = ace_tmux.create_agent_tmux_window(
+            "sleep 60",
+            cols=40,
+            rows=10,
+            runner=runner.run,
+            timeout=5,
+        )
+
+        windows = runner.run(
+            [
+                "tmux",
+                "list-windows",
+                "-t",
+                ace_tmux._AGENTS_SESSION,
+                "-F",
+                "#{window_name}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        assert window.window_name in windows.stdout
+        assert ace_tmux._BOOTSTRAP_WINDOW_PREFIX not in windows.stdout
+        assert "placeholder" not in windows.stdout
+
+        runner.run(
+            ["tmux", "kill-window", "-t", window.target],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        ace_tmux.release_tmux_window_claim(window.screenshot_dir)
+        has_session = runner.run(
+            ["tmux", "has-session", "-t", ace_tmux._AGENTS_SESSION],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        assert has_session.returncode != 0
+    finally:
+        if window is not None:
+            ace_tmux.release_tmux_window_claim(window.screenshot_dir)
+        runner.run(
+            ["tmux", "kill-server"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        try:
+            socket_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def test_size_setup_failure_removes_owned_bootstrap_window(
+    tmp_path: Path,
+) -> None:
+    if shutil.which("tmux") is None:
+        pytest.skip("tmux is not installed")
+
+    class _DefaultSizeFailRunner(_SocketTmuxRunner):
+        def run(
+            self,
+            cmd: list[str],
+            **kwargs: Any,
+        ) -> subprocess.CompletedProcess[str]:
+            if cmd[:2] == ["tmux", "set-option"] and "-w" not in cmd:
+                self.calls.append(list(cmd))
+                return subprocess.CompletedProcess(
+                    cmd,
+                    1,
+                    "",
+                    "default-size failed\n",
+                )
+            return super().run(cmd, **kwargs)
+
+    socket_path = Path("/tmp") / f"sase-test-tmux-{uuid.uuid4().hex}.sock"
+    runner = _DefaultSizeFailRunner(socket_path)
+    try:
+        with pytest.raises(ace_tmux.TmuxLaunchError) as excinfo:
+            ace_tmux.create_agent_tmux_window(
+                "sleep 60",
+                cols=40,
+                rows=10,
+                runner=runner.run,
+                timeout=5,
+            )
+
+        assert "failed to set tmux default-size" in str(excinfo.value)
+        has_session = runner.run(
+            ["tmux", "has-session", "-t", ace_tmux._AGENTS_SESSION],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        assert has_session.returncode != 0
+    finally:
+        runner.run(
+            ["tmux", "kill-server"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        try:
+            socket_path.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def test_preexisting_placeholder_window_is_preserved(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    if shutil.which("tmux") is None:
+        pytest.skip("tmux is not installed")
+    monkeypatch.setattr(
+        ace_tmux,
+        "screenshot_request_dir",
+        lambda session, window_name: tmp_path / "requests" / session / window_name,
+    )
+    socket_path = Path("/tmp") / f"sase-test-tmux-{uuid.uuid4().hex}.sock"
+    runner = _SocketTmuxRunner(socket_path)
+    window: Any = None
+    try:
+        runner.run(
+            [
+                "tmux",
+                "new-session",
+                "-d",
+                "-s",
+                ace_tmux._AGENTS_SESSION,
+                "-n",
+                "placeholder",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+
+        window = ace_tmux.create_agent_tmux_window(
+            "sleep 60",
+            cols=40,
+            rows=10,
+            runner=runner.run,
+            timeout=5,
+        )
+        runner.run(
+            ["tmux", "kill-window", "-t", window.target],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        ace_tmux.release_tmux_window_claim(window.screenshot_dir)
+
+        windows = runner.run(
+            [
+                "tmux",
+                "list-windows",
+                "-t",
+                ace_tmux._AGENTS_SESSION,
+                "-F",
+                "#{window_name}",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=5,
+        )
+        assert windows.returncode == 0
+        assert windows.stdout.splitlines() == ["placeholder"]
+    finally:
+        if window is not None:
+            ace_tmux.release_tmux_window_claim(window.screenshot_dir)
         runner.run(
             ["tmux", "kill-server"],
             capture_output=True,

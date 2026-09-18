@@ -37,6 +37,7 @@ class _FakeRunner:
         cols: int = 80,
         rows: int = 24,
         transient_export_errors: int = 0,
+        export_errors: Sequence[str] = (),
     ) -> None:
         self.tmp_path = tmp_path
         self.cols = cols
@@ -46,6 +47,7 @@ class _FakeRunner:
         self.window_id = "@1"
         self.pane_pid = 4242
         self.transient_export_errors = transient_export_errors
+        self.export_errors = list(export_errors)
         self.screenshot_dir: Path | None = None
         self.windows: dict[str, dict[str, object]] = {}
         self.calls: list[list[str]] = []
@@ -154,6 +156,12 @@ class _FakeRunner:
                 int(child.stem.split("_", 1)[1]) for child in request_dir.glob(pattern)
             )
         sequence = max(existing, default=0) + 1
+        if self.export_errors:
+            (request_dir / f"screen_{sequence}.error").write_text(
+                self.export_errors.pop(0) + "\n",
+                encoding="utf-8",
+            )
+            return
         if self.transient_export_errors > 0:
             self.transient_export_errors -= 1
             (request_dir / f"screen_{sequence}.error").write_text(
@@ -330,6 +338,49 @@ def test_local_capture_retries_transient_startup_export_error(
     assert output.read_bytes() == b"PNG"
     assert sum(call[0] == "kill" and call[1] == "-USR2" for call in runner.calls) == 2
     assert any(call[:2] == ["tmux", "kill-window"] for call in runner.calls)
+
+
+def test_local_capture_retries_visible_startup_settle_timeout(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    runner = _FakeRunner(
+        tmp_path,
+        export_errors=(
+            "timed out waiting for screenshot frame convergence; "
+            "pending_workers=['startup-visible:agents']",
+        ),
+    )
+    output = tmp_path / "shot.png"
+    _sandbox_new_window_screenshots(monkeypatch, tmp_path)
+    monkeypatch.setattr(ace_tmux.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(screenshot_local.time, "sleep", lambda seconds: None)
+
+    from sase.ace.tui import visual_render
+
+    monkeypatch.setattr(visual_render, "render_svg_to_png", lambda svg: b"PNG")
+
+    result = capture_local_screenshot(_options(output=output), runner=runner)
+
+    assert result.svg.name == "screen_2.svg"
+    assert output.read_bytes() == b"PNG"
+    assert sum(call[0] == "kill" and call[1] == "-USR2" for call in runner.calls) == 2
+
+
+def test_local_capture_does_not_retry_permanent_export_error(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    runner = _FakeRunner(tmp_path, export_errors=("render failed permanently",))
+    _sandbox_new_window_screenshots(monkeypatch, tmp_path)
+    monkeypatch.setattr(ace_tmux.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(screenshot_local.time, "sleep", lambda seconds: None)
+
+    with pytest.raises(screenshot_local.ScreenshotCaptureError) as excinfo:
+        capture_local_screenshot(_options(output=tmp_path / "shot.png"), runner=runner)
+
+    assert "render failed permanently" in str(excinfo.value)
+    assert sum(call[0] == "kill" and call[1] == "-USR2" for call in runner.calls) == 1
 
 
 def test_local_capture_cleans_owned_window_when_resize_fails(

@@ -20,6 +20,7 @@ from sase.ace.tui.screenshot_export import (
 
 _AGENTS_SESSION = "sase_ace_agents"
 _WINDOW_PREFIX = "sase_tmux_"
+_BOOTSTRAP_WINDOW_PREFIX = "sase_bootstrap_"
 _MAX_WINDOW_ATTEMPTS = 1000
 _WINDOW_CLAIM_FILE = ".sase_tmux_window_claim"
 _SCREENSHOT_DIR_OPTION = "@sase_screenshot_dir"
@@ -66,6 +67,29 @@ class _TmuxWindow:
         yield self.screenshot_dir
 
 
+@dataclass(frozen=True)
+class _OwnedBootstrapWindow:
+    """A bootstrap shell window created solely for this invocation."""
+
+    session: str
+    window_name: str
+    window_id: str | None = None
+
+    @property
+    def target(self) -> str:
+        if self.window_id:
+            return self.window_id
+        return f"{self.session}:{self.window_name}"
+
+
+@dataclass(frozen=True)
+class _ResolvedSession:
+    """Resolved tmux session plus any bootstrap window this call owns."""
+
+    session: str
+    bootstrap_window: _OwnedBootstrapWindow | None = None
+
+
 def _default_runner(runner: _RunCommand | None) -> _RunCommand:
     return subprocess.run if runner is None else runner
 
@@ -106,12 +130,21 @@ def launch_ace_in_tmux(args: argparse.Namespace) -> None:
     ``tmux send-keys`` and ``tmux capture-pane``.
     """
     del args  # we forward sys.argv, not the parsed namespace
+    resolved: _ResolvedSession | None = None
+    window: _TmuxWindow | None = None
     try:
         _require_tmux_binary()
-        session = _resolve_or_create_session()
+        resolved = _resolve_or_create_session()
         relaunch_cmd = _build_relaunch_cmd()
-        window = _claim_window(session, relaunch_cmd)
+        window = _claim_window(resolved.session, relaunch_cmd)
+        _kill_owned_bootstrap_window(resolved.bootstrap_window)
+        resolved = _ResolvedSession(resolved.session)
     except _TmuxLaunchError as exc:
+        if window is not None:
+            _kill_window_best_effort(window.target)
+            release_tmux_window_claim(window.screenshot_dir)
+        if resolved is not None:
+            _kill_owned_bootstrap_window(resolved.bootstrap_window)
         print(f"sase tui --tmux: {exc}", file=sys.stderr)
         sys.exit(2)
 
@@ -135,18 +168,36 @@ def create_agent_tmux_window(
     """Create an automation TUI window in the detached agents tmux session."""
     run = _default_runner(runner)
     _require_tmux_binary()
-    session = _resolve_or_create_agent_session(runner=run, timeout=timeout)
+    resolved = _resolve_or_create_agent_session(runner=run, timeout=timeout)
     window: _TmuxWindow | None = None
     if cols is not None and rows is not None:
-        _set_session_default_size(session, cols, rows, runner=run, timeout=timeout)
+        try:
+            _set_session_default_size(
+                resolved.session,
+                cols,
+                rows,
+                runner=run,
+                timeout=timeout,
+            )
+        except Exception:
+            _kill_owned_bootstrap_window(
+                resolved.bootstrap_window,
+                runner=run,
+            )
+            raise
     try:
         window = _claim_window(
-            session,
+            resolved.session,
             relaunch_cmd,
             extra_env=extra_env,
             runner=run,
             timeout=timeout,
         )
+        _kill_owned_bootstrap_window(
+            resolved.bootstrap_window,
+            runner=run,
+        )
+        resolved = _ResolvedSession(resolved.session)
         if cols is not None and rows is not None:
             _resize_and_verify_window(
                 window.target,
@@ -159,6 +210,10 @@ def create_agent_tmux_window(
         if window is not None:
             _kill_window_best_effort(window.target, runner=run)
             release_tmux_window_claim(window.screenshot_dir)
+        _kill_owned_bootstrap_window(
+            resolved.bootstrap_window,
+            runner=run,
+        )
         raise
     return window
 
@@ -200,7 +255,7 @@ def _resolve_or_create_session(
     *,
     runner: _RunCommand | None = None,
     timeout: _TimeoutValue = None,
-) -> str:
+) -> _ResolvedSession:
     run = _default_runner(runner)
     if os.environ.get("TMUX"):
         result = _run_tmux_command(
@@ -216,7 +271,7 @@ def _resolve_or_create_session(
         name = result.stdout.strip()
         if not name:
             raise _TmuxLaunchError("tmux returned an empty session name")
-        return name
+        return _ResolvedSession(name)
 
     return _resolve_or_create_agent_session(runner=run, timeout=timeout)
 
@@ -225,7 +280,7 @@ def _resolve_or_create_agent_session(
     *,
     runner: _RunCommand | None = None,
     timeout: _TimeoutValue = None,
-) -> str:
+) -> _ResolvedSession:
     run = _default_runner(runner)
     # Outside of tmux: ensure the dedicated agents session exists.
     has_session = _run_tmux_command(
@@ -234,7 +289,19 @@ def _resolve_or_create_agent_session(
         timeout=timeout,
         action=f"check for tmux session '{_AGENTS_SESSION}'",
     )
-    if has_session.returncode != 0:
+    if has_session.returncode == 0:
+        return _ResolvedSession(_AGENTS_SESSION)
+
+    return _create_agent_session_with_bootstrap(runner=run, timeout=timeout)
+
+
+def _create_agent_session_with_bootstrap(
+    *,
+    runner: _RunCommand,
+    timeout: _TimeoutValue,
+) -> _ResolvedSession:
+    bootstrap_name = f"{_BOOTSTRAP_WINDOW_PREFIX}{uuid.uuid4().hex[:12]}"
+    try:
         created = _run_tmux_command(
             [
                 "tmux",
@@ -243,18 +310,71 @@ def _resolve_or_create_agent_session(
                 "-s",
                 _AGENTS_SESSION,
                 "-n",
-                "placeholder",
+                bootstrap_name,
+                "-P",
+                "-F",
+                "#{session_name}\t#{window_id}\t#{window_name}",
             ],
-            runner=run,
+            runner=runner,
             timeout=timeout,
             action=f"create tmux session '{_AGENTS_SESSION}'",
         )
-        if created.returncode != 0:
-            raise _TmuxLaunchError(
-                f"failed to create '{_AGENTS_SESSION}' session: "
-                f"{created.stderr.strip()}"
-            )
-    return _AGENTS_SESSION
+    except Exception:
+        _kill_window_best_effort(
+            f"{_AGENTS_SESSION}:{bootstrap_name}",
+            runner=runner,
+        )
+        raise
+    if created.returncode != 0:
+        raced = _run_tmux_command(
+            ["tmux", "has-session", "-t", _AGENTS_SESSION],
+            runner=runner,
+            timeout=timeout,
+            action=f"re-check tmux session '{_AGENTS_SESSION}'",
+        )
+        if raced.returncode == 0:
+            return _ResolvedSession(_AGENTS_SESSION)
+        raise _TmuxLaunchError(
+            f"failed to create '{_AGENTS_SESSION}' session: "
+            f"{created.stderr.strip() or created.stdout.strip()}"
+        )
+
+    line = created.stdout.strip().splitlines()[-1] if created.stdout else ""
+    fields = line.split("\t")
+    if len(fields) != 3:
+        _kill_window_best_effort(
+            f"{_AGENTS_SESSION}:{bootstrap_name}",
+            runner=runner,
+        )
+        raise _TmuxLaunchError("tmux did not report the bootstrap window's target")
+    session, window_id, reported_name = fields
+    if reported_name != bootstrap_name:
+        cleanup_target = (
+            window_id
+            if window_id.startswith("@")
+            else f"{_AGENTS_SESSION}:{bootstrap_name}"
+        )
+        _kill_window_best_effort(
+            cleanup_target,
+            runner=runner,
+        )
+        raise _TmuxLaunchError(
+            f"tmux reported unexpected bootstrap window name {reported_name!r}"
+        )
+    if not window_id.startswith("@"):
+        _kill_window_best_effort(
+            f"{_AGENTS_SESSION}:{bootstrap_name}",
+            runner=runner,
+        )
+        raise _TmuxLaunchError(f"tmux returned invalid window id: {window_id!r}")
+    return _ResolvedSession(
+        session or _AGENTS_SESSION,
+        _OwnedBootstrapWindow(
+            session=session or _AGENTS_SESSION,
+            window_name=bootstrap_name,
+            window_id=window_id,
+        ),
+    )
 
 
 def _build_relaunch_cmd() -> str:
@@ -606,6 +726,17 @@ def _kill_window_best_effort(
         )
     except Exception:
         return
+
+
+def _kill_owned_bootstrap_window(
+    bootstrap: _OwnedBootstrapWindow | None,
+    *,
+    runner: _RunCommand | None = None,
+) -> None:
+    """Remove the bootstrap shell window created by this invocation."""
+    if bootstrap is None:
+        return
+    _kill_window_best_effort(bootstrap.target, runner=runner)
 
 
 def _print_target(window: _TmuxWindow) -> None:

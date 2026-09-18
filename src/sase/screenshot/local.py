@@ -26,7 +26,14 @@ SCREENSHOT_CONTRACT_SCHEMA_VERSION = 1
 
 _SCREEN_RESULT_RE = re.compile(r"^screen_(\d+)\.(done|error)$")
 _SCREEN_SVG_RE = re.compile(r"^screen_(\d+)\.svg$")
-_TRANSIENT_EXPORT_ERRORS = ("Node must be running before calling wait_for_refresh",)
+_TRANSIENT_EXPORT_ERRORS = (
+    "Node must be running before calling wait_for_refresh",
+    "timed out before requesting screenshot refresh",
+    "timed out waiting for screenshot refresh",
+    "timed out waiting for screenshot refresh acknowledgement",
+    "timed out waiting for screenshot frame convergence",
+    "startup-visible:",
+)
 _EXPORT_RETRY_DELAY_SECONDS = 0.25
 _STARTUP_STABLE_FRAME_COUNT = 2
 _DEBUG_CAPTURE_TIMEOUT_SECONDS = 0.5
@@ -375,7 +382,12 @@ def _request_export_with_retries(
     last_capture: str,
 ) -> Path:
     capture = last_capture
+    last_attempt_error: _ExportMarkerError | None = None
     while True:
+        if deadline.expired and last_attempt_error is not None:
+            raise ScreenshotCaptureError(
+                _overall_export_timeout_message(last_attempt_error, capture)
+            ) from last_attempt_error
         before_sequence = _highest_sequence(request_dir)
         _run_tmux(
             ["kill", f"-{_signal_name()}", str(pane_pid)],
@@ -393,9 +405,14 @@ def _request_export_with_retries(
                 last_capture=capture,
             )
         except _ExportMarkerError as exc:
-            if deadline.expired or not _is_transient_export_error(exc.message):
+            if not _is_transient_export_error(exc.message):
                 raise ScreenshotCaptureError(str(exc)) from exc
+            last_attempt_error = exc
             capture = exc.capture
+            if deadline.expired:
+                raise ScreenshotCaptureError(
+                    _overall_export_timeout_message(exc, capture)
+                ) from exc
             deadline.sleep(_EXPORT_RETRY_DELAY_SECONDS)
 
 
@@ -491,6 +508,17 @@ def _highest_sequence(request_dir: Path) -> int:
 
 def _is_transient_export_error(message: str) -> bool:
     return any(fragment in message for fragment in _TRANSIENT_EXPORT_ERRORS)
+
+
+def _overall_export_timeout_message(
+    error: _ExportMarkerError,
+    capture: str,
+) -> str:
+    return (
+        "timed out waiting for TUI screenshot readiness within the overall "
+        "capture deadline; last export attempt failed with: "
+        f"{error.message}" + _debug_suffix(capture)
+    )
 
 
 def _copy_svg_if_requested(svg_path: Path, options: ScreenshotOptions) -> Path:

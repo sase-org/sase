@@ -34,6 +34,7 @@ _SCREENSHOT_VISUAL_WORKER_NAME_PREFIXES = ("screenshot-visual:",)
 _SCREENSHOT_STABLE_FRAME_COUNT = 3
 _SCREENSHOT_SETTLE_TIMEOUT_SECONDS = 3.0
 _SCREENSHOT_SETTLING_TIMER_MAX_SECONDS = 0.5
+_SCREENSHOT_STARTUP_TABS = frozenset({"agents", "axe"})
 
 
 class ScreenshotExportMixin:
@@ -136,8 +137,6 @@ class ScreenshotExportMixin:
                     raise
                 restore_cursor_blink = []
             try:
-                stage = "request refresh"
-                self._request_screenshot_refresh_if_available()
                 stage = "wait for settled frame"
                 svg = await self._export_settled_screenshot_svg()
             finally:
@@ -154,15 +153,11 @@ class ScreenshotExportMixin:
         return paths
 
     def _request_screenshot_refresh_if_available(self) -> None:
-        """Request a final Textual refresh when the signal task context permits it."""
+        """Request a final Textual refresh."""
         refresh = getattr(self, "refresh", None)
         if not callable(refresh):
             return
-        try:
-            refresh(layout=True)
-        except (AssertionError, RuntimeError) as exc:
-            if not _is_textual_refresh_context_error(exc):
-                raise
+        refresh(layout=True)
 
     async def _wait_for_screenshot_refresh_if_available(self) -> None:
         """Wait for Textual's next refresh when the signal task context permits it."""
@@ -186,7 +181,12 @@ class ScreenshotExportMixin:
         pending: tuple[list[str], list[str], list[str], list[str]] = ([], [], [], [])
 
         while True:
-            self._request_screenshot_refresh_if_available()
+            if loop.time() >= deadline:
+                self._raise_screenshot_convergence_timeout(
+                    stable_frames=stable_frames,
+                    frame_digests=frame_digests,
+                    pending=pending,
+                )
             await self._wait_for_screenshot_refresh_until(deadline)
             self._clear_screenshot_transient_state()
             pending = self._pending_screenshot_visual_work()
@@ -208,16 +208,10 @@ class ScreenshotExportMixin:
                     return svg
 
             if loop.time() >= deadline:
-                debouncers, workers, timers, animations = pending
-                raise RuntimeError(
-                    "timed out waiting for screenshot frame convergence; "
-                    f"stable_frames={stable_frames}/"
-                    f"{_SCREENSHOT_STABLE_FRAME_COUNT}; "
-                    f"frame_digests={frame_digests}; "
-                    f"pending_debouncers={debouncers}; "
-                    f"pending_workers={workers}; "
-                    f"pending_one_shot_timers={timers}; "
-                    f"pending_animations={animations}"
+                self._raise_screenshot_convergence_timeout(
+                    stable_frames=stable_frames,
+                    frame_digests=frame_digests,
+                    pending=pending,
                 )
             await asyncio.sleep(min(0.02, max(0.0, deadline - loop.time())))
 
@@ -227,9 +221,34 @@ class ScreenshotExportMixin:
         remaining = deadline - loop.time()
         if remaining <= 0:
             raise RuntimeError(
-                "timed out waiting for screenshot refresh; "
+                "timed out before requesting screenshot refresh; "
                 f"deadline={_SCREENSHOT_SETTLE_TIMEOUT_SECONDS:.3f}s"
             )
+        call_after_refresh = getattr(self, "call_after_refresh", None)
+        if callable(call_after_refresh):
+            acknowledged = asyncio.Event()
+
+            def acknowledge_refresh() -> None:
+                acknowledged.set()
+
+            try:
+                call_after_refresh(acknowledge_refresh)
+            except (AssertionError, RuntimeError) as exc:
+                raise RuntimeError(
+                    "failed to schedule screenshot refresh acknowledgement: "
+                    f"{type(exc).__name__}: {exc}"
+                ) from exc
+            self._request_screenshot_refresh_if_available()
+            try:
+                await asyncio.wait_for(acknowledged.wait(), timeout=remaining)
+            except TimeoutError as exc:
+                raise RuntimeError(
+                    "timed out waiting for screenshot refresh acknowledgement; "
+                    f"deadline={_SCREENSHOT_SETTLE_TIMEOUT_SECONDS:.3f}s"
+                ) from exc
+            return
+
+        self._request_screenshot_refresh_if_available()
         try:
             await asyncio.wait_for(
                 self._wait_for_screenshot_refresh_if_available(),
@@ -240,6 +259,24 @@ class ScreenshotExportMixin:
                 "timed out waiting for screenshot refresh; "
                 f"deadline={_SCREENSHOT_SETTLE_TIMEOUT_SECONDS:.3f}s"
             ) from exc
+
+    def _raise_screenshot_convergence_timeout(
+        self,
+        *,
+        stable_frames: int,
+        frame_digests: list[str],
+        pending: tuple[list[str], list[str], list[str], list[str]],
+    ) -> None:
+        debouncers, workers, timers, animations = pending
+        raise RuntimeError(
+            "timed out waiting for screenshot frame convergence; "
+            f"stable_frames={stable_frames}/{_SCREENSHOT_STABLE_FRAME_COUNT}; "
+            f"frame_digests={frame_digests}; "
+            f"pending_debouncers={debouncers}; "
+            f"pending_workers={workers}; "
+            f"pending_one_shot_timers={timers}; "
+            f"pending_animations={animations}"
+        )
 
     def _clear_screenshot_transient_state(self) -> None:
         try:
@@ -270,6 +307,7 @@ class ScreenshotExportMixin:
         # bounded screenshot export. Only explicitly visual finite work joins
         # the settle gate; frame convergence handles the rest of the compositor.
         workers = self._pending_screenshot_visual_worker_labels()
+        workers.extend(self._pending_screenshot_startup_readiness_labels())
 
         animator = getattr(self, "animator", None)
         animations = [
@@ -309,6 +347,20 @@ class ScreenshotExportMixin:
                 ):
                     timers.append(str(getattr(timer, "name", timer)))
         return debouncers, workers, timers, animations
+
+    def _pending_screenshot_startup_readiness_labels(self) -> list[str]:
+        """Return the visible startup surface if it is still loading."""
+        current_tab = str(getattr(self, "current_tab", "") or "")
+        if current_tab not in _SCREENSHOT_STARTUP_TABS:
+            return []
+
+        if current_tab == "agents":
+            ready = bool(getattr(self, "_agents_first_load_done", True))
+        else:
+            ready = bool(getattr(self, "_axe_first_load_done", True))
+        if ready:
+            return []
+        return [f"startup-visible:{current_tab}"]
 
     def _pending_screenshot_visual_worker_labels(self) -> list[str]:
         """Return finite visual worker/task labels still relevant to export."""
