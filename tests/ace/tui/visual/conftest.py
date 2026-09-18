@@ -18,11 +18,9 @@ _FIXED_VISUAL_NOW = datetime(2026, 7, 6, 12, 0, 0)
 
 
 @pytest.fixture(scope="session", autouse=True)
-def _require_pinned_renderer_environment(request: pytest.FixtureRequest) -> None:
+def _require_pinned_renderer_environment() -> None:
     """Fail once before snapshots run when the renderer fingerprint is skewed."""
-    assert_renderer_environment(
-        update=bool(request.config.getoption("--sase-update-visual-snapshots"))
-    )
+    assert_renderer_environment(update=False)
 
 
 @pytest.fixture(autouse=True)
@@ -159,7 +157,6 @@ def ace_png_visual(
     request: pytest.FixtureRequest,
 ) -> AcePngSnapshotFixture:
     """ACE PNG visual snapshot assertion helper."""
-    update = bool(request.config.getoption("--sase-update-visual-snapshots"))
     artifact_root = _visual_artifact_root(request.config)
     rootpath = request.config.rootpath
     repo_root = Path(rootpath) if rootpath is not None else Path.cwd()
@@ -169,7 +166,7 @@ def ace_png_visual(
     return AcePngSnapshotFixture(
         snapshot_root=Path(__file__).parent / "snapshots" / "png",
         artifact_root=artifact_root,
-        update=update,
+        update=False,
         node_id=request.node.nodeid,
         test_file=test_file,
         test_line=test_line,

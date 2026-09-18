@@ -119,17 +119,31 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
     def _on_proc_observer_thread_snapshot(
         self,
         snapshot: ProcObserverSnapshot,
+        observer: object | None = None,
     ) -> None:
-        """Receive an immutable snapshot from the observer thread."""
+        """Receive an immutable snapshot from the observer thread.
+
+        *observer* is the producing ``ProcObserver``. Apply ignores the
+        snapshot once ``_proc_observer`` is no longer that object, so a
+        ``call_from_thread`` already queued before replacement cannot wipe a
+        newer seeded or re-inited projection.
+        """
         try:
             self.call_from_thread(  # type: ignore[attr-defined]
-                self._apply_proc_observer_snapshot, snapshot
+                self._apply_proc_observer_snapshot, snapshot, observer
             )
         except Exception:
             log.debug("proc observer snapshot delivery failed", exc_info=True)
 
-    def _apply_proc_observer_snapshot(self, snapshot: ProcObserverSnapshot) -> None:
+    def _apply_proc_observer_snapshot(
+        self,
+        snapshot: ProcObserverSnapshot,
+        observer: object | None = None,
+    ) -> None:
         """Apply observer projection and deliver decoded completions once."""
+        current = getattr(self, "_proc_observer", None)
+        if observer is not None and current is not observer:
+            return
         self._proc_projection = snapshot.projection
         projection = self._effective_proc_projection()
         self._sync_proc_shell_agents_from_projection(projection)

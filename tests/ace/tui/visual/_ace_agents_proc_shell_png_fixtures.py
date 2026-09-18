@@ -214,7 +214,12 @@ def patch_proc_shell_project_names(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def seed_proc_shell_projection(app: Any) -> None:
-    """Install the deterministic proc-shell projection on a running app."""
+    """Install the deterministic proc-shell projection on a running app.
+
+    Replacing ``_proc_observer`` is what makes a queued live snapshot a
+    no-op: ``_apply_proc_observer_snapshot`` ignores producers that are no
+    longer current, so ``wait_for_visual_idle`` cannot wipe this seed.
+    """
     observer = getattr(app, "_proc_observer", None)
     stop = getattr(observer, "stop", None)
     if callable(stop):

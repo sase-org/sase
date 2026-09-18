@@ -460,6 +460,7 @@ def test_check_full_ends_in_the_full_test_lane() -> None:
 
     assert 'tools/run_silent "test cost"          just test-cost' in output
     assert "just test-scoped" not in output
+    assert "just fix-tui-screenshots" in output
 
 
 def test_check_prints_the_scoped_summary_after_run_silent_returns() -> None:
@@ -494,9 +495,24 @@ def test_check_full_runs_the_flake_baseline_gate_after_the_full_lane() -> None:
         'tools/run_silent "flake baseline"     just selection-health '
         "--fail-on-new-flake"
     )
+    screenshot_line = "just fix-tui-screenshots"
     assert test_line in output
     assert gate_line in output
+    assert screenshot_line in output
     assert output.index(test_line) < output.index(gate_line)
+    assert output.index(gate_line) < output.index(screenshot_line)
+    screenshot_lines = [
+        line for line in output.splitlines() if "fix-tui-screenshots" in line
+    ]
+    assert screenshot_lines
+    assert all("run_silent" not in line for line in screenshot_lines)
+
+
+def test_check_lint_and_fix_do_not_run_screenshot_maintenance() -> None:
+    for recipe in ("check", "lint", "fix"):
+        output = _dry_run(recipe)
+        assert "fix-tui-screenshots" not in output
+        assert "tools/fix_tui_screenshots" not in output
 
 
 def test_check_and_check_full_share_an_identical_gate_list() -> None:

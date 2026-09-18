@@ -279,18 +279,46 @@ jobs:
         with:
           python-version: '3.12'
           install-recipe: install-visual
-      - name: Run visual tests
-        run: just test-visual
-      - name: Build visual failure report
+      - name: Check TUI screenshots
+        run: just fix-tui-screenshots --check
+      - name: Locate visual report
         if: failure()
+        id: visual_report
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          pointer = Path(".pytest_cache/sase-visual/latest-report.json")
+          status = "missing"
+          manifest = ""
+          if pointer.is_file():
+              data = json.loads(pointer.read_text(encoding="utf-8"))
+              status = str(data.get("status") or "unknown")
+              manifest = str(data.get("manifest") or "")
+          output = Path(os.environ["GITHUB_OUTPUT"])
+          with output.open("a", encoding="utf-8") as handle:
+              handle.write(f"status={status}\n")
+              handle.write(f"manifest={manifest}\n")
+          PY
+      - name: Build visual report
+        if: failure() && steps.visual_report.outputs.manifest != ''
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
+          VISUAL_MANIFEST: ${{ steps.visual_report.outputs.manifest }}
+          VISUAL_STATUS: ${{ steps.visual_report.outputs.status }}
         run: |
+          if [ "$VISUAL_STATUS" != "drift" ]; then
+            printf 'Visual screenshot check failed with status=%s (not golden drift). Inspect logs and partial captures; do not accept goldens from this run.\n' "$VISUAL_STATUS"
+          fi
           tools/render_visual_snapshot_failure_report \
+            --manifest "$VISUAL_MANIFEST" \
+            --output-dir .pytest_cache/sase-visual-report \
             --repo "$GITHUB_REPOSITORY" \
             --sha "$GITHUB_SHA"
-      - name: Upload visual failure report
+      - name: Upload visual report
         id: visual_failure_report
         if: failure()
         uses: actions/upload-artifact@v7
@@ -299,20 +327,27 @@ jobs:
           path: .pytest_cache/sase-visual-report/visual-failure-report.html
           archive: false
           if-no-files-found: ignore
-      - name: Publish visual failure report
-        if: failure()
+      - name: Publish visual report
+        if: failure() && steps.visual_report.outputs.manifest != ''
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SHA: ${{ github.sha }}
           VISUAL_REPORT_URL: ${{ steps.visual_failure_report.outputs.artifact-url }}
+          VISUAL_MANIFEST: ${{ steps.visual_report.outputs.manifest }}
+          VISUAL_STATUS: ${{ steps.visual_report.outputs.status }}
         run: |
+          if [ "$VISUAL_STATUS" != "drift" ]; then
+            printf 'Visual screenshot check failed with status=%s (not golden drift). Inspect logs and partial captures; do not accept goldens from this run.\n' "$VISUAL_STATUS" >> "$GITHUB_STEP_SUMMARY"
+          fi
           tools/render_visual_snapshot_failure_report \
+            --manifest "$VISUAL_MANIFEST" \
+            --output-dir .pytest_cache/sase-visual-report \
             --repo "$GITHUB_REPOSITORY" \
             --sha "$GITHUB_SHA" \
             --report-url "$VISUAL_REPORT_URL"
           cat .pytest_cache/sase-visual-report/summary.md >> "$GITHUB_STEP_SUMMARY"
           bash .pytest_cache/sase-visual-report/annotations.sh
-      - name: Upload visual failure artifacts
+      - name: Upload visual artifacts
         if: failure()
         uses: actions/upload-artifact@v4
         with:

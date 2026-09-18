@@ -9,6 +9,7 @@ from textual.worker import Worker
 from ..proc_observer import (
     ObservedProc,
     ProcObserver,
+    ProcObserverSnapshot,
     ProcProjection,
     compose_proc_projection,
     stop_orphaned_proc_observers,
@@ -36,9 +37,16 @@ class ProcObserverActionsMixin:
         self._proc_reconciler_worker: Worker[Any] | None = None
         self._proc_reconciler_start_timer = None
         self._proc_reconciler_interval_timer = None
-        observer = ProcObserver(
-            on_snapshot=self._on_proc_observer_thread_snapshot,  # type: ignore[attr-defined]
-        )
+        observer = ProcObserver(on_snapshot=lambda _snapshot: None)
+
+        def _deliver_snapshot(
+            snapshot: ProcObserverSnapshot, _producer: ProcObserver = observer
+        ) -> None:
+            self._on_proc_observer_thread_snapshot(  # type: ignore[attr-defined]
+                snapshot, _producer
+            )
+
+        observer.on_snapshot = _deliver_snapshot
         observer.bind_owner(self)
         self._proc_observer = observer
         if previous is not None and previous is not observer:

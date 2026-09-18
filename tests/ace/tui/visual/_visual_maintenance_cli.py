@@ -170,7 +170,7 @@ def validate_pytest_args(
     ):
         raise UsageError(
             f"{origin} request legacy golden writes via {_LEGACY_UPDATE}; "
-            "use tools/fix_tui_screenshots without that pytest flag"
+            "use `just fix-tui-screenshots` without that pytest flag"
         )
     for arg in args:
         for prefix in _CAPTURE_OWNED_PREFIXES:

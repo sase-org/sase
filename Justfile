@@ -424,7 +424,8 @@ fmt-md-check: _setup-prettier
     {{ prettier_bin }} --check "**/*.md"
 
 # Fast parallel test run, no coverage (use test-cov to enforce coverage gate).
-# Excludes the slow and PNG visual snapshot suites; use test-visual for those.
+# Excludes the slow and PNG visual snapshot suites; use
+# `just fix-tui-screenshots --check` (or the `test-visual` alias) for those.
 # The runner ignores visual test directories before collection, so this lane
 # does not need the pinned visual renderer stack.
 [positional-arguments]
@@ -479,12 +480,25 @@ test-slow *args: _setup (_header "test-slow")
     @printf "\n---------- Running slow pytest subset... ----------\n"
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest slow "$@"
 
-# Run ACE PNG visual regression tests. This suite is explicit because it uses
-# committed PNG snapshot goldens and a PNG rasterizer dependency.
+# Capture, compare, and apply ACE and pager TUI screenshot goldens.
+# A full inventory applies created and updated candidates and proven-stale
+# removals. Pass --check to fail on drift without writing goldens.
+# Arguments after `--` are pytest selectors (paths, node IDs, `-k`).
+# Local `just check-full` runs the update form; CI uses `--check`.
+# `just` may normalize a non-zero child code to 1. Automation that needs
+# the distinction should read the run manifest or invoke
+# tools/fix_tui_screenshots directly.
+[positional-arguments]
+fix-tui-screenshots *args: _setup-visual (_header "fix-tui-screenshots")
+    @printf "\n---------- Running TUI screenshot maintenance... ----------\n"
+    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/fix_tui_screenshots "$@"
+
+# Check ACE and pager TUI screenshot goldens without writing. Supported
+# alias of `just fix-tui-screenshots --check`.
 [positional-arguments]
 test-visual *args: _setup-visual (_header "test-visual")
-    @printf "\n---------- Running visual pytest subset... ----------\n"
-    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest visual "$@"
+    @printf "\n---------- Checking TUI screenshot goldens... ----------\n"
+    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/fix_tui_screenshots --check "$@"
 
 # Reproduce visual convergence flakes by running a fixed 26-worker pool on two
 # CPUs (13x oversubscription). Pre-fix baseline, measured 2026-07-27:
@@ -541,11 +555,14 @@ test-contention *args: _setup (_header "test-contention")
     @command -v taskset >/dev/null || { printf "test-contention requires taskset\\n" >&2; exit 1; }
     @taskset -c "${SASE_CONTENTION_CPUS:-0,1}" env SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest contention "$@"
 
-# Regenerate the complete ACE PNG golden corpus. The visual-suite fingerprint
-# fixture refuses updates outside the pinned renderer environment or canonical
-# Linux platform.
-update-visual-snapshots: _setup-visual
-    @just test-visual -- --sase-update-visual-snapshots
+# Update ACE and pager TUI screenshot goldens. Supported alias of
+# `just fix-tui-screenshots`. The maintenance runner refuses updates outside
+# the pinned renderer environment, off Linux, or in real CI (`GITHUB_ACTIONS`,
+# or `CI` without `SASE_AGENT` / `SASE_MONITOR_ID`).
+[positional-arguments]
+update-visual-snapshots *args: _setup-visual (_header "update-visual-snapshots")
+    @printf "\n---------- Updating TUI screenshot goldens... ----------\n"
+    @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/fix_tui_screenshots "$@"
 
 # Run optional real-terminal ACE smoke coverage. This launches the TUI in a
 # PTY, so keep it separate from the default and visual snapshot lanes.
@@ -685,7 +702,11 @@ check: _setup
     @{{ venv_bin }}/python tools/print_scoped_summary
 
 # Exhaustive verification: every whole-repo lint gate plus the full test
-# suite. Run this before landing, and in CI.
+# suite, then a local TUI screenshot update. Run this before landing. The
+# screenshot stage is outside `tools/run_silent` so its compact report stays
+# visible. CI does not run this recipe; the dedicated visual-test job uses
+# `just fix-tui-screenshots --check`. A direct CI invocation refuses at the
+# update stage.
 check-full: _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
@@ -705,6 +726,7 @@ check-full: _setup
     @tools/run_silent "test cost"          just test-cost
     @{{ venv_bin }}/python tools/check_test_cost_budgets --report-advisories
     @tools/run_silent "flake baseline"     just selection-health --fail-on-new-flake
+    @just fix-tui-screenshots
 
 # Render the scripted ACE demo videos (GIF + MP4), stamp
 # demos/out/last_generated_date.txt, and offer to commit the results.

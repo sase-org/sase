@@ -38,8 +38,9 @@ while rendering correctly in a real terminal.
   bundled fonts do.
 
 Replacing any of these files requires regenerating the goldens with
-`just update-visual-snapshots` on Linux and refreshing their hashes in
-`renderer_env.json`. `tests/ace/tui/visual/test_tab_icon_glyphs.py` and
+`just fix-tui-screenshots` on Linux (`just update-visual-snapshots` is the same update
+alias) and refreshing their hashes in `renderer_env.json`.
+`tests/ace/tui/visual/test_tab_icon_glyphs.py` and
 `tests/ace/tui/visual/test_emoji_glyphs.py` are the mechanical glyph audits: they fail
 if the bundled fonts stop covering an ACE tab icon or an emoji codepoint `src/sase`
 actually uses, so a font swap cannot silently reintroduce tofu.

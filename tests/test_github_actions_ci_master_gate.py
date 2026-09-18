@@ -96,8 +96,20 @@ def test_master_gate_test_job_runs_only_the_sharded_fast_lane() -> None:
         "test-slow",
         "test-contexts",
         "test-visual",
+        "fix-tui-screenshots",
+        "update-visual-snapshots",
     ):
         assert forbidden not in run_text
+
+
+def test_master_gate_never_runs_screenshot_maintenance() -> None:
+    workflow_text = (
+        REPO_ROOT / ".github" / "workflows" / "master-gate.yml"
+    ).read_text()
+
+    assert "fix-tui-screenshots" not in workflow_text
+    assert "update-visual-snapshots" not in workflow_text
+    assert "test-visual" not in workflow_text
 
 
 def test_master_gate_core_wheel_job_resolves_and_caches_by_sha() -> None:

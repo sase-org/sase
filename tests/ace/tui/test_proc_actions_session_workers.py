@@ -288,6 +288,53 @@ def test_session_overlay_preserves_rows_across_observer_snapshots() -> None:
     assert host._proc_projection.rows == (durable,)
 
 
+def test_stale_observer_snapshot_does_not_overwrite_current_projection() -> None:
+    seeded = _durable_row(scope="seeded")
+    host = _ProcHost(
+        ProcProjection(rows=(seeded,), active_count=1, session_id="session-mine")
+    )
+    previous = host._proc_observer
+    host._proc_observer = SimpleNamespace()
+
+    host._apply_proc_observer_snapshot(
+        ProcObserverSnapshot(projection=ProcProjection(session_id="session-mine")),
+        previous,
+    )
+
+    assert host._proc_projection.rows == (seeded,)
+
+
+def test_current_observer_snapshot_replaces_projection() -> None:
+    host = _ProcHost(ProcProjection(session_id="session-mine"))
+    durable = _durable_row(scope="other")
+
+    host._apply_proc_observer_snapshot(
+        ProcObserverSnapshot(
+            projection=ProcProjection(
+                rows=(durable,),
+                active_count=1,
+                session_id="session-mine",
+            )
+        ),
+        host._proc_observer,
+    )
+
+    assert host._proc_projection.rows == (durable,)
+
+
+def test_thread_snapshot_delivery_passes_producing_observer() -> None:
+    host = _ProcHost()
+    recorded: list[tuple[Any, ...]] = []
+    host.call_from_thread = lambda fn, *args: recorded.append((fn, *args))
+    snapshot = ProcObserverSnapshot(projection=ProcProjection())
+
+    host._on_proc_observer_thread_snapshot(snapshot, host._proc_observer)
+
+    assert recorded == [
+        (host._apply_proc_observer_snapshot, snapshot, host._proc_observer)
+    ]
+
+
 def test_session_overlay_removes_row_after_success_and_error() -> None:
     host = _ProcHost(ProcProjection(session_id="session-mine"))
     first = host._submit_session_worker("sync", _ok)

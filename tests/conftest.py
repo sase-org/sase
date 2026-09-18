@@ -112,7 +112,9 @@ def pytest_runtest_protocol(
 def pytest_configure(config: pytest.Config) -> None:
     """Acquire host-global worker tokens for an xdist controller."""
     from tests._config_reader_probe import register_config_reader_probe
+    from tests._legacy_visual_update import reject_legacy_visual_update_option
 
+    reject_legacy_visual_update_option(config)
     configure_suite_gate(config)
     register_config_reader_probe(config)
 
@@ -292,7 +294,10 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "--sase-update-visual-snapshots",
         action="store_true",
         default=False,
-        help="Update ACE visual snapshot goldens instead of asserting them.",
+        help=(
+            "Retired: use `just fix-tui-screenshots` instead of writing "
+            "goldens from pytest."
+        ),
     )
     parser.addoption(
         "--sase-visual-artifact-dir",

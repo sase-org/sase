@@ -439,9 +439,17 @@ def test_visual_suite_runs_only_in_dedicated_job() -> None:
         "sase-visual" in step.get("with", {}).get("path", "")
         for step in jobs["test"]["steps"]
     )
-    assert any(
-        step.get("run") == "just test-visual" for step in jobs["visual-test"]["steps"]
-    )
+    visual_runs = [
+        step.get("run", "") for step in jobs["visual-test"]["steps"] if "run" in step
+    ]
+    assert any(run == "just fix-tui-screenshots --check" for run in visual_runs)
+    assert all("just test-visual" not in run for run in visual_runs)
+    assert all("just check-full" not in run for run in visual_runs)
+    assert all("just fix-tui-screenshots\n" not in run for run in visual_runs)
+    workflow_text = "\n".join(visual_runs)
+    assert "latest-report.json" in workflow_text
+    assert "--manifest" in workflow_text
+    assert "do not accept goldens from this run" in workflow_text
 
 
 def test_ace_page_group_isolation_job_runs_dedicated_lane() -> None:

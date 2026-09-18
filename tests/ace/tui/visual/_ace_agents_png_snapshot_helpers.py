@@ -11,7 +11,11 @@ from sase.ace.testing import AcePage
 
 
 async def choose_agent_metadata_view(page: AcePage) -> None:
-    """Choose the metadata-only Agents detail view through the current picker."""
+    """Choose the metadata-only Agents detail view through the current picker.
+
+    The picker opens on `p`. Metadata-only is the `[` layout choice; `0`/`n`
+    are contained without selecting and leave the modal open.
+    """
     await page.press("p")
     await page.expect_modal("AgentViewModal")
     await page.press("[")

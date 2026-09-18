@@ -24,6 +24,11 @@ from tests._fix_tui_screenshots_helpers import (
     silent_hooks,
     write_golden,
 )
+from tests._legacy_visual_update import (
+    LEGACY_VISUAL_UPDATE_OPTION,
+    reject_legacy_visual_update_option,
+)
+from tests.ace.tui.visual._visual_maintenance_run import _default_is_ci
 from tests.ace.tui.visual._visual_maintenance import (
     EXIT_DRIFT,
     EXIT_FAILURE,
@@ -54,6 +59,16 @@ def _load_tool() -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+class _OptionConfig:
+    def __init__(self, enabled: bool) -> None:
+        self._enabled = enabled
+
+    def getoption(self, name: str, default: bool = False) -> bool:
+        if name == LEGACY_VISUAL_UPDATE_OPTION:
+            return self._enabled
+        return default
 
 
 def test_tool_script_is_executable() -> None:
@@ -105,8 +120,17 @@ def test_pytest_addopts_keyword_makes_targeted_scope() -> None:
 
 
 def test_rejects_legacy_update_flag() -> None:
-    with pytest.raises(UsageError, match="legacy golden writes"):
+    with pytest.raises(UsageError, match="just fix-tui-screenshots"):
         parse_command(["--", "--sase-update-visual-snapshots"])
+
+
+def test_pytest_rejects_legacy_visual_update_option() -> None:
+    with pytest.raises(pytest.UsageError, match="just fix-tui-screenshots"):
+        reject_legacy_visual_update_option(_OptionConfig(True))
+
+
+def test_pytest_allows_visual_runs_without_legacy_update_option() -> None:
+    reject_legacy_visual_update_option(_OptionConfig(False))
 
 
 def test_rejects_capture_dir_override() -> None:
@@ -169,6 +193,26 @@ def test_build_run_pytest_command_forwards_capture_options(tmp_path: Path) -> No
     assert command[-3:] == ["tests/ace/tui/visual/test_a.py", "-k", "a"]
 
 
+@pytest.mark.parametrize(
+    ("environ", "expected"),
+    [
+        ({}, False),
+        ({"CI": "true"}, True),
+        ({"GITHUB_ACTIONS": "true"}, True),
+        ({"CI": "true", "SASE_AGENT": "1"}, False),
+        ({"CI": "true", "SASE_MONITOR_ID": "fhsavmh28p9v"}, False),
+        ({"GITHUB_ACTIONS": "true", "SASE_AGENT": "1"}, True),
+        ({"GITHUB_ACTIONS": "true", "SASE_MONITOR_ID": "fhsavmh28p9v"}, True),
+        ({"CI": "true", "GITHUB_ACTIONS": "true", "SASE_AGENT": "1"}, True),
+    ],
+)
+def test_default_ci_detection_ignores_sase_agent_ci_flag(
+    environ: dict[str, str],
+    expected: bool,
+) -> None:
+    assert _default_is_ci(environ) is expected
+
+
 def test_update_refuses_ci_environment(tmp_path: Path) -> None:
     init_repo(tmp_path)
     runner = FakeRunner(captures=[], repo_root=tmp_path)
@@ -180,6 +224,60 @@ def test_update_refuses_ci_environment(tmp_path: Path) -> None:
     )
     assert code == EXIT_USAGE
     assert runner.calls == []
+
+
+def test_update_allows_sase_agent_workspace_ci_flag(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    red = make_png(1, 1)
+    write_golden(tmp_path, "ace", "keep.png", red)
+    write_golden(tmp_path, "pager", "keep.png", red)
+    commit_all(tmp_path)
+    runner = FakeRunner(
+        captures=[
+            ScriptedCapture(ACE_NODE, "keep", "ace", red),
+            ScriptedCapture(PAGER_NODE, "keep", "pager", red),
+        ],
+        repo_root=tmp_path,
+    )
+    code = main(
+        [],
+        repo_root=tmp_path,
+        hooks=MaintenanceHooks(
+            preflight=lambda _update: None,
+            run_pytest=runner,
+            renderer_identity=lambda: {"packages": {}, "fonts": {}},
+        ),
+        environ={"CI": "true", "SASE_AGENT": "1"},
+    )
+    assert code == EXIT_SUCCESS
+    assert runner.calls
+
+
+def test_update_allows_sase_monitor_ci_flag(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    red = make_png(1, 1)
+    write_golden(tmp_path, "ace", "keep.png", red)
+    write_golden(tmp_path, "pager", "keep.png", red)
+    commit_all(tmp_path)
+    runner = FakeRunner(
+        captures=[
+            ScriptedCapture(ACE_NODE, "keep", "ace", red),
+            ScriptedCapture(PAGER_NODE, "keep", "pager", red),
+        ],
+        repo_root=tmp_path,
+    )
+    code = main(
+        [],
+        repo_root=tmp_path,
+        hooks=MaintenanceHooks(
+            preflight=lambda _update: None,
+            run_pytest=runner,
+            renderer_identity=lambda: {"packages": {}, "fonts": {}},
+        ),
+        environ={"CI": "true", "SASE_MONITOR_ID": "fhsavmh28p9v"},
+    )
+    assert code == EXIT_SUCCESS
+    assert runner.calls
 
 
 def test_check_allows_ci_environment(tmp_path: Path) -> None:

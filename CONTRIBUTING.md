@@ -20,7 +20,7 @@ just lint          # Run ruff, mypy, and the repository audits (flags, changelog
 just test          # Fast parallel test run (no coverage)
 just test-cov      # Parallel test run with coverage + 50% gate
 just check         # Agent default: fmt-check + lint + sase validate + diff-scoped test lane
-just check-full    # Exhaustive: fmt-check + lint + sase validate + full suite + flake gate; run before submitting
+just check-full    # Exhaustive: fmt-check + lint + sase validate + full suite + flake gate + local screenshot update; run before submitting
 ```
 
 ## Adding Dependencies

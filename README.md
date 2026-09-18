@@ -149,7 +149,8 @@ just install
 sase core health
 ```
 
-Run `just check-full` before submitting changes.
+Run `just check-full` before submitting changes. That exhaustive local lane updates TUI
+screenshot goldens; CI checks them with `just fix-tui-screenshots --check`.
 
 ## Acknowledgements
 

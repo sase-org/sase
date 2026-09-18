@@ -239,8 +239,8 @@ def assert_png_matches(
             f"{expected_path}\n"
             f"Actual PNG written to: {artifacts.actual_path}\n"
             f"Summary written to: {artifacts.summary_path}\n"
-            "Re-run with --sase-update-visual-snapshots to accept this "
-            "snapshot intentionally."
+            "Run `just fix-tui-screenshots` to accept this snapshot "
+            "intentionally."
         )
 
     tolerance = resolve_png_diff_tolerance(
@@ -294,6 +294,6 @@ def assert_png_matches(
         f"Actual PNG written to: {artifacts.actual_path}\n"
         f"Diff PNG written to: {artifacts.diff_path}\n"
         f"Summary written to: {artifacts.summary_path}\n"
-        "Inspect the artifacts, then re-run with "
-        "--sase-update-visual-snapshots only for intentional changes."
+        "Inspect the artifacts, then run `just fix-tui-screenshots` "
+        "only for intentional changes."
     )

@@ -686,7 +686,19 @@ def _default_preflight(
 
 
 def _default_is_ci(environ: Mapping[str, str]) -> bool:
-    return _truthy(environ.get("CI")) or _truthy(environ.get("GITHUB_ACTIONS"))
+    """Return whether *environ* is a real CI that must not write goldens.
+
+    SASE agent workspaces export ``CI=true`` for pytest/tooling, so ``CI``
+    alone is not enough when ``SASE_AGENT`` is set. Detached ``sase monitor``
+    commands do not inherit ``SASE_AGENT*`` identity, but they do set
+    ``SASE_MONITOR_ID``; treat that the same way. GitHub Actions still
+    refuses because it sets ``GITHUB_ACTIONS``.
+    """
+    if _truthy(environ.get("GITHUB_ACTIONS")):
+        return True
+    if _truthy(environ.get("SASE_AGENT")) or _truthy(environ.get("SASE_MONITOR_ID")):
+        return False
+    return _truthy(environ.get("CI"))
 
 
 def _truthy(value: str | None) -> bool:

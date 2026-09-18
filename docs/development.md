@@ -39,14 +39,16 @@ just lint          # Run ruff, mypy, repository audits, symvision, toobig, and k
 just test          # Fast parallel test run, excluding slow and PNG visual snapshot tests
 just test-cost     # Fast suite with cost attribution and committed budget checks
 just test-slow     # Slow pytest subset only
-just test-visual   # sase's TUI PNG visual regression snapshots only; the sole visual execution
+just test-visual   # check-only alias of `just fix-tui-screenshots --check`
+just fix-tui-screenshots  # capture, compare, and apply ACE and pager PNG goldens
+just update-visual-snapshots  # update alias of `just fix-tui-screenshots`
 just test-terminal-smoke  # Optional real-terminal sase's TUI smoke test
 just test-cov      # Parallel test run with coverage + 50% gate, excluding visual snapshots
 just test-contexts # Record the per-test coverage baseline the selector consumes, and cache it host-locally
 just test-ace-page-group-isolated  # Rerun AcePageGroup modules with fresh AcePage checkouts
 just test-contention  # Diagnostic soak: repeat the default lane under pinned-CPU contention and tally per-node failures
 just check         # Agent default: whole-repo lint and validation gates + a diff-scoped test lane
-just check-full    # Exhaustive verification: whole-repo gates + the full test suite + flake baseline
+just check-full    # Exhaustive verification: whole-repo gates + the full test suite + flake baseline + local screenshot update
 just validate      # sase-core-rs minimum, static feature flags, and sase validate
 just selection-health  # Health of the diff-scoped test lane, including false negatives
 just selection-backtest  # Replay real history and measure selection recall against coverage
@@ -99,11 +101,12 @@ lane stops taking it. Every scoped manifest records both halves of the compariso
 prints them whether or not the rule fired —
 `serial budget: estimated 180s against a 444s budget (within; 96% of the selection covered by the timing table)`.
 
-Run `just check-full` — every lint gate, the full suite through `just test-cost`, and
-the [flake-baseline gate](#the-flake-baseline-gate) — before landing an epic's combined
-tree, whenever a change touches the broadening set above, and any time a scoped run
-escalated or reported a selection that looks wrong. CI always runs the full suite, so a
-scoped false negative surfaces there within roughly the CI test leg's runtime; it is a
+Run `just check-full` — every lint gate, the full suite through `just test-cost`, the
+[flake-baseline gate](#the-flake-baseline-gate), and a local TUI screenshot update —
+before landing an epic's combined tree, whenever a change touches the broadening set
+above, and any time a scoped run escalated or reported a selection that looks wrong. CI
+always runs the full non-visual suite and a dedicated check-only visual job, so a scoped
+false negative surfaces there within roughly the CI test leg's runtime; it is a
 backstop, not a silent gap.
 
 Use `tools/select_tests --explain` to see which rules fired and why a given file was
@@ -613,12 +616,12 @@ binding validation.
 
 Default test runs select `not slow and not visual`, so sase's TUI PNG snapshot
 regression tests do not run in `just test`, `just test-cov`, or `just test-scoped`.
-`just test-visual` is the only recipe that executes them; it installs the optional PNG
-rasterizer dependencies when they are missing. The real-PTY smoke tests carry both
-`terminal_smoke` and `slow`, so that same expression excludes them too —
-`terminal_smoke` selects them, it does not deselect them. Direct `pytest` runs inherit
-the identical default expression from `pyproject.toml` unless you pass your own `-m`
-selector.
+`just fix-tui-screenshots` is the canonical visual execution path; `just test-visual` is
+the check-only alias. Both install the optional PNG rasterizer dependencies when they
+are missing. The real-PTY smoke tests carry both `terminal_smoke` and `slow`, so that
+same expression excludes them too — `terminal_smoke` selects them, it does not deselect
+them. Direct `pytest` runs inherit the identical default expression from
+`pyproject.toml` unless you pass your own `-m` selector.
 
 Use `just test-terminal-smoke` only when you need to verify sase's TUI startup path
 through a real PTY. It installs `pexpect` and `pyte`, runs the optional `terminal_smoke`
@@ -805,14 +808,16 @@ selected. Set `SASE_TEST_SELECTION_HEALTH_DISABLED=1` to skip recording entirely
 
 #### The Flake-Baseline Gate
 
-The reproducible-flake set is not only reported — it is gated. `just check-full`'s last
-stage runs `just selection-health --fail-on-new-flake`, which compares the currently
-reproducible node IDs against the committed baseline at
+The reproducible-flake set is not only reported — it is gated. After the full test lane,
+`just check-full` runs `just selection-health --fail-on-new-flake`, which compares the
+currently reproducible node IDs against the committed baseline at
 `tests/reproducible_flake_baseline.txt` and exits non-zero on any node that is not
 already listed there. The failure names each new node and ends with
 `Additions require a filed bead; fix or file the node before landing.` — so the response
 to a red gate is to fix the test or file a [`flake` task bead](beads.md#task-types) and
-add the node with a comment naming that bead, never to add the node silently.
+add the node with a comment naming that bead, never to add the node silently. After that
+gate succeeds, `just check-full` runs `just fix-tui-screenshots` so local exhaustive
+verification can refresh screenshot goldens.
 
 The gate deliberately judges a narrower sample than the report:
 
@@ -902,9 +907,11 @@ not over all commits.
 
 ## Visual Snapshot Workflow
 
-sase's TUI visual tests live under `tests/ace/tui/visual/` and compare deterministic
-Textual screenshots against committed PNG goldens. The renderer stack is exact-pinned in
-the `visual` optional-dependency group in `pyproject.toml`, and
+sase's TUI visual tests live under `tests/ace/tui/visual/` and `tests/pager/visual/` and
+compare deterministic Textual screenshots against committed PNG goldens. ACE goldens
+live in `tests/ace/tui/visual/snapshots/png/`; pager goldens live in
+`tests/pager/visual/snapshots/png/`. The renderer stack is exact-pinned in the `visual`
+optional-dependency group in `pyproject.toml`, and
 `tests/ace/tui/visual/renderer_env.json` records those package versions plus hashes of
 the bundled fonts. A session-scoped fixture checks that fingerprint before any snapshot
 runs, so a skewed environment fails once with an installation or upgrade instruction
@@ -916,36 +923,49 @@ The visual fixtures also pin the process environment that affects rendering:
 timezone cache refreshed. Neither a contributor's terminal settings, local timezone, nor
 CI's process environment participates in the golden corpus.
 
-Run the focused suite normally first:
+`just fix-tui-screenshots` is the canonical maintenance command. It captures both visual
+trees, compares candidates with exact pixel equality, and on Linux applies created and
+updated goldens plus proven-stale removals. Pass `--check` to inventory the same way
+without writing goldens; check mode exits 1 on required drift. Arguments after `--` are
+pytest selectors (paths, node IDs, `-k`). Targeted runs apply only captured changes and
+never prune unvisited files. A requested full run that cannot prove complete inventory
+refuses instead of deleting goldens.
 
 ```bash
-just test-visual
+just fix-tui-screenshots
+just fix-tui-screenshots --check
+just fix-tui-screenshots -- tests/ace/tui/visual/test_ace_png_snapshots.py -k example
 ```
 
-When a visual test fails, inspect the artifacts under
-`.pytest_cache/sase-visual/<node>/<snapshot>/`. Each failure directory contains the
-actual PNG capture and, when a golden exists, the expected PNG plus a diff PNG, a
-human-readable `summary.txt`, and a structured `failure.json` sidecar. The sidecar
-carries the test source location, repo-relative golden path, and pixel-diff stats so
-tooling can map a failure back to the test and the committed golden.
+`just test-visual` is a supported check-only alias of `--check`.
+`just update-visual-snapshots` is a supported update alias of the same runner.
+`just test-visual-contention` remains a check-only diagnostic that uses the governed
+visual pytest runner directly. `just check`, `just lint`, `just fix`, and the per-SHA
+Master Gate do not run screenshot maintenance.
 
-To accept an intentional change to the full golden corpus on Linux, use the guarded
-regeneration recipe:
+Local `just check-full` runs the update form after the other exhaustive gates succeed
+and prints the compact report (scope, status, counts, report path) outside
+`tools/run_silent`. That stage can modify committed goldens. Direct `check-full` in CI
+refuses at the update stage; repository CI uses `just fix-tui-screenshots --check`
+instead. Update mode also refuses when `GITHUB_ACTIONS` is set, when `CI` is set outside
+a SASE agent workspace or `sase monitor` command, off Linux, or when the renderer
+fingerprint is skewed. SASE agent shells export `CI=true` for pytest/tooling; that flag
+alone does not block local golden updates. Detached monitor commands do not inherit
+`SASE_AGENT*`, but they set `SASE_MONITOR_ID`, which is treated the same way.
+`--sase-update-visual-snapshots` is retired; pytest rejects it with the replacement
+command.
 
-```bash
-just update-visual-snapshots
-```
+Successful updates and check-mode drift both retain a reviewable report under a unique
+run directory in `.pytest_cache/sase-visual/runs/`.
+`.pytest_cache/sase-visual/latest-report.json` points at the current run only. Inspect
+every creation and removal, then each update group (representative plus members).
+Generation is not approval. After an interrupted apply, the next update invocation may
+restore the recorded baseline when hashes still match; a check invocation never performs
+recovery writes.
 
-For a targeted UI change, the underlying pytest option still accepts a selector:
-
-```bash
-just test-visual -- --sase-update-visual-snapshots tests/ace/tui/visual/test_ace_png_snapshots.py
-```
-
-Both forms refuse to write if the renderer fingerprint is skewed or the host is not
-Linux. Review changed PNG files as normal test data. Do not pass
-`--sase-update-visual-snapshots` to `just check`, `just fmt`, or broad CI-style
-commands.
+`just` may normalize a non-zero child code to 1. Automation that needs the distinction
+between drift (1), usage/environment refusal (2), and execution/application failure (3)
+should read the run manifest or invoke `tools/fix_tui_screenshots` directly.
 
 Committed goldens are canonical to the pinned renderer. Rasterization goes through resvg
 (`resvg_py==0.3.3`), a pure-Rust SVG renderer that carries its own font database
@@ -1010,53 +1030,60 @@ change:
 3. Refresh the matching package versions in `tests/ace/tui/visual/renderer_env.json`. If
    bundled fonts changed, update their SHA-256 hashes too; the Python and platform
    fields are diagnostic only.
-4. On Linux, run `just update-visual-snapshots`, then run `just test-visual` once more
-   without update mode.
+4. On Linux, run `just fix-tui-screenshots`, inspect the report, then run
+   `just fix-tui-screenshots --check` and require an unchanged golden tree.
 5. Review the complete PNG diff for unexpected content or layout changes and commit the
    pins, `uv.lock`, fingerprint, and regenerated goldens together.
 
 Non-Linux contributors should use CI as the canonical renderer. Push the branch, let the
 Linux `visual-test` job produce `ace-visual-artifacts`, and download that artifact from
-the Actions run. Each failure directory contains an `actual.png` and a `failure.json`;
-the sidecar's `expected_repo_path` identifies the golden that the actual image should
-replace after review. The same fingerprint checks still require pins, lockfile, and
-manifest to agree before CI will render the replacement corpus.
+the Actions run. The uploaded run directory contains the maintenance report, logs, and
+partial captures. Review those instead of accepting goldens from a failed CI execution.
+The same fingerprint checks still require pins, lockfile, and manifest to agree before
+CI will render the replacement corpus.
 
 ### CI Visual Lanes
 
 The default lane (`just test`, `just test-cov`, and every leg of the Python matrix)
-excludes visual tests. The dedicated Linux Python 3.12 `visual-test` job is the sole
-visual execution: it runs the complete visual suite and uploads failure reports and raw
-artifacts. This keeps one broad lane plus one diagnostic lane authoritative for
-snapshots while preventing a future Python-specific rendering change from reddening the
-whole matrix.
+excludes visual tests. The dedicated Linux Python 3.12 `visual-test` job is the
+check-only visual execution: it runs `just fix-tui-screenshots --check` and uploads the
+current run's report plus raw captures. It never writes goldens, never relaxes equality,
+and never implies that an execution failure is merely unaccepted corpus drift. This
+keeps one broad lane plus one diagnostic lane authoritative for snapshots while
+preventing a future Python-specific rendering change from reddening the whole matrix.
 
 ### Visual Failure Report
 
-`tools/render_visual_snapshot_failure_report` consumes the `failure.json` sidecars and
-writes `.pytest_cache/sase-visual-report/`:
+`tools/render_visual_snapshot_failure_report` still consumes legacy `failure.json`
+sidecars from direct diagnostic comparisons. Screenshot maintenance feeds it a versioned
+run manifest instead. Each run writes self-contained HTML, Markdown summary, JSONL
+change records, and images under that run's `report/` directory:
 
-- `visual-failure-report.html` - self-contained HTML with PNG/SVG embedded as data URIs,
-  one anchored section per failure.
-- `summary.md` - compact table for `$GITHUB_STEP_SUMMARY` with links into the report and
-  to the committed golden.
+- `visual-failure-report.html` - self-contained HTML with PNG/SVG embedded as data URIs.
+- `summary.md` - compact table for `$GITHUB_STEP_SUMMARY`.
 - `annotations.sh` - escaped `::error file=...,line=...` workflow commands.
-- `manifest.jsonl` - aggregate of every loaded `failure.json` for ad-hoc inspection.
+- `manifest.jsonl` - aggregate of every loaded change or failure record.
 
-Run it locally against a failed run with
-`tools/render_visual_snapshot_failure_report --repo <owner/repo> --sha <commit>` and
-open the HTML file directly. The script is safe to run when there are no failures; it
-exits 0 without writing artifacts.
+Created images show that there was no baseline; stale removals show the previous image
+and lack of a producing assertion. Neither is labeled as an ordinary pixel diff.
 
-In GitHub Actions the `visual-test` job invokes the renderer twice on failure: once to
-build the report before upload, then again after upload with
+Run it locally against a maintenance manifest with
+`tools/render_visual_snapshot_failure_report --manifest <manifest.json> --repo <owner/repo> --sha <commit>`
+or against legacy sidecars with `--artifact-root`. The script is safe to run when there
+are no failures; it exits 0.
+
+In GitHub Actions the `visual-test` job reads
+`.pytest_cache/sase-visual/latest-report.json`, re-renders that run's manifest with
+repository and SHA context, uploads the HTML, then re-renders with
 `--report-url "$VISUAL_REPORT_URL"` so the summary and annotations point at the freshly
-uploaded artifact. The HTML is uploaded via `actions/upload-artifact@v7` with
-`archive: false`, which is what makes the per-failure anchors browsable directly from
-the Actions UI. Expected links point at the immutable
-`https://github.com/<repo>/blob/<sha>/<expected_repo_path>` URL; actual/diff links point
-at the report artifact rather than a public PNG URL because the raw PNGs are only
-uploaded as a zipped `ace-visual-artifacts` bundle and have no stable per-file URL.
+uploaded artifact. On execution failure it still uploads available logs and partial
+captures and reports that failure rather than telling operators to accept goldens. The
+HTML is uploaded via `actions/upload-artifact@v7` with `archive: false`, which is what
+makes the per-failure anchors browsable directly from the Actions UI. Expected links
+point at the immutable `https://github.com/<repo>/blob/<sha>/<expected_repo_path>` URL;
+actual/diff links point at the report artifact rather than a public PNG URL because the
+raw PNGs are only uploaded as a zipped `ace-visual-artifacts` bundle and have no stable
+per-file URL.
 
 Add a visual test when the risk is layout, styling, focus highlighting, modal
 composition, or a regression that is hard to express as state. Prefer a plain

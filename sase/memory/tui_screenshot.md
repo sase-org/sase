@@ -17,8 +17,9 @@ project-canonical TUI visual renderer.
 
 - Capture after a TUI code, styling, layout, state, navigation, refresh, or screenshot
   export change when text logs do not prove the visible result. Live captures complement
-  the golden visual lane: use them for real workflow confidence and debugging, then rely
-  on approved visual snapshots for deterministic regression coverage.
+  the golden visual lane: use them for real workflow confidence and debugging, then run
+  `just fix-tui-screenshots` and inspect its report before treating snapshot goldens as
+  approved regression coverage.
 - `sase screenshot -o /tmp/shot.png` captures a fresh local TUI window. Add repeatable
   `-p/--press` keys and `-w/--wait-for` regexes for setup flows, for example
   `sase screenshot -o /tmp/agents.png -p tab -w "Agents|Loading" -- -t axe`.
@@ -69,8 +70,27 @@ goldens unless the fixture controls time and data.
 - Rasterization uses `sase.ace.tui.visual_render.render_svg_to_png()` and the bundled
   Fira Code fonts. Do not fork a second renderer for agent screenshots or visual
   snapshots.
-- Visual snapshot goldens live under `tests/ace/tui/visual/snapshots/png/`. Update them
-  only for intentional visual changes, after inspecting the actual rendered diff.
+- Visual snapshot goldens live under `tests/ace/tui/visual/snapshots/png/` and
+  `tests/pager/visual/snapshots/png/`. Do not treat live `sase screenshot` PNG bytes as
+  those goldens unless the fixture controls time and data.
 
-Read [[tui_perf.md]] before changing the screenshot export handler, wait/settle logic,
-refresh scheduling, or any TUI path that runs while the app is interactive.
+## Golden Maintenance
+
+When TUI code, styling, layout, navigation, refresh, screenshot export, or snapshot
+coverage changes, run `just fix-tui-screenshots` (targeted selectors after `--` when the
+change is local). `just test-visual` checks without writing; `just check-full` runs the
+full update form locally and can modify goldens. CI checks with
+`just fix-tui-screenshots --check` and never accepts goldens.
+
+Full and targeted visual commands may require `/sase_monitor`. Monitor commands keep
+`CI=true` without `SASE_AGENT*`; `SASE_MONITOR_ID` is what still allows the update form.
+For a mutating run, the follow-up must inspect the retained report and every golden
+change before finalization: each creation and removal, then each update group, expanding
+groups with unexpected differences. Generation is not approval. Do not attach a prepared
+host-completion intent that skips that inspection. `--sase-update-visual-snapshots` is
+retired.
+
+Read [[lint_and_test.md]] for when agents must run `just check` versus
+`just check-full`, and [[tui_perf.md]] before changing the screenshot export handler,
+wait/settle logic, refresh scheduling, or any TUI path that runs while the app is
+interactive.
