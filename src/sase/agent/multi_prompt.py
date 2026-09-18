@@ -42,7 +42,7 @@ def split_segments_protecting_fences(body: str) -> list[str]:
 
 
 @dataclass
-class MultiPrompt:
+class _MultiPrompt:
     """Result of parsing a user prompt into frontmatter and segments."""
 
     frontmatter: dict[str, object] | None = None
@@ -55,7 +55,10 @@ class MultiPrompt:
 _LocalXPromptNameError = LocalXPromptNameError
 
 
-def parse_multi_prompt(text: str) -> MultiPrompt:
+MultiPrompt = _MultiPrompt
+
+
+def parse_multi_prompt(text: str) -> _MultiPrompt:
     """Parse a user prompt into frontmatter, local xprompts, and segments.
 
     Steps:
@@ -83,7 +86,7 @@ def parse_multi_prompt(text: str) -> MultiPrompt:
 
     segments = split_segments_protecting_fences(body)
 
-    return MultiPrompt(
+    return _MultiPrompt(
         frontmatter=frontmatter,
         local_xprompts=local_xprompts,
         segments=segments,

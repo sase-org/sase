@@ -51,6 +51,22 @@ def test_on_mount_seeds_current_tab_in_trace_context() -> None:
     assert mounting_idx < seed_idx < first_query_idx
 
 
+def test_first_paint_marker_precedes_non_frame_startup_services() -> None:
+    """Non-visible services must wait until after the first frame is marked."""
+    mount_src = inspect.getsource(AceApp.on_mount)
+    assert "_schedule_link_index_refresh" not in mount_src
+    assert "_start_proc_reconciler" not in mount_src
+    assert "start_event_loop_stall_watchdog" not in mount_src
+    assert "start_tui_heap_sampler" not in mount_src
+    assert '"auto-refresh"' not in mount_src
+
+    launcher_src = inspect.getsource(AceApp._start_post_mount_background_loads)
+    first_paint_idx = launcher_src.index("self._mark_startup_first_paint()")
+    services_idx = launcher_src.index("self._start_post_first_paint_services()")
+    first_worker_idx = launcher_src.index("self.run_worker")
+    assert first_paint_idx < services_idx < first_worker_idx
+
+
 def test_read_patches_from_disk_returns_list() -> None:
     """Pure read helper must return whatever the cached loader does."""
     mixin = PatchMixin.__new__(PatchMixin)
@@ -204,6 +220,7 @@ def test_start_post_mount_background_loads_schedules_all_once() -> None:
                 intervals.append((seconds, callback, kwargs.get("name"))) or MagicMock()
             ),
         ),
+        patch.object(app, "_start_post_first_paint_services"),
     ):
         app._start_post_mount_background_loads()
         app._start_post_mount_background_loads()
@@ -325,6 +342,9 @@ async def test_start_post_mount_background_loads_does_not_gate_axe_on_agents() -
             pass
 
         def _mark_startup_first_paint(self) -> None:
+            pass
+
+        def _start_post_first_paint_services(self) -> None:
             pass
 
         def run_worker(self, fn, **kwargs) -> None:  # type: ignore[no-untyped-def]

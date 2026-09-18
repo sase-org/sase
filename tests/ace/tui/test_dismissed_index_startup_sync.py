@@ -53,10 +53,14 @@ def test_start_post_mount_background_loads_schedules_dismissed_sync_once() -> No
     app = AceApp()
     scheduled: list[object] = []
 
-    with patch.object(
-        app,
-        "run_worker",
-        side_effect=lambda fn, **kwargs: scheduled.append(fn),
+    with (
+        patch.object(
+            app,
+            "run_worker",
+            side_effect=lambda fn, **kwargs: scheduled.append(fn),
+        ),
+        patch.object(app, "_start_post_first_paint_services"),
+        patch.object(app, "_schedule_startup_update_toast_check"),
     ):
         app._start_post_mount_background_loads()
         app._start_post_mount_background_loads()
@@ -118,6 +122,9 @@ async def test_startup_dismissed_sync_waits_for_initial_agents_refresh() -> None
             self.events.append("watcher-start")
 
         def _mark_startup_first_paint(self) -> None:
+            pass
+
+        def _start_post_first_paint_services(self) -> None:
             pass
 
     harness = _StartupHarness()

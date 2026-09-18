@@ -16,19 +16,11 @@ class StartupMountMixin:
 
     def on_mount(self: Any) -> None:
         """Set up the app synchronously and defer slow reads until first paint."""
-        import asyncio
-
         from ..widgets import (
             AgentDetail,
             AgentInfoPanel,
-            ArtifactsView,
-            PatchDetail,
-            PatchFilterBar,
-            PatchInfoPanel,
-            PatchList,
             KeybindingFooter,
             LinkRail,
-            RelationPanel,
             TabBar,
         )
 
@@ -52,20 +44,10 @@ class StartupMountMixin:
             tab_bar = self.query_one("#tab-bar", TabBar)
             tab_bar.set_keymap_registry(self._keymap_registry)
             tab_bar.update_tab(self.current_tab)
-            artifacts_view = self.query_one("#artifacts-view", ArtifactsView)
-            artifacts_view.set_keymap_registry(self._keymap_registry)
-            # The Stitches pane was composed with its fully merged startup
-            # query. Shared scope setup must not overwrite that visible token.
-            # A current-project seed arrives later from the async inventory
-            # and only fills in when ``commits.filters.project`` is still None.
-            artifacts_view.set_project_scope(
-                self.artifacts_project_scope,
-                update_commits=False,
-            )
-            self.query_one("#artifacts-view").disabled = self.current_tab != "artifacts"
             self.query_one("#agents-view").disabled = self.current_tab != "agents"
             self.query_one("#axe-view").disabled = self.current_tab != "axe"
             if self.current_tab == "artifacts":
+                self._wire_artifacts_startup_widgets()
                 # The view's mount hook owns lifecycle activation; share the
                 # same footer/scope entry behavior as top-level navigation.
                 self._sync_active_artifacts_entry_state()
@@ -79,11 +61,6 @@ class StartupMountMixin:
                 )
             info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)
             info_panel.set_keymap_registry(self._keymap_registry)
-            try:
-                cs_info_panel = self.query_one("#info-panel", PatchInfoPanel)
-                cs_info_panel.set_keymap_registry(self._keymap_registry)
-            except Exception:
-                log.debug("Patch info panel keymap wiring skipped: widget not found")
 
             # Cache stable widget refs so hot paths skip repeat ``query_one``
             # walks. Wrapped in try/except so a missing widget never blocks
@@ -93,15 +70,6 @@ class StartupMountMixin:
             self._w_tab_bar = tab_bar
             self._w_agent_info_panel = info_panel
             for attr, selector, cls in (
-                ("_w_patch_list", "#list-panel", PatchList),
-                ("_w_patch_detail", "#detail-panel", PatchDetail),
-                (
-                    "_w_relation_panel",
-                    "#patches-relation-panel",
-                    RelationPanel,
-                ),
-                ("_w_patch_info_panel", "#info-panel", PatchInfoPanel),
-                ("_w_patch_filter_bar", "#patch-filter-bar", PatchFilterBar),
                 ("_w_agent_detail", "#agent-detail-panel", AgentDetail),
             ):
                 try:
@@ -110,12 +78,81 @@ class StartupMountMixin:
                     log.debug("widget ref cache skipped: %s not found", selector)
 
             self._apply_startup_loading_state()
-            self._schedule_link_index_refresh(source="mount")
             self.call_after_refresh(self._start_post_mount_background_loads)
-            start_proc_reconciler = getattr(self, "_start_proc_reconciler", None)
-            if callable(start_proc_reconciler):
-                start_proc_reconciler()
 
+        finally:
+            self._mounting = False
+
+    def _wire_artifacts_startup_widgets(self: Any) -> None:
+        """Wire Artifacts/Patch widgets, deferrable when that tab is hidden."""
+        if getattr(self, "_startup_artifacts_widgets_wired", False):
+            return
+        self._startup_artifacts_widgets_wired = True
+
+        from ..widgets import (
+            ArtifactsView,
+            PatchDetail,
+            PatchFilterBar,
+            PatchInfoPanel,
+            PatchList,
+            RelationPanel,
+        )
+
+        artifacts_view = self.query_one("#artifacts-view", ArtifactsView)
+        artifacts_view.set_keymap_registry(self._keymap_registry)
+        # The Stitches pane was composed with its fully merged startup
+        # query. Shared scope setup must not overwrite that visible token.
+        # A current-project seed arrives later from the async inventory
+        # and only fills in when ``commits.filters.project`` is still None.
+        artifacts_view.set_project_scope(
+            self.artifacts_project_scope,
+            update_commits=False,
+        )
+        artifacts_view.disabled = self.current_tab != "artifacts"
+        try:
+            cs_info_panel = self.query_one("#info-panel", PatchInfoPanel)
+            cs_info_panel.set_keymap_registry(self._keymap_registry)
+        except Exception:
+            log.debug("Patch info panel keymap wiring skipped: widget not found")
+        for attr, selector, cls in (
+            ("_w_patch_list", "#list-panel", PatchList),
+            ("_w_patch_detail", "#detail-panel", PatchDetail),
+            (
+                "_w_relation_panel",
+                "#patches-relation-panel",
+                RelationPanel,
+            ),
+            ("_w_patch_info_panel", "#info-panel", PatchInfoPanel),
+            ("_w_patch_filter_bar", "#patch-filter-bar", PatchFilterBar),
+        ):
+            try:
+                setattr(self, attr, self.query_one(selector, cls))
+            except Exception:
+                log.debug("widget ref cache skipped: %s not found", selector)
+
+    def _start_post_first_paint_services(self: Any) -> None:
+        """Start services that are not required to draw the initial frame."""
+        import asyncio
+
+        if self.current_tab != "artifacts":
+            try:
+                self._wire_artifacts_startup_widgets()
+            except Exception:
+                log.exception("Failed to wire deferred Artifacts widgets")
+
+        try:
+            self._schedule_link_index_refresh(source="mount")
+        except Exception:
+            log.exception("Failed to schedule startup link-index refresh")
+
+        start_proc_reconciler = getattr(self, "_start_proc_reconciler", None)
+        if callable(start_proc_reconciler):
+            try:
+                start_proc_reconciler()
+            except Exception:
+                log.exception("Failed to start proc reconciler")
+
+        try:
             from ..util.stall_watchdog import (
                 start_event_loop_stall_watchdog,
                 subscribe_watchdog_to_suspend_signals,
@@ -130,23 +167,26 @@ class StartupMountMixin:
                 subscribe_watchdog_to_suspend_signals(self, self._stall_watchdog)
             )
             self._last_input_mono = time.monotonic()
+        except Exception:
+            log.exception("Failed to start stall watchdog")
+
+        try:
             from ..util.heap import start_tui_heap_sampler
 
             start_tui_heap_sampler(self)
+        except Exception:
+            log.exception("Failed to start TUI heap sampler")
 
-            if self.refresh_interval > 0:
-                self._countdown_remaining = self.refresh_interval
-                countdown_tick = self._on_countdown_tick
-                auto_refresh = self._on_auto_refresh
-                self._countdown_timer = self.set_interval(
-                    1, countdown_tick, name="countdown"
-                )
-                self._refresh_timer = self.set_interval(
-                    self.refresh_interval, auto_refresh, name="auto-refresh"
-                )
-
-        finally:
-            self._mounting = False
+        if self.refresh_interval > 0:
+            self._countdown_remaining = self.refresh_interval
+            countdown_tick = self._on_countdown_tick
+            auto_refresh = self._on_auto_refresh
+            self._countdown_timer = self.set_interval(
+                1, countdown_tick, name="countdown"
+            )
+            self._refresh_timer = self.set_interval(
+                self.refresh_interval, auto_refresh, name="auto-refresh"
+            )
 
     def _focus_startup_visible_tab(self: Any) -> None:
         """Keep hidden startup panes from retaining keyboard focus."""

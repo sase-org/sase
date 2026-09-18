@@ -35,7 +35,7 @@ def _open_text(path: str) -> str:
 
 
 @dataclass
-class TailCache:
+class _TailCache:
     """Tracks an append-only file so each refresh reads only new bytes."""
 
     path: str
@@ -94,7 +94,7 @@ class _PromptSelectionEntry:
 
 
 @dataclass
-class ArtifactFileCache:
+class _ArtifactFileCache:
     """Memoizes per-file artifact reads across re-selects.
 
     Each cached value is keyed by file ``(path, mtime_ns, size)`` so when a
@@ -109,7 +109,7 @@ class ArtifactFileCache:
     _reply_chunks: dict[
         str, tuple[tuple[tuple[int, int], tuple[int, int]], list[tuple[str, str]]]
     ] = field(default_factory=dict)
-    _tail_caches: dict[str, TailCache] = field(default_factory=dict)
+    _tail_caches: dict[str, _TailCache] = field(default_factory=dict)
     _lock: Lock = field(default_factory=Lock)
 
     def select_prompt_file(
@@ -285,16 +285,16 @@ class ArtifactFileCache:
         with self._lock:
             tail = self._tail_caches.get(reply_path)
             if tail is None:
-                tail = TailCache(path=reply_path)
+                tail = _TailCache(path=reply_path)
                 self._tail_caches[reply_path] = tail
         return tail.read()
 
-    def tail_cache_for(self, reply_path: str) -> TailCache:
+    def tail_cache_for(self, reply_path: str) -> _TailCache:
         """Expose the underlying TailCache for tests and tail-based callers."""
         with self._lock:
             tail = self._tail_caches.get(reply_path)
             if tail is None:
-                tail = TailCache(path=reply_path)
+                tail = _TailCache(path=reply_path)
                 self._tail_caches[reply_path] = tail
         return tail
 
@@ -315,9 +315,12 @@ class ArtifactFileCache:
             self._tail_caches.clear()
 
 
-_GLOBAL_CACHE = ArtifactFileCache()
+TailCache = _TailCache
+ArtifactFileCache = _ArtifactFileCache
+
+_GLOBAL_CACHE = _ArtifactFileCache()
 
 
-def get_global_cache() -> ArtifactFileCache:
+def get_global_cache() -> _ArtifactFileCache:
     """Return the process-wide artifact-file cache used by the TUI."""
     return _GLOBAL_CACHE

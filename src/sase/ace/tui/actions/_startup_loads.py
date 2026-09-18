@@ -60,6 +60,7 @@ class StartupLoadsMixin:
         if self._post_mount_background_loads_started:
             return
         self._post_mount_background_loads_started = True
+        self._start_post_first_paint_services()
         try:
             self.run_worker(
                 cast(Any, self._run_mount_state_loads),
