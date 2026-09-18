@@ -246,14 +246,6 @@ def _ensure_hidden_document_root(
         )
         if diagnostic is not None:
             return None, diagnostic
-        if fresh:
-            diagnostic = _fresh_integration_blocker(
-                role,
-                hidden_dir,
-                deadline=deadline,
-            )
-            if diagnostic is not None:
-                return None, diagnostic
 
     try:
         ensure_sidecar_sdd_clone(
@@ -262,6 +254,7 @@ def _ensure_hidden_document_root(
             reference_repo=_primary_reference_repo(store, role),
             strict=True,
             fresh=fresh,
+            require_upstream_alignment=fresh,
             deadline=deadline,
         )
     except Exception as exc:  # noqa: BLE001 - one role must not block another.
@@ -297,35 +290,6 @@ def _hidden_clone_identity_diagnostic(
     return None
 
 
-def _fresh_integration_blocker(
-    role: str, root: Path, *, deadline: float | None
-) -> str | None:
-    upstream = _git_text(
-        root,
-        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
-        deadline=deadline,
-    )
-    if upstream is None:
-        return f"{role}: hidden clone has no tracking upstream; preserving {root}"
-    status = _git_result(
-        root,
-        ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
-        deadline=deadline,
-    )
-    if status is None or status.returncode != 0:
-        return (
-            f"{role}: could not inspect hidden clone worktree status; preserving {root}"
-        )
-    if status.stdout:
-        return (
-            f"{role}: hidden clone has uncommitted or untracked changes; "
-            f"preserving {root}"
-        )
-    if not _head_is_published(root, deadline=deadline):
-        return f"{role}: hidden clone has unpublished commits; preserving {root}"
-    return None
-
-
 def _matching_hidden_clone(
     root: Path, remote_url: str, *, deadline: float | None = None
 ) -> bool:
@@ -341,15 +305,6 @@ def _matching_hidden_clone(
 
 def _hidden_clone_origin(root: Path, *, deadline: float | None = None) -> str | None:
     return _git_text(root, ["remote", "get-url", "origin"], deadline=deadline)
-
-
-def _head_is_published(root: Path, *, deadline: float | None = None) -> bool:
-    result = _git_result(
-        root,
-        ["merge-base", "--is-ancestor", "HEAD", "@{upstream}"],
-        deadline=deadline,
-    )
-    return result is not None and result.returncode == 0
 
 
 def _git_text(

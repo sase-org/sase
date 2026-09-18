@@ -24,6 +24,7 @@ def pull_sdd_clone(
     *,
     strict: bool = False,
     fresh: bool = False,
+    require_upstream_alignment: bool = False,
     clock: Callable[[], float] | None = None,
     deadline: float | None = None,
 ) -> bool:
@@ -83,6 +84,7 @@ def pull_sdd_clone(
         op_prefix="sdd.clone",
         git_runner=git_runner,
         lock_factory=lock_factory,
+        require_upstream_alignment=require_upstream_alignment,
     )
     if outcome.succeeded:
         clear_failed_integration_marker(workspace_sdd)

@@ -9,6 +9,10 @@ from typing import Any
 import pytest
 
 from sase.linked_repos import hidden_sidecar_clone_dir
+from sase.sdd.artifact_link_event_publisher import (
+    edge_put_event_from_row,
+    publish_artifact_link_events,
+)
 from sase.sdd.artifact_link_store import (
     machine_document_sidecar_roots,
     resolve_machine_artifact_link_store,
@@ -54,6 +58,60 @@ def _seeded_remote(tmp_path: Path, name: str, *, content: str = "v1\n") -> Path:
     commit_all(seed, "seed")
     git(["push", "-u", "origin", "main"], seed)
     return remote
+
+
+def _recovery_refs(repo: Path) -> tuple[str, ...]:
+    output = git(
+        ["for-each-ref", "--format=%(refname)", "refs/sase/recovery"],
+        repo,
+    ).stdout
+    return tuple(line for line in output.splitlines() if line)
+
+
+def _new_recovery_ref(repo: Path, before: tuple[str, ...]) -> str:
+    after = _recovery_refs(repo)
+    created = sorted(set(after) - set(before))
+    assert len(created) == 1
+    return created[0]
+
+
+def _assert_clean_and_upstream_aligned(repo: Path) -> None:
+    assert git(["status", "--porcelain"], repo).stdout == ""
+    assert (
+        git(["rev-parse", "HEAD"], repo).stdout.strip()
+        == git(
+            ["rev-parse", "@{upstream}"],
+            repo,
+        ).stdout.strip()
+    )
+
+
+def _publish_fixture_plan_link(store: Any) -> None:
+    row = {
+        "schema_version": 2,
+        "source_ref": "plan:202609/recovered.md",
+        "relation": "related",
+        "target_ref": "plan:202609/target.md",
+        "description": "proves the recovered hidden lane can accept a new write",
+        "origin": "manual",
+        "created_by": "agent:test",
+        "created_at": "2026-09-18T00:00:00Z",
+        "uses": 1,
+    }
+    event = edge_put_event_from_row(
+        row,
+        project_key=store.project_key,
+        operation_id="0123456789abcdef0123456789abcdef",
+        observed_operation_ids=(),
+    )
+    report = publish_artifact_link_events(
+        store,
+        (event,),
+        push_after_commit=True,
+        mutation_origin="machine",
+    )
+    assert report.publication_error is None
+    assert report.published == 1
 
 
 class TestHiddenStorePathMapping:
@@ -331,7 +389,54 @@ class TestMaterializationAndIntegration:
         )
         assert (hidden_plans / "local.md").read_text(encoding="utf-8") == "local only\n"
 
-    def test_machine_store_resolution_refuses_unpublished_hidden_plans_clone(
+    def test_machine_store_resolution_recovers_dirty_hidden_plans_clone_and_writes(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+        plans_remote = _seeded_remote(tmp_path, "plans")
+        primary = _sidecar_repos_primary(tmp_path, roles={"plans": plans_remote})
+        monkeypatch.setattr(
+            "sase.bead.workspace.resolve_primary_workspace_for_project",
+            lambda key: primary if key == "acme_widget" else None,
+        )
+        roots, diagnostics = machine_document_sidecar_roots("acme_widget", primary)
+        assert diagnostics == ()
+        assert len(roots) == 1
+        hidden_plans = roots[0].repo_root
+        (hidden_plans / "README.md").write_text(
+            "dirty tracked\n",
+            encoding="utf-8",
+        )
+        (hidden_plans / "staged.md").write_text("dirty staged\n", encoding="utf-8")
+        git(["add", "staged.md"], hidden_plans)
+        (hidden_plans / "untracked.md").write_text(
+            "dirty untracked\n",
+            encoding="utf-8",
+        )
+        before_refs = _recovery_refs(hidden_plans)
+
+        store = resolve_machine_artifact_link_store("acme_widget", primary)
+
+        recovery_ref = _new_recovery_ref(hidden_plans, before_refs)
+        assert store.sidecar_roots["plan"] == hidden_plans
+        _assert_clean_and_upstream_aligned(hidden_plans)
+        assert git(["show", f"{recovery_ref}:README.md"], hidden_plans).stdout == (
+            "dirty tracked\n"
+        )
+        assert git(["show", f"{recovery_ref}:staged.md"], hidden_plans).stdout == (
+            "dirty staged\n"
+        )
+        assert (
+            git(["show", f"{recovery_ref}^3:untracked.md"], hidden_plans).stdout
+            == "dirty untracked\n"
+        )
+        assert recovery_ref in git(["stash", "list"], hidden_plans).stdout
+
+        _publish_fixture_plan_link(store)
+
+        _assert_clean_and_upstream_aligned(hidden_plans)
+
+    def test_machine_store_resolution_recovers_unpublished_hidden_plans_clone(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
@@ -344,16 +449,49 @@ class TestMaterializationAndIntegration:
         (hidden_plans / "local.md").write_text("local only\n", encoding="utf-8")
         commit_all(hidden_plans, "local unpublished")
         unpublished_head = git(["rev-parse", "HEAD"], hidden_plans).stdout.strip()
+        before_refs = _recovery_refs(hidden_plans)
 
-        with pytest.raises(SddMaterializationError, match="unpublished commits"):
-            resolve_machine_artifact_link_store("acme_widget", primary)
+        store = resolve_machine_artifact_link_store("acme_widget", primary)
 
-        assert (
-            git(["rev-parse", "HEAD"], hidden_plans).stdout.strip() == unpublished_head
+        recovery_ref = _new_recovery_ref(hidden_plans, before_refs)
+        assert store.sidecar_roots["plan"] == hidden_plans
+        _assert_clean_and_upstream_aligned(hidden_plans)
+        assert git(["rev-parse", recovery_ref], hidden_plans).stdout.strip() == (
+            unpublished_head
         )
-        assert (hidden_plans / "local.md").read_text(encoding="utf-8") == "local only\n"
+        assert git(["show", f"{recovery_ref}:local.md"], hidden_plans).stdout == (
+            "local only\n"
+        )
 
-    def test_machine_store_resolution_skips_unpublished_custom_role(
+    def test_machine_store_resolution_recovers_untracked_only_hidden_plans_clone(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+        plans_remote = _seeded_remote(tmp_path, "plans")
+        primary = _sidecar_repos_primary(tmp_path, roles={"plans": plans_remote})
+        roots, diagnostics = machine_document_sidecar_roots("acme_widget", primary)
+        assert diagnostics == ()
+        assert len(roots) == 1
+        hidden_plans = roots[0].repo_root
+        orphan = hidden_plans / "links" / "202609" / "orphan.md.json"
+        orphan.parent.mkdir(parents=True)
+        orphan.write_text('{"schema_version":2,"rows":[]}\n', encoding="utf-8")
+        before_refs = _recovery_refs(hidden_plans)
+
+        store = resolve_machine_artifact_link_store("acme_widget", primary)
+
+        recovery_ref = _new_recovery_ref(hidden_plans, before_refs)
+        assert store.sidecar_roots["plan"] == hidden_plans
+        _assert_clean_and_upstream_aligned(hidden_plans)
+        assert (
+            git(
+                ["show", f"{recovery_ref}^3:links/202609/orphan.md.json"],
+                hidden_plans,
+            ).stdout
+            == '{"schema_version":2,"rows":[]}\n'
+        )
+
+    def test_machine_store_resolution_recovers_unpublished_custom_role(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
@@ -369,16 +507,44 @@ class TestMaterializationAndIntegration:
         (hidden_research / "local.md").write_text("local only\n", encoding="utf-8")
         commit_all(hidden_research, "local unpublished")
         unpublished_head = git(["rev-parse", "HEAD"], hidden_research).stdout.strip()
+        before_refs = _recovery_refs(hidden_research)
 
         store = resolve_machine_artifact_link_store("acme_widget", primary)
 
         assert store.sidecar_roots["plan"] == hidden_by_role["plans"]
-        assert "research" not in store.sidecar_roots
-        assert store.sdd_store is not None
-        assert "unpublished commits" in store.sdd_store.unresolved_sidecars["research"]
-        assert git(["rev-parse", "HEAD"], hidden_research).stdout.strip() == (
+        assert store.sidecar_roots["research"] == hidden_research
+        recovery_ref = _new_recovery_ref(hidden_research, before_refs)
+        _assert_clean_and_upstream_aligned(hidden_research)
+        assert git(["rev-parse", recovery_ref], hidden_research).stdout.strip() == (
             unpublished_head
         )
+        assert git(["show", f"{recovery_ref}:local.md"], hidden_research).stdout == (
+            "local only\n"
+        )
+
+    def test_machine_store_resolution_rejects_hidden_clone_without_upstream(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("SASE_HOME", str(tmp_path / "state"))
+        plans_remote = _seeded_remote(tmp_path, "plans")
+        primary = _sidecar_repos_primary(tmp_path, roles={"plans": plans_remote})
+        roots, diagnostics = machine_document_sidecar_roots("acme_widget", primary)
+        assert diagnostics == ()
+        assert len(roots) == 1
+        hidden_plans = roots[0].repo_root
+        git(["branch", "--unset-upstream"], hidden_plans)
+        (hidden_plans / "README.md").write_text(
+            "preserved without upstream\n",
+            encoding="utf-8",
+        )
+
+        with pytest.raises(SddMaterializationError, match="tracking upstream"):
+            resolve_machine_artifact_link_store("acme_widget", primary)
+
+        assert (hidden_plans / "README.md").read_text(encoding="utf-8") == (
+            "preserved without upstream\n"
+        )
+        assert git(["status", "--porcelain"], hidden_plans).stdout == (" M README.md\n")
 
     def test_machine_store_resolution_keeps_primary_beads_when_hidden_clone_fails(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

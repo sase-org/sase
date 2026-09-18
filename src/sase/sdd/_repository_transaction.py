@@ -100,6 +100,7 @@ def integrate_machine_managed_sdd_repository(
     event_logger: EventLogger | None = None,
     clock: Callable[[], float] | None = None,
     recovery_cooldown_seconds: float | None = None,
+    require_upstream_alignment: bool = False,
 ) -> SddIntegrationOutcome:
     """Integrate a machine-owned checkout and recover a wedged clone once.
 
@@ -120,6 +121,19 @@ def integrate_machine_managed_sdd_repository(
         lock_factory=lock_factory,
         event_logger=event_logger,
     )
+    if outcome.succeeded and require_upstream_alignment:
+        alignment_error, upstream_present = _machine_upstream_alignment_error(
+            repo_root,
+            upstream=upstream,
+            git_runner=git_runner,
+            op_prefix=op_prefix,
+        )
+        if alignment_error is not None:
+            outcome = SddIntegrationOutcome(
+                SddIntegrationStatus.LOCAL_CHANGES,
+                upstream_present=upstream_present,
+                error=alignment_error,
+            )
     if outcome.succeeded or outcome.status in {
         SddIntegrationStatus.REMOTE_UNAVAILABLE,
         SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS,
@@ -166,6 +180,61 @@ def integrate_machine_managed_sdd_repository(
         except OSError:
             pass
     return recovered
+
+
+def _machine_upstream_alignment_error(
+    repo_root: Path,
+    *,
+    upstream: str,
+    git_runner: GitRunner | None,
+    op_prefix: str,
+) -> tuple[str | None, bool]:
+    root = repo_root.expanduser().resolve()
+    runner = git_runner or default_git_runner
+    upstream_result = runner(
+        root,
+        ["rev-parse", "--verify", upstream],
+        op=f"{op_prefix}.alignment.upstream",
+    )
+    if upstream_result.returncode != 0:
+        return (
+            f"SDD repository {root} has no tracking upstream; "
+            "machine-managed recovery requires a configured upstream",
+            False,
+        )
+    status = runner(
+        root,
+        ["status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        op=f"{op_prefix}.alignment.status",
+    )
+    if status.returncode != 0:
+        return (
+            format_git_error("could not inspect SDD repository worktree", status),
+            True,
+        )
+    if status.stdout:
+        return (
+            f"SDD repository {root} has uncommitted or untracked changes; "
+            "machine-managed recovery will retain them before resetting to upstream",
+            True,
+        )
+    published = runner(
+        root,
+        ["merge-base", "--is-ancestor", "HEAD", upstream],
+        op=f"{op_prefix}.alignment.published",
+    )
+    if published.returncode == 0:
+        return None, True
+    if published.returncode == 1:
+        return (
+            f"SDD repository {root} has unpublished commits; "
+            "machine-managed recovery will retain them before resetting to upstream",
+            True,
+        )
+    return (
+        format_git_error("could not compare SDD repository with upstream", published),
+        True,
+    )
 
 
 def _safe_reap_recovery_residue(

@@ -61,6 +61,7 @@ def ensure_sidecar_sdd_clone(
     reference_repo: Path | None = None,
     strict: bool = False,
     fresh: bool = False,
+    require_upstream_alignment: bool = False,
     deadline: float | None = None,
 ) -> None:
     """Ensure a split-store sidecar clone exists and tracks its real remote.
@@ -97,7 +98,13 @@ def ensure_sidecar_sdd_clone(
                 raise SddMaterializationError(
                     f"could not normalize SDD sidecar origin at {clone_dir}"
                 )
-            _pull_sdd_clone(clone_dir, strict=strict, fresh=fresh, deadline=deadline)
+            _pull_sdd_clone(
+                clone_dir,
+                strict=strict,
+                fresh=fresh,
+                require_upstream_alignment=require_upstream_alignment,
+                deadline=deadline,
+            )
             return
 
         clone_kwargs = {}

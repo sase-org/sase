@@ -36,8 +36,9 @@ class ArtifactLinkStoreAggregateMixin:
     _load_store_truth_rows: Callable[..., tuple[dict[str, Any], ...]]
     _authoritative_source_was_consulted: Callable[[Mapping[str, Any]], bool]
     _authoritative_source_was_consulted_for_pass: Callable[
-        [], Callable[[Mapping[str, Any]], bool]
+        ..., Callable[[Mapping[str, Any]], bool]
     ]
+    artifact_link_event_snapshot: Callable[..., Any]
     projected_rows: Callable[[], tuple[dict[str, Any], ...]]
 
     def load_aggregate(self) -> dict[str, Any]:
@@ -65,6 +66,11 @@ class ArtifactLinkStoreAggregateMixin:
         """
 
         prior = self.load_aggregate()
+        event_snapshot = self.artifact_link_event_snapshot(
+            include_pending=True,
+            strict=True,
+            exclude_pending_event_ids=exclude_pending_event_ids,
+        )
         collected = list(
             self._load_store_truth_rows(
                 include_pending=True,
@@ -78,7 +84,9 @@ class ArtifactLinkStoreAggregateMixin:
                 collected=collected,
                 prior_rows=prior["rows"],
                 authoritative_source_was_consulted=(
-                    self._authoritative_source_was_consulted_for_pass()
+                    self._authoritative_source_was_consulted_for_pass(
+                        event_snapshot=event_snapshot,
+                    )
                 ),
                 projected_rows=self.projected_rows(),
             ),

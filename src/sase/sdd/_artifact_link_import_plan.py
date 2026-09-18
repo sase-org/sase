@@ -423,7 +423,7 @@ def _assert_baseline_reducer_parity(
     from sase.sdd.artifact_link_event_publisher import rows_from_events
 
     reduced = rows_from_events((event,))
-    if _sorted_rows(reduced) != _sorted_rows(rows):
+    if _sorted_logical_row_signatures(reduced) != _sorted_logical_row_signatures(rows):
         raise RuntimeError("baseline import event does not reduce to legacy rows")
 
 
@@ -439,10 +439,10 @@ def _logical_row_signature(row: Mapping[str, Any]) -> bytes:
     return canonical_json_bytes(data)
 
 
-def _sorted_rows(rows: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def _sorted_logical_row_signatures(rows: Iterable[Mapping[str, Any]]) -> list[bytes]:
     return sorted(
-        unique_rows(validate_artifact_link_row(row) for row in rows),
-        key=lambda row: canonical_json_bytes(row),
+        _logical_row_signature(row)
+        for row in unique_rows(validate_artifact_link_row(row) for row in rows)
     )
 
 

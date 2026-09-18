@@ -38,6 +38,7 @@ def _record_calls(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
         reference_repo: Path | None = None,
         strict: bool = False,
         fresh: bool = False,
+        require_upstream_alignment: bool = False,
     ) -> None:
         calls.append(
             {
@@ -46,6 +47,7 @@ def _record_calls(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, object]]:
                 "reference_repo": reference_repo,
                 "strict": strict,
                 "fresh": fresh,
+                "require_upstream_alignment": require_upstream_alignment,
             }
         )
 

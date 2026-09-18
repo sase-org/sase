@@ -55,6 +55,35 @@ def test_import_indexes_preview_is_deterministic_without_writes(
     assert _git(repo, "rev-parse", "HEAD") == head
 
 
+def test_import_indexes_preview_accepts_undirected_baseline_endpoint_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    redirect_sase_home(monkeypatch, tmp_path / ".sase")
+    repo = _init_repo(tmp_path / "plans")
+    _write_index(
+        repo,
+        "a.md",
+        [
+            _row(
+                source="research:202608/finalizer_contracts.md",
+                relation="related",
+                target="bead:sase-rn",
+            )
+        ],
+    )
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "legacy related link")
+    store = ArtifactLinkStore(project_key=PROJECT_KEY, sidecar_roots={"plan": repo})
+
+    report = import_artifact_link_indexes(store)
+
+    assert len(report.plan.rows) == 1
+    [row] = report.plan.rows
+    assert row["source_ref"] == "research:202608/finalizer_contracts.md"
+    assert row["target_ref"] == "bead:sase-rn"
+
+
 def test_import_indexes_apply_publishes_markers_and_baseline_event(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
