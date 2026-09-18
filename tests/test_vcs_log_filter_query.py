@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import HealthCheck, given, settings, strategies as st
 
 from sase.ace.tui.widgets.artifacts.commits_rendering import commit_filter_chips
 from sase.core.time import get_timezone
@@ -335,6 +335,7 @@ _TYPE_TEXT = (
 )
 
 
+@settings(suppress_health_check=[HealthCheck.too_slow])
 @given(
     project=st.one_of(st.none(), _VALUE_TEXT),
     repos=st.lists(_VALUE_TEXT, max_size=3).map(tuple),

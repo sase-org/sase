@@ -11,6 +11,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     assert_page_svg_styled_text_contains,
+    choose_agent_metadata_view,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_zoom_fixtures import (
     wait_for_zoom_content,
@@ -294,7 +295,7 @@ async def test_agents_waiting_unknown_zoom_modal_png_snapshot(
             await page.expect_state("tab", "agents")
             await page.expect_state("agent_count", 4)
             await wait_for_visual_idle(page)
-            await page.press("p")
+            await choose_agent_metadata_view(page)
             await page.press("Z")
             await page.expect_modal("ZoomPanelModal")
             await wait_for_zoom_content(

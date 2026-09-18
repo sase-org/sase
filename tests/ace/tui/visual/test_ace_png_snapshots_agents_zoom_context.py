@@ -12,6 +12,7 @@ from sase.ace.tui.modals.zoom_panel_rendering import renderable_to_text
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    choose_agent_metadata_view,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_zoom_fixtures import (
     context_artifact_reads,
@@ -55,7 +56,7 @@ async def test_agents_context_zoom_modal_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
-        await page.press("p")
+        await choose_agent_metadata_view(page)
         await page.press("Z")
         await page.expect_modal("ZoomPanelModal")
         await wait_for_zoom_content(
@@ -131,7 +132,7 @@ async def test_agents_metadata_zoom_modal_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
-        await page.press("p")
+        await choose_agent_metadata_view(page)
         await page.press("Z")
         await page.expect_modal("ZoomPanelModal")
         await wait_for_zoom_content(

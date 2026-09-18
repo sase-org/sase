@@ -149,6 +149,7 @@ async def test_sase_agent_cleanup_confirmation_png_snapshot(
         await page.expect_modal("ConfirmDismissAllModal")
         modal = page.app.screen
         assert isinstance(modal, ConfirmDismissAllModal)
+        page.app._update_agents_info_panel()
         description = modal.agent_description
         assert "Dismiss: 3 sase agents · 9 agents" in description
         assert "lane.cleanup.standalone" in description

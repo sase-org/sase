@@ -23,6 +23,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailContext
 from sase.bead.model import Issue, IssueType
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    choose_agent_metadata_view,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -487,7 +488,7 @@ async def test_agents_phase_family_bead_and_plan_context_png_snapshot(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
-        await page.press("p")
+        await choose_agent_metadata_view(page)
         panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
         await page.wait_for(
             lambda _state: "Phase plan" in (renderable_to_text(panel.content) or "")

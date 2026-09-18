@@ -12,6 +12,7 @@ import time
 from collections.abc import Mapping
 from typing import Any
 
+from sase.core.paths import get_sase_managed_tmpdir
 from sase.llm_provider._registry_plugins import load_llm_plugin_class
 from sase.llm_provider.usage.config import collection_skip_reason
 from sase.llm_provider.usage.transport import (
@@ -233,7 +234,10 @@ def _run_isolated(
     tmp_cwd: tempfile.TemporaryDirectory[str] | None = None
     cwd = context.working_directory
     if not cwd:
-        tmp_cwd = tempfile.TemporaryDirectory(prefix="sase-usage-probe-")
+        tmp_cwd = tempfile.TemporaryDirectory(
+            prefix="sase-usage-probe-",
+            dir=get_sase_managed_tmpdir("usage-probes"),
+        )
         cwd = tmp_cwd.name
     process = spawn_killable_process(
         (sys.executable, "-m", _WORKER_MODULE),

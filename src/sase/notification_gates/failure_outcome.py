@@ -84,8 +84,7 @@ def record_failure_outcome(
     ``stage`` is one of ``command``, ``terminal_prepare``, ``side_effects``,
     or ``follow_up``. Pre-attempt revalidation failures (before an execution
     attempt id exists) get a synthetic id from their durable outcome id.
-    ``default_code``
-    names *error* when it is not a
+    ``default_code`` names *error* when it is not a
     :class:`GateError` -- ``execution_interrupted`` for a true interruption
     (a ``BaseException`` escaping option-command or stage execution), or
     ``adapter_rejected`` for an adapter's own non-``GateError`` rejection

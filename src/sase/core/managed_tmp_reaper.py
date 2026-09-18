@@ -100,6 +100,7 @@ _COMMAND_SCRATCH_BUCKETS = (
     "editors",
     "embedded-artifacts",
     "sdd-remote-clone-pool",
+    "usage-probes",
     "viewers",
     "workflow-loader",
     "wrappers",

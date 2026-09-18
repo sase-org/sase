@@ -10,6 +10,14 @@ import pytest
 from sase.ace.testing import AcePage
 
 
+async def choose_agent_metadata_view(page: AcePage) -> None:
+    """Choose the metadata-only Agents detail view through the current picker."""
+    await page.press("p")
+    await page.expect_modal("AgentViewModal")
+    await page.press("n")
+    await page.expect_no_modal()
+
+
 def pin_agents_visual_now(monkeypatch: pytest.MonkeyPatch, now: datetime) -> None:
     """Pin Agents-tab runtime formatting for date-sensitive snapshots."""
     from sase.ace.tui.actions.agents import (

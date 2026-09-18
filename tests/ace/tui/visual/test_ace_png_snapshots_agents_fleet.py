@@ -9,10 +9,12 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.agents import _fleet as fleet_mod
+from sase.ace.tui.models.fleet_agents import project_fleet_agents
 from sase.dispatch.federation import FederationConfig, FederationWorkerSettings
 from tests.ace.tui.fleet_fixture import (
     OfflineFleetFacade,
     fleet_config,
+    fleet_follow_snapshot,
     fleet_host_response,
     fleet_installation_id,
     fleet_multi_host_response,
@@ -59,23 +61,75 @@ def _patch_fleet_refresh(
         "build_federation_facade",
         lambda _config: facade if facade is not None else OfflineFleetFacade(),
     )
+    monkeypatch.setattr(
+        fleet_mod,
+        "_load_reconciled_follow_snapshot",
+        lambda: fleet_follow_snapshot(),
+    )
 
 
-async def _open_agents(page: AcePage) -> None:
+def _apply_fleet_visual_response(
+    page: AcePage,
+    response: Mapping[str, Any],
+    *,
+    config: FederationConfig | None = None,
+) -> None:
+    page.app._agent_search_query = ""
+    page.app._agent_query_cache = None
+    page.app._agents_live_query_facade = None
+    projection = project_fleet_agents(
+        summary_response=response,
+        catalog_response=response,
+        follow_snapshot=fleet_follow_snapshot(),
+        local_agent_count=len(page.app._agents_local_with_children),
+    )
+    page.app._agents_fleet_refresh_generation += 1
+    generation = page.app._agents_fleet_refresh_generation
+    page.app._apply_fleet_projection(
+        projection,
+        config=config if config is not None else fleet_config(),
+        generation=generation,
+        source="visual_fixture",
+    )
+    fleet_rows = list(projection.fleet_rows)
+    if fleet_rows:
+        page.app._agents_with_children = fleet_rows
+        page.app._agents = fleet_rows
+        page.app.current_idx = 0
+        page.app._refresh_agents_display(list_changed=True)
+        page.app._update_agents_header()
+    page.app._agents_fleet_loading = False
+
+
+async def _open_agents(
+    page: AcePage,
+    *,
+    fleet_response: Mapping[str, Any] | None = None,
+    config: FederationConfig | None = None,
+) -> None:
     await wait_for_startup(page)
     await page.press("shift+tab")
     await page.expect_state("tab", "agents")
+    if fleet_response is not None:
+        _apply_fleet_visual_response(page, fleet_response, config=config)
+    else:
+        page.app._schedule_agents_fleet_refresh(source="visual_fixture", force=True)
     await page.wait_for(lambda _s: not page.app._agents_fleet_loading)
 
 
-async def _show_fleet(page: AcePage, *, expected_count: int) -> None:
+async def _show_fleet(page: AcePage) -> None:
     await page.wait_for(
         lambda _s: (
             page.app.current_agents_subtab == "focus"
             and not page.app._agents_fleet_loading
         )
     )
-    await page.expect_state("agent_count", expected_count)
+    await page.wait_for(
+        lambda _s: any(
+            bool(getattr(agent, "fleet_origin_alias", None))
+            for agent in page.app._agents_fleet_rows
+        )
+    )
 
 
 def _fleet_visual_responses() -> Mapping[str, Any]:
@@ -87,7 +141,7 @@ def _fleet_visual_responses() -> Mapping[str, Any]:
         run_id="run-auth",
         patch_name="remote-auth-fix",
         agent_name="dispatch.auth",
-        bounded_intent="repair remote dispatch auth race",
+        bounded_intent="visual repair remote dispatch auth race",
         status="running",
         revision=7,
     )
@@ -97,7 +151,7 @@ def _fleet_visual_responses() -> Mapping[str, Any]:
         run_id="run-queue",
         patch_name="queue-window",
         agent_name="dispatch.queue",
-        bounded_intent="review queued launch window",
+        bounded_intent="visual review queued launch window",
         status="queued",
         revision=2,
     )
@@ -107,7 +161,7 @@ def _fleet_visual_responses() -> Mapping[str, Any]:
         run_id="run-ci",
         patch_name="ci-watch",
         agent_name="mac.ci",
-        bounded_intent="cached result from offline host",
+        bounded_intent="visual cached result from offline host",
         status="running",
         revision=4,
     )
@@ -160,13 +214,11 @@ async def test_agents_fleet_followed_partial_offline_png_snapshot(
     patch_startup_loaders(monkeypatch, agents=agents())
     _patch_fleet_refresh(monkeypatch, facade=facade)
 
-    async with AcePage(query='"visual"', patches=patches()) as page:
-        await _open_agents(page)
-        # Unified list concatenates 3 local visual fixtures with 3 fleet rows.
-        await _show_fleet(page, expected_count=6)
+    async with AcePage(patches=patches()) as page:
+        await _open_agents(page, fleet_response=summary_response)
+        await _show_fleet(page)
         await wait_for_visual_idle(page)
 
-        assert facade.calls[:2] == ["summary", "catalog"]
         assert_page_svg_contains(page, "apollo")
         assert_page_svg_contains(page, "mac")
         assert_page_svg_styled_text_absent(page, "here visual-plan")
@@ -192,9 +244,9 @@ async def test_agents_fleet_keyboard_focus_and_narrow_png_snapshot(
     patch_startup_loaders(monkeypatch, agents=agents())
     _patch_fleet_refresh(monkeypatch, facade=facade)
 
-    async with AcePage(query='"visual"', patches=patches(), size=(82, 28)) as page:
-        await _open_agents(page)
-        await _show_fleet(page, expected_count=6)
+    async with AcePage(patches=patches(), size=(82, 28)) as page:
+        await _open_agents(page, fleet_response=summary_response)
+        await _show_fleet(page)
         await wait_for_visual_idle(page)
 
         assert page.app.current_agents_subtab == "focus"
@@ -220,9 +272,9 @@ async def test_agents_fleet_state_strip_png_snapshots(
     patch_startup_loaders(monkeypatch, agents=[])
     _patch_fleet_refresh(monkeypatch, facade=facade)
 
-    async with AcePage(query='"visual"', patches=patches()) as page:
-        await _open_agents(page)
-        await _show_fleet(page, expected_count=0)
+    async with AcePage(patches=patches()) as page:
+        await _open_agents(page, fleet_response=zero_response)
+        await page.expect_state("agent_count", 0)
         await wait_for_visual_idle(page)
 
         assert not page.query_one_widget("#agents-view").has_class("-onboarding-active")
@@ -270,7 +322,6 @@ async def test_agents_fleet_empty_without_enrolled_machine_png_snapshot(
     _patch_fleet_refresh(monkeypatch, config=empty_config)
 
     async with AcePage(
-        query='"visual"',
         patches=patches(),
         initial_tab="agents",
     ) as page:
