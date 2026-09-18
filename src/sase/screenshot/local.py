@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Sequence
-from typing import Any, Protocol, cast
+from typing import Any, Literal, Protocol, cast
 
 from sase.ace.tui.screenshot_export import screenshot_request_dir
 from sase.core.paths import get_sase_managed_tmpdir
@@ -22,7 +22,9 @@ DEFAULT_COLS = 120
 DEFAULT_ROWS = 40
 DEFAULT_SETTLE_MS = 0
 DEFAULT_TIMEOUT_SECONDS = 60.0
-SCREENSHOT_CONTRACT_SCHEMA_VERSION = 1
+SCREENSHOT_CONTRACT_SCHEMA_VERSION = 2
+
+type ScreenshotScriptKind = Literal["press", "type", "wait"]
 
 _SCREEN_RESULT_RE = re.compile(r"^screen_(\d+)\.(done|error)$")
 _SCREEN_SVG_RE = re.compile(r"^screen_(\d+)\.svg$")
@@ -64,13 +66,20 @@ class _SubprocessRunner:
 
 
 @dataclass(frozen=True)
+class ScreenshotScriptStep:
+    """One argv-ordered press, literal-type, or wait step."""
+
+    kind: ScreenshotScriptKind
+    value: str
+
+
+@dataclass(frozen=True)
 class ScreenshotOptions:
     """User-selected local screenshot capture settings."""
 
     output: Path | None
     size: tuple[int, int]
-    presses: tuple[str, ...]
-    wait_for: tuple[str, ...]
+    script: tuple[ScreenshotScriptStep, ...]
     settle_ms: int
     svg_only: bool
     keep: bool
@@ -162,21 +171,13 @@ def capture_local_screenshot(
             runner=active_runner,
             deadline=deadline,
         )
-        for key in options.presses:
-            _run_tmux(
-                ["tmux", "send-keys", "-t", target, key],
-                runner=active_runner,
-                deadline=deadline,
-                action=f"send key {key!r} to {target}",
-            )
-        for pattern in options.wait_for:
-            last_capture = _wait_for_capture_match(
-                target,
-                pattern,
-                runner=active_runner,
-                deadline=deadline,
-                last_capture=last_capture,
-            )
+        last_capture = _run_screenshot_script(
+            target,
+            options.script,
+            runner=active_runner,
+            deadline=deadline,
+            last_capture=last_capture,
+        )
         if options.settle_ms > 0:
             deadline.sleep(options.settle_ms / 1000)
 
@@ -286,6 +287,45 @@ def _inspect_tmux_window(
         pane_pid=pane_pid,
         request_dir=request_dir,
     )
+
+
+def _run_screenshot_script(
+    target: str,
+    script: Sequence[ScreenshotScriptStep],
+    *,
+    runner: CommandRunner,
+    deadline: _Deadline,
+    last_capture: str,
+) -> str:
+    capture = last_capture
+    for step in script:
+        if step.kind == "press":
+            _run_tmux(
+                ["tmux", "send-keys", "-t", target, step.value],
+                runner=runner,
+                deadline=deadline,
+                action=f"send key {step.value!r} to {target}",
+            )
+        elif step.kind == "type":
+            _run_tmux(
+                ["tmux", "send-keys", "-l", "-t", target, "--", step.value],
+                runner=runner,
+                deadline=deadline,
+                action=f"type {step.value!r} into {target}",
+            )
+        elif step.kind == "wait":
+            capture = _wait_for_capture_match(
+                target,
+                step.value,
+                runner=runner,
+                deadline=deadline,
+                last_capture=capture,
+            )
+        else:
+            raise ScreenshotCaptureError(
+                f"unsupported screenshot script step {step.kind!r}"
+            )
+    return capture
 
 
 def _wait_for_startup_frame(
@@ -643,6 +683,8 @@ __all__ = [
     "CommandRunner",
     "ScreenshotCaptureError",
     "ScreenshotOptions",
+    "ScreenshotScriptKind",
+    "ScreenshotScriptStep",
     "capture_local_screenshot",
     "render_png_from_svg_file",
 ]

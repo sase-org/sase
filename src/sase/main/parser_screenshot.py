@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any, cast
 
 from sase.completion.kinds import ValueKind, set_completion_kind
 from sase.screenshot.local import (
@@ -11,6 +13,8 @@ from sase.screenshot.local import (
     DEFAULT_ROWS,
     DEFAULT_SETTLE_MS,
     DEFAULT_TIMEOUT_SECONDS,
+    ScreenshotScriptKind,
+    ScreenshotScriptStep,
 )
 
 
@@ -48,19 +52,48 @@ def _positive_float(value: str) -> float:
     return parsed
 
 
+class _AppendScreenshotScriptAction(argparse._AppendAction):
+    """Append one press, type, or wait step, preserving argv order."""
+
+    def __init__(
+        self,
+        option_strings: list[str],
+        dest: str,
+        **kwargs: Any,
+    ) -> None:
+        self.kind = cast(ScreenshotScriptKind, kwargs.pop("kind"))
+        super().__init__(option_strings, dest, **kwargs)
+
+    def __call__(
+        self,
+        parser: argparse.ArgumentParser,
+        namespace: argparse.Namespace,
+        values: str | Sequence[Any] | None,
+        option_string: str | None = None,
+    ) -> None:
+        del parser, option_string
+        items = list(getattr(namespace, self.dest, None) or ())
+        items.append(ScreenshotScriptStep(self.kind, str(values)))
+        setattr(namespace, self.dest, items)
+
+
 def register_screenshot_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the ``sase screenshot`` command."""
     parser = subparsers.add_parser(
         "screenshot",
         help="Capture a PNG of a real live SASE TUI",
         description=(
-            "Launch or reuse a real `sase tui` in tmux, drive it with keypresses, "
-            "ask the live app to export SVG, and rasterize that SVG to PNG."
+            "Launch or reuse a real `sase tui` in tmux, drive it with keypresses "
+            "and typed text, ask the live app to export SVG, and rasterize that "
+            "SVG to PNG. Repeatable -p/--press, -T/--type, and -w/--wait-for "
+            "form one argv-ordered input script."
         ),
         epilog=(
             "Examples:\n"
             "  sase screenshot -o /tmp/shot.png\n"
             "  sase screenshot -p j -p j -w Ready -o /tmp/shot.png\n"
+            "  sase screenshot -p slash --type machine:apollo -p enter "
+            '-w "17/17" -o /tmp/shot.png\n'
             "  sase screenshot --host apollo -o /tmp/remote.png\n"
             "  sase screenshot --keep -- -t axe\n"
             "  sase screenshot --window sase_ace_agents:sase_tmux_1 -o /tmp/again.png"
@@ -95,10 +128,14 @@ def register_screenshot_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument(
         "-p",
         "--press",
-        action="append",
+        action=_AppendScreenshotScriptAction,
+        dest="script",
+        kind="press",
         default=[],
         metavar="KEY",
-        help="Send one tmux key name before capture; repeat to send several",
+        help=(
+            "Send one tmux key name; repeats interleave with --type and -w in argv order"
+        ),
     )
     parser.add_argument(
         "-d",
@@ -131,12 +168,30 @@ def register_screenshot_parser(subparsers: argparse._SubParsersAction) -> None:
         help=f"Overall capture deadline in seconds (default: {DEFAULT_TIMEOUT_SECONDS:g})",
     )
     parser.add_argument(
+        "-T",
+        "--type",
+        action=_AppendScreenshotScriptAction,
+        dest="script",
+        kind="type",
+        default=[],
+        metavar="TEXT",
+        help=(
+            "Send literal TUI text (tmux send-keys -l); repeats interleave with "
+            "-p and -w in argv order"
+        ),
+    )
+    parser.add_argument(
         "-w",
         "--wait-for",
-        action="append",
+        action=_AppendScreenshotScriptAction,
+        dest="script",
+        kind="wait",
         default=[],
         metavar="REGEX",
-        help="Wait for the tmux screen to match a regex before capture; repeatable",
+        help=(
+            "Wait for tmux screen text to match a regex; repeats interleave with "
+            "-p and --type in argv order"
+        ),
     )
     parser.add_argument(
         "-W",

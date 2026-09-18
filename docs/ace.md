@@ -69,10 +69,15 @@ suite.
 ```bash
 sase screenshot -o /tmp/sase.png
 sase screenshot -p j -p j -w 'Ready' -o /tmp/sase.png
+sase screenshot -p slash --type 'machine:apollo' -p enter -w '17/17' -o /tmp/sase.png
 sase screenshot --host apollo -o /tmp/sase-remote.png
 sase screenshot --keep -- -t axe
 sase screenshot --window sase_ace_agents:sase_tmux_1 -o /tmp/sase-again.png
 ```
+
+Repeatable `-p/--press`, `-T/--type`, and `-w/--wait-for` form one argv-ordered input
+script, so a query filter can be typed and submitted without a second `--window`
+capture. `--type` sends literal TUI text (`tmux send-keys -l`).
 
 By default, the tmux window is killed after capture. Pass `--keep` to leave it running,
 drive it manually with `tmux send-keys`, and recapture it later with `--window`. The

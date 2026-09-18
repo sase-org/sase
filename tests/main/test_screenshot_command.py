@@ -14,8 +14,17 @@ from sase.ace.tui.screenshot_export import screenshot_request_dir
 from sase.main import ace_tmux
 from sase.main.screenshot_handler import handle_screenshot_command
 from sase.screenshot import local as screenshot_local
-from sase.screenshot.local import ScreenshotOptions, capture_local_screenshot
+from sase.screenshot.local import (
+    ScreenshotOptions,
+    ScreenshotScriptStep,
+    capture_local_screenshot,
+)
 from tests.main.parser_cli_helpers import parse_sase_args
+from tests.main.parser_help_helpers import (
+    assert_metavar_option_documented,
+    flat_help,
+    parser_for,
+)
 
 
 def _completed(
@@ -179,6 +188,10 @@ class _FakeRunner:
         )
 
 
+def _script(*steps: tuple[str, str]) -> tuple[ScreenshotScriptStep, ...]:
+    return tuple(ScreenshotScriptStep(kind, value) for kind, value in steps)
+
+
 def _options(
     *,
     output: Path,
@@ -187,14 +200,19 @@ def _options(
     window: str | None = None,
     presses: tuple[str, ...] = ("j", "k"),
     wait_for: tuple[str, ...] = ("Ready",),
+    script: tuple[ScreenshotScriptStep, ...] | None = None,
     timeout: float = 5,
     tui_args: tuple[str, ...] = ("--", "-t", "axe"),
 ) -> ScreenshotOptions:
+    if script is None:
+        script = _script(
+            *(("press", key) for key in presses),
+            *(("wait", pattern) for pattern in wait_for),
+        )
     return ScreenshotOptions(
         output=output,
         size=(80, 24),
-        presses=presses,
-        wait_for=wait_for,
+        script=script,
         settle_ms=1,
         svg_only=svg_only,
         keep=keep,
@@ -244,12 +262,54 @@ def test_parser_accepts_local_screenshot_surface() -> None:
     assert args.host == "apollo"
     assert args.keep is True
     assert args.output == Path("/tmp/shot.png")
-    assert args.press == ["j"]
+    assert args.script == [
+        ScreenshotScriptStep("press", "j"),
+        ScreenshotScriptStep("wait", "Ready"),
+    ]
     assert args.settle_ms == 25
     assert args.size == (90, 30)
     assert args.timeout == screenshot_local.DEFAULT_TIMEOUT_SECONDS
-    assert args.wait_for == ["Ready"]
     assert args.tui_args == ["--", "-t", "axe"]
+
+
+def test_parser_interleaves_press_type_and_wait_in_argv_order() -> None:
+    args = parse_sase_args(
+        [
+            "screenshot",
+            "-p",
+            "slash",
+            "--type",
+            "machine:apollo",
+            "-p",
+            "enter",
+            "-w",
+            "17/17",
+            "-T",
+            "more text",
+            "-w",
+            "Ready",
+        ]
+    )
+
+    assert args.script == [
+        ScreenshotScriptStep("press", "slash"),
+        ScreenshotScriptStep("type", "machine:apollo"),
+        ScreenshotScriptStep("press", "enter"),
+        ScreenshotScriptStep("wait", "17/17"),
+        ScreenshotScriptStep("type", "more text"),
+        ScreenshotScriptStep("wait", "Ready"),
+    ]
+
+
+def test_screenshot_help_documents_type_and_interleaving() -> None:
+    help_text = flat_help(parser_for(("sase", "screenshot")).format_help())
+
+    assert_metavar_option_documented(help_text, "-p", "--press", "KEY")
+    assert_metavar_option_documented(help_text, "-T", "--type", "TEXT")
+    assert_metavar_option_documented(help_text, "-w", "--wait-for", "REGEX")
+    assert "argv-ordered input script" in help_text
+    assert "tmux send-keys -l" in help_text
+    assert '-w "17/17"' in help_text
 
 
 def test_contract_probe_prints_schema_json(capsys) -> None:
@@ -257,7 +317,7 @@ def test_contract_probe_prints_schema_json(capsys) -> None:
 
     handle_screenshot_command(args)
 
-    assert capsys.readouterr().out == '{"schema_version": 1}\n'
+    assert capsys.readouterr().out == '{"schema_version": 2}\n'
 
 
 def test_entry_contract_probe_exits_without_fallthrough(
@@ -273,7 +333,7 @@ def test_entry_contract_probe_exits_without_fallthrough(
 
     captured = capsys.readouterr()
     assert exc.value.code == 0
-    assert captured.out == '{"schema_version": 1}\n'
+    assert captured.out == '{"schema_version": 2}\n'
     assert captured.err == ""
 
 
@@ -317,6 +377,47 @@ def test_local_capture_launches_renders_and_cleans_up(
     new_window_index = runner.calls.index(new_window)
     assert 0 < runner.call_kwargs[new_window_index]["timeout"] <= 5
     assert result.tmux_target == "@1"
+
+
+def test_local_capture_runs_press_type_and_wait_in_script_order(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    runner = _FakeRunner(tmp_path)
+    _sandbox_new_window_screenshots(monkeypatch, tmp_path)
+    monkeypatch.setattr(ace_tmux.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(screenshot_local.time, "sleep", lambda seconds: None)
+
+    from sase.ace.tui import visual_render
+
+    monkeypatch.setattr(visual_render, "render_svg_to_png", lambda svg: b"PNG")
+
+    capture_local_screenshot(
+        _options(
+            output=tmp_path / "shot.png",
+            script=_script(
+                ("press", "slash"),
+                ("type", "machine:apollo"),
+                ("press", "enter"),
+                ("wait", "Ready"),
+                ("type", "-status:open"),
+            ),
+        ),
+        runner=runner,
+    )
+
+    send_keys = [call for call in runner.calls if call[:2] == ["tmux", "send-keys"]]
+    assert send_keys == [
+        ["tmux", "send-keys", "-t", "@1", "slash"],
+        ["tmux", "send-keys", "-l", "-t", "@1", "--", "machine:apollo"],
+        ["tmux", "send-keys", "-t", "@1", "enter"],
+        ["tmux", "send-keys", "-l", "-t", "@1", "--", "-status:open"],
+    ]
+    last_send = runner.calls.index(send_keys[2])
+    assert any(
+        call[:2] == ["tmux", "capture-pane"]
+        for call in runner.calls[last_send + 1 : runner.calls.index(send_keys[3])]
+    )
 
 
 def test_local_capture_retries_transient_startup_export_error(

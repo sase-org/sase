@@ -30,6 +30,11 @@ _SSH_OPERATION_TIMEOUT_SECONDS = 10.0
 _REMOTE_CAPTURE_TIMEOUT_OVERHEAD_SECONDS = 10.0
 _REMOTE_OUTPUT_DETAIL_LIMIT = 1200
 _VERSION_SCHEMA_VERSION = 1
+_SCRIPT_CLI_FLAGS = {
+    "press": "-p",
+    "type": "-T",
+    "wait": "-w",
+}
 
 
 @dataclass(frozen=True)
@@ -233,10 +238,14 @@ def _remote_screenshot_argv(remote_svg: str, options: ScreenshotOptions) -> list
         argv.append("-k")
     if options.window:
         argv.extend(("-W", options.window))
-    for key in options.presses:
-        argv.extend(("-p", key))
-    for pattern in options.wait_for:
-        argv.extend(("-w", pattern))
+    for step in options.script:
+        try:
+            flag = _SCRIPT_CLI_FLAGS[step.kind]
+        except KeyError as exc:
+            raise ScreenshotCaptureError(
+                f"unsupported screenshot script step {step.kind!r}"
+            ) from exc
+        argv.extend((flag, step.value))
     argv.extend(options.tui_args)
     return argv
 

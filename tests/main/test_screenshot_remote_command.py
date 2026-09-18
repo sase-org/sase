@@ -13,7 +13,7 @@ from sase.main import screenshot_handler
 from sase.main.screenshot_handler import handle_screenshot_command
 from sase.screenshot import local as screenshot_local
 from sase.screenshot import remote as screenshot_remote
-from sase.screenshot.local import ScreenshotOptions
+from sase.screenshot.local import ScreenshotOptions, ScreenshotScriptStep
 from sase.screenshot.remote import capture_remote_screenshot
 from tests.main.parser_cli_helpers import parse_sase_args
 from tests.main.screenshot_remote_fixtures import (
@@ -21,6 +21,10 @@ from tests.main.screenshot_remote_fixtures import (
     _FakeSshRunner,
     _version_payload,
 )
+
+
+def _script(*steps: tuple[str, str]) -> tuple[ScreenshotScriptStep, ...]:
+    return tuple(ScreenshotScriptStep(kind, value) for kind, value in steps)
 
 
 def _options(
@@ -31,15 +35,21 @@ def _options(
     window: str | None = None,
     presses: tuple[str, ...] = ("j", "k"),
     wait_for: tuple[str, ...] = ("Ready",),
+    script: tuple[ScreenshotScriptStep, ...] | None = None,
+    settle_ms: int = 1,
     timeout: float = 5,
     tui_args: tuple[str, ...] = ("--", "-t", "axe"),
 ) -> ScreenshotOptions:
+    if script is None:
+        script = _script(
+            *(("press", key) for key in presses),
+            *(("wait", pattern) for pattern in wait_for),
+        )
     return ScreenshotOptions(
         output=output,
         size=(80, 24),
-        presses=presses,
-        wait_for=wait_for,
-        settle_ms=1,
+        script=script,
+        settle_ms=settle_ms,
         svg_only=svg_only,
         keep=keep,
         window=window,
@@ -85,8 +95,13 @@ def test_remote_capture_runs_svg_leg_over_ssh_and_rasterizes_locally(
         "apollo",
         _options(
             output=output,
-            presses=("j", "literal key's $HOME | echo; true"),
-            wait_for=("Agents Ready|Loading", 'quote " and $dollar; noop | cat'),
+            script=_script(
+                ("press", "j"),
+                ("type", 'query "apollo" $HOME | cat'),
+                ("press", "literal key's $HOME | echo; true"),
+                ("wait", "Agents Ready|Loading"),
+                ("wait", 'quote " and $dollar; noop | cat'),
+            ),
             tui_args=(
                 "--",
                 "-t",
@@ -123,18 +138,19 @@ def test_remote_capture_runs_svg_leg_over_ssh_and_rasterizes_locally(
     assert remote_argv[remote_argv.index("-s") + 1] == "80x24"
     assert "-d" in remote_argv
     assert remote_argv[remote_argv.index("-d") + 1] == "1"
-    presses = [
-        remote_argv[index + 1]
-        for index, value in enumerate(remote_argv)
-        if value == "-p"
+    script_start = remote_argv.index("-p")
+    assert remote_argv[script_start:-5] == [
+        "-p",
+        "j",
+        "-T",
+        'query "apollo" $HOME | cat',
+        "-p",
+        "literal key's $HOME | echo; true",
+        "-w",
+        "Agents Ready|Loading",
+        "-w",
+        'quote " and $dollar; noop | cat',
     ]
-    waits = [
-        remote_argv[index + 1]
-        for index, value in enumerate(remote_argv)
-        if value == "-w"
-    ]
-    assert presses == ["j", "literal key's $HOME | echo; true"]
-    assert waits == ["Agents Ready|Loading", 'quote " and $dollar; noop | cat']
     assert remote_argv[-5:] == [
         "--",
         "-t",
@@ -301,6 +317,68 @@ def test_remote_capture_malformed_contract_reports_protocol_problem(
     assert "malformed protocol data" in message
     assert "not json" in message
     assert "upgrade" not in message
+    assert runner.cleanup_count == 0
+
+
+def test_remote_screenshot_argv_forwards_type_steps_in_order() -> None:
+    argv = screenshot_remote._remote_screenshot_argv(
+        "/tmp/remote.svg",
+        _options(
+            output=Path("/tmp/shot.png"),
+            script=_script(
+                ("press", "slash"),
+                ("type", "machine:apollo"),
+                ("press", "enter"),
+                ("wait", "17/17"),
+            ),
+            settle_ms=0,
+            tui_args=("--", "-t", "axe"),
+        ),
+    )
+
+    assert argv[:3] == ["sase", "screenshot", "--svg"]
+    assert "-p" in argv
+    assert argv[argv.index("-p") :] == [
+        "-p",
+        "slash",
+        "-T",
+        "machine:apollo",
+        "-p",
+        "enter",
+        "-w",
+        "17/17",
+        "--",
+        "-t",
+        "axe",
+    ]
+
+
+def test_remote_capture_rejects_pre_type_contract_schema(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = _FakeSshRunner(tmp_path, probe_stdout='{"schema_version": 1}')
+    _route_fake_remote_tmp(monkeypatch, runner)
+    monkeypatch.setattr(
+        screenshot_remote,
+        "resolve_remote_ssh_target",
+        lambda host: RemoteSshTarget(host=host, requested_machine=host),
+    )
+
+    with pytest.raises(screenshot_local.ScreenshotCaptureError) as excinfo:
+        capture_remote_screenshot(
+            "old-host",
+            _options(
+                output=tmp_path / "shot.png",
+                script=_script(("type", "machine:apollo")),
+            ),
+            runner=runner,
+        )
+
+    message = str(excinfo.value)
+    assert "unsupported schema_version=1" in message
+    assert "expected 2" in message
+    assert "upgrade" in message
     assert runner.cleanup_count == 0
 
 

@@ -23656,7 +23656,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "6bcf5894238dee75",
+        "description_digest": "9dec22ee0946e672",
         "hidden": false,
         "mutex_groups": [],
         "name": "screenshot",
@@ -23722,7 +23722,7 @@
           },
           {
             "choices": null,
-            "dest": "press",
+            "dest": "script",
             "hidden": false,
             "kind": null,
             "repeatable": true,
@@ -23782,7 +23782,19 @@
           },
           {
             "choices": null,
-            "dest": "wait_for",
+            "dest": "script",
+            "hidden": false,
+            "kind": null,
+            "repeatable": true,
+            "strings": [
+              "-T",
+              "--type"
+            ],
+            "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "script",
             "hidden": false,
             "kind": null,
             "repeatable": true,

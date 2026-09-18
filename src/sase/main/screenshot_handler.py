@@ -25,8 +25,7 @@ def handle_screenshot_command(args: argparse.Namespace) -> None:
     options = ScreenshotOptions(
         output=args.output,
         size=args.size,
-        presses=tuple(args.press or ()),
-        wait_for=tuple(args.wait_for or ()),
+        script=tuple(args.script or ()),
         settle_ms=args.settle_ms,
         svg_only=args.svg,
         keep=args.keep,

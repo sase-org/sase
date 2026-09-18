@@ -56,7 +56,7 @@ class _FakeSshRunner:
         tmp_path: Path,
         *,
         probe_returncode: int = 0,
-        probe_stdout: str = '{"schema_version": 1}',
+        probe_stdout: str = '{"schema_version": 2}',
         probe_stderr: str = "",
         capture_returncode: int = 0,
         fetch_returncode: int = 0,

@@ -5005,19 +5005,20 @@ Capture a PNG from a real `sase tui` running in tmux. The command launches in th
 detached `sase_ace_agents` session unless `--window` names an existing tmux target. See
 [Agent screenshots](ace.md#agent-screenshots).
 
-| Flag              | Values      | Default             | Description                                                               |
-| ----------------- | ----------- | ------------------- | ------------------------------------------------------------------------- |
-| `-- TUI_ARGS`     | strings     | -                   | Arguments forwarded to `sase tui` after a `--` separator.                 |
-| `-d, --settle-ms` | int (ms)    | `0`                 | Extra delay before capture.                                               |
-| `-H, --host`      | alias / SSH | local machine       | Run the SVG capture on a remote machine, then rasterize locally.          |
-| `-k, --keep`      | flag        | -                   | Leave a newly launched tmux window running after capture.                 |
-| `-o, --output`    | path        | managed temp path   | PNG output path, or SVG output path when `--svg` is used.                 |
-| `-p, --press`     | tmux key    | -                   | Send one tmux key before capture. Repeat for multiple keys.               |
-| `-s, --size`      | `COLSxROWS` | `120x40`            | Geometry for a newly launched capture window.                             |
-| `-S, --svg`       | flag        | -                   | Stop after live-app SVG export and skip PNG rasterization.                |
-| `-t, --timeout`   | seconds     | `30`                | Overall capture deadline.                                                 |
-| `-w, --wait-for`  | regex       | -                   | Wait for captured tmux screen text to match a regex. Repeatable.          |
-| `-W, --window`    | tmux target | launch a new window | Capture an existing `sase_tmux_*` window and never kill it after capture. |
+| Flag              | Values      | Default             | Description                                                                                                   |
+| ----------------- | ----------- | ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `-- TUI_ARGS`     | strings     | -                   | Arguments forwarded to `sase tui` after a `--` separator.                                                     |
+| `-d, --settle-ms` | int (ms)    | `0`                 | Extra delay before capture.                                                                                   |
+| `-H, --host`      | alias / SSH | local machine       | Run the SVG capture on a remote machine, then rasterize locally.                                              |
+| `-k, --keep`      | flag        | -                   | Leave a newly launched tmux window running after capture.                                                     |
+| `-o, --output`    | path        | managed temp path   | PNG output path, or SVG output path when `--svg` is used.                                                     |
+| `-p, --press`     | tmux key    | -                   | Send one tmux key. Repeats interleave with `--type` and `-w` in argv order.                                   |
+| `-s, --size`      | `COLSxROWS` | `120x40`            | Geometry for a newly launched capture window.                                                                 |
+| `-S, --svg`       | flag        | -                   | Stop after live-app SVG export and skip PNG rasterization.                                                    |
+| `-t, --timeout`   | seconds     | `30`                | Overall capture deadline.                                                                                     |
+| `-T, --type`      | text        | -                   | Send literal TUI text (`tmux send-keys -l`). Repeats interleave with `-p` and `-w` in argv order.             |
+| `-w, --wait-for`  | regex       | -                   | Wait for captured tmux screen text to match a regex. Repeats interleave with `-p` and `--type` in argv order. |
+| `-W, --window`    | tmux target | launch a new window | Capture an existing `sase_tmux_*` window and never kill it after capture.                                     |
 
 ### `sase tmux-agent`
 
