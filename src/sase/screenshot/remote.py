@@ -7,6 +7,7 @@ from pathlib import Path
 import json
 import shlex
 import subprocess
+import time
 from collections.abc import Mapping, Sequence
 from typing import Any, cast
 from uuid import uuid4
@@ -94,12 +95,13 @@ def capture_remote_screenshot(
 ) -> _RemoteScreenshotResult:
     """Capture a screenshot on ``host`` over SSH and rasterize it locally."""
     active_runner = runner or _SubprocessRunner()
+    deadline = _Deadline(options.timeout + _REMOTE_CAPTURE_TIMEOUT_OVERHEAD_SECONDS)
     try:
         target = resolve_remote_ssh_target(host)
     except ValueError as exc:
         raise ScreenshotCaptureError(str(exc)) from exc
 
-    _probe_contract(target, runner=active_runner)
+    _probe_contract(target, runner=active_runner, deadline=deadline)
     remote_svg = _remote_svg_path()
     local_svg = _output_path(
         options.output if options.svg_only else None, suffix=".svg"
@@ -111,11 +113,21 @@ def capture_remote_screenshot(
             remote_svg,
             options,
             runner=active_runner,
+            deadline=deadline,
         )
-        svg = _fetch_remote_svg(target, remote_svg, runner=active_runner)
+        svg = _fetch_remote_svg(
+            target,
+            remote_svg,
+            runner=active_runner,
+            deadline=deadline,
+        )
         local_svg.parent.mkdir(parents=True, exist_ok=True)
         local_svg.write_text(svg, encoding="utf-8")
-        remote_version = _remote_sase_version(target, runner=active_runner)
+        remote_version = _remote_sase_version(
+            target,
+            runner=active_runner,
+            deadline=deadline,
+        )
         png_path = (
             None
             if options.svg_only
@@ -136,12 +148,17 @@ def capture_remote_screenshot(
         _cleanup_remote_svg(target, remote_svg, runner=active_runner)
 
 
-def _probe_contract(target: RemoteSshTarget, *, runner: CommandRunner) -> None:
+def _probe_contract(
+    target: RemoteSshTarget,
+    *,
+    runner: CommandRunner,
+    deadline: _Deadline,
+) -> None:
     completed = _run_ssh(
         target,
         ["sase", "screenshot", "--contract"],
         runner=runner,
-        timeout=_SSH_OPERATION_TIMEOUT_SECONDS,
+        deadline=deadline,
         action="probe remote screenshot contract",
     )
     if completed.returncode != 0:
@@ -162,13 +179,15 @@ def _run_remote_svg_capture(
     options: ScreenshotOptions,
     *,
     runner: CommandRunner,
+    deadline: _Deadline,
 ) -> _RemoteScreenshotMetadata:
     argv = _remote_screenshot_argv(remote_svg, options)
     completed = _run_ssh(
         target,
         argv,
         runner=runner,
-        timeout=options.timeout + _REMOTE_CAPTURE_TIMEOUT_OVERHEAD_SECONDS,
+        deadline=deadline,
+        operation_timeout=None,
         action="run remote screenshot capture",
     )
     if completed.returncode != 0:
@@ -248,12 +267,13 @@ def _fetch_remote_svg(
     remote_svg: str,
     *,
     runner: CommandRunner,
+    deadline: _Deadline,
 ) -> str:
     completed = _run_ssh(
         target,
         ["cat", remote_svg],
         runner=runner,
-        timeout=_SSH_OPERATION_TIMEOUT_SECONDS,
+        deadline=deadline,
         action="fetch remote SVG",
     )
     if completed.returncode != 0:
@@ -265,12 +285,17 @@ def _fetch_remote_svg(
     return completed.stdout
 
 
-def _remote_sase_version(target: RemoteSshTarget, *, runner: CommandRunner) -> str:
+def _remote_sase_version(
+    target: RemoteSshTarget,
+    *,
+    runner: CommandRunner,
+    deadline: _Deadline,
+) -> str:
     completed = _run_ssh(
         target,
         ["sase", "--version"],
         runner=runner,
-        timeout=_SSH_OPERATION_TIMEOUT_SECONDS,
+        deadline=deadline,
         action="read remote sase version",
     )
     if completed.returncode != 0:
@@ -310,17 +335,23 @@ def _run_ssh(
     remote_argv: Sequence[str],
     *,
     runner: CommandRunner,
-    timeout: float,
+    deadline: _Deadline,
     action: str,
+    operation_timeout: float | None = _SSH_OPERATION_TIMEOUT_SECONDS,
 ) -> subprocess.CompletedProcess[str]:
     try:
-        return runner.run(
+        timeout = deadline.remaining
+        if operation_timeout is not None:
+            timeout = min(timeout, operation_timeout)
+        completed = runner.run(
             _ssh_argv(target.host, remote_argv),
             capture_output=True,
             text=True,
             check=False,
             timeout=timeout,
         )
+        _raise_for_ssh_transport_failure(completed, target=target, action=action)
+        return completed
     except FileNotFoundError as exc:
         raise ScreenshotCaptureError("ssh is not installed or not on PATH") from exc
     except subprocess.TimeoutExpired as exc:
@@ -334,6 +365,21 @@ def _run_ssh(
         ) from exc
 
 
+def _raise_for_ssh_transport_failure(
+    completed: subprocess.CompletedProcess[str],
+    *,
+    target: RemoteSshTarget,
+    action: str,
+) -> None:
+    if completed.returncode != 255:
+        return
+    detail = completed.stderr.strip() or completed.stdout.strip()
+    raise ScreenshotCaptureError(
+        f"SSH failed while trying to {action} on {target.host!r}"
+        + (f": {detail}" if detail else "")
+    )
+
+
 def _ssh_argv(host: str, remote_argv: Sequence[str]) -> list[str]:
     return [
         "ssh",
@@ -341,7 +387,7 @@ def _ssh_argv(host: str, remote_argv: Sequence[str]) -> list[str]:
         f"ConnectTimeout={_SSH_CONNECT_TIMEOUT_SECONDS}",
         "--",
         host,
-        *remote_argv,
+        shlex.join(remote_argv),
     ]
 
 
@@ -358,6 +404,17 @@ def _output_path(output: Path | None, *, suffix: str) -> Path:
 
 def _upgrade_message(host: str) -> str:
     return f"sase on {host!r} is missing or too old for `sase screenshot`; upgrade it"
+
+
+class _Deadline:
+    """Small monotonic deadline helper for one remote screenshot attempt."""
+
+    def __init__(self, seconds: float) -> None:
+        self._deadline = time.monotonic() + seconds
+
+    @property
+    def remaining(self) -> float:
+        return max(0.001, self._deadline - time.monotonic())
 
 
 __all__ = ["capture_remote_screenshot"]
