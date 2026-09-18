@@ -135,7 +135,10 @@ def test_descendant_processes_are_reaped(
 ) -> None:
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
     pidfile = tmp_path / "child.pid"
-    context = default_probe_context("synth", deadline_seconds=1.5)
+    # This test proves descendant cleanup after timeout. Give a cold isolated
+    # worker time to import the provider and write the PID file; the hanging-
+    # plugin test covers the tighter production deadline path.
+    context = default_probe_context("synth", deadline_seconds=5)
     result = run_usage_probe(
         context,
         isolate=True,
