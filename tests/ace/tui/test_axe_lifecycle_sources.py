@@ -81,7 +81,7 @@ class _StartupHarness(AxeMixin):
         self._auto_start_axe = True
         self.sources: list[tuple[str, str]] = []
 
-    async def _load_axe_status_async(self) -> None:  # type: ignore[override]
+    async def _load_axe_status_async(self, **_kwargs: object) -> None:  # type: ignore[override]
         return
 
     def _start_axe(self, *, source: str = "ace start") -> None:  # type: ignore[override]

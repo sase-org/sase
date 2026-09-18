@@ -234,17 +234,23 @@ def test_axe_collect_span_carries_file_opens(
 
 
 class _AxeStartupHarness(AxeDisplayRefreshMixin):
-    def __init__(self) -> None:
+    def __init__(self, *, current_tab: str = "agents") -> None:
         self._axe_first_load_done = False
-        self.current_tab = "agents"
+        self.current_tab = current_tab
+        self._startup_initial_tab = current_tab
         self._service_host_enabled = False
         self._restart_axe = False
         self._auto_start_axe = False
         self.axe_running = False
         self.applied: AxeCollectedData | None = None
+        self.collect_kwargs: list[dict[str, object]] = []
+        self.scheduled_full_refresh = 0
 
     def _apply_axe_status_data(self, data: AxeCollectedData) -> None:
         self.applied = data
+
+    def _schedule_axe_async_refresh(self) -> None:
+        self.scheduled_full_refresh += 1
 
 
 @pytest.mark.asyncio
@@ -269,19 +275,20 @@ async def test_axe_startup_path_emits_startup_and_load_status_spans(
         lumberjack_chop_names={},
         chop_snapshots={},
         lumberjack_snapshots={},
-        include_full_snapshots=True,
+        include_full_snapshots=False,
         stats=stats,
     )
 
     def _slow_collect(**kwargs: object) -> AxeCollectedData:
+        app.collect_kwargs.append(dict(kwargs))
         time.sleep(0.03)  # sase-test-wait: fake slow axe collect for span duration
         return payload
 
+    app = _AxeStartupHarness()
     monkeypatch.setattr(
         "sase.ace.tui.actions.axe_display._loader_refresh.collect_axe_status_data",
         _slow_collect,
     )
-    app = _AxeStartupHarness()
     await app._run_axe_startup_init()
 
     rows = _records(log)
@@ -289,7 +296,52 @@ async def test_axe_startup_path_emits_startup_and_load_status_spans(
     assert "axe.startup" in by_span
     assert "axe.load_status" in by_span
     assert by_span["axe.load_status"]["file_opens"] == 7
+    assert by_span["axe.load_status"]["include_full_snapshots"] is False
     assert by_span["axe.load_status"]["duration_ms"] >= 20.0
     assert by_span["axe.startup"]["startup_window"] is True
     assert by_span["axe.load_status"]["startup_window"] is True
+    assert app.applied is payload
+    assert app.collect_kwargs[0]["include_full_snapshots"] is False
+    assert app.scheduled_full_refresh == 0
+
+
+@pytest.mark.asyncio
+async def test_axe_startup_on_axe_tab_schedules_background_full_refresh(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Visible AXE tab still paints cheaply, then coalesces a full follow-up."""
+    _enable_trace(tmp_path, monkeypatch)
+    stats = AxeCollectorStats(file_opens=0, run_json_parses=0)
+    payload = AxeCollectedData(
+        axe_running=False,
+        axe_status=None,
+        axe_metrics=None,
+        axe_output="",
+        lumberjack_names=["hooks"],
+        bgcmd_slots=[],
+        lumberjack_statuses={},
+        lumberjack_metrics={},
+        lumberjack_log_tails={},
+        bgcmd_details={},
+        lumberjack_chop_names={"hooks": ["fast"]},
+        chop_snapshots={},
+        lumberjack_snapshots={},
+        include_full_snapshots=False,
+        stats=stats,
+    )
+    collect_kwargs: list[dict[str, object]] = []
+
+    def _collect(**kwargs: object) -> AxeCollectedData:
+        collect_kwargs.append(dict(kwargs))
+        return payload
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.axe_display._loader_refresh.collect_axe_status_data",
+        _collect,
+    )
+    app = _AxeStartupHarness(current_tab="axe")
+    await app._run_axe_startup_init()
+
+    assert collect_kwargs[0]["include_full_snapshots"] is False
+    assert app.scheduled_full_refresh == 1
     assert app.applied is payload

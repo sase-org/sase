@@ -345,6 +345,55 @@ async def test_start_post_mount_background_loads_does_not_gate_axe_on_agents() -
     await asyncio.wait_for(asyncio.gather(*harness.tasks), timeout=0.2)
 
 
+@pytest.mark.asyncio
+async def test_start_post_mount_background_loads_does_not_gate_agents_on_axe() -> None:
+    """Agents startup should complete even while axe first load is still running."""
+
+    class _Harness:
+        def __init__(self) -> None:
+            self._post_mount_background_loads_started = False
+            self._agents_refresh_pending_callbacks: list[Callable[[], None]] = []
+            self.agent_done = asyncio.Event()
+            self.axe_started = asyncio.Event()
+            self.axe_release = asyncio.Event()
+            self.axe_done = asyncio.Event()
+            self.tasks: list[asyncio.Task[None]] = []
+
+        async def _run_agent_index_startup_prepare_and_refresh(self) -> None:
+            self.agent_done.set()
+
+        async def _run_axe_startup_init(self) -> None:
+            self.axe_started.set()
+            await self.axe_release.wait()
+            self.axe_done.set()
+
+        def _schedule_agents_fold_state_load(self) -> None:
+            pass
+
+        def _schedule_dismissed_index_startup_sync(self) -> None:
+            pass
+
+        def _start_artifact_watcher(self) -> None:
+            pass
+
+        def _mark_startup_first_paint(self) -> None:
+            pass
+
+        def run_worker(self, fn, **kwargs) -> None:  # type: ignore[no-untyped-def]
+            del kwargs
+            self.tasks.append(asyncio.create_task(fn()))
+
+    harness = _Harness()
+    AceApp._start_post_mount_background_loads(harness)  # type: ignore[arg-type]
+
+    await asyncio.wait_for(harness.axe_started.wait(), timeout=0.2)
+    await asyncio.wait_for(harness.agent_done.wait(), timeout=0.2)
+    assert not harness.axe_done.is_set()
+
+    harness.axe_release.set()
+    await asyncio.wait_for(asyncio.gather(*harness.tasks), timeout=0.2)
+
+
 def test_maybe_end_startup_stopwatch_gates_on_visible_tab_only() -> None:
     """Coordinator ends the stopwatch once the initially visible tab is ready.
 

@@ -593,3 +593,107 @@ def test_axe_collector_kwargs_off_tab_skip_full_snapshots() -> None:
     )
     assert sanity["include_full_snapshots"] is True
     assert sanity["tail_chop_keys"] is None
+
+
+def test_axe_collector_kwargs_first_load_matches_visible_tab() -> None:
+    """A pending first load no longer forces the O(history) snapshot walk."""
+    from sase.ace.tui.actions.axe_display import AxeStatusReadCache
+    from sase.ace.tui.actions.axe_display._loader_refresh import (
+        AxeDisplayRefreshMixin,
+    )
+
+    class _App:
+        current_tab = "agents"
+        _axe_first_load_done = False
+        _axe_status_read_cache = AxeStatusReadCache()
+        _axe_chop_selection = ("hooks", "fast")
+
+        def _derive_axe_view_from_selection(self) -> None:
+            return None
+
+        _axe_collector_kwargs = AxeDisplayRefreshMixin._axe_collector_kwargs
+
+    app = _App()
+    off_tab = app._axe_collector_kwargs()
+    assert off_tab["include_full_snapshots"] is False
+    assert off_tab["tail_chop_keys"] == frozenset()
+
+    app.current_tab = "axe"
+    on_tab = app._axe_collector_kwargs()
+    assert on_tab["include_full_snapshots"] is True
+
+
+# Live athena traces (sase-132.1) opened 452 files on the unfixed full
+# first load. Header-only startup must stay well below that even with a
+# production-shaped chop history (40 chops × 10 runs).
+_AXE_STARTUP_FILE_OPENS_BUDGET = 16
+
+
+def test_header_only_collect_bounds_file_opens_on_large_chop_history() -> None:
+    """Startup-shaped header collect skips the ~400-file chop-history walk."""
+    chop_names = [f"chop-{i:02d}" for i in range(40)]
+    config = _FakeAxeConfig({"hooks": _lj_cfg("hooks", chop_names)})
+    run_ids = [f"20260511T1001{i:02d}_000000" for i in range(10)]
+
+    def _fake_run_index(_lj: str, _chop: str) -> list[str]:
+        return run_ids
+
+    def _fake_read_run(_lj: str, chop: str, run_id: str) -> ChopRunEntry | None:
+        return _make_run_entry("hooks", chop, run_id)
+
+    with (
+        patch(
+            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
+        ) as get_proc,
+        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
+            return_value="axe log\n",
+        ) as axe_log_reader,
+        patch("sase.axe.config.load_axe_config", return_value=config),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_status",
+            return_value=_make_status("hooks"),
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_metrics",
+            return_value=_make_metrics(),
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_lumberjack_log_tail",
+            return_value="hooks log\n",
+        ) as jack_log_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_index",
+            side_effect=_fake_run_index,
+        ) as run_index_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run",
+            side_effect=_fake_read_run,
+        ) as run_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.read_chop_run_log_tail",
+            return_value="run output\n",
+        ) as run_log_reader,
+        patch(
+            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+        ),
+    ):
+        proc = get_proc.return_value
+        proc.is_axe_running.return_value = False
+        proc.get_axe_status.return_value = None
+
+        data = collect_axe_status_data(include_full_snapshots=False)
+
+    assert data.include_full_snapshots is False
+    assert data.lumberjack_chop_names == {"hooks": chop_names}
+    assert data.chop_snapshots == {}
+    assert data.stats.file_opens <= _AXE_STARTUP_FILE_OPENS_BUDGET
+    assert data.stats.file_opens == 0
+    assert data.stats.run_json_parses == 0
+    assert data.stats.run_index_reads == 0
+    run_index_reader.assert_not_called()
+    run_reader.assert_not_called()
+    run_log_reader.assert_not_called()
+    jack_log_reader.assert_not_called()
+    axe_log_reader.assert_not_called()

@@ -49,12 +49,15 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
         include_full_snapshots: bool | None = None,
         tail_all_chop_logs: bool = False,
     ) -> _AxeCollectorKwargs:
-        """Return keyword arguments for :func:`collect_axe_status_data`."""
-        first_load_pending = not getattr(self, "_axe_first_load_done", True)
+        """Return keyword arguments for :func:`collect_axe_status_data`.
+
+        Default is header-only unless the AXE tab is visible. The first
+        startup load used to force a full snapshot so the cache was warm;
+        that walked every chop run even when Agents was showing (sase-132.1
+        live traces: 452 ``file_opens``, ~400 run JSON parses).
+        """
         if include_full_snapshots is None:
-            include_full_snapshots = (
-                getattr(self, "current_tab", "axe") == "axe" or first_load_pending
-            )
+            include_full_snapshots = getattr(self, "current_tab", "axe") == "axe"
         cache = getattr(self, "_axe_status_read_cache", None)
         if cache is None:
             cache = AxeStatusReadCache()
@@ -650,10 +653,23 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             await self._run_axe_startup_init_body()
 
     async def _run_axe_startup_init_body(self) -> None:
-        """Inner axe startup body; wrapped by :meth:`_run_axe_startup_init`."""
+        """Inner axe startup body; wrapped by :meth:`_run_axe_startup_init`.
+
+        First load is header-only so ``axe_ready`` does not walk chop
+        history. When AXE is the initially visible tab, a coalesced full
+        refresh completes snapshots in the background after that cheap
+        paint. Other tabs warm on tab switch / auto-refresh (tui_perf
+        rule 5) instead of contending with the visible surface's load.
+        """
         import asyncio
 
-        await self._load_axe_status_async()
+        await self._load_axe_status_async(include_full_snapshots=False)
+        initial_tab = getattr(self, "_startup_initial_tab", None)
+        current_tab = getattr(self, "current_tab", None)
+        if initial_tab == "axe" or current_tab == "axe":
+            schedule = getattr(self, "_schedule_axe_async_refresh", None)
+            if callable(schedule):
+                schedule()
         if getattr(self, "_service_host_enabled", False):
             if self._restart_axe and self.axe_running:  # type: ignore[attr-defined]
                 from sase.service.control import restart_service_host
