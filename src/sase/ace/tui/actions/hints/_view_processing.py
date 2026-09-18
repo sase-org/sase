@@ -20,7 +20,7 @@ from sase.pager.link_context import LinkResolutionContext
 from ....hint_types import ViewFilesResult
 from ....hints import parse_numeric_hint_selection, parse_view_input
 from ...artifact_reads import ArtifactReadRefSpec
-from ...tools.report import SlowToolCallReportSpec, write_tool_call_report
+from ...llm_calls.report import SlowToolCallReportSpec, write_tool_call_report
 from ...widgets.prompt_panel._agent_display_state import CommitViewSpec
 from ._artifact_ref_repair import repair_artifact_read_path
 from ._commit_processing import CommitHintProcessingMixin

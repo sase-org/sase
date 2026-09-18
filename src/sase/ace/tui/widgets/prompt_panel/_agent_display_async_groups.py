@@ -92,7 +92,7 @@ class AgentDisplayGroupWorkerMixin:
         snapshot = get_cached_clan_section_snapshot(self, agent)
         if snapshot is None:
             return
-        from ...tools.slow import slow_tool_call_threshold_ms_from_widget
+        from ...llm_calls.slow import slow_tool_call_threshold_ms_from_widget
 
         self.start_clan_section_enrichment(
             agent,

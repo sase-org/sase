@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.tools import SlowToolSource, ToolCallEntry
+from sase.ace.tui.llm_calls import SlowToolSource, ToolCallEntry
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import build_header_text
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import DetailHeaderSummary
 from tests.ace.tui._agents_panel_fold_mode_helpers import _FoldApp, _press

@@ -32,6 +32,11 @@ async def test_agents_p_opens_picker_and_direct_mode_choice_applies(
         await page.press("p")
         await page.expect_modal("AgentViewModal")
         first_screen = page.app.screen
+        assert isinstance(first_screen, AgentViewModal)
+        llm_calls_choice = first_screen.choices[1]
+        assert llm_calls_choice.key == "t"
+        assert llm_calls_choice.label == "LLM Calls"
+        assert llm_calls_choice.subtitle == "Provider tool calls and activity"
 
         await page.press("]")
         await page.pause()

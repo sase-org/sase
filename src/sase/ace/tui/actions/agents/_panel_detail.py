@@ -245,7 +245,7 @@ class AgentPanelDetailMixin:
                 agent_detail, "#agent-prompt-scroll"
             ),
             has_file_content=False,
-            has_tools_content=False,
+            has_llm_calls_content=False,
         )
 
     def _zoom_target_for_detail(self, agent_detail: Any) -> Any:
@@ -258,8 +258,8 @@ class AgentPanelDetailMixin:
             return ZoomPanelTarget.METADATA
         if agent_detail.is_layout_swapped():
             return ZoomPanelTarget.METADATA
-        if agent_detail.is_tools_visible():
-            return ZoomPanelTarget.TOOLS
+        if agent_detail.is_llm_calls_visible():
+            return ZoomPanelTarget.LLM_CALLS
         if agent_detail.is_file_visible():
             return ZoomPanelTarget.FILE
         return ZoomPanelTarget.METADATA
@@ -269,32 +269,36 @@ class AgentPanelDetailMixin:
         from ...modals import ZoomPanelSeed
         from ...widgets.file_panel import AgentFilePanel
         from ...widgets.prompt_panel import AgentPromptPanel
-        from ...widgets.tools_panel import AgentToolsPanel, ToolDetailLevel
+        from ...widgets.llm_calls_panel import AgentLLMCallsPanel, ToolDetailLevel
 
         prompt_panel = agent_detail.query_one("#agent-prompt-panel", AgentPromptPanel)
         file_panel = agent_detail.query_one("#agent-file-panel", AgentFilePanel)
-        tools_panel = agent_detail.query_one("#agent-tools-panel", AgentToolsPanel)
+        llm_calls_panel = agent_detail.query_one(
+            "#agent-llm-calls-panel", AgentLLMCallsPanel
+        )
         file_list = tuple(getattr(file_panel, "_file_list", ()))
-        raw_tools_detail_level = getattr(agent_detail, "tools_detail_level", None)
-        if raw_tools_detail_level is None:
-            raw_tools_detail_level = getattr(
-                tools_panel, "detail_level", ToolDetailLevel.COMPACT
+        raw_llm_calls_detail_level = getattr(
+            agent_detail, "llm_calls_detail_level", None
+        )
+        if raw_llm_calls_detail_level is None:
+            raw_llm_calls_detail_level = getattr(
+                llm_calls_panel, "detail_level", ToolDetailLevel.COMPACT
             )
-        tools_detail_level = ToolDetailLevel(
-            int(cast(ToolDetailLevel | int, raw_tools_detail_level))
+        llm_calls_detail_level = ToolDetailLevel(
+            int(cast(ToolDetailLevel | int, raw_llm_calls_detail_level))
         )
         return ZoomPanelSeed(
             metadata_renderable=getattr(prompt_panel, "content", None),
             file_renderable=getattr(file_panel, "content", None),
-            tools_renderable=getattr(tools_panel, "content", None),
+            llm_calls_renderable=getattr(llm_calls_panel, "content", None),
             metadata_subtitle=self._zoom_border_subtitle(
                 agent_detail, "#agent-prompt-scroll"
             ),
             file_subtitle=self._zoom_border_subtitle(
                 agent_detail, "#agent-file-scroll"
             ),
-            tools_subtitle=self._zoom_border_subtitle(
-                agent_detail, "#agent-tools-scroll"
+            llm_calls_subtitle=self._zoom_border_subtitle(
+                agent_detail, "#agent-llm-calls-scroll"
             ),
             file_list=file_list,
             file_index=getattr(file_panel, "current_file_index", 0),
@@ -302,11 +306,11 @@ class AgentPanelDetailMixin:
                 agent_detail.is_file_visible()
                 or getattr(agent_detail, "_has_file_content", False)
             ),
-            has_tools_content=bool(
-                agent_detail.is_tools_visible()
-                or getattr(agent_detail, "_has_tools_content", False)
+            has_llm_calls_content=bool(
+                agent_detail.is_llm_calls_visible()
+                or getattr(agent_detail, "_has_llm_calls_content", False)
             ),
-            tools_detail_level=tools_detail_level,
+            llm_calls_detail_level=llm_calls_detail_level,
             attempt_view_mode=getattr(agent_detail, "attempt_view_mode", "merged"),
             attempt_number=getattr(self, "current_attempt_number", None),
         )

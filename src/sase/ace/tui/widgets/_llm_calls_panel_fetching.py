@@ -1,11 +1,11 @@
-"""Cache/source coordination helpers for the tools panel widget."""
+"""Cache/source coordination helpers for the LLM Calls panel widget."""
 
 from __future__ import annotations
 
 from datetime import datetime
 
 from sase.ace.tui.models.agent import Agent
-from sase.ace.tui.tools.cache import (
+from sase.ace.tui.llm_calls.cache import (
     invalidate_cached_tool_calls,
     mark_tool_call_fetch_started,
     peek_tool_calls_cache_entry,

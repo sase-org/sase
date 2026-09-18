@@ -31,21 +31,21 @@ from sase.ace.tui.modals.procs_pane_render import _elapsed, _relative_time
 from sase.ace.tui.proc_observer import ObservedProc
 from sase.ace.tui import _proc_observer_log as po_log
 from sase.ace.tui import _proc_observer_store as po_store
-from sase.ace.tui.tools.cache import (
+from sase.ace.tui.llm_calls.cache import (
     ToolsCacheEntry,
     cached_tool_calls_end_reference,
     fetch_tool_calls_cached,
     get_cache_key,
     tools_cache,
 )
-from sase.ace.tui.tools.report import _timestamp_hhmmss
+from sase.ace.tui.llm_calls.report import _timestamp_hhmmss
 from sase.ace.tui.widgets.file_panel._display import FilePanelDisplayMixin
 from sase.ace.tui.widgets.file_panel._fetch import FilePanelFetchMixin
 from sase.ace.tui.widgets.file_panel._messages import file_cache
 from sase.ace.tui.widgets.prompt_panel._member_roster import (
     _format_timestamp as format_roster_timestamp,
 )
-from sase.ace.tui.widgets.tools_panel import AgentToolsPanel
+from sase.ace.tui.widgets.llm_calls_panel import AgentLLMCallsPanel
 from sase.logs import ToastRecord
 from sase.procs import Proc
 from sase.stats.ranges import StatsRange
@@ -181,7 +181,7 @@ def test_proc_observer_mints_configured_wall_times(
     assert task.started_at == local
 
 
-def test_tools_cache_uses_configured_wall_time(
+def test_llm_calls_cache_uses_configured_wall_time(
     tz_divergence: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -193,9 +193,9 @@ def test_tools_cache_uses_configured_wall_time(
         fetch_time=local,
         artifact_mtime_ns=int(_display_epoch() * 1_000_000_000),
     )
-    monkeypatch.setattr("sase.ace.tui.tools.cache.local_now", lambda: local)
+    monkeypatch.setattr("sase.ace.tui.llm_calls.cache.local_now", lambda: local)
     monkeypatch.setattr(
-        "sase.ace.tui.tools.cache.read_tool_calls_for_agent",
+        "sase.ace.tui.llm_calls.cache.read_tool_calls_for_agent",
         lambda _agent: [],
     )
 
@@ -207,37 +207,37 @@ def test_tools_cache_uses_configured_wall_time(
         tools_cache.pop(key, None)
 
 
-def test_tools_panel_fallbacks_use_configured_wall_time(
+def test_llm_calls_panel_fallbacks_use_configured_wall_time(
     tz_divergence: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     local = datetime(2026, 7, 3, 6, 24, 49)
     agent = _fake_agent()
-    panel = SimpleNamespace(_fetch_tools_in_background=lambda _agent: ())
-    monkeypatch.setattr("sase.ace.tui.widgets.tools_panel.local_now", lambda: local)
+    panel = SimpleNamespace(_fetch_tool_calls_in_background=lambda _agent: ())
+    monkeypatch.setattr("sase.ace.tui.widgets.llm_calls_panel.local_now", lambda: local)
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.tools_panel.supports_slow_tool_sources",
+        "sase.ace.tui.widgets.llm_calls_panel.supports_slow_tool_sources",
         lambda _agent: True,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.tools_panel.build_cached_slow_tool_sources",
+        "sase.ace.tui.widgets.llm_calls_panel.build_cached_slow_tool_sources",
         lambda _agent: (),
     )
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.tools_panel.build_slow_tool_sources",
+        "sase.ace.tui.widgets.llm_calls_panel.build_slow_tool_sources",
         lambda _agent: (),
     )
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.tools_panel.rows_from_sources",
+        "sase.ace.tui.widgets.llm_calls_panel.rows_from_sources",
         lambda _sources: (),
     )
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.tools_panel.latest_cached_fetch_time",
+        "sase.ace.tui.widgets.llm_calls_panel.latest_cached_fetch_time",
         lambda _agent: None,
     )
 
-    cached = AgentToolsPanel._cached_fetch_result(panel, agent)  # type: ignore[arg-type]
-    background = AgentToolsPanel._fetch_tools_result_in_background(  # type: ignore[arg-type]
+    cached = AgentLLMCallsPanel._cached_fetch_result(panel, agent)  # type: ignore[arg-type]
+    background = AgentLLMCallsPanel._fetch_llm_calls_result_in_background(  # type: ignore[arg-type]
         panel,
         agent,
     )
@@ -246,18 +246,18 @@ def test_tools_panel_fallbacks_use_configured_wall_time(
     assert background.fetch_time == local
 
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.tools_panel.supports_slow_tool_sources",
+        "sase.ace.tui.widgets.llm_calls_panel.supports_slow_tool_sources",
         lambda _agent: False,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.tools_panel.peek_tool_calls_cache_entry",
+        "sase.ace.tui.widgets.llm_calls_panel.peek_tool_calls_cache_entry",
         lambda _agent: None,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.tools_panel.rows_from_entries",
+        "sase.ace.tui.widgets.llm_calls_panel.rows_from_entries",
         lambda _entries: (),
     )
-    uncached = AgentToolsPanel._fetch_tools_result_in_background(  # type: ignore[arg-type]
+    uncached = AgentLLMCallsPanel._fetch_llm_calls_result_in_background(  # type: ignore[arg-type]
         panel,
         agent,
     )

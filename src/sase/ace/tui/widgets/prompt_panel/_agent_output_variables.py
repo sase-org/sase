@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from rich.text import Text
 
 from sase.ace.tui.agent_context_members import compact_role_label
-from sase.ace.tui.tools.cache import get_cache_key
+from sase.ace.tui.llm_calls.cache import get_cache_key
 from sase.core.output_variable_values import VarValue
 
 from ...models.agent import Agent

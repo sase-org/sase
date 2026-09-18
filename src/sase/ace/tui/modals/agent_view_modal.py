@@ -58,7 +58,7 @@ class AgentViewModal(ModalScreen[AgentViewResult | None]):
 
     BINDINGS = [
         Binding("f", "choose('f')", "File", show=False),
-        Binding("t", "choose('t')", "Tools", show=False),
+        Binding("t", "choose('t')", "LLM Calls", show=False),
         Binding("n", "choose('n')", "None", show=False),
         Binding("1", "choose('1')", "Metadata Larger", show=False),
         Binding("2", "choose('2')", "Secondary Larger", show=False),
@@ -279,7 +279,7 @@ class AgentViewModal(ModalScreen[AgentViewResult | None]):
 
 AGENT_VIEW_MODE_CHOICES: Final[tuple[tuple[str, str, DetailPanelMode], ...]] = (
     ("f", "File", DetailPanelMode.AUTO),
-    ("t", "Tools", DetailPanelMode.TOOLS),
+    ("t", "LLM Calls", DetailPanelMode.LLM_CALLS),
     ("n", "None", DetailPanelMode.INFO),
 )
 

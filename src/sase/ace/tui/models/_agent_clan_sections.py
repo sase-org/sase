@@ -23,8 +23,8 @@ from .agent import Agent
 from .agent_types import AgentType
 
 if TYPE_CHECKING:
-    from sase.ace.tui.tools import SlowToolSource
-    from sase.ace.tui.tools.slow import SlowToolCall
+    from sase.ace.tui.llm_calls import SlowToolSource
+    from sase.ace.tui.llm_calls.slow import SlowToolCall
 
     from ..widgets.prompt_panel._agent_display_state import DetailHeaderSummary
 

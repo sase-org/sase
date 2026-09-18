@@ -13,7 +13,7 @@ from threading import Lock
 from typing import Any, cast
 
 from sase._linked_repo_paths import hidden_sidecar_clone_dir
-from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
+from sase.ace.tui.llm_calls._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 from sase.sdd.store import AGENTS_SIDECAR_ROLE
 
 from ...models._agent_clan_sections import (

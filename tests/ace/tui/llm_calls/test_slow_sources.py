@@ -7,8 +7,8 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.tools.cache import tools_cache
-from sase.ace.tui.tools.sources import (
+from sase.ace.tui.llm_calls.cache import tools_cache
+from sase.ace.tui.llm_calls.sources import (
     build_slow_tool_sources,
     supports_slow_tool_sources,
 )
@@ -63,7 +63,7 @@ def test_leaf_source_filters_related_sibling_entries(tmp_path: Path) -> None:
     agent = _agent(own_dir)
 
     with patch(
-        "sase.ace.tui.tools.cache.discover_related_tool_artifact_dirs_cached",
+        "sase.ace.tui.llm_calls.cache.discover_related_tool_artifact_dirs_cached",
         return_value=([own_dir, sibling_dir], 1),
     ):
         sources = build_slow_tool_sources(agent)
@@ -109,7 +109,7 @@ def test_root_sources_claim_shared_plan_dir_before_root(tmp_path: Path) -> None:
     root.runtime_children.extend([plan, code])
 
     with patch(
-        "sase.ace.tui.tools.cache.discover_related_tool_artifact_dirs_cached",
+        "sase.ace.tui.llm_calls.cache.discover_related_tool_artifact_dirs_cached",
         side_effect=lambda _agent, artifacts_dir, **_kwargs: ([Path(artifacts_dir)], 1),
     ):
         sources = build_slow_tool_sources(root)
@@ -171,7 +171,7 @@ def test_source_labels_follow_role_step_name_agent_name_and_root_precedence(
     root.runtime_children.extend([code, feedback, step, named])
 
     with patch(
-        "sase.ace.tui.tools.cache.discover_related_tool_artifact_dirs_cached",
+        "sase.ace.tui.llm_calls.cache.discover_related_tool_artifact_dirs_cached",
         side_effect=lambda _agent, artifacts_dir, **_kwargs: ([Path(artifacts_dir)], 1),
     ):
         sources = build_slow_tool_sources(root)
@@ -209,7 +209,7 @@ def test_source_activity_and_end_reference_are_per_row(tmp_path: Path) -> None:
     root.runtime_children.append(child)
 
     with patch(
-        "sase.ace.tui.tools.cache.discover_related_tool_artifact_dirs_cached",
+        "sase.ace.tui.llm_calls.cache.discover_related_tool_artifact_dirs_cached",
         side_effect=lambda _agent, artifacts_dir, **_kwargs: ([Path(artifacts_dir)], 1),
     ):
         sources = build_slow_tool_sources(root)
@@ -233,7 +233,7 @@ def test_sticky_approved_source_is_not_active(tmp_path: Path, status: str) -> No
     agent = _agent(artifacts_dir, status=status, stop_time=stopped_at)
 
     with patch(
-        "sase.ace.tui.tools.cache.discover_related_tool_artifact_dirs_cached",
+        "sase.ace.tui.llm_calls.cache.discover_related_tool_artifact_dirs_cached",
         return_value=([artifacts_dir], 1),
     ):
         sources = build_slow_tool_sources(agent)
@@ -259,7 +259,7 @@ def test_missing_artifacts_dir_child_is_skipped(tmp_path: Path) -> None:
     root.runtime_children.append(missing)
 
     with patch(
-        "sase.ace.tui.tools.cache.discover_related_tool_artifact_dirs_cached",
+        "sase.ace.tui.llm_calls.cache.discover_related_tool_artifact_dirs_cached",
         side_effect=lambda _agent, artifacts_dir, **_kwargs: ([Path(artifacts_dir)], 1),
     ):
         sources = build_slow_tool_sources(root)

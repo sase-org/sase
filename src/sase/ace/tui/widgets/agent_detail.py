@@ -13,7 +13,7 @@ from sase.agent.status_buckets import (
     PENDING_PLAN_REVIEW_STATUSES,
 )
 
-from ..tools import supports_slow_tool_sources
+from ..llm_calls import supports_slow_tool_sources
 from ..models.agent import Agent, AgentType
 from ..models.agent_tribe_summary import (
     AgentTribeSummarySnapshot,
@@ -31,7 +31,7 @@ from .prompt_panel._agent_display_header_summary import (
     get_cached_detail_header_summary,
 )
 from .prompt_panel._agent_display_state import AgentHintRender
-from .tools_panel import AgentToolsPanel, ToolDetailLevel
+from .llm_calls_panel import AgentLLMCallsPanel, ToolDetailLevel
 from ..util.trace import tui_trace
 
 
@@ -69,7 +69,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._current_agent: Agent | None = None
         self._current_tribe_identity: TribePanelIdentity | None = None
         self._has_file_content: bool = False
-        self._has_tools_content: bool = False
+        self._has_llm_calls_content: bool = False
         self._file_count: int = 0
         self._file_index: int = 0
         self._file_visible_lines: int = 0
@@ -93,8 +93,8 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             yield Static(id="agent-search-command", classes="hidden")
             with VerticalScroll(id="agent-file-scroll"):
                 yield AgentFilePanel(id="agent-file-panel")
-            with VerticalScroll(id="agent-tools-scroll", classes="hidden"):
-                yield AgentToolsPanel(id="agent-tools-panel")
+            with VerticalScroll(id="agent-llm-calls-scroll", classes="hidden"):
+                yield AgentLLMCallsPanel(id="agent-llm-calls-panel")
 
     @property
     def metadata_identity(self) -> object | None:
@@ -161,7 +161,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
 
         Called synchronously from the j/k debounced refresh so the user sees
         the new agent's title/status and any cached prompt content with no
-        latency, while the file/tools/diff workers wait for the detail
+        latency, while the file/LLM Calls/diff workers wait for the detail
         debouncer to settle on a final selection.
         """
         previous_identity = self.metadata_identity
@@ -186,7 +186,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
     ) -> None:
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
+        llm_calls_panel = self.query_one("#agent-llm-calls-panel", AgentLLMCallsPanel)
 
         # Detect agent change and reset per-agent state, but preserve the
         # user's explicit panel mode choice so that e.g. pressing ']' to show
@@ -196,16 +196,18 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._current_attempt_number = attempt_number
         if prev_agent is not None and prev_agent.identity != agent.identity:
             self._has_file_content = False
-            self._has_tools_content = False
-            # Reset from TOOLS mode when switching to non-agent entry
+            self._has_llm_calls_content = False
+            # Reset from LLM Calls mode when switching to non-agent entry
             if (
                 not supports_slow_tool_sources(agent)
-                and self._panel_mode == DetailPanelMode.TOOLS
+                and self._panel_mode == DetailPanelMode.LLM_CALLS
             ):
                 self._panel_mode = DetailPanelMode.AUTO
-            if self._panel_mode != DetailPanelMode.TOOLS:
-                tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
-                tools_scroll.add_class("hidden")
+            if self._panel_mode != DetailPanelMode.LLM_CALLS:
+                llm_calls_scroll = self.query_one(
+                    "#agent-llm-calls-scroll", VerticalScroll
+                )
+                llm_calls_scroll.add_class("hidden")
 
         prompt_panel.attempt_view_mode = self._attempt_view_mode
         prompt_panel.attempt_pinned_number = attempt_number
@@ -234,57 +236,57 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             prompt_panel.update_display(agent)
 
         if agent.is_clan_container:
-            # Synthetic clans have no files or tools of their own. Keep their
+            # Synthetic clans have no files or LLM Calls of their own. Keep their
             # aggregate detail document on the full pane and avoid launching
             # any secondary-panel work from stale prior selections.
             self._has_file_content = False
-            self._has_tools_content = False
+            self._has_llm_calls_content = False
             self._file_count = 0
             self._file_index = 0
             self._file_visible_lines = 0
             self._file_total_lines = 0
             self._file_content_capped = False
             file_panel.show_empty()
-            tools_panel.show_empty()
-            tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
-            tools_scroll.add_class("hidden")
+            llm_calls_panel.show_empty()
+            llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
+            llm_calls_scroll.add_class("hidden")
             self._expand_prompt_only()
             self._update_panel_indicators()
             return
         if agent.is_proc_shell:
             self._has_file_content = False
-            self._has_tools_content = False
+            self._has_llm_calls_content = False
             self._file_count = 0
             self._file_index = 0
             self._file_visible_lines = 0
             self._file_total_lines = 0
             self._file_content_capped = False
             file_panel.show_empty()
-            tools_panel.show_empty()
-            tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
-            tools_scroll.add_class("hidden")
+            llm_calls_panel.show_empty()
+            llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
+            llm_calls_scroll.add_class("hidden")
             self._expand_prompt_only()
             self._update_panel_indicators()
             return
         self._update_panel_indicators()
 
-        # Attempt-pinned view: bypass file/tools panels — we can't
+        # Attempt-pinned view: bypass file/LLM Calls panels — we can't
         # reconstruct per-attempt file or tool history from the archived
         # snapshots. Expand the prompt panel to fill the area.
         if attempt_number is not None:
             self._expand_prompt_only()
             return
 
-        # Probe tools availability in the background so that
-        # _has_tools_content is accurate for panel mode cycling.
+        # Probe LLM Calls availability in the background so that
+        # _has_llm_calls_content is accurate for panel mode cycling.
         # Skip the probe when the same agent is still selected and we're in
-        # INFO mode — the tools panel is hidden anyway and the cache will
-        # be checked when the user toggles to tools mode.
+        # INFO mode — the LLM Calls panel is hidden anyway and the cache will
+        # be checked when the user toggles to LLM Calls mode.
         same_agent = prev_agent is not None and prev_agent.identity == agent.identity
         if supports_slow_tool_sources(agent) and not (
             same_agent and self._panel_mode == DetailPanelMode.INFO
         ):
-            tools_panel.update_display(
+            llm_calls_panel.update_display(
                 agent, stale_threshold_seconds=stale_threshold_seconds
             )
 
@@ -296,9 +298,9 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             prompt_scroll.add_class("expanded")
             return
 
-        # When tools panel is visible, keep it showing and just refresh data
-        if self._panel_mode == DetailPanelMode.TOOLS:
-            # Still update file panel in background (for when tools is toggled off)
+        # When LLM Calls is visible, keep it showing and just refresh data
+        if self._panel_mode == DetailPanelMode.LLM_CALLS:
+            # Still update file panel in background (for later File view use)
             if agent.status in _ACTIVE_STATUSES:
                 file_panel.update_display(
                     agent, stale_threshold_seconds=stale_threshold_seconds
@@ -431,22 +433,22 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._current_attempt_number = None
         prompt_panel = self.query_one("#agent-prompt-panel", AgentPromptPanel)
         file_panel = self.query_one("#agent-file-panel", AgentFilePanel)
-        tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
+        llm_calls_panel = self.query_one("#agent-llm-calls-panel", AgentLLMCallsPanel)
 
         prompt_panel.show_empty()
         file_panel.show_empty()
-        tools_panel.show_empty()
+        llm_calls_panel.show_empty()
 
-        # Hide file and tools panels when no agent is selected
+        # Hide file and LLM Calls panels when no agent is selected
         prompt_scroll = self._active_metadata_scroll()
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
-        tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
+        llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
         file_scroll.add_class("hidden")
-        tools_scroll.add_class("hidden")
+        llm_calls_scroll.add_class("hidden")
         prompt_scroll.add_class("expanded")
         self._panel_mode = DetailPanelMode.AUTO
         self._has_file_content = False
-        self._has_tools_content = False
+        self._has_llm_calls_content = False
         self._file_count = 0
         self._file_index = 0
         self._file_visible_lines = 0
@@ -473,13 +475,13 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         prompt_panel.update_tribe_display(snapshot, cheap=cheap)
         prompt_scroll = self._active_metadata_scroll()
         file_scroll = self.query_one("#agent-file-scroll", VerticalScroll)
-        tools_scroll = self.query_one("#agent-tools-scroll", VerticalScroll)
+        llm_calls_scroll = self.query_one("#agent-llm-calls-scroll", VerticalScroll)
         file_scroll.add_class("hidden")
-        tools_scroll.add_class("hidden")
+        llm_calls_scroll.add_class("hidden")
         prompt_scroll.add_class("expanded")
         prompt_scroll.remove_class("layout-priority")
         self._has_file_content = False
-        self._has_tools_content = False
+        self._has_llm_calls_content = False
         prompt_scroll.border_subtitle = ""
         self._publish_metadata_identity_change(previous_identity)
 
@@ -523,42 +525,48 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         """Toggle between default (30/70) and swapped (70/30) layout."""
         super().toggle_layout()
 
-    def is_tools_visible(self) -> bool:
-        """Check if the tools panel is currently visible.
+    def is_llm_calls_visible(self) -> bool:
+        """Check if the LLM Calls panel is currently visible.
 
         Returns:
-            True if the tools panel is visible, False otherwise.
+            True if the LLM Calls panel is visible, False otherwise.
         """
         return self._current_agent is not None and (
-            self._panel_mode == DetailPanelMode.TOOLS
+            self._panel_mode == DetailPanelMode.LLM_CALLS
         )
 
     @property
-    def tools_detail_level(self) -> ToolDetailLevel:
-        """Current detail level for the tools panel."""
-        tools_panel = self._tools_panel_or_none()
+    def llm_calls_detail_level(self) -> ToolDetailLevel:
+        """Current detail level for the LLM Calls panel."""
+        llm_calls_panel = self._llm_calls_panel_or_none()
         return (
-            ToolDetailLevel.COMPACT if tools_panel is None else tools_panel.detail_level
+            ToolDetailLevel.COMPACT
+            if llm_calls_panel is None
+            else llm_calls_panel.detail_level
         )
 
     def expand_tools_detail(self) -> bool:
-        """Expand the visible tools panel by one detail level."""
-        tools_panel = self._tools_panel_or_none()
-        return False if tools_panel is None else tools_panel.expand_detail()
+        """Expand the visible LLM Calls panel by one detail level."""
+        llm_calls_panel = self._llm_calls_panel_or_none()
+        return False if llm_calls_panel is None else llm_calls_panel.expand_detail()
 
     def collapse_tools_detail(self) -> bool:
-        """Collapse the visible tools panel by one detail level."""
-        tools_panel = self._tools_panel_or_none()
-        return False if tools_panel is None else tools_panel.collapse_detail()
+        """Collapse the visible LLM Calls panel by one detail level."""
+        llm_calls_panel = self._llm_calls_panel_or_none()
+        return False if llm_calls_panel is None else llm_calls_panel.collapse_detail()
 
-    def set_tools_detail_level(self, level: ToolDetailLevel | int) -> bool:
-        """Set the visible tools panel detail level."""
-        tools_panel = self._tools_panel_or_none()
-        return False if tools_panel is None else tools_panel.set_detail_level(level)
+    def set_llm_calls_detail_level(self, level: ToolDetailLevel | int) -> bool:
+        """Set the visible LLM Calls panel detail level."""
+        llm_calls_panel = self._llm_calls_panel_or_none()
+        return (
+            False
+            if llm_calls_panel is None
+            else llm_calls_panel.set_detail_level(level)
+        )
 
-    def _tools_panel_or_none(self) -> AgentToolsPanel | None:
+    def _llm_calls_panel_or_none(self) -> AgentLLMCallsPanel | None:
         try:
-            return self.query_one("#agent-tools-panel", AgentToolsPanel)
+            return self.query_one("#agent-llm-calls-panel", AgentLLMCallsPanel)
         except NoMatches:
             return None
 
@@ -597,9 +605,11 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 file_panel.get_current_content(),
                 ".diff",
             )
-        if self.is_tools_visible():
-            tools_panel = self.query_one("#agent-tools-panel", AgentToolsPanel)
-            return (None, tools_panel.get_tools_text(), ".md")
+        if self.is_llm_calls_visible():
+            llm_calls_panel = self.query_one(
+                "#agent-llm-calls-panel", AgentLLMCallsPanel
+            )
+            return (None, llm_calls_panel.get_llm_calls_text(), ".md")
         return (None, None, "")
 
     def get_current_image_path(self) -> str | None:

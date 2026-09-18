@@ -203,7 +203,7 @@ def init_runtime_state(
     self.artifacts_plan_target_bead_id = None
     self.refresh_interval = refresh_interval
     self.sanity_refresh_interval = sanity_refresh_interval
-    from ..tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
+    from ..llm_calls._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 
     self._slow_tool_call_threshold_ms = SLOW_TOOL_CALL_THRESHOLD_MS
     self._refresh_timer = None

@@ -15,7 +15,7 @@ from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
-from sase.ace.tui.tools.slow import select_slow_tool_calls
+from sase.ace.tui.llm_calls.slow import select_slow_tool_calls
 from sase.memory.read_log import memory_read_event_targets
 
 from ...models._agent_clan_sections import (

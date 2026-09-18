@@ -17,7 +17,7 @@ from ..widgets.prompt_panel import AgentPromptPanel
 from ..widgets.renderable_text import renderable_to_text
 from .zoom_panel_rendering import ACTIVE_STATUSES
 from .zoom_panel_types import ZoomPanelTarget
-from .zoom_panel_widgets import ZoomFilePanel, ZoomToolsPanel
+from .zoom_panel_widgets import ZoomFilePanel, ZoomLLMCallsPanel
 
 if TYPE_CHECKING:
     from ..models import Agent
@@ -50,15 +50,15 @@ def seed_panels(modal: Any) -> None:
             len(modal._seed.file_list) - 1,
         )
         file_panel.freeze_current_list()
-    tools_panel = modal.query_one("#zoom-tools-panel", ZoomToolsPanel)
-    tools_panel.set_detail_level(
-        modal._seed.tools_detail_level,
+    llm_calls_panel = modal.query_one("#zoom-llm-calls-panel", ZoomLLMCallsPanel)
+    llm_calls_panel.set_detail_level(
+        modal._seed.llm_calls_detail_level,
         rerender=False,
     )
-    if modal._seed.tools_renderable:
-        tools_panel.update(modal._seed.tools_renderable)
-    modal.query_one("#zoom-tools-scroll", VerticalScroll).border_subtitle = (
-        modal._seed.tools_subtitle or ""
+    if modal._seed.llm_calls_renderable:
+        llm_calls_panel.update(modal._seed.llm_calls_renderable)
+    modal.query_one("#zoom-llm-calls-scroll", VerticalScroll).border_subtitle = (
+        modal._seed.llm_calls_subtitle or ""
     )
 
 
@@ -77,7 +77,7 @@ def refresh_active_panel(modal: Any, *, force: bool) -> None:
     elif modal._target == ZoomPanelTarget.FILE:
         refresh_file(modal, agent, force=force)
     else:
-        refresh_tools(modal, agent, force=force)
+        refresh_llm_calls(modal, agent, force=force)
     modal._update_header()
 
 
@@ -167,10 +167,10 @@ def refresh_file(modal: Any, agent: Agent, *, force: bool) -> None:
     panel.freeze_current_list()
 
 
-def refresh_tools(modal: Any, agent: Agent, *, force: bool) -> None:
-    panel = modal.query_one("#zoom-tools-panel", ZoomToolsPanel)
+def refresh_llm_calls(modal: Any, agent: Agent, *, force: bool) -> None:
+    panel = modal.query_one("#zoom-llm-calls-panel", ZoomLLMCallsPanel)
     if force:
-        panel.refresh_tools(agent)
+        panel.refresh_llm_calls(agent)
     else:
         panel.update_display(agent, stale_threshold_seconds=modal._refresh_interval)
 
@@ -183,8 +183,10 @@ def zoom_text(modal: Any) -> str | None:
         if content:
             return content
         file_path = file_panel.get_current_file_path()
-    elif modal._target == ZoomPanelTarget.TOOLS:
-        content = modal.query_one("#zoom-tools-panel", ZoomToolsPanel).get_tools_text()
+    elif modal._target == ZoomPanelTarget.LLM_CALLS:
+        content = modal.query_one(
+            "#zoom-llm-calls-panel", ZoomLLMCallsPanel
+        ).get_llm_calls_text()
         if content:
             return content
     active_panel = modal.query_one(f"#zoom-{modal._target.value}-panel", Static)
@@ -196,10 +198,12 @@ def editor_info(modal: Any) -> tuple[str | None, str | None, str]:
     if modal._target == ZoomPanelTarget.FILE:
         panel = modal.query_one("#zoom-file-panel", ZoomFilePanel)
         return panel.get_current_file_path(), panel.get_current_content(), ".diff"
-    if modal._target == ZoomPanelTarget.TOOLS:
+    if modal._target == ZoomPanelTarget.LLM_CALLS:
         return (
             None,
-            modal.query_one("#zoom-tools-panel", ZoomToolsPanel).get_tools_text(),
+            modal.query_one(
+                "#zoom-llm-calls-panel", ZoomLLMCallsPanel
+            ).get_llm_calls_text(),
             ".md",
         )
     return (None, modal._zoom_text(), ".md")

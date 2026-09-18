@@ -23,7 +23,7 @@ from ._tool_call_io import append_jsonl, append_writer_diagnostic
 
 # Hook event names from Claude's historical PreToolUse/PostToolUse payloads.
 # These produce schema-v3 records and are retained only for legacy
-# artifacts/tests; new Claude provider runs write Tools panel rows from
+# artifacts/tests; new Claude provider runs write LLM Calls panel rows from
 # assistant/user stream-json events.
 HOOK_COLLECTOR_EVENTS = frozenset({"PreToolUse", "PostToolUse"})
 
@@ -41,7 +41,7 @@ def append_claude_tool_call_event(event: Mapping[str, Any]) -> None:
 
     Claude ``system`` hook events are intentionally ignored here. New SASE runs
     do not request ``--include-hook-events`` or install Claude tool hooks for
-    Tools panel data.
+    LLM Calls panel data.
     """
     artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
     if not artifacts_dir:

@@ -197,7 +197,7 @@ class AgentFooterDisplayMixin:
                     panel_hint_collapse_available = bool(
                         enumerate_hint_targets(collapsible_only=True)
                     )
-            tools_visible = agent_detail.is_tools_visible()
+            llm_calls_visible = agent_detail.is_llm_calls_visible()
             left_navigation_kind: str | None = None
             resolve_left_navigation = getattr(
                 self, "_resolve_agent_left_navigation_target", None
@@ -218,7 +218,7 @@ class AgentFooterDisplayMixin:
                 self, "_resolve_agent_structural_collapse_target", None
             )
             if (
-                not tools_visible
+                not llm_calls_visible
                 and not panel_focused
                 and callable(resolve_structural_collapse)
             ):
@@ -234,7 +234,7 @@ class AgentFooterDisplayMixin:
                 self, "_resolve_sase_agent_collapse_target", None
             )
             if (
-                not tools_visible
+                not llm_calls_visible
                 and not panel_focused
                 and structural_collapse_kind is None
                 and callable(resolve_lane_collapse)
@@ -246,7 +246,7 @@ class AgentFooterDisplayMixin:
                 self, "_resolve_agent_clan_collapse_target", None
             )
             if (
-                not tools_visible
+                not llm_calls_visible
                 and not panel_focused
                 and structural_collapse_kind is None
                 and not lane_collapse_available
@@ -279,7 +279,7 @@ class AgentFooterDisplayMixin:
                 self, "_resolve_group_collapse_target", None
             )
             if (
-                not tools_visible
+                not llm_calls_visible
                 and not panel_focused
                 and not lane_collapse_available
                 and not clan_collapse_available
@@ -332,8 +332,8 @@ class AgentFooterDisplayMixin:
                     if current_agent is not None and current_agent.is_clan_container
                     else self._selected_agent_tmux_choice_count(current_agent)
                 ),
-                tools_visible=tools_visible,
-                tools_detail_level=int(agent_detail.tools_detail_level),
+                llm_calls_visible=llm_calls_visible,
+                llm_calls_detail_level=int(agent_detail.llm_calls_detail_level),
             )
 
     def _refresh_agent_footer_bindings_only(self) -> None:

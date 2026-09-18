@@ -5,8 +5,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.ace.tui.tools import ToolCallEntry
-from sase.ace.tui.tools.slow import (
+from sase.ace.tui.llm_calls import ToolCallEntry
+from sase.ace.tui.llm_calls.slow import (
     agent_is_active_for_slow_tool_calls,
     format_long_duration,
     select_slow_tool_calls,

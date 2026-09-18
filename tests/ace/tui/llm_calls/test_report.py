@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from sase.ace.tui.tools import ToolCallEntry
-from sase.ace.tui.tools import report as report_mod
-from sase.ace.tui.tools.report import (
+from sase.ace.tui.llm_calls import ToolCallEntry
+from sase.ace.tui.llm_calls import report as report_mod
+from sase.ace.tui.llm_calls.report import (
     SlowToolCallReportSpec,
     tool_call_report_path,
     write_tool_call_report,

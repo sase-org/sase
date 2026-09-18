@@ -193,7 +193,7 @@ def init_late_startup_state(
     self._snippet_config_path = (
         str(ace_cfg.get("snippet_config_path", "")) if isinstance(ace_cfg, dict) else ""
     )
-    from ..tools.slow import slow_tool_call_threshold_ms_from_config
+    from ..llm_calls.slow import slow_tool_call_threshold_ms_from_config
 
     self._slow_tool_call_threshold_ms = slow_tool_call_threshold_ms_from_config(
         ace_cfg if isinstance(ace_cfg, dict) else {}

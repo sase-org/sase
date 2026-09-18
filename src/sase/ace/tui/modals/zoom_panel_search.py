@@ -28,7 +28,7 @@ from sase.ace.tui.widgets.vim_search_controller import (
 
 from .zoom_panel_navigation import zoom_target_view_selector
 from .zoom_panel_types import _TARGET_ORDER, ZoomPanelTarget
-from .zoom_panel_widgets import ZoomFilePanel, ZoomToolsPanel
+from .zoom_panel_widgets import ZoomFilePanel, ZoomLLMCallsPanel
 
 if TYPE_CHECKING:
     from textual.screen import ModalScreen as _MixinBase
@@ -183,10 +183,10 @@ class ZoomSearchMixin(_MixinBase):
                 return content
             full_content = getattr(file_panel, "_full_content", None)
             return full_content if isinstance(full_content, str) else ""
-        if self._target == ZoomPanelTarget.TOOLS:
+        if self._target == ZoomPanelTarget.LLM_CALLS:
             content = self.query_one(
-                "#zoom-tools-panel", ZoomToolsPanel
-            ).get_tools_text()
+                "#zoom-llm-calls-panel", ZoomLLMCallsPanel
+            ).get_llm_calls_text()
             return content or ""
 
         active_panel = self.query_one(f"#zoom-{self._target.value}-panel", Static)
@@ -220,7 +220,7 @@ class ZoomSearchMixin(_MixinBase):
         subtitle = ""
         try:
             native_scroll = self.query_one(
-                f"#zoom-{self._target.value}-scroll",
+                zoom_target_view_selector(self._target),
                 VerticalScroll,
             )
             subtitle = native_scroll.border_subtitle or ""
@@ -308,7 +308,7 @@ class ZoomSearchMixin(_MixinBase):
     ) -> None:
         if self._target != target:
             return
-        scroll = self.query_one(f"#zoom-{target.value}-scroll", VerticalScroll)
+        scroll = self.query_one(zoom_target_view_selector(target), VerticalScroll)
         scroll.scroll_to(x=x, y=y, animate=False, immediate=True)
         try:
             scroll.focus()
@@ -323,7 +323,9 @@ class ZoomSearchMixin(_MixinBase):
 
     def _focus_native_zoom_scroll(self) -> None:
         try:
-            self.query_one(f"#zoom-{self._target.value}-scroll", VerticalScroll).focus()
+            self.query_one(
+                zoom_target_view_selector(self._target), VerticalScroll
+            ).focus()
         except Exception:
             pass
 

@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
     from ...artifact_reads import ArtifactReadRefSpec
     from ...models import Agent
-    from ...tools.report import SlowToolCallReportSpec
+    from ...llm_calls.report import SlowToolCallReportSpec
     from ...util.debounce import DetailPanelDebouncer
     from ...widgets import AgentDetail, KeybindingFooter
     from ...widgets.prompt_panel._agent_display_state import CommitViewSpec

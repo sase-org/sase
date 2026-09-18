@@ -299,7 +299,7 @@ def test_h_binding_metadata_describes_navigation_and_contextual_collapse() -> No
     fallback_by_action = {binding.action: binding for binding in DEFAULT_BINDINGS}
 
     lower = "Parent / Collapse or Jump Panel/Fold"
-    upper = "Collapse Selected Workflow/Family / Scoped Agent Nodes/Clans/Groups / Hint Panel Fold / Compact Tools / All"
+    upper = "Collapse Selected Workflow/Family / Scoped Agent Nodes/Clans/Groups / Hint Panel Fold / Compact LLM Calls / All"
     zoom = "Zoom Detail"
     isolate = "Only/Restore Panels"
     sweep = "Collapse/Restore Panel Folds"

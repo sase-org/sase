@@ -9,7 +9,7 @@ from ...models.agent import Agent, wait_display_agent
 from ...models.agent_family_members import family_roster_container
 from ...models.agent_hoods import agent_owns_sase_agent
 from ...models.agent_tribe_summary import AgentTribeSummarySnapshot
-from ...tools.slow import slow_tool_call_threshold_ms_from_widget
+from ...llm_calls.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.trace import tui_trace
 from ._agent_display_attempts import (
     find_attempt,

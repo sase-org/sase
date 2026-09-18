@@ -16,7 +16,7 @@ from sase.memory.memory_read_report import MemoryReadReportSpec
 from ....patch import Patch
 from ...artifact_reads import ArtifactReadRefSpec
 from ...models.agent import Agent
-from ...tools.report import SlowToolCallReportSpec
+from ...llm_calls.report import SlowToolCallReportSpec
 from ...widgets import HintInputBar
 from ...widgets.prompt_panel._agent_display_state import AgentHintRender, CommitViewSpec
 

@@ -4,8 +4,8 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.tools import ToolCallEntry
-from sase.ace.tui.tools.cache import _ToolsCacheEntry, _tools_cache, get_cache_key
+from sase.ace.tui.llm_calls import ToolCallEntry
+from sase.ace.tui.llm_calls.cache import _ToolsCacheEntry, _tools_cache, get_cache_key
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import AgentHintRender
@@ -86,7 +86,9 @@ def test_slow_tool_tick_repaints_from_cache_without_artifact_read() -> None:
 
     try:
         panel._configure_slow_tool_render_tick(agent)
-        with patch("sase.ace.tui.tools.cache.read_tool_calls_for_agent") as read_mock:
+        with patch(
+            "sase.ace.tui.llm_calls.cache.read_tool_calls_for_agent"
+        ) as read_mock:
             panel._on_slow_tool_render_tick()
     finally:
         _tools_cache.pop(cache_key, None)

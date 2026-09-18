@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sase.ace.tui.tools.report import SlowToolCallReportSpec
-from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
+from sase.ace.tui.llm_calls.report import SlowToolCallReportSpec
+from sase.ace.tui.llm_calls.slow import slow_tool_call_threshold_ms_from_widget
 
 from ...agent_completion import agent_wait_status_maps_for_app
 from ...models.agent import Agent, AgentType, wait_display_agent

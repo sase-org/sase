@@ -9,8 +9,8 @@ from textual.timer import Timer
 from textual.widgets import Static
 
 from ...models.agent import Agent
-from ...tools import supports_slow_tool_sources
-from ...tools.cache import slow_tool_sources_have_pending
+from ...llm_calls import supports_slow_tool_sources
+from ...llm_calls.cache import slow_tool_sources_have_pending
 from ._agent_display import AgentDisplayMixin
 from ._agent_display_hints import AgentHintsDisplayMixin
 from ._helpers import (

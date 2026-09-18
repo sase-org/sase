@@ -8,21 +8,21 @@ from pathlib import Path
 from unittest.mock import patch
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.tools import read_tool_calls_for_agent
-from sase.ace.tui.tools.cache import fetch_tool_calls_cached
-from sase.ace.tui.tools.reader import TOOL_CALLS_FILENAME
-from sase.ace.tui.widgets import tools_panel as tools_panel_mod
-from sase.ace.tui.widgets.tools_panel import (
-    _build_tools_timeline_text,
-    _ToolsCacheEntry,
+from sase.ace.tui.llm_calls import read_tool_calls_for_agent
+from sase.ace.tui.llm_calls.cache import fetch_tool_calls_cached
+from sase.ace.tui.llm_calls.reader import TOOL_CALLS_FILENAME
+from sase.ace.tui.widgets import llm_calls_panel as llm_calls_panel_mod
+from sase.ace.tui.widgets.llm_calls_panel import (
+    _build_llm_calls_timeline_text,
+    _LLMCallsCacheEntry,
     get_cache_key,
 )
 from sase.llm_provider._tool_calls import append_claude_tool_call_event
 
-from ._tools_panel_helpers import _build_panel, _entry
+from ._llm_calls_panel_helpers import _build_panel, _entry
 
 
-def test_tools_panel_renders_tool_call_from_stream_events(tmp_path: Path) -> None:
+def test_llm_calls_panel_renders_tool_call_from_stream_events(tmp_path: Path) -> None:
     """End-to-end: writer captures assistant+user events, panel renders the row."""
     artifacts_dir = tmp_path / "ace-run" / "20260514140000"
     artifacts_dir.mkdir(parents=True)
@@ -93,13 +93,15 @@ def test_tools_panel_renders_tool_call_from_stream_events(tmp_path: Path) -> Non
     assert entry.status == "success"
 
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
-    rendered = _build_tools_timeline_text(entries, fetch_time).plain
+    rendered = _build_llm_calls_timeline_text(entries, fetch_time).plain
     assert "Bash" in rendered
     assert "ls /tmp" in rendered or "list /tmp" in rendered
     assert "alpha" in rendered
 
 
-def test_tools_panel_cache_invalidates_for_live_codex_appends(tmp_path: Path) -> None:
+def test_llm_calls_panel_cache_invalidates_for_live_codex_appends(
+    tmp_path: Path,
+) -> None:
     artifacts_dir = tmp_path / "ace-run" / "20260514140000"
     artifacts_dir.mkdir(parents=True)
     tool_calls_path = artifacts_dir / TOOL_CALLS_FILENAME
@@ -141,7 +143,7 @@ def test_tools_panel_cache_invalidates_for_live_codex_appends(tmp_path: Path) ->
     )
     cache_key = get_cache_key(agent)
     initial_mtime = tool_calls_path.stat().st_mtime_ns
-    tools_panel_mod._tools_cache[cache_key] = _ToolsCacheEntry(
+    llm_calls_panel_mod._llm_calls_cache[cache_key] = _LLMCallsCacheEntry(
         entries=[
             _entry(
                 runtime="codex",
@@ -168,9 +170,9 @@ def test_tools_panel_cache_invalidates_for_live_codex_appends(tmp_path: Path) ->
         )
 
         panel = _build_panel()
-        entries = panel._fetch_tools_in_background(agent)
+        entries = panel._fetch_tool_calls_in_background(agent)
     finally:
-        tools_panel_mod._tools_cache.pop(cache_key, None)
+        llm_calls_panel_mod._llm_calls_cache.pop(cache_key, None)
 
     assert entries is not None
     assert len(entries) == 1
@@ -179,7 +181,7 @@ def test_tools_panel_cache_invalidates_for_live_codex_appends(tmp_path: Path) ->
     assert entries[0].detail == "exit 0 | /tmp"
 
 
-def test_tools_panel_worker_reuses_discovered_dirs_for_reread(
+def test_llm_calls_panel_worker_reuses_discovered_dirs_for_reread(
     tmp_path: Path,
 ) -> None:
     root_dir = tmp_path / "ace-run" / "20260514140000"
@@ -198,7 +200,7 @@ def test_tools_panel_worker_reuses_discovered_dirs_for_reread(
         raw_suffix=root_dir.name,
     )
     cache_key = get_cache_key(agent)
-    tools_panel_mod._tools_cache[cache_key] = _ToolsCacheEntry(
+    llm_calls_panel_mod._llm_calls_cache[cache_key] = _LLMCallsCacheEntry(
         entries=[],
         fetch_time=datetime.now(),
         artifact_mtime_ns=1,
@@ -209,25 +211,25 @@ def test_tools_panel_worker_reuses_discovered_dirs_for_reread(
 
     with (
         patch(
-            "sase.ace.tui.tools.cache.discover_related_tool_artifact_dirs_cached",
+            "sase.ace.tui.llm_calls.cache.discover_related_tool_artifact_dirs_cached",
             return_value=([root_dir, retry_dir], 3),
         ),
         patch(
-            "sase.ace.tui.tools.cache.read_tool_calls_for_agent",
+            "sase.ace.tui.llm_calls.cache.read_tool_calls_for_agent",
             return_value=[],
         ) as read_mock,
     ):
         try:
             panel = _build_panel()
-            entries = panel._fetch_tools_in_background(agent)
+            entries = panel._fetch_tool_calls_in_background(agent)
         finally:
-            tools_panel_mod._tools_cache.pop(cache_key, None)
+            llm_calls_panel_mod._llm_calls_cache.pop(cache_key, None)
 
     assert entries == ()
     read_mock.assert_called_once_with(agent, artifact_dirs=[root_dir, retry_dir])
 
 
-def test_tools_panel_and_header_fetch_share_cache_entry(tmp_path: Path) -> None:
+def test_llm_calls_panel_and_header_fetch_share_cache_entry(tmp_path: Path) -> None:
     artifacts_dir = tmp_path / "ace-run" / "20260514140000"
     artifacts_dir.mkdir(parents=True)
     agent = Agent(
@@ -240,32 +242,32 @@ def test_tools_panel_and_header_fetch_share_cache_entry(tmp_path: Path) -> None:
         raw_suffix=artifacts_dir.name,
     )
     cache_key = get_cache_key(agent)
-    tools_panel_mod._tools_cache.pop(cache_key, None)
+    llm_calls_panel_mod._llm_calls_cache.pop(cache_key, None)
     expected_entries = [_entry(tool_use_id="shared-cache")]
 
     with (
         patch(
-            "sase.ace.tui.tools.cache.discover_related_tool_artifact_dirs_cached",
+            "sase.ace.tui.llm_calls.cache.discover_related_tool_artifact_dirs_cached",
             return_value=([artifacts_dir], 123),
         ),
-        patch("sase.ace.tui.tools.cache._max_mtime_ns_for_paths", return_value=456),
+        patch("sase.ace.tui.llm_calls.cache._max_mtime_ns_for_paths", return_value=456),
         patch(
-            "sase.ace.tui.tools.cache.read_tool_calls_for_agent",
+            "sase.ace.tui.llm_calls.cache.read_tool_calls_for_agent",
             return_value=expected_entries,
         ) as read_mock,
     ):
         try:
             header_entries = fetch_tool_calls_cached(agent)
-            panel_entries = _build_panel()._fetch_tools_in_background(agent)
+            panel_entries = _build_panel()._fetch_tool_calls_in_background(agent)
         finally:
-            tools_panel_mod._tools_cache.pop(cache_key, None)
+            llm_calls_panel_mod._llm_calls_cache.pop(cache_key, None)
 
     assert header_entries == tuple(expected_entries)
     assert panel_entries == tuple(expected_entries)
     read_mock.assert_called_once_with(agent, artifact_dirs=[artifacts_dir])
 
 
-def test_tools_panel_background_fetch_aggregates_root_child_sources(
+def test_llm_calls_panel_background_fetch_aggregates_root_child_sources(
     tmp_path: Path,
 ) -> None:
     root_dir = tmp_path / "ace-run" / "20260514140000"
@@ -346,19 +348,19 @@ def test_tools_panel_background_fetch_aggregates_root_child_sources(
     root.runtime_children.extend([plan, code])
 
     with patch(
-        "sase.ace.tui.tools.cache.discover_related_tool_artifact_dirs_cached",
+        "sase.ace.tui.llm_calls.cache.discover_related_tool_artifact_dirs_cached",
         side_effect=lambda _agent, artifacts_dir, **_kwargs: ([Path(artifacts_dir)], 1),
     ):
         try:
-            result = _build_panel()._fetch_tools_result_in_background(root)
+            result = _build_panel()._fetch_llm_calls_result_in_background(root)
         finally:
-            tools_panel_mod._tools_cache.pop(get_cache_key(root), None)
-            tools_panel_mod._tools_cache.pop(get_cache_key(plan), None)
-            tools_panel_mod._tools_cache.pop(get_cache_key(code), None)
+            llm_calls_panel_mod._llm_calls_cache.pop(get_cache_key(root), None)
+            llm_calls_panel_mod._llm_calls_cache.pop(get_cache_key(plan), None)
+            llm_calls_panel_mod._llm_calls_cache.pop(get_cache_key(code), None)
 
     assert [entry.tool_use_id for entry in result.entries or ()] == ["plan", "code"]
     assert [row.source_label for row in result.rows or ()] == ["plan", "code"]
-    rendered = _build_tools_timeline_text(
+    rendered = _build_llm_calls_timeline_text(
         result.entries,
         result.fetch_time,
         rows=result.rows,

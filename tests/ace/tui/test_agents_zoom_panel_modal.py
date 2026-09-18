@@ -12,7 +12,7 @@ from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
 from sase.ace.tui.modals.zoom_panel_modal import (
     _renderable_to_text,
     _status_text,
-    _ZoomToolsPanel,
+    _ZoomLLMCallsPanel,
 )
 from sase.ace.tui.models.agent_status import (
     STOPPED_COLOR,
@@ -28,9 +28,9 @@ from tests.ace.tui._agents_zoom_panel_helpers import (
     _ModalTestApp,
     _make_agent,
 )
-from tests.ace.tui.widgets._tools_panel_helpers import _entry
+from tests.ace.tui.widgets._llm_calls_panel_helpers import _entry
 
-from sase.ace.tui.widgets.tools_panel import ToolDetailLevel
+from sase.ace.tui.widgets.llm_calls_panel import ToolDetailLevel
 
 
 def test_zoom_status_text_renders_stopped_identity() -> None:
@@ -121,16 +121,16 @@ async def test_zoom_metadata_copy_fallback_uses_textual_content() -> None:
         assert modal._zoom_text() == "metadata copy body"
 
 
-async def test_zoom_tools_detail_level_seed_and_keys() -> None:
+async def test_zoom_llm_calls_detail_level_seed_and_keys() -> None:
     agent = _make_agent(status="RUNNING")
     modal = ZoomPanelModal(
         agent_provider=lambda: agent,
         initial_agent=agent,
-        initial_target=ZoomPanelTarget.TOOLS,
+        initial_target=ZoomPanelTarget.LLM_CALLS,
         seed=ZoomPanelSeed(
-            tools_renderable=Text("seed tools"),
-            has_tools_content=True,
-            tools_detail_level=ToolDetailLevel.EXPANDED,
+            llm_calls_renderable=Text("seed tools"),
+            has_llm_calls_content=True,
+            llm_calls_detail_level=ToolDetailLevel.EXPANDED,
         ),
         refresh_interval=10,
     )
@@ -139,7 +139,7 @@ async def test_zoom_tools_detail_level_seed_and_keys() -> None:
         pilot.app.push_screen(modal)
         await pilot.pause()
 
-        panel = modal.query_one("#zoom-tools-panel", _ZoomToolsPanel)
+        panel = modal.query_one("#zoom-llm-calls-panel", _ZoomLLMCallsPanel)
         assert panel.detail_level == ToolDetailLevel.EXPANDED
         hint = modal.query_one("#zoom-panel-hints", Label)
         assert "h/l detail" in str(hint.content)

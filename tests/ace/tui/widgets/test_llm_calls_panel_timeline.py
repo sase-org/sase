@@ -3,45 +3,47 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sase.ace.tui.widgets import tools_panel as tools_panel_mod
-from sase.ace.tui.widgets.tools_panel import (
+from sase.ace.tui.widgets import llm_calls_panel as llm_calls_panel_mod
+from sase.ace.tui.widgets.llm_calls_panel import (
     ToolDetailLevel,
-    _build_tools_timeline_markdown,
-    _build_tools_timeline_text,
+    _build_llm_calls_timeline_markdown,
+    _build_llm_calls_timeline_text,
 )
-from sase.ace.tui.widgets._tools_panel_timeline import format_duration
+from sase.ace.tui.widgets._llm_calls_panel_timeline import format_duration
 
-from ._tools_panel_helpers import _build_panel, _entry
+from ._llm_calls_panel_helpers import _build_panel, _entry
 
 
-def test_tools_timeline_distinguishes_missing_empty_and_present() -> None:
+def test_llm_calls_timeline_distinguishes_missing_empty_and_present() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
 
-    missing = _build_tools_timeline_text(None, fetch_time).plain
-    empty = _build_tools_timeline_text([], fetch_time).plain
-    present = _build_tools_timeline_text([_entry()], fetch_time).plain
+    missing = _build_llm_calls_timeline_text(None, fetch_time).plain
+    empty = _build_llm_calls_timeline_text([], fetch_time).plain
+    present = _build_llm_calls_timeline_text([_entry()], fetch_time).plain
 
-    assert "No tools artifact available" in missing
+    assert "No provider tool-call artifact available" in missing
     assert "No tool calls recorded" in empty
-    assert "TOOLS" in present
+    assert "LLM CALLS" in present
     assert "Bash" in present
-    assert "pytest tests/ace/tui/tools" in present
+    assert "pytest tests/ace/tui/llm_calls" in present
     assert "1.2s" in present
 
 
-def test_tools_timeline_uses_custom_slow_threshold_for_duration_formatting() -> None:
+def test_llm_calls_timeline_uses_custom_slow_threshold_for_duration_formatting() -> (
+    None
+):
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
     entry = _entry(duration_ms=65_000)
 
     assert format_duration(65_000) == "1m 5s"
     assert format_duration(65_000, threshold_ms=90_000) == "65s"
 
-    rendered = _build_tools_timeline_text(
+    rendered = _build_llm_calls_timeline_text(
         [entry],
         fetch_time,
         slow_tool_call_threshold_ms=90_000,
     ).plain
-    markdown = _build_tools_timeline_markdown(
+    markdown = _build_llm_calls_timeline_markdown(
         [entry],
         fetch_time,
         slow_tool_call_threshold_ms=90_000,
@@ -53,10 +55,10 @@ def test_tools_timeline_uses_custom_slow_threshold_for_duration_formatting() -> 
     assert "65s" in markdown
 
 
-def test_tools_timeline_markdown_is_exportable() -> None:
+def test_llm_calls_timeline_markdown_is_exportable() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
 
-    rendered = _build_tools_timeline_markdown(
+    rendered = _build_llm_calls_timeline_markdown(
         [
             _entry(
                 status="failure",
@@ -67,15 +69,15 @@ def test_tools_timeline_markdown_is_exportable() -> None:
     )
 
     assert rendered is not None
-    assert rendered.startswith("TOOLS")
+    assert rendered.startswith("LLM CALLS")
     assert "fail | Bash" in rendered
     assert "boom" in rendered
 
 
-def test_tools_timeline_markdown_exports_codex_compact_targets() -> None:
+def test_llm_calls_timeline_markdown_exports_codex_compact_targets() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
 
-    rendered = _build_tools_timeline_markdown(
+    rendered = _build_llm_calls_timeline_markdown(
         [
             _entry(
                 runtime="codex",
@@ -95,10 +97,10 @@ def test_tools_timeline_markdown_exports_codex_compact_targets() -> None:
     assert "ok | Read | src/sase/foo.py" in rendered
 
 
-def test_tools_timeline_shows_pending_state() -> None:
+def test_llm_calls_timeline_shows_pending_state() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
 
-    rendered = _build_tools_timeline_text(
+    rendered = _build_llm_calls_timeline_text(
         [
             _entry(
                 status="pending",
@@ -113,10 +115,10 @@ def test_tools_timeline_shows_pending_state() -> None:
     assert "Bash" in rendered
 
 
-def test_tools_timeline_shows_incomplete_state() -> None:
+def test_llm_calls_timeline_shows_incomplete_state() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
 
-    rendered = _build_tools_timeline_text(
+    rendered = _build_llm_calls_timeline_text(
         [
             _entry(
                 status="incomplete",
@@ -132,11 +134,11 @@ def test_tools_timeline_shows_incomplete_state() -> None:
     assert "Bash" in rendered
 
 
-def test_tools_timeline_truncates_long_command() -> None:
+def test_llm_calls_timeline_truncates_long_command() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
     long_command = "echo " + "x" * 200
 
-    rendered = _build_tools_timeline_text(
+    rendered = _build_llm_calls_timeline_text(
         [_entry(tool_input_summary={"command": long_command})],
         fetch_time,
     ).plain
@@ -145,10 +147,10 @@ def test_tools_timeline_truncates_long_command() -> None:
     assert "..." in rendered
 
 
-def test_tools_timeline_renders_failure_with_error_detail() -> None:
+def test_llm_calls_timeline_renders_failure_with_error_detail() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
 
-    rendered = _build_tools_timeline_text(
+    rendered = _build_llm_calls_timeline_text(
         [
             _entry(
                 status="failure",
@@ -166,10 +168,10 @@ def test_tools_timeline_renders_failure_with_error_detail() -> None:
     assert "ENOENT: missing file" in rendered
 
 
-def test_tools_timeline_renders_interrupted_state() -> None:
+def test_llm_calls_timeline_renders_interrupted_state() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
 
-    rendered = _build_tools_timeline_text(
+    rendered = _build_llm_calls_timeline_text(
         [
             _entry(
                 status="interrupted",
@@ -183,11 +185,11 @@ def test_tools_timeline_renders_interrupted_state() -> None:
     assert "stop" in rendered
 
 
-def test_tools_timeline_renders_rich_response_detail() -> None:
+def test_llm_calls_timeline_renders_rich_response_detail() -> None:
     """A successful row should surface a stdout/content preview line."""
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
 
-    rendered = _build_tools_timeline_text(
+    rendered = _build_llm_calls_timeline_text(
         [
             _entry(
                 tool_name="Read",
@@ -205,7 +207,7 @@ def test_tools_timeline_renders_rich_response_detail() -> None:
     assert "12ms" in rendered
 
 
-def test_tools_timeline_renders_subagent_summary_and_expanded_details() -> None:
+def test_llm_calls_timeline_renders_subagent_summary_and_expanded_details() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
     subagent_summary = {
         "agent_type": "Explore",
@@ -236,7 +238,7 @@ def test_tools_timeline_renders_subagent_summary_and_expanded_details() -> None:
         duration_ms=114_000,
     )
 
-    rendered = _build_tools_timeline_text(
+    rendered = _build_llm_calls_timeline_text(
         [entry],
         fetch_time,
         detail_level=ToolDetailLevel.EXPANDED,
@@ -253,7 +255,7 @@ def test_tools_timeline_renders_subagent_summary_and_expanded_details() -> None:
     assert "final message" in rendered
     assert "No code changes needed." in rendered
 
-    markdown = _build_tools_timeline_markdown(
+    markdown = _build_llm_calls_timeline_markdown(
         [entry],
         fetch_time,
         detail_level=ToolDetailLevel.EXPANDED,
@@ -264,15 +266,15 @@ def test_tools_timeline_renders_subagent_summary_and_expanded_details() -> None:
     assert "final message:" in markdown
 
 
-def test_tools_timeline_renders_source_chips_for_root_aggregate() -> None:
+def test_llm_calls_timeline_renders_source_chips_for_root_aggregate() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
 
-    rendered = _build_tools_timeline_text(
+    rendered = _build_llm_calls_timeline_text(
         [_entry(tool_use_id="plan"), _entry(tool_use_id="code")],
         fetch_time,
         rows=(
-            tools_panel_mod._ToolTimelineRow(_entry(tool_use_id="plan"), "plan", 0),
-            tools_panel_mod._ToolTimelineRow(_entry(tool_use_id="code"), "code", 1),
+            llm_calls_panel_mod._ToolTimelineRow(_entry(tool_use_id="plan"), "plan", 0),
+            llm_calls_panel_mod._ToolTimelineRow(_entry(tool_use_id="code"), "code", 1),
         ),
     ).plain
 
@@ -280,12 +282,12 @@ def test_tools_timeline_renders_source_chips_for_root_aggregate() -> None:
     assert "ok     code" in rendered
 
 
-def test_tools_timeline_expanded_surfaces_full_details() -> None:
+def test_llm_calls_timeline_expanded_surfaces_full_details() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
     long_command = "python - <<'PY'\n" + "print('expanded detail')\n" * 2 + "PY"
     stdout = "\n".join(f"out {index}" for index in range(8))
 
-    rendered = _build_tools_timeline_text(
+    rendered = _build_llm_calls_timeline_text(
         [
             _entry(
                 status="failure",
@@ -318,10 +320,10 @@ def test_tools_timeline_expanded_surfaces_full_details() -> None:
     assert "line two" in rendered
 
 
-def test_tools_timeline_full_surfaces_provenance() -> None:
+def test_llm_calls_timeline_full_surfaces_provenance() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
 
-    rendered = _build_tools_timeline_text(
+    rendered = _build_llm_calls_timeline_text(
         [
             _entry(
                 completed_at="2026-05-14T14:00:03+00:00",
@@ -347,10 +349,10 @@ def test_tools_timeline_full_surfaces_provenance() -> None:
     assert "/artifacts/tool_calls.jsonl:7" in rendered
 
 
-def test_tools_timeline_markdown_matches_detail_level() -> None:
+def test_llm_calls_timeline_markdown_matches_detail_level() -> None:
     fetch_time = datetime(2026, 5, 14, 10, 30, 0)
 
-    rendered = _build_tools_timeline_markdown(
+    rendered = _build_llm_calls_timeline_markdown(
         [
             _entry(
                 tool_input_summary={"command": "echo " + "x" * 120, "timeout": 5},
@@ -371,7 +373,7 @@ def test_tools_timeline_markdown_matches_detail_level() -> None:
     assert "meta:" in rendered
 
 
-def test_tools_panel_detail_level_rerenders_cached_rows() -> None:
+def test_llm_calls_panel_detail_level_rerenders_cached_rows() -> None:
     panel = _build_panel()
     panel._last_entries = (_entry(tool_input_summary={"command": "echo " + "x" * 120}),)
     panel._last_fetch_time = datetime(2026, 5, 14, 10, 30, 0)
@@ -387,15 +389,15 @@ def test_tools_panel_detail_level_rerenders_cached_rows() -> None:
     assert panel.expand_detail() is False
 
 
-def test_tools_panel_display_uses_widget_slow_threshold(monkeypatch: Any) -> None:
+def test_llm_calls_panel_display_uses_widget_slow_threshold(monkeypatch: Any) -> None:
     panel = _build_panel()
     monkeypatch.setattr(
-        tools_panel_mod,
+        llm_calls_panel_mod,
         "slow_tool_call_threshold_ms_from_widget",
         lambda _widget: 90_000,
     )
 
-    panel._display_tools_with_timestamp(
+    panel._display_llm_calls_with_timestamp(
         (_entry(duration_ms=65_000),),
         datetime(2026, 5, 14, 10, 30, 0),
     )
@@ -405,7 +407,7 @@ def test_tools_panel_display_uses_widget_slow_threshold(monkeypatch: Any) -> Non
     assert "1m 5s" not in rendered
 
 
-def test_tools_panel_detail_level_noops_without_content() -> None:
+def test_llm_calls_panel_detail_level_noops_without_content() -> None:
     panel = _build_panel()
 
     assert panel.expand_detail() is False

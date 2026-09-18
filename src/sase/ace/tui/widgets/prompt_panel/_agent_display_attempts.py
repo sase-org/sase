@@ -66,7 +66,7 @@ class AgentAttemptDisplayMixin:
 
         Shows the attempt banner (number, timestamp, outcome), the full
         ``error_full`` traceback, the agent prompt (invariant across retries),
-        and the archived ``live_reply.md`` for the attempt. Tools/files
+        and the archived ``live_reply.md`` for the attempt. LLM Calls/files
         aren't snapshotted per-attempt; the detail panel hides those panels.
         """
         record = find_attempt(agent, attempt_number)

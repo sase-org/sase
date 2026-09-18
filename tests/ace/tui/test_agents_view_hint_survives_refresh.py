@@ -10,7 +10,7 @@ import pytest
 from sase.ace.tui.actions.agents import _loading_helpers
 from sase.ace.tui.actions.agents._display_detail import DetailMixin
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.tools.report import SlowToolCallReportSpec
+from sase.ace.tui.llm_calls.report import SlowToolCallReportSpec
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
     AgentHintRender,
     CommitViewSpec,

@@ -315,9 +315,10 @@ one normalized record per tool call to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl`:
   length-bounded preview of the response, drawing structured output from the top-level
   `tool_use_result` envelope when present.
 
-sase's TUI Tools panel reads this same `tool_calls.jsonl` to render the per-agent
-timeline — see [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel). The reader pairs
-a `ToolUse` with its `ToolResult` by `tool_use_id` and collapses them into one row.
+sase's TUI LLM Calls panel reads this same `tool_calls.jsonl` to render the per-agent
+timeline — see [Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel). The
+reader pairs a `ToolUse` with its `ToolResult` by `tool_use_id` and collapses them into
+one row.
 
 Stream parsing is the only writer for new runs. SASE does **not** install Claude Code
 hooks and does **not** write to the workspace's `.claude/settings.local.json`; earlier
@@ -350,7 +351,7 @@ boundary.
 
 Source: `src/sase/llm_provider/claude.py`, `src/sase/llm_provider/_tool_calls.py`,
 `src/sase/llm_provider/_tool_call_claude.py`,
-`src/sase/llm_provider/_tool_call_common.py`, `src/sase/ace/tui/tools/reader.py`
+`src/sase/llm_provider/_tool_call_common.py`, `src/sase/ace/tui/llm_calls/reader.py`
 
 ## Antigravity (`agy`) Integration
 
@@ -450,7 +451,8 @@ preserves these invariants:
   For explicitly supported Antigravity versions, a guarded best-effort extractor may
   decode new rows from Antigravity's local trajectory DB and append
   `source="trajectory"` records to `tool_calls.jsonl`; otherwise sase's TUI
-  [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel) shows nothing for `agy` runs.
+  [Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel) shows nothing for
+  `agy` runs.
 - **Usage accounting** — `InvokeResult.usage` is `None` and no `usage.json` is written;
   `agy` print mode exposes no stable token counters.
 - **Thinking extraction** — no thinking artifact is produced.
@@ -520,13 +522,13 @@ SASE captures Codex tool calls from the `codex exec --json` NDJSON stream; it do
 install Codex hooks or mutate user Codex configuration for telemetry. When
 `SASE_ARTIFACTS_DIR` is present, the stream parser appends normalized Codex records to
 `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for sase's TUI
-[Agents Tab Tools Panel](ace.md#agents-tab-tools-panel).
+[Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel).
 
 Current fixture coverage is based on Codex CLI `0.130.0`. For stream items that expose
 both start and completion events (`command_execution`, `file_change`, and named tool
 items), SASE writes `ToolUse` and `ToolResult` rows with `runtime: "codex"` and
-`source: "stream"`. The Tools-panel reader collapses those pairs into one row,
-preserving pending rows while a command is still running and showing result previews,
+`source: "stream"`. The LLM Calls reader collapses those pairs into one row, preserving
+pending rows while a command is still running and showing result previews,
 failure/interruption status, and duration when the stream exposes enough data to compute
 it.
 
@@ -611,9 +613,9 @@ SASE captures Qwen tool calls from the `qwen --output-format stream-json` event 
 it does not install Qwen hooks. When `SASE_ARTIFACTS_DIR` is present, the stream parser
 normalizes Qwen's nested `tool_use` and `tool_result` blocks into records appended to
 `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` for sase's TUI
-[Agents Tab Tools Panel](ace.md#agents-tab-tools-panel) with `runtime: "qwen"` and
-`source: "stream"`. Malformed or unsupported tool-shaped events emit a diagnostic
-instead of producing a malformed record. The Tools-panel reader collapses each
+[Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel) with `runtime: "qwen"`
+and `source: "stream"`. Malformed or unsupported tool-shaped events emit a diagnostic
+instead of producing a malformed record. The LLM Calls reader collapses each
 start/result pair into a single row.
 
 ### Commit Finalization
@@ -796,8 +798,8 @@ SASE builds tool-call records purely from the stdout stream; it does not wire Mu
 hook system and does not read Muse state off disk for this. When `SASE_ARTIFACTS_DIR` is
 present, normalized records are appended to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` with
 `runtime: "muse"` and `source: "stream"` for sase's TUI
-[Agents Tab Tools Panel](ace.md#agents-tab-tools-panel). Fixture coverage is keyed to
-Muse release `0.1.0-R708.1`.
+[Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel). Fixture coverage is
+keyed to Muse release `0.1.0-R708.1`.
 
 | Event                                             | Carries                                                                   | Use                                                              |
 | ------------------------------------------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------- |
@@ -989,8 +991,8 @@ SASE captures Grok tool calls from the `streaming-messages-json` event stream; i
 not install Grok hooks. When `SASE_ARTIFACTS_DIR` is present, normalized records are
 appended to `$SASE_ARTIFACTS_DIR/tool_calls.jsonl` with `runtime: "grok"` and
 `source: "stream"` for sase's TUI
-[Agents Tab Tools Panel](ace.md#agents-tab-tools-panel). Grok's native tool names are
-mapped onto SASE's canonical display names so the shared summarizers in
+[Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel). Grok's native tool
+names are mapped onto SASE's canonical display names so the shared summarizers in
 `_tool_call_common.py` produce rich previews instead of falling through to a generic
 `{"input_keys": [...]}` row:
 
@@ -2817,7 +2819,7 @@ but whose payload contains an opaque `signature`, those helpers produce an
 encrypted-thinking placeholder instead of hiding the block. When Claude also reports
 `message.usage.output_tokens`, the placeholder includes an approximate output-token
 count so the caller can tell that reasoning occurred even though the raw thought text is
-not available. The Agents tab now uses the Tools panel for provider tool activity
+not available. The Agents tab now uses the LLM Calls panel for provider tool activity
 instead of exposing these thinking helpers as a panel.
 
 ## Token Usage Tracking

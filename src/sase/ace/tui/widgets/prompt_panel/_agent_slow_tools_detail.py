@@ -16,9 +16,9 @@ from rich.padding import Padding
 from rich.table import Table
 from rich.text import Text
 
-from sase.ace.tui.tools import ToolCallEntry
-from sase.ace.tui.tools._entry import is_subagent_tool_call
-from sase.ace.tui.tools.slow import SlowToolCall, format_long_duration
+from sase.ace.tui.llm_calls import ToolCallEntry
+from sase.ace.tui.llm_calls._entry import is_subagent_tool_call
+from sase.ace.tui.llm_calls.slow import SlowToolCall, format_long_duration
 
 from ...models.fold_scale import FoldScale, fold_scale_position
 from ...models.fold_state import FoldLevel

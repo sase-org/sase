@@ -84,7 +84,7 @@ def _project_name_for_agent(agent: Agent) -> str | None:
 
 
 def _cache_key(project: str, agent: Agent) -> tuple[str, str]:
-    from sase.ace.tui.tools.cache import get_cache_key
+    from sase.ace.tui.llm_calls.cache import get_cache_key
 
     return (project, get_cache_key(agent))
 

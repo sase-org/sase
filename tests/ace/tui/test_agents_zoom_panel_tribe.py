@@ -27,7 +27,7 @@ from tests.ace.tui._agents_zoom_panel_helpers import (
 
 
 def test_action_zoom_panel_routes_whole_panel_focus_to_tribe_modal() -> None:
-    detail = _FakeDetail(file_visible=True, tools_visible=True)
+    detail = _FakeDetail(file_visible=True, llm_calls_visible=True)
     snapshot = _make_tribe_snapshot("epic", status="RUNNING")
     app = _FakeZoomApp(agent=None, detail=detail)
     focused_snapshot = snapshot
@@ -46,7 +46,7 @@ def test_action_zoom_panel_routes_whole_panel_focus_to_tribe_modal() -> None:
     assert modal._is_tribe_zoom
     assert modal._target == ZoomPanelTarget.METADATA
     assert not modal._has_file_content
-    assert not modal._has_tools_content
+    assert not modal._has_llm_calls_content
     assert _renderable_to_text(modal._seed.metadata_renderable) == "metadata"
     assert modal._seed.metadata_subtitle == "metadata · seeded"
 
@@ -76,7 +76,7 @@ def test_tribe_zoom_is_metadata_only() -> None:
         tribe_provider=lambda: snapshot,
         initial_tribe=snapshot,
         initial_target=ZoomPanelTarget.FILE,
-        seed=ZoomPanelSeed(has_file_content=True, has_tools_content=True),
+        seed=ZoomPanelSeed(has_file_content=True, has_llm_calls_content=True),
         refresh_interval=10,
     )
 
@@ -125,13 +125,13 @@ async def test_tribe_zoom_modal_mounts_metadata_only_view() -> None:
 
         metadata_scroll = modal.query_one("#zoom-metadata-scroll", VerticalScroll)
         file_view = modal.query_one("#zoom-file-view")
-        tools_scroll = modal.query_one("#zoom-tools-scroll", VerticalScroll)
+        llm_calls_scroll = modal.query_one("#zoom-llm-calls-scroll", VerticalScroll)
         header = modal.query_one("#zoom-panel-agent", Static)
         hint = modal.query_one("#zoom-panel-hints", Label)
 
         assert not metadata_scroll.has_class("hidden")
         assert file_view.has_class("hidden")
-        assert tools_scroll.has_class("hidden")
+        assert llm_calls_scroll.has_class("hidden")
         assert snapshot.label in (_renderable_to_text(header.content) or "")
         assert "]/[" not in str(hint.content)
         assert "^N/^P" not in str(hint.content)

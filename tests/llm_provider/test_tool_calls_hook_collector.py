@@ -237,7 +237,7 @@ def test_pre_then_post_records_are_independently_appended(
 
 
 def test_reader_accepts_schema_v3() -> None:
-    from sase.ace.tui.tools.reader import SUPPORTED_SCHEMA_VERSIONS
+    from sase.ace.tui.llm_calls.reader import SUPPORTED_SCHEMA_VERSIONS
 
     assert 1 in SUPPORTED_SCHEMA_VERSIONS
     assert 2 in SUPPORTED_SCHEMA_VERSIONS

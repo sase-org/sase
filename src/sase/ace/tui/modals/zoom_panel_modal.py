@@ -21,7 +21,7 @@ from ..widgets.file_panel import (
 )
 from ..widgets.prompt_panel import AgentPromptPanel
 from ..widgets.renderable_text import renderable_to_text
-from ..widgets.tools_panel import ToolsVisibilityChanged
+from ..widgets.llm_calls_panel import LLMCallsVisibilityChanged
 from .zoom_panel_content import (
     action_copy_zoom_content,
     action_edit_zoom_content,
@@ -31,7 +31,7 @@ from .zoom_panel_content import (
     refresh_active_panel,
     refresh_file,
     refresh_metadata,
-    refresh_tools,
+    refresh_llm_calls,
     seed_panels,
     zoom_text,
 )
@@ -39,7 +39,7 @@ from .zoom_panel_events import (
     on_file_list_changed,
     on_file_line_count_changed,
     on_file_visibility_changed,
-    on_tools_visibility_changed,
+    on_llm_calls_visibility_changed,
 )
 from .zoom_panel_navigation import (
     action_collapse_tools_detail,
@@ -69,7 +69,7 @@ from .zoom_panel_navigation import (
 from .zoom_panel_rendering import agent_label, status_text
 from .zoom_panel_search import ZoomSearchMixin
 from .zoom_panel_types import ZoomPanelSeed, ZoomPanelTarget
-from .zoom_panel_widgets import ZoomFilePanel, ZoomFileRail, ZoomToolsPanel
+from .zoom_panel_widgets import ZoomFilePanel, ZoomFileRail, ZoomLLMCallsPanel
 
 if TYPE_CHECKING:
     from ..models import Agent
@@ -81,12 +81,12 @@ _renderable_to_text = renderable_to_text
 _status_text = status_text
 _ZoomFilePanel = ZoomFilePanel
 _ZoomFileRail = ZoomFileRail
-_ZoomToolsPanel = ZoomToolsPanel
+_ZoomLLMCallsPanel = ZoomLLMCallsPanel
 
 _HEADER_TAB_STYLE = {
     ZoomPanelTarget.METADATA: "bold black on #D7AF5F",
     ZoomPanelTarget.FILE: "bold black on #A8FF60",
-    ZoomPanelTarget.TOOLS: "bold black on #87D7FF",
+    ZoomPanelTarget.LLM_CALLS: "bold black on #87D7FF",
 }
 
 
@@ -141,8 +141,8 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
         )
         self._seed = seed
         self._has_file_content = False if self._is_tribe_zoom else seed.has_file_content
-        self._has_tools_content = (
-            False if self._is_tribe_zoom else seed.has_tools_content
+        self._has_llm_calls_content = (
+            False if self._is_tribe_zoom else seed.has_llm_calls_content
         )
         self._refresh_interval = max(refresh_interval, 2)
         self._refresh_timer: Timer | None = None
@@ -169,8 +169,10 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
                 yield ZoomFileRail(id="zoom-file-rail", classes="collapsed")
                 with VerticalScroll(id="zoom-file-scroll", classes="zoom-scroll"):
                     yield ZoomFilePanel(id="zoom-file-panel")
-            with VerticalScroll(id="zoom-tools-scroll", classes="hidden zoom-scroll"):
-                yield ZoomToolsPanel(id="zoom-tools-panel")
+            with VerticalScroll(
+                id="zoom-llm-calls-scroll", classes="hidden zoom-scroll"
+            ):
+                yield ZoomLLMCallsPanel(id="zoom-llm-calls-panel")
             with VerticalScroll(id="zoom-search-scroll", classes="hidden zoom-scroll"):
                 yield Static(id="zoom-search-panel")
             yield Static(id="zoom-search-command", classes="hidden")
@@ -212,7 +214,7 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
             "j/k g/G ^D/^U scroll  ]/[ panel  ^N/^P file  "
             "/? search  n/N match  E edit  y copy  r refresh  q close"
         )
-        if self._target == ZoomPanelTarget.TOOLS:
+        if self._target == ZoomPanelTarget.LLM_CALLS:
             hints = (
                 "j/k g/G ^D/^U scroll  ]/[ panel  h/l detail  "
                 "/? search  n/N match  E edit  y copy  r refresh  q close"
@@ -228,7 +230,7 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
         for index, target in enumerate(available):
             if index > 0:
                 text.append(" · ", style="dim")
-            label = target.value.upper()
+            label = target.value.replace("_", " ").upper()
             if target == ZoomPanelTarget.FILE and self._has_file_content:
                 file_panel = self.query_one("#zoom-file-panel", ZoomFilePanel)
                 if file_panel.current_file_count > 1:
@@ -290,8 +292,8 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
     def _refresh_file(self, agent: Agent, *, force: bool) -> None:
         refresh_file(self, agent, force=force)
 
-    def _refresh_tools(self, agent: Agent, *, force: bool) -> None:
-        refresh_tools(self, agent, force=force)
+    def _refresh_llm_calls(self, agent: Agent, *, force: bool) -> None:
+        refresh_llm_calls(self, agent, force=force)
 
     def _zoom_text(self) -> str | None:
         return zoom_text(self)
@@ -340,8 +342,10 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
     def on_file_line_count_changed(self, message: FileLineCountChanged) -> None:
         on_file_line_count_changed(self, message)
 
-    def on_tools_visibility_changed(self, message: ToolsVisibilityChanged) -> None:
-        on_tools_visibility_changed(self, message)
+    def on_llm_calls_visibility_changed(
+        self, message: LLMCallsVisibilityChanged
+    ) -> None:
+        on_llm_calls_visibility_changed(self, message)
 
     def on_tribe_section_snapshot_loaded(
         self,

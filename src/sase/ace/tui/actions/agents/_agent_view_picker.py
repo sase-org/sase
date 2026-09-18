@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
-from ...tools import supports_slow_tool_sources
+from ...llm_calls import supports_slow_tool_sources
 from ...widgets._agent_detail_panels import DetailLayoutMode, DetailPanelMode
 from ._panel_types import TabName
 
@@ -33,8 +33,8 @@ class _AgentViewCapabilities:
     forced_metadata_reason: str | None
     file_enabled: bool
     file_subtitle: str
-    tools_enabled: bool
-    tools_reason: str | None
+    llm_calls_enabled: bool
+    llm_calls_reason: str | None
     layout_enabled: bool
     layout_reason: str | None
     secondary_label: str
@@ -152,34 +152,34 @@ class AgentViewPickerMixin:
             if file_has_content
             else "No file currently; metadata fills the space"
         )
-        tools_enabled = forced_reason is None and supports_slow_tool_sources(agent)
-        tools_reason: str | None = None
+        llm_calls_enabled = forced_reason is None and supports_slow_tool_sources(agent)
+        llm_calls_reason: str | None = None
         if forced_reason is not None:
-            tools_reason = forced_reason
-        elif not tools_enabled:
-            tools_reason = "Unavailable for this entry"
+            llm_calls_reason = forced_reason
+        elif not llm_calls_enabled:
+            llm_calls_reason = "Unavailable for this entry"
 
-        secondary_label = "File / Tools"
+        secondary_label = "File / LLM Calls"
         layout_enabled = False
-        layout_reason: str | None = "Choose File or Tools first"
+        layout_reason: str | None = "Choose File or LLM Calls first"
         if forced_reason is not None:
             layout_reason = forced_reason
         elif effective_mode == DetailPanelMode.AUTO:
             secondary_label = "File"
             layout_enabled = agent_detail.is_file_visible()
             layout_reason = None if layout_enabled else "No file to resize"
-        elif effective_mode == DetailPanelMode.TOOLS:
-            secondary_label = "Tools"
-            layout_enabled = agent_detail.is_tools_visible()
-            layout_reason = None if layout_enabled else "Choose File or Tools first"
+        elif effective_mode == DetailPanelMode.LLM_CALLS:
+            secondary_label = "LLM Calls"
+            layout_enabled = agent_detail.is_llm_calls_visible()
+            layout_reason = None if layout_enabled else "Choose File or LLM Calls first"
 
         return _AgentViewCapabilities(
             agent=agent,
             forced_metadata_reason=forced_reason,
             file_enabled=file_enabled,
             file_subtitle=file_subtitle,
-            tools_enabled=tools_enabled,
-            tools_reason=tools_reason,
+            llm_calls_enabled=llm_calls_enabled,
+            llm_calls_reason=llm_calls_reason,
             layout_enabled=layout_enabled,
             layout_reason=layout_reason,
             secondary_label=secondary_label,
@@ -217,13 +217,13 @@ class AgentViewPickerMixin:
             ),
             AgentViewChoice(
                 "t",
-                "Tools",
-                "Tool calls and activity",
+                "LLM Calls",
+                "Provider tool calls and activity",
                 "view",
-                AgentViewResult.mode_choice(DetailPanelMode.TOOLS),
-                enabled=capabilities.tools_enabled,
-                badge="Current" if current_mode is DetailPanelMode.TOOLS else None,
-                disabled_reason=capabilities.tools_reason,
+                AgentViewResult.mode_choice(DetailPanelMode.LLM_CALLS),
+                enabled=capabilities.llm_calls_enabled,
+                badge="Current" if current_mode is DetailPanelMode.LLM_CALLS else None,
+                disabled_reason=capabilities.llm_calls_reason,
             ),
             AgentViewChoice(
                 "n",
@@ -243,8 +243,8 @@ class AgentViewPickerMixin:
         larger_label = capabilities.secondary_label
         if current_mode == DetailPanelMode.AUTO:
             larger_label = "File"
-        elif current_mode == DetailPanelMode.TOOLS:
-            larger_label = "Tools"
+        elif current_mode == DetailPanelMode.LLM_CALLS:
+            larger_label = "LLM Calls"
         choices.extend(
             [
                 AgentViewChoice(
@@ -303,7 +303,7 @@ class AgentViewPickerMixin:
     def _agent_view_selected_key(self, mode: DetailPanelMode) -> str:
         return {
             DetailPanelMode.AUTO: "f",
-            DetailPanelMode.TOOLS: "t",
+            DetailPanelMode.LLM_CALLS: "t",
             DetailPanelMode.INFO: "n",
         }[mode]
 
@@ -374,8 +374,8 @@ class AgentViewPickerMixin:
                 if mode is DetailPanelMode.INFO
                 else capabilities.forced_metadata_reason
             )
-        if mode is DetailPanelMode.TOOLS and not capabilities.tools_enabled:
-            return capabilities.tools_reason or "Unavailable for this entry"
+        if mode is DetailPanelMode.LLM_CALLS and not capabilities.llm_calls_enabled:
+            return capabilities.llm_calls_reason or "Unavailable for this entry"
         if mode is DetailPanelMode.AUTO and not capabilities.file_enabled:
             return capabilities.forced_metadata_reason
         return None
@@ -391,7 +391,7 @@ class AgentViewPickerMixin:
             return
         if not capabilities.layout_enabled:
             self.notify(  # type: ignore[attr-defined]
-                capabilities.layout_reason or "Choose File or Tools first",
+                capabilities.layout_reason or "Choose File or LLM Calls first",
                 severity="warning",
             )
             return
@@ -407,7 +407,7 @@ class AgentViewPickerMixin:
     ) -> None:
         if not capabilities.layout_enabled:
             self.notify(  # type: ignore[attr-defined]
-                capabilities.layout_reason or "Choose File or Tools first",
+                capabilities.layout_reason or "Choose File or LLM Calls first",
                 severity="warning",
             )
             return

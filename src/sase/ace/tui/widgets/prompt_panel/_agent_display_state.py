@@ -11,8 +11,8 @@ from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
-from sase.ace.tui.tools import SlowToolSource
-from sase.ace.tui.tools.report import SlowToolCallReportSpec
+from sase.ace.tui.llm_calls import SlowToolSource
+from sase.ace.tui.llm_calls.report import SlowToolCallReportSpec
 from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
 from sase.memory.memory_read_report import MemoryReadReportSpec
 from sase.plan_documents import PlanWorkspace

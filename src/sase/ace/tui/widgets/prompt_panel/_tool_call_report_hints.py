@@ -6,8 +6,8 @@ from collections.abc import Iterable
 
 from rich.cells import cell_len
 
-from sase.ace.tui.tools import ToolCallEntry
-from sase.ace.tui.tools.report import (
+from sase.ace.tui.llm_calls import ToolCallEntry
+from sase.ace.tui.llm_calls.report import (
     SlowToolCallReportSpec,
     tool_call_report_path,
 )

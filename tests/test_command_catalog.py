@@ -328,7 +328,7 @@ def test_h_commands_describe_navigation_and_contextual_collapsing() -> None:
     assert upper.label == (
         "Collapse selected workflow/family, then group sase agents, selected "
         "clan, remaining clans/groups; panel sase agents/clans/groups/panel / "
-        "compact tools detail / collapse all folds on other tabs"
+        "compact LLM Calls detail / collapse all folds on other tabs"
     )
     assert upper.key_sequence == ("H",)
     assert upper.key_display == "H"

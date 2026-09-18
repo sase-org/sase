@@ -1,4 +1,4 @@
-"""Agent tools panel widget for sase's TUI."""
+"""Agent LLM Calls panel widget for sase's TUI."""
 
 from __future__ import annotations
 
@@ -12,53 +12,53 @@ from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.models.agent import Agent
-from sase.ace.tui.tools import (
+from sase.ace.tui.llm_calls import (
     ToolCallEntry,
     build_cached_slow_tool_sources,
     build_slow_tool_sources,
     supports_slow_tool_sources,
 )
-from sase.ace.tui.tools.cache import (
+from sase.ace.tui.llm_calls.cache import (
     ToolsCacheEntry,
     fetch_tool_calls_cached,
     get_cache_key,
     peek_tool_calls_cache_entry,
     tools_cache,
 )
-from sase.ace.tui.tools.slow import slow_tool_call_threshold_ms_from_widget
+from sase.ace.tui.llm_calls.slow import slow_tool_call_threshold_ms_from_widget
 from sase.core.time import local_now
 
 from ..util.trace import tui_trace
-from ._tools_panel_fetching import (
+from ._llm_calls_panel_fetching import (
     invalidate_tool_source_caches,
     latest_cached_fetch_time,
     mark_tool_source_fetch_started,
     should_throttle_tool_sources,
 )
-from ._tools_panel_time import format_timestamp
-from ._tools_panel_timeline import (
-    build_tools_timeline_markdown,
-    build_tools_timeline_text,
+from ._llm_calls_panel_time import format_timestamp
+from ._llm_calls_panel_timeline import (
+    build_llm_calls_timeline_markdown,
+    build_llm_calls_timeline_text,
     format_duration,
     rows_from_entries,
     rows_from_sources,
     status_label,
     status_style,
 )
-from ._tools_panel_types import (
+from ._llm_calls_panel_types import (
     ToolDetailLevel,
     ToolTimelineRow,
-    ToolsPanelFetchResult,
+    LLMCallsPanelFetchResult,
     coerce_detail_level,
     detail_level_label,
 )
 
-_ToolsCacheEntry = ToolsCacheEntry
-_tools_cache = tools_cache
+_LLMCallsCacheEntry = ToolsCacheEntry
+_llm_calls_cache = tools_cache
 _ToolTimelineRow = ToolTimelineRow
-_ToolsPanelFetchResult = ToolsPanelFetchResult
-_build_tools_timeline_markdown = build_tools_timeline_markdown
-_build_tools_timeline_text = build_tools_timeline_text
+_LLMCallsPanelFetchResult = LLMCallsPanelFetchResult
+_build_llm_calls_timeline_markdown = build_llm_calls_timeline_markdown
+_build_llm_calls_timeline_text = build_llm_calls_timeline_text
 _coerce_detail_level = coerce_detail_level
 _detail_level_label = detail_level_label
 _format_duration = format_duration
@@ -69,21 +69,21 @@ _status_label = status_label
 _status_style = status_style
 
 
-class ToolsVisibilityChanged(Message):
-    """Message posted when tools panel availability changes."""
+class LLMCallsVisibilityChanged(Message):
+    """Message posted when LLM Calls panel availability changes."""
 
-    def __init__(self, has_tools: bool) -> None:
+    def __init__(self, has_llm_calls: bool) -> None:
         super().__init__()
-        self.has_tools = has_tools
+        self.has_llm_calls = has_llm_calls
 
 
-class AgentToolsPanel(Static):
+class AgentLLMCallsPanel(Static):
     """Panel showing normalized tool-call artifacts for the selected agent."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._current_agent: Agent | None = None
-        self._current_worker: Worker[ToolsPanelFetchResult] | None = None
+        self._current_worker: Worker[LLMCallsPanelFetchResult] | None = None
         self._has_displayed_content: bool = False
         self._last_entries: tuple[ToolCallEntry, ...] | None = None
         self._last_rows: tuple[ToolTimelineRow, ...] | None = None
@@ -97,11 +97,11 @@ class AgentToolsPanel(Static):
         return self._detail_level
 
     def expand_detail(self) -> bool:
-        """Expand the tools timeline by one detail level."""
+        """Expand the LLM Calls timeline by one detail level."""
         return self.set_detail_level(self._detail_level + 1)
 
     def collapse_detail(self) -> bool:
-        """Collapse the tools timeline by one detail level."""
+        """Collapse the LLM Calls timeline by one detail level."""
         return self.set_detail_level(self._detail_level - 1)
 
     def set_detail_level(
@@ -110,7 +110,7 @@ class AgentToolsPanel(Static):
         *,
         rerender: bool = True,
     ) -> bool:
-        """Set the tools timeline detail level.
+        """Set the LLM Calls timeline detail level.
 
         Returns True when the level changed. When ``rerender`` is true, empty
         panels do not change level because the keypress should remain a no-op.
@@ -122,17 +122,17 @@ class AgentToolsPanel(Static):
             return False
         self._detail_level = next_level
         if rerender:
-            self._rerender_cached_tools()
+            self._rerender_cached_llm_calls()
         return True
 
     def _has_tool_rows(self) -> bool:
         return bool(self._last_entries)
 
-    def _rerender_cached_tools(self) -> None:
+    def _rerender_cached_llm_calls(self) -> None:
         if self._last_fetch_time is None:
             return
         scroll_pos = self._save_scroll_position()
-        self._display_tools_with_timestamp(
+        self._display_llm_calls_with_timestamp(
             self._last_entries,
             self._last_fetch_time,
             post_visibility_message=False,
@@ -143,7 +143,7 @@ class AgentToolsPanel(Static):
 
     def update_display(self, agent: Agent, stale_threshold_seconds: int = 10) -> None:
         """Update with agent tool-call records."""
-        with tui_trace("widget.tools_panel.update_display"):
+        with tui_trace("widget.llm_calls_panel.update_display"):
             self._update_display_impl(
                 agent, stale_threshold_seconds=stale_threshold_seconds
             )
@@ -156,7 +156,7 @@ class AgentToolsPanel(Static):
         cached_result = self._cached_fetch_result(agent)
 
         if cached_result is not None:
-            self._display_tools_result(
+            self._display_llm_calls_result(
                 cached_result,
                 post_visibility_message=True,
             )
@@ -171,19 +171,19 @@ class AgentToolsPanel(Static):
 
         mark_tool_source_fetch_started(agent)
 
-        def fetch_task() -> ToolsPanelFetchResult:
-            return self._fetch_tools_result_in_background(agent)
+        def fetch_task() -> LLMCallsPanelFetchResult:
+            return self._fetch_llm_calls_result_in_background(agent)
 
         self._current_worker = self.run_worker(fetch_task, thread=True)
 
-    def refresh_tools(self, agent: Agent) -> None:
+    def refresh_llm_calls(self, agent: Agent) -> None:
         """Force refresh tool-call records for an agent."""
         self._current_agent = agent
         cached_result = self._cached_fetch_result(agent)
 
         if cached_result is not None:
             self._is_background_refreshing = True
-            self._display_tools_result(
+            self._display_llm_calls_result(
                 cached_result,
                 post_visibility_message=True,
                 is_stale=True,
@@ -196,16 +196,16 @@ class AgentToolsPanel(Static):
         if self._current_worker is not None and self._current_worker.is_running:
             self._current_worker.cancel()
 
-        def fetch_task() -> ToolsPanelFetchResult:
-            return self._fetch_tools_result_in_background(agent)
+        def fetch_task() -> LLMCallsPanelFetchResult:
+            return self._fetch_llm_calls_result_in_background(agent)
 
         self._current_worker = self.run_worker(fetch_task, thread=True)
 
-    def get_tools_text(self) -> str | None:
+    def get_llm_calls_text(self) -> str | None:
         """Return a markdown/plain text timeline for editor actions."""
         if self._last_fetch_time is None:
             return None
-        return build_tools_timeline_markdown(
+        return build_llm_calls_timeline_markdown(
             self._last_entries,
             self._last_fetch_time,
             rows=self._last_rows,
@@ -229,7 +229,7 @@ class AgentToolsPanel(Static):
 
     def _get_scroll_container(self) -> VerticalScroll | None:
         try:
-            return self.app.query_one("#agent-tools-scroll", VerticalScroll)
+            return self.app.query_one("#agent-llm-calls-scroll", VerticalScroll)
         except Exception:
             return None
 
@@ -246,7 +246,7 @@ class AgentToolsPanel(Static):
                 lambda: container.scroll_to(y=position, animate=False)
             )
 
-    def _display_tools_with_timestamp(
+    def _display_llm_calls_with_timestamp(
         self,
         entries: tuple[ToolCallEntry, ...] | None,
         fetch_time: datetime,
@@ -260,10 +260,10 @@ class AgentToolsPanel(Static):
         self._last_fetch_time = fetch_time
 
         if post_visibility_message:
-            self.post_message(ToolsVisibilityChanged(has_tools=bool(entries)))
+            self.post_message(LLMCallsVisibilityChanged(has_llm_calls=bool(entries)))
 
         self.update(
-            build_tools_timeline_text(
+            build_llm_calls_timeline_text(
                 entries,
                 fetch_time,
                 is_stale=is_stale,
@@ -276,14 +276,14 @@ class AgentToolsPanel(Static):
         )
         self._has_displayed_content = True
 
-    def _display_tools_result(
+    def _display_llm_calls_result(
         self,
-        result: ToolsPanelFetchResult,
+        result: LLMCallsPanelFetchResult,
         *,
         post_visibility_message: bool = True,
         is_stale: bool = False,
     ) -> None:
-        self._display_tools_with_timestamp(
+        self._display_llm_calls_with_timestamp(
             result.entries,
             result.fetch_time,
             post_visibility_message=post_visibility_message,
@@ -291,14 +291,14 @@ class AgentToolsPanel(Static):
             rows=result.rows,
         )
 
-    def _cached_fetch_result(self, agent: Agent) -> ToolsPanelFetchResult | None:
+    def _cached_fetch_result(self, agent: Agent) -> LLMCallsPanelFetchResult | None:
         if supports_slow_tool_sources(agent):
             sources = build_cached_slow_tool_sources(agent)
             if sources is None:
                 return None
             rows = rows_from_sources(sources)
             fetch_time = latest_cached_fetch_time(agent) or local_now()
-            return ToolsPanelFetchResult(
+            return LLMCallsPanelFetchResult(
                 entries=None if rows is None else tuple(row.entry for row in rows),
                 rows=rows,
                 fetch_time=fetch_time,
@@ -307,25 +307,27 @@ class AgentToolsPanel(Static):
         cache_entry = peek_tool_calls_cache_entry(agent)
         if cache_entry is None:
             return None
-        return ToolsPanelFetchResult(
+        return LLMCallsPanelFetchResult(
             entries=cache_entry.entries,
             rows=rows_from_entries(cache_entry.entries),
             fetch_time=cache_entry.fetch_time,
         )
 
-    def _fetch_tools_result_in_background(self, agent: Agent) -> ToolsPanelFetchResult:
+    def _fetch_llm_calls_result_in_background(
+        self, agent: Agent
+    ) -> LLMCallsPanelFetchResult:
         if supports_slow_tool_sources(agent):
             sources = build_slow_tool_sources(agent)
             rows = rows_from_sources(sources)
-            return ToolsPanelFetchResult(
+            return LLMCallsPanelFetchResult(
                 entries=None if rows is None else tuple(row.entry for row in rows),
                 rows=rows,
                 fetch_time=latest_cached_fetch_time(agent) or local_now(),
             )
 
-        entries = self._fetch_tools_in_background(agent)
+        entries = self._fetch_tool_calls_in_background(agent)
         cache_entry = peek_tool_calls_cache_entry(agent)
-        return ToolsPanelFetchResult(
+        return LLMCallsPanelFetchResult(
             entries=entries,
             rows=rows_from_entries(entries),
             fetch_time=(
@@ -333,7 +335,7 @@ class AgentToolsPanel(Static):
             ),
         )
 
-    def _fetch_tools_in_background(
+    def _fetch_tool_calls_in_background(
         self, agent: Agent
     ) -> tuple[ToolCallEntry, ...] | None:
         return fetch_tool_calls_cached(agent)
@@ -346,9 +348,9 @@ class AgentToolsPanel(Static):
         self._is_background_refreshing = False
 
         if event.state == WorkerState.SUCCESS:
-            result = cast(ToolsPanelFetchResult, event.worker.result)
+            result = cast(LLMCallsPanelFetchResult, event.worker.result)
             scroll_pos = self._save_scroll_position()
-            self._display_tools_result(
+            self._display_llm_calls_result(
                 result,
                 post_visibility_message=result.entries != self._last_entries,
             )
@@ -363,12 +365,13 @@ class AgentToolsPanel(Static):
 
 
 __all__ = [
-    "AgentToolsPanel",
+    "AgentLLMCallsPanel",
     "ToolDetailLevel",
-    "ToolsVisibilityChanged",
-    "_ToolsCacheEntry",
-    "_build_tools_timeline_markdown",
-    "_build_tools_timeline_text",
-    "_tools_cache",
+    "LLMCallsVisibilityChanged",
+    "_LLMCallsCacheEntry",
+    "_LLMCallsPanelFetchResult",
+    "_build_llm_calls_timeline_markdown",
+    "_build_llm_calls_timeline_text",
+    "_llm_calls_cache",
     "get_cache_key",
 ]

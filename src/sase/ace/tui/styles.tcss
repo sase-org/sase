@@ -3999,18 +3999,18 @@ HintInputBar #hint-escape-hint {
     height: 3fr;
 }
 
-#agent-tools-scroll {
+#agent-llm-calls-scroll {
     height: 7fr;
     border: solid #87D7FF;
     padding: 1 2;
     scrollbar-gutter: stable;
 }
 
-#agent-tools-scroll.hidden {
+#agent-llm-calls-scroll.hidden {
     display: none;
 }
 
-#agent-tools-scroll.layout-secondary {
+#agent-llm-calls-scroll.layout-secondary {
     height: 3fr;
 }
 
@@ -7394,7 +7394,7 @@ ZoomPanelModal #zoom-file-rail.collapsed {
     display: none;
 }
 
-ZoomPanelModal #zoom-tools-scroll {
+ZoomPanelModal #zoom-llm-calls-scroll {
     border: solid #87D7FF;
 }
 
@@ -7409,7 +7409,7 @@ ZoomPanelModal .zoom-scroll.hidden {
 
 ZoomPanelModal #zoom-metadata-panel,
 ZoomPanelModal #zoom-file-panel,
-ZoomPanelModal #zoom-tools-panel,
+ZoomPanelModal #zoom-llm-calls-panel,
 ZoomPanelModal #zoom-search-panel {
     height: auto;
 }

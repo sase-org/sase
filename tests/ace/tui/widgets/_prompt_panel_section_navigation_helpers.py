@@ -64,7 +64,7 @@ class _MetadataNavigationApp(BasicNavigationMixin, App[None]):
         padding: 1 2;
         overflow-y: auto;
     }
-    #agent-file-scroll, #agent-tools-scroll {
+    #agent-file-scroll, #agent-llm-calls-scroll {
         display: none;
     }
     #agent-prompt-panel {

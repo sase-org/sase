@@ -345,7 +345,7 @@ class FoldNavigationMixin(NavigationMixinBase):
         if callable(count_resolver):
             return count_resolver(agent) > 0
 
-        from ...tools.slow import (
+        from ...llm_calls.slow import (
             normalize_slow_tool_call_threshold_ms,
             select_slow_tool_calls,
         )

@@ -10,7 +10,7 @@ from sase.ace.tui.thinking.parser import (
     parse_thinking_blocks,
     read_codex_thinking,
 )
-from sase.ace.tui.widgets.tools_panel import _format_timestamp
+from sase.ace.tui.widgets.llm_calls_panel import _format_timestamp
 
 
 # --- helpers ---

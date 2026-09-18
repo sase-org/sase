@@ -1,6 +1,6 @@
 """Legacy thinking-block extraction helpers.
 
-The Agents tab now renders provider tool activity through the Tools panel.
+The Agents tab now renders provider tool activity through the LLM Calls panel.
 These parsers are retained for tests and direct callers until a separate cleanup
 can decide whether any provider-thinking artifact API should remain.
 """

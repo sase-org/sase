@@ -1,11 +1,11 @@
-"""Shared helpers for tools panel tests."""
+"""Shared helpers for LLM Calls panel tests."""
 
 from __future__ import annotations
 
 from unittest.mock import MagicMock
 
-from sase.ace.tui.tools import ToolCallEntry
-from sase.ace.tui.widgets.tools_panel import AgentToolsPanel, ToolDetailLevel
+from sase.ace.tui.llm_calls import ToolCallEntry
+from sase.ace.tui.widgets.llm_calls_panel import AgentLLMCallsPanel, ToolDetailLevel
 
 
 def _entry(**overrides: object) -> ToolCallEntry:
@@ -17,15 +17,15 @@ def _entry(**overrides: object) -> ToolCallEntry:
         "tool_name": "Bash",
         "tool_use_id": "toolu_1",
         "duration_ms": 1234,
-        "tool_input_summary": {"command": "pytest tests/ace/tui/tools"},
+        "tool_input_summary": {"command": "pytest tests/ace/tui/llm_calls"},
         "tool_response_summary": {"exit_code": 0, "stdout_preview": "ok"},
     }
     kwargs.update(overrides)
     return ToolCallEntry(**kwargs)  # type: ignore[arg-type]
 
 
-def _build_panel() -> AgentToolsPanel:
-    panel = AgentToolsPanel.__new__(AgentToolsPanel)
+def _build_panel() -> AgentLLMCallsPanel:
+    panel = AgentLLMCallsPanel.__new__(AgentLLMCallsPanel)
     panel._current_agent = None
     panel._current_worker = None
     panel._has_displayed_content = True

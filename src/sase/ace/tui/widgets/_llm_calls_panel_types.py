@@ -1,4 +1,4 @@
-"""Shared types for the tools panel widget."""
+"""Shared types for the LLM Calls panel widget."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from enum import IntEnum
 
-from sase.ace.tui.tools import ToolCallEntry
+from sase.ace.tui.llm_calls import ToolCallEntry
 
 
 class ToolDetailLevel(IntEnum):
-    """Progressive disclosure levels for the tools timeline."""
+    """Progressive disclosure levels for the LLM Calls timeline."""
 
     COMPACT = 0
     EXPANDED = 1
@@ -32,7 +32,7 @@ class ToolTimelineRow:
 
 
 @dataclass(frozen=True)
-class ToolsPanelFetchResult:
+class LLMCallsPanelFetchResult:
     entries: tuple[ToolCallEntry, ...] | None
     rows: tuple[ToolTimelineRow, ...] | None
     fetch_time: datetime

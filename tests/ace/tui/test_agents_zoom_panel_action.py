@@ -9,7 +9,7 @@ from sase.ace.tui.app import AceApp
 from sase.ace.tui.keymaps import build_app_bindings, load_keymap_registry
 from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelTarget
-from sase.ace.tui.widgets.tools_panel import ToolDetailLevel
+from sase.ace.tui.widgets.llm_calls_panel import ToolDetailLevel
 
 from tests.ace.tui._agents_zoom_panel_helpers import (
     _FakeDetail,
@@ -28,12 +28,14 @@ from tests.ace.tui._plugins_browser_pane_helpers import (
     [
         (_FakeDetail(file_visible=True), None, ZoomPanelTarget.FILE),
         (
-            _FakeDetail(tools_visible=True, file_visible=False, has_tools=True),
+            _FakeDetail(llm_calls_visible=True, file_visible=False, has_llm_calls=True),
             None,
-            ZoomPanelTarget.TOOLS,
+            ZoomPanelTarget.LLM_CALLS,
         ),
         (
-            _FakeDetail(layout_swapped=True, tools_visible=True, has_tools=True),
+            _FakeDetail(
+                layout_swapped=True, llm_calls_visible=True, has_llm_calls=True
+            ),
             None,
             ZoomPanelTarget.METADATA,
         ),
@@ -83,15 +85,15 @@ def test_action_zoom_panel_provider_resolves_fresh_agent_by_identity() -> None:
     assert modal._agent_provider() is refreshed
 
 
-def test_action_zoom_panel_seed_carries_tools_detail_level() -> None:
-    detail = _FakeDetail(tools_visible=True, file_visible=False, has_tools=True)
-    detail.tools_detail_level = ToolDetailLevel.FULL  # type: ignore[attr-defined]
+def test_action_zoom_panel_seed_carries_llm_calls_detail_level() -> None:
+    detail = _FakeDetail(llm_calls_visible=True, file_visible=False, has_llm_calls=True)
+    detail.llm_calls_detail_level = ToolDetailLevel.FULL  # type: ignore[attr-defined]
     app = _FakeZoomApp(agent=_make_agent(), detail=detail)
 
     app.action_zoom_panel()
 
     modal = app.pushed[0]
-    assert modal._seed.tools_detail_level == ToolDetailLevel.FULL
+    assert modal._seed.llm_calls_detail_level == ToolDetailLevel.FULL
 
 
 def test_default_zoom_migrates_to_uppercase_z_and_fold_keeps_lowercase() -> None:

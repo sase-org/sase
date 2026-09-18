@@ -32,7 +32,7 @@ def test_agents_help_describes_zoom_and_isolation_and_capital_h_collapsing() -> 
     assert ("H", "Collapse selected workflow/family one level") in agent_pairs
     assert ("H", "Then remaining sase agents in scope") in agent_pairs
     assert ("H", "Then selected clan / group clans") in agent_pairs
-    assert ("H", "Compact expanded Tools detail") in agent_pairs
+    assert ("H", "Compact expanded LLM Calls detail") in agent_pairs
     assert ("Z", "Zoom agent/tribe detail") in agent_pairs
     assert (
         "=",

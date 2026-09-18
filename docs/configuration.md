@@ -1054,8 +1054,8 @@ ace:
 | `slow_threshold_seconds` | int  | `20`    | `0`     | Minimum tool-call duration shown as slow in Agents metadata and tool-call timelines. |
 
 The threshold drives the `SLOW TOOL CALLS` section of the Agents metadata header and the
-slow markers in the [Agents Tab Tools Panel](ace.md#agents-tab-tools-panel). A missing,
-negative, or non-integer value falls back to `20`.
+slow markers in the [Agents Tab LLM Calls Panel](ace.md#agents-tab-llm-calls-panel). A
+missing, negative, or non-integer value falls back to `20`.
 
 #### `ace.updates`
 
@@ -1300,20 +1300,20 @@ The top-level Agents query editor is available as the app-level `edit_query` bin
 default `/`, and the direct `agents_filters` binding, default `f`. The leader-mode
 `search_forward` chord, default `,/`, starts inline metadata search on Agents only.
 
-| Field                           | Default   | Action                                                                                          |
-| ------------------------------- | --------- | ----------------------------------------------------------------------------------------------- |
-| `agents_filters`                | `f`       | Open the top-level Agents `agents-live` filter bar.                                             |
-| `agents_refresh`                | `r`       | Refresh the Agents tab, or open the Refresh panel while the `refresh_panel` sunset flag is on.  |
-| `agents_retry`                  | `R`       | Retry the selected local or remote agent.                                                       |
-| `choose_agent_grouping`         | `o`       | Open the Agents grouping picker (`p`/`d`/`s`/`m` modes; local `o` toggles split/merged panels). |
-| `choose_agent_view`             | `p`       | Open the Agents view/layout picker (`f` File, `t` Tools, `n` None, `1`/`2` layout, `p` swap).   |
-| `view_agent_metadata`           | `V`       | Open the selected local agent's metadata panel in the SASE pager.                               |
-| `connect_agent_machine`         | `unbound` | Open the Admin Center Machines tab.                                                             |
-| `setup_agent_machine`           | `unbound` | Open the Admin Center Machines tab for enrollment guidance.                                     |
-| `retry_remote_agent`            | `unbound` | Compatibility id: retry the selected row on its owning host.                                    |
-| `view_remote_agent_content`     | `unbound` | Fetch bounded remote chat, output, or diff content.                                             |
-| `answer_remote_attention`       | `unbound` | Answer a pending remote question or approve a pending gate.                                     |
-| `check_dispatch_launch_outcome` | `unbound` | Reconcile the selected provisional remote dispatch-launch row with its operation outcome.       |
+| Field                           | Default   | Action                                                                                            |
+| ------------------------------- | --------- | ------------------------------------------------------------------------------------------------- |
+| `agents_filters`                | `f`       | Open the top-level Agents `agents-live` filter bar.                                               |
+| `agents_refresh`                | `r`       | Refresh the Agents tab, or open the Refresh panel while the `refresh_panel` sunset flag is on.    |
+| `agents_retry`                  | `R`       | Retry the selected local or remote agent.                                                         |
+| `choose_agent_grouping`         | `o`       | Open the Agents grouping picker (`p`/`d`/`s`/`m` modes; local `o` toggles split/merged panels).   |
+| `choose_agent_view`             | `p`       | Open the Agents view/layout picker (`f` File, `t` LLM Calls, `n` None, `1`/`2` layout, `p` swap). |
+| `view_agent_metadata`           | `V`       | Open the selected local agent's metadata panel in the SASE pager.                                 |
+| `connect_agent_machine`         | `unbound` | Open the Admin Center Machines tab.                                                               |
+| `setup_agent_machine`           | `unbound` | Open the Admin Center Machines tab for enrollment guidance.                                       |
+| `retry_remote_agent`            | `unbound` | Compatibility id: retry the selected row on its owning host.                                      |
+| `view_remote_agent_content`     | `unbound` | Fetch bounded remote chat, output, or diff content.                                               |
+| `answer_remote_attention`       | `unbound` | Answer a pending remote question or approve a pending gate.                                       |
+| `check_dispatch_launch_outcome` | `unbound` | Reconcile the selected provisional remote dispatch-launch row with its operation outcome.         |
 
 The former `toggle_layout`, `toggle_thinking`, and `toggle_thinking_reverse` app-key
 settings are retired. Existing overrides for those names are ignored; configure

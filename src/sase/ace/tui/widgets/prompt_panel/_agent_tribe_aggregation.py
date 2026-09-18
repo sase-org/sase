@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Literal, cast
 
-from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
+from sase.ace.tui.llm_calls._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 from sase.stats.query import query_run_stats
 
 from ...models._agent_clan_sections import (

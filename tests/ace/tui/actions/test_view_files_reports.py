@@ -10,7 +10,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from sase.core.glossary_facade import GlossaryCatalog, GlossaryEntry
-from sase.ace.tui.tools.report import SlowToolCallReportSpec
+from sase.ace.tui.llm_calls.report import SlowToolCallReportSpec
 from sase.memory.legacy_glossary_read_report import GlossaryReadReportSpec
 from sase.memory.memory_read_report import MemoryReadReportSpec
 from sase.xprompt._glossary_catalog_projects import EditorGlossaryProject

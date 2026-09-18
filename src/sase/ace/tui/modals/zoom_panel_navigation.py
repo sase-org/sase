@@ -6,10 +6,10 @@ from typing import TYPE_CHECKING, Any
 
 from textual.containers import VerticalScroll
 
-from ..widgets.tools_panel import ToolDetailLevel
+from ..widgets.llm_calls_panel import ToolDetailLevel
 from .zoom_panel_rendering import ACTIVE_STATUSES
 from .zoom_panel_types import _TARGET_ORDER, ZoomPanelTarget
-from .zoom_panel_widgets import ZoomFilePanel, ZoomToolsPanel
+from .zoom_panel_widgets import ZoomFilePanel, ZoomLLMCallsPanel
 
 if TYPE_CHECKING:
     from ..models import Agent
@@ -19,6 +19,8 @@ def zoom_target_view_selector(target: ZoomPanelTarget) -> str:
     """Return the top-level view selector for a zoom panel target."""
     if target == ZoomPanelTarget.FILE:
         return "#zoom-file-view"
+    if target == ZoomPanelTarget.LLM_CALLS:
+        return "#zoom-llm-calls-scroll"
     return f"#zoom-{target.value}-scroll"
 
 
@@ -28,8 +30,8 @@ def available_targets(modal: Any) -> list[ZoomPanelTarget]:
     targets = [ZoomPanelTarget.METADATA]
     if modal._has_file_content:
         targets.append(ZoomPanelTarget.FILE)
-    if modal._has_tools_content:
-        targets.append(ZoomPanelTarget.TOOLS)
+    if modal._has_llm_calls_content:
+        targets.append(ZoomPanelTarget.LLM_CALLS)
     return [target for target in _TARGET_ORDER if target in targets]
 
 
@@ -53,6 +55,8 @@ def show_target(modal: Any, target: ZoomPanelTarget) -> None:
 def active_scroll(modal: Any) -> VerticalScroll:
     if getattr(modal, "_is_zoom_search_overlay_visible", lambda: False)():
         return modal.query_one("#zoom-search-scroll", VerticalScroll)
+    if modal._target == ZoomPanelTarget.LLM_CALLS:
+        return modal.query_one("#zoom-llm-calls-scroll", VerticalScroll)
     return modal.query_one(f"#zoom-{modal._target.value}-scroll", VerticalScroll)
 
 
@@ -199,24 +203,24 @@ def action_prev_file(modal: Any) -> None:
 
 
 def action_expand_tools_detail(modal: Any) -> None:
-    if modal._target == ZoomPanelTarget.TOOLS:
-        modal.query_one("#zoom-tools-panel", ZoomToolsPanel).expand_detail()
+    if modal._target == ZoomPanelTarget.LLM_CALLS:
+        modal.query_one("#zoom-llm-calls-panel", ZoomLLMCallsPanel).expand_detail()
 
 
 def action_collapse_tools_detail(modal: Any) -> None:
-    if modal._target == ZoomPanelTarget.TOOLS:
-        modal.query_one("#zoom-tools-panel", ZoomToolsPanel).collapse_detail()
+    if modal._target == ZoomPanelTarget.LLM_CALLS:
+        modal.query_one("#zoom-llm-calls-panel", ZoomLLMCallsPanel).collapse_detail()
 
 
 def action_full_tools_detail(modal: Any) -> None:
-    if modal._target == ZoomPanelTarget.TOOLS:
-        modal.query_one("#zoom-tools-panel", ZoomToolsPanel).set_detail_level(
+    if modal._target == ZoomPanelTarget.LLM_CALLS:
+        modal.query_one("#zoom-llm-calls-panel", ZoomLLMCallsPanel).set_detail_level(
             ToolDetailLevel.FULL
         )
 
 
 def action_compact_tools_detail(modal: Any) -> None:
-    if modal._target == ZoomPanelTarget.TOOLS:
-        modal.query_one("#zoom-tools-panel", ZoomToolsPanel).set_detail_level(
+    if modal._target == ZoomPanelTarget.LLM_CALLS:
+        modal.query_one("#zoom-llm-calls-panel", ZoomLLMCallsPanel).set_detail_level(
             ToolDetailLevel.COMPACT
         )

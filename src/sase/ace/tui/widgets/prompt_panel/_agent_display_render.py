@@ -17,7 +17,7 @@ from ...models.agent import Agent, AgentType, wait_display_agent
 from ...models._projected_record import resolve_step_output
 from ...models.agent_family_members import family_roster_container
 from ...models.agent_hoods import agent_owns_sase_agent
-from ...tools.slow import slow_tool_call_threshold_ms_from_widget
+from ...llm_calls.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.lazy_syntax import (
     LazySyntaxRenderCache,
     exceeds_syntax_highlight_cap,

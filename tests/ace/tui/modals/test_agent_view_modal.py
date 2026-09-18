@@ -26,10 +26,10 @@ def _choices() -> tuple[AgentViewChoice, ...]:
         ),
         AgentViewChoice(
             "t",
-            "Tools",
+            "LLM Calls",
             "Unavailable for this entry",
             "view",
-            AgentViewResult.mode_choice(DetailPanelMode.TOOLS),
+            AgentViewResult.mode_choice(DetailPanelMode.LLM_CALLS),
             enabled=False,
             disabled_reason="Unavailable for this entry",
         ),

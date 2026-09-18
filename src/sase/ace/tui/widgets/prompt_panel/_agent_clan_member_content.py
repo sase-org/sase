@@ -7,7 +7,7 @@ import os
 from pathlib import Path
 
 from sase.agent.artifact_files_cache import get_global_cache
-from sase.ace.tui.tools import SlowToolSource, build_slow_tool_sources
+from sase.ace.tui.llm_calls import SlowToolSource, build_slow_tool_sources
 from sase.main.init_memory.config import project_memory_name
 from sase.memory.read_log import memory_read_log_path
 from sase.skills.use_log import skill_use_log_path

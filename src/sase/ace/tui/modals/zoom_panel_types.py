@@ -8,7 +8,7 @@ from typing import Any
 
 from rich.console import RenderableType
 
-from ..widgets.tools_panel import ToolDetailLevel
+from ..widgets.llm_calls_panel import ToolDetailLevel
 
 
 class ZoomPanelTarget(StrEnum):
@@ -16,7 +16,7 @@ class ZoomPanelTarget(StrEnum):
 
     METADATA = "metadata"
     FILE = "file"
-    TOOLS = "tools"
+    LLM_CALLS = "llm_calls"
 
 
 @dataclass(frozen=True)
@@ -25,15 +25,15 @@ class ZoomPanelSeed:
 
     metadata_renderable: RenderableType | None = None
     file_renderable: RenderableType | None = None
-    tools_renderable: RenderableType | None = None
+    llm_calls_renderable: RenderableType | None = None
     metadata_subtitle: Any = None
     file_subtitle: Any = None
-    tools_subtitle: Any = None
+    llm_calls_subtitle: Any = None
     file_list: tuple[str, ...] = ()
     file_index: int = 0
     has_file_content: bool = False
-    has_tools_content: bool = False
-    tools_detail_level: ToolDetailLevel = ToolDetailLevel.COMPACT
+    has_llm_calls_content: bool = False
+    llm_calls_detail_level: ToolDetailLevel = ToolDetailLevel.COMPACT
     attempt_view_mode: str = "merged"
     attempt_number: int | None = None
 
@@ -41,7 +41,7 @@ class ZoomPanelSeed:
 _TARGET_ORDER: tuple[ZoomPanelTarget, ...] = (
     ZoomPanelTarget.METADATA,
     ZoomPanelTarget.FILE,
-    ZoomPanelTarget.TOOLS,
+    ZoomPanelTarget.LLM_CALLS,
 )
 
 

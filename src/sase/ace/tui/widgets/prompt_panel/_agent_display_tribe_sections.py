@@ -7,7 +7,7 @@ from collections import defaultdict
 from rich.syntax import Syntax
 from rich.text import Text
 
-from sase.ace.tui.tools.slow import format_long_duration
+from sase.ace.tui.llm_calls.slow import format_long_duration
 from sase.core.output_variable_display import var_value_preview
 from sase.telemetry.render import format_duration
 

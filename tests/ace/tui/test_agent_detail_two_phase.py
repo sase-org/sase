@@ -1,7 +1,7 @@
 """Phase-5 two-phase detail update + generation token tests.
 
 The debounced agent-list refresh should update the detail prompt header
-immediately (cheap, no workers) and defer file/tools/diff worker
+immediately (cheap, no workers) and defer file/LLM Calls/diff worker
 spawns until the j/k burst settles.  Each ``update_display`` /
 ``update_display_immediate`` / ``update_display_with_hints`` call bumps the
 monotonic generation token so debounced workers can drop stale results.
@@ -59,7 +59,7 @@ class _FakeAgentDetail:
         self.immediate_calls: list[tuple[str | None, int | None]] = []
         self.full_calls: list[tuple[str | None, int | None]] = []
         self._agent_detail_generation: int = 0
-        self.tools_detail_level = 0
+        self.llm_calls_detail_level = 0
         self.tribe_calls: list[tuple[object, bool]] = []
 
     def update_display(
@@ -88,7 +88,7 @@ class _FakeAgentDetail:
     def is_file_visible(self) -> bool:
         return False
 
-    def is_tools_visible(self) -> bool:
+    def is_llm_calls_visible(self) -> bool:
         return False
 
 
@@ -134,11 +134,11 @@ def _detail_with_generation_context() -> tuple[AgentDetail, _GenerationPromptPan
     detail._agent_detail_generation = 7
     detail._panel_mode = DetailPanelMode.AUTO
     detail._has_file_content = False
-    detail._has_tools_content = False
+    detail._has_llm_calls_content = False
     detail._update_panel_indicators = lambda: None  # type: ignore[method-assign]
     prompt_panel = _GenerationPromptPanel(detail)
     file_panel = _SecondaryPanel()
-    tools_panel = _SecondaryPanel()
+    llm_calls_panel = _SecondaryPanel()
     scroll = _Scroll()
 
     def query_one(selector: str, _type: object) -> object:
@@ -146,8 +146,8 @@ def _detail_with_generation_context() -> tuple[AgentDetail, _GenerationPromptPan
             return prompt_panel
         if selector == "#agent-file-panel":
             return file_panel
-        if selector == "#agent-tools-panel":
-            return tools_panel
+        if selector == "#agent-llm-calls-panel":
+            return llm_calls_panel
         return scroll
 
     detail.query_one = query_one  # type: ignore[method-assign]

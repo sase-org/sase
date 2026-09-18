@@ -123,7 +123,7 @@ def compact_role_label(agent: Agent) -> str:
 
 
 def _member_cache_key(agent: Agent) -> str:
-    from sase.ace.tui.tools.cache import get_cache_key
+    from sase.ace.tui.llm_calls.cache import get_cache_key
 
     return get_cache_key(agent)
 

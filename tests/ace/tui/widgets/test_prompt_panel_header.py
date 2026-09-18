@@ -17,7 +17,7 @@ from sase.ace.tui import memory_reads as memory_reads_module
 from sase.ace.tui import opened_workspaces as opened_workspaces_module
 from sase.ace.tui import skill_uses as skill_uses_module
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.tools import SlowToolSource, ToolCallEntry
+from sase.ace.tui.llm_calls import SlowToolSource, ToolCallEntry
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_display_parts import (
     DetailHeaderSummary,

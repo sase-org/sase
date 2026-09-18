@@ -1,4 +1,4 @@
-"""Timeline renderers for the tools panel."""
+"""Timeline renderers for the LLM Calls panel."""
 
 from __future__ import annotations
 
@@ -8,16 +8,16 @@ from datetime import datetime
 from rich.cells import cell_len
 from rich.text import Text
 
-from sase.ace.tui.tools import SlowToolSource, ToolCallEntry
-from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
-from sase.ace.tui.tools.slow import (
+from sase.ace.tui.llm_calls import SlowToolSource, ToolCallEntry
+from sase.ace.tui.llm_calls._constants import SLOW_TOOL_CALL_THRESHOLD_MS
+from sase.ace.tui.llm_calls.slow import (
     format_long_duration,
     normalize_slow_tool_call_threshold_ms,
 )
 
-from ._tools_panel_details import append_expanded_block, expanded_markdown_lines
-from ._tools_panel_time import format_timestamp
-from ._tools_panel_types import (
+from ._llm_calls_panel_details import append_expanded_block, expanded_markdown_lines
+from ._llm_calls_panel_time import format_timestamp
+from ._llm_calls_panel_types import (
     ToolDetailLevel,
     ToolTimelineRow,
     coerce_detail_level,
@@ -138,7 +138,7 @@ def _timeline_row_sort_key(row: ToolTimelineRow) -> tuple[object, ...]:
     )
 
 
-def build_tools_timeline_text(
+def build_llm_calls_timeline_text(
     entries: Sequence[ToolCallEntry] | None,
     fetch_time: datetime,
     *,
@@ -153,14 +153,14 @@ def build_tools_timeline_text(
         slow_tool_call_threshold_ms
     )
     if entries is None:
-        return Text("No tools artifact available", style="dim italic")
+        return Text("No provider tool-call artifact available", style="dim italic")
     if not entries:
         return Text("No tool calls recorded", style="dim italic")
 
     failures = sum(1 for entry in entries if entry.status == "failure")
     interrupted = sum(1 for entry in entries if entry.status == "interrupted")
     output = Text()
-    output.append("TOOLS", style="bold #87D7FF underline")
+    output.append("LLM CALLS", style="bold #87D7FF underline")
     if is_stale:
         output.append(" (refreshing...)", style="dim italic")
     output.append("\n")
@@ -221,7 +221,7 @@ def build_tools_timeline_text(
     return output
 
 
-def build_tools_timeline_markdown(
+def build_llm_calls_timeline_markdown(
     entries: Sequence[ToolCallEntry] | None,
     fetch_time: datetime,
     *,
@@ -235,15 +235,15 @@ def build_tools_timeline_markdown(
         slow_tool_call_threshold_ms
     )
     if entries is None:
-        return "TOOLS\n\nNo tools artifact available.\n"
+        return "LLM CALLS\n\nNo provider tool-call artifact available.\n"
     if not entries:
-        return "TOOLS\n\nNo tool calls recorded.\n"
+        return "LLM CALLS\n\nNo tool calls recorded.\n"
 
     summary = f"{len(entries)} calls · refreshed {fetch_time.strftime('%H:%M:%S')}"
     if detail_level >= ToolDetailLevel.EXPANDED:
         summary = f"{summary} · detail: {detail_level_label(detail_level)}"
     lines = [
-        "TOOLS",
+        "LLM CALLS",
         "",
         summary,
         "",

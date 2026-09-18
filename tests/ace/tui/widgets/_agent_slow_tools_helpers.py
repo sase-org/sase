@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sase.ace.tui.tools import SlowToolSource, ToolCallEntry
+from sase.ace.tui.llm_calls import SlowToolSource, ToolCallEntry
 
 
 def make_entry(**overrides: object) -> ToolCallEntry:

@@ -1,4 +1,4 @@
-"""Tests locking Claude Tools collection to stream-backed artifacts."""
+"""Tests locking Claude tool collection to stream-backed artifacts."""
 
 from __future__ import annotations
 
@@ -116,7 +116,7 @@ def test_simulated_claude_provider_run_writes_stream_records(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.ace.tui.models.agent import Agent, AgentType
-    from sase.ace.tui.tools import read_tool_calls_for_agent
+    from sase.ace.tui.llm_calls import read_tool_calls_for_agent
 
     monkeypatch.setenv("SASE_GIT_WORKSPACE_DIR", str(workspace))
     monkeypatch.setenv("SASE_AGENT_TIMESTAMP", "20260515_010101")

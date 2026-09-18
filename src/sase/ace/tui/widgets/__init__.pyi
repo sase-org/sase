@@ -7,7 +7,7 @@ from .agent_info_panel import AgentInfoPanel as AgentInfoPanel
 from .agents_filter_bar import AgentsFilterBar as AgentsFilterBar
 from .agent_list import AgentList as AgentList
 from .agent_onboarding import AgentOnboarding as AgentOnboarding
-from .tools_panel import AgentToolsPanel as AgentToolsPanel
+from .llm_calls_panel import AgentLLMCallsPanel as AgentLLMCallsPanel
 from .alias_overrides_indicator import (
     AliasOverridesIndicator as AliasOverridesIndicator,
 )
@@ -78,8 +78,8 @@ from .stashed_prompts_indicator import (
 from .tab_bar import TabBar as TabBar
 from .tab_quickstart import TabQuickStart as TabQuickStart
 from .proc_indicator import ProcIndicator as ProcIndicator
-from .tools_panel import ToolDetailLevel as ToolDetailLevel
-from .tools_panel import ToolsVisibilityChanged as ToolsVisibilityChanged
+from .llm_calls_panel import ToolDetailLevel as ToolDetailLevel
+from .llm_calls_panel import LLMCallsVisibilityChanged as LLMCallsVisibilityChanged
 from .updates_indicator import UpdatesAvailableIndicator as UpdatesAvailableIndicator
 from .usage_header import UsageHeader as UsageHeader
 from .xprompt_arg_assist import XPromptAssistEntry as XPromptAssistEntry

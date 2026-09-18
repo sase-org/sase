@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.ace.tui.tools import read_tool_calls_for_agent
+from sase.ace.tui.llm_calls import read_tool_calls_for_agent
 from sase.llm_provider._tool_call_grok import _GROK_TOOL_USES
 from sase.llm_provider._tool_calls import append_grok_tool_call_event
 

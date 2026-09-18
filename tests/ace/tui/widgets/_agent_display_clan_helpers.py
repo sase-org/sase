@@ -19,8 +19,8 @@ from sase.ace.tui.models._agent_clan_sections import (
 )
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.tools._entry import ToolCallEntry
-from sase.ace.tui.tools.slow import SlowToolCall
+from sase.ace.tui.llm_calls._entry import ToolCallEntry
+from sase.ace.tui.llm_calls.slow import SlowToolCall
 
 _GENERATION = "20260717120000"
 _SASE_BEADS_SKILL = "sase" + "_beads"

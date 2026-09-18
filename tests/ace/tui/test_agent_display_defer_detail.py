@@ -41,7 +41,7 @@ class _ListWidget:
 
 
 class _DetailWidget:
-    tools_detail_level = 0
+    llm_calls_detail_level = 0
 
     def update_display(self, *args, **kwargs) -> None:  # type: ignore[no-untyped-def]
         return
@@ -52,7 +52,7 @@ class _DetailWidget:
     def is_file_visible(self) -> bool:
         return False
 
-    def is_tools_visible(self) -> bool:
+    def is_llm_calls_visible(self) -> bool:
         return False
 
 

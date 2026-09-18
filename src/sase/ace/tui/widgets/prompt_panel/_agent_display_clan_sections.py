@@ -28,7 +28,7 @@ from ...models._agent_clan_sections import (
 )
 from ...models.agent import Agent
 from ...models.fold_state import FoldLevel
-from ...tools.slow import format_long_duration
+from ...llm_calls.slow import format_long_duration
 from .._agent_list_styling import _AGENT_NAME_ANNOTATION_STYLE
 from ._agent_clan_commits import aggregate_clan_commit_lane
 from ._agent_display_clan_context import clan_context_entry_hint_target

@@ -1,4 +1,4 @@
-"""Fold-key dispatch tests for tools and non-agents tabs."""
+"""Fold-key dispatch tests for LLM Calls and non-agents tabs."""
 
 from __future__ import annotations
 
@@ -9,13 +9,13 @@ from sase.ace.tui.actions.agents._folding import AgentFoldingMixin
 from ._agent_fold_transition_helpers import StubFoldApp, make_agent
 
 
-class _ToolsDetail:
+class _LLMCallsDetail:
     def __init__(self, *, visible: bool = True, changed: bool = True) -> None:
         self.visible = visible
         self.changed = changed
         self.actions: list[str] = []
 
-    def is_tools_visible(self) -> bool:
+    def is_llm_calls_visible(self) -> bool:
         return self.visible
 
     def expand_tools_detail(self) -> bool:
@@ -26,7 +26,7 @@ class _ToolsDetail:
         self.actions.append("collapse")
         return self.changed
 
-    def set_tools_detail_level(self, level: object) -> bool:
+    def set_llm_calls_detail_level(self, level: object) -> bool:
         self.actions.append(f"set:{int(level)}")
         return self.changed
 
@@ -49,10 +49,10 @@ class _OtherTabExpandApp(AgentFoldingMixin):
         self.refresh_calls += 1
 
 
-def test_tools_panel_h_navigates_while_capital_h_compacts_detail() -> None:
+def test_llm_calls_panel_h_navigates_while_capital_h_compacts_detail() -> None:
     agent = make_agent(agent_name="coder.claude", tribe="research")
     other = make_agent(agent_name="planner.codex", tribe="ops")
-    detail = _ToolsDetail()
+    detail = _LLMCallsDetail()
     app = StubFoldApp([agent, other], current_idx=0)
     app._panel_group.focused_idx = app._panel_group.panel_keys.index("research")
     app._detail = detail
@@ -70,9 +70,9 @@ def test_tools_panel_h_navigates_while_capital_h_compacts_detail() -> None:
     assert app.footer_refresh_calls == 2
 
 
-def test_tools_panel_detail_clamp_does_not_fall_through_to_folds() -> None:
+def test_llm_calls_panel_detail_clamp_does_not_fall_through_to_folds() -> None:
     agent = make_agent(agent_name="coder.claude")
-    detail = _ToolsDetail(changed=False)
+    detail = _LLMCallsDetail(changed=False)
     app = StubFoldApp([agent], current_idx=0)
     app._detail = detail
 

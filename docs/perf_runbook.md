@@ -480,7 +480,7 @@ covers loader stages and pager opens):
   `widget.prompt_panel.build_detail_header_summary` and one child span per resolver (see
   "SASE CONTEXT enrichment" below)
 - `widgets/file_panel/_panel.py` — `widget.file_panel.update_display`
-- `widgets/tools_panel.py` — `widget.tools_panel.update_display`
+- `widgets/llm_calls_panel.py` — `widget.llm_calls_panel.update_display`
 - `widgets/axe_dashboard.py` — `widget.axe_dashboard.update_display`,
   `widget.axe_dashboard.update_lumberjack_overview` (routine overview),
   `widget.axe_dashboard.update_chop_run_display` (job detail)

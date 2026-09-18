@@ -1,4 +1,4 @@
-"""Timestamp formatting helpers for the tools panel."""
+"""Timestamp formatting helpers for the LLM Calls panel."""
 
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ def format_timestamp(iso_str: str) -> str:
 
 
 def _panel_time_dependencies() -> tuple[Any, Any]:
-    panel_module = sys.modules.get("sase.ace.tui.widgets.tools_panel")
+    panel_module = sys.modules.get("sase.ace.tui.widgets.llm_calls_panel")
     if panel_module is None:
         return datetime, get_timezone
     return (

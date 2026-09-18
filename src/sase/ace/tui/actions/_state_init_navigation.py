@@ -10,7 +10,7 @@ from textual.worker import Worker
 
 if TYPE_CHECKING:
     from ..models.agent import AgentType
-    from ..tools.report import SlowToolCallReportSpec
+    from ..llm_calls.report import SlowToolCallReportSpec
     from ..widgets.prompt_panel._agent_display_state import (
         AgentHintRender,
         CommitViewSpec,

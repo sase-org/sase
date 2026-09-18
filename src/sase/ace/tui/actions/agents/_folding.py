@@ -47,26 +47,26 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
         if callable(method):
             method()
 
-    def _route_tools_detail_level(
+    def _route_llm_calls_detail_level(
         self, action: Literal["collapse", "expand", "min", "max"]
     ) -> bool:
-        """Route fold keys to the Agents-tab Tools panel when it is active.
+        """Route fold keys to the Agents-tab LLM Calls panel when it is active.
 
-        Returns True when the key was handled by the Tools panel, even if the
+        Returns True when the key was handled by the LLM Calls panel, even if the
         panel was already at the requested level.
         """
         if self.current_tab != "agents":
             return False
         try:
             from ...widgets import AgentDetail
-            from ...widgets.tools_panel import ToolDetailLevel
+            from ...widgets.llm_calls_panel import ToolDetailLevel
 
             agent_detail = self.query_one(  # type: ignore[attr-defined]
                 "#agent-detail-panel", AgentDetail
             )
         except Exception:
             return False
-        if not agent_detail.is_tools_visible():
+        if not agent_detail.is_llm_calls_visible():
             return False
 
         if action == "expand":
@@ -74,9 +74,9 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
         elif action == "collapse":
             changed = agent_detail.collapse_tools_detail()
         elif action == "max":
-            changed = agent_detail.set_tools_detail_level(ToolDetailLevel.FULL)
+            changed = agent_detail.set_llm_calls_detail_level(ToolDetailLevel.FULL)
         else:
-            changed = agent_detail.set_tools_detail_level(ToolDetailLevel.COMPACT)
+            changed = agent_detail.set_llm_calls_detail_level(ToolDetailLevel.COMPACT)
         if changed:
             refresh_footer = getattr(self, "_refresh_agent_footer_bindings_only", None)
             if callable(refresh_footer):
@@ -85,7 +85,7 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
 
     def action_expand_or_layout(self) -> None:
         """Expand fold on agents/axe tab, or expand Patch group when grouped."""
-        if self._route_tools_detail_level("expand"):
+        if self._route_llm_calls_detail_level("expand"):
             return
         if self.current_tab == "agents":
             self._expand_fold()
@@ -123,7 +123,7 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
 
     def action_hooks_or_collapse_all(self) -> None:
         """Collapse Agents context or collapse all folds on another tab."""
-        if self._route_tools_detail_level("min"):
+        if self._route_llm_calls_detail_level("min"):
             return
         if self.current_tab == "agents":
             resolve_panel = getattr(self, "_resolve_focused_panel", None)
@@ -187,7 +187,7 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
         if self.current_tab == "agents":
             self.action_toggle_selected_agent_panels()  # type: ignore[attr-defined]
             return
-        if self._route_tools_detail_level("max"):
+        if self._route_llm_calls_detail_level("max"):
             return
         if self.current_tab == "axe":
             self._expand_all_axe_folds()

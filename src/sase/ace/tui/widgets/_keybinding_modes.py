@@ -69,8 +69,8 @@ class KeybindingModesMixin:
             lane_neighbor_jump_available: bool = False,
             neighbor_count: int = 0,
             tmux_choice_count: int = 0,
-            tools_visible: bool = False,
-            tools_detail_level: int = 0,
+            llm_calls_visible: bool = False,
+            llm_calls_detail_level: int = 0,
         ) -> list[tuple[str, str]]: ...
 
         def _compute_axe_bindings(
@@ -152,8 +152,8 @@ class KeybindingModesMixin:
         lane_neighbor_jump_available: bool = False,
         neighbor_count: int = 0,
         tmux_choice_count: int = 0,
-        tools_visible: bool = False,
-        tools_detail_level: int = 0,
+        llm_calls_visible: bool = False,
+        llm_calls_detail_level: int = 0,
     ) -> None:
         """Update bindings for Agents tab."""
         bindings = self._compute_agent_bindings(
@@ -186,8 +186,8 @@ class KeybindingModesMixin:
             lane_neighbor_jump_available=lane_neighbor_jump_available,
             neighbor_count=neighbor_count,
             tmux_choice_count=tmux_choice_count,
-            tools_visible=tools_visible,
-            tools_detail_level=tools_detail_level,
+            llm_calls_visible=llm_calls_visible,
+            llm_calls_detail_level=llm_calls_detail_level,
         )
         self._update_display(bindings)
 

@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
-from sase.ace.tui.tools import (
+from sase.ace.tui.llm_calls import (
     build_slow_tool_sources,
     supports_slow_tool_sources,
 )

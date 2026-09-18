@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 
 from sase.ace.tui.actions.hints._files import FileViewingMixin
 from sase.ace.tui.actions.hints._processing import InputProcessingMixin
-from sase.ace.tui.tools import ToolCallEntry
-from sase.ace.tui.tools.report import SlowToolCallReportSpec
+from sase.ace.tui.llm_calls import ToolCallEntry
+from sase.ace.tui.llm_calls.report import SlowToolCallReportSpec
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import CommitViewSpec
 from sase.memory.legacy_glossary_read_log import (
     GLOSSARY_READ_LOG_SCHEMA_VERSION,

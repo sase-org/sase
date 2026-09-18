@@ -19,8 +19,8 @@ from sase.agent.status_buckets import (
 from sase.project_display_names import humanize_cl_name, humanize_vcs_refs_in_text
 
 from ...models.agent import Agent
-from ...tools import SlowToolSource
-from ...tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
+from ...llm_calls import SlowToolSource
+from ...llm_calls._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 from ...util.lazy_syntax import lazy_renderable
 from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,

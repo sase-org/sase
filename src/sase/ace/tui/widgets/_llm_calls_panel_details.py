@@ -1,4 +1,4 @@
-"""Expanded-detail rendering helpers for the tools timeline."""
+"""Expanded-detail rendering helpers for the LLM Calls timeline."""
 
 from __future__ import annotations
 
@@ -8,16 +8,16 @@ from typing import Any
 from rich.cells import cell_len
 from rich.text import Text
 
-from sase.ace.tui.tools import ToolCallEntry
-from sase.ace.tui.tools._entry import is_subagent_tool_call
+from sase.ace.tui.llm_calls import ToolCallEntry
+from sase.ace.tui.llm_calls._entry import is_subagent_tool_call
 
 from ._tool_detail_language import (
     TOOL_DETAIL_GUTTER,
     append_tool_detail_line,
     append_tool_multiline_detail,
 )
-from ._tools_panel_time import format_timestamp
-from ._tools_panel_types import ToolDetailLevel
+from ._llm_calls_panel_time import format_timestamp
+from ._llm_calls_panel_types import ToolDetailLevel
 
 _PREVIEW_KEYS = (
     "stdout_preview",

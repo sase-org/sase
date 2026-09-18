@@ -15,7 +15,7 @@ from rich.text import Text
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.tools import SlowToolSource, ToolCallEntry
+from sase.ace.tui.llm_calls import SlowToolSource, ToolCallEntry
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets._agent_detail_panels import DetailPanelMode
 from sase.ace.tui.widgets.prompt_panel._workflow_display import (
@@ -351,7 +351,7 @@ class _FakeScroll:
 def test_agent_detail_starts_background_workflow_render_in_debounced_path() -> None:
     prompt_panel = _FakePromptPanel()
     file_panel = _FakeFilePanel()
-    tools_panel = _FakeToolsPanel()
+    llm_calls_panel = _FakeToolsPanel()
     scroll = _FakeScroll()
     detail = AgentDetail.__new__(AgentDetail)
     detail._current_agent = None
@@ -368,8 +368,8 @@ def test_agent_detail_starts_background_workflow_render_in_debounced_path() -> N
             return prompt_panel
         if cls.__name__ == "AgentFilePanel":
             return file_panel
-        if cls.__name__ == "AgentToolsPanel":
-            return tools_panel
+        if cls.__name__ == "AgentLLMCallsPanel":
+            return llm_calls_panel
         return scroll
 
     detail.query_one = query_one  # type: ignore[method-assign]
@@ -379,7 +379,7 @@ def test_agent_detail_starts_background_workflow_render_in_debounced_path() -> N
 
     assert prompt_panel.update_display_calls == []
     assert len(prompt_panel.workflow_render_calls) == 1
-    assert tools_panel.update_display_calls == []
+    assert llm_calls_panel.update_display_calls == []
     assert expanded == [True]
 
     call = prompt_panel.workflow_render_calls[0]

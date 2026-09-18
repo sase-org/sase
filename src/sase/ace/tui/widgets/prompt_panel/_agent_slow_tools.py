@@ -9,12 +9,12 @@ from datetime import datetime
 from rich.cells import cell_len
 from rich.text import Text
 
-from sase.ace.tui.tools import SlowToolSource
-from sase.ace.tui.tools._constants import (
+from sase.ace.tui.llm_calls import SlowToolSource
+from sase.ace.tui.llm_calls._constants import (
     MAX_VISIBLE_SLOW_TOOL_CALLS,
     SLOW_TOOL_CALL_THRESHOLD_MS,
 )
-from sase.ace.tui.tools.slow import (
+from sase.ace.tui.llm_calls.slow import (
     SlowToolCall,
     format_long_duration,
     normalize_slow_tool_call_threshold_ms,
@@ -244,7 +244,7 @@ def _append_slow_tool_calls_section(
     overflow_tail = None
     if overflow > 0:
         overflow_tail = Text(
-            f"  + {overflow} more \u00b7 press ] for the full tools timeline\n",
+            f"  + {overflow} more \u00b7 press ] for the full LLM Calls timeline\n",
             style=COLOR_TRUNCATION,
             end="",
         )

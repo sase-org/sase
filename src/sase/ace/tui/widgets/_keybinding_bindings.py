@@ -23,7 +23,7 @@ from ...operations import get_available_workflows
 from ..models.agent_family_members import family_roster_container
 from ..models.agent_panels import is_reserved_default_panel
 from ..models.agent_status import is_resumable_done_status
-from .tools_panel import ToolDetailLevel
+from .llm_calls_panel import ToolDetailLevel
 
 if TYPE_CHECKING:
     from ..models.agent import Agent
@@ -134,8 +134,8 @@ class KeybindingBindingsMixin:
         lane_neighbor_jump_available: bool = False,
         neighbor_count: int = 0,
         tmux_choice_count: int = 0,
-        tools_visible: bool = False,
-        tools_detail_level: int = 0,
+        llm_calls_visible: bool = False,
+        llm_calls_detail_level: int = 0,
     ) -> list[tuple[str, str]]:
         """Compute conditional bindings for Agents tab.
 
@@ -181,15 +181,15 @@ class KeybindingBindingsMixin:
             bindings.append((self._kd("next_tab"), "focus artifact pane"))
             bindings.append((self._kd("quit"), "close artifact pane"))
 
-        tools_can_compact = False
-        if tools_visible:
+        llm_calls_can_compact = False
+        if llm_calls_visible:
             level = ToolDetailLevel(
                 max(
                     ToolDetailLevel.COMPACT,
-                    min(ToolDetailLevel.FULL, int(tools_detail_level)),
+                    min(ToolDetailLevel.FULL, int(llm_calls_detail_level)),
                 )
             )
-            tools_can_compact = level > ToolDetailLevel.COMPACT
+            llm_calls_can_compact = level > ToolDetailLevel.COMPACT
             if level < ToolDetailLevel.FULL:
                 bindings.append((self._kd("expand_or_layout"), "more detail"))
 
@@ -247,10 +247,10 @@ class KeybindingBindingsMixin:
             )
 
         collapse_all_label: str | None = None
-        if tools_can_compact:
-            collapse_all_label = "compact tools"
+        if llm_calls_can_compact:
+            collapse_all_label = "compact LLM Calls"
         elif panel_focused:
-            if not tools_visible and panel_hint_collapse_available:
+            if not llm_calls_visible and panel_hint_collapse_available:
                 collapse_all_label = "collapse fold"
         elif structural_collapse_kind in {"workflow", "family"}:
             collapse_all_label = f"collapse {structural_collapse_kind}"

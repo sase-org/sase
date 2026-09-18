@@ -18,7 +18,7 @@ from ...models.agent_family_members import (
     family_roster_container,
 )
 from ...models.agent_hoods import agent_owns_sase_agent
-from ...tools.slow import slow_tool_call_threshold_ms_from_widget
+from ...llm_calls.slow import slow_tool_call_threshold_ms_from_widget
 from ...util.lazy_syntax import CachedRenderable
 from ._agent_clan_aggregation import get_cached_clan_section_snapshot
 from ._agent_display_clan import panel_fold_state_from_widget

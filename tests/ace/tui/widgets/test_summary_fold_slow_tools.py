@@ -15,7 +15,7 @@ from sase.ace.tui.models.fold_scale import (
     FoldScale,
 )
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.tools import SlowToolSource, ToolCallEntry
+from sase.ace.tui.llm_calls import SlowToolSource, ToolCallEntry
 from sase.ace.tui.widgets.prompt_panel._agent_display_header import (
     build_header_text,
 )

@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from rich.text import Text
 
-from sase.ace.tui.tools._constants import MAX_VISIBLE_SLOW_TOOL_CALLS
+from sase.ace.tui.llm_calls._constants import MAX_VISIBLE_SLOW_TOOL_CALLS
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel._agent_slow_tools import (
     append_slow_tool_calls_section,
@@ -144,7 +144,7 @@ def test_slow_tools_section_renders_did_not_complete() -> None:
     assert "45s did not complete" in plain
 
 
-def test_slow_tools_section_overflow_points_to_tools_timeline() -> None:
+def test_slow_tools_section_overflow_points_to_llm_calls_timeline() -> None:
     text = Text()
     entries = tuple(
         _entry(
@@ -169,7 +169,7 @@ def test_slow_tools_section_overflow_points_to_tools_timeline() -> None:
     assert "call 1" not in plain
     assert "call 2" in plain
     assert f"call {MAX_VISIBLE_SLOW_TOOL_CALLS + 1}" in plain
-    assert "+ 2 more · press ] for the full tools timeline" in plain
+    assert "+ 2 more · press ] for the full LLM Calls timeline" in plain
 
 
 def test_slow_tools_section_keeps_running_call_when_capped() -> None:
@@ -203,7 +203,7 @@ def test_slow_tools_section_keeps_running_call_when_capped() -> None:
     assert "completed 1" not in plain
     assert "completed 2" in plain
     assert f"completed {MAX_VISIBLE_SLOW_TOOL_CALLS}" in plain
-    assert "+ 1 more · press ] for the full tools timeline" in plain
+    assert "+ 1 more · press ] for the full LLM Calls timeline" in plain
 
 
 def test_slow_tools_section_truncates_long_targets() -> None:

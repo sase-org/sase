@@ -10,8 +10,8 @@ from textual.worker import Worker, WorkerState
 
 from sase.project_display_names import humanize_vcs_refs_in_text
 
-from ...tools import build_slow_tool_sources, supports_slow_tool_sources
-from ...tools.slow import slow_tool_call_threshold_ms_from_widget
+from ...llm_calls import build_slow_tool_sources, supports_slow_tool_sources
+from ...llm_calls.slow import slow_tool_call_threshold_ms_from_widget
 from ...models._loaders._json_cache import load_json_cached
 from ...models.agent import Agent
 from ...util.lazy_syntax import lazy_renderable

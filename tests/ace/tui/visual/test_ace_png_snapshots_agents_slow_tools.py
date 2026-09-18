@@ -16,8 +16,8 @@ from textual.geometry import Region
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.tools import build_slow_tool_sources
-from sase.ace.tui.tools import cache as tools_cache_module
+from sase.ace.tui.llm_calls import build_slow_tool_sources
+from sase.ace.tui.llm_calls import cache as tools_cache_module
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel import _agent_display_header

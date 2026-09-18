@@ -5,7 +5,7 @@ import pytest
 from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
-from sase.ace.tui.widgets.tools_panel import ToolDetailLevel
+from sase.ace.tui.widgets.llm_calls_panel import ToolDetailLevel
 from tests.ace.tui._agent_fold_transition_helpers import (
     StubFoldApp,
     make_loader_shaped_aliased_plan_family,
@@ -17,50 +17,50 @@ def _labels(bindings: list[tuple[str, str]]) -> set[tuple[str, str]]:
     return set(bindings)
 
 
-def test_footer_tools_detail_chips_follow_level() -> None:
+def test_footer_llm_calls_detail_chips_follow_level() -> None:
     footer = KeybindingFooter()
 
     compact = _labels(
         footer._compute_agent_bindings(
             None,
-            tools_visible=True,
-            tools_detail_level=ToolDetailLevel.COMPACT,
+            llm_calls_visible=True,
+            llm_calls_detail_level=ToolDetailLevel.COMPACT,
         )
     )
     expanded = _labels(
         footer._compute_agent_bindings(
             None,
-            tools_visible=True,
-            tools_detail_level=ToolDetailLevel.EXPANDED,
+            llm_calls_visible=True,
+            llm_calls_detail_level=ToolDetailLevel.EXPANDED,
         )
     )
     full = _labels(
         footer._compute_agent_bindings(
             None,
-            tools_visible=True,
-            tools_detail_level=ToolDetailLevel.FULL,
+            llm_calls_visible=True,
+            llm_calls_detail_level=ToolDetailLevel.FULL,
         )
     )
     hidden = _labels(
         footer._compute_agent_bindings(
             None,
-            tools_visible=False,
-            tools_detail_level=ToolDetailLevel.EXPANDED,
+            llm_calls_visible=False,
+            llm_calls_detail_level=ToolDetailLevel.EXPANDED,
         )
     )
 
     assert ("l", "more detail") in compact
     assert ("h", "less detail") not in compact
-    assert ("H", "compact tools") not in compact
+    assert ("H", "compact LLM Calls") not in compact
     assert ("l", "more detail") in expanded
     assert ("h", "less detail") not in expanded
-    assert ("H", "compact tools") in expanded
+    assert ("H", "compact LLM Calls") in expanded
     assert ("l", "more detail") not in full
     assert ("h", "less detail") not in full
-    assert ("H", "compact tools") in full
+    assert ("H", "compact LLM Calls") in full
     assert ("l", "more detail") not in hidden
     assert ("h", "less detail") not in hidden
-    assert ("H", "compact tools") not in hidden
+    assert ("H", "compact LLM Calls") not in hidden
 
 
 def test_footer_without_selected_agent_omits_agent_only_actions() -> None:
@@ -371,12 +371,12 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
             group_focused=True,
         )
     )
-    tools = _labels(
+    llm_calls = _labels(
         footer._compute_agent_bindings(
             None,
             left_navigation_kind="family",
-            tools_visible=True,
-            tools_detail_level=ToolDetailLevel.EXPANDED,
+            llm_calls_visible=True,
+            llm_calls_detail_level=ToolDetailLevel.EXPANDED,
         )
     )
     panel = _labels(
@@ -449,8 +449,8 @@ def test_footer_left_navigation_and_collapse_target_labels() -> None:
     assert ("h", "parent family") in family
     assert ("h", "parent clan") in clan
     assert ("h", "parent tribe") in tribe
-    assert ("h", "parent family") in tools
-    assert ("H", "compact tools") in tools
+    assert ("h", "parent family") in llm_calls
+    assert ("H", "compact LLM Calls") in llm_calls
     assert not any(label.startswith("parent ") for _key, label in panel)
     assert ("=", "only panel") in panel
     assert ("H", "only panel") not in panel

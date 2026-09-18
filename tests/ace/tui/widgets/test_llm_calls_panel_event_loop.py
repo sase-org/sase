@@ -6,10 +6,10 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.widgets import tools_panel as tools_panel_mod
-from sase.ace.tui.widgets.tools_panel import _ToolsCacheEntry, get_cache_key
+from sase.ace.tui.widgets import llm_calls_panel as llm_calls_panel_mod
+from sase.ace.tui.widgets.llm_calls_panel import _LLMCallsCacheEntry, get_cache_key
 
-from ._tools_panel_helpers import _build_panel, _entry
+from ._llm_calls_panel_helpers import _build_panel, _entry
 
 
 def test_warm_cache_update_display_does_not_walk_artifacts_on_event_loop(
@@ -33,7 +33,7 @@ def test_warm_cache_update_display_does_not_walk_artifacts_on_event_loop(
     )
 
     cache_key = get_cache_key(agent)
-    tools_panel_mod._tools_cache[cache_key] = _ToolsCacheEntry(
+    llm_calls_panel_mod._llm_calls_cache[cache_key] = _LLMCallsCacheEntry(
         entries=[],
         fetch_time=datetime.now(),
         artifact_mtime_ns=1234,
@@ -44,10 +44,10 @@ def test_warm_cache_update_display_does_not_walk_artifacts_on_event_loop(
 
     with (
         patch(
-            "sase.ace.tui.tools.reader.discover_related_tool_artifact_dirs"
+            "sase.ace.tui.llm_calls.reader.discover_related_tool_artifact_dirs"
         ) as discover_mock,
         patch(
-            "sase.ace.tui.tools.reader.discover_related_tool_artifact_dirs_cached"
+            "sase.ace.tui.llm_calls.reader.discover_related_tool_artifact_dirs_cached"
         ) as discover_cached_mock,
     ):
         try:
@@ -55,7 +55,7 @@ def test_warm_cache_update_display_does_not_walk_artifacts_on_event_loop(
             for _ in range(10):
                 panel.update_display(agent)
         finally:
-            tools_panel_mod._tools_cache.pop(cache_key, None)
+            llm_calls_panel_mod._llm_calls_cache.pop(cache_key, None)
 
     run_worker = panel.run_worker
     update = panel.update
@@ -84,16 +84,16 @@ def test_cold_update_display_defers_missing_artifact_reads_to_worker(
     )
 
     cache_key = get_cache_key(agent)
-    tools_panel_mod._tools_cache.pop(cache_key, None)
+    llm_calls_panel_mod._llm_calls_cache.pop(cache_key, None)
 
     with (
-        patch("sase.ace.tui.tools.cache.read_tool_calls_for_agent") as read_mock,
-        patch("sase.ace.tui.tools.cache._max_mtime_ns_for_paths") as mtime_mock,
+        patch("sase.ace.tui.llm_calls.cache.read_tool_calls_for_agent") as read_mock,
+        patch("sase.ace.tui.llm_calls.cache._max_mtime_ns_for_paths") as mtime_mock,
         patch(
-            "sase.ace.tui.tools.reader.discover_related_tool_artifact_dirs"
+            "sase.ace.tui.llm_calls.reader.discover_related_tool_artifact_dirs"
         ) as discover_mock,
         patch(
-            "sase.ace.tui.tools.reader.discover_related_tool_artifact_dirs_cached"
+            "sase.ace.tui.llm_calls.reader.discover_related_tool_artifact_dirs_cached"
         ) as discover_cached_mock,
     ):
         panel = _build_panel()
@@ -109,7 +109,7 @@ def test_cold_update_display_defers_missing_artifact_reads_to_worker(
     assert discover_cached_mock.call_count == 0
 
 
-def test_refresh_tools_defers_forced_codex_reread_to_worker(
+def test_refresh_llm_calls_defers_forced_codex_reread_to_worker(
     tmp_path: Path,
 ) -> None:
     """A forced refresh invalidates cache state but still schedules threaded IO."""
@@ -125,7 +125,7 @@ def test_refresh_tools_defers_forced_codex_reread_to_worker(
         raw_suffix=artifacts_dir.name,
     )
     cache_key = get_cache_key(agent)
-    tools_panel_mod._tools_cache[cache_key] = _ToolsCacheEntry(
+    llm_calls_panel_mod._llm_calls_cache[cache_key] = _LLMCallsCacheEntry(
         entries=[
             _entry(
                 runtime="codex",
@@ -144,14 +144,14 @@ def test_refresh_tools_defers_forced_codex_reread_to_worker(
     )
 
     with (
-        patch("sase.ace.tui.tools.cache.read_tool_calls_for_agent") as read_mock,
-        patch("sase.ace.tui.tools.cache._max_mtime_ns_for_paths") as mtime_mock,
+        patch("sase.ace.tui.llm_calls.cache.read_tool_calls_for_agent") as read_mock,
+        patch("sase.ace.tui.llm_calls.cache._max_mtime_ns_for_paths") as mtime_mock,
     ):
         try:
             panel = _build_panel()
-            panel.refresh_tools(agent)
+            panel.refresh_llm_calls(agent)
         finally:
-            tools_panel_mod._tools_cache.pop(cache_key, None)
+            llm_calls_panel_mod._llm_calls_cache.pop(cache_key, None)
 
     run_worker = panel.run_worker
     assert isinstance(run_worker, MagicMock)

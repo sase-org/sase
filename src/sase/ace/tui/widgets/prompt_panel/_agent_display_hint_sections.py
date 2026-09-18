@@ -6,7 +6,7 @@ from collections.abc import Mapping
 
 from rich.text import Text
 
-from sase.ace.tui.tools.report import SlowToolCallReportSpec
+from sase.ace.tui.llm_calls.report import SlowToolCallReportSpec
 
 from ...models.agent import Agent
 from ...models.fold_state import FoldLevel

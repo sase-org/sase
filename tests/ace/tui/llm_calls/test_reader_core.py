@@ -4,13 +4,13 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from sase.ace.tui.tools import (
+from sase.ace.tui.llm_calls import (
     ToolCallEntry,
     derive_tool_call_status,
     discover_related_tool_artifact_dirs,
     read_tool_calls_for_agent,
 )
-from sase.ace.tui.tools import reader as reader_mod
+from sase.ace.tui.llm_calls import reader as reader_mod
 
 from ._reader_helpers import (
     _agent,

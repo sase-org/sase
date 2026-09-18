@@ -596,7 +596,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         Two-phase: the immediate phase updates list highlight, info panel,
         and the detail prompt header for the freshly-selected agent. The
         debounced phase fires after the j/k burst settles and runs the
-        expensive file/tools/diff workers — only for the final selection.
+        expensive file/LLM Calls/diff workers — only for the final selection.
         """
         with tui_trace("agents.refresh_debounced", agents=len(self._agents)):
             self._refresh_panel_highlights()

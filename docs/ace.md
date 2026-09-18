@@ -1239,8 +1239,8 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 | `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                     |
 | `oo`                      | Toggle Agents panels between tribe-split and one merged panel, then close the grouping picker                                                               |
 | `~`                       | Jump among agent-node-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)                                                              |
-| `g`                       | Scroll to top (file, tools, or metadata panel)                                                                                                              |
-| `G`                       | Scroll to bottom (file, tools, or metadata panel)                                                                                                           |
+| `g`                       | Scroll to top (file, LLM Calls, or metadata panel)                                                                                                          |
+| `G`                       | Scroll to bottom (file, LLM Calls, or metadata panel)                                                                                                       |
 | `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                                                                                 |
 | `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                                                                               |
 
@@ -1313,7 +1313,7 @@ somewhere stale.
 | `t`                 | Open the focused agent's tmux target; agents with opened linked-workspace context show a workspace chooser     |
 | `T`                 | Open tmux window in the agent's primary project workspace                                                      |
 | `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it)     |
-| `p`                 | Open Agent view picker: `f` file, `t` tools, `n` none, `1`/`2` layout sizes, `p` swap sizes                    |
+| `p`                 | Open Agent view picker: `f` file, `t` LLM Calls, `n` none, `1`/`2` layout sizes, `p` swap sizes                |
 | `pp`                | Swap detail layout sizes                                                                                       |
 | `z`                 | Start metadata fold mode for clan, agent node (family or single agent), or selected whole-tribe detail panels  |
 | `Z`                 | Zoom the active agent or tribe detail panel                                                                    |
@@ -1913,9 +1913,9 @@ only the open canonical clan enclosing the selected row. With that now-collapsed
 container still selected, another press collapses every remaining open canonical clan in
 the group; only a later press collapses the grouping banner. A banner, already-collapsed
 agent node, or already-collapsed clan selection proceeds directly to that
-remaining-agent-node or group-wide clan sweep. Tools detail still takes priority. On a
-selected expanded whole panel, `H` hints every currently expanded agent node, clan, and
-top-level grouping banner in that panel — the same `L` hint affordance restricted to
+remaining-agent-node or group-wide clan sweep. LLM Calls detail still takes priority. On
+a selected expanded whole panel, `H` hints every currently expanded agent node, clan,
+and top-level grouping banner in that panel — the same `L` hint affordance restricted to
 collapsible targets — and fully collapses whichever one you pick; it never expands and
 never touches the panel itself, which stays lowercase `h`'s job. A panel with nothing
 expanded warns without arming hint mode; an already collapsed panel keeps the usual
@@ -2049,16 +2049,16 @@ therefore be visible at once:
 | Structural row    | Clan members, family members, and workflow descendants   | `H` retreats a selected workflow/family one level, then remaining group agent nodes, then group clans; `l` expands; `-` sweeps every open agent node and clan at once |
 | Split-panel title | A whole tribe panel; collapsing requires multiple panels | `h` or `'` selects; `h` collapses; `l` expands; `L` hints an agent-node/clan/banner fold to toggle in the focused expanded panel                                      |
 
-| Key  | Action                                                                                                                                                                     |
-| ---- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `l`  | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                                           |
-| `h`  | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                                     |
-| `L`  | From a row or the selected panel, hint every visible agent-node/clan/banner fold in the focused tribe to toggle; on a collapsed panel, show the already-collapsed warning  |
-| `H`  | Collapse selected workflow/family one level, then remaining group agent nodes/clans/group, or hint a fold to collapse in the selected panel; compact expanded Tools detail |
-| `=`  | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                                      |
-| `-`  | Sweep every open agent node and clan in the focused panel closed in one press, or restore the last sweep; never touches grouping banners or the panel itself               |
-| `_`  | Like `-`, but across every eligible tribe panel at once                                                                                                                    |
-| `,H` | Collapse one fold by hint: the selected tribe's expanded folds from a row; every tribe's expanded folds and panel titles from a selected panel                             |
+| Key  | Action                                                                                                                                                                         |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `l`  | Expand the selected collapsed grouping banner or structural row; on whole-panel focus, expand or enter the panel                                                               |
+| `h`  | Navigate outward; collapse selected expanded panel; from collapsed panel, select the last expanded panel if one exists                                                         |
+| `L`  | From a row or the selected panel, hint every visible agent-node/clan/banner fold in the focused tribe to toggle; on a collapsed panel, show the already-collapsed warning      |
+| `H`  | Collapse selected workflow/family one level, then remaining group agent nodes/clans/group, or hint a fold to collapse in the selected panel; compact expanded LLM Calls detail |
+| `=`  | Isolate the focused tribe panel, or restore the pre-isolation layout; works from whole-panel focus or a row selection                                                          |
+| `-`  | Sweep every open agent node and clan in the focused panel closed in one press, or restore the last sweep; never touches grouping banners or the panel itself                   |
+| `_`  | Like `-`, but across every eligible tribe panel at once                                                                                                                        |
+| `,H` | Collapse one fold by hint: the selected tribe's expanded folds from a row; every tribe's expanded folds and panel titles from a selected panel                                 |
 
 Collapsed grouping banners at any depth are selectable rows; expanded banners remain
 visible headings but are skipped by row navigation. When a collapsed banner is focused,
@@ -2150,7 +2150,7 @@ expanded tribe panel and adds a title chip on each of those panels, so one keyst
 collapse a different panel without navigating to it. Whole-panel focus stays on the
 panel you started from, so `,,` repeats the picker against the current selection. The
 footer reads `COLLAPSE · ALL TRIBES` in that wider scope. `,H` never expands and never
-routes through Tools compaction.
+routes through LLM Calls compaction.
 
 Visual treatment: every row carries a fixed-width tier-guide gutter built from one `│  `
 segment per ancestor L0/L1 banner (in the parent tier's dim accent — project blue or
@@ -4520,10 +4520,10 @@ Press `Z` on an agent row in the Agents tab to open a near-fullscreen view of th
 detail panel. With a whole tribe panel selected, `Z` opens that tribe's metadata
 document instead. Press `=` to isolate the focused tribe panel or restore the previously
 remembered panel layout (see [Tribe Side Panels](#tribe-side-panels) above). In the
-detail modal, the header shows the available panel tabs (`METADATA`, `FILE`, `TOOLS`)
-with the active panel highlighted; use `]` / `[` to cycle those panels with wrap-around.
-A tribe zoom exposes only the `METADATA` target, so panel cycling and file paging are
-inert there while search, copy, edit, and refresh continue to work.
+detail modal, the header shows the available panel tabs (`METADATA`, `FILE`,
+`LLM CALLS`) with the active panel highlighted; use `]` / `[` to cycle those panels with
+wrap-around. A tribe zoom exposes only the `METADATA` target, so panel cycling and file
+paging are inert there while search, copy, edit, and refresh continue to work.
 
 | Key                  | Action                                           |
 | -------------------- | ------------------------------------------------ |
@@ -4532,8 +4532,8 @@ inert there while search, copy, edit, and refresh continue to work.
 | `g` / `G`            | Scroll to the top / bottom                       |
 | `]` / `[`            | Cycle the zoomed panel                           |
 | `Ctrl+N` / `Ctrl+P`  | Cycle files                                      |
-| `l` / `h`            | Show more / less Tools detail                    |
-| `L` / `H`            | Jump to full / compact Tools detail              |
+| `l` / `h`            | Show more / less LLM Calls detail                |
+| `L` / `H`            | Jump to full / compact LLM Calls detail          |
 | `/` / `?`, `n` / `N` | Search forward / backward; next / previous match |
 | `y`                  | Copy the zoomed content                          |
 | `E`                  | Open the zoomed content in `$EDITOR`             |
@@ -4821,13 +4821,13 @@ skips legacy dismissal-prefixed candidates so it anchors on a live, visible agen
 ### Agents Detail View Picker
 
 Press `p` on an agent row to choose the detail view without cycling through hidden
-panels. Inside the picker, `f` shows the selected file, `t` shows the tools timeline,
-and `n` shows metadata only. `1` makes metadata larger, `2` makes the file/tools side
-larger, and `p` swaps those two sizes once, so `pp` keeps the old quick layout-swap
-workflow.
+panels. Inside the picker, `f` shows the selected file, `t` shows the LLM Calls
+timeline, and `n` shows metadata only. `1` makes metadata larger, `2` makes the file/LLM
+Calls side larger, and `p` swaps those two sizes once, so `pp` keeps the old quick
+layout-swap workflow.
 
 The layout choice is session-local and independent from the view mode: switching between
-file and tools keeps the same split. Layout options are disabled when there is no
+file and LLM Calls keeps the same split. Layout options are disabled when there is no
 visible secondary panel to resize, such as metadata-only view, a file view with no
 selected file content, summaries, or pinned historical attempts. Bare `[` and `]` no
 longer change the Agents detail view; their existing uses in help, zoom, and other
@@ -4861,7 +4861,7 @@ participate; matching text inside prompts or replies does not. Numbered roster r
 `SASE CONTEXT` region, its lane sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`,
 `GLOSSARY`, `SKILLS`, `WORKSPACES`) are fold anchors, not titles — `za`/`zA` still reach
 them when they own the viewport's top row, but they are never `Ctrl+J`/`Ctrl+K` stops.
-The shortcuts continue to target the metadata pane when a file or tools pane is also
+The shortcuts continue to target the metadata pane when a file or LLM Calls pane is also
 visible, and changing agents or entering/leaving a pinned attempt view resets the
 cursor.
 
@@ -4987,9 +4987,9 @@ cursor.
   gets `SASE CONTEXT` and an `ARTIFACTS` lane.
 - **Slow tool calls**: The metadata header lists tool calls that took 20 seconds or
   longer, ordered by start time and capped at 8 rows (an overflow line points to the
-  full [Tools panel](#agents-tab-tools-panel) timeline via `p` then `t`). Level 1 is a
-  compact triage table: every row keeps its timestamp, state, tool, duration, and a
-  short path-, query-, or command-aware digest, while a dim tail reports that full
+  full [LLM Calls panel](#agents-tab-llm-calls-panel) timeline via `p` then `t`). Level
+  1 is a compact triage table: every row keeps its timestamp, state, tool, duration, and
+  a short path-, query-, or command-aware digest, while a dim tail reports that full
   commands are hidden. From position 2 upward, each row adds the complete command or
   target in an indented block that wraps with a hanging indent, plus start/end and
   outcome facts and any error. The lane's last position also adds output previews,
@@ -5058,14 +5058,14 @@ cursor.
   original launch prompt (stored under `~/.sase/.../multi_prompts/`), so the exact text
   that fanned out into every segment stays recoverable.
 
-When the file or tools panel is empty, the `g`/`G` keys automatically fall back to
+When the file or LLM Calls panel is empty, the `g`/`G` keys automatically fall back to
 scrolling the metadata panel.
 
-## Agents Tab Tools Panel
+## Agents Tab LLM Calls Panel
 
-Choose `t` from the Agent view picker to open the tools panel. It shows a chronological
-timeline of the LLM tool calls the selected agent has made — file reads, edits, bash
-invocations, web fetches, sub-agent launches, and so on.
+Choose `t` from the Agent view picker to open the LLM Calls panel. It shows a
+chronological timeline of the LLM tool calls the selected agent has made — file reads,
+edits, bash invocations, web fetches, sub-agent launches, and so on.
 
 Entries are read from the `tool_calls.jsonl` artifact in the agent's run directory. Each
 call renders as one timeline row:
@@ -5083,14 +5083,14 @@ call renders as one timeline row:
 The panel header shows the total call count, the failure count, the interrupted count,
 and a timestamp for the most recent reload. While a background reload is in flight
 (because the artifact changed on disk), `(refreshing...)` appears next to that
-timestamp. The body shows `No tools artifact available` when the file does not yet exist
-for this agent and `No tool calls recorded` when the file exists but contains zero
-records.
+timestamp. The body shows `No provider tool-call artifact available` when the file does
+not yet exist for this agent and `No tool calls recorded` when the file exists but
+contains zero records.
 
-The timeline has three detail levels: compact, expanded, and full. While the Tools panel
-is showing, `l` adds one level of detail and `H` returns to compact, taking priority
-over their usual fold actions. In the [zoom view](#agents-zoom-panel), `l` / `h` step
-the level up or down and `L` / `H` jump to full or compact.
+The timeline has three detail levels: compact, expanded, and full. While the LLM Calls
+panel is showing, `l` adds one level of detail and `H` returns to compact, taking
+priority over their usual fold actions. In the [zoom view](#agents-zoom-panel), `l` /
+`h` step the level up or down and `L` / `H` jump to full or compact.
 
 For retry chains and planner-to-coder follow-up families, the panel aggregates
 `tool_calls.jsonl` from related artifact directories so the selected logical agent shows

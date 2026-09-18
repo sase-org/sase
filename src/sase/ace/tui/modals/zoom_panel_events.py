@@ -12,7 +12,7 @@ from ..widgets.file_panel import (
     FileListChanged,
     FileVisibilityChanged,
 )
-from ..widgets.tools_panel import ToolsVisibilityChanged
+from ..widgets.llm_calls_panel import LLMCallsVisibilityChanged
 from .zoom_panel_types import ZoomPanelTarget
 
 
@@ -51,11 +51,13 @@ def on_file_line_count_changed(modal: Any, message: FileLineCountChanged) -> Non
     message.stop()
 
 
-def on_tools_visibility_changed(modal: Any, message: ToolsVisibilityChanged) -> None:
-    """Track tools availability inside the modal."""
-    modal._has_tools_content = message.has_tools
+def on_llm_calls_visibility_changed(
+    modal: Any, message: LLMCallsVisibilityChanged
+) -> None:
+    """Track LLM Calls availability inside the modal."""
+    modal._has_llm_calls_content = message.has_llm_calls
     modal._update_header()
-    if not message.has_tools and modal._target == ZoomPanelTarget.TOOLS:
+    if not message.has_llm_calls and modal._target == ZoomPanelTarget.LLM_CALLS:
         modal._clear_reveal_state()
         modal._show_target(ZoomPanelTarget.METADATA)
     message.stop()

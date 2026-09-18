@@ -78,24 +78,24 @@ class _FakeDetail:
         *,
         info: bool = False,
         file_visible: bool = True,
-        tools_visible: bool = False,
+        llm_calls_visible: bool = False,
         layout_swapped: bool = False,
         has_file: bool = True,
-        has_tools: bool = False,
+        has_llm_calls: bool = False,
     ) -> None:
         self._info = info
         self._file_visible = file_visible
-        self._tools_visible = tools_visible
+        self._llm_calls_visible = llm_calls_visible
         self._layout_swapped = layout_swapped
         self._has_file_content = has_file
-        self._has_tools_content = has_tools
+        self._has_llm_calls_content = has_llm_calls
         self.attempt_view_mode = "current-only"
         self._prompt = _FakePanel(Text("metadata"))
         self._file = _FakeFilePanel()
         self._tools = _FakePanel(Text("tools"))
         self._prompt_scroll = _FakeScroll("metadata · seeded")
         self._file_scroll = _FakeScroll("file · 2/2")
-        self._tools_scroll = _FakeScroll("tools · expanded")
+        self._llm_calls_scroll = _FakeScroll("llm calls · expanded")
 
     def is_info_mode(self) -> bool:
         return self._info
@@ -103,8 +103,8 @@ class _FakeDetail:
     def is_file_visible(self) -> bool:
         return self._file_visible
 
-    def is_tools_visible(self) -> bool:
-        return self._tools_visible
+    def is_llm_calls_visible(self) -> bool:
+        return self._llm_calls_visible
 
     def is_layout_swapped(self) -> bool:
         return self._layout_swapped
@@ -113,10 +113,10 @@ class _FakeDetail:
         return {
             "#agent-prompt-panel": self._prompt,
             "#agent-file-panel": self._file,
-            "#agent-tools-panel": self._tools,
+            "#agent-llm-calls-panel": self._tools,
             "#agent-prompt-scroll": self._prompt_scroll,
             "#agent-file-scroll": self._file_scroll,
-            "#agent-tools-scroll": self._tools_scroll,
+            "#agent-llm-calls-scroll": self._llm_calls_scroll,
         }[selector]
 
 

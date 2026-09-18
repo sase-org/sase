@@ -19,7 +19,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_associated_plan import PhaseBeadSummary
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
 from sase.ace.tui.skill_uses import SkillUseDisplayEvent
-from sase.ace.tui.tools import SlowToolSource, ToolCallEntry
+from sase.ace.tui.llm_calls import SlowToolSource, ToolCallEntry
 from sase.ace.tui.widgets.prompt_panel._agent_clan_aggregation import (
     _aggregate_clan_context_lanes,
     _aggregate_clan_slow_tool_calls,

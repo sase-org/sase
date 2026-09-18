@@ -136,10 +136,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.open_agent_cleanup_panel), "Open cleanup panel"),
                 (d(a.edit_spec), "Edit chat(s) / open remote content"),
                 (d(a.edit_panel), "Edit panel content in editor"),
-                (d(a.view_files), "Hint files/tools/commits/clans"),
+                (d(a.view_files), "Hint files/tool calls/commits/clans"),
                 (d(a.view_agent_metadata), "Page metadata, prompts & reply"),
                 ("p (commit view)", "Toggle attached local plan / commit"),
-                (d(a.choose_agent_view), "Choose file/tools/none or layout"),
+                (d(a.choose_agent_view), "Choose file/LLM Calls/none or layout"),
                 (f"{d(a.choose_agent_view)}p", "Swap detail layout sizes"),
                 (d(a.zoom_panel), "Zoom agent/tribe detail"),
                 (
@@ -240,7 +240,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (
                     d(a.hooks_or_collapse_all),
-                    "Compact expanded Tools detail",
+                    "Compact expanded LLM Calls detail",
                 ),
                 (
                     d(a.collapse_panel_folds),

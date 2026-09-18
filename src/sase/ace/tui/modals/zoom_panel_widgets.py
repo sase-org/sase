@@ -12,7 +12,7 @@ from textual.widgets import Static
 from ..models.agent import Agent
 from ..widgets.file_panel import AgentFilePanel
 from ..widgets.file_panel._file_list import FileSourceLabel
-from ..widgets.tools_panel import AgentToolsPanel
+from ..widgets.llm_calls_panel import AgentLLMCallsPanel
 
 _RAIL_LABEL_MAX_WIDTH = 22
 
@@ -128,14 +128,14 @@ class ZoomFileRail(Static):
             )
 
 
-class ZoomToolsPanel(AgentToolsPanel):
-    """Agent tools panel variant whose scroll container lives inside the modal."""
+class ZoomLLMCallsPanel(AgentLLMCallsPanel):
+    """Agent LLM Calls panel variant whose scroll container lives inside the modal."""
 
     def _get_scroll_container(self) -> VerticalScroll | None:
         try:
-            return self.screen.query_one("#zoom-tools-scroll", VerticalScroll)
+            return self.screen.query_one("#zoom-llm-calls-scroll", VerticalScroll)
         except Exception:
             return None
 
 
-__all__ = ["ZoomFilePanel", "ZoomFileRail", "ZoomToolsPanel"]
+__all__ = ["ZoomFilePanel", "ZoomFileRail", "ZoomLLMCallsPanel"]

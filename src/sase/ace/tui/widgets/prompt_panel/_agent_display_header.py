@@ -11,7 +11,7 @@ from rich.text import Text
 
 from sase.core.wait_dependency_resolution import TribeWaitBinding
 
-from sase.ace.tui.tools._constants import SLOW_TOOL_CALL_THRESHOLD_MS
+from sase.ace.tui.llm_calls._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 
 from ...models.agent import Agent, AgentType
 from ...models.agent_bead import cached_bead_display
