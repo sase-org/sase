@@ -16,13 +16,16 @@ sase init -p sase -p notes --check --json  # structured plan for named projects
 sase init -p sase --yes                    # initialize named projects as one process
 ```
 
-The coordinator first builds all five read-only plans in registry order—config, machine,
-memory, repositories, then skills—before it writes anything. It then applies the changed
-initializers in that same order. Config initialization establishes the explicit
-per-user/per-machine owner identity; machine initialization offers optional
+The coordinator first builds all six read-only plans in registry order—config, machine,
+memory, repositories, service, then skills—before it writes anything. It then applies
+the changed initializers in that same order. Config initialization establishes the
+explicit per-user/per-machine owner identity; machine initialization offers optional
 remote-machine enrollment after that identity exists; memory initialization owns
 agent-document initialization (managed `AGENTS.md` and its provider instruction copies);
-repository initialization owns configured sidecars and the workspace ignore rule. In
+repository initialization owns configured sidecars and the workspace ignore rule. When
+the `service_host` beta flag is enabled, service initialization offers the machine-level
+native user unit once per init batch; declining records a machine marker so later bare
+onboarding stays quiet, while an explicit `sase service init` still checks it. In
 non-interactive shells, bare `sase init` reports drift and exits non-zero instead of
 prompting; use `sase init --yes` when you want to apply everything that does not require
 a resource-specific confirmation. Owner identity creation and migration still require a
@@ -104,6 +107,10 @@ sase repo init
 sase repo init --check
 sase repo init --diff --no-commit
 sase init repo # alias for sase repo init
+sase service init --check
+sase service init --diff
+sase service init --yes
+sase init service # compatibility alias for sase service init
 sase skill list
 sase skill init --dry-run
 sase skill log
@@ -122,59 +129,91 @@ follow home-level `use_chezmoi` deployment. `sase init memory` remains a compati
 alias for `sase memory init`, and `sase init config` remains a compatibility alias for
 `sase config init`, `sase init repo` is an alias for `sase repo init`, and
 `sase init skills` remains an alias for `sase skill init`. `sase init machine` remains a
-compatibility alias for `sase machine init`.
+compatibility alias for `sase machine init`, and `sase init service` remains a
+compatibility alias for `sase service init`.
 
 ## Commands
 
-| Command                                 | Purpose                                                                                                    |
-| --------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `sase init`                             | Check config, machine, memory, repositories, and skills; prompt once per needed initializer.               |
-| `sase init -a, --all`                   | Check or initialize every registered enabled main project, continuing after project errors.                |
-| `sase init -c, --check`                 | Report initialization drift without writing and exit non-zero when changes are needed.                     |
-| `sase init -j, --json`                  | With `--check`, emit one schema-versioned JSON plan; `status` distinguishes drift from blockers.           |
-| `sase init -M, --enable-project-memory` | Mark the current repository as SASE-managed before running initialization.                                 |
-| `sase init -p, --project NAME`          | Check or initialize named enabled projects (repeatable; name, display name, or alias).                     |
-| `sase init -y, --yes`                   | Run every needed initializer in config, machine, memory, repository, skills order without generic prompts. |
-| `sase config init`                      | Interactively create, select, or migrate the explicit owner identity.                                      |
-| `sase config init --check`              | Report owner identity initialization, migration, or conflicts without writing.                             |
-| `sase init config`                      | Compatibility alias for `sase config init`.                                                                |
-| `sase machine init`                     | Discover, enroll, and activate remote machines; check mode is offline and never discovers.                 |
-| `sase machine init --check`             | Report whether remote-machine enrollment can be offered without discovery or writes.                       |
-| `sase init machine`                     | Compatibility alias for `sase machine init`.                                                               |
-| `sase memory`                           | Alias for `sase memory list`.                                                                              |
-| `sase memory list`                      | Inspect loaded, referenced, available, and missing memory files for the current root.                      |
-| `sase memory agent-docs`                | Alias for `sase memory agent-docs list`.                                                                   |
-| `sase memory agent-docs list`           | Inspect project, home, and chezmoi `AGENTS.md` files and nearby provider instruction files.                |
-| `sase memory read <path>`               | Agent-side read of one reference memory file with an attributable audit event.                             |
-| `sase memory log`                       | Summarize audited reference memory reads.                                                                  |
-| `sase memory log --path <path>`         | Show a path-level summary and matching individual read events.                                             |
-| `sase memory log --id <read-id>`        | Show one full audited read event by id or unambiguous id prefix.                                           |
-| `sase memory init`                      | Refresh home and SASE-managed project memory plus provider copies for existing `AGENTS.md`.                |
-| `sase memory init --check`              | Report memory initialization drift without writing files.                                                  |
-| `sase memory init -M`                   | Mark the repository as SASE-managed, then initialize project memory.                                       |
-| `sase memory init -C`                   | Write memory files but skip the project git commit/pull/push path.                                         |
-| `sase init memory`                      | Compatibility alias for `sase memory init`.                                                                |
-| `sase repo init`                        | Initialize configured sidecars, managed declarations, and `/sase/repos/` ignore rule.                      |
-| `sase repo init --check`                | Report sidecar, project-config, generated-guide, and ignore-rule drift without writing.                    |
-| `sase repo init --no-commit`            | Apply project config and ignore changes without committing or pushing them.                                |
-| `sase init repo`                        | Alias for `sase repo init`.                                                                                |
-| `sase skill`                            | Alias for `sase skill list`.                                                                               |
-| `sase skill list`                       | Inspect generated skill sources, provider targets, and deployed-file drift without writing.                |
-| `sase skill init`                       | Generate skill files; existing files require confirmation or `--force`.                                    |
-| `sase skill init --dry-run`             | Preview generated skill target paths without writing files.                                                |
-| `sase skill init --check`               | Report generated skill-file drift without writing files.                                                   |
-| `sase skill init --diff`                | Show full generated skill-file diffs without writing files.                                                |
-| `sase skill init --force`               | Overwrite deployed skill files without confirmation and bypass the provenance manifest guard.              |
-| `sase skill init --allow-dirty`         | Deploy from uncommitted or unmerged xprompt sources; can revert other agents' deployments.                 |
-| `sase skill init -p <provider>`         | Deploy only one provider's generated skill files.                                                          |
-| `sase skill log`                        | Summarize or inspect audited generated skill-use events.                                                   |
-| `sase skill use <name>`                 | Agent-side audit event recording that a generated skill was used.                                          |
-| `sase init skills`                      | Compatibility alias for `sase skill init`.                                                                 |
+| Command                                 | Purpose                                                                                                             |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `sase init`                             | Check config, machine, memory, repositories, service, and skills; prompt once per needed initializer.               |
+| `sase init -a, --all`                   | Check or initialize every registered enabled main project, continuing after project errors.                         |
+| `sase init -c, --check`                 | Report initialization drift without writing and exit non-zero when changes are needed.                              |
+| `sase init -j, --json`                  | With `--check`, emit one schema-versioned JSON plan; `status` distinguishes drift from blockers.                    |
+| `sase init -M, --enable-project-memory` | Mark the current repository as SASE-managed before running initialization.                                          |
+| `sase init -p, --project NAME`          | Check or initialize named enabled projects (repeatable; name, display name, or alias).                              |
+| `sase init -y, --yes`                   | Run every needed initializer in config, machine, memory, repository, service, skills order without generic prompts. |
+| `sase config init`                      | Interactively create, select, or migrate the explicit owner identity.                                               |
+| `sase config init --check`              | Report owner identity initialization, migration, or conflicts without writing.                                      |
+| `sase init config`                      | Compatibility alias for `sase config init`.                                                                         |
+| `sase machine init`                     | Discover, enroll, and activate remote machines; check mode is offline and never discovers.                          |
+| `sase machine init --check`             | Report whether remote-machine enrollment can be offered without discovery or writes.                                |
+| `sase init machine`                     | Compatibility alias for `sase machine init`.                                                                        |
+| `sase memory`                           | Alias for `sase memory list`.                                                                                       |
+| `sase memory list`                      | Inspect loaded, referenced, available, and missing memory files for the current root.                               |
+| `sase memory agent-docs`                | Alias for `sase memory agent-docs list`.                                                                            |
+| `sase memory agent-docs list`           | Inspect project, home, and chezmoi `AGENTS.md` files and nearby provider instruction files.                         |
+| `sase memory read <path>`               | Agent-side read of one reference memory file with an attributable audit event.                                      |
+| `sase memory log`                       | Summarize audited reference memory reads.                                                                           |
+| `sase memory log --path <path>`         | Show a path-level summary and matching individual read events.                                                      |
+| `sase memory log --id <read-id>`        | Show one full audited read event by id or unambiguous id prefix.                                                    |
+| `sase memory init`                      | Refresh home and SASE-managed project memory plus provider copies for existing `AGENTS.md`.                         |
+| `sase memory init --check`              | Report memory initialization drift without writing files.                                                           |
+| `sase memory init -M`                   | Mark the repository as SASE-managed, then initialize project memory.                                                |
+| `sase memory init -C`                   | Write memory files but skip the project git commit/pull/push path.                                                  |
+| `sase init memory`                      | Compatibility alias for `sase memory init`.                                                                         |
+| `sase repo init`                        | Initialize configured sidecars, managed declarations, and `/sase/repos/` ignore rule.                               |
+| `sase repo init --check`                | Report sidecar, project-config, generated-guide, and ignore-rule drift without writing.                             |
+| `sase repo init --no-commit`            | Apply project config and ignore changes without committing or pushing them.                                         |
+| `sase init repo`                        | Alias for `sase repo init`.                                                                                         |
+| `sase service init`                     | Plan or install the native per-user service-host unit when the `service_host` flag is enabled.                      |
+| `sase service init --check`             | Report native-unit, captured-environment, and legacy-unit drift without writing.                                    |
+| `sase service init --diff`              | Show planned native-unit changes, with captured environment values redacted.                                        |
+| `sase service init --yes`               | Apply the native-unit plan without the ordinary confirmation prompt.                                                |
+| `sase init service`                     | Compatibility alias for `sase service init`.                                                                        |
+| `sase skill`                            | Alias for `sase skill list`.                                                                                        |
+| `sase skill list`                       | Inspect generated skill sources, provider targets, and deployed-file drift without writing.                         |
+| `sase skill init`                       | Generate skill files; existing files require confirmation or `--force`.                                             |
+| `sase skill init --dry-run`             | Preview generated skill target paths without writing files.                                                         |
+| `sase skill init --check`               | Report generated skill-file drift without writing files.                                                            |
+| `sase skill init --diff`                | Show full generated skill-file diffs without writing files.                                                         |
+| `sase skill init --force`               | Overwrite deployed skill files without confirmation and bypass the provenance manifest guard.                       |
+| `sase skill init --allow-dirty`         | Deploy from uncommitted or unmerged xprompt sources; can revert other agents' deployments.                          |
+| `sase skill init -p <provider>`         | Deploy only one provider's generated skill files.                                                                   |
+| `sase skill log`                        | Summarize or inspect audited generated skill-use events.                                                            |
+| `sase skill use <name>`                 | Agent-side audit event recording that a generated skill was used.                                                   |
+| `sase init skills`                      | Compatibility alias for `sase skill init`.                                                                          |
 
 Advanced deploy controls such as `--no-commit`, `--no-push`, and `--no-apply` live on
 explicit subcommands rather than the bare coordinator. Scoped `--check` flags also live
 on explicit subcommands when you want to validate only memory, repository/sidecar
-wiring, or generated skill files.
+wiring, native service installation, or generated skill files.
+
+## Service host
+
+Service initialization is available when the default-off `service_host` beta flag is
+enabled, either persistently with `sase flag enable service_host` or for one command
+with `sase -f service_host service init`. It installs a per-user systemd unit on Linux
+or a per-user LaunchAgent on macOS, plus a mode-`0600` environment snapshot containing
+only the allowlisted variables needed by the host. The preview is the default:
+
+```bash
+sase -f service_host service init
+sase -f service_host service init --check
+sase -f service_host service init --diff
+sase -f service_host service init --yes
+```
+
+`--check` and `--diff` never write. Apply retires recognized legacy service units and
+reloads the platform manager. Linux reports when user lingering is disabled because the
+unit then stops with the login session. A non-default `SASE_HOME` changes the native
+unit identity and therefore requires `--force`; the command prints the resulting
+home-scoped identity before applying it. Use `sase service uninstall` with the same
+preview, check, diff, force, and confirmation model to remove the managed unit.
+
+Bare `sase init` offers this machine-scoped initializer at most once per batch. A
+decline is remembered for future broad onboarding runs on that machine, but it does not
+disable the service feature or suppress an explicit `sase service init`.
 
 ## Remote machines
 

@@ -47,8 +47,27 @@ Start the gateway from SASE:
 sase mobile gateway start
 ```
 
-By default this runs the Rust gateway in the foreground on `127.0.0.1:7629`, waits for
-`GET /api/v1/health`, creates a one-time pairing challenge, and prints:
+When the `service_host` beta flag is enabled and the effective built-in `gateway`
+service proc is available and enabled, this command delegates ownership to the service
+host. It clears a boot-scoped stop, starts or nudges the host, and returns instead of
+holding a foreground process. The gateway is disabled by default; enable it for this
+machine and start it with:
+
+```bash
+sase flag enable service_host
+sase service proc enable gateway
+sase mobile gateway start
+sase mobile gateway pair
+```
+
+The final command asks the already-running gateway for a new pairing challenge. Use
+`sase service proc show gateway`, `sase service proc logs gateway`, and the Services tab
+for lifecycle and output. `sase service proc stop gateway` stops it until the next host
+boot; `sase service proc disable gateway` changes the durable machine override.
+
+Otherwise, `sase mobile gateway start` retains the foreground path. It runs the Rust
+gateway on `127.0.0.1:7629`, waits for `GET /api/v1/health`, creates a one-time pairing
+challenge, and prints:
 
 ```text
 Starting SASE mobile gateway at http://127.0.0.1:7629
@@ -58,7 +77,9 @@ Expires at: 2026-05-06T15:00:00Z
 Keep this process running while mobile clients connect.
 ```
 
-Keep that process running while clients connect. Stop it with `Ctrl-C`.
+On this fallback path, keep that process running while clients connect and stop it with
+`Ctrl-C`. An unavailable, disabled, or unconfigured gateway service proc also falls back
+to this path even when `service_host` itself is enabled.
 
 Useful startup overrides:
 

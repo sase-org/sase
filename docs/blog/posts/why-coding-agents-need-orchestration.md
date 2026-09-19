@@ -398,8 +398,9 @@ top-level tabs:
   mentor output, diffs, file deltas, mail/submit flows, rewind, revert, restore, and
   archive operations; provider document panes browse sidecar-backed material such as
   plans and research notes.
-- **Axe**: the daemon view: lumberjacks, chops, run history, live output, wait checks,
-  hook checks, mentor checks, comment polling, and error digests.
+- **Services**: machine services and the scheduler view: routines, jobs, run history,
+  live output, wait checks, hook checks, mentor checks, comment polling, and error
+  digests. Without the `service_host` beta flag, it presents the legacy Axe daemon.
 
 <!--
 SCREENSHOT BRIEF 1 - place immediately after sase's TUI tab list.

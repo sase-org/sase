@@ -3,7 +3,7 @@
 ## Overview
 
 sase's TUI is the primary TUI for the SASE toolkit. It provides an interactive interface
-for navigating, managing, and operating on Patches, agents, and the Axe daemon.
+for navigating, managing, and operating on Patches, agents, and machine services.
 
 ## Launching
 
@@ -12,11 +12,11 @@ sase tui [QUERY] [options]
 ```
 
 Run `sase tui` from an interactive terminal. It opens on the Agents tab and starts the
-axe daemon if it is not already running (pass `-x` to skip that). Press `?` on any tab
-for the keymap and a short guide, `:` for the [Command Palette](#command-palette), and
-`q` to quit. The command was previously `sase ace`, which no longer exists; the TUI's
-settings still live under the `ace:` section of `sase.yml` (for example `ace.keymaps`
-and `ace.page_size`).
+service host when `service_host` is enabled, or the legacy Axe daemon otherwise (pass
+`-x` to skip that). Press `?` on any tab for the keymap and a short guide, `:` for the
+[Command Palette](#command-palette), and `q` to quit. The command was previously
+`sase ace`, which no longer exists; the TUI's settings still live under the `ace:`
+section of `sase.yml` (for example `ace.keymaps` and `ace.page_size`).
 
 If no Patches query is provided, sase's TUI loads the last used Patches query, then the
 first saved Patches query, then falls back to `!!!` for error suffixes. The top-level
@@ -24,19 +24,19 @@ Agents tab restores its own last submitted Agents query after startup.
 
 ### CLI Options
 
-| Option                            | Description                                                                                                                          |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `QUERY` (positional)              | Query string for filtering Patches                                                                                                   |
-| `-m`, `--model-tier`              | Override model tier for all LLM providers (`large` or `small`)                                                                       |
-| `-M`, `--model-size`              | Deprecated alias for `--model-tier` (`big` or `little`)                                                                              |
-| `-p`, `--profile [PATH]`          | Profile the TUI session with pyinstrument; optional output path                                                                      |
-| `-r`, `--refresh-interval`        | Auto-refresh interval in seconds (default: 10, 0 to disable)                                                                         |
-| `-s`, `--sanity-refresh-interval` | Full sanity-refresh interval in seconds (default: 300); see [Auto-Refresh](#auto-refresh)                                            |
-| `-x`, `--no-axe`                  | Disable auto-starting the axe daemon on startup                                                                                      |
-| `-v`, `--vcs-provider`            | Override VCS provider (`git`, `hg`, or `auto`)                                                                                       |
-| `-R`, `--restart-axe`             | Restart an already-running axe daemon on startup (shows RESTARTING indicator)                                                        |
-| `-t`, `--tab`                     | Tab to focus on startup (`agents` by default, `artifacts`, or `axe`; `changespecs` and `patches` are legacy aliases for `artifacts`) |
-| `-T`, `--tmux`                    | Launch sase's TUI in a new tmux window and print the target for external control                                                     |
+| Option                                     | Description                                                                                                                                                  |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `QUERY` (positional)                       | Query string for filtering Patches                                                                                                                           |
+| `-m`, `--model-tier`                       | Override model tier for all LLM providers (`large` or `small`)                                                                                               |
+| `-M`, `--model-size`                       | Deprecated alias for `--model-tier` (`big` or `little`)                                                                                                      |
+| `-p`, `--profile [PATH]`                   | Profile the TUI session with pyinstrument; optional output path                                                                                              |
+| `-r`, `--refresh-interval`                 | Auto-refresh interval in seconds (default: 10, 0 to disable)                                                                                                 |
+| `-s`, `--sanity-refresh-interval`          | Full sanity-refresh interval in seconds (default: 300); see [Auto-Refresh](#auto-refresh)                                                                    |
+| `-x`, `--no-service`, `--no-axe`           | Disable auto-starting the service host or legacy Axe daemon on startup                                                                                       |
+| `-v`, `--vcs-provider`                     | Override VCS provider (`git`, `hg`, or `auto`)                                                                                                               |
+| `-R`, `--restart-service`, `--restart-axe` | Restart an already-running service host or legacy Axe daemon on startup (shows RESTARTING indicator)                                                         |
+| `-t`, `--tab`                              | Tab to focus on startup (`agents` by default, `artifacts`, or `services`; `axe` is a compatibility alias, and `changespecs` and `patches` alias `artifacts`) |
+| `-T`, `--tmux`                             | Launch sase's TUI in a new tmux window and print the target for external control                                                                             |
 
 When profiling is enabled, sase's TUI writes text output to `PATH`. If `PATH` is
 omitted, it uses the managed temp tree:
@@ -71,7 +71,7 @@ sase screenshot -o /tmp/sase.png
 sase screenshot -p j -p j -w 'Ready' -o /tmp/sase.png
 sase screenshot -p slash --type 'machine:apollo' -p enter -w '17/17' -o /tmp/sase.png
 sase screenshot --host apollo -o /tmp/sase-remote.png
-sase screenshot --keep -- -t axe
+sase screenshot --keep -- -t services
 sase screenshot --window sase_ace_agents:sase_tmux_1 -o /tmp/sase-again.png
 ```
 
@@ -116,7 +116,7 @@ sase's TUI has three tabs, cycled with `Tab` and `Shift+Tab`:
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Agents**    | View running and completed agents, their files and prompts                                                                                                                                                                  |
 | **Artifacts** | Browse the durable Agent catalog, Stitches, Patches, Beads, configured document providers, and Files. See the [Artifacts pane contract](artifacts_pane_contract.md) and [visual grammar](artifacts_pane_visual_grammar.md). |
-| **Axe**       | Monitor the Axe daemon and background commands                                                                                                                                                                              |
+| **Services**  | Monitor the service host, configured service procs, scheduler work, and background commands; without `service_host`, shows the legacy Axe view                                                                              |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press `?`
 to open the Help modal on its **Keymaps** view, then `]` to switch to the tab's
@@ -2789,7 +2789,27 @@ which case the target wins.
 | `%p` | Copy agent prompt                                                                           |
 | `%s` | Copy sase tui snapshot                                                                      |
 
-## Keybindings: Axe Tab
+## Keybindings: Services Tab
+
+The visible tab is **Services**. With the default-off `service_host` beta flag enabled,
+its top-level rows are the effective machine service procs assembled from built-in,
+plugin, user, and machine-overlay configuration. The built-in `scheduler` row expands to
+the familiar routine/job tree, while other service procs show their lifecycle,
+enablement provenance, restart state, and bounded output. Background commands remain a
+separate section. Project-local `sase.yml` service entries are intentionally ignored.
+
+On a selected top-level service proc, `x` starts or stops it, `r` restarts it, and `!e`
+enables or disables it on this machine. Those actions are no-ops when no service proc is
+selected; in particular, `x` does not toggle the host from a nested scheduler job or
+routine. Use `!x` to start or stop the service host itself. The footer's gear badge
+shows running and total service-proc counts. The right-hand panel shows the selected
+proc's effective command, current and desired state, restart policy, dependencies, last
+exit, and output tail.
+
+When `service_host` is disabled, the same Services tab presents the legacy Axe daemon,
+routine/job tree, and background commands. The `axe` tab name, configuration keys, and
+many internal row names remain compatibility terminology, which is why the detailed
+scheduler reference below still uses “Axe.”
 
 ### Sidebar Row Taxonomy
 
@@ -3047,9 +3067,9 @@ and `,/` starts forward inline metadata search. Help is the app-level `?` on eve
 | Artifacts → Agent  | `/`                |
 | Agents tab query   | `/` or `f`         |
 
-The Axe tab has no query editor. Its `?` help modal and the command palette both still
-offer "Edit search query" there, but the action currently does nothing on Axe; use the
-tab's own filtering and navigation keys instead.
+The Services tab has no query editor. Its `?` help modal and the command palette both
+still offer "Edit search query" there, but the action currently does nothing on
+Services; use the tab's own filtering and navigation keys instead.
 
 To save a query, prefix with `#`:
 
@@ -4693,9 +4713,9 @@ Running bucket when it handed off to a successor.
 | **TALE**          | Gate accent; legacy dim        | An authored tale is waiting for user review                                                                      |
 | **EPIC**          | Gate accent; legacy dim        | An authored epic is waiting for user review                                                                      |
 | **PLAN**          | Gate accent; legacy dim        | A legacy or unreadable-tier plan is waiting for user review                                                      |
-| **PLAN APPROVED** | Grey on the settled gate shell | Plan was approved; follow-up agent has been spawned                                                              |
-| **TALE APPROVED** | Grey on the settled gate shell | Tale was approved and its coder follow-up was launched                                                           |
-| **EPIC APPROVED** | Grey on the settled gate shell | Epic was approved, but no created epic ID has been back-filled yet                                               |
+| **PLAN APPROVED** | Grey on the settled gate shell | Plan approval was durably accepted; follow-up execution is being attempted                                       |
+| **TALE APPROVED** | Grey on the settled gate shell | Tale approval and commit were durably accepted; follow-up execution is being attempted                           |
+| **EPIC APPROVED** | Grey on the settled gate shell | Epic approval was durably accepted; creation is being attempted and no epic ID has been back-filled yet          |
 | **QUESTION**      | Gate accent; legacy dim        | Agent is asking the user a question (via `/sase_questions`)                                                      |
 | **ANSWERED**      | Grey on the settled gate shell | The answer was accepted and a successor is being launched                                                        |
 | **SUDO**          | Gate accent                    | An agent's [sudo request](sudo.md) is waiting for review; it settles as `SUDOED` or `DENIED`                     |
@@ -4708,6 +4728,12 @@ state. An answer settles it as `ANSWERED` and launches the next ordinary family 
 with the accumulated Q&A. That successor starts under the serial-family admission
 exemption and becomes the family's occupied slot; it does not enter the runner queue.
 The `,n` shortcut can reopen the live question even when no unread notification remains.
+
+Approval labels are receipt-derived: they appear as soon as the accepted gate decision
+is durable, without waiting for the selected command or successor launch to finish. If
+that execution fails, the label changes to `PLAN FAILED` or `EPIC FAILED`, so an
+accepted decision cannot hide a failed action. Commit-only plans are different:
+`PLAN COMMITTED` appears only after the archive succeeds.
 
 Older in-flight runs may still use a `pending_question.json` marker. Those compatibility
 runs yield their slot while unanswered, then reacquire capacity in the same process and
@@ -4749,9 +4775,11 @@ fall back to dim text unless a gate or monitor supplies lifecycle presentation.
 | **DONE**           | Green                                 | Agent completed successfully                                     |
 | **PLAN DONE**      | Dim                                   | Plan workflow fully completed (all steps)                        |
 | **TALE DONE**      | Dim                                   | Tale plan workflow fully completed (all follow-ups)              |
-| **PLAN COMMITTED** | Grey on a settled gate; otherwise dim | Plan was recorded without launching a coder                      |
+| **PLAN COMMITTED** | Grey on a settled gate; otherwise dim | Commit-only plan was archived successfully                       |
 | **EPIC CREATED**   | Dim                                   | A created epic ID is known, or a legacy epic follow-up completed |
 | **FAILED**         | Red                                   | Agent exited with an error                                       |
+| **PLAN FAILED**    | Red                                   | Accepted plan action or archive failed                           |
+| **EPIC FAILED**    | Red                                   | Accepted epic-creation action failed                             |
 
 Monitor shells are the exception to this status table's success-oriented labels: a
 gate-approved epic monitor uses `EPIC APPROVED` as its start label and `EPIC CREATED` as
@@ -7387,6 +7415,13 @@ full discovery waits for the longer configured recompute cadence, and provider r
 lookups retain their own cache. The top bar renders purple/amber SASE and cyan `CLI`
 segments with separate counts.
 
+For editable host, core, and plugin checkouts, the running TUI also remembers the Git
+HEAD imported by the process and cheaply checks whether the checkout has moved on disk.
+It warns once for each new on-disk generation. While any imported root is stale, the
+global Update panel (`,U`) adds **Restart ACE** as its first row; press `x` or `X` to
+restart after the same tracked-proc drain used by post-update restarts. This reloads the
+already-updated code and does not fetch or modify a checkout.
+
 Every mutation still plans before it runs, and `Ctrl+D` / `Ctrl+U` scroll long preview
 panes. When commit previews are enabled and a comparable range is available, core and
 installed-plugin **update** confirmations load incoming commits by repository in the
@@ -7412,11 +7447,12 @@ The providers leg still captures the agent-CLI candidates from the latest comple
 automatic result, revalidates exactly those names, and never broadens the captured set
 from an Updates-pane load. Manual-only providers remain in the preview with their
 suggested command or docs. A real SASE/core/plugin code change restarts sase's TUI and
-axe only after provider work finishes, while provider-only updates refresh in place.
-Before that restart, sase's TUI waits up to 60 seconds for tracked background procs to
-finish (a toast reports the queued restart) and then restarts anyway with a warning
-naming whatever is still active. Long-lived services that outlive sase's TUI by design —
-monitor shells and the persistent Telegram receiver — never delay the restart.
+its service controller only after provider work finishes, while provider-only updates
+refresh in place. Before that restart, sase's TUI waits up to 60 seconds for tracked
+background procs to finish (a toast reports the queued restart) and then restarts anyway
+with a warning naming whatever is still active. Long-lived services that outlive sase's
+TUI by design — monitor shells and the persistent Telegram receiver — never delay the
+restart.
 
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate
 pane-wide agent-CLI action: it updates `Space`-marked agent CLIs from anywhere in the

@@ -1659,7 +1659,7 @@ recipes appear only when the `typed_launch_units` beta flag is enabled. Retired 
 | `%final`            | Bare `%final`, `%final:...`, `%final(...)`                                                   | Configured finalizer instance rows plus `none` when no required finalizers are configured. Removal selectors use `!name`; keywords are not offered.                                                                                                                                                                                                                                                                                                       |
 | `%id` / `%i`        | Bare `%id`, `%id:...`, `%id(...)`                                                            | `bead=`, `clan=`, `family=`, `tribe=` in parenthesized form; open bead IDs for `bead=`, and matching clan, family, or tribe targets for those keyword values.                                                                                                                                                                                                                                                                                             |
 | `%clan` / `%c`      | `%clan:...`, `%clan(...)`                                                                    | `summary=`, `summary_script=`, `tribe=` in parenthesized form; `summary_script=` uses path/executable completion and `tribe=` uses tribe target rows.                                                                                                                                                                                                                                                                                                     |
-| `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                                                      | Colon form completes only positional agent/family/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, and `time=` suggests `5m` and `1430`.                                                                                                                                                                                                                 |
+| `%wait` / `%w`      | Bare `%wait`, `%wait:...`, `%wait(...)`                                                      | Colon form completes only positional agent/family/clan/tribe targets. Parenthesized form adds `agent=`, `bead=`, `hood=`, `proc=`, `time=`, and `unit=` before target rows; `bead=` completes open bead IDs, `hood=` completes current hood names, and `time=` suggests `5m` and `1430`.                                                                                                                                                                  |
 | `%queue` / `%q`     | Bare `%q`, `%queue:...`, `%q:...`, `%queue(...)`, `%q(...)`                                  | Colon form completes only the positional positive-integer `capacity` value, suggesting `1` and `100`. Parenthesized form adds `capacity=`, `priority=`, `p=`, `weight=`, and `w=` before those positional values; `priority=`/`p=` and `weight=`/`w=` are alias pairs, `priority=`/`p=` suggest `10` and `1`, `capacity=` suggests `1`, and `weight=`/`w=` suggest `0.25`, `1.0`, and `2.0`. Authored `runners=` is a migration error naming `capacity=`. |
 | `%hold`             | Bare `%hold`, `%hold:...`, and `%hold(pending, future)` / `%hold(hood=..., ttl=...)` recipes | Colon and positional forms complete name/`@tribe` targets plus `pending` and `future`. Parenthesized form adds `hood=`, `scope=`, `ttl=`, and `tribe=`; `scope=` suggests `project` and `host`, `ttl=` suggests common durations, and `hood=`/`tribe=` use their target rows.                                                                                                                                                                             |
 | `%dispatch`         | `%dispatch:...`, `%dispatch(...)`                                                            | Configured remote-machine aliases. No shorthand alias or keyword arguments are supported.                                                                                                                                                                                                                                                                                                                                                                 |
@@ -1959,7 +1959,8 @@ Directives use the same argument syntax as xprompt references:
 %wait(agent=agent1)          # Named form of an ordinary agent wait
 %wait:@review                # Wait for the next completed @review agent or clan
 %wait(bead=sase-87.2)        # Wait for a bead in this project to close
-%wait(agent1, bead=sase-87.2) # Require both the agent and bead conditions
+%wait(hood=research)         # Wait for every current member of one hood
+%wait(agent1, bead=sase-87.2, hood=research) # Require every condition
 %wait(time=5m)               # Wait for 5 minutes before starting
 %wait(time=1h30m)            # Wait for 1 hour 30 minutes
 %wait(time=90s)              # Wait for 90 seconds
@@ -1977,7 +1978,7 @@ Directives use the same argument syntax as xprompt references:
 %queue(capacity=5, priority=20, weight=2) # Capacity, priority, and weight together
 %wait(agent1, time=5m) %queue(capacity=1) # Dependencies, then time floor, then capacity budget
 #t:5m                        # Shorthand for %wait(time=5m)
-%hold:planner                # Name selector for an admission hold (beta)
+%hold:planner                # Name selector for an admission hold
 %hold:planner,reviewer       # Colon list of name selectors
 %hold:@nightly               # Tribe selector (positional @)
 %hold(pending)               # Freeze the WAITING/QUEUED agents in scope
@@ -2320,6 +2321,15 @@ agent, so they do not participate in bare-wait rewriting, agent-name templates, 
 cross-project lookup. Once a wait releases, reopening the bead does not re-park the
 agent.
 
+The repeatable `hood=<hood-name>` keyword snapshots the hood members that already exist
+when the waiter is launched and requires every current member to complete successfully.
+Hood matching follows component boundaries, so `hood=research` matches `research` and
+`research.worker` but not `researcher.worker`. For a reused member name, only its latest
+run at or before the waiter's launch counts; members launched later do not extend the
+wait. An empty hood resolves immediately with a diagnostic instead of parking forever.
+Multiple `hood=` values are deduplicated in authored order and combine with agent, bead,
+and time conditions.
+
 An `@<tribe>` dependency has next-entity semantics. `%wait:@review` ignores older tribe
 members and selects the earliest successfully completed eligible entity launched after
 the waiting agent: one standalone agent or one whole clan generation. A tribe-assigned
@@ -2370,7 +2380,7 @@ until an absolute wall-clock time. For a pure time wait, `#t:<time>` is shorthan
   `%wait(time=260415/0900)` for 2026-04-15 at 09:00). Raises an error if the target is
   in the past.
 
-Agent and bead dependencies and `time=` combine across `%wait(...)` directives.
+Agent, bead, and hood dependencies and `time=` combine across `%wait(...)` directives.
 `capacity=`, `priority=`/`p=`, and `weight=`/`w=` combine separately across
 `%queue(...)` / `%q(...)` directives. All dependencies wait first, then the time floor
 applies, and the runner-capacity gate is the final admission stage. That stage also
@@ -2633,9 +2643,11 @@ error because a hold needs at least one selector. `%hold` cannot be combined wit
 `%repeat` or `%dispatch`.
 
 `%hold` is parsed, validated, stripped from the model prompt, carried on typed launch
-units, shown in launch previews and confirmation prompts, and armed at launch
-submission. For imperative holds outside a launch prompt, use `sase agent hold create`
-or `sase agent hold run`.
+units, shown in launch previews and confirmation prompts, and armed before launch
+admission can dispatch the unit. The launch bundle owns the pre-armed hold until the
+agent or proc starts, then rebinds it to that runner. A unit that settles without
+dispatch releases its hold. For imperative holds outside a launch prompt, use
+`sase agent hold create` or `sase agent hold run`.
 
 A LaunchApproval preview adds a `## Holds` section listing each agent or proc launch
 unit that declares a hold, with its canonical directive, scope, and TTL next to the
@@ -2649,12 +2661,12 @@ Before submitting a prompt with a broad hold, sase's TUI asks **Arm this hold?**
 uses the current project to count a project-scoped `pending` capture. An interactive
 `sase run` also asks for a host-wide `future` hold or an over-threshold host-scoped
 `pending` capture. It can count a project-scoped `pending` capture when a typed launch
-plan resolves the project, but a plain `sase run` prompt currently supplies no project
-context and skips that confirmation. Declining cancels the launch; `sase run` prints
-`Hold not armed; launch cancelled.` and exits `1`. Accepting the confirmation only
-permits the launch during the current beta — despite the **Arm** label, it does not arm
-the hold. Narrow holds, non-interactive `sase run`, and launches from inside an agent or
-proc proceed without asking and likewise do not arm one.
+plan resolves the project, but a plain project-scoped `sase run` prompt without typed
+project context skips that count-based confirmation. Declining cancels the launch;
+`sase run` prints `Hold not armed; launch cancelled.` and exits `1`. Accepting permits
+submission, and the launch path arms the hold. Narrow holds, non-interactive launches,
+and launches from inside an agent or proc proceed without the extra confirmation but
+still arm their declared holds.
 
 `pending` freezes only agents that already exist; it cannot capture a `%proc` that has
 not been dispatched. Use a name selector or `future` to fence procs.
@@ -2664,8 +2676,10 @@ A held agent's `QUEUED` row in sase's TUI ends with `held by <armer>`, and its
 `hold_expires_at`. If a held agent and the agent that armed the hold end up waiting on
 each other, SASE posts a `Hold deadlock` notification (sender `runner_slot_admission`).
 The TTL still guarantees progress, so release the hold or kill one side to resolve it
-sooner. Arming and releasing a hold post `agent_hold` notifications, including an
-automatic release when the armer dies; a routine TTL expiry is silent.
+sooner. Arming and releasing a hold post `agent_hold` notifications. Automatic release
+notifications cover both a dead armer and TTL expiry and preserve the arm-time capture
+summary and exact expiry boundary. Hold list/show output and the TUI Holds pane show
+that stored summary; legacy holds display `capture not recorded`.
 `sase doctor -C agent_holds.stale` reports holds whose armer died or whose TTL passed.
 
 ### Editor Review Marker (` @`)

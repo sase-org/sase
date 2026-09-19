@@ -126,13 +126,13 @@ sase's TUI has three top-level tabs:
   The [Patch guide](../../change_spec.md) goes deeper when you're curious. This first
   read-only run should not have created one yet; editable committed work is where
   Patches appear.
-- **Axe** — the background daemon's view: scheduled jobs, hooks waiting to complete,
-  mentor launches, error digests. sase's TUI auto-starts AXE the first time it opens, so
-  this tab is already ticking before you click it.
+- **Services** — machine services, scheduled jobs, hooks waiting to complete, mentor
+  launches, and error digests. With the `service_host` beta flag enabled, it shows every
+  configured service proc; otherwise it presents the legacy Axe daemon.
 
 **What you just did.** Observed one `sase run` produce a persistent agent artifact
-visible in [sase's TUI](../../ace.md), with [AXE](../../axe.md) handling lifecycle work
-in the background.
+visible in [sase's TUI](../../ace.md), with the [scheduler](../../axe.md) handling
+lifecycle work in the background.
 
 ## Step 5 — Try one tiny edit (≈3 minutes, plus model time)
 

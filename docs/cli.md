@@ -30,7 +30,9 @@ printed invocation omits only the root print switch. See the
 
 | Command                              | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Details                                                                  |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `sase tui`                           | Open sase's TUI, the interactive control surface for Patches, live agents, notifications, and axe state.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | [sase's TUI](ace.md)                                                     |
+| `sase tui`                           | Open sase's TUI, the interactive control surface for Patches, live agents, notifications, and machine services.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | [sase's TUI](ace.md)                                                     |
+| `sase service`                       | Inspect and control the beta per-machine service host. Bare `sase service` shows status; `service proc` manages configured daemon procs and submits transient oneshots. Requires the `service_host` beta flag.                                                                                                                                                                                                                                                                                                                                                                                       | [`sase service`](#sase-service)                                          |
+| `sase scheduler`                     | Inspect or control scheduled automation. Lifecycle commands route through the service host when enabled and preserve legacy Axe behavior otherwise; bare `sase scheduler` shows status.                                                                                                                                                                                                                                                                                                                                                                                                              | [Axe and scheduler](axe.md#cli-commands)                                 |
 | `sase screenshot`                    | Capture a canonical PNG from a real `sase tui` running in tmux. Use `-p/--press`, `-T/--type`, and `-w/--wait-for` as one argv-ordered input script, and `--keep`/`--window` to iterate against the same live TUI.                                                                                                                                                                                                                                                                                                                                                                                   | [Agent screenshots](ace.md#agent-screenshots)                            |
 | `sase tmux-agent`                    | Launch an interactive agent CLI in a new tmux window. A bare invocation paints a keyboard-first chooser of every registered provider; a provider name launches that CLI directly. Drop-in for `bind A run "sase tmux-agent"`.                                                                                                                                                                                                                                                                                                                                                                        | [tmux Agent](ace.md#tmux-agent)                                          |
 | `sase run [PROMPT]`                  | Launch an agent or workflow from a prompt, an xprompt reference, a workflow reference, history, or an editor buffer.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | [XPrompts](xprompt.md), [workflows](workflow_spec.md)                    |
@@ -96,10 +98,10 @@ the preview and asks `Arm this hold? [y/N]`; declining cancels the launch and ex
 A host-scoped hold that includes `future` is always broad. A `pending` hold is broad
 when its live capture exceeds `agent_hold_confirm_capture_threshold`, but that check
 needs project context: typed launch plans can resolve it, while a plain project-scoped
-`sase run` prompt currently cannot and therefore skips this confirmation. During the
-directive's current beta, accepting the prompt permits the launch but does not write a
-hold to the hold store; use `sase agent hold create` or `sase agent hold run` when work
-must actually be held.
+`sase run` prompt currently cannot and therefore skips this confirmation. Once accepted,
+the launch submission pre-arms the hold before admission can race ahead, then rebinds
+ownership to the launched runner. Narrow and non-interactive holds use that same pre-arm
+path without the extra prompt.
 
 The short option `-n` is not one flag across commands: `sase agent kill -n NAME` and
 `sase agent hold create -n NAME` are `--name` (for `kill` it is required; a bare name is
@@ -190,8 +192,9 @@ undispatched procs or later launches). `-s/--scope` is `project` (the default, i
 from the current checkout or agent) or `host`. `-T/--ttl` accepts bare seconds or a
 duration such as `90s`, `45m`, or `2h`; it defaults to `agent_hold_default_ttl` (`2h`)
 and may not exceed `agent_hold_max_ttl` (`12h`); see
-[agent hold limits](configuration.md#agent-hold-limits). Arming and releasing a hold
-both post a notification, and sase's TUI Admin Center lists and releases active holds.
+[agent hold limits](configuration.md#agent-hold-limits). Arming, releasing, and TTL
+expiry post notifications; the expiry notice includes the exact boundary. sase's TUI
+Admin Center lists and releases active holds.
 
 Each armer owns one hold. Inside an agent run the armer is that agent (`agent:<name>`),
 and the hold is dropped once the agent's family settles. From a plain shell the armer is
@@ -199,14 +202,58 @@ and the hold is dropped once the agent's family settles. From a plain shell the 
 released, its TTL expires, or that shell exits. `sase agent hold release` releases the
 calling agent's or shell's own hold unless `-k/--key` names another armer key, and exits
 `1` when no such hold is active. `sase agent hold show -k KEY` prints one hold,
-including its frozen pending artifact directories (`-j` prints the raw record), and
-exits `2` when the key has no active hold.
+including its frozen pending artifact directories and launch-time capture summary (`-j`
+prints the raw record), and exits `2` when the key has no active hold. Older records
+without that evidence display “capture not recorded.”
 
 `sase agent hold run [selectors] -- COMMAND` arms a hold anchored to the `run` process,
 runs `COMMAND`, releases the hold on success, failure, or interruption, and exits with
 the command's status. With no selector flags it defaults to `-f -p`, the selector-free
 quiesce recipe. Holds whose armer has died or whose TTL has passed are pruned whenever
 the store is read.
+
+### `sase service`
+
+The beta service host supervises machine-level daemon procs independently of the TUI
+that started them. Enable the gate with `sase -f service_host service status` for one
+invocation, or save the `service_host` preference with `sase flag enable service_host`.
+Bare `sase service` is read-only and delegates to `sase service status`; bare
+`sase service proc` delegates to `proc list`.
+
+```bash
+sase -f service_host service status
+sase -f service_host service start
+sase -f service_host service proc list
+sase -f service_host service proc restart scheduler
+sase -f service_host service proc run -- just check
+```
+
+`start`, `stop`, and `restart` control the host; `run` intentionally owns the foreground
+terminal. `logs -n N` prints the bounded host log. `status -j` emits the host and every
+configured proc as JSON and exits `0` while the host is running or starting, otherwise
+`1`. When a native unit is installed, lifecycle commands use that platform manager;
+otherwise `start` uses the detached host path.
+
+`sase service proc list` and `show NAME` expose effective configuration, machine
+enablement, desired state, runtime state, source, launcher, and log path. `start NAME`
+clears this boot's stop marker; `stop NAME` stops it until the next boot; `restart NAME`
+performs both operations; `enable NAME` and `disable NAME` persist a machine-local
+override. `logs NAME` prints that proc's bounded log. A configured proc that is invalid
+remains visible as unavailable rather than preventing unrelated entries from running.
+
+`sase service proc run -- COMMAND...` submits a transient oneshot through the durable
+proc service. It does not add the command to daemon desired state and the host never
+replays it after restart. `-c/--cwd`, `-l/--label`, `-p/--project`, and `-w/--workspace`
+add attribution; `-j` emits the created proc record.
+
+Install or inspect the native user unit with `sase service init`. Without `--yes` it
+prints a plan; `--check` is read-only and exits non-zero on drift, `--diff` includes the
+unit and redacted captured-environment diff, and `--yes` applies. Linux uses a systemd
+user service and macOS uses a LaunchAgent. A non-default `SASE_HOME` requires `--force`,
+which creates a home-scoped unit identity. `sase service uninstall` has the same
+plan/check/diff/apply shape; `--force` is also required when uninstalling the
+non-default-home unit. See [service configuration](configuration.md#service) and
+[initialization](init.md#service-host).
 
 `sase proc` operates on durable procs: rows in `~/.sase/procs/procs.jsonl` with combined
 output logs under `~/.sase/procs/logs/`. New `sase proc run` submissions always create
@@ -267,7 +314,7 @@ command, keep the `list` subcommand explicit, for example `sase notify list -j`,
 | `sase patch set-origin`                      | Mark a Patch's `PR_ORIGIN` (`sase`/`external`/`unknown`).                                                                                                                                                             | [PR_ORIGIN](change_spec.md#pr_origin)                             |
 | `sase patch sync-deltas`                     | Recompute the `DELTAS` field for a Patch from VCS state.                                                                                                                                                              | [Patches](change_spec.md)                                         |
 | `sase patch sync-external`                   | Mirror remote PRs not created by SASE's tracked PR workflow into local Patches.                                                                                                                                       | [Axe external PR mirror](axe.md#builtin-external_pr_mirror)       |
-| `sase init`                                  | Check and initialize config, machine, memory, repositories, and skills for the current project.                                                                                                                       | [Initialization](init.md)                                         |
+| `sase init`                                  | Check and initialize config, machine, memory, repositories, the optional service host, and skills.                                                                                                                    | [Initialization](init.md)                                         |
 | `sase init --all --check`                    | Check every enabled main project without writing; report one aggregate status.                                                                                                                                        | [Initialization](init.md)                                         |
 | `sase init --all --yes`                      | Initialize every enabled main project without generic prompts; sidecar creation still asks.                                                                                                                           | [Initialization](init.md)                                         |
 | `sase init -p NAME`                          | Check or initialize named enabled projects as one process; repeat `-p` for a subset. Mutually exclusive with `--all` and `-M`.                                                                                        | [Initialization](init.md)                                         |
@@ -447,6 +494,11 @@ summary. The removed `-t/--tier` option is now invalid command usage. A valid pl
 
 | Command                       | Purpose                                                                                                                     | Details                                      |
 | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `sase scheduler [status]`     | Inspect the scheduler through the host-managed proc when enabled or the legacy Axe snapshot otherwise.                      | [Axe](axe.md#cli-commands)                   |
+| `sase scheduler start`        | Start the host-managed scheduler proc or legacy Axe daemon.                                                                 | [Axe](axe.md#cli-commands)                   |
+| `sase scheduler stop`         | Stop the host-managed scheduler proc or legacy Axe daemon.                                                                  | [Axe](axe.md#cli-commands)                   |
+| `sase scheduler restart`      | Restart the host-managed scheduler proc or legacy Axe daemon.                                                               | [Axe](axe.md#cli-commands)                   |
+| `sase scheduler run`          | Run the scheduler orchestrator in the foreground regardless of service-host mode.                                           | [Axe](axe.md#cli-commands)                   |
 | `sase axe start`              | Request running state and start the orchestrator and routines.                                                              | [Axe](axe.md)                                |
 | `sase axe stop`               | Request stopped state and stop the orchestrator and routines; `-f` also sweeps orphaned axe processes and resets PID state. | [Axe](axe.md#cli-commands)                   |
 | `sase axe restart`            | Verified stop/start/heartbeat-verify restart; works even when down, and `-j` emits one JSON result.                         | [Axe](axe.md#cli-commands)                   |
@@ -465,10 +517,10 @@ summary. The removed `-t/--tier` option is now invalid command usage. A valid pl
 | `sase axe maintenance status` | Inspect the maintenance marker.                                                                                             | [Maintenance mode](axe.md#maintenance-mode)  |
 
 Axe runs scheduled hooks, mentors, comment polling, workflow checks, `%wait` dependency
-resolution, cleanup, and error digests. sase's TUI starts axe automatically unless
-launched with `sase tui --no-axe`. The older `sase axe chop ...` and
-`sase axe lumberjack ...` spellings remain hidden compatibility aliases for
-`sase axe job ...` and `sase axe routine ...`; see
+resolution, cleanup, and error digests. sase's TUI starts the service host when enabled
+or legacy Axe otherwise unless launched with `sase tui --no-service` (`--no-axe`). The
+older `sase axe chop ...` and `sase axe lumberjack ...` spellings remain hidden
+compatibility aliases for `sase axe job ...` and `sase axe routine ...`; see
 [Compatibility aliases](axe.md#compatibility-aliases).
 
 | Command               | Purpose                                                                                                                                                                                                                                                                                                                                                                                                          | Details                                                  |
@@ -601,7 +653,7 @@ surface can support plain git, GitHub pull requests, and other provider plugins.
 | `sase tool` / `tool list`               | List the current project's named tools with LAST result and observed TYPICAL duration; bare `sase tool` defaults to `list`, and `-j` emits versioned JSON.                                                                                                                                                                                                               | [Configuration CLI flags](configuration.md#sase-tool)                                                                            |
 | `sase tool run`                         | Execute a named tool or an ad-hoc `-- ARGV...` command, record a ToolRun, and return the child's exit code.                                                                                                                                                                                                                                                              | [Configuration CLI flags](configuration.md#sase-tool)                                                                            |
 | `sase tool runs`                        | List recorded ToolRuns for the current project (or `-a` for every project).                                                                                                                                                                                                                                                                                              | [Configuration CLI flags](configuration.md#sase-tool)                                                                            |
-| `sase tool show`                        | Show one ToolRun by exact id; `-j` emits JSON and `-l` replays retained stdout/stderr.                                                                                                                                                                                                                                                                                   | [Configuration CLI flags](configuration.md#sase-tool)                                                                            |
+| `sase tool show`                        | Show one ToolRun by exact id, including evidence completeness, repository/input mutation, toolchain probes, stage timing, unattributed time, and host samples; `-j` emits JSON and `-l` replays retained stdout/stderr.                                                                                                                                                  | [Configuration CLI flags](configuration.md#sase-tool)                                                                            |
 | `sase disk` / `disk list`               | Attribute SASE disk usage by owner, section, coverage, horizon, and path; bare `sase disk` defaults to `list`, and `-j` emits JSON.                                                                                                                                                                                                                                      | [Configuration CLI flags](configuration.md#sase-disk)                                                                            |
 | `sase disk reap`                        | Preview owner cleanup passes, or run them with `--apply`; exits `1` when any owner step is blocked or fails. Unowned Cargo-shaped strays are reported but never deleted by this command.                                                                                                                                                                                 | [Configuration CLI flags](configuration.md#sase-disk)                                                                            |
 | `sase workspace list`                   | List one project's registry or use `--all` for the cross-project workspace inventory.                                                                                                                                                                                                                                                                                    | [Workspace provider](workspace.md)                                                                                               |

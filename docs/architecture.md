@@ -12,7 +12,8 @@ reviewed, retried, and handed off through stable project artifacts.
 | Area         | Responsibility                                                                                                                                    | Main References                                                    |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                                                   | [CLI reference](cli.md)                                            |
-| sase's TUI   | Interactive TUI for Patches, agents, notifications, artifacts, and axe status.                                                                    | [sase's TUI](ace.md)                                               |
+| sase's TUI   | Interactive TUI for Patches, agents, notifications, artifacts, and service status.                                                                | [sase's TUI](ace.md)                                               |
+| Service host | Beta per-machine supervisor for configured daemon procs and transient oneshots; it can own the scheduler and mobile gateway.                      | [CLI reference](cli.md#sase-service)                               |
 | Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                                            | [Axe](axe.md)                                                      |
 | XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                                          | [XPrompts](xprompt.md)                                             |
 | Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                                   | [Workflow spec](workflow_spec.md)                                  |
@@ -110,10 +111,19 @@ a hold in `~/.sase/agent_holds.json` that selects agents or proc shells by name,
 or hood; it can freeze the WAITING/QUEUED agents already in scope and fence launches
 submitted later. Runner admission and undispatched `%proc` dispatch both consult active
 holds. A hold ends when it is released, when its armer settles or exits, or when its TTL
-expires, and a broken hold store fails open rather than stranding a waiter. The beta
+expires, and a broken hold store fails open rather than stranding a waiter. The
 [`%hold` directive](xprompt.md#hold-directive) describes the same selectors in prompt
-text; it is parsed and previewed today, but arming at launch submission has not landed
-yet.
+text. Typed launches pre-arm the declared hold before admission can dispatch the unit,
+then rebind it to the running agent or proc; terminal units that never dispatch release
+their pre-armed holds.
+
+The beta service host is a machine-level supervisor gated by `service_host`. Its
+`service.procs` catalog comes from builtin, plugin, user, and machine-overlay config;
+project-local entries are intentionally ignored. The shipped `scheduler` proc runs AXE
+routines and jobs, while the shipped `gateway` proc is disabled by default. Native user
+units (`systemd --user` on Linux and LaunchAgents on macOS) can keep the host alive
+across TUI and login-session lifetimes. The legacy `sase axe` commands remain the direct
+scheduler control surface when the flag is off.
 
 On Linux, when detached work starts inside a SASE-owned systemd unit or scope (such as
 `sase.service` or an axe scope), agent runners, launch-admission coordinators, proc
@@ -177,6 +187,7 @@ The project-adjacent taxonomy has three non-overlapping roles:
 | Interaction gates | `~/.sase/interaction_requests/<kind>/<request-id>/`                              | Immutable request bundles, owned commands and resources, write-once decision receipts, and terminal responses for user decisions.                                                              |
 | Procs             | `~/.sase/procs/`                                                                 | Rust-owned proc rows, logs, and runtime directories for `%proc` shells, gate answers, and other supervised background commands.                                                                |
 | Agent holds       | `~/.sase/agent_holds.json`                                                       | Durable reverse-wait holds consulted by runner admission and undispatched `%proc` dispatch.                                                                                                    |
+| Service state     | `~/.sase/service/`                                                               | Service-host lock, status, machine enablement/stop overrides, captured environment, and bounded host/proc logs.                                                                                |
 | Managed temp      | `$SASE_TMPDIR`, else `~/.sase/tmp/`                                              | Per-launch agent scratch, Cargo targets, handoff files, and workflow scratch, bounded by the owner reaper and runner-exit cleanup.                                                             |
 | Workspace claims  | Running-field state and provider metadata                                        | Reservation and release of numbered workspaces for parallel agents.                                                                                                                            |
 | Workspace stores  | Per-project `registry.json` under the configured workspace root                  | Checkout paths, role/materialization, pins, generation, created/last-used times, and cleanup eligibility.                                                                                      |

@@ -125,9 +125,11 @@ sase's TUI has three top-level tabs:
   mentor activity all in one place. The [Patch guide](change_spec.md) goes deeper when
   you're curious. This first read-only run should not have created one yet; editable
   committed work is where Patches appear.
-- **Axe** — the background daemon's view: scheduled jobs, hooks waiting to complete,
-  mentor launches, error digests. sase's TUI auto-starts AXE the first time it opens, so
-  this tab is already ticking before you click it.
+- **Services** — machine services, scheduled jobs, hooks waiting to complete, mentor
+  launches, and error digests. With the `service_host` beta flag enabled, this includes
+  every configured service proc and nests scheduled work below `scheduler`; otherwise it
+  presents the legacy Axe daemon. sase's TUI starts the active controller unless you
+  pass `--no-service`.
 
 The top bar's colored `+<project>` chip is the [current project](ace.md#current-project)
 — the project you most recently launched an agent on (or promoted with
@@ -136,8 +138,8 @@ First-open Artifacts filters seed from it; they do not lock you into that projec
 `?` for help and `q` to quit.
 
 **What you just did.** Observed one `sase run` produce a persistent agent artifact
-visible in [sase's TUI](ace.md), with [AXE](axe.md) handling lifecycle work in the
-background.
+visible in [sase's TUI](ace.md), with the [scheduler](axe.md) handling lifecycle work in
+the background.
 
 ## Step 5 — Try One Tiny Edit
 

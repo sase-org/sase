@@ -558,10 +558,11 @@ of creating a new one.
   tags; later checks append `Still blocked on …` evidence.
 - **Hold armed and released.** Arming a `sase agent hold` admission hold posts one
   `agent_hold` row per armer with the `agent-hold` and `armed` tags, its expiry, and any
-  frozen `pending` capture counts. (The beta [`%hold`](xprompt.md#hold-directive)
-  directive does not arm holds yet, so it posts no row.) Re-arming appends `+1`
+  frozen `pending` capture counts. The [`%hold`](xprompt.md#hold-directive) directive
+  pre-arms the same durable hold during launch submission. Re-arming appends `+1`
   evidence. A release posts an `agent-hold` / `released` row with the reason, including
-  an automatic release after the armer dies. A routine TTL expiry stays silent.
+  automatic release after the armer dies or the TTL expires. Expiry evidence names the
+  exact TTL boundary and retains the stored arm-time capture summary.
 - **Hold deadlocks.** When runner-slot admission finds that a held agent and the agent
   holding it are blocking each other, it posts a `Hold deadlock` row with the `hold`,
   `deadlock`, and `blocked` tags and both artifact directories. This happens when the

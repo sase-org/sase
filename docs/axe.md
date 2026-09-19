@@ -8,9 +8,12 @@ completion, mentor launch, workflow cleanup, comment polling, `%wait` dependency
 and error digests.
 
 Axe uses a multi-process architecture: an **Orchestrator** spawns multiple **Routines**,
-and each routine runs a subset of jobs on its own schedule. sase's TUI starts axe
-automatically unless launched with `sase tui --no-axe`; operators can also manage it
-directly with `sase axe start` and `sase axe stop`.
+and each routine runs a subset of jobs on its own schedule. The canonical lifecycle
+entry point is `sase scheduler`. With the `service_host` beta flag enabled, its start,
+stop, restart, and status commands operate on the host-managed `scheduler` service proc;
+otherwise they preserve the legacy Axe lifecycle. `sase scheduler run` always runs the
+orchestrator in the foreground. The `sase axe` surface remains available for advanced
+routine/job operations and legacy lifecycle control.
 
 ## Architecture
 
@@ -58,6 +61,11 @@ a nested subcommand.
 
 | Command                                | Description                                                                   |
 | -------------------------------------- | ----------------------------------------------------------------------------- |
+| `sase scheduler`                       | Show scheduler status; uses service-host or legacy mode according to the flag |
+| `sase scheduler start`                 | Start the host-managed scheduler proc or legacy Axe daemon                    |
+| `sase scheduler stop`                  | Stop the host-managed scheduler proc or legacy Axe daemon                     |
+| `sase scheduler restart`               | Restart the host-managed scheduler proc or legacy Axe daemon                  |
+| `sase scheduler run`                   | Run the scheduler orchestrator in the foreground in either mode               |
 | `sase axe start`                       | Start the orchestrator (spawns all routines)                                  |
 | `sase axe stop`                        | Stop the orchestrator gracefully                                              |
 | `sase axe stop --force`                | Also kill orphaned axe worker processes and reset PID state                   |
@@ -1667,7 +1675,10 @@ off the orchestrator's own scope.
 
 ## sase's TUI Integration
 
-The Axe tab in sase's TUI provides live monitoring of the daemon:
+The visible **Services** tab provides live monitoring of the scheduler. When
+`service_host` is enabled, the scheduler tree is nested below the top-level `scheduler`
+service proc alongside any other configured services; otherwise the tab uses this legacy
+Axe-only layout:
 
 - A routine tree sidebar (routine rows + their jobs as children + background-command
   rows)
@@ -1678,10 +1689,13 @@ The Axe tab in sase's TUI provides live monitoring of the daemon:
   visible but are not manually runnable; editing a generated row safely targets its base
   job and identifies the all-instances effect.
 - Start/stop the orchestrator (`x` key or `!x`) and runner counts
-- Footer shows a segmented `AXE` badge followed by daemon status: RUNNING, STOPPED,
-  STARTING, STOPPING, or RESTARTING
+- Footer shows the scheduler controller status: RUNNING, STOPPED, STARTING, STOPPING, or
+  RESTARTING
 
-The RESTARTING indicator appears when `sase tui --restart-axe` (`-R`) is used — the
-daemon restarts in the background while the TUI starts up normally.
+In service-host mode, select the top-level scheduler row before pressing `x` or `r`;
+those keys intentionally do nothing on its nested routines and jobs. `!x` controls the
+whole service host. The RESTARTING indicator appears when `sase tui --restart-service`
+(`--restart-axe`, `-R`) is used — the active controller restarts in the background while
+the TUI starts up normally.
 
-See [`docs/ace.md`](ace.md) for the full Axe tab keybinding reference.
+See [`docs/ace.md`](ace.md) for the full Services tab keybinding reference.

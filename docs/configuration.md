@@ -48,6 +48,7 @@ sections, environment variables, and CLI flags.
   - [runner_slots](#runner_slots)
   - [agent hold limits](#agent-hold-limits)
   - [procs](#procs)
+  - [service](#service)
   - [disk](#disk)
   - [managed_tmp](#managed_tmp)
   - [markdown](#markdown)
@@ -3924,6 +3925,73 @@ normal merged configuration: the bundled defaults always supply `procs.history_l
 which takes precedence over `tasks.history_limit`. Move the value to
 `procs.history_limit` to change retention.
 
+### service
+
+The beta per-machine service host supervises configured daemon procs and transient
+oneshots. The surface is gated by the default-off `service_host` feature flag. Its
+catalog is deliberately machine-owned: builtin defaults, plugin defaults, user config,
+and machine overlays compose field by field, while project-local `sase/sase.yml`
+`service:` entries are ignored. Lists replace earlier lists whole; `env` is the one map
+that merges key by key. A section-level error fails closed, while an invalid individual
+entry stays visible as unavailable and does not block valid peers.
+
+```yaml
+service:
+  procs:
+    scheduler:
+      builtin: scheduler
+      description: "SASE's background automation: routines and their jobs."
+    gateway:
+      builtin: gateway
+      description: "Mobile gateway HTTP API for remote agent dispatch."
+      enabled: false
+    indexer:
+      command: [my-indexer, --watch]
+      cwd: ~/work
+      env:
+        LOG_LEVEL: info
+      restart: on-failure
+      after: [scheduler]
+```
+
+The shipped `scheduler` entry is enabled and owns AXE routine/job automation when the
+service host is active. The shipped `gateway` entry is disabled so enabling the beta
+does not expose a mobile API on machines that never paired a phone. Builtin launchers
+must use the entry's own reserved name. A custom entry instead supplies exactly one
+`command`: a string runs through `sh -c`, while a string array runs directly as argv.
+
+| Field                                     | Type                               | Default      | Description                                                                                                                  |
+| ----------------------------------------- | ---------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `service.procs.<name>.description`        | string                             | -            | Human summary shown by the Services tab and `sase service proc show`.                                                        |
+| `service.procs.<name>.enabled`            | bool                               | `true`       | Desired machine state. Plugin entries and the builtin `gateway` default to `false`; a saved machine override can replace it. |
+| `service.procs.<name>.mode`               | `daemon`                           | `daemon`     | Config entries are daemons. Oneshots are transient submissions from `sase service proc run`.                                 |
+| `service.procs.<name>.command`            | string or non-empty string array   | -            | Shell command or exact argv. Mutually exclusive with `builtin`.                                                              |
+| `service.procs.<name>.builtin`            | `scheduler` or `gateway`           | -            | Reserved packaged launcher. Mutually exclusive with `command` and must equal the entry name.                                 |
+| `service.procs.<name>.cwd`                | string                             | inherited    | Working directory for the child.                                                                                             |
+| `service.procs.<name>.env`                | string map                         | `{}`         | Extra environment. `${NAME}` expands a captured variable at launch; `$$` is a literal dollar sign.                           |
+| `service.procs.<name>.restart`            | `always`, `on-failure`, or `never` | `on-failure` | Restart policy.                                                                                                              |
+| `service.procs.<name>.success_exit_codes` | integer array                      | `[]`         | Additional `0`-`255` exit codes treated as clean; zero is always clean.                                                      |
+| `service.procs.<name>.stop_signal`        | common signal name                 | `SIGTERM`    | Graceful stop signal, with or without the `SIG` prefix.                                                                      |
+| `service.procs.<name>.stop_timeout`       | seconds, `> 0` and `<= 3600`       | `10`         | Grace period before SIGKILL.                                                                                                 |
+| `service.procs.<name>.after`              | name array                         | `[]`         | Start ordering only. Unknown names warn and are dropped; a cycle makes every entry in it unavailable.                        |
+| `service.procs.<name>.log_max_bytes`      | integer, at least `4096`           | `2097152`    | Maximum retained bytes in the rotated proc output log.                                                                       |
+
+`sase service proc enable/disable` writes machine-local effective enablement without
+editing YAML. `start/stop` changes only the current boot: stop records a marker that is
+cleared on the next host boot, while restart clears it after a bounded stop. Use
+`sase service proc show NAME` to see where an effective entry and enablement came from.
+
+`sase service init --yes` installs an idempotent user unit (`sase.service` under
+`systemd --user` on Linux, `sh.sase.service` as a macOS LaunchAgent), captures only the
+allow-listed provider credentials, `PATH`, `SASE_FEATURE_FLAGS`, and configured mobile
+credential environment variable into a mode-`0600` file, retires legacy gateway/AXE
+units, enables the unit, and starts it. Planning and diffs redact every captured value.
+Linux warns when user linger is off because the service may then stop at logout. See
+[`sase service`](cli.md#sase-service) for lifecycle commands.
+
+Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`,
+`src/sase/service/config.py`, `src/sase/service/platform.py`
+
 ### disk
 
 Disk-pressure thresholds combine absolute byte floors with proportional free-space
@@ -5089,19 +5157,19 @@ subcommand. They do not steal `-f`/`-F` or `-p` from commands such as
 
 ### `sase tui`
 
-| Flag                            | Values                                                 | Default                          | Description                                                                                                                                                                                                                       |
-| ------------------------------- | ------------------------------------------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `[query]`                       | string                                                 | last used, first saved, or `!!!` | Query string for filtering Patches.                                                                                                                                                                                               |
-| `-m, --model-tier`              | `large`, `small`                                       | -                                | Override model tier for all LLM invocations.                                                                                                                                                                                      |
-| `-M, --model-size`              | `big`, `little`                                        | -                                | Deprecated alias for `--model-tier`.                                                                                                                                                                                              |
-| `-p, --profile`                 | optional path                                          | -                                | Profile the TUI session with pyinstrument. Without a path, write `ace-profiles/ace_profile_<timestamp>.txt` under SASE's managed temp root; after exit, print a shortened path and copy it to the system clipboard when possible. |
-| `-r, --refresh-interval`        | int (seconds)                                          | `10`                             | Auto-refresh interval (0 to disable).                                                                                                                                                                                             |
-| `-R, --restart-axe`             | flag                                                   | -                                | Restart the axe daemon on startup (no-op if axe is not running).                                                                                                                                                                  |
-| `-s, --sanity-refresh-interval` | int (seconds)                                          | `300`                            | Full sanity-refresh interval; missed watcher or change-token updates are still reconciled at least this often.                                                                                                                    |
-| `-t, --tab`                     | `artifacts`, `changespecs`, `patches`, `agents`, `axe` | `agents`                         | Tab to focus on startup (`changespecs` and `patches` are legacy aliases for `artifacts`).                                                                                                                                         |
-| `-T, --tmux`                    | flag                                                   | -                                | Launch sase's TUI in a new tmux window named `sase_tmux_<N>` and print the session/window target for external control.                                                                                                            |
-| `-x, --no-axe`                  | flag                                                   | -                                | Disable auto-starting the axe daemon.                                                                                                                                                                                             |
-| `-v, --vcs-provider`            | `git`, `hg`, `auto`                                    | -                                | Override VCS provider.                                                                                                                                                                                                            |
+| Flag                                     | Values                                                             | Default                          | Description                                                                                                                                                                                                                       |
+| ---------------------------------------- | ------------------------------------------------------------------ | -------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[query]`                                | string                                                             | last used, first saved, or `!!!` | Query string for filtering Patches.                                                                                                                                                                                               |
+| `-m, --model-tier`                       | `large`, `small`                                                   | -                                | Override model tier for all LLM invocations.                                                                                                                                                                                      |
+| `-M, --model-size`                       | `big`, `little`                                                    | -                                | Deprecated alias for `--model-tier`.                                                                                                                                                                                              |
+| `-p, --profile`                          | optional path                                                      | -                                | Profile the TUI session with pyinstrument. Without a path, write `ace-profiles/ace_profile_<timestamp>.txt` under SASE's managed temp root; after exit, print a shortened path and copy it to the system clipboard when possible. |
+| `-r, --refresh-interval`                 | int (seconds)                                                      | `10`                             | Auto-refresh interval (0 to disable).                                                                                                                                                                                             |
+| `-R, --restart-service`, `--restart-axe` | flag                                                               | -                                | Restart the service host on startup (or the legacy axe daemon when `service_host` is disabled); no-op if it is not running.                                                                                                       |
+| `-s, --sanity-refresh-interval`          | int (seconds)                                                      | `300`                            | Full sanity-refresh interval; missed watcher or change-token updates are still reconciled at least this often.                                                                                                                    |
+| `-t, --tab`                              | `artifacts`, `changespecs`, `patches`, `agents`, `services`, `axe` | `agents`                         | Tab to focus on startup. `services` and legacy `axe` select Services; `changespecs` and `patches` select Artifacts.                                                                                                               |
+| `-T, --tmux`                             | flag                                                               | -                                | Launch sase's TUI in a new tmux window named `sase_tmux_<N>` and print the session/window target for external control.                                                                                                            |
+| `-x, --no-service`, `--no-axe`           | flag                                                               | -                                | Disable auto-starting the service host (or the legacy axe daemon when the beta flag is off).                                                                                                                                      |
+| `-v, --vcs-provider`                     | `git`, `hg`, `auto`                                                | -                                | Override VCS provider.                                                                                                                                                                                                            |
 
 ### `sase screenshot`
 
@@ -5119,7 +5187,7 @@ detached `sase_ace_agents` session unless `--window` names an existing tmux targ
 | `-p, --press`     | tmux key    | -                   | Send one tmux key. Repeats interleave with `--type` and `-w` in argv order.                                   |
 | `-s, --size`      | `COLSxROWS` | `120x40`            | Geometry for a newly launched capture window.                                                                 |
 | `-S, --svg`       | flag        | -                   | Stop after live-app SVG export and skip PNG rasterization.                                                    |
-| `-t, --timeout`   | seconds     | `30`                | Overall capture deadline.                                                                                     |
+| `-t, --timeout`   | seconds     | `60`                | Overall capture deadline.                                                                                     |
 | `-T, --type`      | text        | -                   | Send literal TUI text (`tmux send-keys -l`). Repeats interleave with `-p` and `-w` in argv order.             |
 | `-w, --wait-for`  | regex       | -                   | Wait for captured tmux screen text to match a regex. Repeats interleave with `-p` and `--type` in argv order. |
 | `-W, --window`    | tmux target | launch a new window | Capture an existing `sase_tmux_*` window and never kill it after capture.                                     |
@@ -5145,6 +5213,37 @@ delegating. See [tmux Agent](ace.md#tmux-agent).
 `--renumber` is an internal hook invoked when an agent CLI window exits and is omitted
 from help. Outside tmux with no `--list`/`--dry-run`/`--json`, the command exits 2,
 explains that a tmux session is required, and still prints the catalog.
+
+### `sase service`
+
+All service-host commands require the `service_host` beta flag. Bare `sase service`
+defaults to `status`, and bare `sase service proc` defaults to `proc list`.
+
+| Command                                 | Flags / arguments                                                       | Description                                                                                           |
+| --------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `sase service status`                   | `-j, --json`                                                            | Show host/native-unit state and every configured proc; exits `0` for running/starting, otherwise `1`. |
+| `sase service start`                    | `-j, --json`                                                            | Start through the installed native unit when present, otherwise start a detached host.                |
+| `sase service stop`                     | `-j, --json`                                                            | Stop the host.                                                                                        |
+| `sase service restart`                  | `-j, --json`                                                            | Stop and start the host.                                                                              |
+| `sase service run`                      | -                                                                       | Run the host in the foreground until SIGINT/SIGTERM.                                                  |
+| `sase service logs`                     | `-n, --lines N`                                                         | Print the bounded host log (default 200 lines).                                                       |
+| `sase service init`                     | `-c/--check`, `-d/--diff`, `-f/--force`, `-y/--yes`                     | Plan, check, diff, or install/update the native user unit and captured environment.                   |
+| `sase service uninstall`                | same                                                                    | Plan, check, diff, or remove the native user unit.                                                    |
+| `sase service proc list`                | `-j, --json`                                                            | List effective enablement, desired state, runtime state, and summary.                                 |
+| `sase service proc show NAME`           | `-j, --json`                                                            | Show source, launcher, effective enablement, state, and log path.                                     |
+| `sase service proc logs NAME`           | `-n, --lines N`                                                         | Print one proc's bounded output log (default 200 lines).                                              |
+| `sase service proc start NAME`          | -                                                                       | Clear the boot-scoped stop marker and nudge the host.                                                 |
+| `sase service proc stop NAME`           | -                                                                       | Stop the proc until the next host boot.                                                               |
+| `sase service proc restart NAME`        | `-d, --delay SECONDS`                                                   | Stop, wait (default 0.5 seconds), clear the stop marker, and nudge the host.                          |
+| `sase service proc enable/disable NAME` | -                                                                       | Persist a machine-local enabled or disabled override.                                                 |
+| `sase service proc run -- COMMAND...`   | `-c/--cwd`, `-j/--json`, `-l/--label`, `-p/--project`, `-w/--workspace` | Submit a transient durable oneshot that is never added to daemon desired state.                       |
+
+Without `--yes`, `init` and `uninstall` only print the plan and the apply command. Their
+`--check` forms are read-only and return `1` for drift. `--force` allows a non-default
+`SASE_HOME` and uses a home-scoped unit identity; uninstalling that unit likewise
+requires `--force`. Platform lifecycle installation supports Linux systemd user units
+and macOS LaunchAgents. See [service configuration](#service) for entry fields and
+layering.
 
 ### `sase axe`
 
@@ -5788,6 +5887,22 @@ Direct agent execution (`SASE_AGENT_NAME`) defaults to compact output. `-q` forc
 compact and `-v` forces streaming. Recording failures warn once and still execute the
 child exactly once without inventing a durable id. Catalog, usage, and missing-run
 errors exit `2`. `sase tool run` returns the child's exit code, or `128+signal`.
+
+Each recorded run captures a bounded pre/post fingerprint of configured repositories,
+input globs, allow-listed environment names, and toolchain probes. It also samples host
+load at start, roughly every ten seconds, and finish. `sase tool show` reports evidence
+completeness, whether complete fingerprints prove an input mutation, dirty-path counts,
+toolchain summaries, and samples. A missing repository/input, timed-out probe,
+unsupported host field, or observation budget exhaustion remains explicit incomplete
+evidence; SASE never substitutes zero or claims `mutated_input` from incomplete
+fingerprints.
+
+For definitions with `stages: run_silent`, nested `tools/run_silent` calls append stage
+events to the same run. Compact completion and `sase tool show` render that timeline,
+including repeated or overlapping stages and the interval-union time not attributed to
+any stage. `-j` exposes the complete stage, fingerprint, and sample records. `-l` is a
+different mode: it replays retained stdout and stderr without claiming a total ordering
+between those streams.
 
 `LAST` is the newest native result for this project and definition. `TYPICAL` is the
 observed median duration of at most 30 normally exited native runs within 30 days.
