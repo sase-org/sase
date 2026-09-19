@@ -358,8 +358,8 @@ def test_active_holds_are_threaded_into_locked_admission(
         ) as scan,
         patch.object(
             run_agent_wait_slots,
-            "active_agent_hold_records",
-            return_value=[hold],
+            "snapshot_active_agent_holds",
+            return_value=([], [hold]),
         ) as active_holds,
         patch.object(
             run_agent_wait_slots,
@@ -445,8 +445,8 @@ def test_hold_barrier_blocker_writes_held_by_onto_the_waiting_marker(
         ),
         patch.object(
             run_agent_wait_slots,
-            "active_agent_hold_records",
-            return_value=[],
+            "snapshot_active_agent_holds",
+            return_value=([], []),
         ),
         patch.object(
             run_agent_wait_slots,
@@ -532,7 +532,9 @@ def test_hold_deadlock_upserts_a_deduped_notification(tmp_path: Path) -> None:
             run_agent_wait_slots, "_scan_runner_slot_records", side_effect=scan
         ),
         patch.object(
-            run_agent_wait_slots, "active_agent_hold_records", return_value=[hold]
+            run_agent_wait_slots,
+            "snapshot_active_agent_holds",
+            return_value=([], [hold]),
         ),
         patch.object(
             run_agent_wait_slots,
@@ -573,7 +575,7 @@ def test_real_agent_hold_parks_a_waiter_and_release_resumes_it(
     """A hold armed through the real store blocks admission until released.
 
     Unlike ``test_active_holds_are_threaded_into_locked_admission`` (which
-    mocks ``active_agent_hold_records`` to prove the wiring), this exercises
+    mocks ``snapshot_active_agent_holds`` to prove the wiring), this exercises
     the real Rust hold store end to end: arm, blocked claim, release,
     admitted claim.
     """

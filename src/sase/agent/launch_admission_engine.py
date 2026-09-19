@@ -27,7 +27,10 @@ from sase.agent.launch_admission_engine_helpers import (
     unit_by_logical_id,
     unpack_agent_dispatch,
 )
-from sase.agent.launch_admission_engine_holds import proc_hold_blocks
+from sase.agent.launch_admission_engine_holds import (
+    proc_hold_blocks,
+    proc_unit_blocked_by_hold,
+)
 from sase.agent.launch_hold import (
     reanchor_dispatched_agent_hold,
     release_unit_hold_if_terminal,
@@ -69,6 +72,7 @@ from sase.core.agent_launch_wire import (
     agent_launch_wire_to_json_dict,
 )
 from sase.core.atomic_json import write_json_marker_atomic
+from sase.core.runner_slots import runner_slot_admission_lock
 
 
 @dataclass(frozen=True)
@@ -217,30 +221,11 @@ class AdmissionEngine(AdmissionConditionMixin):
             fingerprint = str(action.get("fingerprint") or "")
             unit = unit_by_logical_id(self.plan, logical_id)
             if str(action.get("unit_kind") or "") == "proc":
-                capacity = self._proc_capacity_admission(unit)
-                if capacity is not None:
-                    if capacity.invalid:
-                        self._journal(
-                            logical_id,
-                            "launch_error",
-                            fingerprint=fingerprint,
-                            message=capacity.message
-                            or "proc capacity admission failed",
-                        )
-                        return None
-                    if not capacity.admitted:
-                        prior_waited = (self._states().get(logical_id) or {}).get(
-                            "waited_outcomes"
-                        ) or []
-                        self._journal(
-                            logical_id,
-                            "eligible",
-                            waited_outcomes=list(prior_waited),
-                            message=capacity.message
-                            or "proc blocked by runner capacity",
-                        )
-                        return "blocked"
-                self._journal(logical_id, "dispatching", fingerprint=fingerprint)
+                commit = self._commit_proc_pre_run(unit, fingerprint)
+                if commit == "blocked":
+                    return "blocked"
+                if commit == "failed":
+                    return None
                 proc_dispatcher = self.proc_dispatcher or dispatch_proc_unit
                 ok, identity, message, spawned = call_proc_dispatcher(
                     proc_dispatcher,
@@ -327,8 +312,60 @@ class AdmissionEngine(AdmissionConditionMixin):
             self._journal(logical_id, "launched", identity=identity)
         return None
 
+    def _commit_proc_pre_run(self, unit: LaunchUnitWire, fingerprint: str) -> str:
+        """Recheck holds and commit the proc's pre-run dispatch transition.
+
+        Returns ``committed`` after journaling ``dispatching`` under
+        ``runner_slots.lock``, ``blocked`` when a hold or capacity gate
+        still applies, or ``failed`` after journaling a launch error.
+        Process spawn stays outside the lock. Once ``dispatching`` is
+        journaled the proc is immune to later arms.
+        """
+        logical_id = unit.logical_id
+        invalid_capacity: ProcCapacityAdmission | None = None
+        blocked_capacity: ProcCapacityAdmission | None = None
+        with runner_slot_admission_lock():
+            if proc_unit_blocked_by_hold(
+                self.plan,
+                unit,
+                self._states().get(logical_id) or {},
+                request_id=self.request_id,
+                now_seconds=self.clock(),
+                notify=False,
+            ):
+                return "blocked"
+            capacity = self._proc_capacity_admission(unit, acquire_lock=False)
+            if capacity is not None and capacity.invalid:
+                invalid_capacity = capacity
+            elif capacity is not None and not capacity.admitted:
+                blocked_capacity = capacity
+            else:
+                self._journal(logical_id, "dispatching", fingerprint=fingerprint)
+                return "committed"
+        if invalid_capacity is not None:
+            self._journal(
+                logical_id,
+                "launch_error",
+                fingerprint=fingerprint,
+                message=invalid_capacity.message or "proc capacity admission failed",
+            )
+            return "failed"
+        prior_state = self._states().get(logical_id) or {}
+        prior_waited = prior_state.get("waited_outcomes") or []
+        self._journal(
+            logical_id,
+            "eligible",
+            waited_outcomes=list(prior_waited),
+            message=(
+                blocked_capacity.message
+                if blocked_capacity is not None and blocked_capacity.message
+                else "proc blocked by runner capacity"
+            ),
+        )
+        return "blocked"
+
     def _proc_capacity_admission(
-        self, unit: LaunchUnitWire
+        self, unit: LaunchUnitWire, *, acquire_lock: bool = True
     ) -> ProcCapacityAdmission | None:
         if not proc_requires_capacity_admission(unit):
             return None
@@ -346,6 +383,7 @@ class AdmissionEngine(AdmissionConditionMixin):
             requested_at=requested_at,
             eligible_since=self._proc_capacity_eligible_since.get(unit.logical_id),
             now=now_dt,
+            acquire_lock=acquire_lock,
         )
         if any(
             blocker.get("code") == "deference-window" for blocker in decision.blockers

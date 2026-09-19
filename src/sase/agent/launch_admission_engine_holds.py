@@ -13,6 +13,52 @@ from sase.core.agent_launch_wire import LaunchPlanWire, LaunchUnitWire, ProcUnit
 LOGGER = logging.getLogger(__name__)
 
 
+def proc_unit_blocked_by_hold(
+    plan: LaunchPlanWire,
+    unit: LaunchUnitWire,
+    state: Mapping[str, Any],
+    *,
+    request_id: str,
+    now_seconds: float,
+    notify: bool = False,
+) -> bool:
+    """Return whether one proc unit is currently blocked by an active hold.
+
+    Fail-open: a broken store or predicate never strands a dispatch. Unlike
+    :func:`proc_hold_blocks`, this evaluates the unit even when its journal
+    phase is not waiting/eligible, so a stale dispatch action is rechecked
+    at the committed pre-run transition.
+    """
+    now_dt = datetime.fromtimestamp(now_seconds, UTC)
+    try:
+        from sase.core.agent_hold_facade import (
+            active_agent_hold_records,
+            agent_hold_blocks_candidate,
+        )
+
+        active_holds = active_agent_hold_records(now=now_dt, notify=notify)
+        if not active_holds:
+            return False
+        candidate = _proc_hold_candidate(
+            plan,
+            unit,
+            state,
+            request_id=request_id,
+            now_seconds=now_seconds,
+        )
+        return any(
+            agent_hold_blocks_candidate(hold, candidate) is not None
+            for hold in active_holds
+        )
+    except Exception as exc:  # noqa: BLE001 - holds fail open by design.
+        LOGGER.warning(
+            "proc hold dispatch recheck failed open for %s: %s",
+            unit.logical_id,
+            exc,
+        )
+        return False
+
+
 def proc_hold_blocks(
     plan: LaunchPlanWire,
     states: Mapping[str, Mapping[str, Any]],
@@ -107,4 +153,4 @@ def _proc_hold_project(plan: LaunchPlanWire, payload: object) -> str:
     return "unknown"
 
 
-__all__ = ["proc_hold_blocks"]
+__all__ = ["proc_hold_blocks", "proc_unit_blocked_by_hold"]

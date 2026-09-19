@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import fcntl
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -14,6 +13,7 @@ from sase.core.runner_slots import (
     DEFAULT_WAIT_PRIORITY,
     HOLD_ARMER_WAIT_PRIORITY,
     runner_capacity_snapshot,
+    runner_slot_admission_lock,
     runner_slot_candidate_record,
 )
 
@@ -43,8 +43,13 @@ def evaluate_proc_capacity_admission(
     requested_at: str,
     eligible_since: str | None,
     now: datetime,
+    acquire_lock: bool = True,
 ) -> ProcCapacityAdmission:
-    """Evaluate proc queue intent through the shared runner-capacity engine."""
+    """Evaluate proc queue intent through the shared runner-capacity engine.
+
+    ``acquire_lock`` is false when the caller already holds
+    ``runner_slots.lock`` across a hold recheck and dispatch commit.
+    """
 
     payload = unit.payload
     if not isinstance(payload, ProcUnitWire):
@@ -58,7 +63,6 @@ def evaluate_proc_capacity_admission(
     )
     from sase.axe.run_agent_wait_slots import (
         record_liveness_probe,
-        runner_slot_lock_path,
         scan_runner_slot_records,
     )
     from sase.config.core import (
@@ -92,65 +96,63 @@ def evaluate_proc_capacity_admission(
     if selected_project:
         candidate["project_name"] = selected_project
 
-    lock_path = runner_slot_lock_path()
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+", encoding="utf-8") as lock_file:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+    def evaluate() -> ProcCapacityAdmission:
         try:
-            try:
-                effective_limit = float(get_max_running_agents())
-            except Exception as exc:  # noqa: BLE001 - admission fails closed.
-                return ProcCapacityAdmission(
-                    False,
-                    invalid=True,
-                    message=f"runner capacity limit unavailable: {exc}",
-                )
-            records = scan_runner_slot_records()
-            snapshot = runner_capacity_snapshot(
-                records,
-                record_liveness_probe(),
-                effective_limit=effective_limit,
-                now=now.isoformat(),
-                deference_seconds_per_step=(
-                    get_runner_slot_deference_seconds_per_step()
-                    if priority > DEFAULT_WAIT_PRIORITY
-                    else 0
-                ),
-                deference_max_seconds=(
-                    get_runner_slot_deference_max_seconds()
-                    if priority > DEFAULT_WAIT_PRIORITY
-                    else 0
-                ),
-                candidate=candidate,
+            effective_limit = float(get_max_running_agents())
+        except Exception as exc:  # noqa: BLE001 - admission fails closed.
+            return ProcCapacityAdmission(
+                False,
+                invalid=True,
+                message=f"runner capacity limit unavailable: {exc}",
             )
-            try:
-                decision = require_candidate_decision(snapshot, artifact_dir)
-            except Exception as exc:  # noqa: BLE001 - malformed is not admissible.
-                return ProcCapacityAdmission(
-                    False,
-                    invalid=True,
-                    message=str(exc),
-                )
-        finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-
-    blockers = _blockers(decision)
-    if decision["decision"] in {"acquire_capacity", "reuse_existing_claim"}:
-        return ProcCapacityAdmission(True, decision=decision)
-    if decision["decision"] == "invalid":
+        records = scan_runner_slot_records()
+        snapshot = runner_capacity_snapshot(
+            records,
+            record_liveness_probe(),
+            effective_limit=effective_limit,
+            now=now.isoformat(),
+            deference_seconds_per_step=(
+                get_runner_slot_deference_seconds_per_step()
+                if priority > DEFAULT_WAIT_PRIORITY
+                else 0
+            ),
+            deference_max_seconds=(
+                get_runner_slot_deference_max_seconds()
+                if priority > DEFAULT_WAIT_PRIORITY
+                else 0
+            ),
+            candidate=candidate,
+        )
+        try:
+            decision = require_candidate_decision(snapshot, artifact_dir)
+        except Exception as exc:  # noqa: BLE001 - malformed is not admissible.
+            return ProcCapacityAdmission(
+                False,
+                invalid=True,
+                message=str(exc),
+            )
+        blockers = _blockers(decision)
+        if decision["decision"] in {"acquire_capacity", "reuse_existing_claim"}:
+            return ProcCapacityAdmission(True, decision=decision)
+        if decision["decision"] == "invalid":
+            return ProcCapacityAdmission(
+                False,
+                invalid=True,
+                message=decision_blocker_message(decision),
+                blockers=blockers,
+                decision=decision,
+            )
         return ProcCapacityAdmission(
             False,
-            invalid=True,
             message=decision_blocker_message(decision),
             blockers=blockers,
             decision=decision,
         )
-    return ProcCapacityAdmission(
-        False,
-        message=decision_blocker_message(decision),
-        blockers=blockers,
-        decision=decision,
-    )
+
+    if acquire_lock:
+        with runner_slot_admission_lock():
+            return evaluate()
+    return evaluate()
 
 
 def _blockers(decision: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:

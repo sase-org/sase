@@ -4,6 +4,8 @@ The global participating-agent cap is enforced by a check-and-claim under a
 single host-wide lock: each candidate reads the shared capacity-only scan,
 decides whether it may start, and either claims RUNNING atomically or
 publishes a ``waiting.json`` queue marker and retries with jittered backoff.
+Hold publication uses the same ``runner_slots.lock`` so an arm cannot land
+between the hold snapshot and claim.
 
 Marker-state decoding (priority, queue weight, eligibility) lives in
 ``run_agent_wait_slot_state``, and candidate-decision handling (parking,
@@ -11,7 +13,6 @@ enrichment, claim publication) lives in ``run_agent_wait_slot_candidate``;
 both are imported here so the admission loop below reads as one flow.
 """
 
-import fcntl
 import sys
 import time
 from collections.abc import Callable
@@ -56,21 +57,23 @@ from sase.config.core import (
     get_runner_slot_deference_max_seconds,
     get_runner_slot_deference_seconds_per_step,
 )
+from sase.core.agent_hold_facade import (
+    candidate_created_at_from_timestamp,
+    snapshot_active_agent_holds,
+)
 from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
-from sase.core.agent_hold_facade import (
-    active_agent_hold_records,
-    candidate_created_at_from_timestamp,
-)
-from sase.core.paths import sase_home, sase_projects_dir
+from sase.core.agent_hold_notifications import notify_liveness_dropped_holds
+from sase.core.paths import sase_projects_dir
 from sase.core.runner_slots import (
     DEFAULT_WAIT_PRIORITY,
     deference_window_seconds,
     load_or_refresh_runner_slot_scan,
     notify_runner_slot_state_changed,
     runner_capacity_snapshot,
+    runner_slot_admission_lock,
     runner_slot_candidate_record,
     runner_slot_state_token,
 )
@@ -84,14 +87,6 @@ _RUNNER_SLOT_SCAN_OPTIONS = AgentArtifactScanOptionsWire(
     include_done_markers=False,
     capacity_only=True,
 )
-
-
-def _runner_slot_lock_path() -> Path:
-    return sase_home() / "runner_slots.lock"
-
-
-def runner_slot_lock_path() -> Path:
-    return _runner_slot_lock_path()
 
 
 def _collect_runner_slot_records() -> list[AgentArtifactRecordWire]:
@@ -177,137 +172,140 @@ def _try_claim_runner_slot(
     first published the slot queue marker. When ``park_on_block`` is false, a
     blocked or limit-unavailable decision leaves no waiting marker and
     returns ``(None, False)`` so the caller may proceed unclaimed.
+
+    The hold snapshot and claim share ``runner_slots.lock`` with hold
+    publication. Lifecycle and deadlock notifications are sent after the
+    lock is released.
     """
-    lock_path = runner_slot_lock_path()
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+", encoding="utf-8") as lock_file:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+    holds_before: list[dict[str, Any]] = []
+    holds_after: list[dict[str, Any]] = []
+    hold_now: datetime | None = None
+    deadlocks: list[tuple[str, str | None, str, AgentArtifactRecordWire]] = []
+    with runner_slot_admission_lock():
+        waiting_path = Path(artifacts_dir) / "waiting.json"
+        waiting_data = read_json_dict(waiting_path)
+        priority, priority_explicit = marker_priority_state(
+            waiting_data,
+            directive_priority,
+            implied_priority=directive_priority_implied,
+        )
+        queue_weight, queue_weight_explicit = marker_queue_weight_state(
+            waiting_data,
+            directive_queue_weight,
+            directive_queue_weight_explicit,
+        )
+        queue_capacity: int | None = None
+        queue_capacity_explicit = False
         try:
-            waiting_path = Path(artifacts_dir) / "waiting.json"
-            waiting_data = read_json_dict(waiting_path)
-            priority, priority_explicit = marker_priority_state(
-                waiting_data,
-                directive_priority,
-                implied_priority=directive_priority_implied,
+            queue_capacity, queue_capacity_explicit = marker_runner_condition_state(
+                waiting_data, directive_threshold
             )
-            queue_weight, queue_weight_explicit = marker_queue_weight_state(
-                waiting_data,
-                directive_queue_weight,
-                directive_queue_weight_explicit,
-            )
-            queue_capacity: int | None = None
-            queue_capacity_explicit = False
-            try:
-                queue_capacity, queue_capacity_explicit = marker_runner_condition_state(
-                    waiting_data, directive_threshold
-                )
-                effective_limit = float(get_max_running_agents())
-            except Exception as error:  # noqa: BLE001 - admission fails closed.
-                if not park_on_block:
-                    return abandon_unclaimed_attempt(artifacts_dir)
-                return park_for_unavailable_limit(
-                    artifacts_dir=artifacts_dir,
-                    cl_name=cl_name,
-                    timestamp=timestamp,
-                    waiting_data=waiting_data,
-                    priority=priority,
-                    priority_explicit=priority_explicit,
-                    queue_weight=queue_weight,
-                    queue_weight_explicit=queue_weight_explicit,
-                    queue_capacity=queue_capacity,
-                    queue_capacity_explicit=queue_capacity_explicit,
-                    error=error,
-                )
-            requested_at = (
-                waiting_data.get("slot_requested_at")
-                if waiting_data is not None
-                else None
-            )
-            if not isinstance(requested_at, str) or not requested_at:
-                requested_at = datetime.now(UTC).isoformat()
-            marker_eligible_since = (
-                waiting_data.get("eligible_since") if waiting_data is not None else None
-            )
-            candidate = runner_slot_candidate_record(
-                artifacts_dir=artifacts_dir,
-                timestamp=timestamp,
-                slot_requested_at=requested_at,
-                queue_capacity=queue_capacity,
-                queue_capacity_explicit=queue_capacity_explicit,
-                wait_priority=priority,
-                queue_weight=queue_weight,
-                queue_weight_explicit=queue_weight_explicit,
-                eligible_since=(
-                    marker_eligible_since
-                    if isinstance(marker_eligible_since, str)
-                    else None
-                ),
-                agent_name=_agent_meta_str(agent_meta, "name"),
-                workflow=_agent_meta_str(agent_meta, "workflow_name"),
-                clan=_agent_meta_str(agent_meta, "agent_clan"),
-                tribe=_agent_meta_str(agent_meta, "tribe"),
-                agent_family=_agent_meta_str(agent_meta, "agent_family"),
-                created_at=candidate_created_at_from_timestamp(timestamp),
-                cl_name=cl_name or _agent_meta_str(agent_meta, "cl_name"),
-                clan_generation=_agent_meta_str(agent_meta, "agent_clan_generation"),
-                clan_tribe=_agent_meta_str(agent_meta, "clan_tribe"),
-                parent_timestamp=_agent_meta_str(agent_meta, "parent_timestamp"),
-            )
-            records = scan_runner_slot_records()
-            queue_weight_error = candidate_scan_queue_weight_error(
-                records,
-                artifacts_dir,
-            )
-            if queue_weight_error is not None:
-                raise queue_weight_error
-            candidate = enrich_candidate_from_records(candidate, records)
-            now = datetime.now(UTC)
-            active_holds = active_agent_hold_records(records, now=now)
-            is_live = record_liveness_probe()
-            snapshot = runner_capacity_snapshot(
-                records,
-                is_live,
-                effective_limit=effective_limit,
-                now=now.isoformat(),
-                deference_seconds_per_step=(
-                    get_runner_slot_deference_seconds_per_step()
-                    if priority > DEFAULT_WAIT_PRIORITY
-                    else 0
-                ),
-                deference_max_seconds=(
-                    get_runner_slot_deference_max_seconds()
-                    if priority > DEFAULT_WAIT_PRIORITY
-                    else 0
-                ),
-                candidate=candidate,
-                active_holds=active_holds,
-            )
-            decision = require_candidate_decision(snapshot, artifacts_dir)
-            if decision["decision"] == "invalid":
-                raise RunnerSlotAdmissionError(decision_blocker_message(decision))
-            if decision["decision"] in ("reuse_existing_claim", "acquire_capacity"):
-                publish_claim_ownership(
-                    artifacts_dir=artifacts_dir,
-                    agent_meta=agent_meta,
-                    queue_weight=float(decision["effective_weight"]),
-                    queue_weight_explicit=queue_weight_explicit,
-                    runner_claim_owner_key=decision["lineage_key"],
-                )
-                run_started_at = claim()
-                notify_runner_slot_state_changed()
-                remove_waiting_marker(artifacts_dir)
-                return run_started_at, False
+            effective_limit = float(get_max_running_agents())
+        except Exception as error:  # noqa: BLE001 - admission fails closed.
             if not park_on_block:
                 return abandon_unclaimed_attempt(artifacts_dir)
+            return park_for_unavailable_limit(
+                artifacts_dir=artifacts_dir,
+                cl_name=cl_name,
+                timestamp=timestamp,
+                waiting_data=waiting_data,
+                priority=priority,
+                priority_explicit=priority_explicit,
+                queue_weight=queue_weight,
+                queue_weight_explicit=queue_weight_explicit,
+                queue_capacity=queue_capacity,
+                queue_capacity_explicit=queue_capacity_explicit,
+                error=error,
+            )
+        requested_at = (
+            waiting_data.get("slot_requested_at") if waiting_data is not None else None
+        )
+        if not isinstance(requested_at, str) or not requested_at:
+            requested_at = datetime.now(UTC).isoformat()
+        marker_eligible_since = (
+            waiting_data.get("eligible_since") if waiting_data is not None else None
+        )
+        candidate = runner_slot_candidate_record(
+            artifacts_dir=artifacts_dir,
+            timestamp=timestamp,
+            slot_requested_at=requested_at,
+            queue_capacity=queue_capacity,
+            queue_capacity_explicit=queue_capacity_explicit,
+            wait_priority=priority,
+            queue_weight=queue_weight,
+            queue_weight_explicit=queue_weight_explicit,
+            eligible_since=(
+                marker_eligible_since
+                if isinstance(marker_eligible_since, str)
+                else None
+            ),
+            agent_name=_agent_meta_str(agent_meta, "name"),
+            workflow=_agent_meta_str(agent_meta, "workflow_name"),
+            clan=_agent_meta_str(agent_meta, "agent_clan"),
+            tribe=_agent_meta_str(agent_meta, "tribe"),
+            agent_family=_agent_meta_str(agent_meta, "agent_family"),
+            created_at=candidate_created_at_from_timestamp(timestamp),
+            cl_name=cl_name or _agent_meta_str(agent_meta, "cl_name"),
+            clan_generation=_agent_meta_str(agent_meta, "agent_clan_generation"),
+            clan_tribe=_agent_meta_str(agent_meta, "clan_tribe"),
+            parent_timestamp=_agent_meta_str(agent_meta, "parent_timestamp"),
+        )
+        records = scan_runner_slot_records()
+        queue_weight_error = candidate_scan_queue_weight_error(
+            records,
+            artifacts_dir,
+        )
+        if queue_weight_error is not None:
+            raise queue_weight_error
+        candidate = enrich_candidate_from_records(candidate, records)
+        hold_now = datetime.now(UTC)
+        holds_before, holds_after = snapshot_active_agent_holds(records, now=hold_now)
+        is_live = record_liveness_probe()
+        snapshot = runner_capacity_snapshot(
+            records,
+            is_live,
+            effective_limit=effective_limit,
+            now=hold_now.isoformat(),
+            deference_seconds_per_step=(
+                get_runner_slot_deference_seconds_per_step()
+                if priority > DEFAULT_WAIT_PRIORITY
+                else 0
+            ),
+            deference_max_seconds=(
+                get_runner_slot_deference_max_seconds()
+                if priority > DEFAULT_WAIT_PRIORITY
+                else 0
+            ),
+            candidate=candidate,
+            active_holds=holds_after,
+        )
+        decision = require_candidate_decision(snapshot, artifacts_dir)
+        if decision["decision"] == "invalid":
+            raise RunnerSlotAdmissionError(decision_blocker_message(decision))
+        if decision["decision"] in ("reuse_existing_claim", "acquire_capacity"):
+            publish_claim_ownership(
+                artifacts_dir=artifacts_dir,
+                agent_meta=agent_meta,
+                queue_weight=float(decision["effective_weight"]),
+                queue_weight_explicit=queue_weight_explicit,
+                runner_claim_owner_key=decision["lineage_key"],
+            )
+            run_started_at = claim()
+            notify_runner_slot_state_changed()
+            remove_waiting_marker(artifacts_dir)
+            result: tuple[str | None, bool] = (run_started_at, False)
+        elif not park_on_block:
+            result = abandon_unclaimed_attempt(artifacts_dir)
+        else:
             eligible_since: str | None = None
             entered_deference = False
             deference_window = 0.0
             blocker_codes = candidate_blocker_codes(decision.get("blockers"))
-            _check_hold_deadlocks(
+            deadlocks = _hold_deadlock_armers(
                 artifacts_dir=artifacts_dir,
                 candidate=candidate,
                 blockers=decision.get("blockers"),
-                active_holds=active_holds,
+                active_holds=holds_after,
                 records=records,
             )
             if "deference-window" in blocker_codes:
@@ -318,7 +316,7 @@ def _try_claim_runner_slot(
                 )
                 eligible_since, entered_deference = continuous_eligibility_start(
                     marker_eligible_since,
-                    now,
+                    hold_now,
                 )
             marker = dict(waiting_data or {})
             marker.pop("runner_limit_unavailable", None)
@@ -352,9 +350,17 @@ def _try_claim_runner_slot(
                 print(
                     f"Deferring for up to {deference_window:g}s (priority {priority})"
                 )
-            return None, parked
-        finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+            result = (None, parked)
+    if hold_now is not None:
+        notify_liveness_dropped_holds(holds_before, holds_after, now=hold_now)
+    for artifacts, agent_name, held_by, armer_record in deadlocks:
+        _notify_hold_deadlock(
+            artifacts_dir=artifacts,
+            candidate_agent_name=agent_name,
+            held_by=held_by,
+            armer_record=armer_record,
+        )
+    return result
 
 
 def _notify_hold_deadlock(
@@ -407,17 +413,20 @@ def _notify_hold_deadlock(
     )
 
 
-def _check_hold_deadlocks(
+def _hold_deadlock_armers(
     *,
     artifacts_dir: str,
     candidate: dict[str, Any],
     blockers: object,
     active_holds: list[dict[str, Any]],
     records: list[AgentArtifactRecordWire],
-) -> None:
+) -> list[tuple[str, str | None, str, AgentArtifactRecordWire]]:
     if not isinstance(blockers, list):
-        return
+        return []
     candidate_agent_name = candidate.get("agent_name")
+    if not isinstance(candidate_agent_name, str):
+        candidate_agent_name = None
+    found: list[tuple[str, str | None, str, AgentArtifactRecordWire]] = []
     for blocker in blockers:
         if not isinstance(blocker, dict) or blocker.get("code") != "hold-barrier":
             continue
@@ -431,12 +440,8 @@ def _check_hold_deadlocks(
             records=records,
         )
         if armer_record is not None:
-            _notify_hold_deadlock(
-                artifacts_dir=artifacts_dir,
-                candidate_agent_name=candidate_agent_name,
-                held_by=held_by,
-                armer_record=armer_record,
-            )
+            found.append((artifacts_dir, candidate_agent_name, held_by, armer_record))
+    return found
 
 
 def try_claim_runner_slot_without_parking(
@@ -530,13 +535,7 @@ def wait_for_runner_slot(
             token=runner_slot_state_token,
         )
 
-    lock_path = runner_slot_lock_path()
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with lock_path.open("a+", encoding="utf-8") as lock_file:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-        try:
-            remove_waiting_marker(artifacts_dir)
-        finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+    with runner_slot_admission_lock():
+        remove_waiting_marker(artifacts_dir)
     print("Agent killed while waiting for a runner slot", file=sys.stderr)
     sys.exit(128 + 15)

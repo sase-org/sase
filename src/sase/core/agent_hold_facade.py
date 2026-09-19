@@ -6,6 +6,11 @@ CLI/directive-facing service functions below it -- :func:`arm_agent_hold`,
 :func:`release_agent_hold`, :func:`list_current_agent_holds` -- are the
 opposite: they are direct user actions, so Rust validation and lock-timeout
 errors propagate instead of being swallowed.
+
+Hold publication (:func:`arm_agent_hold`) and the final pre-run admission
+transition share ``runner_slots.lock``. Lock order is bundle admission, then
+runner slots, then the Rust hold store. Capture, notifications, and process
+spawn stay outside those two inner locks.
 """
 
 from __future__ import annotations
@@ -55,20 +60,35 @@ from sase.procs.models import Proc
 LOGGER = logging.getLogger(__name__)
 
 
-def active_agent_hold_records(
+def snapshot_active_agent_holds(
     records: Sequence[AgentArtifactRecordWire] | None = None,
     *,
     now: datetime | float | None = None,
-) -> list[dict[str, Any]]:
-    """Return validated active holds, or an empty list on hold-store failures."""
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return ``(before, after)`` active holds without sending notifications.
+
+    Fail-open: a broken store yields two empty lists. Callers that already
+    hold ``runner_slots.lock`` must notify only after releasing it.
+    """
     try:
-        before, after = _list_and_reconcile_holds(
+        return _list_and_reconcile_holds(
             records or (), allow_index_scan=records is None, now=now
         )
     except Exception as exc:  # noqa: BLE001 - holds fail open by design.
         LOGGER.warning("agent hold snapshot failed open: %s", exc)
-        return []
-    notify_liveness_dropped_holds(before, after, now=now)
+        return [], []
+
+
+def active_agent_hold_records(
+    records: Sequence[AgentArtifactRecordWire] | None = None,
+    *,
+    now: datetime | float | None = None,
+    notify: bool = True,
+) -> list[dict[str, Any]]:
+    """Return validated active holds, or an empty list on hold-store failures."""
+    before, after = snapshot_active_agent_holds(records, now=now)
+    if notify:
+        notify_liveness_dropped_holds(before, after, now=now)
     return after
 
 
@@ -359,10 +379,17 @@ def arm_agent_hold(
     admission-path read, so Rust validation and lock-timeout failures must
     reach the caller instead of being swallowed.
 
+    Publication takes ``runner_slots.lock`` then the hold store so it
+    serializes with the final pre-run admission transition. Pending capture
+    runs before that lock; the armed notification is sent after releasing
+    it. A Rust validation or lock failure leaves no partial hold.
+
     ``armer`` defaults to :func:`current_armer_wire`. ``selectors``, when
     given, is the base selectors payload; ``names``, ``tribes``, ``hoods``,
     and ``future`` are ignored in that case.
     """
+    from sase.core.runner_slots import runner_slot_admission_lock
+
     armer_wire = (
         dict(armer)
         if armer is not None
@@ -391,17 +418,18 @@ def arm_agent_hold(
             artifact_dirs=artifact_dirs,
         )
     arm = require_rust_binding("agent_hold_arm_relative")
-    record = dict(
-        arm(
-            str(sase_home()),
-            armer_wire,
-            scope_wire,
-            selectors_wire,
-            float(ttl_seconds),
-            {},
-            epoch_seconds(now),
+    with runner_slot_admission_lock():
+        record = dict(
+            arm(
+                str(sase_home()),
+                armer_wire,
+                scope_wire,
+                selectors_wire,
+                float(ttl_seconds),
+                {},
+                epoch_seconds(now),
+            )
         )
-    )
     upsert_hold_armed_notification(record, capture, now=now)
     return AgentHoldArmResult(record=record, capture=capture)
 
@@ -517,4 +545,5 @@ __all__ = [
     "release_agent_hold",
     "release_proc_agent_holds",
     "resolve_hold_ttl_seconds",
+    "snapshot_active_agent_holds",
 ]

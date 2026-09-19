@@ -81,7 +81,11 @@ def dispatch_typed_launch_request(
     spawn_coordinator: bool = True,
     cancelled: Callable[[], bool] | None = None,
 ) -> ApprovedLaunchDispatchResult:
-    """Admit an approved typed plan, detaching only when waits remain."""
+    """Admit an approved typed plan, detaching only when waits remain.
+
+    Holds the per-request bundle admission lock for pre-arm and engine
+    progress. Inner lock order is ``runner_slots.lock`` then the hold store.
+    """
 
     plan = typed_plan_from_request(data)
     request_id = str(data.get("request_id") or "")

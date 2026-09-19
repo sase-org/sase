@@ -16,7 +16,6 @@ from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.core.agent_tribe import canonicalize_agent_tribe_metadata
-from sase.core.paths import sase_home
 from sase.history.prompt_store import PromptHistoryLoadError, rewrite_prompt_text_exact
 from sase.xprompt._directive_time import parse_absolute_time, parse_duration
 
@@ -470,14 +469,10 @@ def _agent_directive_lock(artifacts_path: Path) -> Iterator[None]:
 
 @contextmanager
 def _runner_slot_marker_lock() -> Iterator[None]:
-    lock_path = sase_home() / "runner_slots.lock"
-    lock_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(lock_path, "a+", encoding="utf-8") as lock_file:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+    from sase.core.runner_slots import runner_slot_admission_lock
+
+    with runner_slot_admission_lock():
+        yield
 
 
 __all__ = [

@@ -7,6 +7,7 @@ from ._admission import (
     running_agent_slot_count,
 )
 from ._admission_capacity_records import runner_slot_candidate_record
+from ._admission_lock import runner_slot_admission_lock, runner_slot_lock_path
 from ._admission_ordering import (
     deference_satisfied,
     deference_window_seconds,
@@ -58,8 +59,10 @@ __all__ = [
     "notify_runner_slot_state_changed",
     "runner_capacity_snapshot",
     "runner_capacity_snapshot_from_capacity_records",
+    "runner_slot_admission_lock",
     "runner_slot_candidate_record",
     "runner_slot_family_key",
+    "runner_slot_lock_path",
     "runner_slot_queue_display_key",
     "runner_slot_state_token",
     "runner_slot_waiter_sort_key",

@@ -211,14 +211,19 @@ def test_remote_clone_waits_for_host_clone_permit(
     held_fd = _hold_remote_clone_slot(lock_dir)
     sleeps: list[float] = []
     released = False
+    real_sleep = time.sleep
 
     def release_during_sleep(delay: float) -> None:
         nonlocal released
-        sleeps.append(delay)
-        if not released:
-            fcntl.flock(held_fd, fcntl.LOCK_UN)
-            os.close(held_fd)
-            released = True
+        # Patch targets stdlib time.sleep; intercept only the permit poll.
+        if delay == 0.1:
+            sleeps.append(delay)
+            if not released:
+                fcntl.flock(held_fd, fcntl.LOCK_UN)
+                os.close(held_fd)
+                released = True
+            return
+        real_sleep(delay)
 
     def successful_clone(args: list[str], **_kwargs):
         assert released
