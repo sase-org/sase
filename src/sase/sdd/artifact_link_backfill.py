@@ -262,16 +262,16 @@ def reconcile_and_repair_artifact_links(
     directly here: unlike interactive ``sase artifact doctor --fix``, no
     finalizer runs after this chop to pick up files a fix pass left dirty.
 
-    ``deadline`` is a ``time.monotonic()`` timestamp forwarded to the rename
-    repair. Interactive callers leave it unset so the doctor finishes its
-    work instead of deferring.
+    ``deadline`` is a ``time.monotonic()`` timestamp forwarded to the
+    aggregate reconcile and the rename repair. Interactive callers leave
+    it unset so the doctor finishes its work instead of deferring.
     """
 
     from sase.artifact_cli.link_health import dangling_and_orphaned_artifact_link_refs
     from sase.sdd._artifact_link_commit import commit_artifact_link_indexes
     from sase.sdd._artifact_link_renames import repair_historical_artifact_renames
 
-    store.reconcile_aggregate()
+    reconciled = store.reconcile_aggregate(deadline=deadline)
     refs = dangling_and_orphaned_artifact_link_refs(store)
     repair = repair_historical_artifact_renames(
         store,
@@ -290,7 +290,14 @@ def reconcile_and_repair_artifact_links(
     return _ArtifactLinkReconcileReport(
         repaired_renames=len(repair.renames),
         deferred_refs=repair.deferred_refs,
-        skip_diagnostics=tuple(getattr(repair, "skip_diagnostics", ()) or ()),
+        skip_diagnostics=tuple(
+            dict.fromkeys(
+                (
+                    *(str(item) for item in reconciled.get("skip_diagnostics", ())),
+                    *(getattr(repair, "skip_diagnostics", ()) or ()),
+                )
+            )
+        ),
     )
 
 

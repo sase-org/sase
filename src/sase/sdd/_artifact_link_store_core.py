@@ -12,7 +12,7 @@ from sase.sdd._artifact_link_event_store import (
     ArtifactLinkEventSnapshot,
     ArtifactLinkEventStoreAdapter,
 )
-from sase.sdd._artifact_link_cutover_state import artifact_link_indexes_imported
+from sase.sdd._artifact_link_cutover_state import inspect_artifact_link_cutover_markers
 from sase.sdd._artifact_link_store_support import (
     BEAD_KIND,
     kind_of_ref,
@@ -73,10 +73,16 @@ class ArtifactLinkStoreCoreMixin:
     ) -> bool:
         """Return whether a fresh companion index can prove row deletion."""
 
-        if artifact_link_indexes_imported(
+        inspection = inspect_artifact_link_cutover_markers(
             self.sidecar_roots,
             project_key=self.project_key,
-        ):
+        )
+        if inspection.state == "incomplete":
+            # A sibling (or even this store) with incomplete cutover cannot
+            # prove sidecar deletion; do not raise here. Write paths still
+            # fence through ``artifact_link_indexes_imported``.
+            return False
+        if inspection.imported:
             return any(
                 self.sidecar_root_for(str(row.get(key) or "")) is not None
                 for key in ("source_ref", "target_ref")
@@ -118,23 +124,53 @@ class ArtifactLinkStoreCoreMixin:
         stores: Iterable[ArtifactLinkStoreCoreMixin] | None = None,
         *,
         event_snapshot: ArtifactLinkEventSnapshot | None = None,
+        skip_diagnostics: list[str] | None = None,
     ) -> Callable[[Mapping[str, Any]], bool]:
         """Return a row predicate with pass-local freshness caches."""
 
         freshness = _FreshnessEvidence()
         observed_stores = tuple(stores or (self,))
+        if skip_diagnostics is not None:
+            for store in observed_stores:
+                if store is self:
+                    continue
+                try:
+                    inspection = inspect_artifact_link_cutover_markers(
+                        store.sidecar_roots,
+                        project_key=store.project_key,
+                    )
+                except Exception:  # noqa: BLE001 - sibling clones prove nothing.
+                    continue
+                if inspection.state == "incomplete":
+                    message = (
+                        "sibling clone cutover is incomplete; skipped sidecar truth"
+                    )
+                    if message not in skip_diagnostics:
+                        skip_diagnostics.append(message)
 
         def predicate(row: Mapping[str, Any]) -> bool:
             if event_snapshot is not None and event_snapshot.covers_row(row):
                 return True
-            return any(
-                store._authoritative_source_was_consulted(  # noqa: SLF001
-                    row,
-                    freshness=freshness,
-                    include_events=event_snapshot is None,
-                )
-                for store in observed_stores
-            )
+            for store in observed_stores:
+                try:
+                    consulted = store._authoritative_source_was_consulted(  # noqa: SLF001
+                        row,
+                        freshness=freshness,
+                        include_events=event_snapshot is None,
+                    )
+                except RuntimeError:
+                    if store is self:
+                        raise
+                    if skip_diagnostics is not None:
+                        message = (
+                            "sibling clone cutover is incomplete; skipped sidecar truth"
+                        )
+                        if message not in skip_diagnostics:
+                            skip_diagnostics.append(message)
+                    continue
+                if consulted:
+                    return True
+            return False
 
         return predicate
 

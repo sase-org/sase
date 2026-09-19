@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from pathlib import Path
+import time
 from typing import TYPE_CHECKING, Any
 
 from sase.artifact_ref_models import ArtifactRefContext
@@ -86,27 +87,44 @@ class ArtifactLinkStoreReconcileMixin:
             if self._row_is_publishable(row, context=context, cache=cache)
         )
 
-    def preview_reconciled_aggregate(self) -> dict[str, Any]:
+    def preview_reconciled_aggregate(
+        self, *, deadline: float | None = None
+    ) -> dict[str, Any]:
         """Return the cross-workspace aggregate reconciliation result.
 
-        Scans every visible workspace's sidecars and bead events, then
-        routes the collected rows plus the on-disk prior rows through the
-        same :func:`project_aggregate_rows` call :meth:`preview_aggregate`
+        Scans the hidden machine-lane clones plus the human primary
+        checkout's sidecars and bead events, then routes the collected
+        rows plus the on-disk prior rows through the same
+        :func:`project_aggregate_rows` call :meth:`preview_aggregate`
         uses to decide which rows survive: this pass and that one may see a
         different set of stores, never a different keep/drop rule for what
         they both see. The projection layer's rows come from this
         workspace alone, exactly as :meth:`preview_aggregate` computes them.
+
+        ``deadline`` is a ``time.monotonic()`` timestamp. Interactive and
+        doctor callers leave it unset. On expiry this pass stops starting
+        more stores, records a skip diagnostic, and returns from whatever
+        was already collected instead of raising.
         """
 
         prior = self.load_aggregate()
         collected: list[dict[str, Any]] = []
+        skip_diagnostics: list[str] = []
         stores = tuple(self._iter_reconciliation_stores())
         event_snapshot = self._reconciliation_event_snapshot(
             stores,
             include_local_pending=True,
+            deadline=deadline,
+            skip_diagnostics=skip_diagnostics,
         )
         collected.extend(event_snapshot.rows)
-        for store in stores:
+        for index, store in enumerate(stores):
+            if self._reconcile_deadline_expired(deadline):
+                self._note_reconcile_deadline_skip(
+                    skip_diagnostics,
+                    len(stores) - index,
+                )
+                break
             collected.extend(
                 self._iter_reconciliation_compatibility_rows(
                     store,
@@ -123,16 +141,28 @@ class ArtifactLinkStoreReconcileMixin:
                     self._authoritative_source_was_consulted_for_pass(
                         stores,
                         event_snapshot=event_snapshot,
+                        skip_diagnostics=skip_diagnostics,
                     )
                 ),
                 projected_rows=self.projected_rows(),
             ),
+            "skip_diagnostics": tuple(skip_diagnostics),
         }
 
-    def reconcile_aggregate(self) -> dict[str, Any]:
+    def reconcile_aggregate(self, *, deadline: float | None = None) -> dict[str, Any]:
         """Reconcile the aggregate with all visible workspace sidecar rows."""
 
-        return self._write_merged_aggregate(self.preview_reconciled_aggregate)
+        captured: list[str] = []
+
+        def compute_preview() -> dict[str, Any]:
+            preview = self.preview_reconciled_aggregate(deadline=deadline)
+            captured[:] = [str(item) for item in preview.pop("skip_diagnostics", ())]
+            return preview
+
+        written = self._write_merged_aggregate(compute_preview)
+        if captured:
+            written["skip_diagnostics"] = tuple(captured)
+        return written
 
     def backfill_bead_endpoint_links(self) -> dict[str, int]:
         """Write the inbound event a one-sided write never produced.
@@ -282,7 +312,12 @@ class ArtifactLinkStoreReconcileMixin:
         return None
 
     def _iter_reconciliation_stores(self) -> Iterable[ArtifactLinkStore]:
-        """Yield known workspace stores for aggregate reconciliation."""
+        """Yield known workspace stores for aggregate reconciliation.
+
+        Machine-lane aggregate reconcile reads the hidden clones (``self``)
+        plus the human primary checkout (workspace 0, or legacy 1), not
+        every ephemeral workspace copy of the same remotes.
+        """
 
         seen: set[tuple[tuple[tuple[str, str], ...], str | None]] = set()
 
@@ -298,6 +333,7 @@ class ArtifactLinkStoreReconcileMixin:
         try:
             from sase.repo_inventory import collect_repo_inventory
             from sase.sdd.store import resolve_sdd_store
+            from sase.workspace_provider.store import LEGACY_PRIMARY_WORKSPACE_NUM
 
             inventory = collect_repo_inventory(project=self.project_key)
         except Exception:  # noqa: BLE001 - reconciliation is best-effort.
@@ -307,6 +343,8 @@ class ArtifactLinkStoreReconcileMixin:
                 continue
             for clone in record.clones:
                 if not clone.exists:
+                    continue
+                if clone.workspace_num > LEGACY_PRIMARY_WORKSPACE_NUM:
                     continue
                 try:
                     workspace_num = (
@@ -344,16 +382,43 @@ class ArtifactLinkStoreReconcileMixin:
             if store._store_identity() == self._store_identity():
                 raise
 
+    def _reconcile_deadline_expired(self, deadline: float | None) -> bool:
+        return deadline is not None and time.monotonic() >= deadline
+
+    def _note_reconcile_deadline_skip(
+        self,
+        skip_diagnostics: list[str] | None,
+        remaining: int,
+    ) -> None:
+        if skip_diagnostics is None or remaining <= 0:
+            return
+        if any(
+            item.startswith("reconcile deadline expired") for item in skip_diagnostics
+        ):
+            return
+        skip_diagnostics.append(
+            f"reconcile deadline expired; skipped {remaining} remaining store(s)"
+        )
+
     def _reconciliation_event_snapshot(
         self,
         stores: Iterable[ArtifactLinkStore],
         *,
         include_local_pending: bool,
+        deadline: float | None = None,
+        skip_diagnostics: list[str] | None = None,
     ) -> ArtifactLinkEventSnapshot:
         durable_events: list[dict[str, Any]] = []
         pending_events: list[dict[str, Any]] = []
         local_identity = self._store_identity()
-        for store in stores:
+        remaining = tuple(stores)
+        for index, store in enumerate(remaining):
+            if self._reconcile_deadline_expired(deadline):
+                self._note_reconcile_deadline_skip(
+                    skip_diagnostics,
+                    len(remaining) - index,
+                )
+                break
             is_local = store._store_identity() == local_identity
             try:
                 snapshot = store.artifact_link_event_snapshot(

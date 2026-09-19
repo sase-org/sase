@@ -30,7 +30,7 @@ def test_reconciles_and_repairs_with_the_doctor_candidate_refs(
     monkeypatch.setattr(
         ArtifactLinkStore,
         "reconcile_aggregate",
-        lambda _store: reconcile_calls.append(1),
+        lambda _store, **_kwargs: reconcile_calls.append(1) or {},
     )
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
@@ -60,7 +60,9 @@ def test_commits_changed_paths_from_a_repair(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = _store(tmp_path, monkeypatch)
-    monkeypatch.setattr(ArtifactLinkStore, "reconcile_aggregate", lambda _store: None)
+    monkeypatch.setattr(
+        ArtifactLinkStore, "reconcile_aggregate", lambda _store, **_kwargs: {}
+    )
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
         lambda _store: (),
@@ -92,7 +94,9 @@ def test_no_changed_paths_does_not_commit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = _store(tmp_path, monkeypatch)
-    monkeypatch.setattr(ArtifactLinkStore, "reconcile_aggregate", lambda _store: None)
+    monkeypatch.setattr(
+        ArtifactLinkStore, "reconcile_aggregate", lambda _store, **_kwargs: {}
+    )
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
         lambda _store: (),
@@ -118,7 +122,17 @@ def test_forwards_deadline_and_deferred_refs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     store = _store(tmp_path, monkeypatch)
-    monkeypatch.setattr(ArtifactLinkStore, "reconcile_aggregate", lambda _store: None)
+    reconcile_kwargs: list[object] = []
+
+    def _fake_reconcile(_store: object, **kwargs: object) -> dict[str, object]:
+        reconcile_kwargs.append(kwargs)
+        return {
+            "skip_diagnostics": (
+                "reconcile deadline expired; skipped 1 remaining store(s)",
+            )
+        }
+
+    monkeypatch.setattr(ArtifactLinkStore, "reconcile_aggregate", _fake_reconcile)
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
         lambda _store: ("plan:202608/dangling.md",),
@@ -133,7 +147,12 @@ def test_forwards_deadline_and_deferred_refs(
         require_machine_writable: bool = False,
     ) -> SimpleNamespace:
         seen.append((deadline, require_machine_writable))
-        return SimpleNamespace(renames=(), changed_paths=(), deferred_refs=7)
+        return SimpleNamespace(
+            renames=(),
+            changed_paths=(),
+            deferred_refs=7,
+            skip_diagnostics=("rename deferred",),
+        )
 
     monkeypatch.setattr(
         "sase.sdd._artifact_link_renames.repair_historical_artifact_renames",
@@ -142,6 +161,11 @@ def test_forwards_deadline_and_deferred_refs(
 
     report = reconcile_and_repair_artifact_links(store, deadline=123.0)
 
+    assert reconcile_kwargs == [{"deadline": 123.0}]
     assert seen == [(123.0, True)]
     assert report.deferred_refs == 7
     assert report.repaired_renames == 0
+    assert report.skip_diagnostics == (
+        "reconcile deadline expired; skipped 1 remaining store(s)",
+        "rename deferred",
+    )

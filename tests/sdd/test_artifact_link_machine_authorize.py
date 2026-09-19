@@ -232,7 +232,9 @@ def test_reconcile_and_repair_reports_skip_and_does_not_commit(
     store = _link_store(plans, research)
     _init_git_repo(plans)
     _git(plans, "commit", "--allow-empty", "-m", "seed")
-    monkeypatch.setattr(ArtifactLinkStore, "reconcile_aggregate", lambda _store: None)
+    monkeypatch.setattr(
+        ArtifactLinkStore, "reconcile_aggregate", lambda _store, **_kwargs: {}
+    )
     monkeypatch.setattr(
         "sase.artifact_cli.link_health.dangling_and_orphaned_artifact_link_refs",
         lambda _store: ("plan:202608/old.md",),
