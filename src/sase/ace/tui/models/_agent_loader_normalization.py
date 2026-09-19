@@ -17,6 +17,7 @@ from ._dedup import (
     remove_vcs_workspace_claims,
 )
 from .agent import Agent
+from ._family_shell_membership import attach_unparented_family_shells
 from .agent_family_members import row_is_family_shell
 
 
@@ -90,6 +91,7 @@ def normalize_loaded_agents(
     agents = _filter_dead_pids(agents, is_process_running=is_process_running)
     agents = _deduplicate(agents)
     agents = materialize_imported_family_containers(agents)
+    attach_unparented_family_shells(agents)
     # Persisted diff-badge classification reads every referenced diff file and
     # dominates startup (~0.4 s over 213 rows). It is display enrichment that
     # nothing downstream depends on, so it is deferred to a background pass
