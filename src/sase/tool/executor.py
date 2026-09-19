@@ -19,6 +19,11 @@ from sase.config.tools import load_project_tool_catalog
 from sase.core.process_identity import process_identity_token
 from sase.core.tool_run import tool_run_begin, tool_run_finish
 from sase.supervision.logs import pump_output
+from sase.telemetry.metrics import (
+    TOOL_RUN_ATTEMPTS,
+    TOOL_RUN_RECORDING_ERRORS,
+    TOOL_RUN_SETTLEMENTS,
+)
 from sase.tool.argv import ResolvedToolArgv, ToolRunUsageError, resolve_run_argv
 from sase.tool.liveness import current_boot_id, reconcile_unsettled_tool_runs
 from sase.tool.logs import (
@@ -28,12 +33,14 @@ from sase.tool.logs import (
     log_policy,
     prepare_run_paths,
 )
+from sase.tool.observe import fingerprints_mutated, inc_tool_metric, observe_fingerprint
 from sase.tool.ownership import (
     ToolRunOwnerConflict,
     ToolRunOwnership,
     compact_requested,
     resolve_ownership,
 )
+from sase.tool.sample import LoadSampler
 from sase.tool.stage_protocol import (
     StageIngestor,
     format_unattributed_line,
@@ -41,7 +48,6 @@ from sase.tool.stage_protocol import (
 )
 
 # tools/_run_silent_record.py appends JSONL; this executor only tails and ingests.
-
 
 _TOOL_RUN_ID_ENV = "SASE_TOOL_RUN_ID"
 _TOOL_RUN_EVENTS_ENV = "SASE_TOOL_RUN_EVENTS"
@@ -184,6 +190,13 @@ def _execute_resolved(
         stdout_path = None
         stderr_path = None
         compact = False
+        inc_tool_metric(TOOL_RUN_ATTEMPTS, result="unrecorded")
+    else:
+        inc_tool_metric(TOOL_RUN_ATTEMPTS, result="recorded")
+
+    fingerprint_before: dict[str, Any] | None = None
+    if recorded:
+        fingerprint_before = observe_fingerprint(resolved)
 
     if signals.sigint or signals.sigterm:
         if recorded:
@@ -196,6 +209,12 @@ def _execute_resolved(
                     "wrapper SIGINT" if signals.sigint else "wrapper SIGTERM"
                 ),
                 duration_ms=0,
+                fingerprint_before=fingerprint_before,
+                fingerprint_after=observe_fingerprint(resolved) if recorded else None,
+            )
+            inc_tool_metric(
+                TOOL_RUN_SETTLEMENTS,
+                state="interrupted" if signals.sigint else "signaled",
             )
         return 130 if signals.sigint else 143
 
@@ -216,7 +235,10 @@ def _execute_resolved(
                 exit_code=exit_code,
                 diagnostics=[diagnostic],
                 duration_ms=_duration_ms(started),
+                fingerprint_before=fingerprint_before,
+                fingerprint_after=observe_fingerprint(resolved),
             )
+            inc_tool_metric(TOOL_RUN_SETTLEMENTS, state="failed")
         return exit_code
 
     child_pid = proc.pid
@@ -240,6 +262,7 @@ def _execute_resolved(
     )
     log_failed = False
     ingestor: StageIngestor | None = None
+    sampler: LoadSampler | None = None
     if recorded and events_path is not None:
         ingestor = StageIngestor(
             path=events_path,
@@ -247,6 +270,11 @@ def _execute_resolved(
             compact=compact,
             event_max_bytes=int(policy.get("event_max_bytes") or 0),
         )
+    if recorded:
+        sampler = LoadSampler(run_id=run_id, started=started)
+        sampler.maybe_sample(force=True)
+        if sampler.write_failures:
+            inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="sample")
 
     def on_stdout(chunk: bytes) -> None:
         nonlocal log_failed
@@ -270,6 +298,11 @@ def _execute_resolved(
         _write_display(sys.stderr, f"sase tool run {durable_id}\n".encode())
 
     def on_tick() -> None:
+        if sampler is not None:
+            before_failures = sampler.write_failures
+            sampler.maybe_sample()
+            if sampler.write_failures > before_failures:
+                inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="sample")
         if ingestor is None:
             return
         for line in ingestor.tick():
@@ -285,6 +318,12 @@ def _execute_resolved(
         stderr_sink.close()
     duration_ms = _duration_ms(started)
     ingest_diagnostics: list[str] = []
+    if sampler is not None:
+        before_failures = sampler.write_failures
+        sampler.maybe_sample(force=True)
+        sampler.stop()
+        if sampler.write_failures > before_failures:
+            inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="sample")
     if ingestor is not None:
         for line in ingestor.flush():
             _write_display(sys.stderr, f"{line}\n".encode())
@@ -294,6 +333,7 @@ def _execute_resolved(
 
     state, exit_code, signal_num, interruption = _settlement(wait_code, signals)
     if recorded:
+        fingerprint_after = observe_fingerprint(resolved)
         finished = _finish_run(
             run_id,
             state=state,
@@ -304,9 +344,13 @@ def _execute_resolved(
             child_pid=child_pid,
             child_pgid=child_pgid,
             diagnostics=ingest_diagnostics or None,
+            fingerprint_before=fingerprint_before,
+            fingerprint_after=fingerprint_after,
         )
         if not finished:
             _warn_once(_WARN_INCOMPLETE)
+            inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="finish")
+        inc_tool_metric(TOOL_RUN_SETTLEMENTS, state=state)
         _write_footer(
             durable_id=durable_id,
             state=state,
@@ -366,9 +410,13 @@ def _begin_run(
     try:
         started = tool_run_begin(request)
     except Exception:  # noqa: BLE001 - recording failure is fail-open.
+        inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="begin")
         return False
     run = started.get("run") if isinstance(started, dict) else None
-    return isinstance(run, dict) and str(run.get("state") or "") == "running"
+    ok = isinstance(run, dict) and str(run.get("state") or "") == "running"
+    if not ok:
+        inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="begin")
+    return ok
 
 
 def _finish_run(
@@ -382,6 +430,8 @@ def _finish_run(
     child_pid: int | None = None,
     child_pgid: int | None = None,
     diagnostics: list[str] | None = None,
+    fingerprint_before: dict[str, Any] | None = None,
+    fingerprint_after: dict[str, Any] | None = None,
 ) -> bool:
     payload: dict[str, Any] = {
         "schema_version": 1,
@@ -400,6 +450,13 @@ def _finish_run(
         payload["child_pgid"] = child_pgid
     if diagnostics:
         payload["diagnostics"] = diagnostics
+    if fingerprint_before is not None:
+        payload["fingerprint_before"] = fingerprint_before
+    if fingerprint_after is not None:
+        payload["fingerprint_after"] = fingerprint_after
+    mutated = fingerprints_mutated(fingerprint_before, fingerprint_after)
+    if mutated is not None:
+        payload["mutated_input"] = mutated
     try:
         tool_run_finish(payload)
     except Exception:  # noqa: BLE001 - never change the child result.

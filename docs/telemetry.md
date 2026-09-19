@@ -78,6 +78,24 @@ The default database path is `~/.sase/telemetry/metrics.sqlite` (under the effec
 SASE home). The parent directory and database are created when the first batch is
 recorded.
 
+## ToolRun recording metrics
+
+Foreground `sase tool run` records low-cardinality counters only. Run ids, argv, and
+agent ids are never metric labels; the detailed fingerprint, sample, and stage corpus
+lives in the ToolRun entity store.
+
+| Metric                                 | Labels                                                 | Meaning                                        |
+| -------------------------------------- | ------------------------------------------------------ | ---------------------------------------------- |
+| `sase_tool_run_attempts_total`         | `result=recorded\|unrecorded`                          | Begin succeeded or fail-open skipped recording |
+| `sase_tool_run_recording_errors_total` | `op=begin\|finish\|sample\|fingerprint`                | A ledger write or observation persist failed   |
+| `sase_tool_run_settlements_total`      | `state=succeeded\|failed\|signaled\|interrupted\|lost` | Terminal recorded outcomes                     |
+
+Observation budgets (not command timeouts): each toolchain probe 1s / 4 KiB of retained
+output, all probes 2s, each repository or input pass 4s and 64 MiB of content hashing.
+Omissions are typed incompleteness, never guessed zeros. Host samples capture monotonic
+elapsed time, loadavg, logical CPU count, and Linux PSI `some avg10` at start,
+approximately every 10 seconds, and finish.
+
 ### Retention and rollups
 
 Raw samples support recent health queries. As raw data ages, the store folds it into
@@ -306,16 +324,17 @@ loaded keeps the prior result visible while marking the refresh as failed.
 
 ## Metric catalog and integration
 
-The catalog contains 37 counters, gauges, and histograms across seven groups: Agent
+The catalog contains 40 counters, gauges, and histograms across eight groups: Agent
 Lifecycle, LLM Provider, Finalizers, Axe Orchestrator, Hooks/Mentors/Workflows,
-VCS/Workspace, and Gate Shell. Run `sase telemetry list` for the authoritative metric
-names, kinds, and labels.
+VCS/Workspace, Gate Shell, and Tool Runs. Run `sase telemetry list` for the
+authoritative metric names, kinds, and labels.
 
 Instrumentation remains at debugging and health boundaries: agent runner
 setup/finalization, LLM invocation, commit finalizers, axe and routine loops, hook and
-mentor runners, VCS operations, active-workspace tracking, zombie detection, and the
-gate-shell exact-id lookup. Call sites keep the stable `.labels().inc()`, `.observe()`,
-and `.set()` API regardless of whether recording is enabled.
+mentor runners, VCS operations, active-workspace tracking, zombie detection, the
+gate-shell exact-id lookup, and ToolRun recording attempts/errors/outcomes. Call sites
+keep the stable `.labels().inc()`, `.observe()`, and `.set()` API regardless of whether
+recording is enabled.
 
 The Gate Shell group covers the lookup that maps a gate request ID to its owning gate
 shell. `sase_gate_shell_lookup_duration_seconds` times each lookup with a `path` label

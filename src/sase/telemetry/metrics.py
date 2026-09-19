@@ -78,6 +78,13 @@ FINALIZER_DEFERRALS: StubCounter = StubCounter()
 GATE_SHELL_LOOKUP_DURATION: StubHistogram = StubHistogram()
 GATE_SHELL_LOOKUP_FALLBACKS: StubCounter = StubCounter()
 
+# ---------------------------------------------------------------------------
+# Tool Runs
+# ---------------------------------------------------------------------------
+TOOL_RUN_ATTEMPTS: StubCounter = StubCounter()
+TOOL_RUN_RECORDING_ERRORS: StubCounter = StubCounter()
+TOOL_RUN_SETTLEMENTS: StubCounter = StubCounter()
+
 
 # ---------------------------------------------------------------------------
 # Metric definitions used by _registry.init_telemetry() to create real
@@ -386,6 +393,30 @@ METRIC_DEFS: list[tuple[str, str, str, str, list[str], dict]] = [
         "Gate-shell lookups that fell back to the full-history scan because "
         "the indexed lookup itself could not run",
         [],
+        {},
+    ),
+    (
+        "TOOL_RUN_ATTEMPTS",
+        "counter",
+        "sase_tool_run_attempts_total",
+        "Foreground ToolRun recording attempts (recorded vs fail-open unrecorded)",
+        ["result"],
+        {},
+    ),
+    (
+        "TOOL_RUN_RECORDING_ERRORS",
+        "counter",
+        "sase_tool_run_recording_errors_total",
+        "ToolRun ledger write failures by operation; run ids are never labels",
+        ["op"],
+        {},
+    ),
+    (
+        "TOOL_RUN_SETTLEMENTS",
+        "counter",
+        "sase_tool_run_settlements_total",
+        "Terminal ToolRun outcomes recorded by the native inline executor",
+        ["state"],
         {},
     ),
 ]

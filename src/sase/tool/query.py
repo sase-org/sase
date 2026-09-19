@@ -289,6 +289,11 @@ def _print_show(envelope: dict[str, Any]) -> None:
         f"STDOUT    {logs.get('stdout_path') or EMPTY}",
         f"STDERR    {logs.get('stderr_path') or EMPTY}",
         f"EVENTS    {logs.get('events_path') or EMPTY}",
+        f"EVIDENCE  {_format_evidence(run)}",
+        f"MUTATED   {_format_optional_bool(run.get('mutated_input'))}",
+        f"DIRTY     {_dirty_count(run.get('fingerprint_before'))} -> {_dirty_count(run.get('fingerprint_after'))}",
+        f"TOOLCHAIN {_format_toolchain(run)}",
+        f"SAMPLES   {len(envelope.get('samples') or ())}",
     ]
     if envelope.get("stages"):
         unattributed = envelope.get("unattributed_ms")
@@ -307,6 +312,73 @@ def _print_show(envelope: dict[str, Any]) -> None:
             if not isinstance(stage, dict):
                 continue
             print(f"  {format_stage_progress(stage)}")
+    samples = envelope.get("samples") or ()
+    if samples:
+        print("SAMPLES")
+        for sample in samples:
+            if not isinstance(sample, dict):
+                continue
+            print(f"  {_format_sample(sample)}")
+
+
+def _format_evidence(run: dict[str, Any]) -> str:
+    evidence = run.get("evidence_completeness")
+    if not isinstance(evidence, dict):
+        return EMPTY
+    if evidence.get("complete"):
+        return "complete"
+    missing = evidence.get("missing") or ()
+    detail = ", ".join(str(item) for item in missing if item)
+    if detail:
+        return f"incomplete ({detail})"
+    return "incomplete"
+
+
+def _format_optional_bool(value: object) -> str:
+    if value is True:
+        return "true"
+    if value is False:
+        return "false"
+    return EMPTY
+
+
+def _dirty_count(fingerprint: object) -> int:
+    if not isinstance(fingerprint, dict):
+        return 0
+    total = 0
+    for repo in fingerprint.get("repos") or ():
+        if isinstance(repo, dict):
+            total += len(repo.get("dirty_paths") or ())
+    return total
+
+
+def _format_toolchain(run: dict[str, Any]) -> str:
+    fingerprint = run.get("fingerprint_after") or run.get("fingerprint_before")
+    if not isinstance(fingerprint, dict):
+        return EMPTY
+    toolchain = fingerprint.get("toolchain") or {}
+    if not isinstance(toolchain, dict) or not toolchain:
+        return EMPTY
+    parts: list[str] = []
+    for name, probe in toolchain.items():
+        if not isinstance(probe, dict):
+            continue
+        if probe.get("incomplete"):
+            parts.append(f"{name}=incomplete")
+            continue
+        output = str(probe.get("output") or "").strip().splitlines()
+        parts.append(f"{name}={output[0] if output else EMPTY}")
+    return "  ".join(parts) or EMPTY
+
+
+def _format_sample(sample: dict[str, Any]) -> str:
+    elapsed = sample.get("elapsed_ms")
+    load = sample.get("loadavg_1")
+    psi = sample.get("psi_cpu_some")
+    load_text = f"{load:.2f}" if isinstance(load, (int, float)) else EMPTY
+    psi_text = f"{psi:.2f}" if isinstance(psi, (int, float)) else EMPTY
+    elapsed_text = format_duration_ms(elapsed) if type(elapsed) is int else EMPTY
+    return f"{elapsed_text}  load1={load_text}  psi_cpu={psi_text}"
 
 
 def _logs_map(run: dict[str, Any]) -> dict[str, Any]:

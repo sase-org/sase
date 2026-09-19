@@ -35,6 +35,8 @@ def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     monkeypatch.delenv("SASE_MONITOR_ID", raising=False)
     monkeypatch.delenv("SASE_PROC_ID", raising=False)
     monkeypatch.delenv("SASE_TOOL_RUN_ID", raising=False)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
     clear_config_cache()
     return home
 

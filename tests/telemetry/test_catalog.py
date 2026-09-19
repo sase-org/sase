@@ -62,6 +62,9 @@ def test_catalog_subsystem_derivation() -> None:
     assert by_attr["WORKSPACE_ACTIVE"].subsystem == "VCS / Workspace"
     assert by_attr["FINALIZER_SELECTED"].subsystem == "Finalizers"
     assert by_attr["FINALIZER_SHARED_CLONE"].subsystem == "Finalizers"
+    assert by_attr["TOOL_RUN_ATTEMPTS"].subsystem == "Tool Runs"
+    assert by_attr["TOOL_RUN_RECORDING_ERRORS"].subsystem == "Tool Runs"
+    assert by_attr["TOOL_RUN_SETTLEMENTS"].subsystem == "Tool Runs"
 
 
 def test_get_subsystems_returns_all_metrics() -> None:

@@ -23,6 +23,7 @@ _PREFIX_TO_SUBSYSTEM: dict[str, str] = {
     "sase_vcs": "VCS / Workspace",
     "sase_workspace": "VCS / Workspace",
     "sase_gate_shell": "Gate Shell",
+    "sase_tool": "Tool Runs",
 }
 
 # Stable display order for subsystems.
@@ -34,6 +35,7 @@ SUBSYSTEM_ORDER: list[str] = [
     "Hooks / Mentors / Workflows",
     "VCS / Workspace",
     "Gate Shell",
+    "Tool Runs",
 ]
 
 
