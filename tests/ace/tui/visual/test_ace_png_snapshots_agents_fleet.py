@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import datetime, timedelta
 from typing import Any
 
 import pytest
@@ -23,6 +24,7 @@ from tests.ace.tui.fleet_fixture import (
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     assert_page_svg_styled_text_absent,
+    pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     agents,
@@ -338,4 +340,165 @@ async def test_agents_fleet_empty_without_enrolled_machine_png_snapshot(
             page,
             "agents_fleet_empty_no_machine_120x40",
             title="ACE agents Fleet empty no machine",
+        )
+
+
+_FLEET_TRIBE_NOW = datetime(2026, 9, 18, 12, 0, 0)
+
+
+def _unix(moment: datetime) -> float:
+    return moment.timestamp()
+
+
+def _fleet_tribe_family_response() -> Mapping[str, Any]:
+    installation = fleet_installation_id("a")
+    started = _FLEET_TRIBE_NOW - timedelta(hours=3)
+    run_started = _FLEET_TRIBE_NOW - timedelta(minutes=27)
+    done_started = _FLEET_TRIBE_NOW - timedelta(hours=8)
+    done_stopped = _FLEET_TRIBE_NOW - timedelta(hours=6)
+
+    def summary(agent_id: str, run_id: str, status: str, **overrides: object) -> dict:
+        payload: dict[str, object] = {
+            "installation_id": installation,
+            "project_id": "sase-main",
+            "project_name": "SASE",
+            "agent_id": agent_id,
+            "run_id": run_id,
+            "agent_name": agent_id,
+            "status": status,
+            "tribe": "epic",
+            "clan_tribe": "epic",
+            "bounded_intent": "visual remote tribe family parity",
+            "started_at_unix": _unix(started),
+        }
+        payload.update(overrides)
+        return fleet_summary(**payload)  # type: ignore[arg-type]
+
+    return fleet_host_response(
+        alias="apollo",
+        installation_id=installation,
+        summaries=(
+            summary(
+                "remote-family",
+                "fam-root",
+                "TESTING",
+                family_id="remote-family",
+                family_role="root",
+                run_started_at_unix=_unix(run_started),
+            ),
+            summary(
+                "remote-family--code",
+                "fam-code",
+                "DONE",
+                family_id="remote-family",
+                family_role="member",
+                parent_timestamp="fam-root",
+                started_at_unix=_unix(started + timedelta(minutes=5)),
+                stopped_at_unix=_unix(started + timedelta(hours=1)),
+                current_instance=False,
+            ),
+            summary(
+                "remote-family--mon",
+                "fam-mon",
+                "TESTING",
+                family_id="remote-family",
+                family_role="monitor",
+                row_kind="monitor",
+                parent_timestamp="fam-root",
+                started_at_unix=_unix(run_started),
+                occupied_runner_slot=False,
+            ),
+            summary(
+                "remote-family--gate",
+                "fam-gate",
+                "RUNNING",
+                family_id="remote-family",
+                family_role="gate",
+                row_kind="gate",
+                parent_timestamp="fam-root",
+                started_at_unix=_unix(run_started + timedelta(minutes=1)),
+                occupied_runner_slot=False,
+            ),
+            summary(
+                "remote-family--proc",
+                "fam-proc",
+                "DONE",
+                family_id="remote-family",
+                family_role="proc",
+                row_kind="proc",
+                parent_timestamp="fam-root",
+                started_at_unix=_unix(started + timedelta(minutes=10)),
+                stopped_at_unix=_unix(started + timedelta(minutes=20)),
+                occupied_runner_slot=False,
+                current_instance=False,
+            ),
+            summary(
+                "done-family",
+                "done-root",
+                "TALE DONE",
+                family_id="done-family",
+                family_role="root",
+                started_at_unix=_unix(done_started),
+                stopped_at_unix=_unix(done_stopped),
+                current_instance=False,
+            ),
+            summary(
+                "done-family--plan",
+                "done-plan",
+                "TALE DONE",
+                family_id="done-family",
+                family_role="historical_shell",
+                row_kind="historical_shell",
+                parent_timestamp="done-root",
+                started_at_unix=_unix(done_started),
+                stopped_at_unix=_unix(done_started + timedelta(hours=1)),
+                current_instance=False,
+            ),
+            summary(
+                "done-family--code",
+                "done-code",
+                "TALE DONE",
+                family_id="done-family",
+                family_role="historical_shell",
+                row_kind="historical_shell",
+                parent_timestamp="done-root",
+                started_at_unix=_unix(done_started + timedelta(hours=1)),
+                stopped_at_unix=_unix(done_stopped),
+                current_instance=False,
+            ),
+        ),
+        observed_at_unix=_unix(_FLEET_TRIBE_NOW),
+    )
+
+
+async def test_agents_fleet_remote_tribe_families_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pin_agents_visual_now(monkeypatch, _FLEET_TRIBE_NOW)
+    response = _fleet_tribe_family_response()
+    facade = OfflineFleetFacade(
+        summary_response=response,
+        catalog_response=response,
+    )
+    patch_startup_loaders(monkeypatch, agents=[])
+    _patch_fleet_refresh(monkeypatch, facade=facade)
+
+    async with AcePage(patches=patches()) as page:
+        await _open_agents(page, fleet_response=response)
+        await _show_fleet(page)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "apollo")
+        assert_page_svg_contains(page, "@epic")
+        assert_page_svg_contains(page, "remote-family")
+        assert_page_svg_contains(page, "done-family")
+        assert_page_svg_contains(page, "TESTING")
+        assert_page_svg_contains(page, "TALE DONE")
+        assert_page_svg_contains(page, "⚙")
+        assert_page_svg_contains(page, "⋔")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_fleet_remote_tribe_families_120x40",
+            title="ACE agents Fleet remote tribe families",
         )

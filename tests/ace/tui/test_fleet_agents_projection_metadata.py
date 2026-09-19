@@ -128,6 +128,7 @@ def test_project_fleet_agents_sets_run_start_time_for_active_duration() -> None:
         status="running",
         started_at_unix=1_800_000_000.0,
         run_started_at_unix=1_800_000_030.0,
+        observed_at_unix=1_800_000_090.0,
     )
     response = fleet_host_response(alias="apollo", summaries=(summary,))
 
@@ -137,6 +138,8 @@ def test_project_fleet_agents_sets_run_start_time_for_active_duration() -> None:
     assert row.start_time is not None
     assert row.run_start_time is not None
     assert row.run_start_time > row.start_time
+    assert row.fleet_observed_at_unix is not None
+    assert row.fleet_observed_at_unix >= 1_800_000_030.0
 
 
 def test_project_fleet_agents_falls_back_to_started_at_for_legacy_runtime() -> None:
@@ -148,6 +151,33 @@ def test_project_fleet_agents_falls_back_to_started_at_for_legacy_runtime() -> N
     row = projection.fleet_rows[0]
     assert row.start_time is not None
     assert row.run_start_time == row.start_time
+
+
+def test_project_fleet_agents_keeps_legacy_summaries_without_schema_v4_fields() -> None:
+    """Older gateways that omit additive v4 fields still render a row."""
+    summary = fleet_summary(status="running", agent_id="legacy-solo", family_id=None)
+    for field in (
+        "started_at_unix",
+        "run_started_at_unix",
+        "stopped_at_unix",
+        "tribe",
+        "clan_tribe",
+        "agent_clan",
+        "parent_timestamp",
+    ):
+        summary.pop(field, None)
+    response = fleet_host_response(alias="apollo", summaries=(summary,))
+
+    projection = project_fleet_agents(catalog_response=response)
+
+    assert len(projection.fleet_rows) == 1
+    row = projection.fleet_rows[0]
+    assert row.agent_name == "legacy-solo"
+    assert row.start_time is not None
+    assert row.run_start_time == row.start_time
+    assert row.tribe is None
+    assert row.parent_timestamp is None
+    assert not row.is_remote_family_container
 
 
 def test_project_fleet_agents_prefers_owner_human_project_label() -> None:

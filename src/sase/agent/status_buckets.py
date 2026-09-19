@@ -194,6 +194,17 @@ def runner_slot_display_status(
     return QUEUED_STATUS if slot_queued else "WAITING"
 
 
+_STATUS_PRESENTATION_GLYPHS = frozenset("√✓✔★")
+
+
+def _canonical_status_text(status: str) -> str:
+    """Strip trailing presentation glyphs from an owner-displayed status."""
+    text = status.strip()
+    while text and (text[-1] in _STATUS_PRESENTATION_GLYPHS or text[-1].isspace()):
+        text = text[:-1]
+    return text
+
+
 def status_bucket_for_values(
     status: str | None,
     retried_as_timestamp: str | None = None,
@@ -204,7 +215,7 @@ def status_bucket_for_values(
     retry metadata, but failure bucketing is based on the displayed status.
     """
     del retried_as_timestamp
-    status_text = status or ""
+    status_text = _canonical_status_text(status or "")
     if status_text in _TERMINAL_STATUSES:
         return "Done"
     if status_text in _STOPPED_STATUSES:

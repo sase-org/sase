@@ -8,6 +8,8 @@ from typing import Any
 
 from ._fleet_agents_scalars import float_or_none, optional_str
 
+_LIVENESS_STOPPED_VALUES = frozenset({"dead", "not_process"})
+
 
 def queue_weight(summary: Mapping[str, Any]) -> float | None:
     weight = float_or_none(summary.get("queue_weight"))
@@ -48,7 +50,7 @@ def status_from_summary(
         liveness.get("status"),
         liveness.get("state"),
     )
-    dead = _liveness_stops(liveness_token, liveness)
+    dead = liveness_is_stopped(liveness_token, liveness)
     if not value:
         return "WAS RUNNING" if dead else "RUNNING"
     normalized = value.casefold().replace("-", "_").replace(" ", "_")
@@ -80,7 +82,7 @@ def status_from_summary(
     }
     if normalized not in status_map and bool(summary.get("needs_attention")):
         return "WAITING INPUT"
-    resolved = status_map.get(normalized, value.upper())
+    resolved = status_map.get(normalized, value.strip())
     # Owner-resolved liveness overrides a stale RUNNING/STARTING claim: the
     # process is confirmed gone, so the row presents "was running" instead
     # of fabricating an active state. Never demote other statuses (a real
@@ -90,10 +92,7 @@ def status_from_summary(
     return resolved
 
 
-_LIVENESS_STOPPED_VALUES = frozenset({"dead", "not_process"})
-
-
-def _liveness_stops(liveness_token: object, liveness: Mapping[str, Any]) -> bool:
+def liveness_is_stopped(liveness_token: object, liveness: Mapping[str, Any]) -> bool:
     """Whether owner-resolved liveness definitively rules out an active row.
 
     Mirrors sase-core's ``bucket_for_lifecycle`` liveness_stops predicate:
@@ -134,3 +133,11 @@ def status_bucket_from_wire(value: object) -> str | None:
     if not isinstance(value, str):
         return None
     return _FLEET_STATUS_BUCKET_WIRE_MAP.get(value.casefold())
+
+
+__all__ = [
+    "liveness_is_stopped",
+    "queue_weight",
+    "status_bucket_from_wire",
+    "status_from_summary",
+]

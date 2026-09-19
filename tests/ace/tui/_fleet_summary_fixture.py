@@ -5,6 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from sase.agent.status_buckets import (
+    PENDING_PLAN_REVIEW_STATUS_SET,
+    status_bucket_for_values,
+)
 from tests.ace.tui._fleet_locator_fixture import (
     fleet_contract_schema_version,
     fleet_exact_key,
@@ -13,6 +17,17 @@ from tests.ace.tui._fleet_locator_fixture import (
     fleet_logical_key,
     fleet_logical_locator,
 )
+
+_OWNER_STATUS_GLYPHS = frozenset("√✓✔★")
+_DISPLAY_BUCKET_TO_WIRE = {
+    "Stopped": "stopped",
+    "Failed": "failed",
+    "Starting": "starting",
+    "Running": "running",
+    "Queued": "queued",
+    "Waiting": "waiting",
+    "Done": "done",
+}
 
 
 def fleet_summary(
@@ -57,6 +72,7 @@ def fleet_summary(
     agent_clan_generation: str | None = None,
     clan_tribe: str | None = None,
     tribe: str | None = None,
+    status_bucket: str | None = None,
 ) -> dict[str, Any]:
     """Build one valid resolved remote row summary."""
     del patch_name  # Remote summaries expose project labels, not Patch labels.
@@ -75,9 +91,16 @@ def fleet_summary(
         "logical_key": logical_key,
         "revision": revision,
     }
-    bucket = _status_bucket(status)
+    display_status = _display_status(status)
+    bucket = _status_bucket(status, explicit=status_bucket)
     lifecycle = _lifecycle_for_status(status)
     liveness = _liveness_for_status(status)
+    observed_at_unix = _coherent_observed_at(
+        observed_at_unix,
+        started_at_unix,
+        run_started_at_unix,
+        stopped_at_unix,
+    )
     derived_current_instance = liveness == "alive"
     if current_instance is None:
         current_instance = derived_current_instance
@@ -109,7 +132,7 @@ def fleet_summary(
         "project_name": project_name,
         "model": model,
         "provider": provider,
-        "status": _display_status(status),
+        "status": display_status,
         "status_bucket": bucket,
         "intent": bounded_intent,
         "observed_at_unix": observed_at_unix,
@@ -171,39 +194,32 @@ def fleet_summary(
     return summary
 
 
-def _status_bucket(status: str) -> str:
-    normalized = status.casefold().replace("-", "_").replace(" ", "_")
-    if normalized in {"failed", "error"}:
-        return "failed"
-    if normalized in {"done", "complete", "completed", "terminal"}:
-        return "done"
-    if normalized in {"stopped", "cancelled", "canceled"}:
-        return "stopped"
-    if normalized == "starting":
-        return "starting"
-    if normalized in {"queued", "pending"}:
-        return "queued"
-    if normalized in {"waiting", "waiting_input", "needs_input", "blocked"}:
-        return "stopped"
-    if normalized in {"asking", "question"}:
-        return "stopped"
-    return "running"
+def _status_bucket(status: str, *, explicit: str | None = None) -> str:
+    if explicit is not None:
+        return explicit.casefold().replace("-", "_").replace(" ", "_")
+    display = _canonical_owner_status(status)
+    return _DISPLAY_BUCKET_TO_WIRE[status_bucket_for_values(display)]
 
 
 def _lifecycle_for_status(status: str) -> str:
-    normalized = status.casefold().replace("-", "_").replace(" ", "_")
-    if normalized in {"failed", "error"}:
+    display = _canonical_owner_status(status)
+    if display.startswith("FAILED") or display == "ERROR":
         return "failed"
-    if normalized in {"done", "complete", "completed", "terminal"}:
-        return "terminal"
-    if normalized in {"stopped", "cancelled", "canceled"}:
-        return "terminal"
-    if normalized == "starting":
-        return "starting"
-    if normalized in {"waiting", "waiting_input", "needs_input", "blocked", "queued"}:
-        return "waiting"
-    if normalized in {"asking", "question"}:
+    if display in PENDING_PLAN_REVIEW_STATUS_SET or display == "QUESTION":
         return "asking"
+    bucket = status_bucket_for_values(display)
+    if bucket == "Failed":
+        return "failed"
+    if bucket == "Done":
+        return "terminal"
+    if bucket == "Starting":
+        return "starting"
+    if bucket in {"Waiting", "Queued"} or display in {
+        "WAITING INPUT",
+        "NEEDS INPUT",
+        "BLOCKED",
+    }:
+        return "waiting"
     return "running"
 
 
@@ -215,7 +231,28 @@ def _liveness_for_status(status: str) -> str:
 
 
 def _display_status(status: str) -> str:
-    return status.replace("-", " ").replace("_", " ").upper()
+    original = status.strip()
+    glyphs = ""
+    body = original
+    while body and (body[-1] in _OWNER_STATUS_GLYPHS or body[-1].isspace()):
+        if body[-1] in _OWNER_STATUS_GLYPHS:
+            glyphs = body[-1] + glyphs
+        body = body[:-1]
+    body = " ".join(body.replace("-", " ").replace("_", " ").split()).upper()
+    return f"{body} {glyphs}".strip() if glyphs else body
+
+
+def _canonical_owner_status(status: str) -> str:
+    return _display_status(status).rstrip("".join(_OWNER_STATUS_GLYPHS) + " ").strip()
+
+
+def _coherent_observed_at(*timestamps: float | None) -> float:
+    values = [
+        float(value)
+        for value in timestamps
+        if isinstance(value, (int, float)) and not isinstance(value, bool)
+    ]
+    return max(values) if values else 1_800_000_000.0
 
 
 def _freshness(value: str) -> str:

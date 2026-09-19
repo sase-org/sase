@@ -6,7 +6,7 @@ from collections import defaultdict
 from collections.abc import Mapping
 from typing import Any
 
-from ._agent_clan import aggregate_clan_status
+from ._agent_clan import aggregate_clan_status, apply_clan_container_status
 from ._agent_ordering import sort_and_reorder
 from ._agent_status_apply import apply_status_overrides
 from ._fleet_agents_scalars import int_or_none, mapping, optional_str
@@ -32,6 +32,7 @@ def normalize_remote_host_nodes(summary_pairs: list[_SummaryPair]) -> list[Agent
     kept, aliases = _select_renderable_pairs(summary_pairs)
     _resolve_host_parent_lineage(kept, aliases)
     _attach_same_logical_history(kept)
+    _attach_unresolved_members_to_real_roots(kept)
     agents = _materialize_missing_family_containers(kept)
     apply_status_overrides(agents, classify_diff_badges=False)
     return sort_and_reorder(agents, [])
@@ -56,6 +57,7 @@ def _revision(summary: Mapping[str, Any]) -> int:
 
 def _summary_owner_lineage_keys(summary: Mapping[str, Any]) -> tuple[str, ...]:
     """Return owner-local identity tokens that may appear as parent keys."""
+    labels = mapping(summary.get("labels"))
     logical_locator = mapping(summary.get("logical_locator"))
     exact_locator = mapping(summary.get("exact_locator"))
     nested_logical = mapping(exact_locator.get("logical"))
@@ -65,8 +67,15 @@ def _summary_owner_lineage_keys(summary: Mapping[str, Any]) -> tuple[str, ...]:
         summary.get("agent_timestamp"),
         summary.get("logical_key"),
         summary.get("exact_key"),
+        summary.get("family_id"),
+        summary.get("agent_id"),
+        summary.get("agent_name"),
+        labels.get("family_label"),
+        labels.get("agent_label"),
         logical_locator.get("agent_id"),
+        logical_locator.get("family_id"),
         nested_logical.get("agent_id"),
+        nested_logical.get("family_id"),
         exact_locator.get("run_id"),
         exact_locator.get("shell_id"),
     )
@@ -218,12 +227,88 @@ def _attach_same_logical_history(summary_pairs: list[_SummaryPair]) -> None:
             agent.parent_timestamp = host.raw_suffix
 
 
+def _family_identity_keys(summary: Mapping[str, Any], agent: Agent) -> tuple[str, ...]:
+    labels = mapping(summary.get("labels"))
+    logical_locator = mapping(summary.get("logical_locator"))
+    keys = (
+        agent.agent_family,
+        agent.agent_name,
+        labels.get("family_label"),
+        logical_locator.get("family_id"),
+        summary.get("family_id"),
+    )
+    seen: set[str] = set()
+    result: list[str] = []
+    for key in keys:
+        value = optional_str(key)
+        if value is None or value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return tuple(result)
+
+
+def _is_owner_presented_root(summary: Mapping[str, Any], agent: Agent) -> bool:
+    kind = optional_str(summary.get("row_kind"), agent.fleet_row_kind)
+    role = optional_str(
+        summary.get("family_role"),
+        summary.get("agent_family_role"),
+        agent.agent_family_role,
+    )
+    if kind == "container_header" or role == "root":
+        return True
+    return not _is_history_or_nested(summary)
+
+
+def _attach_unresolved_members_to_real_roots(
+    summary_pairs: list[_SummaryPair],
+) -> None:
+    """Nest members under a real owner root instead of synthesizing one."""
+    suffixes = {
+        agent.raw_suffix for _summary, agent in summary_pairs if agent.raw_suffix
+    }
+    roots_by_family: dict[tuple[str, str], Agent] = {}
+    for summary, agent in summary_pairs:
+        if not agent.raw_suffix or not _is_owner_presented_root(summary, agent):
+            continue
+        origin = agent.fleet_origin_alias or "remote"
+        for family_key in _family_identity_keys(summary, agent):
+            roots_by_family.setdefault((origin, family_key), agent)
+
+    for summary, agent in summary_pairs:
+        if agent is roots_by_family.get(
+            (agent.fleet_origin_alias or "remote", agent.agent_name or "")
+        ):
+            continue
+        if _is_owner_presented_root(summary, agent) and not _is_history_or_nested(
+            summary
+        ):
+            continue
+        parent = agent.parent_timestamp
+        if parent and parent in suffixes:
+            continue
+        origin = agent.fleet_origin_alias or "remote"
+        for family_key in _family_identity_keys(summary, agent):
+            root = roots_by_family.get((origin, family_key))
+            if root is None or root is agent or not root.raw_suffix:
+                continue
+            agent.parent_timestamp = root.raw_suffix
+            break
+
+
 def _materialize_missing_family_containers(
     summary_pairs: list[_SummaryPair],
 ) -> list[Agent]:
     """Insert a stable family root when members arrived without their parent."""
     agents = [agent for _summary, agent in summary_pairs]
     suffixes = {agent.raw_suffix for agent in agents if agent.raw_suffix}
+    existing_roots: dict[tuple[str, str], Agent] = {}
+    for summary, agent in summary_pairs:
+        if not agent.raw_suffix or not _is_owner_presented_root(summary, agent):
+            continue
+        origin = agent.fleet_origin_alias or "remote"
+        for family_key in _family_identity_keys(summary, agent):
+            existing_roots.setdefault((origin, family_key), agent)
     groups: dict[tuple[str, str], list[Agent]] = defaultdict(list)
     for agent in agents:
         parent = agent.parent_timestamp
@@ -231,6 +316,10 @@ def _materialize_missing_family_containers(
             continue
         origin = agent.fleet_origin_alias or "remote"
         family_key = agent.agent_family or parent
+        root = existing_roots.get((origin, family_key))
+        if root is not None and root.raw_suffix:
+            agent.parent_timestamp = root.raw_suffix
+            continue
         groups[(origin, family_key)].append(agent)
 
     if not groups:
@@ -281,6 +370,7 @@ def _remote_family_container(
     ]
     stops = [row.stop_time for row in members if row.stop_time is not None]
     tribes = {row.tribe for row in members if row.tribe}
+    clan_tribes = {row.clan_tribe for row in members if row.clan_tribe}
     status = aggregate_clan_status(row.status for row in members) or "RUNNING"
     container = Agent(
         agent_type=AgentType.RUNNING,
@@ -307,8 +397,10 @@ def _remote_family_container(
         is_remote_family_container=True,
         agent_clan=anchor.agent_clan,
         agent_clan_generation=anchor.agent_clan_generation,
+        clan_tribe=next(iter(clan_tribes)) if len(clan_tribes) == 1 else None,
         tribe=next(iter(tribes)) if len(tribes) == 1 else None,
     )
+    apply_clan_container_status(container, members, fallback=status)
     container.refresh_presented_agent_name()
     return container
 

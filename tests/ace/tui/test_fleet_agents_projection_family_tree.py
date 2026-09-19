@@ -203,6 +203,39 @@ def test_project_fleet_agents_drops_superseded_non_current_top_level_instances()
     assert [row.agent_name for row in projection.fleet_rows].count("solo") == 1
 
 
+def test_project_fleet_agents_nests_under_real_root_instead_of_synthesizing() -> None:
+    """Owner family identity is enough to attach members when run ids differ."""
+    root = fleet_summary(
+        agent_id="crew",
+        run_id="20260910120000",
+        agent_name="crew",
+        family_id="crew",
+        family_role="root",
+        status="TALE DONE",
+        current_instance=False,
+    )
+    historical = fleet_summary(
+        agent_id="crew--plan",
+        run_id="20260910113000",
+        agent_name="crew--plan",
+        family_id="crew",
+        family_role="historical_shell",
+        row_kind="historical_shell",
+        parent_timestamp="crew",
+        status="TALE DONE",
+        current_instance=False,
+    )
+    response = fleet_host_response(alias="apollo", summaries=(root, historical))
+
+    projection = project_fleet_agents(catalog_response=response)
+    rows = list(projection.fleet_rows)
+    by_name = {row.agent_name: row for row in rows}
+    assert "crew" in by_name
+    assert by_name["crew"].is_remote_family_container is False
+    assert by_name["crew--plan"].parent_timestamp == by_name["crew"].raw_suffix
+    assert not any(row.is_remote_family_container for row in rows)
+
+
 def test_project_fleet_agents_synthesizes_a_stable_root_when_page_omits_it() -> None:
     code = fleet_summary(
         agent_id="crew--code",

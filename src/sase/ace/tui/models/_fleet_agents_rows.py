@@ -34,6 +34,7 @@ from ._fleet_agents_scalars import (
     raw_suffix,
 )
 from ._fleet_agents_status import (
+    liveness_is_stopped,
     queue_weight,
     status_bucket_from_wire,
     status_from_summary,
@@ -41,6 +42,20 @@ from ._fleet_agents_status import (
 from .agent import Agent, AgentType
 
 __all__ = ["HostFeedIssue", "host_feed_issues", "rows_from_response"]
+
+_COARSE_REMOTE_STATUSES = frozenset(
+    {
+        "RUNNING",
+        "STARTING",
+        "WAITING",
+        "WAITING INPUT",
+        "QUEUED",
+        "DONE",
+        "FAILED",
+        "STOPPED",
+        "WAS RUNNING",
+    }
+)
 
 
 def rows_from_response(
@@ -197,6 +212,7 @@ def _agent_from_summary(
     )
     attention = attention_by_logical_key.get(logical_key) if logical_key else None
     liveness_token = summary.get("liveness")
+    dead = liveness_is_stopped(liveness_token, liveness)
     status = status_from_summary(
         summary,
         lifecycle,
@@ -258,6 +274,12 @@ def _agent_from_summary(
     proc_id = optional_str(summary.get("proc_id")) if is_proc else None
     if is_proc and proc_id is None:
         proc_id = shell_id
+    monitor_state = optional_str(summary.get("monitor_state"))
+    if is_monitor and monitor_state is None:
+        monitor_state = "completed" if dead or stop_time is not None else "running"
+    gate_state = optional_str(summary.get("gate_state"))
+    if is_gate and gate_state is None:
+        gate_state = "completed" if dead or stop_time is not None else "pending"
     agent = Agent(
         agent_type=AgentType.PROC_SHELL if is_proc else AgentType.RUNNING,
         cl_name=patch_name_value,
@@ -320,13 +342,25 @@ def _agent_from_summary(
         clan_tribe=optional_str(summary.get("clan_tribe")),
         tribe=optional_str(summary.get("tribe")),
         monitor_id=monitor_id,
-        monitor_state=optional_str(summary.get("monitor_state")),
+        monitor_state=monitor_state,
         monitor_command=optional_str(summary.get("monitor_command")),
         monitor_label=optional_str(summary.get("monitor_label")),
+        monitor_start_status=_shell_pair_status(
+            status, is_shell=is_monitor, active=monitor_state == "running"
+        ),
+        monitor_stop_status=_shell_pair_status(
+            status, is_shell=is_monitor, active=monitor_state != "running"
+        ),
         gate_id=gate_id,
         gate_kind=optional_str(summary.get("gate_kind")),
-        gate_state=optional_str(summary.get("gate_state")),
+        gate_state=gate_state,
         gate_label=optional_str(summary.get("gate_label")),
+        gate_start_status=_shell_pair_status(
+            status, is_shell=is_gate, active=gate_state == "pending"
+        ),
+        gate_stop_status=_shell_pair_status(
+            status, is_shell=is_gate, active=gate_state != "pending"
+        ),
         proc_id=proc_id,
         proc_status=optional_str(summary.get("proc_status")) if is_proc else None,
         proc_label=optional_str(summary.get("proc_label")) if is_proc else None,
@@ -344,3 +378,9 @@ def _agent_from_summary(
         explicit=summary.get("queue_capacity_explicit") is True,
     )
     return agent
+
+
+def _shell_pair_status(status: str, *, is_shell: bool, active: bool) -> str | None:
+    if not is_shell or not active or status in _COARSE_REMOTE_STATUSES:
+        return None
+    return status

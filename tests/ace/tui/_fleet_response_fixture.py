@@ -26,19 +26,21 @@ def fleet_host_response(
 ) -> dict[str, Any]:
     """Build a federation read response containing one host."""
     origin_id = installation_id or fleet_installation_id()
+    summary_list = [dict(summary) for summary in summaries or ()]
+    host_observed_at = _coherent_host_observed_at(summary_list, observed_at_unix)
     summary_list = [
         _summary_with_host_observation(
-            dict(summary),
+            summary,
             freshness=freshness,
             connection_health=connection_health,
-            observed_at_unix=observed_at_unix,
+            observed_at_unix=host_observed_at,
         )
-        for summary in summaries or ()
+        for summary in summary_list
     ]
     host_counts = (
         dict(counts)
         if counts is not None
-        else fleet_counts(summary_list, observed_at_unix=observed_at_unix)
+        else fleet_counts(summary_list, observed_at_unix=host_observed_at)
     )
     response: dict[str, Any] = {
         "schema_version": 1,
@@ -61,7 +63,7 @@ def fleet_host_response(
                     "count_revision": _max_revision(summary_list),
                     "freshness": _freshness_wire(
                         freshness,
-                        observed_at_unix=observed_at_unix,
+                        observed_at_unix=host_observed_at,
                         partial=partial,
                     ),
                     "page": {
@@ -338,8 +340,36 @@ def _summary_with_host_observation(
     summary["freshness"] = _freshness(freshness)
     summary["connection_health"] = _connection_health(connection_health)
     if observed_at_unix is not None:
-        summary["observed_at_unix"] = observed_at_unix
+        existing = summary.get("observed_at_unix")
+        if not isinstance(existing, (int, float)) or isinstance(existing, bool):
+            summary["observed_at_unix"] = observed_at_unix
+        else:
+            summary["observed_at_unix"] = max(float(existing), observed_at_unix)
     return summary
+
+
+def _coherent_host_observed_at(
+    summaries: Iterable[Mapping[str, Any]],
+    observed_at_unix: float | None,
+) -> float | None:
+    times: list[float] = []
+    if isinstance(observed_at_unix, (int, float)) and not isinstance(
+        observed_at_unix, bool
+    ):
+        times.append(float(observed_at_unix))
+    for summary in summaries:
+        for key in (
+            "observed_at_unix",
+            "started_at_unix",
+            "run_started_at_unix",
+            "stopped_at_unix",
+        ):
+            value = summary.get(key)
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                times.append(float(value))
+    if not times:
+        return observed_at_unix
+    return max(times)
 
 
 def _max_revision(summaries: Iterable[Mapping[str, Any]]) -> int | None:

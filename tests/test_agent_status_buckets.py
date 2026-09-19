@@ -49,6 +49,11 @@ def test_non_pending_status_is_not_pending_plan_review() -> None:
     assert not is_pending_plan_review_status(None)
 
 
+def test_owner_status_glyphs_do_not_leave_terminal_rows_in_running() -> None:
+    assert status_bucket_for_values("EPIC CREATED √") == "Done"
+    assert status_bucket_for_values("TALE DONE") == "Done"
+
+
 def test_agent_status_bucket_uses_valid_override_for_unknown_status() -> None:
     row = _AgentStatusRow(status="MONITORED", status_bucket="Done")
 
