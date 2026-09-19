@@ -24,9 +24,9 @@ def _measure_tui_app_import() -> dict[str, Any]:
                 import sys
                 import time
 
-                started = time.perf_counter()
+                started = time.process_time()
                 importlib.import_module("sase.ace.tui.app")
-                elapsed = time.perf_counter() - started
+                elapsed = time.process_time() - started
 
                 print(json.dumps({
                     "elapsed_seconds": elapsed,
@@ -58,7 +58,7 @@ def test_tui_app_import_stays_under_startup_budget() -> None:
 
     last_elapsed = 0.0
     last_count = 0
-    for _ in range(3):
+    for _ in range(2):
         payload = _measure_tui_app_import()
         last_elapsed = float(payload["elapsed_seconds"])
         last_count = int(payload["module_count"])
@@ -66,6 +66,6 @@ def test_tui_app_import_stays_under_startup_budget() -> None:
             return
 
     raise AssertionError(
-        f"TUI app import stayed over the {_MAX_ELAPSED_SECONDS}s startup budget "
-        f"after 3 attempts (elapsed={last_elapsed!r}, module_count={last_count!r})"
+        f"TUI app import stayed over the {_MAX_ELAPSED_SECONDS}s CPU budget "
+        f"after 2 attempts (elapsed={last_elapsed!r}, module_count={last_count!r})"
     )

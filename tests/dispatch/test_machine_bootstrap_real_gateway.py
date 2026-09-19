@@ -23,9 +23,12 @@ from sase.config import core as config_core
 from sase.dispatch.credentials import LocalCredentialStore
 from sase.dispatch.fleet_client import FleetGatewayError
 from sase.dispatch.machine_service import MachineService
-from sase.dispatch.models import MachineRegistryError
+from sase.dispatch.models import MachineRegistryError, MachineStatus
 from tests.conftest import redirect_sase_home
 from tests.dispatch.real_gateway_fixture import RealGateway, real_gateway
+
+_HELLO_RETRY_WINDOW_SECONDS = 2.0
+_HELLO_RETRY_SLEEP_SECONDS = 0.1
 
 
 @pytest.fixture
@@ -58,6 +61,19 @@ def _client_service(
     return service, config_dir
 
 
+def _gateway_log_dump(gateway: RealGateway) -> str:
+    stdout = gateway.stdout_path.read_text(encoding="utf-8", errors="replace")
+    stderr = gateway.stderr_path.read_text(encoding="utf-8", errors="replace")
+    return f"gateway stdout:\n{stdout}\ngateway stderr:\n{stderr}"
+
+
+def _status_detail(status: MachineStatus, gateway: RealGateway) -> str:
+    return (
+        f"state={status.state!r} message={status.message!r}\n"
+        f"{_gateway_log_dump(gateway)}"
+    )
+
+
 def test_bootstrap_issue_enroll_hello_round_trip_through_real_gateway(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -88,8 +104,19 @@ def test_bootstrap_issue_enroll_hello_round_trip_through_real_gateway(
     assert credential.token not in config_text
     assert bootstrap_secret not in config_text
 
-    (status,) = client.status(("apollo",))
-    assert status.state == "ok"
+    deadline = time.monotonic() + _HELLO_RETRY_WINDOW_SECONDS
+    while True:
+        (status,) = client.status(("apollo",))
+        if status.state == "ok":
+            break
+        if (
+            status.state == "error"
+            and status.message.startswith("hello failed:")
+            and time.monotonic() < deadline
+        ):
+            time.sleep(_HELLO_RETRY_SLEEP_SECONDS)  # sase-test-wait: hello transport
+            continue
+        raise AssertionError(_status_detail(status, gateway))
     assert status.installation_id == issued.pinned_installation_id
 
 

@@ -122,30 +122,23 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
         """Toggle a selected service proc, or kill bgcmd based on AXE view.
 
         Bare ``x`` is contextual: a selected service-proc row toggles that
-        proc. Nested scheduler/host chrome (no proc selected) is a no-op
-        while ``service_host`` is on; ``!x`` toggles the host instead.
+        proc. Nested Scheduler rows, empty selection, and host chrome are
+        no-ops; ``!x`` toggles the host instead.
         """
         if self._axe_current_view == "axe":
             service_name = getattr(self, "_axe_service_selection", None)
             if service_name is not None:
                 self._toggle_selected_service_proc(service_name)
-                return
-            if getattr(self, "_axe_chop_selection", None) is not None:
-                return
-            if getattr(self, "_axe_lumberjack_idx", None) is not None:
-                return
-            if getattr(self, "_service_host_enabled", False):
-                return
-            self._toggle_host_or_axe_daemon()
-        else:
-            slot = self._axe_current_view
-            self._confirm_kill_bgcmd(slot)
+            return
+        slot = self._axe_current_view
+        self._confirm_kill_bgcmd(slot)
 
     def _toggle_axe_global(self) -> None:
         """Toggle axe or select process (works on all tabs, triggered by !x).
 
-        When on AXE tab:
-          - View 0 (axe): Toggle axe daemon / service host
+        When on AXE / Services tab:
+          - View ``"axe"``: always start/stop the service host (or legacy
+            axe daemon), even if a proc or nested Scheduler row is selected
           - View 1-9 (bgcmd): Show confirm dialog to kill that bgcmd
 
         When on other tabs:

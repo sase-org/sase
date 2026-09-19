@@ -13,8 +13,10 @@ opener is explicitly configured to trust that CA.
 from __future__ import annotations
 
 import contextlib
+import os
 import selectors
 import shutil
+import signal
 import socket
 import ssl
 import subprocess
@@ -32,7 +34,6 @@ import pytest
 from sase.dispatch.fleet_client import FleetGatewayClient
 
 _READY_TIMEOUT_SECONDS = 10.0
-_SHUTDOWN_TIMEOUT_SECONDS = 5.0
 
 
 def _free_port() -> int:
@@ -147,9 +148,15 @@ class _TlsTerminatingProxy:
         if self._closed:
             return
         self._closed = True
+        port = self.port
+        with contextlib.suppress(OSError):
+            self._listener.shutdown(socket.SHUT_RDWR)
         with contextlib.suppress(OSError):
             self._listener.close()
-        self._accept_thread.join(timeout=_SHUTDOWN_TIMEOUT_SECONDS)
+        with contextlib.suppress(OSError):
+            with socket.create_connection(("127.0.0.1", port), timeout=0.05):
+                pass
+        self._accept_thread.join(timeout=0.2)
 
 
 @dataclass(frozen=True)
@@ -160,6 +167,8 @@ class RealGateway:
     https_endpoint: str
     plain_health_url: str
     cert_path: Path
+    stdout_path: Path
+    stderr_path: Path
 
     def trusted_gateway_client(
         self, *, timeout_seconds: float = 5.0
@@ -228,6 +237,8 @@ def real_gateway(tmp_path: Path) -> Generator[RealGateway]:
     home = tmp_path / "gateway_home"
     home.mkdir(parents=True, exist_ok=True)
     cert_path, key_path = generate_self_signed_loopback_cert(tmp_path)
+    stdout_path = tmp_path / "gateway.stdout"
+    stderr_path = tmp_path / "gateway.stderr"
     plain_port = _free_port()
     argv = [
         *_gateway_command(),
@@ -236,32 +247,34 @@ def real_gateway(tmp_path: Path) -> Generator[RealGateway]:
         "--sase-home",
         str(home),
     ]
-    proc = subprocess.Popen(
-        argv,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
-    plain_health_url = f"http://127.0.0.1:{plain_port}/api/v1/health"
-    try:
-        _wait_until_healthy(plain_health_url, proc=proc)
-        proxy = _TlsTerminatingProxy(
-            cert_path=cert_path, key_path=key_path, backend_port=plain_port
+    with stdout_path.open("wb") as stdout_file, stderr_path.open("wb") as stderr_file:
+        proc = subprocess.Popen(
+            argv,
+            stdin=subprocess.DEVNULL,
+            stdout=stdout_file,
+            stderr=stderr_file,
+            start_new_session=True,
         )
+        plain_health_url = f"http://127.0.0.1:{plain_port}/api/v1/health"
         try:
-            yield RealGateway(
-                home=home,
-                https_endpoint=f"https://127.0.0.1:{proxy.port}",
-                plain_health_url=plain_health_url,
-                cert_path=cert_path,
+            _wait_until_healthy(plain_health_url, proc=proc)
+            proxy = _TlsTerminatingProxy(
+                cert_path=cert_path, key_path=key_path, backend_port=plain_port
             )
+            try:
+                yield RealGateway(
+                    home=home,
+                    https_endpoint=f"https://127.0.0.1:{proxy.port}",
+                    plain_health_url=plain_health_url,
+                    cert_path=cert_path,
+                    stdout_path=stdout_path,
+                    stderr_path=stderr_path,
+                )
+            finally:
+                proxy.close()
         finally:
-            proxy.close()
-    finally:
-        proc.terminate()
-        try:
-            proc.wait(timeout=_SHUTDOWN_TIMEOUT_SECONDS)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            proc.wait(timeout=_SHUTDOWN_TIMEOUT_SECONDS)
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            proc.wait()

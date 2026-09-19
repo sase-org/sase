@@ -51,6 +51,13 @@ def test_x_starts_the_selected_service_proc_not_the_host() -> None:
     assert host.calls == [("proc", "gateway")]
 
 
+def test_x_does_not_toggle_the_host_when_no_service_proc_is_selected() -> None:
+    host = _Host()
+    host._axe_service_selection = None
+    host._toggle_or_kill_axe_view()
+    assert host.calls == []
+
+
 def test_x_does_not_toggle_the_host_on_nested_scheduler_rows() -> None:
     host = _Host()
     host._axe_service_selection = None
@@ -62,6 +69,30 @@ def test_x_does_not_toggle_the_host_on_nested_scheduler_rows() -> None:
 
 def test_bang_x_toggles_the_service_host() -> None:
     host = _Host()
+    host._toggle_axe_global()
+    assert host.calls == ["start-host"]
+    host.calls.clear()
+    host.axe_running = True
+    host._toggle_axe_global()
+    assert host.calls == ["stop-host"]
+
+
+def test_bang_x_toggles_the_host_when_a_service_proc_is_selected() -> None:
+    host = _Host()
+    host._axe_service_selection = "gateway"
+    host._toggle_axe_global()
+    assert host.calls == ["start-host"]
+    host.calls.clear()
+    host.axe_running = True
+    host._toggle_axe_global()
+    assert host.calls == ["stop-host"]
+
+
+def test_bang_x_toggles_the_host_on_nested_scheduler_rows() -> None:
+    host = _Host()
+    host._axe_service_selection = None
+    host._axe_chop_selection = ("routines", "daily")
+    host._axe_lumberjack_idx = 0
     host._toggle_axe_global()
     assert host.calls == ["start-host"]
     host.calls.clear()
