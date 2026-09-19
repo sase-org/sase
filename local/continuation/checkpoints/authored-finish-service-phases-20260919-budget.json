@@ -1,0 +1,57 @@
+{
+  "author": {
+    "actor_id": "0mu--11",
+    "actor_kind": "user"
+  },
+  "constraints": [
+    "Do not redo landed implementation unless verification failed.",
+    "Do not close sase-11y or any other phase besides sase-11y.5 and sase-11y.7.",
+    "Do not create a task bead; append PROPOSED FOLLOW-UP on the exposing phase instead.",
+    "Inspect just fix-tui-screenshots report and golden diffs before accepting writes. Keep Services tab / SVC footer / this tale footer-keybinding updates. Revert unrelated golden writes (Agents metadata-only default, screenshot --type text, Ctrl+E completions, remote fleet rows, enter-to-submit, bulk-select tmux, other origin screens).",
+    "Do not restore the retired agent_holds feature-flag definition.",
+    "Do not close sase-11u from this tale; it is owned by sase-11l flag-removal work and is already closed.",
+    "Do not move repo-root tools/fix_tui_screenshots, tools/run_pytest, or tools/render_visual_snapshot_failure_report into leftover tests/ace/tui/tools or src/sase/ace/tui/tools directories.",
+    "Raise test-cost budgets only from tools/check_test_cost_budgets --suggest for existing failing hard keys; do not add new cause keys or lower still-passing limits.",
+    "Do not restore sase-11y.5 or sase-11y.7 --epic-symbol exemptions.",
+    "Do not restore sase-12y --epic-symbol lines; origin 67614ee2b0 consumed set_bead_endpoint_projection / set_link_projection. Do not re-key those symbols back to closed sase-12y.3.",
+    "Do not rewrite origin's landed empty-clone publish helper.",
+    "Do not add the six host-wide flake nodes to tests/reproducible_flake_baseline.txt a second time. Do not file flake beads for them.",
+    "Fish loader isolation: origin now uses fish -N plus XDG_CONFIG_HOME; do not revert to a config-loading fish.",
+    "Sidecar clone retry tests must patch _sleep_before_retry via _capture_retry_sleeps, not global time.sleep capture."
+  ],
+  "coverage": [
+    "id:d51191d5e6452b5c"
+  ],
+  "findings": [
+    "just check-full (h8zpkk8p23zh) passed every lint and the whole pytest cost lane (43275 passed, 15 skipped, 0 failed in 2h21m43s on 4 workers), then failed hard cost budgets on recording 20260919T050532Z-281974.json: total_file_cpu 4063.555>3875.000, ace_page_enter.cpu 1242.804>1187.500, ace_settle_pilot.cpu 542.920>537.500, parser_create.cpu 88.471>86.250, pilot_pause_delay.cpu 473.382>462.500. Stage-one boom is the usual canary.",
+    "tools/check_test_cost_budgets --suggest --history 8 sampled 8 athena recordings 2026-09-18T18:07:20Z-2026-09-19T05:05:32Z (4-14 workers, 42961-43289 nodes). Raised only existing failing hard CPU keys: total_file_cpu_seconds 3100->3300, ace_page_enter.cpu 950->1000, ace_settle_pilot.cpu 430->440, parser_create.cpu 69->74, pilot_pause_delay.cpu 370->380. Re-check of 20260919T050532Z-281974.json now passes (advisories only). yaml_load.cpu and textual_app_run_test_enter.cpu still pass; do not raise them.",
+    "Rebased onto origin/master (6 incoming: luna/terra size aliases, hold publication serialize, remote sudo login-shell resolve, enter-to-submit, bulk-select tmux workspaces, hold CLI/directive selector parity). Stash/pop. Conflicts: tests/completion/test_loader.py (kept origin fish -N; equivalent to this tale's --no-config plus origin XDG_CONFIG_HOME) and tests/sdd_store/test_sidecar_clone_retry.py (kept _capture_retry_sleeps helper; origin independently patches _sleep_before_retry). Justfile still has zero --epic-symbol lines. just fix clean. Focused sidecar/loader/cost-budget/service/TUI/doctor/import-budget/proc-query tests passed.",
+    "Fish loader node remains # fixed-at 2026-09-19T02:30:50Z. Six host-wide flake-gate nodes remain in tests/reproducible_flake_baseline.txt as sase-11y.7 debt; do not duplicate, do not file flake beads.",
+    "sase-11u still CLOSED. sase-12y still IN_PROGRESS. Origin Justfile still lists sase-11y.7 exemptions; this tale's working tree removes them."
+  ],
+  "kind": "authored_checkpoint",
+  "objective": "Close sase-11y.5 and sase-11y.7 after green just check-full, empty epic-symbol audits, visual inspection, and PROPOSED FOLLOW-UP on sase-11y.7 for the AXE/Services j/k p95>16ms host miss plus the six host-wide flake-gate nodes.",
+  "remaining_work": [
+    "If check-full failed on proc-query CPU time, profile matcher; do not weaken 1.0s CPU budget.",
+    "If import-budget fails on CPU time, that is a real import-graph regression; do not raise the 5.0s budget. Isolated was 2.62s this turn.",
+    "If fish loader ensure-count is still 2 with -N and XDG_CONFIG_HOME: inspect ensure.log loader-path. Do not weaken the once-only contract. If the flake gate still names it after the # fixed-at, a post-fix failure was recorded; inspect, do not delete the fixed-at line unless it retired nothing.",
+    "If lint-flags fails again on sase-11u, do not restore agent_holds. Confirm sase bead show sase-11u. If still closed, it is beads-store lag: sync and rerun the lint. If reopened by sase-11l, wait/note as out of scope; do not close sase-11u from this tale.",
+    "If pyscripts Rule 2 fires again on tests/ace/tui/tools or src/sase/ace/tui/tools, those are leftover empty dirs from the LLM Calls rename (only __pycache__). Delete them; do not move repo-root tools into those dirs.",
+    "If lint-symvision fails, do not restore 11y.5/11y.7 or sase-12y exemptions. Make unused public symbols private or used, then drop stale --epic-symbol lines. Origin still lists 11y.7 exemptions; this tale's Justfile must keep them removed.",
+    "If test-cost hard budgets fail again, run tools/check_test_cost_budgets --suggest --history 8 and raise only newly failing existing hard keys. Do not add new cause keys or lower still-passing limits. Do not file a flake bead. Recording 20260919T050532Z-281974.json already passes the raised file; a new failure needs a new recording. Incoming origin TUI tests (enter-to-submit, bulk-select tmux) may increase ace_page_enter / textual_app_run_test_enter.",
+    "If test_sidecar_clone_retries_transient_transport_failures fails again on extra sleeps, the _sleep_before_retry isolation is already in tree; do not widen retry delays.",
+    "If SDD empty-clone/init tests fail, that is a regression of origin 01f5cb9e3e; do not weaken health validation for incomplete clones.",
+    "If selection-health --fail-on-new-flake names the proc-query budget, import-budget, or fold-persistence tests: do not file a flake bead and do not add them to tests/reproducible_flake_baseline.txt. Only add a # fixed-at: line if the gate still requires it after the test itself passes.",
+    "If selection-health names the six already-listed host-wide nodes, they are already in the baseline; do not duplicate them and do not file flake beads.",
+    "If wait/hold/xprompt/core-scan fail again with missing hood or %hold: sase_core_rs is stale; run just install and rerun the failed tests before editing Python contracts. Linked checkout is 0.34.58. Incoming hold publication serialize may need a current extension.",
+    "If just fix-tui-screenshots writes goldens: inspect the compact report and diffs. Keep Services tab / SVC footer / this tale footer-keybinding updates. Revert unrelated golden writes.",
+    "After green checks: empty epic-symbol audits, close sase-11y.5 and sase-11y.7 with verification notes, PROPOSED FOLLOW-UP on sase-11y.7 for AXE/Services j/k p95>16ms host miss and the six host-wide flake-gate nodes (land files flake tasks), then /sase_final with commit."
+  ],
+  "schema_version": 1,
+  "source_refs": [
+    "plan:202609/finish_service_phases.md",
+    "bead:sase-11y.5",
+    "bead:sase-11y.7"
+  ],
+  "unresolved_decisions": []
+}
