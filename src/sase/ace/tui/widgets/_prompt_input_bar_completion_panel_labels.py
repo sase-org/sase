@@ -211,7 +211,7 @@ def model_completion_subtitle(
         subtitle = "[@] model aliases"
     elif metadata.kind == "provider":
         label = metadata.provider_display or metadata.description or metadata.provider
-        subtitle = f"[Ctrl+G] show {label} models"
+        subtitle = f"[Ctrl+E] show {label} models"
     elif metadata.description:
         subtitle = metadata.description
     elif metadata.alias_kind == "user":
@@ -230,7 +230,7 @@ def _model_alias_completion_subtitle(
     metadata: ModelCompletionMetadata,
     inner_width: int,
 ) -> Text:
-    preview = Text(f"Ctrl+G → %m:{metadata.value}", no_wrap=True, overflow="ellipsis")
+    preview = Text(f"Ctrl+E → %m:{metadata.value}", no_wrap=True, overflow="ellipsis")
     if inner_width <= 0:
         if metadata.description:
             preview.append(f" · {metadata.description}")
@@ -258,7 +258,7 @@ def _model_explicit_completion_subtitle(
     metadata: ModelCompletionMetadata,
     inner_width: int,
 ) -> Text:
-    preview = Text(f"Ctrl+G → %m:{metadata.value}", no_wrap=True, overflow="ellipsis")
+    preview = Text(f"Ctrl+E → %m:{metadata.value}", no_wrap=True, overflow="ellipsis")
     details = _model_explicit_completion_details(metadata)
     if inner_width <= 0:
         if details:

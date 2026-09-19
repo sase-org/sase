@@ -183,7 +183,7 @@ def _selected_insertion(text_area: PromptTextArea) -> str:
     ].insertion
 
 
-async def test_equals_alias_auto_opens_and_ctrl_g_expands_without_submit() -> None:
+async def test_equals_alias_auto_opens_and_ctrl_e_expands_without_submit() -> None:
     app = ModelAliasCompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
@@ -197,10 +197,10 @@ async def test_equals_alias_auto_opens_and_ctrl_g_expands_without_submit() -> No
         assert ta._completion_kind == MODEL_ALIAS_COMPLETION_KIND
         assert panel.border_title == "model aliases"
         assert [c.insertion for c in ta._file_completion_candidates] == ["@large"]
-        assert "Ctrl+G → %m:@large · Large model" in str(panel.border_subtitle)
+        assert "Ctrl+E → %m:@large · Large model" in str(panel.border_subtitle)
         assert bar._subtitle_base == MODEL_ALIAS_MODE_SUBTITLE
 
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         assert ta.text == "%m:@large "
         assert app.submitted == []
@@ -317,7 +317,7 @@ async def test_equals_alias_subtitle_omits_missing_description() -> None:
         await pilot.press("s")
 
         panel = bar.query_one("#prompt-completion", Static)
-        assert str(panel.border_subtitle) == "Ctrl+G → %m:@small"
+        assert str(panel.border_subtitle) == "Ctrl+E → %m:@small"
 
 
 async def test_equals_alias_accept_replaces_whole_token_from_mid_token_cursor() -> None:
@@ -328,7 +328,7 @@ async def test_equals_alias_accept_replaces_whole_token_from_mid_token_cursor() 
         ta.cursor_location = (0, len("Use =la"))
 
         await pilot.press("ctrl+t")
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         assert ta.text == "Use %m:@large later"
         assert ta.cursor_location == (0, len("Use %m:@large "))
@@ -344,7 +344,7 @@ async def test_equals_alias_accept_preserves_context_and_undo_redo() -> None:
         ta.cursor_location = (0, len("Keep\t🙂 =la"))
 
         await pilot.press("ctrl+t")
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         assert ta.text == expanded
         assert ta.cursor_location == (0, len("Keep\t🙂 %m:@large "))
@@ -456,7 +456,7 @@ async def test_loading_model_alias_row_is_not_selectable() -> None:
         assert ta._file_completion_candidates[0].display == "Loading model aliases…"
         assert bar._subtitle_base != MODEL_ALIAS_MODE_SUBTITLE
 
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         assert ta.text == "="
         assert app.submitted == []
@@ -489,7 +489,7 @@ async def test_cold_model_alias_catalog_shows_loading_without_blocking_keys() ->
             )
 
             await pilot.press("x")
-            await pilot.press("ctrl+g")
+            await pilot.press("ctrl+e")
 
             assert ta.text == "=x"
             assert app.submitted == []

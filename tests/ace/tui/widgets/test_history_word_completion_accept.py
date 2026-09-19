@@ -110,14 +110,14 @@ async def test_history_hyphenated_acceptance_preserves_right_hand_suffix() -> No
         assert ta._file_completion_active is False
 
 
-async def test_history_navigation_ctrl_g_accept_preserves_suffix() -> None:
+async def test_history_navigation_ctrl_e_accept_preserves_suffix() -> None:
     app = HistoryCompletionTestApp(["review", "revise"])
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
         ta.load_text("revZZZ")
         ta.cursor_location = (0, len("rev"))
 
-        await pilot.press("ctrl+t", "down", "ctrl+g")
+        await pilot.press("ctrl+t", "down", "ctrl+e")
 
         assert ta.text == "revise ZZZ"
         assert ta.cursor_location == (0, len("revise"))

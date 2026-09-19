@@ -23,7 +23,7 @@ from sase.xprompt.model_completion import (
 )
 
 MODEL_EXPLICIT_COMPLETION_KIND = "model_explicit"
-MODEL_EXPLICIT_MODE_SUBTITLE = "[Ctrl+G] accept model  [Esc] normal  [^C] cancel"
+MODEL_EXPLICIT_MODE_SUBTITLE = "[Ctrl+E] accept model  [Esc] normal  [^C] cancel"
 
 
 @dataclass(frozen=True, slots=True)

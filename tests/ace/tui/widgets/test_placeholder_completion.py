@@ -91,7 +91,7 @@ async def test_accept_replaces_inner_text_with_and_without_closing_bracket() -> 
         ta.cursor_location = (0, len(ta.text) - 1)
         assert ta._try_auto_placeholder_completion() is True
 
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         assert ta.text == "Use <alpha> then <alpha>"
         assert ta.cursor_location == (0, len(ta.text))
@@ -101,7 +101,7 @@ async def test_accept_replaces_inner_text_with_and_without_closing_bracket() -> 
         ta.cursor_location = (0, len(ta.text))
         assert ta._try_auto_placeholder_completion() is True
 
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         assert ta.text == "Use <alpha> then <alpha>"
         assert ta.cursor_location == (0, len(ta.text))
@@ -182,7 +182,7 @@ async def test_snippet_tabstop_opens_completion_and_survives_accept() -> None:
             assert ta._file_completion_active is True
             assert ta.cursor_location == (0, ta.text.rindex("<") + 1)
 
-            await pilot.press("ctrl+g")
+            await pilot.press("ctrl+e")
 
             assert ta.text == "Reuse <alpha>: `<alpha>`"
             assert ta.cursor_location == (0, ta.text.rindex(">") + 1)
@@ -557,7 +557,7 @@ async def test_accepting_a_saved_candidate_closes_the_bracket_either_way() -> No
         ta.cursor_location = (0, len(ta.text))
         assert ta._try_auto_placeholder_completion() is True
 
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         assert ta.text == "Use <alpha> then <feature flag>"
         assert ta.cursor_location == (0, len(ta.text))
@@ -567,7 +567,7 @@ async def test_accepting_a_saved_candidate_closes_the_bracket_either_way() -> No
         ta.cursor_location = (0, len(ta.text) - 1)
         assert ta._try_auto_placeholder_completion() is True
 
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         assert ta.text == "Use <alpha> then <feature flag>"
         assert ta.cursor_location == (0, len(ta.text))

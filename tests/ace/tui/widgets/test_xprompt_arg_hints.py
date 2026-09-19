@@ -79,7 +79,7 @@ async def test_accepting_required_xprompt_shows_arg_hint_panel() -> None:
         ta.cursor_location = (0, 1)
         _seed_entries(ta, entries)
         await pilot.press("ctrl+t")
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         panel = bar.query_one("#prompt-completion", Static)
         rendered = panel.render()

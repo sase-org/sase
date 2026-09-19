@@ -114,7 +114,7 @@ async def test_revealed_files_survive_typing_and_reset_when_menu_closes() -> Non
             "@final.txt",
         ]
 
-        await pilot.press("ctrl+n", "ctrl+g")
+        await pilot.press("ctrl+n", "ctrl+e")
 
         assert text_area.text == "@final.txt"
         assert text_area._file_completion_active is False
@@ -132,7 +132,7 @@ async def test_directory_accept_drills_down_and_file_accept_closes() -> None:
         text_area.cursor_location = (0, 3)
 
         assert text_area._try_artifact_ref_completion() is True
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         assert text_area.text == "@src/"
         assert text_area._file_completion_active is True
@@ -140,13 +140,13 @@ async def test_directory_accept_drills_down_and_file_accept_closes() -> None:
             "@src/main.py"
         ]
 
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
         assert text_area.text == "@src/main.py"
         assert text_area._file_completion_active is False
         assert text_area._insert_g_prefix_pending is False
 
 
-async def test_bare_at_enter_submits_but_ctrl_g_ctrl_l_and_navigation_accept() -> None:
+async def test_bare_at_enter_submits_but_ctrl_e_ctrl_l_and_navigation_accept() -> None:
     app = CompletionTestApp()
     submitted = 0
     async with app.run_test() as pilot:
@@ -172,7 +172,7 @@ async def test_bare_at_enter_submits_but_ctrl_g_ctrl_l_and_navigation_accept() -
         assert text_area._file_completion_active is False
 
         assert text_area._try_artifact_ref_completion() is True
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
         assert submitted == 1
         assert text_area.text != "@"
         assert text_area._insert_g_prefix_pending is False
@@ -187,7 +187,7 @@ async def test_bare_at_enter_submits_but_ctrl_g_ctrl_l_and_navigation_accept() -
         text_area.load_text("@")
         text_area.cursor_location = (0, 1)
         assert text_area._try_artifact_ref_completion() is True
-        await pilot.press("ctrl+n", "ctrl+g")
+        await pilot.press("ctrl+n", "ctrl+e")
         assert submitted == 1
         assert text_area.text != "@"
         assert text_area._insert_g_prefix_pending is False
@@ -381,7 +381,7 @@ async def test_accept_kind_reopens_payload_then_accepts_document() -> None:
         text_area.cursor_location = (0, 3)
 
         assert text_area._try_artifact_ref_completion() is True
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         assert text_area.text == "@plans:"
         assert text_area._file_completion_active is True
@@ -391,7 +391,7 @@ async def test_accept_kind_reopens_payload_then_accepts_document() -> None:
             for row in text_area._file_completion_candidates
         )
 
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
         assert text_area.text == "@plans:202607/alpha.md"
         assert text_area._file_completion_active is False
         assert text_area._insert_g_prefix_pending is False

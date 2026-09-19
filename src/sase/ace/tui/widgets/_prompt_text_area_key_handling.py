@@ -185,20 +185,6 @@ class PromptTextAreaKeyHandlingMixin(
                 event.prevent_default()
                 return
 
-        # Active INSERT-mode completion consumes ``Ctrl+G`` before the
-        # prompt-local ``Ctrl+G`` prefix dispatchers, including the initially
-        # highlighted first row. Inactive-menu ``Ctrl+G`` still starts the
-        # prefix below.
-        if (
-            self._file_completion_active
-            and self._vim_mode == "insert"
-            and event.key == "ctrl+g"
-        ):
-            event.stop()
-            event.prevent_default()
-            self._accept_file_completion()
-            return
-
         if self._handle_insert_g_prefix_key(event):
             event.stop()
             event.prevent_default()
@@ -327,7 +313,10 @@ class PromptTextAreaKeyHandlingMixin(
                 event.prevent_default()
                 self._move_file_completion(-1)
                 return
-            if event.key == "ctrl+l":
+            # ``Ctrl+E`` accepts only while a menu is open so the readline
+            # end-of-line binding still fires when no menu is active. ``Ctrl+L``
+            # remains the compatibility alias for an open manual menu.
+            if event.key in ("ctrl+e", "ctrl+l"):
                 event.stop()
                 event.prevent_default()
                 self._accept_file_completion()

@@ -177,7 +177,7 @@ def _selected_insertion(text_area: PromptTextArea) -> str:
     ].insertion
 
 
-async def test_double_equals_auto_opens_and_ctrl_g_expands_without_submit() -> None:
+async def test_double_equals_auto_opens_and_ctrl_e_expands_without_submit() -> None:
     app = ModelExplicitCompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
@@ -194,10 +194,10 @@ async def test_double_equals_auto_opens_and_ctrl_g_expands_without_submit() -> N
         assert ta._completion_kind == MODEL_EXPLICIT_COMPLETION_KIND
         assert panel.border_title == "explicit models"
         assert _candidate_insertions(ta) == ["gpt-5.6-sol"]
-        assert "Ctrl+G → %m:gpt-5.6-sol · Codex (sol)" in str(panel.border_subtitle)
+        assert "Ctrl+E → %m:gpt-5.6-sol · Codex (sol)" in str(panel.border_subtitle)
         assert bar._subtitle_base == MODEL_EXPLICIT_MODE_SUBTITLE
 
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         assert ta.text == "%m:gpt-5.6-sol "
         assert app.submitted == []
@@ -447,7 +447,7 @@ async def test_double_equals_accept_replaces_whole_token_from_mid_token_cursor()
         ta.cursor_location = (0, len("Use ==gp"))
 
         await pilot.press("ctrl+t")
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         assert ta.text == "Use %m:gpt-5.6-sol later"
         assert ta.cursor_location == (0, len("Use %m:gpt-5.6-sol "))
@@ -464,7 +464,7 @@ async def test_double_equals_accept_preserves_context_and_undo_redo() -> None:
         ta.cursor_location = (0, len("Keep\t🙂 ==gp"))
 
         await pilot.press("ctrl+t")
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         assert ta.text == expanded
         assert ta.cursor_location == (0, len("Keep\t🙂 %m:gpt-5.6-sol "))
@@ -576,7 +576,7 @@ async def test_loading_model_rows_are_not_selectable() -> None:
         assert ta._file_completion_candidates[0].display == "Loading models…"
         assert bar._subtitle_base != MODEL_EXPLICIT_MODE_SUBTITLE
 
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
         assert ta.text == "=="
         assert app.submitted == []

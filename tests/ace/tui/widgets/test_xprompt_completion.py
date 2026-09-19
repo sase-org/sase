@@ -547,7 +547,7 @@ async def test_panel_acceptance_uses_xprompt_completion_skeleton() -> None:
         ta.cursor_location = (0, 2)
         _seed_entries(ta, entries)
         await pilot.press("ctrl+t")
-        await pilot.press("ctrl+g")
+        await pilot.press("ctrl+e")
 
     assert ta.text == "#many()"
     assert ta.cursor_location == (0, len("#many("))

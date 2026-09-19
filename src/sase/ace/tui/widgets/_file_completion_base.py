@@ -209,7 +209,7 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         """Replace the typed prefix, separating a preserved same-word suffix.
 
         Shared by prompt-local and history-word acceptance, for both the lone
-        ``Ctrl+T`` shortcut and Ctrl+G/Ctrl+L menu acceptance, so committed
+        ``Ctrl+T`` shortcut and Ctrl+E/Ctrl+L menu acceptance, so committed
         word insertion follows one unambiguous contract: only the typed
         prefix is replaced, and a single ASCII space is inserted before any
         identifier-like suffix that already followed the cursor, with the
