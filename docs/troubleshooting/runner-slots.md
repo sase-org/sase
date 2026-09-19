@@ -29,11 +29,12 @@ already live; after a processless gate releases capacity, the successor must tra
 still-live claim or reacquire capacity normally. Workflow Python/bash steps and axe
 Patch runners hold none of this capacity.
 
-The bundled task and epic phase xprompts used by `sase bead work` do not set an authored
-wait priority. The bundled epic lander authors `%q(w=2.0)`, so it claims two capacity
-units once its rendered phase-DAG, bead-dependency, or other waits resolve. A project,
-user, config, or plugin override of any bundled xprompt supplies its own body and may
-choose a different priority or weight.
+The bundled task, phase, and lander xprompts used by `sase bead work` do not set an
+authored wait priority or a non-default queue weight, so they claim the default `1.0`
+capacity unit and default priority once eligible. A project, user, config, or plugin
+override of any bundled xprompt supplies its own body and may author a different
+priority or weight. `sase bead work --capacity N` still raises a segment to
+`ceil(weight)` when an override authors a weight greater than `N`.
 
 Selecting a ranked waiter in sase's TUI also shows a bounded `QUEUE` ladder in that same
 capacity-aware order. Its `N ahead` count is the number of earlier ladder entries.

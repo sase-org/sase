@@ -150,7 +150,8 @@ sase core health
 ```
 
 Run `just check-full` before submitting changes. That exhaustive local lane updates TUI
-screenshot goldens; CI checks them with `just fix-tui-screenshots --check`.
+screenshot goldens; CI checks them with `just fix-tui-screenshots --check`. SASE agents
+use `just check` unless explicitly instructed to run `just check-full`.
 
 ## Acknowledgements
 

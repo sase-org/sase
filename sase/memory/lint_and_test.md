@@ -15,8 +15,9 @@ just lint          # Every whole-repo lint gate (ruff, mypy, symvision, toobig, 
 just check         # Agent default: whole-repo lint gates + a diff-scoped
                    # test lane that never queues behind another agent's run
 just check-full    # Exhaustive verification: every lint gate + the full
-                   # test suite + local TUI screenshot update; run before
-                   # landing. CI does not run this recipe.
+                   # test suite + local TUI screenshot update. Agents run
+                   # this only when explicitly instructed. CI does not run
+                   # this recipe.
 just test          # Fast parallel pytest run (excludes PNG visual snapshots)
 just test-cov      # pytest with coverage + 50% gate (used by CI); also
                    # excludes the visual snapshot suite
@@ -33,18 +34,27 @@ command before terminating / replying to the user.
 run is serial unless a middle gear wins it a small, bounded suite-gate lease, and it
 never queues behind other agents' runs either way. Selection is a heuristic backstopped
 by CI: `tools/select_tests --explain` shows why a test was or was not chosen, and
-`just selection-health` shows whether the heuristic has ever been wrong.
+`just selection-health` shows whether the heuristic has ever been wrong. When the
+selector cannot trust the closure, `just check` already escalates internally to the
+governed full test lane. That internal escalation is not a reason to run
+`just check-full`.
 
-Run `just check-full` instead — every lint gate plus the full test suite, then a local
-TUI screenshot update that can modify goldens — before landing an epic's combined tree,
-when the change touches the broadening set, or any time `just check`'s scoped run
-escalated or reported an unusual selection.
+Do **not** run `just check-full` unless the current prompt, the user, or the assigned
+bead explicitly names that command. The intended case is a CI failure on a
+check-full-only gate (flake baseline, test-cost budget, screenshot golden, or a
+full-lane-only flake). Landing an epic, touching the broadening set, seeing `just check`
+escalate or print an unusual selection, "being careful," a sibling agent's example, and
+the monitor skill's old canonical snippet are **not** explicit instruction.
 
-`just check-full` routinely outruns a single agent turn, so run it **only** through your
-`/sase_monitor` skill, never inline, using the `TESTING` / `TESTED` status pair.
-`just check` may be run inline, but hand it to a monitor the same way whenever it is
-taking a long time. [[decisions/two-speed-verification]] has the host capacity
-measurements that make this rule non-negotiable.
+A `just check` pass with a `just check-full` failure is a test-infrastructure bug, out
+of scope for the current agent. File it through `/sase_new_task` and do not treat it as
+remaining product or landing work.
+
+When `just check-full` **is** explicitly requested, it routinely outruns a single agent
+turn, so run it **only** through your `/sase_monitor` skill, never inline, using the
+`TESTING` / `TESTED` status pair. `just check` may be run inline, but hand it to a
+monitor the same way whenever it is taking a long time.
+[[decisions/check-full-is-explicit]] is the rule.
 
 Before handing `just check` or `just check-full` to a verify monitor, run `just fix`
 inline first (or at minimum `just fmt`); it takes seconds and prevents common avoidable

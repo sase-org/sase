@@ -101,13 +101,17 @@ lane stops taking it. Every scoped manifest records both halves of the compariso
 prints them whether or not the rule fired —
 `serial budget: estimated 180s against a 444s budget (within; 96% of the selection covered by the timing table)`.
 
-Run `just check-full` — every lint gate, the full suite through `just test-cost`, the
-[flake-baseline gate](#the-flake-baseline-gate), and a local TUI screenshot update —
-before landing an epic's combined tree, whenever a change touches the broadening set
-above, and any time a scoped run escalated or reported a selection that looks wrong. CI
-always runs the full non-visual suite and a dedicated check-only visual job, so a scoped
-false negative surfaces there within roughly the CI test leg's runtime; it is a
-backstop, not a silent gap.
+Agents run `just check`, not `just check-full`. `just check-full` is the exhaustive
+local lane — every lint gate, the full suite through `just test-cost`, the
+[flake-baseline gate](#the-flake-baseline-gate), and a local TUI screenshot update — and
+agents invoke it only when the current prompt, the user, or the assigned bead explicitly
+names that command (typically a CI failure on a check-full-only gate). Landing, touching
+the broadening set, and a scoped escalation are not reasons to start it; `just check`
+already escalates internally when the selector cannot trust the closure. CI always runs
+the full non-visual suite and a dedicated check-only visual job, so a scoped false
+negative surfaces there within roughly the CI test leg's runtime; it is the backstop,
+not a silent gap. A `just check` pass with a `just check-full` failure is a
+test-infrastructure bug; file it rather than treating it as remaining product work.
 
 Use `tools/select_tests --explain` to see which rules fired and why a given file was
 pulled into (or excluded from) the current selection. The selection manifest — the
@@ -146,12 +150,12 @@ the table.
 `tests/_test_cost_plugin.py`, writes a cost recording under the timing store's `cost/`
 subdirectory, prints `tools/test_cost_report`, and then enforces
 `tests/perf/baselines/test_cost_budgets.json` with `tools/check_test_cost_budgets`.
-`just check-full` uses this lane so the landing path catches cost regressions; ordinary
-`just test`, `just test-cov`, and `just check` keep the lower-overhead timing recorder.
-CI enforces the same budget on the Python 3.13 full-suite leg. Because `just check-full`
-runs this lane instead of `just test`, the cost lane also records full-run failures for
-selection health; it deliberately does not record per-test-file durations, because the
-probe taxes exactly the numbers that table is for.
+`just check-full` uses this lane so the exhaustive local path catches cost regressions;
+ordinary `just test`, `just test-cov`, and `just check` keep the lower-overhead timing
+recorder. CI enforces the same budget on the Python 3.13 full-suite leg. Because
+`just check-full` runs this lane instead of `just test`, the cost lane also records
+full-run failures for selection health; it deliberately does not record per-test-file
+durations, because the probe taxes exactly the numbers that table is for.
 
 The report has three parts: summary totals, cause attribution, and top files. The
 summary budgets guard total per-test wall seconds, idle seconds, collection seconds, and
@@ -425,8 +429,8 @@ oracle under real xdist contention.
 Both guards live outside the contract set on purpose — regenerating and re-budgeting the
 whole set from inside that same set would charge every `just check` for it twice — so
 they run only in the exhaustive lane (`just test`, `just check-full`, CI). Marking a
-test and forgetting the refresh therefore survives a `just check`: run `just check-full`
-after changing a `contract` marker.
+test and forgetting the refresh therefore survives a `just check`: CI is the backstop.
+`just check` already escalates when `tests/contract_manifest.txt` itself changes.
 
 Once you do regenerate, the manifest change broadens the next selection by itself.
 `tests/contract_manifest.txt` belongs to the `selection-tooling` broadening rule, so the

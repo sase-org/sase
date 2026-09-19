@@ -3,8 +3,7 @@
 A **monitor shell** is a real [agent family](agent_families.md) member whose work is one
 supervised OS command instead of an LLM turn. `sase monitor start` hands a slow command
 off to a detached supervisor process and returns immediately, so an agent can run
-`just check-full`, wait on a CI job, or sleep before a deploy without blocking its own
-turn.
+`just check`, wait on a CI job, or sleep before a deploy without blocking its own turn.
 
 SASE agents are single-turn: a provider turn runs, the runner captures it, and the agent
 is done. Provider-native background-execution or scheduled wake-up tools assume a
@@ -66,9 +65,12 @@ sase monitor start \
   -p verify \
   -r 'Verify the refactor before replying to the user' \
   -t 45m \
-  -n 'Fix anything just check-full reported, then reply to the user.' \
-  -- just check-full
+  -n 'Fix anything just check reported, then reply to the user.' \
+  -- just check
 ```
+
+When `just check-full` is explicitly requested (typically to repair a CI failure), use
+the same `verify` profile — never run it inline.
 
 Use the same shape when the command you need is an agent-completion gate. The intended
 composition is a monitor running `sase agent wait`, followed by a normal follow-up agent
@@ -84,8 +86,8 @@ sase monitor start \
 That keeps the wait outside the current provider turn, preserves the workspace claim,
 and records the wait output where the follow-up can inspect it.
 
-- The command is the remainder after `--` (for example `-- just check-full`). That is
-  the form `sase monitor start --help` shows. `-c/--command` still works as a hidden
+- The command is the remainder after `--` (for example `-- just check`). That is the
+  form `sase monitor start --help` shows. `-c/--command` still works as a hidden
   compatibility alias for a single shell string, but new invocations should use `--`. A
   single word after `--` is used verbatim as the shell command, so quote a pipeline or
   `&&` chain as one argument (`-- 'just fix && just check'`). Several words are
@@ -243,7 +245,7 @@ Prepare the wrapper, then bind the returned `intent_ref` to the matching command
 
 ```bash
 sase final prepare completion.json -j
-sase monitor start -p verify -f '<intent-ref>' -- just check-full
+sase monitor start -p verify -f '<intent-ref>' -- just check
 ```
 
 Binding is atomic. A command mismatch creates no monitor, and a failed monitor startup
@@ -389,7 +391,7 @@ orthogonal signals carry the rest:
 
 Failure keeps red: `failed`, `timeout`, and `lost` render bold red regardless of the
 pair accent. Two different pairs can share a color; the words still differ. Reusing one
-pair across related monitors (for example every `just check-full` wait as `TESTING` /
+pair across related monitors (for example every `just check` wait as `TESTING` /
 `TESTED`) makes those rows read as one lane.
 
 A monitor is terminal only after it is settled: the command has exited or been
@@ -398,10 +400,10 @@ transferred, and the follow-up has launched or its disposition has been recorded
 Polling commands such as `sase monitor show --follow` and `%wait` continue waiting while
 a monitor is stopped but not yet settled.
 
-A failing `just check-full` shows up as a Failed member with its exit code visible, and
-the follow-up agent still launches so it can fix what broke. A timed-out command is
-killed (its whole process group, not just the shell), and the follow-up is told plainly
-which budget fired: total runtime or no-output idle time. A `lost` monitor means the
+A failing `just check` shows up as a Failed member with its exit code visible, and the
+follow-up agent still launches so it can fix what broke. A timed-out command is killed
+(its whole process group, not just the shell), and the follow-up is told plainly which
+budget fired: total runtime or no-output idle time. A `lost` monitor means the
 supervisor belongs to a previous boot, so SASE cannot know whether the command finished
 or what it changed. Lost monitors are not automatically re-run, and their recorded
 follow-up action is not launched.

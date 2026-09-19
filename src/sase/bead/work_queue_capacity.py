@@ -1,8 +1,9 @@
 """Per-segment ``--capacity`` resolution for epic ``sase bead work``.
 
 ``sase bead work --capacity N`` stamps a ``%queue(capacity=...)`` budget into
-every phase and land segment. Built-in land xprompts author ``%q(w=2.0)``, so
-a uniform ``N=1`` is unsatisfiable once ``queue_capacity_budget`` is on.
+every phase and land segment. An xprompt that authors a queue weight greater
+than ``N`` is raised to ``ceil(weight)`` once ``queue_capacity_budget`` is on,
+so a uniform ``N=1`` stays satisfiable for the default-weight builtin lander.
 
 This module probes only the queue-relevant xprompt text (never ``%id``,
 ``%clan``, ``%w``, ``%model``, or VCS prefixes), then translates ``N`` into a

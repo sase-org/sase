@@ -226,7 +226,7 @@ def test_work_launch_threads_capacity_into_rendered_multi_prompt(
     assert all(segment.count("%queue(capacity=3)") == 1 for segment in segments)
 
 
-def test_work_launch_capacity_1_floors_land_segment(
+def test_work_launch_capacity_1_stamps_every_segment(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -257,7 +257,7 @@ def test_work_launch_capacity_1_floors_land_segment(
     assert len(segments) == len(phase_ids) + 1
     *phases, land = segments
     assert all(segment.count("%queue(capacity=1)") == 1 for segment in phases)
-    assert land.count("%queue(capacity=2)") == 1
+    assert land.count("%queue(capacity=1)") == 1
 
 
 def _patch_land_xprompt(monkeypatch: pytest.MonkeyPatch, content: str) -> None:

@@ -33,9 +33,13 @@ sase monitor start \
   --reason 'Verify the refactor before replying to the user' \
   --timeout 45m \
   --model '@small' \
-  --next 'Fix anything just check-full reported, then reply to the user.' \
-  -- just check-full
+  --next 'Fix anything just check reported, then reply to the user.' \
+  -- just check
 ```
+
+When the current prompt, the user, or the assigned bead explicitly names
+`just check-full` (typically to repair a CI failure), use the same `verify` profile and
+`TESTING` / `TESTED` pair — never run it inline.
 
 ## Status Labels
 
@@ -57,7 +61,7 @@ the row color, so reusing one pair across related monitors makes them read as on
   run the command inline instead of assuming a monitor exists.
 - The command after `--` is preserved argument-for-argument. Pass one quoted string
   (`-- 'just install && just check'`) and it runs verbatim as the shell command under
-  the host's `/bin/sh -c`; pass several bare words (`-- just check-full`) and they are
+  the host's `/bin/sh -c`; pass several bare words (`-- just check`) and they are
   rejoined for you. Do not wrap the command in `bash -c '...'` or `sh -c '...'` — the
   host already runs it under a shell, so the wrapper is redundant and is the leading
   cause of monitor command misquoting (`sase monitor start` warns if you do it anyway).

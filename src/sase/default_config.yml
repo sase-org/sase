@@ -1751,9 +1751,12 @@ xprompts:
     input:
       bead_id: word
     content: |
-      %q(w=2.0)
       You are the land agent for epic bead {{ bead_id }}: verify the epic is truly complete, integrate it with changes
       that landed since it started, then close it out.
+
+      Do not run `just check-full` unless this prompt or the user explicitly tells you to. File-change verification is
+      `just check`. A `just check` pass with a `just check-full` failure is a test-infrastructure bug, not remaining
+      epic work.
 
       1. Verify. Run `sase bead show {{ bead_id }}` (children, linked plan file), review the epic bead's own notes, then
          run `sase bead show` on every child and review every child note. Confirm each note was addressed, and read the

@@ -17,6 +17,7 @@ from sase.bead.work_queue_capacity import (
     _RaisedQueueCapacity,
     _probe_segment_queue_fields,
     _queue_probe_text,
+    _segment_specs,
     resolve_epic_queue_capacities,
 )
 from sase.feature_flags import override_flags
@@ -91,9 +92,21 @@ def _extract_probe(probe_text: str) -> Any:
     return directives
 
 
-def test_flag_on_capacity_1_raises_only_land() -> None:
+def test_flag_on_capacity_1_leaves_builtin_segments_at_1() -> None:
     with override_flags(queue_capacity_budget=True):
         result = _resolve(1)
+
+    assert dict(result.segment_capacity) == {
+        "sase-zp.1": 1,
+        "sase-zp.land": 1,
+    }
+    assert result.raised == ()
+
+
+def test_flag_on_capacity_1_raises_land_override_weight() -> None:
+    extras = _land_xprompt("%q(w=2.0)\nLand the epic.")
+    with override_flags(queue_capacity_budget=True):
+        result = _resolve(1, extra_xprompts=extras)
 
     assert dict(result.segment_capacity) == {
         "sase-zp.1": 1,
@@ -159,15 +172,24 @@ def test_omitted_capacity_does_not_expand(
     assert result.raised == ()
 
 
-def test_large_phase_probe_includes_plan_and_still_floors_land() -> None:
+def test_large_phase_probe_includes_plan() -> None:
+    specs = _segment_specs(_plan(large_phase=True), _PHASE, _LAND)
+    _phase_name, phase_xprompt, phase_refs = specs[0]
+    _land_name, land_xprompt, land_refs = specs[1]
+    assert phase_xprompt == "bd/work_phase_bead"
+    assert phase_refs == ("#bd/work_phase_bead:sase-zp.1", "#plan")
+    assert land_xprompt == "bd/land_epic"
+    assert land_refs == ("#bd/land_epic:sase-zp",)
+
     with override_flags(queue_capacity_budget=True):
         result = _resolve(1, large_phase=True)
 
     assert result.segment_capacity["sase-zp.1"] == 1
-    assert result.segment_capacity["sase-zp.land"] == 2
+    assert result.segment_capacity["sase-zp.land"] == 1
+    assert result.raised == ()
 
 
-def test_runner_accepts_every_capacity_1_segment_after_floor() -> None:
+def test_runner_accepts_every_capacity_1_segment() -> None:
     with override_flags(queue_capacity_budget=True):
         result = _resolve(1)
         rendered = render_multi_prompt(
@@ -179,7 +201,7 @@ def test_runner_accepts_every_capacity_1_segment_after_floor() -> None:
 
     phase, land = rendered.split("\n---\n")
     assert phase.count("%queue(capacity=1)") == 1
-    assert land.count("%queue(capacity=2)") == 1
+    assert land.count("%queue(capacity=1)") == 1
 
     probes = (
         _queue_probe_text(
@@ -190,7 +212,7 @@ def test_runner_accepts_every_capacity_1_segment_after_floor() -> None:
         _queue_probe_text(
             xprompt_name="bd/land_epic",
             xprompt_arg="sase-zp",
-            capacity=2,
+            capacity=1,
         ),
     )
     for probe in probes:

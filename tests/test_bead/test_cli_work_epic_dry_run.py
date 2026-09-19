@@ -131,11 +131,8 @@ def test_work_dry_run_renders_run_alone_capacity_on_selected_segments(
     assert len(segments) == len(phase_ids) + 1
     *phases, land = segments
     assert all(segment.count("%queue(capacity=1)") == 1 for segment in phases)
-    assert land.count("%queue(capacity=2)") == 1
-    assert (
-        f"  Capacity: requested 1 · {epic_id}.land raised to 2 (queue weight 2.0)"
-        in out
-    )
+    assert land.count("%queue(capacity=1)") == 1
+    assert "raised to 2" not in out
 
 
 def test_work_dry_run_renders_model_directives(

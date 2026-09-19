@@ -23,6 +23,8 @@ just check         # Agent default: fmt-check + lint + sase validate + diff-scop
 just check-full    # Exhaustive: fmt-check + lint + sase validate + full suite + flake gate + local screenshot update; run before submitting
 ```
 
+SASE agents use `just check` unless explicitly instructed to run `just check-full`.
+
 ## Adding Dependencies
 
 Add runtime dependencies to `[project.dependencies]` in `pyproject.toml`. Add dev-only

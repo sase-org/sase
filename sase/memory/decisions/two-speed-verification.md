@@ -5,9 +5,14 @@ summary:
   just check is the agent default and just check-full gates landing, because host
   capacity is the constraint, not test speed.
 metadata:
-  status: accepted
+  status: superseded
   decided: 2026-08-05
+  superseded_by: decisions/check-full-is-explicit
 ---
+
+> _Superseded:_ agents now run `just check-full` only when explicitly instructed; epic
+> landers follow that same rule and no longer author `%q(w=2.0)`. See
+> [[decisions/check-full-is-explicit]].
 
 **Claim.** `just check` — every whole-repo lint gate plus a diff-scoped test lane
 selected from a static import-graph closure — is the agent default. `just check-full` —

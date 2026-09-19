@@ -22,7 +22,7 @@ FIXED_BEAD_NOW = datetime(2026, 8, 1, 12, 0, 0)
 
 
 def cli_work_xprompt_catalog(
-    *, land_content: str = "%q(w=2.0)\nLand the epic."
+    *, land_content: str = "Land the epic."
 ) -> dict[str, XPrompt]:
     bead_input = [InputArg(name="bead_id", type=InputType.WORD)]
     return {

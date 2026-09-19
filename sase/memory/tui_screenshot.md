@@ -90,7 +90,7 @@ groups with unexpected differences. Generation is not approval. Do not attach a 
 host-completion intent that skips that inspection. `--sase-update-visual-snapshots` is
 retired.
 
-Read [[lint_and_test.md]] for when agents must run `just check` versus
-`just check-full`, and [[tui_perf.md]] before changing the screenshot export handler,
-wait/settle logic, refresh scheduling, or any TUI path that runs while the app is
-interactive.
+Read [[lint_and_test.md]] for the agent verification recipe (`just check`;
+`just check-full` only when explicitly instructed), and [[tui_perf.md]] before changing
+the screenshot export handler, wait/settle logic, refresh scheduling, or any TUI path
+that runs while the app is interactive.

@@ -1482,10 +1482,10 @@ To see the exact body of any built-in inline xprompt, run
 `sase xprompt catalog`. Use `sase xprompt explain <name>` for workflows; the explain
 command takes the workflow name without a `#` or `#!` marker.
 
-Bundled task, phase, and lander workers do not author a priority wait, so they use the
-runner's default priority (`10`) when otherwise eligible. Higher-precedence project,
-user, config, and plugin overrides supply their own bodies and may choose a different
-priority.
+Bundled task, phase, and lander workers do not author a priority wait or a non-default
+queue weight, so they use the runner's default priority (`10`) and the default `1.0`
+capacity unit when otherwise eligible. Higher-precedence project, user, config, and
+plugin overrides supply their own bodies and may choose a different priority or weight.
 
 The bundled task worker reads, completes, and closes its assigned task. The epic lander
 reviews the epic's own notes and every child note, keeps unresolved issues caused by the
