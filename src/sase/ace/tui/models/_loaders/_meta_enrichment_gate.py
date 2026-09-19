@@ -119,9 +119,44 @@ def apply_gate_meta(
     )
     if not gate_member:
         return
-    agent.status = pair.stop if gate_state_is_terminal(state) else pair.start
+    agent.status = _gate_member_display_status(
+        state=state,
+        start=pair.start,
+        stop=pair.stop,
+        bundle_path=agent.gate_bundle_path,
+        gate_kind=agent.gate_kind,
+    )
     agent.status_bucket = gate_member_status_bucket(state, agent.status)
     _apply_sudo_execution_projection(agent)
+
+
+def _gate_member_display_status(
+    *,
+    state: str,
+    start: str | None,
+    stop: str | None,
+    bundle_path: str | None,
+    gate_kind: str | None,
+) -> str:
+    """Return the row label, preferring a receipt-derived decision status."""
+    if gate_state_is_terminal(state):
+        return stop or start or state
+    from sase.agent.status_buckets import PLAN_EXECUTION_FAILED_STATUSES
+
+    if start in PLAN_EXECUTION_FAILED_STATUSES:
+        return start
+    if bundle_path and gate_kind in {"plan", "epic_plan"}:
+        try:
+            from sase.notification_gates.approval_projection import (
+                projected_gate_status,
+            )
+
+            projected = projected_gate_status(Path(bundle_path))
+        except Exception:
+            projected = None
+        if projected:
+            return projected
+    return start or state
 
 
 def _apply_sudo_execution_projection(agent: Agent) -> None:

@@ -226,6 +226,38 @@ def test_live_epic_parent_is_not_terminal() -> None:
     assert entry.is_terminal is False
 
 
+def test_live_commit_parent_uses_plan_committed_status() -> None:
+    entry = _build_agent_list_entry(
+        agent(),
+        record=record(
+            agent_meta=AgentMetaWire(
+                plan=True,
+                plan_approved=True,
+                plan_action="commit",
+                plan_committed=True,
+            ),
+        ),
+    )
+
+    assert entry.status == "PLAN COMMITTED"
+
+
+def test_failed_plan_action_is_plan_failed() -> None:
+    entry = _build_agent_list_entry(
+        agent(),
+        record=record(
+            agent_meta=AgentMetaWire(
+                plan=True,
+                plan_approved=True,
+                plan_action="failed",
+            ),
+        ),
+    )
+
+    assert entry.status == "PLAN FAILED"
+    assert entry.status_bucket == "Failed"
+
+
 def test_missing_artifact_markers_are_safe() -> None:
     entry = _build_agent_list_entry(
         agent(

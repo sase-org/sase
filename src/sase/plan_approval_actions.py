@@ -521,6 +521,7 @@ def prepare_plan_terminal_response(
                 "approved plan archive did not return a saved path",
             )
         _apply_host_plan_archive_fields(response_json, archive)
+        _project_plan_committed(notification, persisted_action)
         return
 
     if response_json.get("action") in {"approve", "epic"}:
@@ -603,14 +604,26 @@ def _persist_plan_approved_metadata(
     action = persisted_plan_action(response_json)
     if action is None:
         return None
+    if action == "commit":
+        # PLAN COMMITTED waits for archive success in `_project_plan_committed`.
+        return action
+    _write_plan_action_metadata(notification, action)
+    return action
 
+
+def _write_plan_action_metadata(
+    notification: PlanApprovalActionContext,
+    action: str,
+    *,
+    plan_committed: bool | None = None,
+) -> None:
     artifacts_dir = resolve_plan_agent_artifacts_dir(notification.host_action_data)
     if artifacts_dir:
         meta_path = Path(artifacts_dir) / "agent_meta.json"
     else:
         raw_response_dir = notification.host_action_data.get("response_dir")
         if not raw_response_dir:
-            return action
+            return
         meta_path = Path(raw_response_dir).expanduser().parent / "agent_meta.json"
     try:
         meta = json.loads(meta_path.read_text(encoding="utf-8"))
@@ -621,13 +634,29 @@ def _persist_plan_approved_metadata(
 
     meta["plan_approved"] = True
     meta["plan_action"] = action
+    if plan_committed is not None:
+        meta["plan_committed"] = plan_committed
     canonicalize_agent_tribe_metadata(meta)
     try:
         meta_path.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
         update_agent_artifact_index_for_marker_mutation(meta_path.parent)
     except OSError:
         pass
-    return action
+
+
+def _project_plan_committed(
+    notification: PlanApprovalActionContext,
+    persisted_action: str,
+) -> None:
+    bundle = notification.host_action_data.get(
+        "bundle_path"
+    ) or notification.host_action_data.get("response_dir")
+    if bundle:
+        from sase.notification_gates.approval_projection import project_plan_committed
+
+        project_plan_committed(Path(bundle), action=persisted_action)
+    if persisted_action == "commit":
+        _write_plan_action_metadata(notification, "commit", plan_committed=True)
 
 
 def _archive_plan_for_approval(

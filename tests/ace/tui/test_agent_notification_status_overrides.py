@@ -200,10 +200,13 @@ def test_legacy_external_plan_response_dismisses_and_persists_action(
     assert app.delta_refreshes == [((artifacts_dir,), "notification")]
     assert app.broad_refreshes == 0
     assert app.notification_count_refreshes == 1
-    assert json.loads((artifacts_dir / "agent_meta.json").read_text()) == {
+    expected_meta = {
         "plan_approved": True,
         "plan_action": expected_action,
     }
+    if expected_action == "commit":
+        expected_meta["plan_committed"] = True
+    assert json.loads((artifacts_dir / "agent_meta.json").read_text()) == expected_meta
 
 
 @pytest.mark.parametrize(
@@ -359,6 +362,7 @@ def test_telegram_gate_resolution_dismisses_and_finalizes_pending_tale_override(
         "plan": True,
         "plan_approved": True,
         "plan_action": "tale",
+        "plan_committed": True,
     }
 
     loaded_agent = Agent(

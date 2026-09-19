@@ -109,6 +109,43 @@ def test_launcher_only_runs_after_the_shell_is_terminal_and_indexed(
     assert observed["chat_path"]
 
 
+def test_refresh_pulse_runs_before_followup_launch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request_id = "pulse-before-launch"
+    gate = create_gate(gate_spec(request_id, shell=DEFAULT_SHELL))
+    artifacts_dir = make_gate_shell_member(
+        request_id, gate.bundle_path, shell=DEFAULT_SHELL
+    )
+    execute_gate_selection(gate.bundle_path, ["cleanup"], {}, source="test")
+    record = read_gate_shell_marker("proj", artifacts_dir)
+    assert record is not None
+
+    order: list[str] = []
+
+    def pulse(project_name: str | None) -> None:
+        del project_name
+        order.append("pulse")
+
+    def launcher(
+        called_artifacts_dir: str, meta: dict[str, Any], **kwargs: Any
+    ) -> FollowupLaunchResult:
+        del called_artifacts_dir, meta, kwargs
+        order.append("launch")
+        return FollowupLaunchResult(launched=True, agent_name="lane--1")
+
+    monkeypatch.setattr("sase.gate_shell.settlement.touch_shell_refresh_pulse", pulse)
+    monkeypatch.setattr(
+        "sase.gate_shell.handoff_launch.launch_gate_followup_agent", launcher
+    )
+
+    settle_gate_shell(record, gate_state="answered", reason="gate answered")
+
+    assert order[0] == "pulse"
+    assert "launch" in order
+    assert order.index("pulse") < order.index("launch")
+
+
 def test_timeout_with_no_timeout_branch_launches_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

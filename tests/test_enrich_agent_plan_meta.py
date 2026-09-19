@@ -435,6 +435,55 @@ def test_approved_plan_statuses_are_preserved(tmp_path: Path) -> None:
     assert agent.status == "EPIC APPROVED"
 
 
+def test_failed_plan_action_replaces_approved_status(tmp_path: Path) -> None:
+    meta = {
+        "pid": 1234,
+        "plan": True,
+        "plan_approved": True,
+        "plan_action": "failed",
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "PLAN FAILED"
+
+
+def test_commit_action_without_plan_committed_is_not_plan_committed(
+    tmp_path: Path,
+) -> None:
+    meta = {
+        "pid": 1234,
+        "plan": True,
+        "plan_approved": True,
+        "plan_action": "commit",
+        "plan_committed": False,
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "RUNNING"
+
+
+def test_commit_action_with_plan_committed_is_plan_committed(tmp_path: Path) -> None:
+    meta = {
+        "pid": 1234,
+        "plan": True,
+        "plan_approved": True,
+        "plan_action": "commit",
+        "plan_committed": True,
+    }
+    (tmp_path / "agent_meta.json").write_text(json.dumps(meta))
+
+    agent = make_agent()
+    enrich_agent_from_meta(agent, str(tmp_path))
+
+    assert agent.status == "PLAN COMMITTED"
+
+
 def test_approve_plan_after_submission_stays_running(tmp_path: Path) -> None:
     """General auto-approval also means no manual plan review is pending."""
     meta = {

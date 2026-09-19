@@ -538,7 +538,11 @@ def _start_plan_approval_background_worker(
             log.warning("Failed to dismiss plan approval notification", exc_info=True)
 
         persist_action = _plan_approval_persist_action(result)
-        if agent is not None and persist_action is not None:
+        if (
+            agent is not None
+            and persist_action is not None
+            and persist_action != "commit"
+        ):
             try:
                 persist_plan_approved(agent, action=persist_action)
             except Exception:
@@ -554,6 +558,14 @@ def _start_plan_approval_background_worker(
             if archive is not None:
                 _add_saved_plan_to_response(plan_response_path, archive)
                 saved_plan_path = str(archive)
+                if agent is not None and persist_action == "commit":
+                    try:
+                        persist_plan_approved(agent, action="commit")
+                    except Exception:
+                        log.warning(
+                            "Failed to persist plan commit marker",
+                            exc_info=True,
+                        )
 
         _call_on_app_thread(
             app,

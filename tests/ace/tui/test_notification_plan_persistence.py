@@ -29,3 +29,22 @@ def test_persist_plan_approved_refreshes_artifact_index(tmp_path: Path) -> None:
         "plan_action": "epic",
     }
     update_index.assert_called_once_with(str(tmp_path))
+
+
+def test_persist_plan_approved_commit_sets_plan_committed(tmp_path: Path) -> None:
+    meta_path = tmp_path / "agent_meta.json"
+    meta_path.write_text(json.dumps({"name": "planner"}), encoding="utf-8")
+    agent = SimpleNamespace(artifacts_dir=str(tmp_path))
+
+    with patch(
+        "sase.ace.tui.actions.agents._notification_plan_persistence."
+        "update_agent_artifact_index_for_marker_mutation"
+    ):
+        persist_plan_approved(agent, action="commit")
+
+    assert json.loads(meta_path.read_text(encoding="utf-8")) == {
+        "name": "planner",
+        "plan_approved": True,
+        "plan_action": "commit",
+        "plan_committed": True,
+    }

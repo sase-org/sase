@@ -182,6 +182,7 @@ def settle_already_terminal_handoff(
     """Recover or diagnose a gate that is already terminal on disk."""
     artifacts_dir = record.artifacts_dir
     project_name = record.project_name
+    touch_shell_refresh_pulse(project_name)
     launch_or_record_followup(
         artifacts_dir,
         meta,
@@ -211,7 +212,6 @@ def settle_already_terminal_handoff(
     marker: dict[str, Any] = {**done_marker, **followup_fields}
     stamp_shell_finished_at(marker)
     write_done_marker_and_update_index(artifacts_dir, marker)
-    touch_shell_refresh_pulse(project_name)
     from sase.gate_shell.store import read_gate_shell_marker
 
     return read_gate_shell_marker(project_name, artifacts_dir) or record

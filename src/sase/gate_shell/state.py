@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sase.agent.status_buckets import (
     HANDOFF_SETTLED_STATUSES,
+    PLAN_EXECUTION_FAILED_STATUSES,
     status_bucket_for_values,
 )
 from sase.monitor_state import MONITOR_STATE_BUCKETS
@@ -48,6 +49,8 @@ def gate_member_status_bucket(gate_state: str | None, status: str | None) -> str
     settling, rejected, cancelled, timed out, failed -- keeps the bucket its
     gate state implies.
     """
+    if status in PLAN_EXECUTION_FAILED_STATUSES:
+        return "Failed"
     if status in HANDOFF_SETTLED_STATUSES:
         return status_bucket_for_values(status)
     return _gate_state_bucket(gate_state)

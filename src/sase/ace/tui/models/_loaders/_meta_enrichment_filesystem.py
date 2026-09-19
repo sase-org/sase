@@ -492,6 +492,7 @@ def enrich_agent_from_meta(
                     if plan_submitted and not plan_approved and not meta_auto_approved
                     else None
                 ),
+                plan_committed=agent.plan_committed,
             )
             if plan_status is not None:
                 agent.status = plan_status

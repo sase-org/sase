@@ -13,7 +13,10 @@ from sase.agent.status_buckets import (
     ACTIVE_AGENT_STATUSES,
     AGENT_STATUS_BUCKET_GLYPHS,
     EPIC_APPROVED_STATUS,
+    EPIC_FAILED_STATUS,
     PLAN_APPROVED_STATUS,
+    PLAN_COMMITTED_STATUS,
+    PLAN_FAILED_STATUS,
     TALE_APPROVED_STATUS,
     agent_status_bucket,
     pending_plan_status_for_tier,
@@ -319,12 +322,20 @@ def _is_monitor(meta: AgentMetaWire | None, done: DoneMarkerWire | None) -> bool
 
 
 def _plan_status(meta: AgentMetaWire) -> str | None:
+    action = (meta.plan_action or "").strip().lower()
+    if action == "failed":
+        return PLAN_FAILED_STATUS
+    if action == "epic_failed":
+        return EPIC_FAILED_STATUS
     if meta.plan_approved:
-        action = (meta.plan_action or "plan").strip().lower()
         if action == "tale":
             return TALE_APPROVED_STATUS
         if action == "epic":
             return EPIC_APPROVED_STATUS
+        if action == "commit":
+            if meta.plan_committed is False:
+                return None
+            return PLAN_COMMITTED_STATUS
         return PLAN_APPROVED_STATUS
     if meta.plan_submitted_at and not (meta.approve or meta.auto_approve_plan_action):
         return pending_plan_status_for_tier(cached_plan_tier(meta.plan_path))

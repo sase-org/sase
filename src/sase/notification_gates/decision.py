@@ -235,6 +235,7 @@ def accept_gate_decision(
             {"selected_option_ids": [option.id for option in selected]},
             source=source,
         )
+        _project_accepted_decision(bundle_path, envelope, receipt)
         _touch_gate_shell_refresh_pulse(envelope, str(envelope["request_id"]))
 
         return _GateDecisionAcceptance(
@@ -279,6 +280,26 @@ def claim_gate_decision_execution_receipt(
         claimed = outcome["receipt"]
         atomic_write_json(receipt_path, claimed, exclusive=False)
         return claimed
+
+
+def _project_accepted_decision(
+    bundle_path: Path,
+    envelope: Mapping[str, Any],
+    receipt: Mapping[str, Any],
+) -> None:
+    """Best-effort: project TALE/EPIC APPROVED from the new receipt."""
+    try:
+        from sase.notification_gates.approval_projection import (
+            project_accepted_decision,
+        )
+
+        project_accepted_decision(bundle_path, envelope, receipt)
+    except Exception:
+        log.warning(
+            "Failed to project accepted decision into status metadata",
+            extra={"bundle_path": str(bundle_path)},
+            exc_info=True,
+        )
 
 
 def _touch_gate_shell_refresh_pulse(envelope: Mapping[str, Any], gate_id: str) -> None:

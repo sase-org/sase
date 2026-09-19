@@ -36,6 +36,8 @@ def persist_plan_approved(agent: Agent, action: str = "approve") -> None:
 
     meta["plan_approved"] = True
     meta["plan_action"] = action
+    if action == "commit":
+        meta["plan_committed"] = True
     canonicalize_agent_tribe_metadata(meta)
     try:
         with open(meta_path, "w", encoding="utf-8") as f:

@@ -202,6 +202,11 @@ class GateAdapter:
             source=str(response.get("source") or "plan_response"),
         )
         if plan_action == "epic" and result.get("epic_launch_owner") == "host":
+            _publish_shell_terminal_before_epic_launch(
+                bundle_path,
+                envelope,
+                response,
+            )
             effective_input = effective_response_input(response, selected_ids[0])
             mode = effective_input.get("epic_launch_mode") or "launch"
             already_launched = isinstance(response, dict) and (
@@ -324,6 +329,38 @@ class GateAdapter:
         if self.kind == "epic_plan":
             return {"epic_launch_mode": "launch"}
         return {}
+
+
+def _publish_shell_terminal_before_epic_launch(
+    bundle_path: Path,
+    envelope: Mapping[str, Any],
+    response: Mapping[str, Any],
+) -> None:
+    """Publish shell terminal state and the refresh pulse before epic launch.
+
+    ``%auto`` keeps first-time ``creator_live`` settlement, which must not see
+    an already-terminal shell.
+    """
+    if str(response.get("source") or "") == "auto_resolution":
+        return
+    if not isinstance(envelope.get("shell"), dict):
+        return
+    try:
+        from sase.gate_shell.settlement import publish_gate_shell_terminal_state
+        from sase.gate_shell.store import find_gate_shell_by_gate_id
+
+        record = find_gate_shell_by_gate_id(
+            None, str(envelope.get("request_id") or bundle_path.name)
+        )
+        if record is None:
+            return
+        publish_gate_shell_terminal_state(
+            record,
+            gate_state="answered",
+            reason="gate answered",
+        )
+    except Exception:
+        return
 
 
 def _default_branch_selection(

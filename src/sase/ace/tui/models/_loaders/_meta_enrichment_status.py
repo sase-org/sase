@@ -90,9 +90,14 @@ def plan_enrichment_status(
     plan_submitted: bool,
     auto_approved: bool,
     plan_tier: str | None = None,
+    plan_committed: bool | None = None,
 ) -> str | None:
+    if plan_action in {"failed", "epic_failed"}:
+        return "EPIC FAILED" if plan_action == "epic_failed" else "PLAN FAILED"
     if plan_approved:
         if plan_action == "commit":
+            if plan_committed is False:
+                return None
             return "PLAN COMMITTED"
         if plan_action == "tale":
             return "TALE APPROVED"

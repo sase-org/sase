@@ -140,7 +140,20 @@ def record_failure_outcome(
         failure,
         source=source,
     )
+    _project_execution_failure(bundle_path)
     return failure
+
+
+def _project_execution_failure(bundle_path: Path) -> None:
+    """Best-effort: replace approved labels with the distinct failure status."""
+    try:
+        from sase.notification_gates.approval_projection import (
+            project_execution_failure,
+        )
+
+        project_execution_failure(bundle_path)
+    except Exception:
+        return
 
 
 def record_owner_lost_outcome(
@@ -163,6 +176,7 @@ def record_owner_lost_outcome(
                 bundle_path, current, request_hash=request_hash
             )
         _publish_failure_notification(bundle_path, current, source=source)
+        _project_execution_failure(bundle_path)
         return current
     acceptance_id = _receipt_acceptance_id(receipt)
     stage, attempt_id = current_execution_stage(bundle_path, receipt)

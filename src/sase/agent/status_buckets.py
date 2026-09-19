@@ -34,6 +34,11 @@ PLAN_APPROVED_STATUS = "PLAN APPROVED"
 TALE_APPROVED_STATUS = "TALE APPROVED"
 EPIC_APPROVED_STATUS = "EPIC APPROVED"
 PLAN_COMMITTED_STATUS = "PLAN COMMITTED"
+PLAN_FAILED_STATUS = "PLAN FAILED"
+EPIC_FAILED_STATUS = "EPIC FAILED"
+PLAN_EXECUTION_FAILED_STATUSES: frozenset[str] = frozenset(
+    {PLAN_FAILED_STATUS, EPIC_FAILED_STATUS}
+)
 WORKING_PLAN_STATUS = "WORKING PLAN"
 WORKING_TALE_STATUS = "WORKING TALE"
 FEEDBACK_STATUS = "FEEDBACK"
@@ -231,7 +236,9 @@ def status_bucket_for_values(
         return QUEUED_STATUS_BUCKET
     if status_text == "WAITING":
         return "Waiting"
-    if status_text.startswith("FAILED"):
+    if status_text in PLAN_EXECUTION_FAILED_STATUSES or status_text.startswith(
+        "FAILED"
+    ):
         return "Failed"
     return "Running"
 

@@ -67,6 +67,96 @@ _GATE_SETTLEMENT_CONFIG = ShellSettlementConfig(
 )
 
 
+def publish_gate_shell_terminal_state(
+    record: GateShellRecord,
+    *,
+    gate_state: GateShellState = "answered",
+    reason: str | None = None,
+) -> GateShellRecord:
+    """Publish decision record, index, and refresh pulse without follow-up.
+
+    Post-terminal epic launch and coder handoff run after this so observers
+    see ``response.json`` and the shell's terminal state first.
+    """
+    artifacts_dir = record.artifacts_dir
+    with with_gate_followup_lock(artifacts_dir):
+        meta = _read_meta(artifacts_dir)
+        if _is_terminal_meta(meta):
+            touch_shell_refresh_pulse(project_name_from_artifacts_dir(artifacts_dir))
+            return record
+        return _publish_gate_shell_terminal_locked(
+            record,
+            meta,
+            gate_state=gate_state,
+            reason=reason,
+        )
+
+
+def _publish_gate_shell_terminal_locked(
+    record: GateShellRecord,
+    meta: dict[str, Any],
+    *,
+    gate_state: GateShellState,
+    reason: str | None,
+) -> GateShellRecord:
+    artifacts_dir = record.artifacts_dir
+    envelope, response, cancellation = _bundle_documents(meta)
+    record_selected_options(meta, response)
+    policy = resolve_gate_followup(envelope, gate_state=gate_state, response=response)
+    status, accent = resolve_gate_branch_presentation(
+        envelope, gate_state=gate_state, response=response
+    )
+    _apply_branch_policy(
+        meta,
+        policy=policy,
+        status=status,
+        accent=accent,
+        shell_unparseable=shell_block_unparseable(envelope),
+    )
+    meta["gate_state"] = "settling"
+    _write_meta(artifacts_dir, meta)
+
+    decision_path, decision_text = _write_decision_record(
+        artifacts_dir,
+        meta,
+        gate_state=gate_state,
+        reason=reason,
+        envelope=envelope,
+        response=response,
+        cancellation=cancellation,
+    )
+    meta["gate_decision_path"] = str(decision_path)
+    meta["chat_path"] = _write_settlement_chat(artifacts_dir, meta, decision_text)
+    _write_meta(artifacts_dir, meta)
+
+    project_name = project_name_from_artifacts_dir(artifacts_dir)
+    if project_name:
+        from sase.workflows.utils import get_project_file_path
+
+        hold_gate_shell_claim_for_settlement(
+            get_project_file_path(project_name),
+            meta,
+            artifacts_dir=artifacts_dir,
+            update_meta_field=update_meta_field,
+        )
+
+    done_marker = _done_marker(meta, gate_state=gate_state, reason=reason)
+    write_done_marker_and_update_index(artifacts_dir, done_marker)
+    finalize_shell_workflow_state(artifacts_dir)
+
+    meta = _read_meta(artifacts_dir)
+    meta["gate_state"] = gate_state
+    meta["stopped_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    _write_meta(artifacts_dir, meta)
+    touch_shell_refresh_pulse(project_name)
+    from sase.gate_shell.store import read_gate_shell_marker
+
+    return (
+        read_gate_shell_marker(project_name or record.project_name, artifacts_dir)
+        or record
+    )
+
+
 def settle_gate_shell(
     record: GateShellRecord,
     *,
@@ -122,6 +212,27 @@ def _settle_gate_shell_locked(
             gate_state=gate_state,
             response=response,
         )
+        project_name = project_name_from_artifacts_dir(artifacts_dir)
+        if creator_live:
+            suppress_live_creator_followup(
+                artifacts_dir,
+                meta,
+                policy=policy,
+                gate_state=gate_state,
+                envelope=envelope,
+                response=response,
+                reason=reason,
+            )
+            _write_meta(artifacts_dir, meta)
+            touch_shell_refresh_pulse(project_name)
+            from sase.gate_shell.store import read_gate_shell_marker
+
+            return (
+                read_gate_shell_marker(
+                    project_name or record.project_name, artifacts_dir
+                )
+                or record
+            )
         return settle_already_terminal_handoff(
             record,
             meta,
@@ -186,6 +297,7 @@ def _settle_gate_shell_locked(
     meta["gate_state"] = gate_state
     meta["stopped_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     _write_meta(artifacts_dir, meta)
+    touch_shell_refresh_pulse(project_name)
 
     if creator_live:
         suppress_live_creator_followup(
@@ -217,7 +329,6 @@ def _settle_gate_shell_locked(
 
     done_marker = _done_marker(meta, gate_state=gate_state, reason=reason)
     write_done_marker_and_update_index(artifacts_dir, done_marker)
-    touch_shell_refresh_pulse(project_name)
 
     from sase.gate_shell.store import read_gate_shell_marker
 
@@ -483,5 +594,6 @@ __all__ = [
     "LOST_FOLLOWUP_ERROR",
     "gate_decision_title",
     "project_name_from_artifacts_dir",
+    "publish_gate_shell_terminal_state",
     "settle_gate_shell",
 ]
