@@ -9,10 +9,7 @@ from importlib import import_module
 from typing import Any
 
 _LAZY_EXPORTS = {
-    "ArtifactFileCache": (".artifact_files_cache", "ArtifactFileCache"),
     "AgentLaunchResult": (".launcher", "AgentLaunchResult"),
-    "MultiPrompt": (".multi_prompt", "MultiPrompt"),
-    "TailCache": (".artifact_files_cache", "TailCache"),
     "claim_agent_name": (".names", "claim_agent_name"),
     "deserialize_local_xprompts": (
         ".multi_prompt_launcher",
@@ -37,10 +34,7 @@ _LAZY_EXPORTS = {
 }
 
 __all__ = [
-    "ArtifactFileCache",
     "AgentLaunchResult",
-    "MultiPrompt",
-    "TailCache",
     "claim_agent_name",
     "deserialize_local_xprompts",
     "find_named_agent",

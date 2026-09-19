@@ -16,6 +16,10 @@ from tests._global_state_leaks.models import (
     _Snapshot,
     _ValueFingerprint,
 )
+from tests._sase_global_state_isolation import (
+    _ENV_KEYS_TO_IGNORE as _ENV_KEYS_TO_IGNORE,
+    _ignore_env_key as _ignore_env_key,
+)
 
 LIVE_CONFIG_TOKEN_REFRESH_THREADS_GLOBAL = (
     "sase.config.core._live_config_token_refresh_threads"
@@ -23,20 +27,6 @@ LIVE_CONFIG_TOKEN_REFRESH_THREADS_GLOBAL = (
 
 
 _PATTERN_TYPE = type(re.compile(""))
-_ENV_KEYS_TO_IGNORE = frozenset(
-    {
-        "GIT_AUTHOR_EMAIL",
-        "GIT_AUTHOR_NAME",
-        "GIT_COMMITTER_EMAIL",
-        "GIT_COMMITTER_NAME",
-        "GIT_CONFIG_COUNT",
-        "GIT_CONFIG_GLOBAL",
-        "GIT_CONFIG_SYSTEM",
-        "PYTEST_CURRENT_TEST",
-        "SASE_PYTEST_SANDBOX_DIR",
-    }
-)
-_ENV_KEY_PREFIXES_TO_IGNORE = ("GIT_CONFIG_KEY_", "GIT_CONFIG_VALUE_")
 
 
 def _snapshot() -> _Snapshot:
@@ -69,10 +59,6 @@ def _snapshot() -> _Snapshot:
         sys_path=_fingerprint_list(sys.path),
         cwd=_safe_getcwd(),
     )
-
-
-def _ignore_env_key(key: str) -> bool:
-    return key in _ENV_KEYS_TO_IGNORE or key.startswith(_ENV_KEY_PREFIXES_TO_IGNORE)
 
 
 def _safe_getcwd() -> str:

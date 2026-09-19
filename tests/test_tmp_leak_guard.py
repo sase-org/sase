@@ -144,6 +144,7 @@ def test_agent_launch_scratch_from_other_processes_is_ignored(
                 "ace_profile_260725_144000.txt",
                 "launch-prompts",
                 "sase_ace_prompt_AbCdEf.md",
+                "tui-screenshots",
                 "usage-probes",
             }
         )

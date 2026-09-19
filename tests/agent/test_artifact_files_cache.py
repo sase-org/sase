@@ -1,4 +1,4 @@
-"""Tests for the Phase-6 ``ArtifactFileCache`` and ``TailCache``."""
+"""Tests for the Phase-6 artifact file cache and tail cache."""
 
 from __future__ import annotations
 
@@ -7,11 +7,11 @@ import os
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from sase.agent.artifact_files_cache import ArtifactFileCache, TailCache
+from sase.agent.artifact_files_cache import _ArtifactFileCache, _TailCache
 
 
 def test_read_text_caches_by_signature(tmp_path: Path) -> None:
-    cache = ArtifactFileCache()
+    cache = _ArtifactFileCache()
     f = tmp_path / "prompt.md"
     f.write_text("hello", encoding="utf-8")
 
@@ -35,7 +35,7 @@ def test_read_text_caches_by_signature(tmp_path: Path) -> None:
 
 
 def test_read_text_invalidates_on_mtime_change(tmp_path: Path) -> None:
-    cache = ArtifactFileCache()
+    cache = _ArtifactFileCache()
     f = tmp_path / "prompt.md"
     f.write_text("hello", encoding="utf-8")
     assert cache.read_text(str(f)) == "hello"
@@ -47,7 +47,7 @@ def test_read_text_invalidates_on_mtime_change(tmp_path: Path) -> None:
 
 
 def test_read_text_uses_module_owned_open_hook(tmp_path: Path) -> None:
-    cache = ArtifactFileCache()
+    cache = _ArtifactFileCache()
     f = tmp_path / "prompt.md"
     f.write_text("hello", encoding="utf-8")
     open_text = Mock(return_value="hooked")
@@ -60,7 +60,7 @@ def test_read_text_uses_module_owned_open_hook(tmp_path: Path) -> None:
 
 
 def test_read_json_caches(tmp_path: Path) -> None:
-    cache = ArtifactFileCache()
+    cache = _ArtifactFileCache()
     f = tmp_path / "agent_meta.json"
     f.write_text(json.dumps({"chat_path": "~/chat.md"}), encoding="utf-8")
 
@@ -70,7 +70,7 @@ def test_read_json_caches(tmp_path: Path) -> None:
 
 
 def test_select_prompt_file_caches_glob(tmp_path: Path) -> None:
-    cache = ArtifactFileCache()
+    cache = _ArtifactFileCache()
     artifacts_dir = tmp_path / "artifacts"
     artifacts_dir.mkdir()
     (artifacts_dir / "first_prompt.md").write_text("a", encoding="utf-8")
@@ -114,7 +114,7 @@ def test_select_prompt_file_caches_glob(tmp_path: Path) -> None:
 
 
 def test_select_prompt_file_filters_workflow_children(tmp_path: Path) -> None:
-    cache = ArtifactFileCache()
+    cache = _ArtifactFileCache()
     d = tmp_path / "artifacts"
     d.mkdir()
     other = d / "01-other_prompt.md"
@@ -132,7 +132,7 @@ def test_select_prompt_file_filters_workflow_children(tmp_path: Path) -> None:
 
 
 def test_select_prompt_file_skips_commit_finalizer_followups(tmp_path: Path) -> None:
-    cache = ArtifactFileCache()
+    cache = _ArtifactFileCache()
     d = tmp_path / "artifacts"
     d.mkdir()
     original = d / "sase_prompt.md"
@@ -153,7 +153,7 @@ def test_select_prompt_file_skips_commit_finalizer_followups(tmp_path: Path) -> 
 
 
 def test_read_reply_chunks_decodes_jointly(tmp_path: Path) -> None:
-    cache = ArtifactFileCache()
+    cache = _ArtifactFileCache()
     reply = tmp_path / "live_reply.md"
     ts = tmp_path / "live_reply_timestamps.jsonl"
     reply.write_text("hello world", encoding="utf-8")
@@ -176,7 +176,7 @@ def test_tail_cache_reads_only_appended_bytes(tmp_path: Path) -> None:
     f = tmp_path / "live_reply.md"
     f.write_text("hello", encoding="utf-8")
 
-    tail = TailCache(path=str(f))
+    tail = _TailCache(path=str(f))
     assert tail.read() == "hello"
     assert tail.size == 5
     assert tail.offset == 5
@@ -199,7 +199,7 @@ def test_tail_cache_reads_only_appended_bytes(tmp_path: Path) -> None:
 def test_tail_cache_resets_on_shrink(tmp_path: Path) -> None:
     f = tmp_path / "live_reply.md"
     f.write_text("abcdef", encoding="utf-8")
-    tail = TailCache(path=str(f))
+    tail = _TailCache(path=str(f))
     assert tail.read() == "abcdef"
 
     f.write_text("xyz", encoding="utf-8")
@@ -211,7 +211,7 @@ def test_tail_cache_resets_on_shrink(tmp_path: Path) -> None:
 def test_tail_cache_resets_when_monitor_log_rotates(tmp_path: Path) -> None:
     f = tmp_path / "live_reply.md"
     f.write_text("old current with more bytes\n", encoding="utf-8")
-    tail = TailCache(path=str(f))
+    tail = _TailCache(path=str(f))
     assert tail.read() == "old current with more bytes\n"
 
     os.replace(f, f.with_name("live_reply.md.1"))
@@ -223,7 +223,7 @@ def test_tail_cache_resets_when_monitor_log_rotates(tmp_path: Path) -> None:
 
 
 def test_read_live_reply_uses_tail_cache(tmp_path: Path) -> None:
-    cache = ArtifactFileCache()
+    cache = _ArtifactFileCache()
     f = tmp_path / "live_reply.md"
     f.write_text("hello", encoding="utf-8")
     assert cache.read_live_reply(str(f)) == "hello"

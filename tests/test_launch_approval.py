@@ -25,7 +25,9 @@ from sase.launch_approval_actions import (
     LaunchApprovalActionError,
     execute_launch_approval_response,
 )
+from sase.notification_gates.failure_notifications import GATE_EXECUTION_FAILED_ACTION
 from sase.notification_gates.service import create_gate
+from sase.notifications.store import load_notifications
 
 
 def test_execute_launch_approval_response_writes_once(tmp_path: Path) -> None:
@@ -434,6 +436,87 @@ def test_neutral_launch_approval_dispatch_failure_is_terminal(
     assert outcome.response["option_results"][0]["result"]["dispatch_status"] == (
         "failed"
     )
+
+
+def test_launch_approval_execution_failure_is_actionable_for_requester(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    command = (
+        "#!/usr/bin/env python3\n"
+        "import json, sys\n"
+        "json.load(sys.stdin)\n"
+        "sys.stderr.write('launch stderr stays in the report')\n"
+        "sys.exit(5)\n"
+    )
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.chdir(tmp_path)
+    from sase.agent.launch_request_gate import launch_gate_command_script
+
+    def fake_launch_gate_command_script(option_id: str) -> str:
+        return (
+            command if option_id == "approve" else launch_gate_command_script(option_id)
+        )
+
+    monkeypatch.setattr(
+        "sase.agent.launch_request_gate.launch_gate_command_script",
+        fake_launch_gate_command_script,
+    )
+    monkeypatch.setattr(
+        "sase.agent.launch_request.launch_gate_command_script",
+        fake_launch_gate_command_script,
+    )
+    request = create_launch_approval_request(
+        {
+            "schema_version": 1,
+            "prompt": "Do work",
+            "reason": "Need dispatch coverage",
+            "max_slots": 1,
+        }
+    )
+    context = _LaunchApprovalActionContext(
+        id=request.notification_id,
+        host_files=(str(request.preview_path),),
+        host_action_data={
+            "request_id": request.request_id,
+            "request_kind": "launch",
+            "response_dir": str(request.response_dir),
+        },
+    )
+
+    with pytest.raises(LaunchApprovalActionError) as exc_info:
+        execute_launch_approval_response(context, "approve")
+
+    assert exc_info.value.code == "command_failed"
+    outcome = wait_for_launch_approval(request, poll_interval=0.001)
+    assert outcome.status == "failed"
+    assert outcome.selected_option_ids == ()
+    assert "Launch approval execution failed" in outcome.message
+    assert "command: command_failed" in outcome.message
+    assert "error report:" in outcome.message
+    assert (
+        f"resume: sase gate answer --kind launch --id {request.request_id} "
+        "--option approve --resume"
+    ) in outcome.message
+    assert (
+        f"restart: sase gate answer --kind launch --id {request.request_id} "
+        "--option approve --restart"
+    ) in outcome.message
+    assert (
+        f"cancel: sase gate cancel --kind launch --id {request.request_id}"
+        in outcome.message
+    )
+    assert "launch stderr" not in outcome.message
+
+    [failure] = [
+        notification
+        for notification in load_notifications()
+        if notification.action == GATE_EXECUTION_FAILED_ACTION
+    ]
+    assert failure.tags == ["gate", "execution", "error"]
+    assert failure.action_data["request_kind"] == "launch"
+    assert failure.action_data["stage"] == "command"
+    assert failure.action_data["code"] == "command_failed"
 
 
 def test_approve_launch_response_dispatches_stored_request(

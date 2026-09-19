@@ -5,7 +5,7 @@ selection, raw xprompt, response, chat response, timestamped reply chunks,
 live reply) every time the user navigates between agents — even when the
 underlying files haven't changed. This module memoizes those reads keyed by
 ``(path, mtime_ns, size)`` so re-selecting the same agent reuses parsed
-content. Live-reply reads use ``TailCache`` to read only newly-appended
+content. Live-reply reads use ``_TailCache`` to read only newly-appended
 bytes when the file grows.
 """
 
@@ -290,7 +290,7 @@ class _ArtifactFileCache:
         return tail.read()
 
     def tail_cache_for(self, reply_path: str) -> _TailCache:
-        """Expose the underlying TailCache for tests and tail-based callers."""
+        """Expose the underlying _TailCache for tests and tail-based callers."""
         with self._lock:
             tail = self._tail_caches.get(reply_path)
             if tail is None:
@@ -314,9 +314,6 @@ class _ArtifactFileCache:
             self._reply_chunks.clear()
             self._tail_caches.clear()
 
-
-ArtifactFileCache = _ArtifactFileCache
-TailCache = _TailCache
 
 _GLOBAL_CACHE = _ArtifactFileCache()
 

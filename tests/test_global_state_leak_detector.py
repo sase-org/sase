@@ -349,6 +349,36 @@ def test_process_snapshot_ignores_harness_git_environment(
     )
 
 
+def test_process_snapshot_ignores_session_detach_scope_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session_env = {
+        "SASE_AXE_DISABLE_SYSTEMD_SCOPE": "1",
+        "SASE_DETACH_SCOPE_DISABLE": "1",
+    }
+    for key, value in session_env.items():
+        monkeypatch.setenv(key, value)
+
+    snap = capture_process_snapshot()
+
+    assert not any(
+        entry.split("=", maxsplit=1)[0] in session_env for entry in snap.environ.entries
+    )
+
+
+def test_process_snapshot_uses_isolation_env_ignore_list() -> None:
+    from tests._global_state_leaks.fingerprints import (
+        _ENV_KEYS_TO_IGNORE as snapshot_keys,
+    )
+    from tests._sase_global_state_isolation import (
+        _ENV_KEYS_TO_IGNORE as isolation_keys,
+    )
+
+    assert snapshot_keys == isolation_keys
+    assert "SASE_AXE_DISABLE_SYSTEMD_SCOPE" in snapshot_keys
+    assert "SASE_DETACH_SCOPE_DISABLE" in snapshot_keys
+
+
 def test_sys_path_append_is_warming_but_rewrite_is_poisoning() -> None:
     before = _snapshot()
     base_path = _global_fingerprint(["/repo", "/repo/src"])

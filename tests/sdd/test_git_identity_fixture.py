@@ -61,11 +61,18 @@ def test_sdd_git_identity_survives_empty_home_subprocess(tmp_path: Path) -> None
             "PYTEST_ADDOPTS",
             "PYTEST_CURRENT_TEST",
             "PYTEST_XDIST_WORKER",
+            "SASE_PYTEST_TMP_REDIRECTED",
         }
     }
     env["HOME"] = str(home)
     env["XDG_CONFIG_HOME"] = str(xdg_config)
     env["GIT_CONFIG_SYSTEM"] = str(blank_system_config)
+    # Nested pytest is not a tools/run_pytest session. Inheriting the parent's
+    # redirect marker would activate the session leak guard against the shared
+    # managed temp root and the parent's redirected TMPDIR, so live-host or
+    # sibling-worker scratch fails this git-identity check even when the inner
+    # test passed.
+    env["SASE_TMP_LEAK_GUARD_DISABLED"] = "1"
     env["PYTHONPATH"] = (
         str(_REPO_ROOT)
         if not env.get("PYTHONPATH")

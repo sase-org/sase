@@ -9,11 +9,27 @@ from unittest.mock import patch
 import pytest
 
 from sase._plan_archive_approval import _ApprovedPlanArchive
+from sase.notification_gates.executor import execute_gate_selection
+from sase.notification_gates.failure_notifications import GATE_EXECUTION_FAILED_ACTION
+from sase.notification_gates.journal import read_journal_records
+from sase.notification_gates.service import create_gate
+from sase.notifications.store import load_notifications
 from sase.plan_approval_actions import (
+    PlanApprovalActionError,
     PlanApprovalActionContext,
     _archive_plan_for_approval,
     durable_plan_file_for_context,
+    execute_plan_approval_response,
     run_plan_side_effects,
+)
+from sase.plan_gate import (
+    build_plan_approval_gate_spec,
+    plan_context_from_envelope,
+    translate_plan_gate_response,
+)
+from tests._plan_gate_fixtures import (
+    plan_gate_home,  # noqa: F401 (registers fixture)
+    write_plan,
 )
 from tests.plan_validation_helpers import VALID_TALE_PLAN
 from tests.sdd_policy_helpers import patched_sdd_policy
@@ -241,3 +257,107 @@ def test_archive_plan_for_approval_passes_expect_prompt_snapshot_for_tier(
         _archive_plan_for_approval(context, tier)
 
     assert archive_plan_file.call_args.kwargs["expect_prompt_snapshot"] is expected
+
+
+def test_neutral_plan_archive_failure_is_retryable_without_duplicate_option_work(
+    gate_home: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    plan = write_plan(gate_home, "archive-retry.md", VALID_TALE_PLAN)
+    gate = create_gate(build_plan_approval_gate_spec(plan, "plan-archive-retry"))
+    envelope = json.loads((gate.bundle_path / "request.json").read_text())
+    context = plan_context_from_envelope(gate.bundle_path, envelope)
+    archived = gate_home / "archived-plan.md"
+    archived.write_text("# archived\n", encoding="utf-8")
+    calls = {"n": 0}
+
+    def flaky_archive(*_args: object, **_kwargs: object) -> _ApprovedPlanArchive:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise PlanApprovalActionError(
+                "plan_archive_failed",
+                str(plan),
+                "failed to archive approved plan: archive boom",
+            )
+        return _ApprovedPlanArchive(archived, "plan:202608/archived-plan.md")
+
+    monkeypatch.setattr(
+        "sase.plan_approval_actions._archive_plan_for_approval",
+        flaky_archive,
+    )
+
+    with pytest.raises(PlanApprovalActionError) as failed:
+        execute_plan_approval_response(
+            context,
+            "approve",
+            commit_plan=True,
+            run_coder=True,
+        )
+
+    assert failed.value.code == "plan_archive_failed"
+    assert not gate.response_path.exists()
+    assert (gate.bundle_path / "decision_receipt.json").is_file()
+    records = list(read_journal_records(gate.bundle_path))
+    assert [record["event"] for record in records].count("option_completed") == 2
+    [failure] = [record for record in records if record["event"] == "attempt_failed"]
+    assert failure["stage"] == "terminal_prepare"
+    assert failure["code"] == "plan_archive_failed"
+    assert (gate.bundle_path / failure["error_record"]).is_file()
+
+    [notification] = [
+        row
+        for row in load_notifications()
+        if row.action == GATE_EXECUTION_FAILED_ACTION
+    ]
+    assert notification.tags == ["gate", "execution", "error"]
+    assert notification.action_data["request_kind"] == "plan"
+    assert notification.action_data["stage"] == "terminal_prepare"
+    assert notification.action_data["code"] == "plan_archive_failed"
+    assert notification.action_data["recovery_actions"] == "resume,restart,cancel"
+    assert (
+        notification.action_data["resume_command"]
+        == "sase gate answer --kind plan --id plan-archive-retry "
+        "--option approve --option commit --resume"
+    )
+    assert (
+        notification.action_data["restart_command"]
+        == "sase gate answer --kind plan --id plan-archive-retry "
+        "--option approve --option commit --restart"
+    )
+    assert (
+        notification.action_data["cancel_command"]
+        == "sase gate cancel --kind plan --id plan-archive-retry"
+    )
+
+    recovered = execute_gate_selection(
+        gate.bundle_path,
+        ["approve", "commit"],
+        {},
+        source="plan_response",
+        retry="resume",
+    )
+
+    assert recovered.already_completed is False
+    assert calls["n"] == 2
+    assert gate.response_path.is_file()
+    recovered_records = list(read_journal_records(gate.bundle_path))
+    assert [record["event"] for record in recovered_records].count(
+        "option_completed"
+    ) == 2
+    assert "attempt_resumed" in [record["event"] for record in recovered_records]
+    assert translate_plan_gate_response(gate.bundle_path, recovered.response) == {
+        "action": "approve",
+        "commit_plan": True,
+        "run_coder": True,
+        "saved_plan_path": str(archived),
+        "plan_archive_owner": "host",
+        "plan_archive_state": "archived",
+        "plan_archive_protocol": "host_v2",
+        "plan_archive_ref": "plan:202608/archived-plan.md",
+    }
+    [dismissed] = [
+        row
+        for row in load_notifications(include_dismissed=True)
+        if row.id == notification.id
+    ]
+    assert dismissed.dismissed is True

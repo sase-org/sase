@@ -63,6 +63,7 @@ FOREIGN_ENTRY_PATTERNS: tuple[str, ...] = (
     "snap.*",
     "ssh-*",
     "systemd-private-*",
+    "tui-screenshots",  # live screenshot exports share the managed temp root
     # mktemp(1) scratch from unrelated host tooling. Python's tempfile never
     # puts a dot after its "tmp" prefix, so this cannot mask a suite leak.
     "tmp.*",

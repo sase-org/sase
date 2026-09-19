@@ -55,9 +55,6 @@ class _MultiPrompt:
 _LocalXPromptNameError = LocalXPromptNameError
 
 
-MultiPrompt = _MultiPrompt
-
-
 def parse_multi_prompt(text: str) -> _MultiPrompt:
     """Parse a user prompt into frontmatter, local xprompts, and segments.
 
