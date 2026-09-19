@@ -36,6 +36,11 @@ def handle_config_command(args: argparse.Namespace) -> None:
                 print(
                     f"  retired keys (ignored; remove): {', '.join(layer.retired_keys)}"
                 )
+            if layer.ignored_keys:
+                print(
+                    "  project-owned keys (ignored; not merged): "
+                    + ", ".join(layer.ignored_keys)
+                )
             print()
         sys.exit(0)
 

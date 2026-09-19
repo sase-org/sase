@@ -29,6 +29,7 @@ from sase.config.core import (
     DEPRECATED_TOP_LEVEL_KEYS,
     UNSUPPORTED_TOP_LEVEL_KEYS,
     ConfigLayer,
+    without_project_only_keys,
     without_retired_sdd_selectors,
     load_config_layers,
     load_yaml_file_with_metadata,
@@ -113,12 +114,17 @@ def _serialize_layer(layer: ConfigLayer) -> dict[str, Any]:
 
     Package-backed layers (built-in defaults, plugin defaults) carry no path
     and are never writable; file-backed layers (user, overlays, local) are.
+    Project-owned catalogs such as ``tools:`` are stripped from non-local
+    layers so list concatenation and deep merge cannot change argv identity.
     """
+    value = without_retired_sdd_selectors(layer.data or {})
+    if _layer_kind(layer.name) != "local":
+        value = without_project_only_keys(value)
     return {
         "name": layer.name,
         "kind": _layer_kind(layer.name),
         "path": layer.path,
-        "value": without_retired_sdd_selectors(layer.data or {}),
+        "value": value,
         "list_strategy": layer.list_strategy,
         "writable": layer.path is not None,
         "exists": layer.exists,

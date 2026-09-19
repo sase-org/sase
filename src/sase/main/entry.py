@@ -547,6 +547,12 @@ def main() -> NoReturn:
 
         handle_tmux_agent_command(args)
 
+    # --- tool ---
+    if args.command == "tool":
+        from .tool_handler import handle_tool_command
+
+        handle_tool_command(args)
+
     # --- update ---
     if args.command == "update":
         from .update_handler import handle_update_command

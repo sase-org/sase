@@ -63,6 +63,8 @@ sections, environment variables, and CLI flags.
   - [feature_flags](#feature_flags)
   - [workspace](#workspace)
   - [telemetry](#telemetry)
+  - [tool_runs](#tool_runs)
+  - [tools](#tools)
   - [update](#update)
 - [Environment Variables](#environment-variables)
 - [CLI Flags](#cli-flags)
@@ -4748,6 +4750,78 @@ still schema-valid for compatibility but is ignored.
 
 Source: `src/sase/default_config.yml`, `src/sase/telemetry/_config.py`
 
+### tool_runs
+
+Operational retention for the machine-local ToolRun ledger. This block uses ordinary
+config-layer precedence (builtin, plugin, user, overlay, then project). It is
+independent of the project-owned [`tools`](#tools) catalog: changing retention cannot
+change argv.
+
+```yaml
+tool_runs:
+  summary_days: 180
+  detail_days: 60
+  log_days: 14
+  log_max_bytes: 2147483648
+  run_log_max_bytes: 268435456
+  event_max_bytes: 16777216
+```
+
+| Field                         | Type | Default      | Minimum | Description                                                                       |
+| ----------------------------- | ---- | ------------ | ------- | --------------------------------------------------------------------------------- |
+| `tool_runs.summary_days`      | int  | `180`        | `1`     | Days to retain run/attempt/lifecycle summaries after settlement.                  |
+| `tool_runs.detail_days`       | int  | `60`         | `1`     | Days to retain stage/sample events and projections. Must be `<= summary_days`.    |
+| `tool_runs.log_days`          | int  | `14`         | `1`     | Days to retain output and event files after settlement. Must be `<= detail_days`. |
+| `tool_runs.log_max_bytes`     | int  | `2147483648` | `1`     | Aggregate retained-log target in bytes (2 GiB).                                   |
+| `tool_runs.run_log_max_bytes` | int  | `268435456`  | `1`     | Per-run retained-log cap in bytes (256 MiB).                                      |
+| `tool_runs.event_max_bytes`   | int  | `16777216`   | `1`     | Per-run event-file cap in bytes (16 MiB).                                         |
+
+Unknown fields and non-positive or inconsistent horizons are rejected. JSON Schema
+cannot express `detail_days <= summary_days`; runtime validation covers that.
+
+Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`,
+`src/sase/config/tools.py`
+
+### tools
+
+Named tool catalogs are project-owned complete entries in `sase/sase.yml`. SASE does not
+read argv from the recursively merged config: `tools:` in builtin, plugin, user, or
+machine layers is diagnosed and ignored so list concatenation and deep merge cannot
+change execution identity. Malformed project YAML or catalog fields are actionable
+errors, not an empty catalog.
+
+```yaml
+tools:
+  check:
+    argv: [just, check]
+    description: Run the repository scoped check.
+    stages: run_silent
+    inputs: [Justfile]
+    env: [SASE_PYTEST_WORKERS]
+    args: deny
+    fingerprint:
+      toolchain:
+        python: [python, --version]
+```
+
+| Field                                | Type                   | Default  | Description                                                                                 |
+| ------------------------------------ | ---------------------- | -------- | ------------------------------------------------------------------------------------------- |
+| `tools.<name>.argv`                  | string array           | required | Exact argv run at the project root. Not expanded for shell syntax or environment variables. |
+| `tools.<name>.description`           | string                 | `""`     | Human-readable purpose shown by `sase tool list`.                                           |
+| `tools.<name>.stages`                | `run_silent` \| `none` | `none`   | Whether `run_silent` stage producers attach to this tool.                                   |
+| `tools.<name>.inputs`                | string array           | `[]`     | Repository-relative glob patterns observed as fingerprint inputs.                           |
+| `tools.<name>.env`                   | string array           | `[]`     | Allow-listed environment variable names observed as fingerprint inputs.                     |
+| `tools.<name>.args`                  | `allow` \| `deny`      | `deny`   | Whether extra arguments after `--` may be appended to argv.                                 |
+| `tools.<name>.fingerprint.repos`     | string array           | `[]`     | Configured repository identities; empty means the current repository.                       |
+| `tools.<name>.fingerprint.toolchain` | map of argv arrays     | `{}`     | Bounded toolchain probes.                                                                   |
+
+`sase tool list` reports LAST (newest native result for this project and definition) and
+TYPICAL (median duration of up to 30 normally exited native runs in 30 days). Missing
+samples render as an em dash, never as zero or an ETA.
+
+Source: `src/sase/config/sase.schema.json`, `src/sase/config/tools.py`,
+`src/sase/main/tool_handler.py`
+
 ### update
 
 Configures install-mode switching (see
@@ -5694,6 +5768,20 @@ sidecar, initializes every enabled configured sidecar, and ensures the project r
 diffs, and `-C, --no-commit` writes project config and ignore changes without the normal
 project commit/pull/push sequence. `sase init repo` is an alias; bare `sase init` and
 `sase validate` include the same check for Git projects.
+
+### `sase tool`
+
+Named-tool catalog commands. With no subcommand, `sase tool` defaults to
+`sase tool list`. Only implemented verbs are advertised; `run`, `runs`, and `show` are
+not registered yet.
+
+| Command          | Flag / argument | Values | Description                                                                   |
+| ---------------- | --------------- | ------ | ----------------------------------------------------------------------------- |
+| `sase tool list` | `-j, --json`    | flag   | Emit a versioned JSON object with LAST, TYPICAL, argv, and definition digest. |
+
+`LAST` is the newest native result for this project and definition. `TYPICAL` is the
+observed median duration of at most 30 normally exited native runs within 30 days.
+Missing samples render as an em dash, never as zero or an ETA. Catalog errors exit `2`.
 
 ### `sase disk`
 

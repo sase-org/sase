@@ -61,5 +61,5 @@ instead of `bd` directly.
 
 `tools/smoke_sase_core_rs_tool_runs` is an isolated real-binding round trip against the
 installed `sase_core_rs` wheel. `tools/smoke_sase_tool_runs` is the black-box harness
-foundation: it talks to the real store and labels unimplemented public `sase tool`
-commands as phase-pending rather than passing them.
+foundation: it talks to the real store, exercises `sase tool list`, and labels
+unimplemented public `sase tool` verbs as phase-pending rather than passing them.

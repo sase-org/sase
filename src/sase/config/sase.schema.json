@@ -1366,6 +1366,115 @@
           "description": "Maximum bytes kept in this proc's rotated output log."
         }
       }
+    },
+    "toolFingerprintSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Fingerprint observation spec for a named tool. Empty repos means the current repository at run time.",
+      "properties": {
+        "repos": {
+          "type": "array",
+          "description": "Configured repository identities to fingerprint. Empty means the current repository.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "toolchain": {
+          "type": "object",
+          "description": "Bounded toolchain probes: probe name to nonempty argv.",
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "toolDefinition": {
+      "type": "object",
+      "required": ["argv"],
+      "additionalProperties": false,
+      "description": "One project-owned named tool. The map key is the tool name.",
+      "properties": {
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "description": "Exact argv executed at the project root. Not expanded for shell syntax or environment variables.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable purpose shown by sase tool list."
+        },
+        "stages": {
+          "type": "string",
+          "enum": ["run_silent", "none"],
+          "default": "none",
+          "description": "Whether run_silent stage producers attach to this tool."
+        },
+        "inputs": {
+          "type": "array",
+          "description": "Repository-relative glob patterns observed as fingerprint inputs.",
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "env": {
+          "type": "array",
+          "description": "Allow-listed environment variable names observed as fingerprint inputs. Secret-like values are redacted in query fields.",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          }
+        },
+        "args": {
+          "type": "string",
+          "enum": ["allow", "deny"],
+          "default": "deny",
+          "description": "Whether extra arguments after -- may be appended to argv."
+        },
+        "fingerprint": { "$ref": "#/definitions/toolFingerprintSpec" }
+      }
+    },
+    "toolRuns": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Operational ToolRun ledger retention policy. Uses ordinary config-layer precedence, independent of the project-owned tools catalog.",
+      "properties": {
+        "summary_days": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 180,
+          "description": "Days to retain run/attempt/lifecycle summaries after settlement."
+        },
+        "detail_days": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 60,
+          "description": "Days to retain detailed stage/sample events and projections. Must be <= summary_days."
+        },
+        "log_days": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 14,
+          "description": "Days to retain output and event files after settlement. Must be <= detail_days."
+        },
+        "log_max_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 2147483648,
+          "description": "Aggregate retained log target in bytes (default 2 GiB)."
+        },
+        "run_log_max_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 268435456,
+          "description": "Per-run retained log cap in bytes (default 256 MiB)."
+        },
+        "event_max_bytes": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 16777216,
+          "description": "Per-run event file cap in bytes (default 16 MiB)."
+        }
+      }
     }
   },
   "properties": {
@@ -4900,6 +5009,19 @@
             }
           }
         }
+      }
+    },
+    "tool_runs": {
+      "$ref": "#/definitions/toolRuns"
+    },
+    "tools": {
+      "type": "object",
+      "description": "Project-owned named tool catalog. Read only from the project's sase/sase.yml as complete entries; user, machine, plugin, and builtin layers cannot change execution identity.",
+      "propertyNames": {
+        "pattern": "^[a-z][a-z0-9-]*$"
+      },
+      "additionalProperties": {
+        "$ref": "#/definitions/toolDefinition"
       }
     },
     "feature_flags": {

@@ -40,5 +40,6 @@ def test_tool_runs_harness_marks_public_commands_phase_pending() -> None:
     )
     statuses = {case["id"]: case["status"] for case in report["cases"]}
     assert statuses["core-ledger-round-trip"] == "pass"
+    assert statuses["dod-1-catalog"] == "pass"
     assert statuses["dod-2-exact-execution"] == "phase-pending"
     assert report["failed"] == 0

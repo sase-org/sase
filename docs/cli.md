@@ -239,13 +239,13 @@ bare — `sase agent`, `sase agent-cli`, `sase artifact`, `sase bead`, `sase cha
 `sase final`, `sase flag`, `sase gate`, `sase machine`, `sase memory`, `sase migrate`,
 `sase monitor`, `sase notify`, `sase plan`, `sase plugin`, `sase proc`, `sase project`,
 `sase prompt`, `sase repo`, `sase skill`, `sase snippet`, `sase stitch`, `sase sudo`,
-`sase telemetry`, `sase usage`, `sase var`, `sase workspace`, and `sase xprompt`. Nested
-groups such as `sase agent hold`, `sase agent prompts`, `sase agent tribe`,
-`sase artifact link`, `sase artifact link relation`, `sase artifact trash`,
-`sase axe job`, `sase axe routine`, `sase bead dep`, `sase bead ref`,
-`sase bead task-type`, `sase memory agent-docs`, `sase memory web`, `sase patch ref`,
-`sase plan links`, and `sase project alias` follow the same rule. A bare invocation
-prints a short notice naming the delegation, for example
+`sase telemetry`, `sase tool`, `sase usage`, `sase var`, `sase workspace`, and
+`sase xprompt`. Nested groups such as `sase agent hold`, `sase agent prompts`,
+`sase agent tribe`, `sase artifact link`, `sase artifact link relation`,
+`sase artifact trash`, `sase axe job`, `sase axe routine`, `sase bead dep`,
+`sase bead ref`, `sase bead task-type`, `sase memory agent-docs`, `sase memory web`,
+`sase patch ref`, `sase plan links`, and `sase project alias` follow the same rule. A
+bare invocation prints a short notice naming the delegation, for example
 `No subcommand provided for 'sase repo'; delegating to 'sase repo list'.` Groups without
 a `list` child, such as `sase patch`, `sase axe`, or `sase bead pages`, do not delegate.
 
@@ -598,6 +598,7 @@ surface can support plain git, GitHub pull requests, and other provider plugins.
 | `sase repo list`                        | Show primary, sidecar, linked, and opened external repos; use `--all` or `--json` for cross-project and clone-matrix views.                                                                                                                                                                                                                                              | [Configuration CLI flags](configuration.md#sase-repo)                                                                            |
 | `sase repo log`                         | Summarize the durable repository-open audit log, with repo, agent, workspace, event-ID, and JSON filters.                                                                                                                                                                                                                                                                | [Configuration CLI flags](configuration.md#sase-repo)                                                                            |
 | `sase repo open`                        | Open an inventory repo, another SASE project, or provider ref in the inferred workspace; GitHub refs reuse a matching configured repo before external materialization.                                                                                                                                                                                                   | [Configuration CLI flags](configuration.md#sase-repo)                                                                            |
+| `sase tool` / `tool list`               | List the current project's named tools with LAST result and observed TYPICAL duration; bare `sase tool` defaults to `list`, and `-j` emits versioned JSON.                                                                                                                                                                                                               | [Configuration CLI flags](configuration.md#sase-tool)                                                                            |
 | `sase disk` / `disk list`               | Attribute SASE disk usage by owner, section, coverage, horizon, and path; bare `sase disk` defaults to `list`, and `-j` emits JSON.                                                                                                                                                                                                                                      | [Configuration CLI flags](configuration.md#sase-disk)                                                                            |
 | `sase disk reap`                        | Preview owner cleanup passes, or run them with `--apply`; exits `1` when any owner step is blocked or fails. Unowned Cargo-shaped strays are reported but never deleted by this command.                                                                                                                                                                                 | [Configuration CLI flags](configuration.md#sase-disk)                                                                            |
 | `sase workspace list`                   | List one project's registry or use `--all` for the cross-project workspace inventory.                                                                                                                                                                                                                                                                                    | [Workspace provider](workspace.md)                                                                                               |

@@ -7,6 +7,7 @@ import stat
 from pathlib import Path
 from typing import Any
 
+from sase.config.tools import ToolRunsConfigError, get_tool_runs_config
 from sase.core.disk_footprint_models import DiskReapStep
 from sase.core.disk_footprint_utils import normalize_path_no_follow
 from sase.core.tool_run import (
@@ -26,12 +27,20 @@ def tool_run_reap_step(*, apply: bool) -> DiskReapStep:
     try:
         schema_version = tool_run_wire_schema_version()
         stats = tool_run_store_stats(store_path=store_path)
+        policy = get_tool_runs_config()
+        request = {"schema_version": 1, "policy": {"schema_version": 1, **policy}}
         report = (
-            tool_run_retention_apply({"schema_version": 1}, store_path=store_path)
+            tool_run_retention_apply(request, store_path=store_path)
             if apply
-            else tool_run_retention_preview(
-                {"schema_version": 1}, store_path=store_path
-            )
+            else tool_run_retention_preview(request, store_path=store_path)
+        )
+    except ToolRunsConfigError as exc:
+        return DiskReapStep(
+            owner="tool_run_retention",
+            mode="blocked",
+            summary=f"invalid tool_runs policy: {exc}",
+            command=("sase", "disk", "reap", "--apply"),
+            exit_code=1,
         )
     except Exception as exc:  # noqa: BLE001 - one owner must not crash the group.
         return DiskReapStep(

@@ -102,6 +102,26 @@ def test_load_config_layers_flags_unsupported_workflows_key(tmp_path: Path) -> N
     assert overlay_layer.unsupported_keys == ["workflows"]
 
 
+def test_load_config_layers_flags_non_project_tools_as_ignored(
+    tmp_path: Path,
+) -> None:
+    """``tools:`` in user/machine layers is diagnosed and not treated as local."""
+    (tmp_path / "sase.yml").write_text(
+        yaml.dump({"tools": {"check": {"argv": ["echo", "user"]}}}),
+        encoding="utf-8",
+    )
+
+    with (
+        patch("sase.config.core.CONFIG_DIR", tmp_path),
+        patch("sase.config.core.Path.cwd", return_value=tmp_path / "none"),
+    ):
+        layers = load_config_layers()
+
+    user_layer = next(ly for ly in layers if ly.name == "user")
+    assert "tools" in user_layer.keys
+    assert user_layer.ignored_keys == ["tools"]
+
+
 def test_load_config_layers_flags_deprecated_sibling_repos_key(
     tmp_path: Path,
 ) -> None:

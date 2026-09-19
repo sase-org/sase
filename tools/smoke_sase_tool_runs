@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Black-box ToolRun harness. Phase 1 exercises the real store; public CLI is pending."""
+"""Black-box ToolRun harness. Catalog list is live; run/runs/show remain phase-pending."""
 
 from __future__ import annotations
 
@@ -183,20 +183,99 @@ def run_harness(*, sase: str, live: bool, keep: bool) -> dict[str, Any]:
         )
 
     help_proc = _run_sase(sase, ["tool", "-h"], env)
-    if help_proc.returncode == 0 and "list" in help_proc.stdout:
+    help_ok = help_proc.returncode == 0 and "{list}" in help_proc.stdout
+    list_json = _run_sase(sase, ["tool", "list", "-j"], env)
+    catalog_payload: dict[str, Any] = {}
+    if list_json.returncode == 0:
+        try:
+            catalog_payload = json.loads(list_json.stdout)
+        except json.JSONDecodeError:
+            catalog_payload = {}
+    names = [tool.get("name") for tool in catalog_payload.get("tools") or ()]
+    typical_empty = all(
+        tool.get("typical_duration_ms") is None
+        and tool.get("last") is None
+        for tool in catalog_payload.get("tools") or ()
+    )
+    catalog_ok = (
+        help_ok
+        and catalog_payload.get("schema_version") == 1
+        and names == ["check", "check-full", "install", "test", "test-visual"]
+        and typical_empty
+    )
+
+    fixture_root = tmp / "fixture-project"
+    (fixture_root / "sase").mkdir(parents=True)
+    (fixture_root / "sase" / "sase.yml").write_text(
+        "tools:\n  ping:\n    argv: [echo, pong]\n    description: fixture\n",
+        encoding="utf-8",
+    )
+    fixture_proc = subprocess.run(
+        [sase, "tool", "list", "-j"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=fixture_root,
+    )
+    fixture_payload: dict[str, Any] = {}
+    if fixture_proc.returncode == 0:
+        try:
+            fixture_payload = json.loads(fixture_proc.stdout)
+        except json.JSONDecodeError:
+            fixture_payload = {}
+    fixture_ok = (
+        fixture_proc.returncode == 0
+        and [tool.get("name") for tool in fixture_payload.get("tools") or ()] == ["ping"]
+        and (fixture_payload.get("tools") or [{}])[0].get("last") is None
+    )
+
+    bad_root = tmp / "malformed-project"
+    (bad_root / "sase").mkdir(parents=True)
+    (bad_root / "sase" / "sase.yml").write_text(
+        "tools:\n  ping:\n    argv: [echo, pong]\n    shell: true\n",
+        encoding="utf-8",
+    )
+    bad_proc = subprocess.run(
+        [sase, "tool", "list", "-j"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=bad_root,
+    )
+    malformed_ok = bad_proc.returncode == 2 and "ping" in (bad_proc.stderr + bad_proc.stdout)
+
+    if catalog_ok and fixture_ok and malformed_ok:
         cases.append(
             {
                 "id": "dod-1-catalog",
                 "status": "pass",
-                "observed": "sase tool help is available",
+                "observed": {
+                    "names": names,
+                    "schema_version": catalog_payload.get("schema_version"),
+                    "fixture_names": [
+                        tool.get("name") for tool in fixture_payload.get("tools") or ()
+                    ],
+                    "malformed_exit": bad_proc.returncode,
+                },
             }
         )
     else:
         cases.append(
-            _phase_pending(
-                "dod-1-catalog",
-                "sase tool list is implemented in the catalog phase",
-            )
+            {
+                "id": "dod-1-catalog",
+                "status": "fail",
+                "observed": {
+                    "help_ok": help_ok,
+                    "list_exit": list_json.returncode,
+                    "list_err": list_json.stderr[-400:],
+                    "names": names,
+                    "fixture_exit": fixture_proc.returncode,
+                    "malformed_exit": bad_proc.returncode,
+                    "malformed_err": (bad_proc.stderr + bad_proc.stdout)[-400:],
+                },
+            }
         )
     cases.append(
         _phase_pending(
@@ -255,9 +334,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("-j", "--json", action="store_true")
     args = parser.parse_args(argv)
     sase = args.sase
-    if sase != "sase" and not Path(sase).exists():
-        print(f"[tool-runs-harness] sase executable not found: {sase}", file=sys.stderr)
-        return 2
+    sase_path = Path(sase)
+    if sase != "sase":
+        if not sase_path.exists():
+            print(
+                f"[tool-runs-harness] sase executable not found: {sase}",
+                file=sys.stderr,
+            )
+            return 2
+        sase = str(sase_path.resolve())
     report = run_harness(sase=sase, live=args.live, keep=args.keep)
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))

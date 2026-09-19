@@ -26746,6 +26746,74 @@
       },
       {
         "aliases": [],
+        "default_child": "list",
+        "description_digest": "55c417d4a4ff8299",
+        "hidden": false,
+        "mutex_groups": [],
+        "name": "tool",
+        "options": [
+          {
+            "choices": null,
+            "dest": "help",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-h",
+              "--help"
+            ],
+            "takes_value": false
+          }
+        ],
+        "path": [
+          "tool"
+        ],
+        "positionals": [],
+        "subcommands": [
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "483d0817b384aee0",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "list",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "tool",
+              "list"
+            ],
+            "positionals": [],
+            "subcommands": []
+          }
+        ]
+      },
+      {
+        "aliases": [],
         "default_child": null,
         "description_digest": "6636c35fb126beaf",
         "hidden": false,

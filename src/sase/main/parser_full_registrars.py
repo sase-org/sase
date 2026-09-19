@@ -60,6 +60,7 @@ from sase.main.parser_stitch import register_stitch_parser
 from sase.main.parser_sudo import register_sudo_parser
 from sase.main.parser_telemetry import register_telemetry_parser
 from sase.main.parser_tmux_agent import register_tmux_agent_parser
+from sase.main.parser_tool import register_tool_parser
 from sase.main.parser_update import register_update_parser
 from sase.main.parser_usage import register_usage_parser
 from sase.main.parser_validate import register_validate_parser
@@ -130,6 +131,7 @@ COMMAND_REGISTRARS_BY_NAME: dict[str, Any] = {
         register_sudo_parser,
         register_telemetry_parser,
         register_tmux_agent_parser,
+        register_tool_parser,
         register_update_parser,
         register_usage_parser,
         register_validate_parser,

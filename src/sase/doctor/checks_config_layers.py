@@ -47,6 +47,7 @@ def check_config_layers() -> DiagnosticCheck:
             "unsupported_keys": list(layer.unsupported_keys),
             "deprecated_keys": list(layer.deprecated_keys),
             "retired_keys": list(layer.retired_keys),
+            "ignored_keys": list(layer.ignored_keys),
             "error": layer.error,
         }
         layer_rows.append(row)
@@ -68,6 +69,12 @@ def check_config_layers() -> DiagnosticCheck:
             location = layer.path or layer.name
             keys = ", ".join(layer.retired_keys)
             problems.append(f"{location}: retired keys ignored (remove): {keys}")
+        if layer.ignored_keys:
+            location = layer.path or layer.name
+            keys = ", ".join(layer.ignored_keys)
+            problems.append(
+                f"{location}: project-owned keys ignored (not merged): {keys}"
+            )
 
     loaded_count = sum(1 for row in layer_rows if row["loaded"])
     status: CheckStatus = "WARN" if problems else "OK"

@@ -100,6 +100,19 @@ procs:
   runtime_orphan_horizon_seconds: 259200
   runtime_orphan_max_removals: 2000
 
+# Operational ToolRun ledger retention. Named tool argv lives only in the
+# project's sase/sase.yml `tools:` catalog and is not merged from this file.
+tool_runs:
+  summary_days: 180
+  detail_days: 60
+  log_days: 14
+  # 2 GiB aggregate retained-log target.
+  log_max_bytes: 2147483648
+  # 256 MiB per-run retained-log cap.
+  run_log_max_bytes: 268435456
+  # 16 MiB per-run event-file cap.
+  event_max_bytes: 16777216
+
 # Machine-level service procs the `sase service` host starts, restarts, and
 # stops. Project-local sase.yml entries are ignored. Nothing runs until the
 # host (sase-11y.4) exists; this only registers the builtin entries.

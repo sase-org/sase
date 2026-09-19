@@ -78,6 +78,7 @@ _COMMAND_REGISTRARS: dict[str, _RegistrarSpec] = {
     "task": ("sase.main.parser_proc", "register_proc_parser"),
     "telemetry": ("sase.main.parser_telemetry", "register_telemetry_parser"),
     "tmux-agent": ("sase.main.parser_tmux_agent", "register_tmux_agent_parser"),
+    "tool": ("sase.main.parser_tool", "register_tool_parser"),
     "tui": ("sase.main.parser_ace", "register_ace_parser"),
     "update": ("sase.main.parser_update", "register_update_parser"),
     "usage": ("sase.main.parser_usage", "register_usage_parser"),

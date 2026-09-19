@@ -24,6 +24,10 @@ UNSUPPORTED_TOP_LEVEL_KEYS: frozenset[str] = frozenset(
     {"amd_h1_title", "glossary", "workflows"}
 )
 
+# Project-owned catalogs. These are complete entries from ``sase/sase.yml``;
+# builtin/plugin/user/machine layers may mention them but cannot splice argv.
+PROJECT_ONLY_TOP_LEVEL_KEYS: frozenset[str] = frozenset({"tools"})
+
 # Top-level config keys that are still parsed for backward compatibility but have
 # a canonical replacement. Mapped to the key callers should migrate to. Surfaced
 # (non-fatally) via ``sase config layers`` and ``sase doctor`` so users get a
@@ -42,6 +46,21 @@ DEPRECATED_TOP_LEVEL_KEYS: dict[str, str] = {
 # Placement is provider-owned. These nested keys are recognized only so old
 # configuration can be ignored with an actionable cleanup diagnostic.
 RETIRED_SDD_SELECTOR_KEYS: frozenset[str] = frozenset({"storage", "version_controlled"})
+
+
+def _is_project_config_layer(name: str) -> bool:
+    """Return whether *name* is the project-local config layer."""
+    return name == "local" or name.startswith("local:")
+
+
+def without_project_only_keys(data: dict[str, Any]) -> dict[str, Any]:
+    """Return *data* without project-owned catalog keys such as ``tools``."""
+    if not PROJECT_ONLY_TOP_LEVEL_KEYS.intersection(data):
+        return data
+    cleaned = dict(data)
+    for key in PROJECT_ONLY_TOP_LEVEL_KEYS:
+        cleaned.pop(key, None)
+    return cleaned
 
 
 def without_retired_sdd_selectors(data: dict[str, Any]) -> dict[str, Any]:
@@ -79,6 +98,7 @@ class ConfigLayer:
     unsupported_keys: list[str] = field(default_factory=list)
     deprecated_keys: list[str] = field(default_factory=list)
     retired_keys: list[str] = field(default_factory=list)
+    ignored_keys: list[str] = field(default_factory=list)
     present: bool | None = None
     error: str | None = None
 
@@ -98,6 +118,12 @@ def _collect_deprecated_keys(data: dict[str, Any] | None) -> list[str]:
     if not data:
         return []
     return sorted(key for key in data if key in DEPRECATED_TOP_LEVEL_KEYS)
+
+
+def _collect_ignored_keys(data: dict[str, Any] | None, *, layer_name: str) -> list[str]:
+    if not data or _is_project_config_layer(layer_name):
+        return []
+    return sorted(key for key in data if key in PROJECT_ONLY_TOP_LEVEL_KEYS)
 
 
 def load_yaml_file_with_metadata(
@@ -154,6 +180,7 @@ def load_config_layers(
             unsupported_keys=_collect_unsupported_keys(default_data),
             deprecated_keys=_collect_deprecated_keys(default_data),
             retired_keys=_collect_retired_keys(default_data),
+            ignored_keys=_collect_ignored_keys(default_data, layer_name="default"),
             present=True,
         )
     )
@@ -176,6 +203,9 @@ def load_config_layers(
                             unsupported_keys=_collect_unsupported_keys(data),
                             deprecated_keys=_collect_deprecated_keys(data),
                             retired_keys=_collect_retired_keys(data),
+                            ignored_keys=_collect_ignored_keys(
+                                data, layer_name=f"plugin:{module_name}"
+                            ),
                             present=True,
                         )
                     )
@@ -204,6 +234,7 @@ def load_config_layers(
             unsupported_keys=_collect_unsupported_keys(user_data),
             deprecated_keys=_collect_deprecated_keys(user_data),
             retired_keys=_collect_retired_keys(user_data),
+            ignored_keys=_collect_ignored_keys(user_data, layer_name="user"),
             present=user_present,
             error=user_error,
         )
@@ -224,6 +255,9 @@ def load_config_layers(
                 unsupported_keys=_collect_unsupported_keys(overlay_data),
                 deprecated_keys=_collect_deprecated_keys(overlay_data),
                 retired_keys=_collect_retired_keys(overlay_data),
+                ignored_keys=_collect_ignored_keys(
+                    overlay_data, layer_name=f"overlay:{overlay_path.name}"
+                ),
                 present=overlay_present,
                 error=overlay_error,
             )
@@ -244,6 +278,7 @@ def load_config_layers(
                 unsupported_keys=_collect_unsupported_keys(local_data),
                 deprecated_keys=_collect_deprecated_keys(local_data),
                 retired_keys=_collect_retired_keys(local_data),
+                ignored_keys=_collect_ignored_keys(local_data, layer_name="local"),
                 present=local_present,
                 error=local_error,
             )

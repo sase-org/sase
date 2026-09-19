@@ -15,7 +15,11 @@ from typing import Any, Literal
 from sase._yaml_safe import yaml_safe_load_cached_text
 from sase.core.rust import require_rust_binding
 from sase.config.identity import AgentOwnerConfigSnapshot
-from sase.config.layers import without_retired_sdd_selectors
+from sase.config.layers import (
+    PROJECT_ONLY_TOP_LEVEL_KEYS,
+    without_project_only_keys,
+    without_retired_sdd_selectors,
+)
 
 
 log = logging.getLogger(__name__)
@@ -173,6 +177,25 @@ def load_plugin_configs(
     return configs
 
 
+def _without_project_only_catalog(
+    data: dict[str, Any],
+    *,
+    source: str,
+) -> dict[str, Any]:
+    """Remove project-owned catalog keys from a non-project merge contribution."""
+    present = sorted(key for key in PROJECT_ONLY_TOP_LEVEL_KEYS if key in data)
+    if not present:
+        return data
+    log.warning(
+        "Ignoring project-owned key(s) %s from non-project config source %s; "
+        "named tools are complete entries in the project's sase/sase.yml and "
+        "are not merged from builtin, plugin, user, or machine layers",
+        ", ".join(present),
+        source,
+    )
+    return without_project_only_keys(data)
+
+
 def _without_owner_identity(
     data: dict[str, Any],
     *,
@@ -205,7 +228,10 @@ def merge_config_sources(
     yaml_loader: Callable[[Path], dict[str, Any] | None],
 ) -> dict[str, Any]:
     """Load and merge the already-discovered config source chain."""
-    default_contribution = _without_owner_identity(default_config, source="default")
+    default_contribution = _without_project_only_catalog(
+        _without_owner_identity(default_config, source="default"),
+        source="default",
+    )
     layer_inputs = [
         _layer_input(
             name="default",
@@ -220,7 +246,10 @@ def merge_config_sources(
 
     for index, plugin_config in enumerate(plugin_configs, start=1):
         log.debug("Loading layer 'plugin' (keys: %s)", ", ".join(plugin_config))
-        contribution = _without_owner_identity(plugin_config, source=f"plugin #{index}")
+        contribution = _without_project_only_catalog(
+            _without_owner_identity(plugin_config, source=f"plugin #{index}"),
+            source=f"plugin #{index}",
+        )
         layer_inputs.append(
             _layer_input(
                 name=f"plugin:{index}",
@@ -234,7 +263,10 @@ def merge_config_sources(
 
     user_base = yaml_loader(user_base_path)
     if user_base:
-        contribution = _without_owner_identity(user_base, source=str(user_base_path))
+        contribution = _without_project_only_catalog(
+            _without_owner_identity(user_base, source=str(user_base_path)),
+            source=str(user_base_path),
+        )
         layer_inputs.append(
             _layer_input(
                 name="user",
@@ -269,8 +301,14 @@ def merge_config_sources(
             contribution = dict(overlay)
             contribution.pop("id", None)
             contribution.pop("machine_name", None)
+            contribution = _without_project_only_catalog(
+                contribution, source=str(overlay_path)
+            )
         else:
-            contribution = _without_owner_identity(overlay, source=str(overlay_path))
+            contribution = _without_project_only_catalog(
+                _without_owner_identity(overlay, source=str(overlay_path)),
+                source=str(overlay_path),
+            )
         layer_inputs.append(
             _layer_input(
                 name=f"overlay:{overlay_path.name}",
