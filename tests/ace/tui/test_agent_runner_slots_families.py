@@ -10,6 +10,7 @@ from sase.ace.tui.models._agent_clan import clan_member_counts, sase_agent_statu
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent_runner_slots import refresh_runner_slot_context
+from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.agent.status_buckets import agent_status_bucket
 
 from ._agent_runner_slots_helpers import _agent, _assert_capacity_metrics
@@ -132,12 +133,14 @@ def test_first_refresh_promotes_all_slot_waiters_and_clan_aggregate() -> None:
 
     _assert_capacity_metrics(first, (10, 0, 2))
     assert projected[0].status == "QUEUED"
+    assert projected[0].wait_display_source is None
     assert (implicit.status, explicit.status) == ("QUEUED", "QUEUED")
 
     second = refresh_runner_slot_context(projected, effective_limit=10)
 
     assert second == first
     assert projected[0].status == "QUEUED"
+    assert projected[0].wait_display_source is None
     assert (implicit.status, explicit.status) == ("QUEUED", "QUEUED")
 
 
@@ -202,6 +205,41 @@ def test_refresh_keeps_sequential_family_root_waiting_for_non_slot_waiter(
     assert (root.status, child.status) == ("WAITING", "WAITING")
     assert child.runner_slot_queue_position is None
     assert child.runner_slot_queue_size is None
+
+
+@pytest.mark.parametrize("effective_limit", [None, 10])
+def test_first_refresh_promotes_lone_clan_slot_waiter_rank(
+    effective_limit: int | None,
+) -> None:
+    waiter = _agent(
+        "research.waiter",
+        agent_clan="research",
+        agent_clan_generation="20260712120000",
+        wait_runners=9,
+        slot_requested_at="2026-07-12T12:00:00Z",
+    )
+    done = _agent(
+        "research.done",
+        status="DONE",
+        pid=None,
+        agent_clan="research",
+        agent_clan_generation="20260712120000",
+    )
+    projected = project_clan_tree([waiter, done])
+
+    if effective_limit is None:
+        refresh_runner_slot_context(projected)
+    else:
+        refresh_runner_slot_context(projected, effective_limit=effective_limit)
+
+    container = projected[0]
+    assert waiter.status == "QUEUED"
+    assert container.status == "QUEUED"
+    assert container.wait_display_source is waiter
+    rendered = format_agent_option(container, 0, is_selected=False)[0].plain
+    assert f"#{waiter.runner_slot_queue_position}/{waiter.runner_slot_queue_size}" in (
+        rendered
+    )
 
 
 def _testing_clan_rows():

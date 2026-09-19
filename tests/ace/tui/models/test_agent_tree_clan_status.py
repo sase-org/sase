@@ -246,6 +246,7 @@ def test_clan_queued_and_waiting_companions_do_not_mask_lone_failed_label() -> N
     assert container.status == "TESTED"
     assert agent_status_bucket(container) == "Failed"
     assert container.monitor_state == "failed"
+    assert container.wait_display_source is None
 
 
 def test_clan_duplicate_member_identity_does_not_create_competing_member() -> None:
@@ -460,6 +461,123 @@ def test_clan_mirrors_lone_failed_gate_presentation() -> None:
     assert container.gate_accent == "#FFAF5F"
     assert container.gate_execution_active is True
     assert container.gate_finalize_proc_id == "proc-detach-1"
+
+
+def _queued_member(
+    suffix: str,
+    *,
+    position: int | None = 3,
+    queue_size: int | None = 4,
+) -> Agent:
+    row = _member(f"research.{suffix}", suffix, status="QUEUED")
+    row.runner_slot_queue_position = position
+    row.runner_slot_queue_size = queue_size
+    return row
+
+
+def test_clan_mirrors_lone_queued_member_admission_rank() -> None:
+    queued = _queued_member("land")
+    members = [
+        _member("research.one", "one", status="DONE"),
+        _member("research.two", "two", status="DONE"),
+        _member("research.three", "three", status="DONE"),
+        queued,
+    ]
+
+    container, *_ = project_clan_tree(members)
+
+    assert container.status == "QUEUED"
+    assert container.wait_display_source is queued
+    container_text = _format(container)
+    member_text = _format(queued, 1)
+    assert "(QUEUED #3/4)" in container_text.plain
+    assert "[Q1 D3]" in container_text.plain
+    assert _style_at(container_text, container_text.plain.index("#3/4")) == (
+        _style_at(member_text, member_text.plain.index("#3/4"))
+    )
+
+
+def test_clan_two_queued_members_keep_generic_queued_without_rank() -> None:
+    first = _queued_member("first", position=2)
+    second = _queued_member("second", position=3)
+    members = [first, second]
+
+    container, *_ = project_clan_tree(members)
+
+    assert container.status == "QUEUED"
+    assert container.wait_display_source is None
+    rendered = _format(container).plain
+    assert "(QUEUED)" in rendered
+    assert "#" not in rendered
+    assert "[Q2]" in rendered
+
+
+def test_clan_waiting_companions_do_not_block_lone_queued_rank() -> None:
+    queued = _queued_member("land")
+    members = [
+        queued,
+        _member("research.waiting-a", "waiting-a", status="WAITING"),
+        _member("research.waiting-b", "waiting-b", status="WAITING"),
+    ]
+
+    container, *_ = project_clan_tree(members)
+
+    assert container.status == "QUEUED"
+    assert container.wait_display_source is queued
+    rendered = _format(container).plain
+    assert "(QUEUED #3/4)" in rendered
+    assert "[Q1 W2]" in rendered
+
+
+def test_clan_queued_rank_reprojection_clears_wait_display_source() -> None:
+    queued = _queued_member("land")
+    done_one = _member("research.one", "one", status="DONE")
+    done_two = _member("research.two", "two", status="DONE")
+    done_three = _member("research.three", "three", status="DONE")
+    container, *members = project_clan_tree([done_one, done_two, done_three, queued])
+    assert container.wait_display_source is queued
+
+    queued.status = "DONE"
+    queued.runner_slot_queue_position = None
+    queued.runner_slot_queue_size = None
+    reprojection, *_ = project_clan_tree([container, *members])
+
+    assert reprojection.status == "DONE"
+    assert reprojection.wait_display_source is None
+    assert "#" not in _format(reprojection).plain
+
+
+def test_clan_mirrors_lone_queued_family_shell_rank() -> None:
+    family = _member("research.family", "family", status="QUEUED")
+    shell = _agent(
+        "research.family--code",
+        "family-code",
+        status="QUEUED",
+        parent_timestamp=family.raw_suffix,
+        clan=None,
+        generation=None,
+    )
+    shell.runner_slot_queue_position = 3
+    shell.runner_slot_queue_size = 4
+    family.wait_display_source = shell
+    members = [
+        family,
+        shell,
+        _member("research.one", "one", status="DONE"),
+        _member("research.two", "two", status="DONE"),
+        _member("research.three", "three", status="DONE"),
+    ]
+
+    container, *_ = project_clan_tree(members)
+
+    assert container.status == "QUEUED"
+    assert container.wait_display_source is shell
+    container_text = _format(container)
+    shell_text = _format(shell, 1)
+    assert "(QUEUED #3/4)" in container_text.plain
+    assert _style_at(container_text, container_text.plain.index("#3/4")) == (
+        _style_at(shell_text, shell_text.plain.index("#3/4"))
+    )
 
 
 def test_clan_mirrors_lone_stopped_member_label() -> None:

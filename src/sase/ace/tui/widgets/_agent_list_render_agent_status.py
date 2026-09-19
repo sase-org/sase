@@ -52,6 +52,41 @@ from ._queue_weight_badge import (
 )
 
 
+def append_queued_status_extras(text: Text, agent: Agent) -> None:
+    """Append admission rank, legacy slot occupancy, priority, and hold extras."""
+    wait_agent = wait_display_agent(agent)
+    position = wait_agent.runner_slot_queue_position
+    queue_size = wait_agent.runner_slot_queue_size
+    if position is not None:
+        queue_label = f" #{position}"
+        if queue_size is not None:
+            queue_label += f"/{queue_size}"
+        text.append(queue_label, style=QUEUED_STATUS_COLOR)
+    slot_label = ""
+    if (
+        not queue_capacity_budget_display_enabled()
+        and wait_agent.wait_runners_explicit
+        and wait_agent.wait_runners is not None
+    ):
+        occupied = wait_agent.runner_occupied_capacity
+        if occupied is None and wait_agent.runner_slots_in_use is not None:
+            occupied = float(wait_agent.runner_slots_in_use)
+        if occupied is not None:
+            slot_label = (
+                f" ▶{format_capacity_value(occupied, minimum_decimal=False)}"
+                f"→{wait_agent.wait_runners}"
+            )
+    if wait_agent.wait_priority_explicit and wait_agent.wait_priority is not None:
+        slot_label = f"{slot_label} p{wait_agent.wait_priority}"
+    if slot_label:
+        text.append(slot_label, style=f"dim {QUEUED_STATUS_COLOR}")
+    if wait_agent.held_by:
+        text.append(
+            f" held by {wait_agent.held_by}",
+            style=f"dim {QUEUED_STATUS_COLOR}",
+        )
+
+
 def append_agent_row_status(
     text: Text,
     agent: Agent,
@@ -102,37 +137,7 @@ def append_agent_row_status(
         text.append(display_status, style="bold #00AFAF")  # Deep turquoise
     elif agent.status == QUEUED_STATUS:
         text.append(display_status, style=f"bold {QUEUED_STATUS_COLOR}")
-        wait_agent = wait_display_agent(agent)
-        position = wait_agent.runner_slot_queue_position
-        queue_size = wait_agent.runner_slot_queue_size
-        if position is not None:
-            queue_label = f" #{position}"
-            if queue_size is not None:
-                queue_label += f"/{queue_size}"
-            text.append(queue_label, style=QUEUED_STATUS_COLOR)
-        slot_label = ""
-        if (
-            not queue_capacity_budget_display_enabled()
-            and wait_agent.wait_runners_explicit
-            and wait_agent.wait_runners is not None
-        ):
-            occupied = wait_agent.runner_occupied_capacity
-            if occupied is None and wait_agent.runner_slots_in_use is not None:
-                occupied = float(wait_agent.runner_slots_in_use)
-            if occupied is not None:
-                slot_label = (
-                    f" ▶{format_capacity_value(occupied, minimum_decimal=False)}"
-                    f"→{wait_agent.wait_runners}"
-                )
-        if wait_agent.wait_priority_explicit and wait_agent.wait_priority is not None:
-            slot_label = f"{slot_label} p{wait_agent.wait_priority}"
-        if slot_label:
-            text.append(slot_label, style=f"dim {QUEUED_STATUS_COLOR}")
-        if wait_agent.held_by:
-            text.append(
-                f" held by {wait_agent.held_by}",
-                style=f"dim {QUEUED_STATUS_COLOR}",
-            )
+        append_queued_status_extras(text, agent)
     elif agent.status == "WAITING":
         text.append(display_status, style="bold #AF87FF")  # Amethyst
         wait_agent = wait_display_agent(agent)

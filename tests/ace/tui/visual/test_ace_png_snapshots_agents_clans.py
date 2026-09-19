@@ -57,8 +57,10 @@ async def test_queued_clan_counts_png_snapshot(
             for option in panel._options  # type: ignore[union-attr]
         )
         assert "(QUEUED) ×2 [Q2]" in list_rows
+        assert "#" not in list_rows
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
         assert "Status: QUEUED [Q2]" in prompt.content.plain
+        assert "Status: QUEUED #" not in prompt.content.plain
         info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
         assert info._build_display_text().plain.startswith(
             "2  0.0/10.0 [0 running · 2 queued]"

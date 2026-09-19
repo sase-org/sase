@@ -28,6 +28,7 @@ from .agent_family_members import (
     is_sequential_family_container,
 )
 from .agent_nodes import is_agents_tab_agent_node
+from .agent_time import wait_display_agent
 
 _CLAN_MEMBER_STATUS_PRIORITIES: dict[str, int] = {
     "Failed": 0,
@@ -138,7 +139,16 @@ def apply_clan_container_status(
     aggregate's outcome bucket, ``BY_STATUS`` grouping, member ordering,
     count chips, and summary counts unchanged. ``Starting`` is a competing
     member, not an inheritable source, so a lone ``STARTING`` member still
-    leaves the clan at ``RUNNING``.
+    leaves the clan at ``RUNNING``. Queued members remain ignored for that
+    Failed/Running/Stopped label mirror.
+
+    When the aggregate bucket is Queued and exactly one unique member is
+    queued, the clan attaches that member through ``wait_display_source``
+    (dereferencing a sequential-family root to its queued shell) so list-row
+    and CLAN ``Status:`` extras can show the member's admission rank. Any
+    other aggregate, including two queued members, clears the pointer so
+    repeated projections cannot leave a stale rank after a companion queues
+    or the lone waiter starts.
 
     Any non-inheritable aggregate, including an empty member list (which
     falls back to *fallback*), clears ``status_bucket`` and those presentation
@@ -175,11 +185,28 @@ def apply_clan_container_status(
         container.status = source.status
         container.status_bucket = source_bucket
         _copy_shell_status_presentation(container, source)
-        return
+    else:
+        container.status = fallback if aggregate is None else aggregate
+        container.status_bucket = None
+        _copy_shell_status_presentation(container, None)
+    _set_clan_queued_wait_display_source(container, unique_members, aggregate_bucket)
 
-    container.status = fallback if aggregate is None else aggregate
-    container.status_bucket = None
-    _copy_shell_status_presentation(container, None)
+
+def _set_clan_queued_wait_display_source(
+    container: Agent,
+    unique_members: list[Agent],
+    aggregate_bucket: str | None,
+) -> None:
+    """Attach or clear the lone queued member's wait-display row."""
+    queued_members = [
+        member
+        for member in unique_members
+        if agent_status_bucket(member) == QUEUED_STATUS_BUCKET
+    ]
+    if aggregate_bucket == QUEUED_STATUS_BUCKET and len(queued_members) == 1:
+        container.wait_display_source = wait_display_agent(queued_members[0])
+        return
+    container.wait_display_source = None
 
 
 def clan_member_status_priority(

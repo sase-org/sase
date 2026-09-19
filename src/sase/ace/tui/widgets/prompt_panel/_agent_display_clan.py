@@ -7,7 +7,7 @@ from datetime import datetime
 
 from rich.text import Text
 
-from sase.agent.status_buckets import agent_status_bucket
+from sase.agent.status_buckets import QUEUED_STATUS, agent_status_bucket
 
 from ...agent_count_chip import format_agent_count_chip
 from ...models._agent_clan import clan_member_counts
@@ -25,6 +25,7 @@ from ...models.tribe_display import (
     compose_tribe_identity_style,
     tribe_identity_colors,
 )
+from .._agent_list_render_agent_status import append_queued_status_extras
 from .._agent_list_styling import _CLAN_IDENTITY_COLOR, _CLAN_NAME_STYLE
 from ._agent_display_clan_roster import (
     clan_roster_entries,
@@ -188,6 +189,8 @@ def build_clan_detail_text(
     text.append("Status: ", style=_FIELD_LABEL_STYLE)
     status_bucket = agent_status_bucket(agent)
     text.append(agent.display_status, style=_MEMBER_STATUS_STYLES[status_bucket])
+    if agent.status == QUEUED_STATUS:
+        append_queued_status_extras(text, agent)
     chip = format_agent_count_chip(
         stopped=counts.awaiting,
         running=counts.running,

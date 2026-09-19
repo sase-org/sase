@@ -50,6 +50,24 @@ def test_cached_clan_row_recolors_when_member_status_changes() -> None:
     assert "[R1]" not in done_parts[0].plain
 
 
+def test_cached_clan_row_invalidates_when_wait_display_source_rank_changes() -> None:
+    cache = AgentRenderCache()
+    root, member = _clan_with_member(member_status="QUEUED")
+    member.runner_slot_queue_position = 3
+    member.runner_slot_queue_size = 4
+    root.status = "QUEUED"
+    root.wait_display_source = member
+
+    before = cached_format_agent_option(cache, root, 0, is_selected=False, now=None)
+    member.runner_slot_queue_position = 2
+    after = cached_format_agent_option(cache, root, 0, is_selected=False, now=None)
+
+    assert before[0] is not after[0]
+    assert "#3/4" in before[0].plain
+    assert "#2/4" in after[0].plain
+    assert "#3/4" not in after[0].plain
+
+
 def test_cached_clan_row_invalidates_when_member_joins_global_queue() -> None:
     cache = AgentRenderCache()
     root, member = _clan_with_member(member_status="WAITING")

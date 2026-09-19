@@ -13,6 +13,7 @@ import pytest
 import sase.ace.tui.models.tribe_display as tribe_display
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.fold_state import FoldLevel
+from sase.ace.tui.widgets._agent_list_rendering import format_agent_option
 from sase.ace.tui.widgets.prompt_panel._agent_display_clan import (
     build_clan_detail_text,
 )
@@ -338,6 +339,46 @@ def test_clan_family_and_standalone_render_as_two_direct_lanes() -> None:
     assert "Status: RUNNING [R1 W1]\n" in detail
     assert "Members: 3 agents · 1 family\n" in detail
     assert "▸ ❖ CLAN MEMBERS · 2\n" in detail
+
+
+def test_clan_header_mirrors_lone_queued_member_admission_rank() -> None:
+    queued = make_clan_agent(
+        "research.land",
+        status="QUEUED",
+        start=datetime(2026, 7, 17, 12, 3, 0),
+    )
+    queued.runner_slot_queue_position = 3
+    queued.runner_slot_queue_size = 4
+    members = [
+        make_clan_agent(
+            "research.one",
+            status="DONE",
+            start=datetime(2026, 7, 17, 12, 0, 0),
+            stop=datetime(2026, 7, 17, 12, 1, 0),
+        ),
+        make_clan_agent(
+            "research.two",
+            status="DONE",
+            start=datetime(2026, 7, 17, 12, 1, 0),
+            stop=datetime(2026, 7, 17, 12, 2, 0),
+        ),
+        make_clan_agent(
+            "research.three",
+            status="DONE",
+            start=datetime(2026, 7, 17, 12, 2, 0),
+            stop=datetime(2026, 7, 17, 12, 3, 0),
+        ),
+        queued,
+    ]
+    container = project_clan_tree(members)[0]
+
+    detail = build_clan_detail_text(container)
+    member_row = format_agent_option(queued, 1, is_selected=False)[0]
+
+    assert "Status: QUEUED #3/4 [Q1 D3]\n" in detail.plain
+    assert style_at(detail, detail.plain.index("#3/4")) == style_at(
+        member_row, member_row.plain.index("#3/4")
+    )
 
 
 def test_clan_header_queue_count_excludes_explicit_and_dependency_waits() -> None:

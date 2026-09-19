@@ -2117,9 +2117,13 @@ shows that member's own status label and styling instead of the generic bucket l
 For example, a family running a `TESTING` monitor makes the clan read `TESTING`, while a
 failed monitor with an authored stop label can read `TESTED [W1 F1 D9]` and still remain
 in the Failed group. The status bucket, precedence, and count chip are unchanged;
-`TESTED` is only the authored shell label, not proof that verification passed. The count
-chip remains concrete and independent, so `QUEUED [Q3 W6]` reports three runner-slot
-waiters and six dependency, bead, or time waiters without merging the two categories.
+`TESTED` is only the authored shell label, not proof that verification passed. When the
+aggregate is `QUEUED` and exactly one direct member is queued, the clan row and CLAN
+`Status:` line also show that member's admission rank (`QUEUED #3/4`), plus the same
+`pN` / `held by` extras the member row shows. Two queued members stay generic `QUEUED`
+with no rank. The count chip remains concrete and independent, so `QUEUED #3/4 [Q1 D4]`
+keeps the rank next to the chip, and `QUEUED [Q3 W6]` reports three runner-slot waiters
+and six dependency, bead, or time waiters without merging the two categories.
 
 The uppercase `H` ladder starts with the selected workflow or sequential-family agent
 node when that agent node is still open. The first press retreats that agent node by
@@ -2298,15 +2302,17 @@ and need only runner capacity under their current admission budget. A queued row
 as `QUEUED #3/12`, followed by `pN` for an explicit queue priority and by
 `held by <armer>` while an [agent hold](#agent-holds) keeps it from starting. A
 sequential family whose next member is queued shows that member's `QUEUED` status and
-queue position on the family row. Authored capacity renders as a quiet `cN` badge beside
-the existing `wN` weight badge, and turns gold when the launch's budget exceeds the
-current effective global limit. Non-default queue weights render as the same quiet `wN`
-badge used on running rows and queue-ladder entries. The detail pane repeats these
-values as `Weight:` and `Capacity:` lines. Remote rows show the same badges and detail
-lines using the values reported by the machine that owns the agent. New prompts reject
-`capacity=0`, but a persisted legacy record with an explicit zero capacity still renders
-`c0` and `Capacity: legacy 0 (exact-weight drain budget)`. **Waiting** holds genuinely
-blocked but self-progressing agents — `WAITING` with a time wait (`%wait(time=5m)`,
+queue position on the family row. A clan with exactly one queued direct member does the
+same on the clan row and CLAN `Status:` line; two queued members stay generic `QUEUED`
+with no rank. Authored capacity renders as a quiet `cN` badge beside the existing `wN`
+weight badge, and turns gold when the launch's budget exceeds the current effective
+global limit. Non-default queue weights render as the same quiet `wN` badge used on
+running rows and queue-ladder entries. The detail pane repeats these values as `Weight:`
+and `Capacity:` lines. Remote rows show the same badges and detail lines using the
+values reported by the machine that owns the agent. New prompts reject `capacity=0`, but
+a persisted legacy record with an explicit zero capacity still renders `c0` and
+`Capacity: legacy 0 (exact-weight drain budget)`. **Waiting** holds genuinely blocked
+but self-progressing agents — `WAITING` with a time wait (`%wait(time=5m)`,
 `%wait(time=1430)`), a non-empty `waiting_for` dependency, or a bead wait. A compact
 `WAITING` row summarizes named waits as one sequence of independent tokens: agent counts
 keep the established status glyphs (`✗1 ▶1 ✓1 ?1`), while bead counts keep the canonical
