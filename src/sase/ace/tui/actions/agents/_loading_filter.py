@@ -11,6 +11,7 @@ from ._loading_compute import PreparedFinalizePlan
 from ._loading_finalize import finalize_agent_list, get_or_parse_agent_query
 from ._loading_state import AgentLoadingStateMixin
 from ...util.pump_tasks import spawn_pump_free_task
+from ...util.trace import tui_trace
 
 if TYPE_CHECKING:
     from ....agent_query import QueryExpr
@@ -379,14 +380,24 @@ class AgentLoadingFilterMixin(AgentLoadingStateMixin):
         cancel_member_jump = getattr(self, "_cancel_member_jump_pending", None)
         if callable(cancel_member_jump):
             cancel_member_jump(refresh_footer=False)
-        finalize_agent_list(
-            cast(Any, self),
-            on_agents_tab,
-            selected_identity,
-            save_unfiltered=save_unfiltered,
-            fold_filter_already_applied=fold_filter_already_applied,
-            prior_pos=prior_pos,
-            precomputed_plan=precomputed_plan,
-            previous_agents=previous_agents,
-            refresh_display=refresh_display,
-        )
+        with tui_trace(
+            "agents.finalize_agent_list",
+            agents=len(getattr(self, "_agents", [])),
+            proc_generation=int(getattr(self, "_proc_generation", 0)),
+            proc_shell_count=sum(
+                1
+                for agent in getattr(self, "_agents_with_children", [])
+                if getattr(agent, "is_proc_shell", False)
+            ),
+        ):
+            finalize_agent_list(
+                cast(Any, self),
+                on_agents_tab,
+                selected_identity,
+                save_unfiltered=save_unfiltered,
+                fold_filter_already_applied=fold_filter_already_applied,
+                prior_pos=prior_pos,
+                precomputed_plan=precomputed_plan,
+                previous_agents=previous_agents,
+                refresh_display=refresh_display,
+            )

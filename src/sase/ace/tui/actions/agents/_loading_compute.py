@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
@@ -72,6 +72,7 @@ __all__ = [
     "own_prepared_apply_snapshot",
     "prepare_loaded_agents_apply_boundary",
     "prepare_loaded_agents_worker_boundary",
+    "rebase_prepared_apply_boundary_on_proc_projection",
 ]
 
 # Per-process cache of artifact dirs already reconciled by the loader's
@@ -166,6 +167,60 @@ def _filter_agents_by_fold_snapshot(
     )
 
 
+def _proc_shells_from_apply_snapshot(
+    snapshot: PreparedApplySnapshot,
+) -> list[Agent]:
+    """Return proc-shell rows the prepared apply should publish.
+
+    A captured projection is the source of truth, including an empty one.
+    Snapshots that never saw an observer fall back to cached roster shells.
+    """
+    from ...models.agent_proc_shells import proc_shell_agents_from_observed
+
+    if snapshot.proc_projection is None:
+        return [
+            agent
+            for agent in snapshot.cached_agents_with_children
+            if agent.is_proc_shell
+        ]
+    return proc_shell_agents_from_observed(
+        snapshot.proc_projection.rows,
+        dismissed_proc_ids=snapshot.dismissed_proc_shells,
+    )
+
+
+def rebase_prepared_apply_boundary_on_proc_projection(
+    boundary: PreparedApplyBoundary,
+    snapshot: PreparedApplySnapshot,
+) -> PreparedApplyBoundary:
+    """Replace proc-shell rows on a prepared boundary with *snapshot*'s projection."""
+    from ...models.agent_proc_shells import merge_proc_shell_agents
+
+    proc_shells = _proc_shells_from_apply_snapshot(snapshot)
+    prep = boundary.prep
+    prep.filtered_agents = merge_proc_shell_agents(prep.filtered_agents, proc_shells)
+    if prep.capacity_agents:
+        prep.capacity_agents = merge_proc_shell_agents(
+            prep.capacity_agents, proc_shells
+        )
+    if proc_shells:
+        prep.has_always_visible = True
+    return replace(
+        boundary,
+        fold=replace(
+            boundary.fold,
+            unfiltered_agents=merge_proc_shell_agents(
+                boundary.fold.unfiltered_agents, proc_shells
+            ),
+            visible_agents=merge_proc_shell_agents(
+                boundary.fold.visible_agents, proc_shells
+            ),
+        ),
+        proc_generation=snapshot.proc_generation,
+        finalize=None,
+    )
+
+
 def prepare_loaded_agents_apply_boundary(
     prep: PreparedApplyData,
     snapshot: PreparedApplySnapshot,
@@ -200,19 +255,16 @@ def prepare_loaded_agents_apply_boundary(
                 graphs_owned=graphs_owned,
             )
 
-    # The disk loader has no proc-shell source; stand-alone proc rows are a
-    # proc-observer projection held in the current roster. Carry them into the
-    # prepared payload before slot, fold, and selection work so a refresh does
-    # not restore selection against a proc-less list and then pin a neighbor.
-    proc_shells = [
-        agent for agent in snapshot.cached_agents_with_children if agent.is_proc_shell
-    ]
-    if proc_shells:
-        from ...models.agent_proc_shells import merge_proc_shell_agents
+    # The disk loader has no proc-shell source; stand-alone proc rows come
+    # from the proc-observer projection captured on the snapshot. Merge that
+    # projection (not only cached roster shells) before slot, fold, and
+    # selection work so a projection-only shell is present at the first
+    # finalize.
+    from ...models.agent_proc_shells import merge_proc_shell_agents
 
-        prep.filtered_agents = merge_proc_shell_agents(
-            prep.filtered_agents, proc_shells
-        )
+    proc_shells = _proc_shells_from_apply_snapshot(snapshot)
+    prep.filtered_agents = merge_proc_shell_agents(prep.filtered_agents, proc_shells)
+    if proc_shells:
         # Proc-shell rows are never workflow children and never hidden, so the
         # hideable partition and hidden count remain correct as captured from
         # the loader payload; only the visible-presence flag needs widening.
@@ -255,6 +307,7 @@ def prepare_loaded_agents_apply_boundary(
         selection=snapshot.selection,
         runner_capacity=runner_capacity,
         capacity_generation=snapshot.capacity_generation,
+        proc_generation=snapshot.proc_generation,
     )
 
 
@@ -401,22 +454,14 @@ def _prepare_loaded_agents_worker_prep(
         hide_non_run_agents,
         dismissed_bundle_snapshot=dismissed_bundle_snapshot,
     )
-    snapshot_for_merge = PreparedApplySnapshot(
-        cached_agents_with_children=snapshot.cached_agents_with_children,
+    snapshot_for_merge = replace(
+        snapshot,
         dismissed_agents=(
             set(snapshot.dismissed_agents)
             | (dismissed_bundle_snapshot or set())
             | prep.recovered_bundle_identities
             | prep.auto_dismissed_identities
         ),
-        agents_seen_complete_history=snapshot.agents_seen_complete_history,
-        hide_non_run_agents=snapshot.hide_non_run_agents,
-        load_state=snapshot.load_state,
-        fold_levels=snapshot.fold_levels,
-        selection=snapshot.selection,
-        capacity_agents_with_children=snapshot.capacity_agents_with_children,
-        agent_panels_grouped=snapshot.agent_panels_grouped,
-        capacity_generation=snapshot.capacity_generation,
     )
     with tui_trace(
         "agents.incomplete_load_merge",

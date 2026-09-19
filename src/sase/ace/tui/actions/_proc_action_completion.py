@@ -144,9 +144,15 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
         current = getattr(self, "_proc_observer", None)
         if observer is not None and current is not observer:
             return
-        self._proc_projection = snapshot.projection
+        replace_projection = getattr(self, "_replace_proc_projection", None)
+        if callable(replace_projection):
+            replace_projection(snapshot.projection)
+        else:
+            self._proc_projection = snapshot.projection
+            self._proc_generation = int(getattr(self, "_proc_generation", 0)) + 1
         projection = self._effective_proc_projection()
-        self._sync_proc_shell_agents_from_projection(projection)
+        if not getattr(self, "_agents_loading", False):
+            self._sync_proc_shell_agents_from_projection(projection)
         self._update_proc_indicator()
         for completion in snapshot.completions:
             self._deliver_observed_completion(completion, projection)
@@ -162,6 +168,8 @@ class ProcCompletionActionsMixin(ProcSubmissionActionsMixin):
             proc_shell_agents_from_observed,
         )
 
+        if getattr(self, "_agents_loading", False):
+            return
         if projection is None:
             projection = self._effective_proc_projection()
         current_unfiltered = list(getattr(self, "_agents_with_children", []) or [])

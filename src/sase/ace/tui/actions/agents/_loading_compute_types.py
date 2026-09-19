@@ -19,6 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from ..._proc_observer_models import ProcProjection
 from ...models.agent_runner_slots import RunnerCapacitySnapshot
 
 if TYPE_CHECKING:
@@ -103,6 +104,9 @@ class PreparedApplySnapshot:
     # notification-store reconcile that follows finalize may drift by one
     # cycle, the same bounded staleness the query engine accepts elsewhere.
     unread_agent_ids: frozenset[tuple[AgentType, str, str | None]] = frozenset()
+    proc_projection: ProcProjection | None = None
+    proc_generation: int = 0
+    dismissed_proc_shells: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True)
@@ -127,4 +131,5 @@ class PreparedApplyBoundary:
         default_factory=RunnerCapacitySnapshot
     )
     capacity_generation: int = 0
+    proc_generation: int = 0
     finalize: PreparedFinalizePlan | None = None

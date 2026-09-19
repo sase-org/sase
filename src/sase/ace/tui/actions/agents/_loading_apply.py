@@ -17,6 +17,7 @@ from ._loading_compute import (
     make_finalize_stale_token,
     merge_incomplete_load_after_complete_history,
     prepare_loaded_agents_apply_boundary,
+    rebase_prepared_apply_boundary_on_proc_projection,
 )
 from ._dismiss_memory import trim_dismissed_agent_objects
 from ._loading_diff_badges import carry_over_diff_badges
@@ -196,6 +197,19 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         grouping_mode = getattr(self, "_grouping_mode", None)
         if grouping_mode is None:
             grouping_mode = GroupingMode.STANDARD
+        from ..._proc_observer_models import ProcProjection
+
+        compose = getattr(self, "_effective_proc_projection", None)
+        proc_projection: ProcProjection | None
+        if callable(compose):
+            captured = compose()
+            proc_projection = (
+                captured if isinstance(captured, ProcProjection) else ProcProjection()
+            )
+        else:
+            captured = getattr(self, "_proc_projection", None)
+            proc_projection = captured if isinstance(captured, ProcProjection) else None
+
         return PreparedApplySnapshot(
             cached_agents_with_children=list(
                 getattr(self, "_agents_with_children", [])
@@ -228,6 +242,11 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             capacity_generation=int(getattr(self, "_agents_capacity_generation", 0)),
             unread_agent_ids=frozenset(
                 getattr(self, "_unread_completed_agent_ids", ()) or ()
+            ),
+            proc_projection=proc_projection,
+            proc_generation=int(getattr(self, "_proc_generation", 0)),
+            dismissed_proc_shells=frozenset(
+                getattr(self, "_dismissed_proc_shells", ()) or ()
             ),
         )
 
@@ -306,7 +325,8 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             complete=getattr(load_state, "complete_history", None),
             source=source,
             data_cost=data_cost,
-        ):
+            proc_generation=int(getattr(self, "_proc_generation", 0)),
+        ) as extra:
             self._apply_loaded_agents_prepared_inner(
                 prep,
                 on_agents_tab=on_agents_tab,
@@ -318,6 +338,12 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 precomputed_boundary=precomputed_boundary,
                 precomputed_fold_levels=precomputed_fold_levels,
                 effective_runner_limit=effective_runner_limit,
+            )
+            extra["proc_generation"] = int(getattr(self, "_proc_generation", 0))
+            extra["proc_shell_count"] = sum(
+                1
+                for agent in getattr(self, "_agents_with_children", [])
+                if getattr(agent, "is_proc_shell", False)
             )
 
     def _apply_loaded_agents_prepared_inner(
@@ -427,6 +453,17 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 snapshot,
                 merge_incomplete=False,
                 effective_runner_limit=boundary_limit,
+            )
+        live_proc_generation = int(getattr(self, "_proc_generation", 0))
+        if live_proc_generation != boundary.proc_generation:
+            live_snapshot = self._make_prepared_apply_snapshot(
+                on_agents_tab=on_agents_tab,
+                selected_identity=selected_identity,
+                load_state=load_state,
+            )
+            boundary = rebase_prepared_apply_boundary_on_proc_projection(
+                boundary,
+                live_snapshot,
             )
         prep = boundary.prep
 
@@ -574,12 +611,6 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             load_state=load_state,
             source="apply",
         )
-
-        sync_proc_shells = getattr(
-            self, "_sync_proc_shell_agents_from_projection", None
-        )
-        if callable(sync_proc_shells):
-            sync_proc_shells()
 
         schedule_post_roster_work = getattr(
             self,

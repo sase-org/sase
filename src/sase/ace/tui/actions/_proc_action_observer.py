@@ -28,6 +28,7 @@ class ProcObserverActionsMixin:
         """Initialize observer projection, short submit workers, and callbacks."""
         previous = getattr(self, "_proc_observer", None)
         self._proc_projection = ProcProjection()
+        self._proc_generation = 0
         self._durable_submit_workers: dict[str, Worker[Any]] = {}
         self._session_workers: dict[str, Worker[Any]] = {}
         self._session_completion_callbacks: dict[str, Any] = {}
@@ -162,6 +163,11 @@ class ProcObserverActionsMixin:
         if not isinstance(durable, ProcProjection):
             durable = ProcProjection()
         return compose_proc_projection(durable, self._session_overlay_rows())
+
+    def _replace_proc_projection(self, projection: ProcProjection) -> None:
+        """Replace the durable projection and bump the monotonic generation."""
+        self._proc_projection = projection
+        self._proc_generation = int(getattr(self, "_proc_generation", 0)) + 1
 
 
 def _resolve_current_session_id() -> str | None:

@@ -9,7 +9,7 @@ anything drifted before applying it.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
 from sase.core.time import local_now
@@ -88,6 +88,7 @@ class PreparedFinalizeStaleToken:
     agent_panels_grouped: bool
     hide_non_run_agents: bool
     unread_agent_ids: frozenset[tuple[AgentType, str, str | None]]
+    proc_generation: int = 0
 
 
 def attach_finalize_plan_to_boundary(
@@ -102,13 +103,7 @@ def attach_finalize_plan_to_boundary(
         snapshot,
         content_index=content_index,
     )
-    return PreparedApplyBoundary(
-        prep=boundary.prep,
-        fold=boundary.fold,
-        selection=boundary.selection,
-        runner_capacity=boundary.runner_capacity,
-        finalize=finalize_plan,
-    )
+    return replace(boundary, finalize=finalize_plan)
 
 
 def _filter_agents_by_query(
@@ -320,6 +315,7 @@ def make_finalize_stale_token(
         agent_panels_grouped=snapshot.agent_panels_grouped,
         hide_non_run_agents=snapshot.hide_non_run_agents,
         unread_agent_ids=snapshot.unread_agent_ids,
+        proc_generation=snapshot.proc_generation,
     )
 
 

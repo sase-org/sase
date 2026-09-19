@@ -77,6 +77,7 @@ def init_agent_state(self: Any) -> None:
     self._agents_capacity_refresh_pending_source = "unknown"
     self._agents_capacity_refresh_async_tasks = set()
     self._agents_loading = False
+    self._proc_generation = 0
     self._agents_refresh_pending = False
     self._agents_refresh_pending_source = "unknown"
     self._agents_refresh_pending_full_history = False

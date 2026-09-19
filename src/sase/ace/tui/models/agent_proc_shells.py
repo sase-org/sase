@@ -149,6 +149,9 @@ def _observed_proc_to_agent(row: ObservedProc) -> Agent:
             project_display_name_for(project_key) if project_key != "proc" else None
         ),
     )
+    tribe = _string_meta(meta, "tribe")
+    if tribe:
+        agent.tribe = tribe
     return agent
 
 

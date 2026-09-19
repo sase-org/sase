@@ -18,10 +18,13 @@ from sase.ace.tui.actions._proc_action_completion import ProcCompletionActionsMi
 from sase.ace.tui.actions.agents._loading_compute import (
     PreparedApplyData,
     compute_apply_loaded_agents,
+    prepare_loaded_agents_apply_boundary,
 )
 from sase.ace.tui.models._agent_loader_artifacts import AgentLoadState
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.models.agent_panels import panel_keys_for
 from sase.ace.tui.models.agent_proc_shells import proc_shell_agents_from_observed
+from sase.ace.tui.proc_observer import ProcObserverSnapshot
 from sase.procs import PROC_LIFECYCLE_PROC_SHELL, XPROMPT_PROC_ORIGIN
 
 from tests._agents_tab_query_helpers import FakeAgentApp, _make_agent
@@ -36,6 +39,7 @@ class ProcShellFakeApp(ProcCompletionActionsMixin, FakeAgentApp):
     def __init__(self) -> None:
         super().__init__()
         self._proc_projection = ProcProjection()
+        self._proc_generation = 0
         self._dismissed_proc_shells: set[str] = set()
         self._session_completion_callbacks: dict[
             str, tuple[Callable[..., Any], Any]
@@ -72,6 +76,20 @@ def _tier1_index_state() -> AgentLoadState:
         complete_visible_inbox=True,
         artifact_source="artifact_index",
         used_artifact_index=True,
+    )
+
+
+def _empty_bounded_load_state() -> AgentLoadState:
+    return AgentLoadState(
+        tier="tier1",
+        complete_history=False,
+        complete_visible_inbox=True,
+        artifact_source="artifact_index",
+        used_artifact_index=True,
+        bounded_prefix=True,
+        requested_limit=50,
+        returned_count=0,
+        has_more=False,
     )
 
 
@@ -117,6 +135,7 @@ def _apply_disk_refresh(
     *,
     on_agents_tab: bool,
     selected_identity: tuple[AgentType, str, str | None] | None,
+    load_state: AgentLoadState | None = None,
 ) -> None:
     prep = compute_apply_loaded_agents(
         all_agents=list(disk_agents),
@@ -128,7 +147,7 @@ def _apply_disk_refresh(
         prep,
         on_agents_tab=on_agents_tab,
         selected_identity=selected_identity,
-        load_state=_tier1_index_state(),
+        load_state=_tier1_index_state() if load_state is None else load_state,
         persist_dismissed_changes=False,
     )
 
@@ -215,6 +234,122 @@ def test_unchanged_proc_projection_runs_one_finalize_pass() -> None:
     )
 
     assert calls == 1
+
+
+def test_empty_disk_load_publishes_projection_proc_shell_on_first_finalize() -> None:
+    app = ProcShellFakeApp()
+    row = replace(_observed_proc(), xprompt_proc={"tribe": "epic"})
+    app._proc_projection = ProcProjection(rows=(row,), active_count=1)
+    app._proc_generation = 1
+    app.current_tab = "agents"
+    assert all(not agent.is_proc_shell for agent in app._agents_with_children)
+    rosters_at_finalize: list[list[Agent]] = []
+    original_finalize = app._finalize_agent_list
+
+    def _recording_finalize(*args: Any, **kwargs: Any) -> None:
+        rosters_at_finalize.append(list(app._agents_with_children))
+        original_finalize(*args, **kwargs)
+
+    app._finalize_agent_list = _recording_finalize  # type: ignore[method-assign]
+
+    _apply_disk_refresh(
+        app,
+        [],
+        on_agents_tab=True,
+        selected_identity=None,
+        load_state=_empty_bounded_load_state(),
+    )
+
+    assert len(rosters_at_finalize) == 1
+    first_roster = rosters_at_finalize[0]
+    proc_shell = next(agent for agent in first_roster if agent.is_proc_shell)
+    assert proc_shell.identity == proc_shell_agents_from_observed([row])[0].identity
+    assert "epic" in panel_keys_for(first_roster)
+
+
+def test_proc_generation_move_rebases_prepared_roster_before_finalize() -> None:
+    app = ProcShellFakeApp()
+    old_row = _observed_proc(proc_id="oldprocoldprocold")
+    new_row = replace(
+        _observed_proc(proc_id="newprocnewprocnew"),
+        xprompt_proc={"tribe": "epic"},
+    )
+    app._proc_projection = ProcProjection(rows=(old_row,), active_count=1)
+    app._proc_generation = 1
+    app.current_tab = "agents"
+    load_state = _empty_bounded_load_state()
+    prep = compute_apply_loaded_agents(
+        all_agents=[],
+        dismissed_from_loader=[],
+        dismissed_snapshot=set(),
+        hide_non_run_agents=False,
+    )
+    snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=True,
+        selected_identity=None,
+        load_state=load_state,
+    )
+    boundary = prepare_loaded_agents_apply_boundary(
+        prep,
+        snapshot,
+        merge_incomplete=False,
+    )
+    app._proc_projection = ProcProjection(rows=(new_row,), active_count=1)
+    app._proc_generation = 2
+    rosters_at_finalize: list[list[tuple[AgentType, str, str | None]]] = []
+    original_finalize = app._finalize_agent_list
+
+    def _recording_finalize(*args: Any, **kwargs: Any) -> None:
+        rosters_at_finalize.append(
+            [agent.identity for agent in app._agents_with_children]
+        )
+        original_finalize(*args, **kwargs)
+
+    app._finalize_agent_list = _recording_finalize  # type: ignore[method-assign]
+
+    app._apply_loaded_agents_prepared(
+        prep,
+        on_agents_tab=True,
+        selected_identity=None,
+        load_state=load_state,
+        persist_dismissed_changes=False,
+        incomplete_merge_already_applied=True,
+        precomputed_boundary=boundary,
+        precomputed_fold_levels=snapshot.fold_levels,
+    )
+
+    assert len(rosters_at_finalize) == 1
+    published = rosters_at_finalize[0]
+    new_identity = proc_shell_agents_from_observed([new_row])[0].identity
+    old_identity = proc_shell_agents_from_observed([old_row])[0].identity
+    assert new_identity in published
+    assert old_identity not in published
+
+
+def test_observer_snapshot_during_disk_apply_does_not_finalize() -> None:
+    app = ProcShellFakeApp()
+    app._agents_loading = True
+    finalize_calls = 0
+    original_finalize = app._finalize_agent_list
+
+    def _counting_finalize(*args: Any, **kwargs: Any) -> None:
+        nonlocal finalize_calls
+        finalize_calls += 1
+        original_finalize(*args, **kwargs)
+
+    app._finalize_agent_list = _counting_finalize  # type: ignore[method-assign]
+    row = _observed_proc()
+
+    app._apply_proc_observer_snapshot(
+        ProcObserverSnapshot(
+            projection=ProcProjection(rows=(row,), active_count=1),
+        )
+    )
+
+    assert finalize_calls == 0
+    assert app._proc_generation == 1
+    assert app._proc_projection.rows == (row,)
+    assert all(not agent.is_proc_shell for agent in app._agents_with_children)
 
 
 def test_off_tab_refresh_preserves_saved_proc_shell_selection() -> None:
