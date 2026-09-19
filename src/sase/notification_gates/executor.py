@@ -3,18 +3,12 @@
 from __future__ import annotations
 
 import logging
-import os
 import subprocess
 import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from sase.gate_shell.lifecycle import (
-    DISPOSITION_ACCEPTED_OWNER_LOST,
-    classify_gate_lifecycle,
-    collect_gate_lifecycle_facts,
-)
 from sase.notification_gates.attempts import (
     execute_one_option,
     open_planned_attempt,
@@ -22,8 +16,6 @@ from sase.notification_gates.attempts import (
 )
 from sase.notification_gates.command_runner import validate_json_instance
 from sase.notification_gates.decision import (
-    ACCEPTANCE_LOCK_FILENAME,
-    DECISION_RECEIPT_FILENAME,
     accept_gate_decision,
     claim_gate_decision_execution_receipt,
     read_current_receipt,
@@ -42,9 +34,7 @@ from sase.notification_gates.executor_inputs import (
     resolve_option_inputs,
 )
 from sase.notification_gates.failure_outcome import (
-    SIDE_EFFECTS_ATTEMPT_ID,
     record_failure_outcome,
-    record_owner_lost_outcome,
     recorded_attempt_failure,
 )
 from sase.notification_gates.feedback_input import apply_feedback_input
@@ -75,20 +65,18 @@ from sase.notification_gates.selection import (
     options_from_envelope,
     resolve_selection,
 )
+from sase.notification_gates.executor_cancellation import cancel_gate
+from sase.notification_gates.executor_side_effects import resume_side_effects
+from sase.notification_gates.executor_transport import (
+    has_controlling_tty,
+    preflight_sudo_approval_inputs,
+    reject_unavailable_option_transport,
+)
 
 if TYPE_CHECKING:
     from sase.bead.epic_launch import EpicLaunchOrigin
 
 log = logging.getLogger(__name__)
-
-#: Bound on how long ``cancel_gate`` waits for ``.acceptance.lock``. That
-#: lock is only ever held briefly (validation plus one small file write),
-#: never for an approved option command's full runtime (bead
-#: ``bob-cli-15.2`` note #2, the original reason for this bound, back when
-#: cancellation shared ``.response.lock`` with execution) -- kept as
-#: defense-in-depth against a slow concurrent accept/cancel rather than as
-#: the load-bearing fix it once was.
-CANCEL_LOCK_TIMEOUT_SECONDS = 5.0
 
 
 def execute_gate_selection(
@@ -144,7 +132,7 @@ def execute_gate_selection(
     envelope, adapter = load_and_verify_bundle(bundle_path)
     options = options_from_envelope(envelope)
     selected = resolve_selection(envelope, options, selected_option_ids)
-    _reject_unavailable_option_transport(
+    reject_unavailable_option_transport(
         bundle_path,
         envelope,
         adapter.kind,
@@ -152,8 +140,9 @@ def execute_gate_selection(
         source,
         option_inputs,
         sudo_headless_authorization,
+        has_tty=has_controlling_tty,
     )
-    _preflight_sudo_approval_inputs(envelope, adapter.kind, selected, option_inputs)
+    preflight_sudo_approval_inputs(envelope, adapter.kind, selected, option_inputs)
 
     # Durably accept the decision and dismiss its notification under a
     # short, separate lock before any option command, archive, or launch
@@ -191,7 +180,7 @@ def execute_gate_selection(
                 )
                 is not None
             ):
-                _resume_side_effects(
+                resume_side_effects(
                     bundle_path,
                     adapter=adapter,
                     response=existing_response,
@@ -466,342 +455,6 @@ def execute_gate_selection(
             envelope=envelope,
         )
         return GateExecutionResult(response=response)
-
-
-def _resume_side_effects(
-    bundle_path: Path,
-    *,
-    adapter: Any,
-    response: dict[str, Any],
-    acceptance_id: str | None,
-    epic_launch_origin: EpicLaunchOrigin | None,
-    source: str,
-) -> None:
-    """Re-run only ``apply_side_effects`` for a resumed, already-answered gate.
-
-    Design decision 8: a post-response failure offers resume only, and
-    ``apply_side_effects`` itself must skip any launch whose id
-    ``response.json`` already records so a resumed retry never launches a
-    second successor.
-    """
-    request_hash = str(response.get("request_id") or "")
-    append_journal_event(
-        bundle_path,
-        attempt_id=SIDE_EFFECTS_ATTEMPT_ID,
-        request_hash=request_hash,
-        event="stage_started",
-        stage="side_effects",
-        acceptance_id=acceptance_id,
-    )
-    try:
-        adapter.apply_side_effects(
-            bundle_path=bundle_path,
-            response=response,
-            epic_launch_origin=epic_launch_origin,
-        )
-    except GateError as exc:
-        record_failure_outcome(
-            bundle_path,
-            acceptance_id=acceptance_id,
-            attempt_id=SIDE_EFFECTS_ATTEMPT_ID,
-            stage="side_effects",
-            error=exc,
-            source=source,
-            request_hash=request_hash,
-        )
-        raise
-    except Exception as exc:
-        wrapped = GateError(
-            "side_effect_failed", adapter.kind, f"host side effect failed: {exc}"
-        )
-        record_failure_outcome(
-            bundle_path,
-            acceptance_id=acceptance_id,
-            attempt_id=SIDE_EFFECTS_ATTEMPT_ID,
-            stage="side_effects",
-            error=wrapped,
-            source=source,
-            request_hash=request_hash,
-        )
-        raise wrapped from exc
-    append_journal_event(
-        bundle_path,
-        attempt_id=SIDE_EFFECTS_ATTEMPT_ID,
-        request_hash=request_hash,
-        event="stage_completed",
-        stage="side_effects",
-        acceptance_id=acceptance_id,
-    )
-
-
-def _reject_unavailable_option_transport(
-    bundle_path: Path,
-    envelope: Mapping[str, Any],
-    kind: str,
-    selected: tuple[GateOption, ...],
-    source: str,
-    option_inputs: Mapping[str, object] | None,
-    sudo_headless_authorization: Mapping[str, Any] | None,
-) -> None:
-    """Refuse terminal-only decisions before they accept the gate."""
-    tty_options = tuple(option for option in selected if option.requires_tty)
-    if not tty_options:
-        return
-    option_ids = ", ".join(option.id for option in tty_options)
-    authorized_sudo_headless = _authorized_sudo_headless_selection(
-        bundle_path,
-        envelope,
-        kind,
-        selected,
-        option_inputs,
-        sudo_headless_authorization,
-    )
-    if not has_controlling_tty() and not authorized_sudo_headless:
-        raise GateError(
-            "tty_required",
-            option_ids,
-            "this gate option requires a controlling TTY; the gate remains pending",
-        )
-    if kind == "sudo" and source != "sudo_cli" and not authorized_sudo_headless:
-        raise GateError(
-            "unsupported_sudo_approval",
-            option_ids,
-            "sudo approval must use `sase sudo answer <id>` so the reviewed "
-            "manifest is sealed and executed by the sudo runner",
-        )
-
-
-def _authorized_sudo_headless_selection(
-    bundle_path: Path,
-    envelope: Mapping[str, Any],
-    kind: str,
-    selected: tuple[GateOption, ...],
-    option_inputs: Mapping[str, object] | None,
-    authorization: Mapping[str, Any] | None,
-) -> bool:
-    if kind != "sudo" or authorization is None:
-        return False
-    if [option.id for option in selected] != ["approve"]:
-        return False
-    if authorization.get("authorized") is not True:
-        return False
-    if str(authorization.get("gate_id") or "") != str(envelope.get("request_id") or ""):
-        return False
-    approve_input = (
-        option_inputs.get("approve") if isinstance(option_inputs, Mapping) else None
-    )
-    if not isinstance(approve_input, Mapping):
-        return False
-    command_ids = approve_input.get("command_ids")
-    if not isinstance(command_ids, list) or any(
-        not isinstance(item, str) for item in command_ids
-    ):
-        return False
-    if list(authorization.get("selected_command_ids") or []) != command_ids:
-        return False
-    receipt = approve_input.get("receipt")
-    if not isinstance(receipt, Mapping):
-        return False
-    if str(authorization.get("manifest_sha256") or "") != str(
-        receipt.get("manifest_sha256") or ""
-    ):
-        return False
-    authorization_id = authorization.get("authorization_id")
-    if not isinstance(authorization_id, str) or not authorization_id:
-        return False
-    try:
-        from sase.sudo.execution import load_execution_state
-
-        state = load_execution_state(bundle_path)
-    except GateError:
-        raise
-    except Exception:
-        return False
-    if state is None:
-        return False
-    return (
-        state.authorization_id == authorization_id
-        and state.manifest_sha256 == authorization.get("manifest_sha256")
-        and list(state.selected_command_ids) == command_ids
-    )
-
-
-def _preflight_sudo_approval_inputs(
-    envelope: Mapping[str, Any],
-    kind: str,
-    selected: tuple[GateOption, ...],
-    option_inputs: Mapping[str, object] | None,
-) -> None:
-    """Validate sudo runner receipts before accepting the gate decision."""
-    if kind != "sudo" or all(option.id != "approve" for option in selected):
-        return
-    from sase.sudo.receipt import validate_sudo_receipt
-    from sase.sudo.manifest import selected_sudo_manifest
-
-    approve_input = (
-        option_inputs.get("approve") if isinstance(option_inputs, Mapping) else None
-    )
-    receipt = (
-        approve_input.get("receipt") if isinstance(approve_input, Mapping) else None
-    )
-    command_ids_value = (
-        approve_input.get("command_ids") if isinstance(approve_input, Mapping) else None
-    )
-    if not isinstance(command_ids_value, list) or not command_ids_value:
-        raise GateError(
-            "invalid_sudo_selection",
-            "option_inputs.approve.command_ids",
-            "sudo approve requires reviewed command ids",
-        )
-    sudo_payload = _sudo_payload_for_preflight(envelope)
-    manifest = sudo_payload["manifest"]
-    _subset, command_ids, manifest_sha256 = selected_sudo_manifest(
-        manifest,
-        command_ids_value,
-    )
-    normalized = validate_sudo_receipt(
-        receipt,
-        manifest_sha256=manifest_sha256,
-        selected_command_ids=command_ids,
-    )
-    for index, entry in enumerate(normalized.get("ledger", [])):
-        if not isinstance(entry, Mapping):
-            continue
-        status = str(entry.get("status") or "")
-        if status in {"authentication_failed", "cancelled", "canceled", "timeout"}:
-            raise GateError(
-                status,
-                f"receipt.ledger[{index}]",
-                "sudo runner did not approve execution; the gate remains pending",
-            )
-
-
-def _sudo_payload_for_preflight(envelope: Mapping[str, Any]) -> Mapping[str, Any]:
-    payload = envelope.get("payload")
-    sudo_payload = payload.get("sudo") if isinstance(payload, Mapping) else None
-    if not isinstance(sudo_payload, Mapping):
-        raise GateError(
-            "invalid_sudo_payload", "payload.sudo", "sudo payload is missing"
-        )
-    manifest = sudo_payload.get("manifest")
-    if not isinstance(manifest, Mapping):
-        raise GateError(
-            "invalid_sudo_payload",
-            "payload.sudo.manifest",
-            "sudo manifest is missing",
-        )
-    if not isinstance(sudo_payload.get("manifest_sha256"), str):
-        raise GateError(
-            "invalid_sudo_payload",
-            "payload.sudo.manifest_sha256",
-            "sudo manifest hash is missing",
-        )
-    return sudo_payload
-
-
-def has_controlling_tty() -> bool:
-    """Return whether this process can open its controlling terminal."""
-    try:
-        fd = os.open("/dev/tty", os.O_RDONLY | getattr(os, "O_CLOEXEC", 0))
-    except OSError:
-        return False
-    os.close(fd)
-    return True
-
-
-def cancel_gate(
-    bundle_path: Path,
-    *,
-    reason: str = "requester_cancelled",
-    source: str = "requester",
-    lock_timeout_seconds: float | None = CANCEL_LOCK_TIMEOUT_SECONDS,
-) -> dict[str, Any]:
-    """Persist a write-once cancellation if the lifecycle policy allows it.
-
-    Waits on ``.acceptance.lock``, the same short, bounded lock acceptance
-    itself uses -- never ``.response.lock``, which a running option command
-    or archive/launch side effect can hold for its full runtime. A gate
-    whose decision was already durably accepted can only be cancelled after
-    the Rust lifecycle policy says the current execution failed or its owner
-    is proven dead. Live or unknown owners keep raising ``already_answered``.
-    ``lock_timeout_seconds`` bounds that wait; it raises :class:`GateError`
-    (code ``lock_timeout``) on expiry instead of hanging. Pass ``None`` to
-    wait indefinitely, matching the old behaviour.
-    """
-    bundle_path = assert_owned_bundle(bundle_path)
-    with file_lock(
-        bundle_path / ACCEPTANCE_LOCK_FILENAME, timeout=lock_timeout_seconds
-    ):
-        envelope, _adapter = load_and_verify_bundle(bundle_path)
-        response_path = bundle_path / RESPONSE_FILENAME
-        if response_path.exists():
-            raise GateError(
-                "already_answered", str(response_path), "gate already has a response"
-            )
-        if envelope.get("kind") == "sudo":
-            _reject_cancel_during_sudo_attempt(bundle_path)
-        path = bundle_path / CANCELLATION_FILENAME
-        if path.exists():
-            return read_json_object(path)
-        receipt_path = bundle_path / DECISION_RECEIPT_FILENAME
-        if receipt_path.exists():
-            facts = collect_gate_lifecycle_facts(
-                bundle_path,
-                envelope,
-                now=time.time(),
-                deadline=None,
-                grace_seconds=0.0,
-            )
-            try:
-                lifecycle = classify_gate_lifecycle(facts)
-            except ValueError as exc:
-                raise GateError(
-                    "invalid_gate_decision_receipt", str(receipt_path), str(exc)
-                ) from exc
-            if not bool(lifecycle.get("can_cancel")):
-                raise GateError(
-                    "already_answered",
-                    str(receipt_path),
-                    "gate decision is already accepted",
-                )
-            if lifecycle.get("disposition") == DISPOSITION_ACCEPTED_OWNER_LOST:
-                record_owner_lost_outcome(
-                    bundle_path,
-                    receipt=facts.receipt,
-                    source=source,
-                )
-        cancellation = {
-            "schema_version": GATE_RESPONSE_SCHEMA_VERSION,
-            "request_id": envelope["request_id"],
-            "kind": envelope["kind"],
-            "reason": reason,
-            "source": source,
-            "cancelled_at_unix": time.time(),
-        }
-        atomic_write_json(path, cancellation, exclusive=True)
-        settle_gate_notification(envelope, {}, source=source, action="cancelled")
-        dismiss_gate_execution_failed(
-            bundle_path=bundle_path,
-            envelope=envelope,
-        )
-        return cancellation
-
-
-def _reject_cancel_during_sudo_attempt(bundle_path: Path) -> None:
-    try:
-        from sase.sudo.execution import (
-            execution_liveness,
-            load_execution_state,
-            live_execution_error,
-        )
-
-        state = load_execution_state(bundle_path)
-    except GateError:
-        raise
-    except Exception:
-        return
-    if state is not None and execution_liveness(state).get("classification") != "dead":
-        raise live_execution_error(state)
 
 
 __all__ = ["cancel_gate", "execute_gate_selection", "has_controlling_tty"]
