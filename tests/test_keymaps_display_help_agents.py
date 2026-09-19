@@ -90,7 +90,9 @@ def test_agents_help_describes_tmux_workspace_chooser() -> None:
         label for _section, bindings in agents_bindings(reg) for _key, label in bindings
     }
 
-    assert "Tmux workspace chooser" in labels
+    assert "Tmux chooser (mark many)" in labels
+    assert len("Tmux chooser (mark many)") <= 32
+    assert "Tmux workspace chooser" not in labels
     assert "Tmux in agent workspace" not in labels
     assert "Tmux in primary workspace" in labels
 

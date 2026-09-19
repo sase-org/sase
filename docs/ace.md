@@ -1318,7 +1318,7 @@ somewhere stale.
 | `Enter`             | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                        |
 | `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                  |
 | `E`                 | Edit panel content in editor                                                                                    |
-| `t`                 | Open the focused agent's tmux target; agents with opened linked-workspace context show a workspace chooser      |
+| `t`                 | Open the focused agent's tmux target, or a workspace chooser (`m` marks many; a selector opens one)             |
 | `T`                 | Open tmux window in the agent's primary project workspace                                                       |
 | `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it)      |
 | `p`                 | Open Agent view picker: `f` file, `t` LLM Calls, `[` metadata only, `1`/`=`/`2` split sizes, `]` secondary only |
@@ -1330,6 +1330,12 @@ somewhere stale.
 | `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds          |
 | `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds       |
 | `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                   |
+
+When `t` opens the **Tmux Workspace** chooser, a displayed selector key opens that one
+target immediately, even if other rows are already marked. `m` marks or unmarks the
+highlighted row and advances to the next (wrapping around). `Enter` opens every marked
+target in the chooser's displayed order, or only the highlighted row when nothing is
+marked. `q` / `Esc` cancel without opening anything.
 
 On Artifacts and Axe, `r` still runs a Patch workflow or an Axe job/bgcmd, and `R` still
 opens the [Refresh panel](#refresh-panel) (or refreshes immediately when that panel is

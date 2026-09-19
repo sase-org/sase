@@ -155,7 +155,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",
                     "Next / prev commit/link/file",
                 ),
-                (d(a.start_tmux_mode), "Tmux workspace chooser"),
+                (d(a.start_tmux_mode), "Tmux chooser (mark many)"),
                 (d(a.edit_agent_tribe), "Edit tribe (or marked set)"),
                 (d(a.open_tmux), "Tmux in primary workspace"),
             ],

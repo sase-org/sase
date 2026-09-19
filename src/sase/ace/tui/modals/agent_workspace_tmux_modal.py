@@ -5,6 +5,10 @@ When the selected Agents-tab row has a visible ``WORKSPACES`` lane in
 immediately opening the agent's own workspace. It offers one ``CURRENT`` option
 for the agent's own project / Patch workspace plus one ``LINKED`` option
 for every unique repository the agent context opened through ``sase repo open``.
+
+``m`` marks or unmarks the highlighted target and advances. ``Enter`` opens
+every marked target in display order, or the highlighted target when nothing is
+marked. A displayed selector key still opens that one row immediately.
 """
 
 from __future__ import annotations
@@ -37,6 +41,7 @@ _COLOR_PROJECT = "dim #D7AFD7"
 _COLOR_PATH = "dim #D7AFD7"
 _COLOR_REASON = "dim #D7D7AF"
 _COLOR_ROLE = "italic #AF87FF"
+_COLOR_MARKED = "bold #A6E3A1"
 
 _WORKSPACE_GLYPH = "▣"  # ▣ fallback workspace glyph
 _PATH_CONNECTOR = "→"  # →
@@ -49,8 +54,8 @@ _MAX_ROLE_LEN = 10
 
 # Selector pool large enough for ``MAX_KEPT_OPENED_WORKSPACES`` (50) plus the
 # always-present ``CURRENT`` option, while skipping the keys reserved for modal
-# navigation (j/k) and cancel (q) in both cases.
-_RESERVED_LOWER = {"j", "k", "q"}
+# navigation (j/k), mark (m), and cancel (q). Upper-case M stays available.
+_RESERVED_LOWER = {"j", "k", "m", "q"}
 _RESERVED_UPPER = {"J", "K", "Q"}
 
 
@@ -67,6 +72,19 @@ class AgentWorkspaceTmuxChoice:
     agent_label: str | None = None
 
 
+@dataclass(frozen=True)
+class AgentWorkspaceTmuxSelection:
+    """Normalized chooser result: selected row indexes in display order.
+
+    Cancel is ``None`` on the modal, not an empty ``indexes`` tuple. A quick
+    selector, unmarked Enter, and unmarked OptionList activation each yield
+    exactly one index. Marked Enter / activation yield every marked index in
+    original row order.
+    """
+
+    indexes: tuple[int, ...]
+
+
 def _selector_pool() -> list[str]:
     """Return the ordered single-key selector pool for the chooser."""
     lower = [c for c in "abcdefghijklmnopqrstuvwxyz" if c not in _RESERVED_LOWER]
@@ -76,7 +94,7 @@ def _selector_pool() -> list[str]:
 
 
 def _workspace_tmux_selector_keys(count: int) -> list[str]:
-    """Return ``count`` quick-select keys that avoid navigation/cancel keys."""
+    """Return ``count`` quick-select keys that avoid navigation/cancel/mark keys."""
     return _selector_pool()[:count]
 
 
@@ -155,6 +173,8 @@ def build_agent_workspace_tmux_choices(
 def _agent_workspace_tmux_option_text(
     selector: str | None,
     choice: AgentWorkspaceTmuxChoice,
+    *,
+    marked: bool = False,
 ) -> Text:
     """Render one workspace choice as compact OptionList text."""
     text = Text()
@@ -162,6 +182,9 @@ def _agent_workspace_tmux_option_text(
         text.append("   ", style="dim")
     else:
         text.append(f"{selector}  ", style=_COLOR_SELECTOR)
+
+    marker = "[x] " if marked else "    "
+    text.append(marker, style=_COLOR_MARKED if marked else "dim")
 
     text.append(f"{_WORKSPACE_GLYPH} ", style=_COLOR_GLYPH)
 
@@ -219,13 +242,14 @@ def _compact_path(path: str) -> str:
 
 class AgentWorkspaceTmuxModal(
     OptionListNavigationMixin,
-    ModalScreen[int | None],
+    ModalScreen[AgentWorkspaceTmuxSelection | None],
 ):
     """Keyboard-first chooser for an agent's tmux workspace targets."""
 
     _option_list_id = "agent-workspace-tmux-list"
     BINDINGS = [
         *OptionListNavigationMixin.NAVIGATION_BINDINGS,
+        ("m", "toggle_mark", "Mark"),
         ("enter", "select_highlighted", "Open"),
     ]
 
@@ -235,6 +259,7 @@ class AgentWorkspaceTmuxModal(
         selectors = _workspace_tmux_selector_keys(len(choices))
         self._selector_by_index = selectors
         self._index_by_selector = {key: index for index, key in enumerate(selectors)}
+        self._marked_indexes: set[int] = set()
 
     def compose(self) -> ComposeResult:
         with Container(id="agent-workspace-tmux-container"):
@@ -248,7 +273,11 @@ class AgentWorkspaceTmuxModal(
         return f"Tmux Workspace · {count} target{plural}"
 
     def _hint_text(self) -> str:
-        return "a-z/0-9 select  enter open  j/k move  q/esc close"
+        base = "a-z/0-9 select  enter open  m mark  j/k move  q/esc close"
+        mark_count = len(self._marked_indexes)
+        if mark_count:
+            return f"{base}  marked: {mark_count}"
+        return base
 
     def _create_options(self) -> list[Option]:
         options: list[Option] = []
@@ -260,7 +289,11 @@ class AgentWorkspaceTmuxModal(
             )
             options.append(
                 Option(
-                    _agent_workspace_tmux_option_text(selector, choice),
+                    _agent_workspace_tmux_option_text(
+                        selector,
+                        choice,
+                        marked=index in self._marked_indexes,
+                    ),
                     id=str(index),
                 )
             )
@@ -272,17 +305,70 @@ class AgentWorkspaceTmuxModal(
     def on_key(self, event: events.Key) -> None:
         if event.key not in self._index_by_selector:
             return
-        self.dismiss(self._index_by_selector[event.key])
+        self.dismiss(
+            AgentWorkspaceTmuxSelection(indexes=(self._index_by_selector[event.key],))
+        )
         event.prevent_default()
         event.stop()
 
+    def action_toggle_mark(self) -> None:
+        index = self._selected_index()
+        if index is None:
+            return
+        option_list = self.query_one(f"#{self._option_list_id}", OptionList)
+        if index in self._marked_indexes:
+            self._marked_indexes.remove(index)
+        else:
+            self._marked_indexes.add(index)
+        self._refresh_option(index)
+        option_list.highlighted = (index + 1) % len(self._choices)
+        self._update_hints()
+
     def action_select_highlighted(self) -> None:
+        indexes = self._result_indexes()
+        if indexes is None:
+            return
+        self.dismiss(AgentWorkspaceTmuxSelection(indexes=indexes))
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        event.stop()
+        self.action_select_highlighted()
+
+    def _selected_index(self) -> int | None:
         option_list = self.query_one(f"#{self._option_list_id}", OptionList)
         index = option_list.highlighted
         if index is None or not 0 <= index < len(self._choices):
-            return
-        self.dismiss(index)
+            return None
+        return index
 
-    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
-        if event.option and event.option.id is not None:
-            self.dismiss(int(str(event.option.id)))
+    def _result_indexes(self) -> tuple[int, ...] | None:
+        if self._marked_indexes:
+            return tuple(
+                index
+                for index in range(len(self._choices))
+                if index in self._marked_indexes
+            )
+        index = self._selected_index()
+        if index is None:
+            return None
+        return (index,)
+
+    def _refresh_option(self, index: int) -> None:
+        selector = (
+            self._selector_by_index[index]
+            if index < len(self._selector_by_index)
+            else None
+        )
+        option_list = self.query_one(f"#{self._option_list_id}", OptionList)
+        option_list.replace_option_prompt_at_index(
+            index,
+            _agent_workspace_tmux_option_text(
+                selector,
+                self._choices[index],
+                marked=index in self._marked_indexes,
+            ),
+        )
+        option_list.highlighted = index
+
+    def _update_hints(self) -> None:
+        self.query_one("#agent-workspace-tmux-hints", Static).update(self._hint_text())

@@ -106,6 +106,7 @@ __all__ = [
     "AgentNeighborModal",
     "AgentWorkspaceTmuxChoice",
     "AgentWorkspaceTmuxModal",
+    "AgentWorkspaceTmuxSelection",
     "build_agent_workspace_tmux_choices",
     "ArtifactFileSelectionModal",
     "ArtifactFileSelectionResult",

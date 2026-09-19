@@ -2623,8 +2623,8 @@ AgentWorkspaceTmuxModal {
 }
 
 #agent-workspace-tmux-container {
-    width: 90;
-    max-width: 94%;
+    width: 94;
+    max-width: 96%;
     height: auto;
     max-height: 24;
     border: double #FF87D7;

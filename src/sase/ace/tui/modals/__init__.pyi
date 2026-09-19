@@ -26,6 +26,9 @@ from .agent_workspace_tmux_modal import (
 from .agent_workspace_tmux_modal import (
     AgentWorkspaceTmuxModal as AgentWorkspaceTmuxModal,
 )
+from .agent_workspace_tmux_modal import (
+    AgentWorkspaceTmuxSelection as AgentWorkspaceTmuxSelection,
+)
 from .models_panel_edit import AliasEditPreviewModal as AliasEditPreviewModal
 from .approve_options_modal import ApproveOptionsEditPrompt as ApproveOptionsEditPrompt
 from .approve_options_modal import ApproveOptionsModal as ApproveOptionsModal

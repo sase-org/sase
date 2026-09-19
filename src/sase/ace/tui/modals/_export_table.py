@@ -32,6 +32,10 @@ _LAZY_EXPORTS = {
         ".agent_workspace_tmux_modal",
         "AgentWorkspaceTmuxModal",
     ),
+    "AgentWorkspaceTmuxSelection": (
+        ".agent_workspace_tmux_modal",
+        "AgentWorkspaceTmuxSelection",
+    ),
     "AliasEditPreviewModal": (".models_panel_edit", "AliasEditPreviewModal"),
     "ApproveOptionsEditPrompt": (
         ".approve_options_modal",

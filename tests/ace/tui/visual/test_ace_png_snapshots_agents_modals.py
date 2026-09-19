@@ -107,6 +107,8 @@ async def test_agent_workspace_tmux_modal_png_snapshot(
         page.app.push_screen(AgentWorkspaceTmuxModal(_workspace_tmux_choices()))
         await page.expect_modal("AgentWorkspaceTmuxModal")
         await wait_for_svg_contains(page, "Tmux Workspace")
+        await page.press("m")
+        await wait_for_svg_contains(page, "[x]")
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "Tmux Workspace")
@@ -114,6 +116,9 @@ async def test_agent_workspace_tmux_modal_png_snapshot(
         assert_page_svg_contains(page, "LINKED")
         assert_page_svg_contains(page, "sase-core")
         assert_page_svg_contains(page, "Rust backend")
+        assert_page_svg_contains(page, "[x]")
+        assert_page_svg_contains(page, "m mark")
+        assert_page_svg_contains(page, "marked:")
 
         ace_png_visual.assert_page_png(
             page,

@@ -9,6 +9,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.modals.agent_workspace_tmux_modal import (
     AgentWorkspaceTmuxChoice,
     AgentWorkspaceTmuxModal,
+    AgentWorkspaceTmuxSelection,
     _agent_workspace_tmux_option_text,
     _workspace_tmux_selector_keys,
     build_agent_workspace_tmux_choices,
@@ -62,7 +63,7 @@ def test_workspace_tmux_selector_keys_skip_navigation_and_cover_cap() -> None:
 
     assert len(keys) == 51
     assert len(set(keys)) == 51
-    for reserved in ("j", "k", "q", "J", "K", "Q"):
+    for reserved in ("j", "k", "m", "q", "J", "K", "Q"):
         assert reserved not in keys
     assert keys[:3] == ["a", "b", "c"]
     assert any(key.isdigit() for key in keys)
@@ -132,12 +133,24 @@ def test_option_text_includes_type_label_path_and_reason() -> None:
     assert "CURRENT" in current
     assert "workspaces_lane" in current
     assert "sase" in current
+    assert "[x]" not in current
+    assert "[ ]" not in current
 
     assert "b" in linked
     assert "LINKED" in linked
     assert "repo-0" in linked
     assert "repo-0_12" in linked
     assert "reason 0" in linked
+
+
+def test_option_text_marked_row_shows_marker_unmarked_omits_checkbox() -> None:
+    choice = _choices()[0]
+    unmarked = _agent_workspace_tmux_option_text("a", choice, marked=False).plain
+    marked = _agent_workspace_tmux_option_text("a", choice, marked=True).plain
+
+    assert "[x]" not in unmarked
+    assert "[ ]" not in unmarked
+    assert "[x]" in marked
 
 
 async def test_modal_enter_selects_highlighted_row() -> None:
@@ -159,7 +172,7 @@ async def test_modal_enter_selects_highlighted_row() -> None:
         await pilot.press("enter")
         await pilot.pause()
 
-    assert result == 2
+    assert result == AgentWorkspaceTmuxSelection(indexes=(2,))
 
 
 async def test_modal_letter_quick_selects_row() -> None:
@@ -179,7 +192,7 @@ async def test_modal_letter_quick_selects_row() -> None:
         await pilot.press("b")
         await pilot.pause()
 
-    assert result == 1
+    assert result == AgentWorkspaceTmuxSelection(indexes=(1,))
 
 
 async def test_modal_digit_and_uppercase_quick_select() -> None:
@@ -206,7 +219,7 @@ async def test_modal_digit_and_uppercase_quick_select() -> None:
             await pilot.press(selectors[index])
             await pilot.pause()
 
-        assert result == index
+        assert result == AgentWorkspaceTmuxSelection(indexes=(index,))
 
 
 async def test_modal_j_k_move_highlight() -> None:
@@ -244,3 +257,126 @@ async def test_modal_escape_and_q_cancel() -> None:
             await pilot.pause()
 
         assert result is None
+
+
+async def test_modal_mark_advances_and_wraps_and_updates_hint() -> None:
+    async with _TestApp().run_test() as pilot:
+        modal = AgentWorkspaceTmuxModal(_choices())
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-workspace-tmux-list", OptionList)
+        assert "m mark" in modal._hint_text()
+        assert "marked:" not in modal._hint_text()
+        assert "[x]" not in option_list.get_option_at_index(0).prompt.plain
+
+        await pilot.press("m")
+        await pilot.pause()
+        assert option_list.highlighted == 1
+        assert 0 in modal._marked_indexes
+        assert "[x]" in option_list.get_option_at_index(0).prompt.plain
+        assert modal._hint_text().endswith("marked: 1")
+
+        option_list.highlighted = 2
+        await pilot.press("m")
+        await pilot.pause()
+        assert option_list.highlighted == 0
+        assert modal._marked_indexes == {0, 2}
+        assert modal._hint_text().endswith("marked: 2")
+
+        await pilot.press("m")
+        await pilot.pause()
+        assert 0 not in modal._marked_indexes
+        assert "[x]" not in option_list.get_option_at_index(0).prompt.plain
+        assert modal._hint_text().endswith("marked: 1")
+
+
+async def test_modal_enter_returns_marked_rows_in_display_order() -> None:
+    choices = _choices(linked=3)
+    result: object | None = "sentinel"
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: object | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = AgentWorkspaceTmuxModal(choices)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-workspace-tmux-list", OptionList)
+        option_list.highlighted = 2
+        await pilot.press("m")
+        option_list.highlighted = 0
+        await pilot.press("m")
+        await pilot.press("enter")
+        await pilot.pause()
+
+    assert result == AgentWorkspaceTmuxSelection(indexes=(0, 2))
+
+
+async def test_modal_option_list_activation_returns_marked_rows() -> None:
+    choices = _choices(linked=3)
+    result: object | None = "sentinel"
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: object | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = AgentWorkspaceTmuxModal(choices)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        option_list = modal.query_one("#agent-workspace-tmux-list", OptionList)
+        option_list.highlighted = 3
+        await pilot.press("m")
+        option_list.highlighted = 1
+        await pilot.press("m")
+        option_list.action_select()
+        await pilot.pause()
+
+    assert result == AgentWorkspaceTmuxSelection(indexes=(1, 3))
+
+
+async def test_modal_selector_opens_one_row_even_when_marks_exist() -> None:
+    choices = _choices()
+    result: object | None = "sentinel"
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: object | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = AgentWorkspaceTmuxModal(choices)
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        await pilot.press("m")
+        await pilot.press("c")
+        await pilot.pause()
+
+    assert result == AgentWorkspaceTmuxSelection(indexes=(2,))
+
+
+async def test_modal_cancel_with_marks_returns_no_selection() -> None:
+    result: object | None = "sentinel"
+
+    async with _TestApp().run_test() as pilot:
+
+        def on_dismiss(value: object | None) -> None:
+            nonlocal result
+            result = value
+
+        modal = AgentWorkspaceTmuxModal(_choices())
+        pilot.app.push_screen(modal, callback=on_dismiss)
+        await pilot.pause()
+
+        await pilot.press("m")
+        await pilot.press("q")
+        await pilot.pause()
+
+    assert result is None
