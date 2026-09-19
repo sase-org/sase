@@ -6,6 +6,8 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
+from pathlib import Path
+
 from sase.core.paths import sase_home
 from sase.core.rust import require_rust_binding
 from sase.xprompt.effort import is_valid_effort
@@ -83,6 +85,11 @@ def _is_finite_number(value: object) -> bool:
     )
 
 
+def effort_override_state_path() -> Path:
+    """Return the machine-wide default-effort override state file path."""
+    return sase_home() / "llm_effort_override.json"
+
+
 def get_active_effort_override(
     now: float | None = None,
 ) -> TemporaryEffortOverride | None:
@@ -143,6 +150,7 @@ __all__ = [
     "EffortOverrideStateError",
     "TemporaryEffortOverride",
     "clear_effort_override",
+    "effort_override_state_path",
     "get_active_effort_override",
     "set_effort_override",
     "set_effort_override_until",

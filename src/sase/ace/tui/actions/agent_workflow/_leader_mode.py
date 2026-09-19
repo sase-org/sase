@@ -356,10 +356,12 @@ class LeaderModeMixin:
             ProviderUsageIndicator,
         )
 
+        _ = provider_routing_changed
         # Refresh both top-bar override pills: the gold ``default`` pill and
         # the violet non-``default`` pill. A single override action may touch
-        # either lane. Provider routing changes can also alter the cached
-        # launch default, so that lane is invalidated before refresh.
+        # either lane. Every Launch Control write also invalidates the cached
+        # launch default so effort and persistent default-model edits land
+        # without waiting on the peek token.
         for selector, widget_type in (
             ("#llm-override-indicator", LLMOverrideIndicator),
             ("#alias-overrides-indicator", AliasOverridesIndicator),
@@ -370,10 +372,8 @@ class LeaderModeMixin:
                 indicator = self.query_one(selector, widget_type)  # type: ignore[attr-defined]
             except Exception:
                 continue
-            if (
-                provider_routing_changed
-                and selector == "#llm-override-indicator"
-                and hasattr(indicator, "invalidate_cached_default")
+            if selector == "#llm-override-indicator" and hasattr(
+                indicator, "invalidate_cached_default"
             ):
                 indicator.invalidate_cached_default()
                 continue

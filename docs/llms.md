@@ -1668,12 +1668,14 @@ The canonical effort vocabulary, ordered least → most, is `none`, `minimal`, `
 provider honors is decided per provider (below).
 
 sase's TUI Launch Control shows the launch-effective default in its header
-(`default effort: @ <level>`), or says `provider default` when none is configured. An
-active temporary value carries an override countdown plus an annotation for the
-underlying configured value. Alias-borne effort appears only on rows that explicitly pin
-or inherit a suffix, beside the provider/model badge; the description strip compares it
-with the current effective default. For pools, each member keeps its own suffix in the
-member list and the row badge reflects the next selected member.
+(`default effort: @ <level>`), or says `provider default` when none is configured. The
+top-bar launch-default pill shows the same launch-effective default as
+`PROVIDER(model)[@<effort>]`, omitting the suffix when that value is unset. An active
+temporary value carries an override countdown plus an annotation for the underlying
+configured value. Alias-borne effort appears only on rows that explicitly pin or inherit
+a suffix, beside the provider/model badge; the description strip compares it with the
+current effective default. For pools, each member keeps its own suffix in the member
+list and the row badge reflects the next selected member.
 
 Press `Ctrl+E` in Launch Control for the global default-effort workflow. `e` opens a
 permanent Edit and `o` opens a temporary Override; when an override is active, `x`

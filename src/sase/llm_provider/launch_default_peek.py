@@ -3,9 +3,9 @@
 The launch default can move without any state this repo owns directly
 changing: a config edit to ``llm_provider.default_model`` or an alias
 definition, a load-balanced pool's rotation cursor advancing, a temporary
-override being set on the default-launch setting, provider priority, or a
-provider disable
-changing which pool members are available. Re-resolving the effective default
+override being set on the default-launch setting, a temporary default-effort
+override, provider priority, or a provider disable changing which pool
+members are available. Re-resolving the effective default
 on every timer tick would mean taking the pool-rotation lock and performing a
 self-cleaning override read from a Textual timer callback, which
 ``sase/memory/tui_perf.md`` forbids. This module instead answers a much
@@ -30,6 +30,8 @@ from pathlib import Path
 
 from sase.config.core import current_config_token
 
+from .effort_override import effort_override_state_path
+from .effort_override_peek import peek_active_effort_override
 from .load_balancing import rotation_state_path
 from .provider_disable_peek import provider_disable_state_path
 from .provider_priority_peek import peek_provider_priority_change_token
@@ -52,12 +54,15 @@ def peek_launch_default_change_token() -> tuple[object, ...]:
     """Return a cheap token that changes when the launch default might have.
 
     Built from, in order: the current config token (covers
-    ``llm_provider.default_model`` and alias-definition edits), the
-    load-balanced pool rotation state file, the temporary-override state
-    file, the provider-disable state file, and the provider-priority state
-    plus active-priority route key. Filesystem metadata is checked at most
-    once per short monotonic floor. Reads never take routing-state locks or
-    perform self-cleaning writes.
+    ``llm_provider.default_model``, alias-definition edits, and
+    ``llm_provider.default_effort``), the load-balanced pool rotation state
+    file, the temporary-override state file, the provider-disable state
+    file, the provider-priority state plus active-priority route key, the
+    default-effort override state file, and the currently active peeked
+    effort (or ``None``). The active-effort slot makes an expiry without a
+    rewrite flip the token. Filesystem metadata is checked at most once per
+    short monotonic floor. Reads never take routing-state locks or perform
+    self-cleaning writes.
     """
     global _token_cache_deadline, _token_cache_value  # noqa: PLW0603
 
@@ -69,12 +74,15 @@ def peek_launch_default_change_token() -> tuple[object, ...]:
         _token_cache_deadline = current_monotonic + _PEEK_STAT_FLOOR_SECONDS
         token: tuple[object, ...]
         try:
+            active_effort = peek_active_effort_override()
             token = (
                 current_config_token(),
                 _stat_token(rotation_state_path()),
                 _stat_token(temporary_override_state_path()),
                 _stat_token(provider_disable_state_path()),
                 peek_provider_priority_change_token(),
+                _stat_token(effort_override_state_path()),
+                None if active_effort is None else active_effort.effort,
             )
         except Exception:  # noqa: BLE001 - display reads always degrade.
             token = _TOKEN_ERROR_SENTINEL

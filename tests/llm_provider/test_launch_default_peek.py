@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.llm_provider import effort_override_peek
 from sase.llm_provider import launch_default_peek
 from sase.llm_provider import provider_priority_peek
 from sase.llm_provider.load_balancing import (
@@ -20,6 +21,7 @@ from sase.llm_provider.model_launch_settings import (
 )
 from sase.llm_provider.provider_disable_peek import provider_disable_state_path
 from sase.llm_provider.provider_priority import PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION
+from sase.llm_provider.effort_override import effort_override_state_path
 from sase.llm_provider.provider_priority_peek import provider_priority_state_path
 from sase.llm_provider.temporary_override_state import state_path as override_state_path
 
@@ -40,6 +42,10 @@ def reset_token_cache(monkeypatch: pytest.MonkeyPatch) -> None:
         ),
     )
     monkeypatch.setattr(provider_priority_peek, "_peek_cache_deadline", 0.0)
+    monkeypatch.setattr(effort_override_peek, "_peek_cache_path", None)
+    monkeypatch.setattr(effort_override_peek, "_peek_cache_token", None)
+    monkeypatch.setattr(effort_override_peek, "_peek_cache_record", None)
+    monkeypatch.setattr(effort_override_peek, "_peek_cache_deadline", 0.0)
 
 
 def test_token_is_stable_across_repeated_calls_when_nothing_changes() -> None:
@@ -55,6 +61,7 @@ def test_missing_state_files_yield_a_stable_token_rather_than_raising() -> None:
     assert not rotation_state_path().exists()
     assert not override_state_path().exists()
     assert not provider_disable_state_path().exists()
+    assert not effort_override_state_path().exists()
 
     token = launch_default_peek.peek_launch_default_change_token()
     launch_default_peek._token_cache_deadline = 0.0
@@ -129,6 +136,46 @@ def test_token_changes_when_provider_priority_expires_without_rewrite(
     active = launch_default_peek.peek_launch_default_change_token()
     launch_default_peek._token_cache_deadline = 0.0
     monkeypatch.setattr(provider_priority_peek.time, "time", lambda: 101.0)
+    expired = launch_default_peek.peek_launch_default_change_token()
+
+    assert active != expired
+
+
+def test_token_changes_when_effort_override_state_file_changes() -> None:
+    before = launch_default_peek.peek_launch_default_change_token()
+
+    path = effort_override_state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("{}", encoding="utf-8")
+    launch_default_peek._token_cache_deadline = 0.0
+
+    after = launch_default_peek.peek_launch_default_change_token()
+
+    assert before != after
+
+
+def test_token_changes_when_effort_override_expires_without_rewrite(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = effort_override_state_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "effort": "high",
+                "created_at": 1.0,
+                "expires_at": 101.0,
+                "source": "test",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setattr(effort_override_peek.time, "time", lambda: 100.0)
+    active = launch_default_peek.peek_launch_default_change_token()
+    launch_default_peek._token_cache_deadline = 0.0
+    monkeypatch.setattr(effort_override_peek.time, "time", lambda: 101.0)
     expired = launch_default_peek.peek_launch_default_change_token()
 
     assert active != expired

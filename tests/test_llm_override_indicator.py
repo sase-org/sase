@@ -26,6 +26,7 @@ def _snapshot(
     *,
     provider: str = "claude",
     model: str = "opus",
+    effort: str | None = None,
     referenced_alias: str | None = None,
     selector_mode: str | None = None,
     selector_members: tuple = (),
@@ -37,7 +38,7 @@ def _snapshot(
         raw_value=f"{provider}/{model}",
         provider=provider,
         model=model,
-        effort=None,
+        effort=effort,
         provenance="configured",
         referenced_alias=referenced_alias,
         override_key=launch_model_setting_override_key(DEFAULT_MODEL_FIELD),
@@ -114,8 +115,9 @@ def _override(
 
 def test_inactive_renders_default_model(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
-        lambda: ("codex", "gpt-5.6-sol"),
+        indicator_module,
+        "build_launch_model_setting_snapshot",
+        lambda *a, **k: _snapshot(provider="codex", model="gpt-5.6-sol"),
     )
 
     text = LLMOverrideIndicator._build_content()
@@ -127,13 +129,10 @@ def test_inactive_renders_default_model(monkeypatch: pytest.MonkeyPatch) -> None
 def test_active_override_skips_default_resolution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fail() -> tuple[str, str]:
+    def fail(*args: object, **kwargs: object) -> LaunchModelSettingSnapshot:
         raise AssertionError("default resolver should not be called")
 
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
-        fail,
-    )
+    monkeypatch.setattr(indicator_module, "build_launch_model_setting_snapshot", fail)
 
     text = LLMOverrideIndicator._build_content(_override(expires_at=3_820.0), now=100.0)
 
@@ -172,8 +171,9 @@ def test_expired_override_renders_default_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
-        lambda: ("claude", "sonnet"),
+        indicator_module,
+        "build_launch_model_setting_snapshot",
+        lambda *a, **k: _snapshot(provider="claude", model="sonnet"),
     )
 
     text = LLMOverrideIndicator._build_content(_override(expires_at=99.0), now=100.0)
@@ -183,8 +183,9 @@ def test_expired_override_renders_default_model(
 
 def test_expired_state_file_is_cleaned_up(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
-        lambda: ("claude", "sonnet"),
+        indicator_module,
+        "build_launch_model_setting_snapshot",
+        lambda *a, **k: _snapshot(provider="claude", model="sonnet"),
     )
     path = state_path()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -221,8 +222,11 @@ def test_long_default_label_renders_fully(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
-        lambda: ("verylongprovider", "extremely-long-model-name"),
+        indicator_module,
+        "build_launch_model_setting_snapshot",
+        lambda *a, **k: _snapshot(
+            provider="verylongprovider", model="extremely-long-model-name"
+        ),
     )
 
     text = LLMOverrideIndicator._build_content()
@@ -233,13 +237,10 @@ def test_long_default_label_renders_fully(
 def test_default_resolution_failure_renders_fallback(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    def fail() -> tuple[str, str]:
+    def fail(*args: object, **kwargs: object) -> LaunchModelSettingSnapshot:
         raise RuntimeError("no provider")
 
-    monkeypatch.setattr(
-        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
-        fail,
-    )
+    monkeypatch.setattr(indicator_module, "build_launch_model_setting_snapshot", fail)
 
     text = LLMOverrideIndicator._build_content()
 
@@ -321,15 +322,18 @@ async def test_llm_override_indicator_is_mounted() -> None:
 
 
 def test_init_skips_cold_default_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
-    """``__init__`` must not trigger ``resolve_effective_default_provider_model``."""
+    """``__init__`` must not resolve launch defaults or effort on the UI thread."""
 
-    def fail() -> tuple[str, str]:
+    def fail_snapshot(*args: object, **kwargs: object) -> LaunchModelSettingSnapshot:
         raise AssertionError("default resolver should not be called during init")
 
+    def fail_effort(*args: object, **kwargs: object) -> tuple[str | None, bool]:
+        raise AssertionError("effort resolver should not be called during init")
+
     monkeypatch.setattr(
-        "sase.ace.tui.widgets.llm_override_indicator.resolve_effective_default_provider_model",
-        fail,
+        indicator_module, "build_launch_model_setting_snapshot", fail_snapshot
     )
+    monkeypatch.setattr(indicator_module, "resolve_effective_effort", fail_effort)
 
     indicator = LLMOverrideIndicator()
 
@@ -455,6 +459,13 @@ def test_refresh_never_calls_resolver_synchronously(
         raise AssertionError("resolver must not run on the UI thread")
 
     monkeypatch.setattr(indicator_module, "build_launch_model_setting_snapshot", fail)
+    monkeypatch.setattr(
+        indicator_module,
+        "resolve_effective_effort",
+        lambda *a, **k: (_ for _ in ()).throw(
+            AssertionError("effort resolver must not run on the UI thread")
+        ),
+    )
     indicator, scheduled = _prepare_indicator(monkeypatch, token=("token-b",))
     indicator._cached_default_token = ("token-a",)
 
@@ -490,6 +501,7 @@ def test_worker_success_commits_pending_token(monkeypatch: pytest.MonkeyPatch) -
         referenced_alias=None,
         selector_mode=None,
         member_count=0,
+        effort="high",
     )
 
     indicator.on_worker_state_changed(
@@ -500,6 +512,8 @@ def test_worker_success_commits_pending_token(monkeypatch: pytest.MonkeyPatch) -
     )
 
     assert indicator._cached_default == ("claude", "opus")
+    assert indicator._cached_snapshot is snapshot
+    assert indicator._cached_snapshot.effort == "high"
     assert indicator._cached_default_token == ("pending-token",)
     assert indicator._resolve_in_flight is False
     assert indicator._cached_default_failed is False
@@ -544,3 +558,124 @@ def test_tooltip_omits_rotation_line_for_non_pool_default() -> None:
         "No temporary override active.\n"
         "Press ,m for Config > Launch."
     )
+
+
+def test_calm_default_renders_configured_effort(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.llm_provider.config._get_default_effort", lambda: "high")
+    monkeypatch.setattr(
+        indicator_module,
+        "build_launch_model_setting_snapshot",
+        lambda *a, **k: _snapshot(provider="codex", model="o3"),
+    )
+
+    text = LLMOverrideIndicator._build_content()
+
+    assert text.plain == " CODEX(o3)@high "
+    assert "cyan" in str(text.style)
+
+
+def test_alias_borne_effort_wins_over_configured_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.llm_provider.config._get_default_effort", lambda: "high")
+    monkeypatch.setattr(
+        indicator_module,
+        "build_launch_model_setting_snapshot",
+        lambda *a, **k: _snapshot(provider="codex", model="o3", effort="medium"),
+    )
+
+    text = LLMOverrideIndicator._build_content()
+
+    assert text.plain == " CODEX(o3)@medium "
+
+
+def test_temporary_effort_override_wins_over_configured_and_loses_to_alias(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.llm_provider.effort_override import TemporaryEffortOverride
+
+    override = TemporaryEffortOverride(
+        version=1,
+        effort="low",
+        created_at=1.0,
+        expires_at=None,
+        source="test",
+    )
+    monkeypatch.setattr("sase.llm_provider.config._get_default_effort", lambda: "high")
+    monkeypatch.setattr(
+        "sase.llm_provider.config._get_temporary_default_effort",
+        lambda now: override,
+    )
+    monkeypatch.setattr(
+        indicator_module,
+        "build_launch_model_setting_snapshot",
+        lambda *a, **k: _snapshot(provider="codex", model="o3"),
+    )
+
+    text = LLMOverrideIndicator._build_content()
+    assert text.plain == " CODEX(o3)@low "
+
+    monkeypatch.setattr(
+        indicator_module,
+        "build_launch_model_setting_snapshot",
+        lambda *a, **k: _snapshot(provider="codex", model="o3", effort="medium"),
+    )
+    text = LLMOverrideIndicator._build_content()
+    assert text.plain == " CODEX(o3)@medium "
+
+
+def test_configured_none_renders_none_suffix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.llm_provider.config._get_default_effort", lambda: "none")
+    monkeypatch.setattr(
+        indicator_module,
+        "build_launch_model_setting_snapshot",
+        lambda *a, **k: _snapshot(provider="codex", model="o3"),
+    )
+
+    text = LLMOverrideIndicator._build_content()
+
+    assert text.plain == " CODEX(o3)@none "
+
+
+def test_tooltip_includes_effort_and_round_robin_keeps_suffix() -> None:
+    indicator = LLMOverrideIndicator()
+    indicator._cached_default = ("claude", "opus")
+    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+        provider="claude",
+        model="opus",
+        referenced_alias="large",
+        selector_mode="round_robin",
+        member_count=2,
+        effort="high",
+    )
+
+    tooltip = indicator._build_tooltip(None)
+
+    assert tooltip == (
+        "Launch default: CLAUDE(opus) @ high\n"
+        "@large rotates across 2 models; CLAUDE(opus) @ high is next.\n"
+        "No temporary override active.\n"
+        "Press ,m for Config > Launch."
+    )
+
+
+def test_cached_default_content_appends_effort() -> None:
+    indicator = LLMOverrideIndicator()
+    indicator._cached_default = ("codex", "o3")
+    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+        provider="codex",
+        model="o3",
+        referenced_alias=None,
+        selector_mode=None,
+        member_count=0,
+        effort="high",
+    )
+
+    text = indicator._build_cached_default_content()
+
+    assert text.plain == " CODEX(o3)@high "
+    assert "cyan" in str(text.style)

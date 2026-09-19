@@ -9,6 +9,7 @@ from rich.text import Text
 from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
+from sase.llm_provider.config import resolve_effective_effort
 from sase.llm_provider.launch_default_peek import peek_launch_default_change_token
 from sase.llm_provider.model_launch_settings import (
     DEFAULT_MODEL_FIELD,
@@ -19,8 +20,9 @@ from sase.llm_provider.temporary_override import (
     TemporaryLLMOverride,
     get_active_temporary_override,
     peek_active_temporary_override,
-    resolve_effective_default_provider_model,
+    resolve_effective_default_provider_model as resolve_effective_default_provider_model,
 )
+from sase.xprompt.directives import PromptDirectives
 
 from ._override_pill import (
     DEFAULT_LANE_PALETTE,
@@ -53,6 +55,7 @@ class _LaunchDefaultSnapshot:
     referenced_alias: str | None
     selector_mode: str | None
     member_count: int
+    effort: str | None = None
 
 
 class LLMOverrideIndicator(Static):
@@ -152,12 +155,17 @@ class LLMOverrideIndicator(Static):
                 )
             except Exception:
                 return None
+            level, _explicit = resolve_effective_effort(
+                PromptDirectives(),
+                snapshot.effort,
+            )
             return _LaunchDefaultSnapshot(
                 provider=snapshot.provider,
                 model=snapshot.model,
                 referenced_alias=snapshot.referenced_alias,
                 selector_mode=snapshot.selector_mode,
                 member_count=len(snapshot.selector_members),
+                effort=level,
             )
 
         self.run_worker(
@@ -191,7 +199,10 @@ class LLMOverrideIndicator(Static):
     def _build_cached_default_content(self) -> Text:
         """Render the default-model line using already-resolved values."""
         if self._cached_default is not None:
-            label = format_provider_model_label(*self._cached_default)
+            effort = (
+                None if self._cached_snapshot is None else self._cached_snapshot.effort
+            )
+            label = _format_default_label(*self._cached_default, effort)
             return Text(f" {label} ", style=_DEFAULT_STYLE)
         if self._cached_default_failed:
             return Text(_UNAVAILABLE_TEXT, style=_DEFAULT_STYLE)
@@ -255,7 +266,10 @@ class LLMOverrideIndicator(Static):
             )
 
         if self._cached_default is not None:
-            default_label = format_provider_model_label(*self._cached_default)
+            effort = (
+                None if self._cached_snapshot is None else self._cached_snapshot.effort
+            )
+            default_label = _format_default_tooltip_label(*self._cached_default, effort)
         elif self._cached_default_failed:
             default_label = "unavailable"
         else:
@@ -281,9 +295,31 @@ class LLMOverrideIndicator(Static):
     def _build_default_content() -> Text:
         """Build the calm default model content via synchronous resolution."""
         try:
-            provider_name, model_name = resolve_effective_default_provider_model()
+            snapshot = build_launch_model_setting_snapshot(
+                DEFAULT_MODEL_FIELD, consume=False
+            )
+            level, _explicit = resolve_effective_effort(
+                PromptDirectives(),
+                snapshot.effort,
+            )
         except Exception:
             return Text(_UNAVAILABLE_TEXT, style=_DEFAULT_STYLE)
 
-        label = format_provider_model_label(provider_name, model_name)
+        label = _format_default_label(snapshot.provider, snapshot.model, level)
         return Text(f" {label} ", style=_DEFAULT_STYLE)
+
+
+def _format_default_label(provider: str, model: str, effort: str | None) -> str:
+    """Render the compact calm-default pill subject, with optional ``@effort``."""
+    label = format_provider_model_label(provider, model)
+    if effort:
+        return f"{label}@{effort}"
+    return label
+
+
+def _format_default_tooltip_label(provider: str, model: str, effort: str | None) -> str:
+    """Render the spaced calm-default tooltip target."""
+    label = format_provider_model_label(provider, model)
+    if effort:
+        return f"{label} @ {effort}"
+    return label
