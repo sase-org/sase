@@ -127,6 +127,8 @@ def test_detach_scope_noops_outside_sase_cgroup(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     proc_root = _proc_root(tmp_path, "0::/user.slice/app.slice/session-2.scope\n")
+    monkeypatch.delenv(DETACH_SCOPE_DISABLE_ENV, raising=False)
+    monkeypatch.delenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", raising=False)
     monkeypatch.setattr("sase.detach_scope.sys.platform", "linux")
     monkeypatch.setattr("sase.detach_scope.os.getpid", lambda: 123)
     monkeypatch.setattr(
@@ -191,9 +193,13 @@ def test_detach_scope_uses_setsid_on_macos(
     assert launch.method == "setsid"
 
 
-def test_live_systemd_scope_changes_child_cgroup_when_running_from_sase_unit() -> None:
+def test_live_systemd_scope_changes_child_cgroup_when_running_from_sase_unit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     if sys.platform != "linux":
         pytest.skip("Linux-only cgroup regression")
+    monkeypatch.delenv(DETACH_SCOPE_DISABLE_ENV, raising=False)
+    monkeypatch.delenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", raising=False)
     parent_unit = _current_systemd_unit()
     if not _is_sase_owned_systemd_unit(parent_unit):
         pytest.skip("test process is not running inside a SASE-owned systemd unit")

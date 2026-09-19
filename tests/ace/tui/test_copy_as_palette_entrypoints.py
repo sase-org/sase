@@ -9,6 +9,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.copy_as_modal import CopyAsModal
+from sase.ace.tui.widgets.bgcmd_list import ChopItem
 from tests.ace.tui._copy_as_palette_helpers import controlled_artifact_pane
 
 
@@ -70,8 +71,12 @@ async def test_percent_opens_palette_for_agent_and_axe_selection(
             )
             monkeypatch.setattr(page.app, "_get_selected_agent", lambda: agent)
         else:
-            page.app._axe_items = [SimpleNamespace(name="Copy palette")]
+            monkeypatch.setattr(page.app, "_build_axe_items", lambda: None)
+            page.app._axe_items = [
+                ChopItem(lumberjack_name="copy", chop_name="palette")
+            ]
             page.app.current_idx = 0
+            await page.pause()
 
         await page.press("%")
         await page.expect_modal("CopyAsModal")

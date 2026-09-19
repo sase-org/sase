@@ -11,7 +11,10 @@ from sase.axe.chop_doctor import build_chop_doctor_report
 from sase.axe.chop_inventory import collect_chop_inventory
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 from sase.axe.desired_state import AxeDesiredState
-from sase.axe.systemd_scope import unsafe_axe_systemd_scope
+from sase.axe.systemd_scope import (
+    AXE_SYSTEMD_SCOPE_DISABLE_ENV,
+    unsafe_axe_systemd_scope,
+)
 from sase.doctor.checks_axe import (
     _check_axe_chops,
     _check_axe_health,
@@ -152,6 +155,7 @@ def test_unsafe_axe_systemd_scope_matrix(
     process_dir = proc_root / "123"
     process_dir.mkdir(parents=True)
     (process_dir / "cgroup").write_text(cgroup)
+    monkeypatch.delenv(AXE_SYSTEMD_SCOPE_DISABLE_ENV, raising=False)
     monkeypatch.setattr("sase.axe.systemd_scope.sys.platform", "linux")
     monkeypatch.setattr(
         "sase.axe.systemd_scope.shutil.which",

@@ -234,6 +234,8 @@ def test_model_short_alias_map_contains_codex_entries() -> None:
     assert aliases.get("gpt-6-astra") == "astra"
     assert aliases.get("codex-mini-latest") == "mini"
     assert aliases.get("gpt-5.6-sol") == "gpt56sol"
+    assert aliases.get("gpt-5.6-terra") == "gpt56terra"
+    assert aliases.get("gpt-5.6-luna") == "gpt56luna"
     assert aliases.get("gpt-5.5") == "gpt55"
 
 

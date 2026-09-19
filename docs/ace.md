@@ -4020,8 +4020,8 @@ Overrides are per-alias and per-launch-setting, and independent:
   alias is resolved. A size-specific phase or task override affects only that alias. An
   override on a selector-valued alias — a `|` load-balanced pool, `||` ordered fallback,
   or parenthesized `(A | B) || C` last-resort, such as the shipped `@xsmall`, `@small`,
-  `@medium` pools, or the `@large`/`@xlarge` pool-with-tail — suspends that alias's own
-  rotation/fallback for a single concrete target until the override expires or is
+  `@medium`, and `@large` pools, or the `@xlarge` pool-with-tail — suspends that alias's
+  own rotation/fallback for a single concrete target until the override expires or is
   cleared.
 - An override on **`epic lander`** or **`big epic lander`** affects only epic land
   agents below, or at/above, `bead.big_epic_phase_threshold`, independently of
@@ -4075,9 +4075,9 @@ above it. Because `epic lander` and `big epic lander` are configured as raw alia
 references, a temporary override on the alias they reference (`@large` and `@xlarge` by
 default) cascades into their effective resolution; overriding `epic lander` or
 `big epic lander` directly takes precedence over that nested reference. A temporary
-override on a selector-valued built-in size alias — the shipped `@xsmall`, `@small`, and
-`@medium` pools, or the `@large`/`@xlarge` pool-with-tail — suspends only that alias's
-own rotation and does not cascade to any other alias or launch setting.
+override on a selector-valued built-in size alias — the shipped `@xsmall`, `@small`,
+`@medium`, and `@large` pools, or the `@xlarge` pool-with-tail — suspends only that
+alias's own rotation and does not cascade to any other alias or launch setting.
 
 ### Persistent edits
 
@@ -4139,14 +4139,14 @@ fewer than two pool members or the live validation line reports an error.
   non-default pill appears in the top bar.
 - Highlight `@large`, `e`, pick `claude/opus`, and confirm — only large phases and tasks
   without an explicit model use that target, replacing the shipped
-  `(claude/opus@xhigh | codex/gpt-5.6-sol@xhigh) || grok/grok-4.6@xhigh` last-resort;
-  other-sized phase/task routing is unchanged.
+  `claude/opus@high | codex/gpt-5.6-sol@high | grok/grok-4.6@high` pool; other-sized
+  phase/task routing is unchanged.
 - Highlight `@xlarge`, `e`, pick `claude/opus`, and confirm — xlarge phases and tasks
   use that target directly, and `big epic lander` (left at its shipped `@xlarge`
   reference) inherits the same change.
 - Leave `@xlarge` implicit — xlarge phases, tasks, and threshold-selected epic landers
   (which reference `@xlarge` by default) all follow whichever candidate in its shipped
-  `(claude/claude-fable-5@xhigh | codex/gpt-6-astra@xhigh) || grok/grok-4.6@xhigh`
+  `(claude/claude-fable-5@high | codex/gpt-6-astra@high) || grok/grok-4.6@xhigh`
   last-resort is currently selected.
 - Highlight `@xsmall`, `e`, choose `Custom...`, enter
   `claude/haiku@minimal | codex/gpt-4.1-mini@low`, and confirm — xsmall phases and tasks

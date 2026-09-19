@@ -74,8 +74,8 @@ Prerequisites: Linux or macOS (POSIX; Windows is not supported), Python 3.12+,
 (`agy`), Qwen Code, OpenCode, Meta's Muse Code (`muse`), or xAI's Grok Build (`grok`).
 SASE's default provider autodetection never selects Muse or Grok from `PATH`, because
 those executable names are generic. Select Muse explicitly. Model-alias routing is a
-separate mechanism: it can select Grok through the shipped `@xsmall`, `@small`, and
-`@medium` pools, or as the last candidate in the `@large` and `@xlarge` fallbacks, when
+separate mechanism: it can select Grok through the shipped `@xsmall`, `@small`,
+`@medium`, and `@large` pools, or as the last candidate in the `@xlarge` fallback, when
 Grok Build is installed.
 
 ```bash

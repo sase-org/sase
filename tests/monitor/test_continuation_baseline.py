@@ -103,6 +103,7 @@ def test_run_silent_records_failed_stage_and_preserves_early_exit(
     artifacts = tmp_path / "artifacts"
     run_silent = Path.cwd() / "tools" / "run_silent"
     env = {**os.environ, "SASE_ARTIFACTS_DIR": str(artifacts)}
+    env.pop("SASE_MONITOR_DIAGNOSTICS_DIR", None)
     fail_code = "print('boom'); raise SystemExit(7)"
     skipped_code = "print('must not run')"
     first = (

@@ -31,11 +31,6 @@ from tests._llm_provider_usage_limit_disable_helpers import (
     _sase_home,  # noqa: F401 (registers the autouse fixture)
 )
 
-_AGY_INDIVIDUAL_QUOTA_REACHED = (
-    "Error: Individual quota reached. Please upgrade your subscription to increase\n"
-    "your limits. Resets in 4h14m50s."
-)
-
 # Verbatim failure from the sase-o8.2 agent that motivated the absolute-
 # reset-timestamp parser fix (see the plan's Background section).
 _CODEX_TRY_AGAIN_AT_DATE = (
@@ -274,7 +269,7 @@ class TestHandlePossibleUsageLimit:
         assert result is None
         assert get_active_provider_disable("fakey") is None
 
-    def test_agy_captured_failure_disables_xsmall_pool_member(
+    def test_grok_captured_failure_disables_xsmall_pool_member(
         self,
         monkeypatch: pytest.MonkeyPatch,
         registered_providers: None,
@@ -289,26 +284,26 @@ class TestHandlePossibleUsageLimit:
         monkeypatch.setattr(registry, "_provider_cli_available", lambda _provider: True)
         details = model_alias_selector_details(XSMALL_MODEL_ALIAS_NAME)
         assert details is not None
-        agy_member = next(
-            member for member in details.members if member.provider == "agy"
+        grok_member = next(
+            member for member in details.members if member.provider == "grok"
         )
-        agy_target = agy_member.target
-        assert resolved_target_is_available(agy_target) is True
+        grok_target = grok_member.target
+        assert resolved_target_is_available(grok_target) is True
 
         result = handle_possible_usage_limit(
-            provider="agy",
-            error_text=_AGY_INDIVIDUAL_QUOTA_REACHED,
+            provider="grok",
+            error_text=_GROK_USAGE_BALANCE_EXHAUSTED,
         )
 
         assert result is not None
-        disable = get_active_provider_disable("agy")
+        disable = get_active_provider_disable("grok")
         assert disable is not None
         assert disable.source == "usage_limit"
-        assert resolved_target_is_available(agy_target) is False
+        assert resolved_target_is_available(grok_target) is False
 
         details = model_alias_selector_details(XSMALL_MODEL_ALIAS_NAME)
         assert details is not None
-        agy_member = next(
-            member for member in details.members if member.target == agy_target
+        grok_member = next(
+            member for member in details.members if member.target == grok_target
         )
-        assert agy_member.available is False
+        assert grok_member.available is False

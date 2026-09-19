@@ -186,8 +186,8 @@ provider = get_provider("claude")  # Explicit provider name
    executable names and autodetect only checks `PATH` presence. Muse is reachable only
    by explicit selection (see [Muse Code Integration](#muse-code-integration)). Grok
    never participates in default-provider autodetection either. Model-alias routing is
-   separate: the shipped `@xsmall`/`@small`/`@medium` load-balanced pools and the last
-   candidate in the `@large` and `@xlarge` ordered fallbacks can select Grok whenever a
+   separate: the shipped `@xsmall`/`@small`/`@medium`/`@large` load-balanced pools and
+   the last candidate in the `@xlarge` ordered fallback can select Grok whenever a
    `grok` executable is available (see
    [Grok Build Integration](#grok-build-integration)).
 
@@ -419,10 +419,8 @@ defaults are:
 | `small` | `gemini-3.7-flash-low`  | `flash37l`  |
 
 All other `agy models` slugs remain reachable through the model picker, configured
-aliases, and provider/model directives such as `%m:agy/gemini-3.6-flash-high`. When the
-Antigravity CLI is available, the shipped `@xsmall` pool can select
-`gemini-3.8-flash-high` automatically; no other shipped size alias includes an
-Antigravity member.
+aliases, and provider/model directives such as `%m:agy/gemini-3.6-flash-high`. None of
+the shipped size aliases include an Antigravity member.
 
 ### Environment Variables
 
@@ -887,13 +885,13 @@ so it never appears in autodetect candidates: `grok` is a generic executable nam
 with a stale community CLI (`grok-dev`, which also uses `~/.grok/`) and with Homebrew's
 deprecated, unrelated `grok` regex tool. Select the provider with
 `llm_provider.provider: grok` or `%model:grok/grok-4.6`; set `SASE_GROK_PATH` when you
-also need to choose the executable. Separately, the shipped `@xsmall`/`@small`/`@medium`
-load-balanced pools and the last candidate in the `@large` and `@xlarge` ordered
-fallbacks (behind Claude and Codex) can select Grok whenever a `grok` executable is
-available. Routing checks executable presence only; it does not verify the binary's
-identity. Run `sase doctor` before launching: its `grok --version` probe reports a
-distinct wrong-binary advisory, after which you should point `SASE_GROK_PATH` at the
-`@xai-official/grok` binary.
+also need to choose the executable. Separately, the shipped
+`@xsmall`/`@small`/`@medium`/`@large` load-balanced pools and the last candidate in the
+`@xlarge` ordered fallback (behind Claude and Codex) can select Grok whenever a `grok`
+executable is available. Routing checks executable presence only; it does not verify the
+binary's identity. Run `sase doctor` before launching: its `grok --version` probe
+reports a distinct wrong-binary advisory, after which you should point `SASE_GROK_PATH`
+at the `@xai-official/grok` binary.
 
 Grok's provider short name is `grk`, which enables `foo.grk` agent naming.
 
@@ -1436,13 +1434,13 @@ this section covers both. The current shipped size-alias defaults are generated 
 
 <!-- BEGIN GENERATED: model-alias-defaults -->
 
-| Alias     | Description                                                                                                                 | Shipped default                                                                                     |
-| --------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `@xsmall` | Extra-small launch alias for the smallest direct tasks and tale follow-ups.                                                 | `claude/sonnet@medium \| codex/gpt-5.5@medium \| grok/grok-4.6@medium \| agy/gemini-3.8-flash-high` |
-| `@small`  | Small launch alias for straightforward task and phase work.                                                                 | `claude/sonnet@high \| codex/gpt-5.5@high \| grok/grok-4.6@high`                                    |
-| `@medium` | Medium launch alias for ordinary implementation work.                                                                       | `codex/gpt-5.5@xhigh \| claude/sonnet@xhigh \| grok/grok-4.6@xhigh`                                 |
-| `@large`  | Large launch alias for planning-heavy work and default launches; Grok is last resort when Claude and Codex are unavailable. | `(claude/opus@xhigh \| codex/gpt-5.6-sol@xhigh) \|\| grok/grok-4.6@xhigh`                           |
-| `@xlarge` | Extra-large launch alias for maximum-effort work; Grok is last resort when Claude and Codex are unavailable.                | `(claude/claude-fable-5@xhigh \| codex/gpt-6-astra@xhigh) \|\| grok/grok-4.6@xhigh`                 |
+| Alias     | Description                                                                                                  | Shipped default                                                                   |
+| --------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `@xsmall` | Extra-small launch alias for lookup, formatting, and tiny edits with obvious checks.                         | `claude/claude-haiku-4-5 \| codex/gpt-5.6-luna@low \| grok/grok-4.6@low`          |
+| `@small`  | Small launch alias for straightforward task and phase work.                                                  | `claude/sonnet@low \| codex/gpt-5.6-terra@low \| grok/grok-4.6@low`               |
+| `@medium` | Medium launch alias for ordinary implementation work.                                                        | `claude/sonnet@medium \| codex/gpt-5.6-terra@medium \| grok/grok-4.6@medium`      |
+| `@large`  | Large launch alias for planning-heavy work and default launches.                                             | `claude/opus@high \| codex/gpt-5.6-sol@high \| grok/grok-4.6@high`                |
+| `@xlarge` | Extra-large launch alias for maximum-effort work; Grok is last resort when Claude and Codex are unavailable. | `(claude/claude-fable-5@high \| codex/gpt-6-astra@high) \|\| grok/grok-4.6@xhigh` |
 
 <!-- END GENERATED: model-alias-defaults -->
 
@@ -1561,7 +1559,7 @@ Known model names are automatically mapped to their provider:
 | Model Name                                                                                                                                                                                                                                                                                                                                                                                                                          | Provider |
 | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
 | `opus`, `sonnet`, `haiku`, `claude-haiku-4-5`, `claude-fable-5`                                                                                                                                                                                                                                                                                                                                                                     | claude   |
-| `gpt-6-astra`, `gpt-5.6-sol`, `gpt-5.5`, `gpt-5.4`, `gpt-5.3-codex`, `gpt-5.3-codex-spark`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                                                                                                                                                                                                                                                | codex    |
+| `gpt-6-astra`, `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.4`, `gpt-5.3-codex`, `gpt-5.3-codex-spark`, `codex-mini-latest`, `o3`, `o4-mini`, `gpt-4.1`, `gpt-4.1-mini`, `gpt-4o`, `gpt-4o-mini`                                                                                                                                                                                                               | codex    |
 | `gemini-3.8-flash-high`, `gemini-3.8-flash-medium`, `gemini-3.8-flash-low`, `gemini-3.7-flash-high`, `gemini-3.7-flash-medium`, `gemini-3.7-flash-low`, `gemini-3.6-flash-high`, `gemini-3.6-flash-medium`, `gemini-3.6-flash-low`, `gemini-3.5-flash-high`, `gemini-3.5-flash-medium`, `gemini-3.5-flash-low`, `gemini-3.1-pro-high`, `gemini-3.1-pro-low`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`, `gpt-oss-120b-medium` | agy      |
 | `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                                                                                                                                                                                                                                                                                       | qwen     |
 | `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus`                                                                                                                                                                                                                                                                           | opencode |
@@ -1598,7 +1596,7 @@ yourself.
 | Provider | Shorthands                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | claude   | `claude-haiku-4-5` → `haiku45`, `claude-fable-5` → `fable`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| codex    | `gpt-6-astra` → `astra`, `codex-mini-latest` → `mini`, `gpt-5.6-sol` → `gpt56sol`, `gpt-5.5` → `gpt55`, `gpt-5.4` → `gpt54`, `gpt-5.3-codex` → `gpt53`, `gpt-5.3-codex-spark` → `gpt53spark`, `gpt-4.1` → `gpt41`, `gpt-4.1-mini` → `gpt41m`, `gpt-4o-mini` → `gpt4om`                                                                                                                                                                                                                                                                                                                                                                                        |
+| codex    | `gpt-6-astra` → `astra`, `codex-mini-latest` → `mini`, `gpt-5.6-sol` → `gpt56sol`, `gpt-5.6-terra` → `gpt56terra`, `gpt-5.6-luna` → `gpt56luna`, `gpt-5.5` → `gpt55`, `gpt-5.4` → `gpt54`, `gpt-5.3-codex` → `gpt53`, `gpt-5.3-codex-spark` → `gpt53spark`, `gpt-4.1` → `gpt41`, `gpt-4.1-mini` → `gpt41m`, `gpt-4o-mini` → `gpt4om`                                                                                                                                                                                                                                                                                                                          |
 | agy      | `gemini-3.8-flash-high` → `flash38h`, `gemini-3.8-flash-medium` → `flash38m`, `gemini-3.8-flash-low` → `flash38l`, `gemini-3.7-flash-high` → `flash37h`, `gemini-3.7-flash-medium` → `flash37m`, `gemini-3.7-flash-low` → `flash37l`, `gemini-3.6-flash-high` → `flash36h`, `gemini-3.6-flash-medium` → `flash36m`, `gemini-3.6-flash-low` → `flash36l`, `gemini-3.5-flash-high` → `flash35h`, `gemini-3.5-flash-medium` → `flash35m`, `gemini-3.5-flash-low` → `flash35l`, `gemini-3.1-pro-high` → `pro31h`, `gemini-3.1-pro-low` → `pro31l`, `claude-sonnet-4-6` → `sonnet46`, `claude-opus-4-6-thinking` → `opus46t`, `gpt-oss-120b-medium` → `gptoss120m` |
 | qwen     | `qwen3.6-plus` → `qwen36p`, `qwen3-coder-plus` → `qwen3cp`, `qwen3-coder-flash` → `qwen3cf`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp`                                                                                                                                                                                                                                                                                                                                                                                                                                   |

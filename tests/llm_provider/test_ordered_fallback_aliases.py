@@ -248,8 +248,8 @@ def test_shipped_xlarge_pool_uses_last_resort_grok(
     )
     assert selector is not None
     assert selector.members == (
-        "claude/claude-fable-5@xhigh",
-        "codex/gpt-6-astra@xhigh",
+        "claude/claude-fable-5@high",
+        "codex/gpt-6-astra@high",
     )
     assert selector.fallback_members == ("grok/grok-4.6@xhigh",)
 
@@ -272,7 +272,7 @@ def test_shipped_xlarge_pool_uses_last_resort_grok(
         lambda target: target.startswith("codex/"),
     )
     only_codex = resolve_model_alias_with_effort("@xlarge", consume=True)
-    assert (only_codex.target, only_codex.effort) == ("codex/gpt-6-astra", "xhigh")
+    assert (only_codex.target, only_codex.effort) == ("codex/gpt-6-astra", "high")
 
     monkeypatch.setattr(
         llm_config,

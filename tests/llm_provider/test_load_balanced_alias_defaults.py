@@ -78,17 +78,32 @@ def test_size_aliases_use_independent_rotations(
         (
             "@xsmall",
             {
-                "claude/": ("claude/sonnet", "medium"),
-                "codex/": ("codex/gpt-5.5", "medium"),
-                "grok/": ("grok/grok-4.6", "medium"),
-                "agy/": ("agy/gemini-3.8-flash-high", None),
+                "claude/": ("claude/claude-haiku-4-5", None),
+                "codex/": ("codex/gpt-5.6-luna", "low"),
+                "grok/": ("grok/grok-4.6", "low"),
             },
         ),
         (
             "@small",
             {
-                "claude/": ("claude/sonnet", "high"),
-                "codex/": ("codex/gpt-5.5", "high"),
+                "claude/": ("claude/sonnet", "low"),
+                "codex/": ("codex/gpt-5.6-terra", "low"),
+                "grok/": ("grok/grok-4.6", "low"),
+            },
+        ),
+        (
+            "@medium",
+            {
+                "claude/": ("claude/sonnet", "medium"),
+                "codex/": ("codex/gpt-5.6-terra", "medium"),
+                "grok/": ("grok/grok-4.6", "medium"),
+            },
+        ),
+        (
+            "@large",
+            {
+                "claude/": ("claude/opus", "high"),
+                "codex/": ("codex/gpt-5.6-sol", "high"),
                 "grok/": ("grok/grok-4.6", "high"),
             },
         ),
@@ -115,7 +130,7 @@ def test_packaged_defaults_select_correct_effort_per_provider(
         assert selected.effort == expected_effort
 
 
-def test_shipped_large_uses_last_resort_grok(
+def test_shipped_large_round_robins_claude_codex_grok(
     monkeypatch: pytest.MonkeyPatch,
     real_model_alias_defaults: None,
 ) -> None:
@@ -123,8 +138,12 @@ def test_shipped_large_uses_last_resort_grok(
         implicit_alias_targets()[LARGE_MODEL_ALIAS_NAME]
     )
     assert selector is not None
-    assert selector.members == ("claude/opus@xhigh", "codex/gpt-5.6-sol@xhigh")
-    assert selector.fallback_members == ("grok/grok-4.6@xhigh",)
+    assert selector.members == (
+        "claude/opus@high",
+        "codex/gpt-5.6-sol@high",
+        "grok/grok-4.6@high",
+    )
+    assert selector.fallback_members == ()
 
     mock_provider_config(monkeypatch, {"provider": "claude"})
     monkeypatch.setattr(
@@ -132,27 +151,28 @@ def test_shipped_large_uses_last_resort_grok(
         "_resolved_target_is_available",
         lambda _target: True,
     )
-    for _ in range(4):
-        selected = resolve_model_alias("@large", consume=True)
-        assert not selected.startswith("grok/")
-
-    monkeypatch.setattr(
-        llm_config,
-        "_resolved_target_is_available",
-        lambda target: target.startswith("grok/"),
-    )
-    diverted = resolve_model_alias_with_effort("@large", consume=True)
-    assert (diverted.target, diverted.effort) == ("grok/grok-4.6", "xhigh")
+    selected = [resolve_model_alias("@large", consume=True) for _ in range(3)]
+    assert selected == ["claude/opus", "codex/gpt-5.6-sol", "grok/grok-4.6"]
 
 
-def test_small_size_alias_has_no_antigravity_member(
+@pytest.mark.parametrize(
+    "alias",
+    [
+        XSMALL_MODEL_ALIAS_NAME,
+        SMALL_MODEL_ALIAS_NAME,
+        MEDIUM_MODEL_ALIAS_NAME,
+        LARGE_MODEL_ALIAS_NAME,
+        XLARGE_MODEL_ALIAS_NAME,
+    ],
+)
+def test_shipped_size_aliases_have_no_antigravity_member(
     real_model_alias_defaults: None,
+    alias: str,
 ) -> None:
-    selector = parse_model_alias_selector(
-        implicit_alias_targets()[SMALL_MODEL_ALIAS_NAME]
-    )
+    selector = parse_model_alias_selector(implicit_alias_targets()[alias])
     assert selector is not None
-    assert not any(member.startswith("agy/") for member in selector.members)
+    members = (*selector.members, *selector.fallback_members)
+    assert not any(member.startswith("agy/") for member in members)
 
 
 @pytest.mark.parametrize(

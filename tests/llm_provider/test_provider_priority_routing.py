@@ -405,7 +405,7 @@ def test_soft_primary_reservation_survives_healthy_tail(
     )
 
 
-def test_shipped_large_and_xlarge_prefer_codex_when_claude_is_actually_soft(
+def test_shipped_large_honors_grok_priority_while_xlarge_keeps_last_resort(
     monkeypatch: pytest.MonkeyPatch,
     real_model_alias_defaults: None,
 ) -> None:
@@ -417,27 +417,27 @@ def test_shipped_large_and_xlarge_prefer_codex_when_claude_is_actually_soft(
     )
 
     assert resolve_model_provider_with_effort("@large", routing_context=context) == (
-        "codex",
-        "gpt-5.6-sol",
-        "xhigh",
+        "grok",
+        "grok-4.6",
+        "high",
     )
     assert resolve_model_provider_with_effort("@xlarge", routing_context=context) == (
         "codex",
         "gpt-6-astra",
-        "xhigh",
+        "high",
     )
     default = resolve_launch_selection(
         PromptDirectives(), consume=False, routing_context=context
     )
     assert default is not None
-    assert (default.provider, default.model) == ("codex", "gpt-5.6-sol")
+    assert (default.provider, default.model) == ("grok", "grok-4.6")
     directed = resolve_launch_selection(
         PromptDirectives(model="@large", model_alias="large"),
         consume=False,
         routing_context=context,
     )
     assert directed is not None
-    assert (directed.provider, directed.model) == ("codex", "gpt-5.6-sol")
+    assert (directed.provider, directed.model) == ("grok", "grok-4.6")
 
 
 def test_delegated_and_raw_selector_pools_use_the_same_eligibility(

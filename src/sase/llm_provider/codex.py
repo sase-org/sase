@@ -228,6 +228,8 @@ class CodexProvider(LLMProvider):
         return [
             "gpt-6-astra",
             "gpt-5.6-sol",
+            "gpt-5.6-terra",
+            "gpt-5.6-luna",
             "gpt-5.5",
             "gpt-5.3-codex",
             "gpt-5.3-codex-spark",
@@ -247,6 +249,8 @@ class CodexProvider(LLMProvider):
             "gpt-6-astra": "astra",
             "codex-mini-latest": "mini",
             "gpt-5.6-sol": "gpt56sol",
+            "gpt-5.6-terra": "gpt56terra",
+            "gpt-5.6-luna": "gpt56luna",
             "gpt-5.5": "gpt55",
             "gpt-5.4": "gpt54",
             "gpt-5.3-codex-spark": "gpt53spark",

@@ -192,7 +192,11 @@ def test_sidecar_clone_retries_transient_transport_failures(
         )
 
     monkeypatch.setattr("sase.sdd._commit.run_sdd_git", flaky_clone)
-    monkeypatch.setattr("sase.sdd._store_clone_ops.time.sleep", sleeps.append)
+    monkeypatch.setattr("sase.sdd._store_clone_ops.time.sleep", lambda _delay: None)
+    monkeypatch.setattr(
+        "sase.sdd._store_clone_ops._sleep_before_retry",
+        lambda delay, _deadline: sleeps.append(delay) or True,
+    )
 
     ensure_sidecar_sdd_clone(clone_dir, remote, strict=True)
 
@@ -605,7 +609,11 @@ def test_sidecar_clone_timeout_retries_with_no_reference(
         )
 
     monkeypatch.setattr("sase.sdd._commit.run_sdd_git", timeout_then_success)
-    monkeypatch.setattr("sase.sdd._store_clone_ops.time.sleep", sleeps.append)
+    monkeypatch.setattr("sase.sdd._store_clone_ops.time.sleep", lambda _delay: None)
+    monkeypatch.setattr(
+        "sase.sdd._store_clone_ops._sleep_before_retry",
+        lambda delay, _deadline: sleeps.append(delay) or True,
+    )
 
     assert clone_sdd_store(remote, clone_dir, strict=True) is True
 
@@ -820,7 +828,11 @@ def test_sidecar_clone_checkout_failure_retries_without_reference(
         lambda _reference_repo, _remote_url: reference,
     )
     monkeypatch.setattr("sase.sdd._commit.run_sdd_git", checkout_failure_then_success)
-    monkeypatch.setattr("sase.sdd._store_clone_ops.time.sleep", sleeps.append)
+    monkeypatch.setattr("sase.sdd._store_clone_ops.time.sleep", lambda _delay: None)
+    monkeypatch.setattr(
+        "sase.sdd._store_clone_ops._sleep_before_retry",
+        lambda delay, _deadline: sleeps.append(delay) or True,
+    )
 
     assert (
         clone_sdd_store(

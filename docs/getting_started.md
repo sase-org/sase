@@ -71,10 +71,10 @@ normal form when SASE can auto-detect an installed provider CLI, or the explicit
 when Muse Code or Grok Build is your provider. SASE never auto-detects `muse` or `grok`
 from PATH because both are generic executable names; this is about default provider
 selection. Select either explicitly with a provider/model directive. Grok Build can
-still be reached automatically through the shipped `@xsmall`, `@small`, and `@medium`
-pools, or as the last `@xlarge` fallback candidate; `@large` also uses Grok as its last
-candidate. Alias routing checks for an available `grok` executable but does not verify
-its identity, so resolve any Grok identity warning from `sase doctor` before launching:
+still be reached automatically through the shipped `@xsmall`, `@small`, `@medium`, and
+`@large` pools, or as the last `@xlarge` fallback candidate. Alias routing checks for an
+available `grok` executable but does not verify its identity, so resolve any Grok
+identity warning from `sase doctor` before launching:
 
 ```bash
 # Auto-detected providers:

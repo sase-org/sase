@@ -150,6 +150,11 @@ def test_axe_tab_returns_none_for_lumberjack_and_bgcmd_rows() -> None:
     assert selected_link_subject(bgcmd_app) is None
 
 
+def test_axe_tab_returns_none_for_unrecognized_sidebar_rows() -> None:
+    app = _axe_app([SimpleNamespace(name="Copy palette")], 0, {})
+    assert selected_link_subject(app) is None
+
+
 def test_unrecognized_tab_returns_none() -> None:
     app = SimpleNamespace(current_tab="somewhere-else")
     assert selected_link_subject(app) is None

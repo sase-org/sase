@@ -107,6 +107,18 @@ def test_model_completion_catalog_reflects_real_builtin_model_metadata(
     assert astra.aliases == ("astra",)
     assert astra.description == "Codex (astra)"
 
+    assert "gpt-5.6-luna" in model_entries
+    luna = model_entries["gpt-5.6-luna"]
+    assert luna.provider == "codex"
+    assert luna.aliases == ("gpt56luna",)
+    assert luna.description == "Codex (gpt56luna)"
+
+    assert "gpt-5.6-terra" in model_entries
+    terra = model_entries["gpt-5.6-terra"]
+    assert terra.provider == "codex"
+    assert terra.aliases == ("gpt56terra",)
+    assert terra.description == "Codex (gpt56terra)"
+
 
 def test_model_completion_catalog_includes_agy_gemini_37_flash_variants(
     monkeypatch: pytest.MonkeyPatch,

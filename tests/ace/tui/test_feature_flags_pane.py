@@ -320,7 +320,8 @@ async def test_confirmed_toggle_restarts_axe_and_suppresses_duplicates(
     def slow_set(key: str, enabled: bool) -> None:
         mutations.append((key, enabled))
         started.set()
-        release.wait(timeout=2)
+        # Hold past AcePage.wait_for's 15s frame barrier under xdist.
+        release.wait(timeout=30)
 
     monkeypatch.setattr(
         "sase.ace.tui.modals.feature_flags_pane.set_saved_feature_flag",
@@ -338,7 +339,9 @@ async def test_confirmed_toggle_restarts_axe_and_suppresses_duplicates(
         pane.action_toggle_flag()
         await page.expect_modal("ConfirmActionModal")
         await page.press("y")
-        await page.wait_for(lambda _s: started.is_set())
+        await page.wait_for(
+            lambda _s: pane._mutating is True and started.is_set(),
+        )
         assert pane._mutating is True
         pane.action_toggle_flag()
         await page.pause()
