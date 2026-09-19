@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
-import inspect
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from sase.core.finalizer_wire import (
     ExecutedCommitObligationFactWire,
@@ -38,9 +37,17 @@ from sase.finalizers.commit_dispatch_types import (
     peek_attempt,
     preflight_attempt,
 )
+from sase.finalizers.commit_dispatch_support import (
+    apply_repair_remaining_handoff as _apply_repair_remaining_handoff,
+    call_stitch_runner as _call_stitch_runner,
+    context_assigned_bead_id as _context_assigned_bead_id,
+    decision_bead_action as _decision_bead_action,
+    identical_attempt_message,
+    protected_paths_for_decision,
+    record_executed_repo as _record_executed_repo,
+)
 from sase.finalizers.commit_repair import (
     load_commit_results,
-    load_latest_stitch_attempt,
     marker_evidence,
     marker_matches_repo,
     new_commit_markers,
@@ -48,7 +55,6 @@ from sase.finalizers.commit_repair import (
     resolve_commit_conflict,
     stitch_attempt_fingerprint,
     stitch_attempt_input_fields,
-    stitch_failure_message,
 )
 from sase.finalizers.commit_types import (
     BuiltinCommitFinalizerError,
@@ -164,7 +170,14 @@ def dispatch_commit_decisions(
             continue
         allow_repair = repo_id in original_ids
         decision = active_decisions[repo_id]
-        action = str(decision.get("action"))
+        deferral = active_deferrals.get(repo_id)
+        action, protected = protected_paths_for_decision(
+            repo,
+            decision,
+            deferral,
+            artifacts=artifacts,
+            protected_path_resolver=protected_path_resolver,
+        )
         if action != "commit":
             message_text = (
                 f"commit declaration for {repo.name} has invalid accepted action "
@@ -188,10 +201,7 @@ def dispatch_commit_decisions(
                 invoke_result=current_result,
             )
 
-        deferral = active_deferrals.get(repo_id)
-        protected: Sequence[str] = ()
         if deferral is None:
-            protected = protected_path_resolver(artifacts, repo.path)
             remaining_before_stitch = unexpected_path_resolver(repo.path, protected)
             if protected and not remaining_before_stitch:
                 record = baseline_record_resolver(artifacts, repo.path)
@@ -250,26 +260,10 @@ def dispatch_commit_decisions(
             assigned_bead_id=assigned_bead_id,
         )
         attempt_fingerprint = stitch_attempt_fingerprint(attempt_fields)
-        prior_attempt = load_latest_stitch_attempt(context, instance_id, repo.name)
-        if (
-            prior_attempt is not None
-            and prior_attempt.inputs.get("fingerprint") == attempt_fingerprint
-        ):
-            reason = stitch_failure_message(
-                repo,
-                StitchCommandResult(
-                    returncode=1,
-                    stdout=prior_attempt.stdout,
-                    stderr=prior_attempt.stderr,
-                ),
-            )
-            message_text = (
-                f"sase stitch create for {repo.name} was not retried: attempt "
-                f"{prior_attempt.attempt}'s inputs -- repo HEAD, dirty-path "
-                "fingerprints, exclude set, and message digest -- are "
-                f"unchanged, so a retry is guaranteed to fail identically. "
-                f"{reason}"
-            )
+        message_text = identical_attempt_message(
+            repo, context, instance_id, attempt_fingerprint
+        )
+        if message_text is not None:
             raise BuiltinCommitFinalizerError(
                 message_text,
                 result=failed_result(
@@ -456,6 +450,7 @@ def dispatch_commit_decisions(
                     attempts=attempts,
                     evidence=evidence,
                     state=state,
+                    declaration_loader=load_accepted_commit_declaration,
                 )
             continue
         evidence.extend(marker_evidence(repo_markers[-1]))
@@ -561,6 +556,7 @@ def dispatch_commit_decisions(
                 attempts=attempts,
                 evidence=evidence,
                 state=state,
+                declaration_loader=load_accepted_commit_declaration,
             )
 
     return _CommitDispatchResult(
@@ -572,189 +568,6 @@ def dispatch_commit_decisions(
         deferred=tuple(deferred),
         diagnostics=tuple(diagnostics),
     )
-
-
-def _record_executed_repo(
-    repo: DirtyRepo,
-    repo_id: str,
-    *,
-    repo_markers: Sequence[Mapping[str, Any]],
-    executed_ids: set[str],
-    executed_facts: list[ExecutedCommitObligationFactWire],
-    landed: list[tuple[str, str]],
-) -> None:
-    executed_ids.add(repo_id)
-    sha: str | None = None
-    if repo_markers:
-        raw = repo_markers[-1].get("commit_sha")
-        if isinstance(raw, str) and raw:
-            sha = raw
-            landed.append((repo.name, sha))
-    executed_facts.append(
-        ExecutedCommitObligationFactWire(
-            obligation_id=repo_id,
-            completed=True,
-            commit_sha=sha,
-        )
-    )
-
-
-def _apply_repair_remaining_handoff(
-    *,
-    pending: list[DirtyRepo],
-    index: int,
-    sweep_used: bool,
-    executed_ids: set[str],
-    executed_facts: Sequence[ExecutedCommitObligationFactWire],
-    landed: Sequence[tuple[str, str]],
-    active_decisions: dict[str, Mapping[str, Any]],
-    active_deferrals: dict[str, FinalizerDeferralWire],
-    context: FinalizerExecutionContext,
-    instance_id: str,
-    project_dir: str,
-    artifacts: Path | None,
-    prepare_dirty_state: PrepareDirtyState,
-    current_result: InvokeResult,
-    attempts: Sequence[FinalizerAttemptWire],
-    evidence: list[FinalizerOutcomeEvidenceWire],
-    state: PreparedCommitDirtyState,
-) -> tuple[
-    list[DirtyRepo],
-    int,
-    bool,
-    dict[str, Mapping[str, Any]],
-    dict[str, FinalizerDeferralWire],
-    FinalizerExecutionContext,
-    PreparedCommitDirtyState,
-]:
-    handoff = _collect_repair_remaining_handoff(
-        context=context,
-        instance_id=instance_id,
-        project_dir=project_dir,
-        artifacts=artifacts,
-        prepare_dirty_state=prepare_dirty_state,
-        executed=executed_facts,
-        landed=landed,
-        current_result=current_result,
-        attempts=attempts,
-        evidence=evidence,
-        declaration_loader=load_accepted_commit_declaration,
-    )
-    if handoff is None:
-        return (
-            pending,
-            index,
-            sweep_used,
-            active_decisions,
-            active_deferrals,
-            context,
-            state,
-        )
-    evidence.append(
-        FinalizerOutcomeEvidenceWire(
-            kind="repair_handoff_declaration",
-            value=str(
-                handoff.context.context_digest or handoff.context.plan_digest or ""
-            ),
-        )
-    )
-    rest = [
-        repo
-        for repo in handoff.repos
-        if repository_decision_id(repo) not in executed_ids
-    ]
-    if sweep_used:
-        pending_ids = {repository_decision_id(repo) for repo in pending[index:]}
-        extra = [
-            repo for repo in rest if repository_decision_id(repo) not in pending_ids
-        ]
-        if extra:
-            message_text = _format_repair_handoff_failure(
-                "conflict repair introduced further remaining obligations "
-                "after the continuation sweep",
-                landed=landed,
-                remaining=extra,
-                continuation_bound=True,
-            )
-            raise BuiltinCommitFinalizerError(
-                message_text,
-                result=failed_result(
-                    instance_id,
-                    "repair_handoff_continuation_bound",
-                    message_text,
-                    attempts=attempts,
-                    evidence=evidence,
-                ),
-                invoke_result=current_result,
-            )
-        return (
-            pending,
-            index,
-            sweep_used,
-            dict(handoff.decisions),
-            dict(handoff.accepted_deferrals),
-            handoff.context,
-            handoff.state,
-        )
-    return (
-        pending[:index] + rest,
-        index,
-        True,
-        dict(handoff.decisions),
-        dict(handoff.accepted_deferrals),
-        handoff.context,
-        handoff.state,
-    )
-
-
-def _decision_bead_action(decision: Mapping[str, Any]) -> str | None:
-    value = decision.get("bead_action")
-    return value if value in {"close", "keep"} else None
-
-
-def _context_assigned_bead_id(context: FinalizerExecutionContext) -> str | None:
-    value = getattr(context, "assigned_bead_id", None)
-    if not isinstance(value, str):
-        return None
-    stripped = value.strip()
-    return stripped or None
-
-
-def _call_stitch_runner(
-    stitch_runner: StitchRunner,
-    repo: DirtyRepo,
-    message: str,
-    protected: Sequence[str],
-    context: FinalizerExecutionContext,
-    *,
-    bead_action: str | None,
-) -> StitchCommandResult:
-    if _callable_accepts_keyword(stitch_runner, "bead_action"):
-        runner = cast(Callable[..., StitchCommandResult], stitch_runner)
-        return runner(
-            repo,
-            message,
-            protected,
-            context,
-            bead_action=bead_action,
-        )
-    return stitch_runner(repo, message, protected, context)
-
-
-def _callable_accepts_keyword(fn: Callable[..., Any], name: str) -> bool:
-    try:
-        signature = inspect.signature(fn)
-    except (TypeError, ValueError):
-        return False
-    for param in signature.parameters.values():
-        if param.kind is inspect.Parameter.VAR_KEYWORD:
-            return True
-        if param.name == name and param.kind in {
-            inspect.Parameter.KEYWORD_ONLY,
-            inspect.Parameter.POSITIONAL_OR_KEYWORD,
-        }:
-            return True
-    return False
 
 
 __all__ = [
