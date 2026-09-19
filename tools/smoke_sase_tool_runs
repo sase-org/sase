@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Black-box ToolRun harness. Catalog list is live; run/runs/show remain phase-pending."""
+"""Black-box ToolRun harness for catalog, foreground run, and query contracts."""
 
 from __future__ import annotations
 
@@ -7,9 +7,11 @@ import argparse
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
@@ -26,14 +28,400 @@ def _phase_pending(case_id: str, reason: str) -> dict[str, Any]:
     }
 
 
-def _run_sase(sase: str, args: Sequence[str], env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+def _run_sase(
+    sase: str,
+    args: Sequence[str],
+    env: dict[str, str],
+    *,
+    cwd: Path | None = None,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sase, *args],
         check=False,
         capture_output=True,
         text=True,
         env=env,
+        cwd=str(cwd) if cwd is not None else None,
     )
+
+
+def _kill_tree(proc: subprocess.Popen[str]) -> None:
+    if proc.poll() is not None:
+        return
+    try:
+        os.killpg(proc.pid, signal.SIGKILL)
+    except Exception:  # noqa: BLE001 - harness cleanup must not raise.
+        try:
+            proc.kill()
+        except OSError:
+            pass
+    try:
+        proc.wait(timeout=2)
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _foreground_cases(
+    *, sase: str, env: dict[str, str], tmp: Path
+) -> list[dict[str, Any]]:
+    cases: list[dict[str, Any]] = []
+    children: list[subprocess.Popen[str]] = []
+    try:
+        cases.append(_case_exact_execution(sase, env))
+        cases.append(_case_literal_argv(sase, env))
+        cases.append(_case_signals(sase, env, children))
+        cases.append(_case_lost(sase, env, tmp, children))
+        cases.append(_case_fail_open(sase, env, tmp))
+        cases.append(_case_compact_quiet(sase, env))
+        cases.append(_case_enclosing_owner(sase, env))
+        cases.append(_case_handshake(sase, env, tmp))
+    finally:
+        for proc in children:
+            _kill_tree(proc)
+    return cases
+
+
+def _case_exact_execution(sase: str, env: dict[str, str]) -> dict[str, Any]:
+    proc = _run_sase(
+        sase,
+        ["tool", "run", "--", "sh", "-c", "printf out; printf err >&2; exit 3"],
+        env,
+    )
+    run_id = _run_id_from_stderr(proc.stderr)
+    shown = (
+        json.loads(_run_sase(sase, ["tool", "show", run_id, "-j"], env).stdout)
+        if run_id
+        else {}
+    )
+    run = shown.get("run") or {}
+    ok = (
+        proc.returncode == 3
+        and proc.stdout == "out"
+        and "err" in proc.stderr
+        and run.get("state") == "failed"
+        and run.get("exit_code") == 3
+        and (run.get("logs") or {}).get("stdout_path")
+    )
+    return {
+        "id": "dod-2-exact-execution",
+        "status": "pass" if ok else "fail",
+        "run_id": run_id,
+        "observed": {
+            "exit": proc.returncode,
+            "stdout": proc.stdout,
+            "stderr_tail": proc.stderr[-400:],
+            "state": run.get("state"),
+            "exit_code": run.get("exit_code"),
+        },
+    }
+
+
+def _case_literal_argv(sase: str, env: dict[str, str]) -> dict[str, Any]:
+    proc = _run_sase(
+        sase,
+        [
+            "tool",
+            "run",
+            "--",
+            sys.executable,
+            "-c",
+            "import sys; sys.stdout.write(repr(sys.argv[1:]))",
+            "a b",
+            "--",
+            "-n",
+        ],
+        env,
+    )
+    ok = proc.returncode == 0 and proc.stdout == "['a b', '--', '-n']"
+    return {
+        "id": "dod-2-literal-argv",
+        "status": "pass" if ok else "fail",
+        "observed": {"exit": proc.returncode, "stdout": proc.stdout},
+    }
+
+
+def _case_signals(
+    sase: str, env: dict[str, str], children: list[subprocess.Popen[str]]
+) -> dict[str, Any]:
+    term = subprocess.Popen(
+        [sase, "tool", "run", "--", "sleep", "30"],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    children.append(term)
+    term_ok = _signal_child(sase, env, term, signal.SIGTERM, 143, "signaled")
+    interrupt = subprocess.Popen(
+        [sase, "tool", "run", "--", "sleep", "30"],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    children.append(interrupt)
+    int_ok = _signal_child(sase, env, interrupt, signal.SIGINT, 130, "interrupted")
+    return {
+        "id": "dod-3-signals",
+        "status": "pass" if term_ok and int_ok else "fail",
+        "observed": {"sigterm": term_ok, "sigint": int_ok},
+    }
+
+
+def _signal_child(
+    sase: str,
+    env: dict[str, str],
+    proc: subprocess.Popen[str],
+    signum: int,
+    expected_exit: int,
+    expected_state: str,
+) -> bool:
+    if not _wait_for_running(sase, env, wrapper_pid=proc.pid):
+        _kill_tree(proc)
+        return False
+    try:
+        os.kill(proc.pid, signum)
+    except OSError:
+        _kill_tree(proc)
+        return False
+    try:
+        code = proc.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        _kill_tree(proc)
+        return False
+    listed = _run_sase(sase, ["tool", "runs", "-j", "-n", "5"], env)
+    try:
+        payload = json.loads(listed.stdout)
+    except json.JSONDecodeError:
+        return False
+    run = next(
+        (
+            item
+            for item in payload.get("runs") or ()
+            if item.get("wrapper_pid") == proc.pid
+        ),
+        (payload.get("runs") or [{}])[0],
+    )
+    if code == -signum:
+        code = 128 + signum
+    return code == expected_exit and run.get("state") == expected_state
+
+
+def _case_lost(
+    sase: str,
+    env: dict[str, str],
+    tmp: Path,
+    children: list[subprocess.Popen[str]],
+) -> dict[str, Any]:
+    pid_file = tmp / "lost-child.pid"
+    script = tmp / "lost-child.py"
+    script.write_text(
+        "import os, time\n"
+        f"open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
+        "time.sleep(60)\n",
+        encoding="utf-8",
+    )
+    proc = subprocess.Popen(
+        [sase, "tool", "run", "--", sys.executable, str(script)],
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    children.append(proc)
+    child_pid = None
+    try:
+        if not _wait_for_running(sase, env):
+            return {
+                "id": "dod-4-lost",
+                "status": "fail",
+                "observed": "running row never appeared",
+            }
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and not pid_file.exists():
+            time.sleep(0.05)
+        child_pid = int(pid_file.read_text(encoding="utf-8"))
+        os.kill(proc.pid, signal.SIGKILL)
+        proc.wait(timeout=5)
+        listed = _run_sase(sase, ["tool", "runs", "-j", "-n", "5"], env)
+        payload = json.loads(listed.stdout)
+        run = (payload.get("runs") or [{}])[0]
+        ok = (
+            run.get("state") == "lost"
+            and run.get("lost_reason") == "runner exited without settling"
+            and run.get("duration_ms") is None
+            and run.get("exit_code") is None
+        )
+        return {
+            "id": "dod-4-lost",
+            "status": "pass" if ok else "fail",
+            "run_id": run.get("run_id"),
+            "observed": {
+                "state": run.get("state"),
+                "lost_reason": run.get("lost_reason"),
+                "duration_ms": run.get("duration_ms"),
+                "exit_code": run.get("exit_code"),
+            },
+        }
+    except Exception as exc:  # noqa: BLE001
+        return {"id": "dod-4-lost", "status": "fail", "observed": str(exc)}
+    finally:
+        if child_pid is not None:
+            try:
+                os.kill(child_pid, signal.SIGKILL)
+            except OSError:
+                pass
+
+
+def _case_fail_open(sase: str, env: dict[str, str], tmp: Path) -> dict[str, Any]:
+    blocked = tmp / "blocked-home"
+    blocked.mkdir()
+    (blocked / "tools").write_text("not-a-directory", encoding="utf-8")
+    blocked_env = env.copy()
+    blocked_env["SASE_HOME"] = str(blocked)
+    proc = _run_sase(sase, ["tool", "run", "--", "printf", "hi"], blocked_env)
+    ok = (
+        proc.returncode == 0
+        and proc.stdout == "hi"
+        and "run not recorded" in proc.stderr
+        and "sase tool run " not in proc.stderr
+    )
+    return {
+        "id": "dod-5-fail-open",
+        "status": "pass" if ok else "fail",
+        "observed": {
+            "exit": proc.returncode,
+            "stdout": proc.stdout,
+            "stderr_tail": proc.stderr[-400:],
+        },
+    }
+
+
+def _case_compact_quiet(sase: str, env: dict[str, str]) -> dict[str, Any]:
+    proc = _run_sase(
+        sase,
+        [
+            "tool",
+            "run",
+            "-q",
+            "-T",
+            "5",
+            "--",
+            "sh",
+            "-c",
+            "printf '1\\n2\\n3\\n4\\n5\\n6\\n'; exit 1",
+        ],
+        env,
+    )
+    ok = (
+        proc.returncode == 1
+        and proc.stdout == ""
+        and "2" in proc.stderr
+        and "6" in proc.stderr
+        and "sase tool show " in proc.stderr
+        and " -l" in proc.stderr
+    )
+    return {
+        "id": "dod-7-agent-output",
+        "status": "pass" if ok else "fail",
+        "observed": {
+            "exit": proc.returncode,
+            "stdout": proc.stdout,
+            "stderr_tail": proc.stderr[-400:],
+        },
+    }
+
+
+def _case_enclosing_owner(sase: str, env: dict[str, str]) -> dict[str, Any]:
+    owned = env.copy()
+    owned["SASE_MONITOR_ID"] = "mon-fixture"
+    proc = _run_sase(sase, ["tool", "run", "--", "printf", "out"], owned)
+    shown_id = _run_id_from_stderr(proc.stderr)
+    shown = (
+        json.loads(_run_sase(sase, ["tool", "show", shown_id, "-j"], owned).stdout)
+        if shown_id
+        else {}
+    )
+    run = shown.get("run") or {}
+    logs = run.get("logs") or {}
+    quiet = _run_sase(sase, ["tool", "run", "-q", "--", "printf", "x"], owned)
+    ok = (
+        proc.returncode == 0
+        and proc.stdout == "out"
+        and run.get("owner_kind") == "monitor"
+        and not logs.get("stdout_path")
+        and logs.get("events_path")
+        and quiet.returncode == 2
+        and "quiet" in quiet.stderr
+    )
+    return {
+        "id": "dod-8-enclosing-owner",
+        "status": "pass" if ok else "fail",
+        "run_id": shown_id,
+        "observed": {
+            "owner_kind": run.get("owner_kind"),
+            "stdout_path": logs.get("stdout_path"),
+            "quiet_exit": quiet.returncode,
+        },
+    }
+
+
+def _case_handshake(sase: str, env: dict[str, str], tmp: Path) -> dict[str, Any]:
+    marker = tmp / "handshake-state"
+    script = tmp / "handshake.py"
+    script.write_text(
+        "import os, sqlite3\n"
+        "from pathlib import Path\n"
+        "run_id = os.environ['SASE_TOOL_RUN_ID']\n"
+        "store = Path(os.environ['SASE_HOME']) / 'tools' / 'runs.sqlite'\n"
+        "row = sqlite3.connect(store).execute(\n"
+        "    'select state from runs where run_id = ?', (run_id,)\n"
+        ").fetchone()\n"
+        f"Path({str(marker)!r}).write_text(row[0] if row else 'missing')\n",
+        encoding="utf-8",
+    )
+    proc = _run_sase(sase, ["tool", "run", "--", sys.executable, str(script)], env)
+    state = marker.read_text(encoding="utf-8") if marker.exists() else "absent"
+    ok = proc.returncode == 0 and state == "running"
+    return {
+        "id": "dod-5-running-before-spawn",
+        "status": "pass" if ok else "fail",
+        "observed": {"exit": proc.returncode, "state": state},
+    }
+
+
+def _wait_for_running(
+    sase: str,
+    env: dict[str, str],
+    timeout: float = 20.0,
+    *,
+    wrapper_pid: int | None = None,
+) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        listed = _run_sase(
+            sase, ["tool", "runs", "-j", "-s", "running", "-n", "5"], env
+        )
+        try:
+            payload = json.loads(listed.stdout)
+        except json.JSONDecodeError:
+            time.sleep(0.05)
+            continue
+        for run in payload.get("runs") or ():
+            if wrapper_pid is None or run.get("wrapper_pid") == wrapper_pid:
+                return True
+        time.sleep(0.05)
+    return False
+
+
+def _run_id_from_stderr(stderr: str) -> str:
+    for line in stderr.splitlines():
+        if line.startswith("sase tool run "):
+            return line.split()[-1]
+    return ""
 
 
 def run_harness(*, sase: str, live: bool, keep: bool) -> dict[str, Any]:
@@ -42,6 +430,14 @@ def run_harness(*, sase: str, live: bool, keep: bool) -> dict[str, Any]:
     home.mkdir()
     env = os.environ.copy()
     env["SASE_HOME"] = str(home)
+    for key in (
+        "SASE_AGENT_NAME",
+        "SASE_MONITOR_ID",
+        "SASE_PROC_ID",
+        "SASE_TOOL_RUN_EVENTS",
+        "SASE_TOOL_RUN_ID",
+    ):
+        env.pop(key, None)
     cases: list[dict[str, Any]] = []
 
     try:
@@ -112,7 +508,9 @@ def run_harness(*, sase: str, live: bool, keep: bool) -> dict[str, Any]:
             },
             store_path=store_path,
         )
-        listed = tool_run_list({"schema_version": 1, "limit": 10}, store_path=store_path)
+        listed = tool_run_list(
+            {"schema_version": 1, "limit": 10}, store_path=store_path
+        )
         shown = tool_run_show(run_id, store_path=store_path)
         stats = tool_run_store_stats(store_path=store_path)
         summary = tool_run_summary(
@@ -183,7 +581,7 @@ def run_harness(*, sase: str, live: bool, keep: bool) -> dict[str, Any]:
         )
 
     help_proc = _run_sase(sase, ["tool", "-h"], env)
-    help_ok = help_proc.returncode == 0 and "{list}" in help_proc.stdout
+    help_ok = help_proc.returncode == 0 and "{list,run,runs,show}" in help_proc.stdout
     list_json = _run_sase(sase, ["tool", "list", "-j"], env)
     catalog_payload: dict[str, Any] = {}
     if list_json.returncode == 0:
@@ -193,8 +591,7 @@ def run_harness(*, sase: str, live: bool, keep: bool) -> dict[str, Any]:
             catalog_payload = {}
     names = [tool.get("name") for tool in catalog_payload.get("tools") or ()]
     typical_empty = all(
-        tool.get("typical_duration_ms") is None
-        and tool.get("last") is None
+        tool.get("typical_duration_ms") is None and tool.get("last") is None
         for tool in catalog_payload.get("tools") or ()
     )
     catalog_ok = (
@@ -226,7 +623,8 @@ def run_harness(*, sase: str, live: bool, keep: bool) -> dict[str, Any]:
             fixture_payload = {}
     fixture_ok = (
         fixture_proc.returncode == 0
-        and [tool.get("name") for tool in fixture_payload.get("tools") or ()] == ["ping"]
+        and [tool.get("name") for tool in fixture_payload.get("tools") or ()]
+        == ["ping"]
         and (fixture_payload.get("tools") or [{}])[0].get("last") is None
     )
 
@@ -244,7 +642,9 @@ def run_harness(*, sase: str, live: bool, keep: bool) -> dict[str, Any]:
         env=env,
         cwd=bad_root,
     )
-    malformed_ok = bad_proc.returncode == 2 and "ping" in (bad_proc.stderr + bad_proc.stdout)
+    malformed_ok = bad_proc.returncode == 2 and "ping" in (
+        bad_proc.stderr + bad_proc.stdout
+    )
 
     if catalog_ok and fixture_ok and malformed_ok:
         cases.append(
@@ -277,18 +677,7 @@ def run_harness(*, sase: str, live: bool, keep: bool) -> dict[str, Any]:
                 },
             }
         )
-    cases.append(
-        _phase_pending(
-            "dod-2-exact-execution",
-            "sase tool run is implemented in the foreground-run phase",
-        )
-    )
-    cases.append(
-        _phase_pending(
-            "dod-3-signals",
-            "signal handling is implemented in the foreground-run phase",
-        )
-    )
+    cases.extend(_foreground_cases(sase=sase, env=env, tmp=tmp))
     if live:
         cases.append(
             _phase_pending(
@@ -312,7 +701,9 @@ def run_harness(*, sase: str, live: bool, keep: bool) -> dict[str, Any]:
         "home": str(home),
         "cases": cases,
         "failed": len(failed),
-        "phase_pending": sum(1 for case in cases if case.get("status") == PHASE_PENDING),
+        "phase_pending": sum(
+            1 for case in cases if case.get("status") == PHASE_PENDING
+        ),
     }
     if keep:
         report["kept"] = str(tmp)
@@ -349,9 +740,7 @@ def main(argv: list[str] | None = None) -> int:
     else:
         for case in report["cases"]:
             print(f"{case['id']}: {case['status']}")
-        print(
-            f"failed={report['failed']} phase-pending={report['phase_pending']}"
-        )
+        print(f"failed={report['failed']} phase-pending={report['phase_pending']}")
     return 1 if report["failed"] else 0
 
 

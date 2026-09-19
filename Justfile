@@ -373,12 +373,7 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-11y.7(service_dir)" \
         --epic-symbol "sase-11y.7(service_platform_supported)" \
         --epic-symbol "sase-11y.7(service_state_path)" \
-        --epic-symbol "sase-135.3(tool_run_append_event)" \
-        --epic-symbol "sase-135.3(tool_run_begin)" \
-        --epic-symbol "sase-135.3(tool_run_finish)" \
-        --epic-symbol "sase-135.3(tool_run_list)" \
-        --epic-symbol "sase-135.3(tool_run_reconcile)" \
-        --epic-symbol "sase-135.3(tool_run_show)" \
+        --epic-symbol "sase-135.4(tool_run_append_event)" \
         --epic-symbol "sase-135.5(tool_run_canonicalize_fingerprint)" \
         --epic-symbol "sase-135.5(tool_run_unknown_evidence)" \
         {{ args }}

@@ -5771,17 +5771,26 @@ project commit/pull/push sequence. `sase init repo` is an alias; bare `sase init
 
 ### `sase tool`
 
-Named-tool catalog commands. With no subcommand, `sase tool` defaults to
-`sase tool list`. Only implemented verbs are advertised; `run`, `runs`, and `show` are
-not registered yet.
+Named-tool catalog and foreground ToolRun commands. With no subcommand, `sase tool`
+defaults to `sase tool list`.
 
-| Command          | Flag / argument | Values | Description                                                                   |
-| ---------------- | --------------- | ------ | ----------------------------------------------------------------------------- |
-| `sase tool list` | `-j, --json`    | flag   | Emit a versioned JSON object with LAST, TYPICAL, argv, and definition digest. |
+| Command                           | Flag / argument                         | Values | Description                                                                                   |
+| --------------------------------- | --------------------------------------- | ------ | --------------------------------------------------------------------------------------------- |
+| `sase tool list`                  | `-j, --json`                            | flag   | Emit a versioned JSON object with LAST, TYPICAL, argv, and definition digest.                 |
+| `sase tool run TOOL [-- ARGS...]` | `-q, --quiet`; `-T, --tail-lines`; `-v` | mixed  | Run a named tool at the project root. Extra args append only when the definition allows them. |
+| `sase tool run -- ARGV...`        | same                                    | mixed  | Run an ad-hoc argv at the invocation cwd. The `--` separator is required.                     |
+| `sase tool runs`                  | `-a -A -c -j -n -s -t`                  | mixed  | List native ToolRuns (default: current project, limit 50, max 1000).                          |
+| `sase tool show RUN`              | `-j, --json` or `-l, --logs`            | flag   | Show one run by exact id. `-j` and `-l` are mutually exclusive. Missing runs exit `2`.        |
+
+Humans default to exact stdout/stderr passthrough; wrapper metadata goes to stderr.
+Direct agent execution (`SASE_AGENT_NAME`) defaults to compact output. `-q` forces
+compact and `-v` forces streaming. Recording failures warn once and still execute the
+child exactly once without inventing a durable id. Catalog, usage, and missing-run
+errors exit `2`. `sase tool run` returns the child's exit code, or `128+signal`.
 
 `LAST` is the newest native result for this project and definition. `TYPICAL` is the
 observed median duration of at most 30 normally exited native runs within 30 days.
-Missing samples render as an em dash, never as zero or an ETA. Catalog errors exit `2`.
+Missing samples render as an em dash, never as zero or an ETA.
 
 ### `sase disk`
 

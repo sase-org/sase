@@ -117,6 +117,10 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
             if service_name is not None:
                 self._toggle_selected_service_proc(service_name)
                 return
+            if getattr(self, "_axe_chop_selection", None) is not None:
+                return
+            if getattr(self, "_axe_lumberjack_idx", None) is not None:
+                return
             if self.axe_running:
                 if getattr(self, "_service_host_enabled", False):
                     self._stop_service_host()

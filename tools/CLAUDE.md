@@ -60,6 +60,7 @@ instead of `bd` directly.
 ## ToolRun smokes
 
 `tools/smoke_sase_core_rs_tool_runs` is an isolated real-binding round trip against the
-installed `sase_core_rs` wheel. `tools/smoke_sase_tool_runs` is the black-box harness
-foundation: it talks to the real store, exercises `sase tool list`, and labels
-unimplemented public `sase tool` verbs as phase-pending rather than passing them.
+installed `sase_core_rs` wheel. `tools/smoke_sase_tool_runs` is the black-box harness:
+it talks to the real store and CLI for catalog, foreground run, signals, lost-run
+recovery, fail-open recording, and query contracts. Later-phase live owner cases remain
+labeled phase-pending unless `--live` is passed.

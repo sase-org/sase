@@ -27,7 +27,7 @@ def _load_tool() -> ModuleType:
     return module
 
 
-def test_tool_runs_harness_marks_public_commands_phase_pending() -> None:
+def test_tool_runs_harness_covers_foreground_run() -> None:
     module = importlib.import_module("sase_core_rs")
     if not hasattr(module, "tool_run_begin"):
         pytest.skip("tool_run bindings are not in this wheel")
@@ -39,7 +39,16 @@ def test_tool_runs_harness_marks_public_commands_phase_pending() -> None:
         keep=False,
     )
     statuses = {case["id"]: case["status"] for case in report["cases"]}
+    failed = [case for case in report["cases"] if case.get("status") == "fail"]
+    assert failed == [], failed
     assert statuses["core-ledger-round-trip"] == "pass"
     assert statuses["dod-1-catalog"] == "pass"
-    assert statuses["dod-2-exact-execution"] == "phase-pending"
+    assert statuses["dod-2-exact-execution"] == "pass"
+    assert statuses["dod-2-literal-argv"] == "pass"
+    assert statuses["dod-3-signals"] == "pass"
+    assert statuses["dod-4-lost"] == "pass"
+    assert statuses["dod-5-fail-open"] == "pass"
+    assert statuses["dod-5-running-before-spawn"] == "pass"
+    assert statuses["dod-7-agent-output"] == "pass"
+    assert statuses["dod-8-enclosing-owner"] == "pass"
     assert report["failed"] == 0

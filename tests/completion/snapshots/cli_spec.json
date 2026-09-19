@@ -26747,7 +26747,7 @@
       {
         "aliases": [],
         "default_child": "list",
-        "description_digest": "55c417d4a4ff8299",
+        "description_digest": "828c4b1a49035181",
         "hidden": false,
         "mutex_groups": [],
         "name": "tool",
@@ -26808,6 +26808,270 @@
               "list"
             ],
             "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "8a5b0f4357a0f763",
+            "hidden": false,
+            "mutex_groups": [
+              [
+                "quiet",
+                "verbose"
+              ]
+            ],
+            "name": "run",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "quiet",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-q",
+                  "--quiet"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "tail_lines",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-T",
+                  "--tail-lines"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "verbose",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-v",
+                  "--verbose"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "tool",
+              "run"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "tool_run_words",
+                "is_remainder": true,
+                "kind": null,
+                "metavar": "TOOL | -- ARGV...",
+                "nargs": "..."
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "7284b26bcfc1af00",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "runs",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "tool_runs_all",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-a",
+                  "--all"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "tool_runs_agent",
+                "hidden": false,
+                "kind": "agent",
+                "repeatable": false,
+                "strings": [
+                  "-A",
+                  "--agent"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "tool_runs_cursor",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-c",
+                  "--cursor"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "tool_runs_json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "tool_runs_limit",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--limit"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": [
+                  "created",
+                  "failed",
+                  "interrupted",
+                  "lost",
+                  "running",
+                  "signaled",
+                  "succeeded"
+                ],
+                "dest": "tool_runs_state",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-s",
+                  "--state"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "tool_runs_tool",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--tool"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "tool",
+              "runs"
+            ],
+            "positionals": [],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "01676719ec9ecfa5",
+            "hidden": false,
+            "mutex_groups": [
+              [
+                "tool_show_json",
+                "tool_show_logs"
+              ]
+            ],
+            "name": "show",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "tool_show_json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "tool_show_logs",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-l",
+                  "--logs"
+                ],
+                "takes_value": false
+              }
+            ],
+            "path": [
+              "tool",
+              "show"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "tool_show_run_id",
+                "is_remainder": false,
+                "kind": null,
+                "metavar": "RUN",
+                "nargs": null
+              }
+            ],
             "subcommands": []
           }
         ]

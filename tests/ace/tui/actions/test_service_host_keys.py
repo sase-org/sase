@@ -9,6 +9,8 @@ class _Host:
     def __init__(self) -> None:
         self._axe_current_view: str | int = "axe"
         self._axe_service_selection: str | None = None
+        self._axe_chop_selection: tuple[str, str] | None = None
+        self._axe_lumberjack_idx: int | None = None
         self._service_host_enabled = True
         self.axe_running = False
         self.current_tab = "axe"
@@ -51,6 +53,8 @@ def test_x_starts_the_selected_service_proc_not_the_host() -> None:
 def test_x_does_not_toggle_the_host_on_nested_scheduler_rows() -> None:
     host = _Host()
     host._axe_service_selection = None
+    host._axe_chop_selection = ("routines", "daily")
+    host._axe_lumberjack_idx = 0
     host._toggle_or_kill_axe_view()
     assert host.calls == []
 

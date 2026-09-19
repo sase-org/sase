@@ -16,9 +16,17 @@ from sase.config.tools import (
     load_project_tool_catalog,
 )
 from sase.core.tool_run import tool_run_summary
+from sase.tool.executor import ToolRunCliRequest, execute_tool_run
+from sase.tool.liveness import reconcile_unsettled_tool_runs
+from sase.tool.query import (
+    ToolRunsCliRequest,
+    ToolShowCliRequest,
+    handle_runs,
+    handle_show,
+)
+from sase.tool.render import EMPTY, format_state, format_typical
 
 
-_EMPTY = "—"
 _HUMAN_SILENT_DIAGNOSTICS = frozenset({"tool run store does not exist"})
 
 
@@ -28,12 +36,51 @@ def handle_tool_command(args: argparse.Namespace) -> None:
     subcommand = getattr(args, "tool_subcommand", None)
     if subcommand == "list":
         sys.exit(_handle_list(args))
-    print("Usage: sase tool {list}", file=sys.stderr)
+    if subcommand == "run":
+        sys.exit(
+            execute_tool_run(
+                ToolRunCliRequest(
+                    quiet=bool(getattr(args, "quiet", False)),
+                    verbose=bool(getattr(args, "verbose", False)),
+                    tail_lines=int(getattr(args, "tail_lines", 200)),
+                    words=tuple(
+                        str(part)
+                        for part in (getattr(args, "tool_run_words", None) or ())
+                    ),
+                )
+            )
+        )
+    if subcommand == "runs":
+        sys.exit(
+            handle_runs(
+                ToolRunsCliRequest(
+                    include_all=bool(getattr(args, "tool_runs_all", False)),
+                    agent=getattr(args, "tool_runs_agent", None),
+                    cursor=getattr(args, "tool_runs_cursor", None),
+                    json=bool(getattr(args, "tool_runs_json", False)),
+                    limit=int(getattr(args, "tool_runs_limit", 50)),
+                    state=getattr(args, "tool_runs_state", None),
+                    tool=getattr(args, "tool_runs_tool", None),
+                )
+            )
+        )
+    if subcommand == "show":
+        sys.exit(
+            handle_show(
+                ToolShowCliRequest(
+                    run_id=str(getattr(args, "tool_show_run_id", "") or ""),
+                    json=bool(getattr(args, "tool_show_json", False)),
+                    logs=bool(getattr(args, "tool_show_logs", False)),
+                )
+            )
+        )
+    print("Usage: sase tool {list,run,runs,show}", file=sys.stderr)
     sys.exit(2)
 
 
 def _handle_list(args: argparse.Namespace) -> int:
     try:
+        reconcile_unsettled_tool_runs()
         catalog = load_project_tool_catalog()
         envelope = _list_envelope(catalog)
     except ToolCatalogError as exc:
@@ -112,52 +159,18 @@ def _print_catalog_table(envelope: dict[str, Any]) -> None:
     table.add_column("DESCRIPTION")
     tools = envelope.get("tools") or ()
     if not tools:
-        table.add_row(_EMPTY, _EMPTY, _EMPTY, "no named tools in this project")
+        table.add_row(EMPTY, EMPTY, EMPTY, "no named tools in this project")
     for tool in tools:
         table.add_row(
-            str(tool.get("name") or _EMPTY),
-            _format_last(tool.get("last")),
-            _format_typical(
+            str(tool.get("name") or EMPTY),
+            format_state(tool.get("last")),
+            format_typical(
                 tool.get("typical_duration_ms"),
                 int(tool.get("typical_sample_count") or 0),
             ),
-            str(tool.get("description") or _EMPTY),
+            str(tool.get("description") or EMPTY),
         )
     console.print(table)
-
-
-def _format_last(last: object) -> str:
-    if not isinstance(last, dict):
-        return _EMPTY
-    state = str(last.get("state") or "").strip()
-    if not state:
-        return _EMPTY
-    exit_code = last.get("exit_code")
-    if exit_code is not None and state in {"failed", "signaled", "interrupted"}:
-        return f"{state}/{exit_code}"
-    return state
-
-
-def _format_typical(duration_ms: object, sample_count: int) -> str:
-    if duration_ms is None or sample_count <= 0:
-        return _EMPTY
-    if type(duration_ms) is not int:
-        return _EMPTY
-    return f"{_format_duration_ms(duration_ms)} (n={sample_count})"
-
-
-def _format_duration_ms(duration_ms: int) -> str:
-    if duration_ms < 1000:
-        return f"{duration_ms}ms"
-    seconds = duration_ms / 1000
-    if seconds < 60:
-        if seconds == int(seconds):
-            return f"{int(seconds)}s"
-        return f"{seconds:.1f}s"
-    minutes, rem = divmod(int(seconds), 60)
-    if rem == 0:
-        return f"{minutes}m"
-    return f"{minutes}m {rem}s"
 
 
 __all__ = ["handle_tool_command"]
