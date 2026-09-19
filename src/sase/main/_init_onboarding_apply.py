@@ -97,12 +97,6 @@ def run_changed_plans(
             continue
         spec = spec_by_name[plan.command]
         context = getattr(args, "_init_onboarding_context", None)
-        if (
-            spec.scope == "machine"
-            and context is not None
-            and spec.name in getattr(context, "handled_scopes", set())
-        ):
-            continue
         if spec.scope == "machine" and context is not None:
             context.handled_scopes.add(spec.name)
         if getattr(args, "yes", False):

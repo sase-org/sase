@@ -37,6 +37,8 @@ def plan_specs(
             )
             continue
         plans.append(spec.plan(args))
+        if spec.scope == "machine" and context is not None:
+            context.handled_scopes.add(spec.name)
     return tuple(plans)
 
 

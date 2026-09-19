@@ -39,6 +39,7 @@ class _Host:
         self.calls.append("selector")
 
 
+_Host._toggle_host_or_axe_daemon = AxeMixin._toggle_host_or_axe_daemon  # type: ignore[method-assign]
 _Host._toggle_or_kill_axe_view = AxeMixin._toggle_or_kill_axe_view  # type: ignore[method-assign]
 _Host._toggle_axe_global = AxeMixin._toggle_axe_global  # type: ignore[method-assign]
 

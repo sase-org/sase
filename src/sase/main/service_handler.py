@@ -138,12 +138,13 @@ def _handle_service_init(args: argparse.Namespace) -> int:
 
 
 def _handle_service_uninstall(args: argparse.Namespace) -> int:
+    force = bool(getattr(args, "force", False))
     if bool(getattr(args, "yes", False)):
-        result = apply_service_uninstall()
+        result = apply_service_uninstall(force=force)
         _print_platform_plan(result.plan, show_diff=False)
         print(result.message)
         return 0 if result.ok else 1
-    plan = service_uninstall_plan()
+    plan = service_uninstall_plan(force=force)
     _print_platform_plan(plan, show_diff=bool(getattr(args, "diff", False)))
     if bool(getattr(args, "check", False)):
         return 0 if plan.current else 1

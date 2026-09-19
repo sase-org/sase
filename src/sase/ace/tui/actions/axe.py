@@ -106,11 +106,24 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
         if callable(refresh):
             refresh()
 
-    def _toggle_or_kill_axe_view(self) -> None:
-        """Toggle axe daemon or kill bgcmd based on current AXE view.
+    def _toggle_host_or_axe_daemon(self) -> None:
+        """Start or stop the service host, or the legacy axe daemon."""
+        if self.axe_running:
+            if getattr(self, "_service_host_enabled", False):
+                self._stop_service_host()
+            else:
+                self._stop_axe()
+        elif getattr(self, "_service_host_enabled", False):
+            self._start_service_host()
+        else:
+            self._start_axe()
 
-        - View "axe": Toggle axe daemon on/off
-        - View 1-9 (bgcmd): Show confirm dialog to kill that bgcmd
+    def _toggle_or_kill_axe_view(self) -> None:
+        """Toggle a selected service proc, or kill bgcmd based on AXE view.
+
+        Bare ``x`` is contextual: a selected service-proc row toggles that
+        proc. Nested scheduler/host chrome (no proc selected) is a no-op
+        while ``service_host`` is on; ``!x`` toggles the host instead.
         """
         if self._axe_current_view == "axe":
             service_name = getattr(self, "_axe_service_selection", None)
@@ -121,16 +134,9 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
                 return
             if getattr(self, "_axe_lumberjack_idx", None) is not None:
                 return
-            if self.axe_running:
-                if getattr(self, "_service_host_enabled", False):
-                    self._stop_service_host()
-                else:
-                    self._stop_axe()
-            else:
-                if getattr(self, "_service_host_enabled", False):
-                    self._start_service_host()
-                else:
-                    self._start_axe()
+            if getattr(self, "_service_host_enabled", False):
+                return
+            self._toggle_host_or_axe_daemon()
         else:
             slot = self._axe_current_view
             self._confirm_kill_bgcmd(slot)
@@ -139,7 +145,7 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
         """Toggle axe or select process (works on all tabs, triggered by !x).
 
         When on AXE tab:
-          - View 0 (axe): Toggle axe daemon
+          - View 0 (axe): Toggle axe daemon / service host
           - View 1-9 (bgcmd): Show confirm dialog to kill that bgcmd
 
         When on other tabs:
@@ -149,6 +155,9 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
           - If both running: Show selector
         """
         if self.current_tab == "axe":
+            if self._axe_current_view == "axe":
+                self._toggle_host_or_axe_daemon()
+                return
             self._toggle_or_kill_axe_view()
         else:
             # On other tabs - handle based on what's running

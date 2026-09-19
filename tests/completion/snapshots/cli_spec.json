@@ -24662,7 +24662,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "3fe7ddf0c8a30c80",
+            "description_digest": "d37369545bb1084b",
             "hidden": false,
             "mutex_groups": [],
             "name": "uninstall",
@@ -24700,6 +24700,18 @@
                 "strings": [
                   "-d",
                   "--diff"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "force",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--force"
                 ],
                 "takes_value": false
               },

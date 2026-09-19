@@ -18,8 +18,10 @@ from typing import Literal
 
 from sase.agent_clis.operations import collect_agent_cli_statuses
 from sase.core.paths import sase_home as _sase_home
+from sase.core.state_write_guard import pytest_context_detected
 from sase.feature_flags import FeatureFlag, current_flags
 from sase.service.env import (
+    ServiceEnvironmentError,
     capture_service_environment,
     environment_files_match,
     parse_service_environment_text,
@@ -44,6 +46,19 @@ LEGACY_SYSTEMD_UNITS = (
     "sase-axe-ensure.timer",
 )
 LEGACY_LAUNCHD_LABELS = ("sh.sase.gateway",)
+SERVICE_LIFECYCLE_TEST_OVERRIDE_ENV = "SASE_SERVICE_ALLOW_LIFECYCLE_IN_TESTS"
+SERVICE_LIFECYCLE_TEST_BLOCK_MESSAGE = (
+    "Native service-manager commands are disabled while running under pytest. Set "
+    f"{SERVICE_LIFECYCLE_TEST_OVERRIDE_ENV}=1 only for isolated lifecycle tests."
+)
+_DARWIN_USER_DISABLED_MARKERS = (
+    "disabled = 1",
+    "disabled = true",
+    "state = disabled",
+    "is disabled",
+    "disabled by the user",
+    "gui-disabled",
+)
 
 
 @dataclass(frozen=True)
@@ -168,14 +183,15 @@ def service_init_plan(
         actions.append(f"write {definition.env_path}")
     if inspection.legacy_owners:
         actions.append("retire legacy owner(s): " + ", ".join(inspection.legacy_owners))
-    if inspection.enabled is False:
-        actions.append(f"enable {definition.identity}")
-    if inspection.active is False:
-        actions.append(f"start {definition.identity}")
     if inspection.user_disabled:
         warnings.append(
             f"{definition.identity} appears disabled by the user in the native manager"
         )
+    else:
+        if inspection.enabled is False:
+            actions.append(f"enable {definition.identity}")
+        if inspection.active is False:
+            actions.append(f"start {definition.identity}")
     if inspection.linger is False:
         user = getpass.getuser()
         warnings.append(
@@ -231,6 +247,10 @@ def apply_service_init(
         )
     runner = _default_runner if runner is None else runner
     definition = plan.definition
+    inspection = plan.inspection
+    user_disabled = bool(inspection is not None and inspection.user_disabled)
+    already_enabled = bool(inspection is not None and inspection.enabled is True)
+    already_active = bool(inspection is not None and inspection.active is True)
     write_service_environment(
         capture_service_environment(
             environ=environ,
@@ -243,10 +263,16 @@ def apply_service_init(
         if definition.platform == "linux":
             _linux_reload(runner)
             _retire_linux_legacy(runner)
-            _linux_enable_start(definition, runner)
+            _linux_enable_start(
+                definition,
+                runner,
+                enable=not already_enabled,
+                start=not already_active,
+            )
         elif definition.platform == "darwin":
-            _darwin_bootstrap(definition, runner)
             _retire_darwin_legacy(runner)
+            if not user_disabled and not already_active:
+                _darwin_bootstrap(definition, runner)
         else:
             return ServicePlatformApplyResult(
                 ok=False,
@@ -387,6 +413,7 @@ def build_native_definition(
         content = _render_launchd_plist(
             executable.path,
             label=label,
+            env_path=env_path,
             stdout_path=stdout_path,
             stderr_path=stderr_path,
             alternate_home=home if alternate_home else None,
@@ -522,9 +549,18 @@ def readiness_warnings(env: Mapping[str, str]) -> tuple[str, ...]:
     else:
         for status in statuses:
             if not status.installed:
-                warnings.append(
-                    f"{status.display_name} CLI is not available to the captured service PATH"
-                )
+                binary = str(getattr(status, "binary", "") or "")
+                live_path = _resolve_command(binary, os.environ) if binary else None
+                if live_path:
+                    warnings.append(
+                        f"{status.display_name} CLI is available in the interactive PATH "
+                        "but not the captured service PATH"
+                    )
+                else:
+                    warnings.append(
+                        f"{status.display_name} CLI is not available to the captured "
+                        "service PATH"
+                    )
     try:
         from sase.integrations.mobile_gateway import load_mobile_gateway_config
 
@@ -585,12 +621,13 @@ def _render_launchd_plist(
     executable: Path | None,
     *,
     label: str,
+    env_path: Path,
     stdout_path: Path,
     stderr_path: Path,
     alternate_home: Path | None,
 ) -> str:
     env = {
-        "SASE_SERVICE_ENV": str(service_env_path(alternate_home)),
+        "SASE_SERVICE_ENV": str(env_path),
         "SASE_SERVICE_UNIT": label,
     }
     if alternate_home is not None:
@@ -654,23 +691,56 @@ def _combined_diff(
     env_content: str,
 ) -> str:
     chunks: list[str] = []
-    for path, desired in (
-        (definition_path, definition_content),
-        (env_path, env_content),
-    ):
-        try:
-            current = path.read_text(encoding="utf-8")
-        except OSError:
-            current = ""
-        chunks.extend(
-            difflib.unified_diff(
-                current.splitlines(keepends=True),
-                desired.splitlines(keepends=True),
-                fromfile=str(path),
-                tofile=str(path),
-            )
+    definition_current = _read_text_or_empty(definition_path)
+    chunks.extend(
+        difflib.unified_diff(
+            definition_current.splitlines(keepends=True),
+            definition_content.splitlines(keepends=True),
+            fromfile=str(definition_path),
+            tofile=str(definition_path),
         )
+    )
+    env_current = _redact_env_file_text(_read_text_or_empty(env_path))
+    env_desired = _redact_env_file_text(env_content)
+    chunks.extend(
+        difflib.unified_diff(
+            env_current.splitlines(keepends=True),
+            env_desired.splitlines(keepends=True),
+            fromfile=str(env_path),
+            tofile=str(env_path),
+        )
+    )
     return "".join(chunks)
+
+
+def _read_text_or_empty(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+
+
+def _redact_env_file_text(text: str) -> str:
+    if not text:
+        return ""
+    try:
+        values = parse_service_environment_text(text)
+    except (ServiceEnvironmentError, ValueError):
+        return _blind_redact_env_text(text)
+    return render_service_environment(dict.fromkeys(values, "[captured]"))
+
+
+def _blind_redact_env_text(text: str) -> str:
+    lines: list[str] = []
+    for raw_line in text.splitlines(keepends=True):
+        newline = "\n" if raw_line.endswith("\n") else ""
+        line = raw_line.rstrip("\n")
+        if "=" not in line:
+            lines.append(raw_line)
+            continue
+        name, _value = line.split("=", 1)
+        lines.append(f'{name}="[captured]"{newline}')
+    return "".join(lines)
 
 
 def _write_definition(definition: NativeServiceDefinition) -> None:
@@ -726,16 +796,22 @@ def _linux_reload(runner: CommandRunner) -> None:
 
 
 def _linux_enable_start(
-    definition: NativeServiceDefinition, runner: CommandRunner
+    definition: NativeServiceDefinition,
+    runner: CommandRunner,
+    *,
+    enable: bool = True,
+    start: bool = True,
 ) -> None:
-    _require_ok(
-        runner(["systemctl", "--user", "enable", definition.unit_name]),
-        f"systemctl enable {definition.unit_name}",
-    )
-    _require_ok(
-        runner(["systemctl", "--user", "start", definition.unit_name]),
-        f"systemctl start {definition.unit_name}",
-    )
+    if enable:
+        _require_ok(
+            runner(["systemctl", "--user", "enable", definition.unit_name]),
+            f"systemctl enable {definition.unit_name}",
+        )
+    if start:
+        _require_ok(
+            runner(["systemctl", "--user", "start", definition.unit_name]),
+            f"systemctl start {definition.unit_name}",
+        )
 
 
 def _linux_disable_stop(
@@ -754,8 +830,13 @@ def _darwin_unit_active(label: str, runner: CommandRunner) -> tuple[bool, bool]:
     result = runner(["launchctl", "print", _darwin_service_target(label)])
     if result.returncode == 0:
         return True, False
-    output = f"{result.stdout}\n{result.stderr}".casefold()
-    return False, "disabled" in output
+    output = f"{result.stdout}\n{result.stderr}"
+    return False, _darwin_output_user_disabled(output)
+
+
+def _darwin_output_user_disabled(output: str) -> bool:
+    lowered = output.casefold()
+    return any(marker in lowered for marker in _DARWIN_USER_DISABLED_MARKERS)
 
 
 def _darwin_legacy_owners(runner: CommandRunner) -> tuple[str, ...]:
@@ -811,7 +892,21 @@ def _resolve_command(command: str, env: Mapping[str, str]) -> str | None:
     return None
 
 
+def _service_lifecycle_blocked_in_tests(
+    environ: Mapping[str, str] | None = None,
+) -> bool:
+    effective_environ = os.environ if environ is None else environ
+    if effective_environ.get(SERVICE_LIFECYCLE_TEST_OVERRIDE_ENV) == "1":
+        return False
+    return pytest_context_detected(effective_environ)
+
+
 def _default_runner(argv: Sequence[str]) -> CommandResult:
+    if _service_lifecycle_blocked_in_tests():
+        return CommandResult(
+            returncode=125,
+            stderr=SERVICE_LIFECYCLE_TEST_BLOCK_MESSAGE,
+        )
     try:
         result = subprocess.run(
             list(argv),
@@ -856,6 +951,8 @@ __all__ = [
     "CommandResult",
     "NativeInspection",
     "NativeServiceDefinition",
+    "SERVICE_LIFECYCLE_TEST_BLOCK_MESSAGE",
+    "SERVICE_LIFECYCLE_TEST_OVERRIDE_ENV",
     "ServicePlatformApplyResult",
     "ServicePlatformPlan",
     "apply_service_init",

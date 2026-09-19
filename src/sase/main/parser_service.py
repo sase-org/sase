@@ -82,7 +82,14 @@ def register_service_parser(subparsers: argparse._SubParsersAction) -> None:
         "uninstall",
         help="Unload and remove the native service-host unit",
     )
-    _add_check_diff_force_yes(uninstall_parser, include_force=False)
+    _add_check_diff_force_yes(
+        uninstall_parser,
+        include_force=True,
+        force_help=(
+            "Allow uninstallation for a non-default SASE_HOME using a home-scoped "
+            "unit identity"
+        ),
+    )
 
 
 def _add_service_proc_parser(service_sub: argparse._SubParsersAction) -> None:
@@ -227,6 +234,7 @@ def _add_check_diff_force_yes(
     parser: argparse.ArgumentParser,
     *,
     include_force: bool,
+    force_help: str | None = None,
 ) -> None:
     parser.add_argument(
         "-c",
@@ -245,7 +253,11 @@ def _add_check_diff_force_yes(
             "-f",
             "--force",
             action="store_true",
-            help="Allow installation for a non-default SASE_HOME using a home-scoped unit identity",
+            help=force_help
+            or (
+                "Allow installation for a non-default SASE_HOME using a "
+                "home-scoped unit identity"
+            ),
         )
     parser.add_argument(
         "-y",

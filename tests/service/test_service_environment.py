@@ -9,6 +9,7 @@ import pytest
 from sase.service.env import (
     ServiceEnvironmentError,
     capture_service_environment,
+    load_service_environment,
     parse_service_environment_text,
     read_service_environment,
     render_service_environment,
@@ -77,3 +78,21 @@ def test_capture_service_environment_uses_provider_and_gateway_declared_names(
         "SASE_CODEX_PATH": "/tools/codex",
     }
     assert captured.redacted_values["OPENAI_API_KEY"] == "[captured]"
+
+
+def test_load_service_environment_override_existing_only_when_requested(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "env"
+    write_service_environment({"PATH": "/captured/bin"}, path=path)
+    monkeypatch.setenv("SASE_SERVICE_ENV", str(path))
+    monkeypatch.setenv("PATH", "/interactive/bin")
+
+    applied = load_service_environment(override_existing=False)
+    assert os.environ["PATH"] == "/interactive/bin"
+    assert "PATH" not in applied
+
+    applied = load_service_environment(override_existing=True)
+    assert os.environ["PATH"] == "/captured/bin"
+    assert "PATH" in applied

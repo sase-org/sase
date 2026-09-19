@@ -360,7 +360,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-11y.7(NativeInspection)" \
         --epic-symbol "sase-11y.7(NativeServiceDefinition)" \
         --epic-symbol "sase-11y.7(ServiceEnablement)" \
-        --epic-symbol "sase-11y.7(ServiceEnvironmentError)" \
         --epic-symbol "sase-11y.7(ServiceFieldProvenance)" \
         --epic-symbol "sase-11y.7(ServicePlatformApplyResult)" \
         --epic-symbol "sase-11y.7(build_native_definition)" \
