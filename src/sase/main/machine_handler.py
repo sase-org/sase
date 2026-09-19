@@ -440,6 +440,7 @@ def _status_row(
         "gateway_version": _gateway_version_row(status.gateway_version),
         "service_versions": dict(status.service_versions),
         "capability_schema_version": status.capability_schema_version,
+        "fleet_contract_schema_version": status.fleet_contract_schema_version,
         "version_skew": _version_skew(status, local),
         "message": _status_message(status, local),
     }
@@ -495,8 +496,10 @@ def _remote_version_summary(status: MachineStatus) -> str:
     ]
     if status.state == "ok" and status.gateway_version is None:
         parts.insert(0, "sase-gateway unknown")
-    if status.capability_schema_version is not None:
-        parts.append(f"fleet contract schema v{status.capability_schema_version}")
+    if status.state == "ok" and status.fleet_contract_schema_version is None:
+        parts.append("fleet contract unknown")
+    elif status.fleet_contract_schema_version is not None:
+        parts.append(f"fleet contract schema v{status.fleet_contract_schema_version}")
     return ", ".join(parts)
 
 
@@ -520,14 +523,14 @@ def _version_skew(
         if isinstance(local_version, str) and remote != local_version:
             skew.append(f"{label} remote {remote} != local {local_version}")
     local_schema = local.get("fleet_contract_schema")
+    remote_schema = status.fleet_contract_schema_version
     if (
         isinstance(local_schema, int)
-        and status.capability_schema_version is not None
-        and status.capability_schema_version != local_schema
+        and remote_schema is not None
+        and remote_schema != local_schema
     ):
         skew.append(
-            "fleet contract "
-            f"remote schema v{status.capability_schema_version} != local v{local_schema}"
+            f"fleet contract remote schema v{remote_schema} != local v{local_schema}"
         )
     return skew
 

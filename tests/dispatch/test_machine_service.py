@@ -33,6 +33,7 @@ def _fleet_hello_payload(
     pin: str,
     *,
     gateway_package_version: str = "0.34.31",
+    fleet_contract_schema_version: int | None = 4,
 ) -> dict[str, Any]:
     """Serialized shape matching ``FleetHelloResponseWire`` from the gateway."""
     payload: dict[str, Any] = {
@@ -86,6 +87,8 @@ def _fleet_hello_payload(
             "error": None,
         },
     }
+    if fleet_contract_schema_version is not None:
+        payload["fleet_contract_schema_version"] = fleet_contract_schema_version
     return json.loads(json.dumps(payload))
 
 
@@ -379,6 +382,53 @@ def test_status_preserves_gateway_version_and_capability_schema(
     assert statuses[0].gateway_version.package_version == "0.34.31"
     assert statuses[0].service_versions == {}
     assert statuses[0].capability_schema_version == 1
+    assert statuses[0].fleet_contract_schema_version == 4
+
+
+def test_status_treats_missing_fleet_contract_schema_as_unknown(
+    isolated_dispatch: tuple[Path, Path],
+) -> None:
+    config_dir, credential_path = isolated_dispatch
+    pin = _pin()
+    (config_dir / "sase.yml").write_text(
+        "\n".join(
+            [
+                "dispatch:",
+                "  machines:",
+                "    alpha:",
+                "      provider: builtin@https",
+                "      endpoint: https://fleet.example.test",
+                "      credential_ref: fleet:alpha",
+                f"      installation_pin: {pin}",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    store = LocalCredentialStore(credential_path)
+    store.put(
+        CredentialRecord(
+            ref="fleet:alpha",
+            token="stored-token",
+            token_type="bearer",
+            provider_ref="builtin@https",
+            endpoint="https://fleet.example.test",
+            installation_id=pin,
+        )
+    )
+    fake_gateway = _FakeGateway(pin)
+    fake_gateway.hello_payload = _fleet_hello_payload(
+        pin,
+        fleet_contract_schema_version=None,
+    )
+
+    statuses = MachineService(
+        credential_store=store,
+        gateway_client=fake_gateway,  # type: ignore[arg-type]
+    ).status()
+
+    assert statuses[0].capability_schema_version == 1
+    assert statuses[0].fleet_contract_schema_version is None
 
 
 def test_add_machine_rejects_disabled_provider(

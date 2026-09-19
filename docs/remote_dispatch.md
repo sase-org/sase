@@ -320,9 +320,13 @@ after an install upgrade.
 
 `sase machine status TARGET` appends version details to each healthy hello. Normally
 that is `versions: sase-gateway X.Y.Z, …, fleet contract schema vN`; a gateway too old
-to report its own version shows `sase-gateway unknown`. When the gateway's version
-differs from the controller's installed `sase-core-rs`, or the fleet-contract schema
-versions differ, the line instead reads `version skew: …; restart target gateway`. That
-warning usually means the supervised gateway is still serving the pre-upgrade binary.
-With `-j/--json`, each status row carries the same facts as `gateway_version`,
-`service_versions`, `capability_schema_version`, and a `version_skew` list.
+to report its own version shows `sase-gateway unknown`, and a gateway too old to
+advertise a fleet-contract version shows `fleet contract unknown`. Capability-set schema
+(`capabilities.schema_version`) is independent of the fleet-data contract; matching
+`sase-core-rs` builds with capability v1 and fleet v4 are not skew. When the gateway's
+package version differs from the controller's installed `sase-core-rs`, or the
+advertised fleet-contract schema versions differ, the line instead reads
+`version skew: …; restart target gateway`. That warning usually means the supervised
+gateway is still serving the pre-upgrade binary. With `-j/--json`, each status row
+carries the same facts as `gateway_version`, `service_versions`,
+`capability_schema_version`, `fleet_contract_schema_version`, and a `version_skew` list.

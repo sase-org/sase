@@ -425,6 +425,7 @@ class MachineStatus:
     gateway_version: GatewayServiceVersion | None = None
     service_versions: Mapping[str, str] = field(default_factory=dict)
     capability_schema_version: int | None = None
+    fleet_contract_schema_version: int | None = None
     message: str = ""
 
     @property

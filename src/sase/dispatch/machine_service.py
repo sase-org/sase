@@ -581,6 +581,9 @@ def _status_from_hello(
         gateway_version=_gateway_version(payload.get("gateway_version")),
         service_versions=_service_versions(payload.get("service_versions")),
         capability_schema_version=_schema_version(capabilities),
+        fleet_contract_schema_version=_schema_version(
+            payload.get("fleet_contract_schema_version")
+        ),
         message="hello ok",
     )
 
@@ -650,9 +653,10 @@ def _gateway_version(value: object) -> GatewayServiceVersion | None:
 
 
 def _schema_version(value: object) -> int | None:
-    if not isinstance(value, Mapping):
-        return None
-    version = value.get("schema_version")
+    if isinstance(value, Mapping):
+        version = value.get("schema_version")
+    else:
+        version = value
     return (
         int(version)
         if isinstance(version, int) and not isinstance(version, bool)

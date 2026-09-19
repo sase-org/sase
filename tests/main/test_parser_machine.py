@@ -195,7 +195,7 @@ def test_machine_bootstrap_json_output_is_raw_bundle_only(
     assert captured.err == ""
 
 
-def test_machine_status_human_output_surfaces_version_skew(
+def test_machine_status_human_output_surfaces_package_version_skew(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     status = MachineStatus(
@@ -225,11 +225,43 @@ def test_machine_status_human_output_surfaces_version_skew(
     rendered = capsys.readouterr().out
     assert "apollo\tok\thello ok; version skew:" in rendered
     assert "sase-gateway remote 0.0.0 != local sase-core-rs" in rendered
-    assert "fleet contract remote schema v1" in rendered
+    assert "fleet contract remote schema" not in rendered
     assert "restart target gateway" in rendered
 
 
-def test_machine_status_json_includes_gateway_version_and_skew() -> None:
+def test_machine_status_same_build_capability_v1_fleet_v4_has_no_skew() -> None:
+    status = MachineStatus(
+        alias="apollo",
+        state="ok",
+        provider_ref="builtin@https",
+        endpoint="https://fleet.example.test",
+        gateway_version=GatewayServiceVersion(
+            service="sase-gateway",
+            package_version="0.34.63",
+        ),
+        capability_schema_version=1,
+        fleet_contract_schema_version=4,
+        message="hello ok",
+    )
+
+    row = _status_row(
+        status,
+        local={
+            "sase": "0.17.1+645",
+            "sase-core": "0.34.63",
+            "fleet_contract_schema": 4,
+        },
+    )
+
+    assert row["capability_schema_version"] == 1
+    assert row["fleet_contract_schema_version"] == 4
+    assert row["version_skew"] == []
+    assert row["message"] == (
+        "hello ok; versions: sase-gateway 0.34.63, fleet contract schema v4"
+    )
+
+
+def test_machine_status_json_includes_gateway_version_and_package_skew() -> None:
     status = MachineStatus(
         alias="apollo",
         state="ok",
@@ -240,6 +272,7 @@ def test_machine_status_json_includes_gateway_version_and_skew() -> None:
             package_version="0.34.9",
         ),
         capability_schema_version=1,
+        fleet_contract_schema_version=4,
         message="hello ok",
     )
 
@@ -258,11 +291,45 @@ def test_machine_status_json_includes_gateway_version_and_skew() -> None:
     }
     assert row["service_versions"] == {}
     assert row["capability_schema_version"] == 1
+    assert row["fleet_contract_schema_version"] == 4
     assert row["version_skew"] == [
         "sase-gateway remote 0.34.9 != local sase-core-rs 0.34.28",
-        "fleet contract remote schema v1 != local v4",
     ]
     assert "version skew:" in row["message"]
+    assert "fleet contract remote schema" not in row["message"]
+
+
+def test_machine_status_old_hello_reports_unknown_fleet_contract() -> None:
+    status = MachineStatus(
+        alias="apollo",
+        state="ok",
+        provider_ref="builtin@https",
+        endpoint="https://fleet.example.test",
+        gateway_version=GatewayServiceVersion(
+            service="sase-gateway",
+            package_version="0.34.63",
+        ),
+        capability_schema_version=1,
+        message="hello ok",
+    )
+
+    row = _status_row(
+        status,
+        local={
+            "sase-core": "0.34.63",
+            "fleet_contract_schema": 4,
+        },
+    )
+
+    assert row["gateway_version"] == {
+        "service": "sase-gateway",
+        "package_version": "0.34.63",
+    }
+    assert row["fleet_contract_schema_version"] is None
+    assert row["version_skew"] == []
+    assert row["message"] == (
+        "hello ok; versions: sase-gateway 0.34.63, fleet contract unknown"
+    )
 
 
 def test_machine_status_json_reports_unknown_gateway_version_for_old_hello() -> None:
@@ -285,6 +352,38 @@ def test_machine_status_json_reports_unknown_gateway_version_for_old_hello() -> 
     )
 
     assert row["gateway_version"] is None
+    assert row["capability_schema_version"] == 3
+    assert row["fleet_contract_schema_version"] is None
+    assert row["version_skew"] == []
+    assert row["message"] == (
+        "hello ok; versions: sase-gateway unknown, sase 0.17.1+628, "
+        "sase-core 0.34.9, fleet contract unknown"
+    )
+
+
+def test_machine_status_real_fleet_schema_mismatch_still_warns() -> None:
+    status = MachineStatus(
+        alias="apollo",
+        state="ok",
+        provider_ref="builtin@https",
+        endpoint="https://fleet.example.test",
+        gateway_version=GatewayServiceVersion(
+            service="sase-gateway",
+            package_version="0.34.63",
+        ),
+        capability_schema_version=1,
+        fleet_contract_schema_version=3,
+        message="hello ok",
+    )
+
+    row = _status_row(
+        status,
+        local={
+            "sase-core": "0.34.63",
+            "fleet_contract_schema": 4,
+        },
+    )
+
     assert row["version_skew"] == [
         "fleet contract remote schema v3 != local v4",
     ]
