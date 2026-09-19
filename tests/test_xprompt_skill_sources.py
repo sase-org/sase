@@ -260,6 +260,15 @@ def test_sase_final_skill_documents_typed_deferrals_not_refuse_action() -> None:
     assert not re.search(r"`refuse`[^.]+(?:decision|action)", text)
     assert not re.search(r"(?:decision|action)[^.]+`refuse`", text)
     assert "the only legal repository action is `commit`" in normalized
+    assert "Every dirty ACE or pager screenshot golden" in normalized
+    assert "belongs in that repository's commit" in normalized
+    assert "appears unrelated to your authored source work" in normalized
+    assert "Inspect unrelated golden updates" in normalized
+    assert "UNRELATED_SCREENSHOT_UPDATES=<reason>" in text
+    assert (
+        "No trailer is required when the screenshot changes are part of the work"
+        in (normalized)
+    )
     match = re.search(r"Legal reasons are ([^.]+)\.", text)
     assert match is not None
     assert tuple(re.findall(r"`([^`]+)`", match.group(1))) == FINALIZER_DEFERRAL_REASONS

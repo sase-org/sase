@@ -269,6 +269,15 @@ def test_sase_final_skill_documents_declaration_commands() -> None:
     assert "uncommitted work is lost work" in flat
     assert "does not need the user to ask" in flat
     assert "repository_evidence" in flat
+    assert "Every dirty ACE or pager screenshot golden" in flat
+    assert "belongs in that repository's commit" in flat
+    assert "appears unrelated to your authored source work" in flat
+    assert "Inspect unrelated golden updates" in flat
+    assert "UNRELATED_SCREENSHOT_UPDATES=<reason>" in body
+    assert (
+        "No trailer is required when the screenshot changes are part of the work"
+        in (flat)
+    )
     assert "protected_paths" in flat
     assert "foreign_work" in flat
     assert "unsafe_content" in flat
