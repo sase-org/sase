@@ -21,6 +21,7 @@ from textual.widgets.option_list import Option
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.models.agent import format_compact_duration
+from sase.core.agent_hold_pending import format_stored_capture
 from sase.core.time import get_timezone
 
 from .base import CopyModeForwardingMixin
@@ -295,6 +296,7 @@ def _hold_row_text(hold: Mapping[str, Any], *, now: datetime) -> Text:
         raw_selectors if isinstance(raw_selectors, Mapping) else {}
     )
     selectors_label = _selectors_label(selectors)
+    capture_label = format_stored_capture(hold)
     expiry_label = _expiry_label(hold.get("expires_at"), now=now)
 
     text = Text()
@@ -302,6 +304,7 @@ def _hold_row_text(hold: Mapping[str, Any], *, now: datetime) -> Text:
     text.append(f" ({kind})", style="dim")
     text.append(f"  {scope_label}", style="")
     text.append(f"  {selectors_label}", style="dim")
+    text.append(f"  {capture_label}", style="dim")
     text.append(f"  {expiry_label}", style="dim cyan")
     return text
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 
@@ -165,6 +167,47 @@ def test_show_json_outputs_raw_record(
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["armer"]["key"] == key
+    assert payload.get("capture") is None
+
+
+def test_list_and_show_render_stored_capture(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        "sase.core.agent_hold_facade._project_for_cwd", lambda: "scratch"
+    )
+    entries = [
+        SimpleNamespace(status="WAITING", artifacts_dir="/a/w1"),
+        SimpleNamespace(status="QUEUED", artifacts_dir="/a/q1"),
+        SimpleNamespace(status="RUNNING", artifacts_dir="/a/r1"),
+    ]
+    with patch(
+        "sase.integrations.agent_list_entries.agent_list_entries",
+        return_value=entries,
+    ):
+        assert cli_hold._handle_create(_create_args(pending=True, scope="host")) == 0
+    capsys.readouterr()
+    key = list_current_agent_holds()[0]["armer"]["key"]
+
+    assert cli_hold._handle_list(argparse.Namespace(json=False)) == 0
+    listed = capsys.readouterr().out
+    assert "CAPTURE" in listed
+
+    assert (
+        cli_hold._handle_show(argparse.Namespace(key=None, armer_key=key, json=False))
+        == 0
+    )
+    shown = capsys.readouterr().out
+    assert "Capture:" in shown
+    assert "1 waiting + 1 queued; skipped 1 running" in shown
+
+    assert cli_hold._handle_list(argparse.Namespace(json=True)) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload[0]["capture"] == {
+        "waiting_count": 1,
+        "queued_count": 1,
+        "skipped_running_count": 1,
+    }
 
 
 def test_release_removes_current_agents_own_hold_by_default(

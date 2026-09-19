@@ -19,6 +19,7 @@ from sase.core.agent_hold_facade import (
     current_armer_wire,
     find_agent_hold,
     format_pending_capture,
+    format_stored_capture,
     _hold_scope_wire,
     _hold_selectors_wire,
     list_current_agent_holds,
@@ -26,6 +27,7 @@ from sase.core.agent_hold_facade import (
     rebind_agent_hold,
     release_agent_hold,
     resolve_hold_ttl_seconds,
+    snapshot_active_agent_holds,
 )
 from sase.notifications.store import load_notifications
 
@@ -307,6 +309,11 @@ def test_arm_agent_hold_with_pending_captures_and_summarizes(
 
     assert result.capture is not None
     assert set(result.record["selectors"]["artifact_dirs"]) == {"/a/w1", "/a/q1"}
+    assert result.record["capture"] == {
+        "waiting_count": 1,
+        "queued_count": 1,
+        "skipped_running_count": 1,
+    }
 
     armer_key = result.record["armer"]["key"]
     notifications = load_notifications()
@@ -577,3 +584,166 @@ def test_launch_hold_liveness_prunes_once_done_json_present(tmp_path: Path) -> N
 
     done_marker.write_text("{}")
     assert active_agent_hold_records() == []
+
+
+def test_capture_pending_targets_excludes_armer_kin(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.core.agent_hold_facade._project_for_cwd", lambda: "scratch"
+    )
+    armer = current_armer_wire(env={}, pid_override=4321)
+    armer["kind"] = "agent"
+    armer["agent_name"] = "holder.worker"
+    armer["family"] = "holder.worker"
+    armer["clan"] = "builders"
+    armer["key"] = "agent:holder.worker"
+    entries = [
+        SimpleNamespace(
+            status="WAITING",
+            artifacts_dir="/a/kin",
+            name="holder.worker",
+            agent_family="holder.worker",
+            agent_clan="builders",
+            project="scratch",
+            timestamp="20260910120000",
+        ),
+        SimpleNamespace(
+            status="WAITING",
+            artifacts_dir="/a/w1",
+            name="target.agent--code",
+            agent_family="target.agent",
+            agent_clan="ops",
+            project="scratch",
+            timestamp="20260910120001",
+        ),
+        SimpleNamespace(
+            status="QUEUED",
+            artifacts_dir="/a/q1",
+            name="other.agent--code",
+            agent_family="other.agent",
+            agent_clan="ops",
+            project="scratch",
+            timestamp="20260910120002",
+        ),
+        SimpleNamespace(
+            status="RUNNING",
+            artifacts_dir="/a/r1",
+            name="running.agent--code",
+            agent_family="running.agent",
+            agent_clan="ops",
+            project="scratch",
+            timestamp="20260910120003",
+        ),
+    ]
+    with patch(
+        "sase.integrations.agent_list_entries.agent_list_entries",
+        return_value=entries,
+    ):
+        capture = _capture_pending_targets(
+            project="scratch", armer=armer, scope="project"
+        )
+
+    assert capture.waiting_count == 1
+    assert capture.queued_count == 1
+    assert capture.skipped_running_count == 1
+    assert set(capture.artifact_dirs) == {"/a/w1", "/a/q1"}
+
+
+def test_rebind_preserves_stored_capture_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.core.agent_hold_facade._project_for_cwd", lambda: "scratch"
+    )
+    entries = [
+        SimpleNamespace(status="WAITING", artifacts_dir="/a/w1"),
+        SimpleNamespace(status="QUEUED", artifacts_dir="/a/q1"),
+        SimpleNamespace(status="RUNNING", artifacts_dir="/a/r1"),
+    ]
+    with patch(
+        "sase.integrations.agent_list_entries.agent_list_entries",
+        return_value=entries,
+    ):
+        result = arm_agent_hold(pending=True, scope="host", ttl_seconds=60.0)
+    old_key = result.record["armer"]["key"]
+    new_armer = dict(result.record["armer"])
+    new_armer["pid"] = os.getpid()
+    rebound = rebind_agent_hold(old_key, new_armer)
+    assert rebound is not None
+    assert rebound["capture"] == result.record["capture"]
+    assert (
+        rebound["selectors"]["artifact_dirs"]
+        == result.record["selectors"]["artifact_dirs"]
+    )
+
+
+def test_legacy_hold_renders_capture_as_not_recorded() -> None:
+    assert format_stored_capture({"armer": {"key": "legacy"}}) == "capture not recorded"
+    assert (
+        format_stored_capture(
+            {
+                "capture": {
+                    "waiting_count": 2,
+                    "queued_count": 1,
+                    "skipped_running_count": 4,
+                }
+            }
+        )
+        == "2 waiting + 1 queued; skipped 4 running"
+    )
+
+
+def test_expired_hold_notifies_once_across_repeated_reads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.core.agent_hold_facade._project_for_cwd", lambda: "scratch"
+    )
+    now = 1_800_000_000.0
+    result = arm_agent_hold(future=True, scope="host", ttl_seconds=10.0, now=now)
+    armer_key = result.record["armer"]["key"]
+    holds = list_current_agent_holds(now=now + 10.0)
+    assert holds == []
+    notifications = [
+        n
+        for n in load_notifications()
+        if n.dedup_key == f"agent_hold:released:{armer_key}"
+    ]
+    assert len(notifications) == 1
+    assert notifications[0].notes[-1] == "Released automatically: hold expired"
+    list_current_agent_holds(now=now + 11.0)
+    notifications = [
+        n
+        for n in load_notifications()
+        if n.dedup_key == f"agent_hold:released:{armer_key}"
+    ]
+    assert len(notifications) == 1
+
+
+def test_malformed_store_does_not_notify_or_block_admission(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    store = tmp_path / ".sase" / "agent_holds.json"
+    store.parent.mkdir(parents=True, exist_ok=True)
+    store.write_text("{not-json", encoding="utf-8")
+    assert active_agent_hold_records() == []
+    assert load_notifications() == []
+
+
+def test_snapshot_returns_pruned_without_notifying(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "sase.core.agent_hold_facade._project_for_cwd", lambda: "scratch"
+    )
+    now = 1_800_000_000.0
+    arm_agent_hold(future=True, scope="host", ttl_seconds=5.0, now=now)
+    before_notify = load_notifications()
+    _before, after, pruned = snapshot_active_agent_holds(now=now + 5.0)
+    after_notify = load_notifications()
+    assert after == []
+    assert len(pruned) == 1
+    assert pruned[0]["reason"] == "expiry"
+    assert len(after_notify) == len(before_notify)

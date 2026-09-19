@@ -233,7 +233,7 @@ def test_pending_capture_runs_outside_runner_slot_lock(tmp_path: Path) -> None:
             holder_ready.set()
             release_holder.wait(timeout=5)
 
-    def fake_capture(*, project: str | None) -> PendingCapture:
+    def fake_capture(*, project: str | None, **_kwargs: object) -> PendingCapture:
         del project
         assert holder_ready.is_set()
         assert not release_holder.is_set()
@@ -323,11 +323,12 @@ def test_snapshot_active_agent_holds_does_not_notify(tmp_path: Path) -> None:
             ttl_seconds=60.0,
         )
         before_notify = load_notifications()
-        before, after = snapshot_active_agent_holds()
+        before, after, pruned = snapshot_active_agent_holds()
         after_notify = load_notifications()
 
     assert before
     assert after
+    assert pruned == []
     assert [hold["armer"]["key"] for hold in after] == ["cli:snap"]
     assert len(after_notify) == len(before_notify)
 

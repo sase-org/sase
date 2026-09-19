@@ -101,33 +101,32 @@ def upsert_hold_released_notification(
         LOGGER.warning("agent hold released notification failed for %s: %s", key, exc)
 
 
-def notify_liveness_dropped_holds(
-    before: Sequence[Mapping[str, Any]],
-    after: Sequence[Mapping[str, Any]],
+def notify_hold_prune_outcomes(
+    pruned: Sequence[Mapping[str, Any]],
     *,
     now: datetime | float | None,
 ) -> None:
-    """Notify for holds present in *before* but pruned by liveness in *after*.
+    """Notify for validated store-boundary prune outcomes.
 
-    A hold missing from *before* too (pruned by TTL expiry on the very
-    first read) never reaches here, so a routine expiry stays silent while
-    an early, armer-death-triggered release still surfaces.
+    Deduped by armer key for the hold's lifetime. Best-effort: a notification
+    failure never becomes an admission failure.
     """
-    dropped_keys = {
-        mapping_payload(hold.get("armer")).get("key") for hold in before
-    } - {mapping_payload(hold.get("armer")).get("key") for hold in after}
-    if not dropped_keys:
-        return
-    for hold in before:
-        armer = mapping_payload(hold.get("armer"))
-        key = armer.get("key")
-        if key not in dropped_keys:
+    for item in pruned:
+        record = item.get("record")
+        if not isinstance(record, Mapping):
             continue
-        upsert_hold_released_notification(
-            armer,
-            reason="Released automatically: armer no longer alive",
-            now=now,
-        )
+        try:
+            armer = mapping_payload(record.get("armer"))
+        except RuntimeError:
+            continue
+        reason = item.get("reason")
+        if reason == "expiry":
+            text = "Released automatically: hold expired"
+        elif reason == "dead_armer":
+            text = "Released automatically: armer no longer alive"
+        else:
+            continue
+        upsert_hold_released_notification(armer, reason=text, now=now)
 
 
 def _iso_timestamp(value: datetime | float | None) -> str:

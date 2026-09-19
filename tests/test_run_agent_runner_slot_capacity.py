@@ -359,7 +359,7 @@ def test_active_holds_are_threaded_into_locked_admission(
         patch.object(
             run_agent_wait_slots,
             "snapshot_active_agent_holds",
-            return_value=([], [hold]),
+            return_value=([], [hold], []),
         ) as active_holds,
         patch.object(
             run_agent_wait_slots,
@@ -446,7 +446,7 @@ def test_hold_barrier_blocker_writes_held_by_onto_the_waiting_marker(
         patch.object(
             run_agent_wait_slots,
             "snapshot_active_agent_holds",
-            return_value=([], []),
+            return_value=([], [], []),
         ),
         patch.object(
             run_agent_wait_slots,
@@ -534,7 +534,7 @@ def test_hold_deadlock_upserts_a_deduped_notification(tmp_path: Path) -> None:
         patch.object(
             run_agent_wait_slots,
             "snapshot_active_agent_holds",
-            return_value=([], [hold]),
+            return_value=([], [hold], []),
         ),
         patch.object(
             run_agent_wait_slots,

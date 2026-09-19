@@ -69,6 +69,43 @@ def validated_holds(snapshot: Mapping[str, Any]) -> list[dict[str, Any]]:
     return holds
 
 
+def pruned_hold_outcomes(snapshot: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Return validated prune outcomes from a list snapshot, or an empty list.
+
+    Malformed prune rows are dropped rather than turned into notifications or
+    admission failures. A missing ``pruned`` field is the defaultable empty
+    result for older bindings.
+    """
+    raw = snapshot.get("pruned")
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        LOGGER.warning("agent hold snapshot pruned field is not a list")
+        return []
+    outcomes: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, Mapping):
+            continue
+        reason = item.get("reason")
+        if reason not in {"expiry", "dead_armer"}:
+            continue
+        record = item.get("record")
+        if not isinstance(record, Mapping):
+            continue
+        try:
+            _validate_hold_record(record)
+        except RuntimeError:
+            continue
+        outcomes.append(
+            {
+                "schema_version": item.get("schema_version"),
+                "reason": reason,
+                "record": dict(record),
+            }
+        )
+    return outcomes
+
+
 def _validate_hold_record(hold: Mapping[str, Any]) -> None:
     armer = mapping_payload(hold.get("armer"))
     scope = mapping_payload(hold.get("scope"))

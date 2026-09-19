@@ -29,13 +29,14 @@ from sase.core.agent_hold_liveness import (
     proc_identity_and_terminal,
 )
 from sase.core.agent_hold_notifications import (
-    notify_liveness_dropped_holds,
+    notify_hold_prune_outcomes,
     upsert_hold_armed_notification,
     upsert_hold_released_notification,
 )
 from sase.core.agent_hold_pending import (
     capture_pending_targets as _capture_pending_targets,
     format_pending_capture,
+    format_stored_capture,
     preview_pending_capture,
 )
 from sase.core.agent_hold_store import (
@@ -43,6 +44,7 @@ from sase.core.agent_hold_store import (
     epoch_seconds,
     list_holds,
     mapping_payload,
+    pruned_hold_outcomes,
     read_json_mapping,
     release_agent_hold_key,
     validated_holds,
@@ -64,10 +66,10 @@ def snapshot_active_agent_holds(
     records: Sequence[AgentArtifactRecordWire] | None = None,
     *,
     now: datetime | float | None = None,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Return ``(before, after)`` active holds without sending notifications.
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return ``(before, after, pruned)`` without sending notifications.
 
-    Fail-open: a broken store yields two empty lists. Callers that already
+    Fail-open: a broken store yields three empty lists. Callers that already
     hold ``runner_slots.lock`` must notify only after releasing it.
     """
     try:
@@ -76,7 +78,7 @@ def snapshot_active_agent_holds(
         )
     except Exception as exc:  # noqa: BLE001 - holds fail open by design.
         LOGGER.warning("agent hold snapshot failed open: %s", exc)
-        return [], []
+        return [], [], []
 
 
 def active_agent_hold_records(
@@ -86,9 +88,9 @@ def active_agent_hold_records(
     notify: bool = True,
 ) -> list[dict[str, Any]]:
     """Return validated active holds, or an empty list on hold-store failures."""
-    before, after = snapshot_active_agent_holds(records, now=now)
+    _before, after, pruned = snapshot_active_agent_holds(records, now=now)
     if notify:
-        notify_liveness_dropped_holds(before, after, now=now)
+        notify_hold_prune_outcomes(pruned, now=now)
     return after
 
 
@@ -103,10 +105,10 @@ def list_current_agent_holds(
     command should report a broken hold store clearly instead of silently
     showing an empty list.
     """
-    before, after = _list_and_reconcile_holds(
+    _before, after, pruned = _list_and_reconcile_holds(
         records or (), allow_index_scan=records is None, now=now
     )
-    notify_liveness_dropped_holds(before, after, now=now)
+    notify_hold_prune_outcomes(pruned, now=now)
     return after
 
 
@@ -115,7 +117,9 @@ def list_agent_holds_without_liveness(
     now: datetime | float | None = None,
 ) -> list[dict[str, Any]]:
     """Return validated holds without applying per-armer liveness facts."""
-    return validated_holds(list_holds({}, now=now))
+    snapshot = list_holds({}, now=now)
+    notify_hold_prune_outcomes(pruned_hold_outcomes(snapshot), now=now)
+    return validated_holds(snapshot)
 
 
 def find_agent_hold(
@@ -149,23 +153,26 @@ def _list_and_reconcile_holds(
     *,
     allow_index_scan: bool,
     now: datetime | float | None,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    """Return ``(before, after)`` validated holds across a liveness pass.
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return ``(before, after, pruned)`` across a liveness pass.
 
     ``before`` has expired/malformed rows pruned but no per-armer liveness
     facts applied; ``after`` additionally prunes armers the current
-    liveness facts say are dead. Both raise on genuine store failures --
-    callers decide whether to fail open.
+    liveness facts say are dead. ``pruned`` is the versioned store-boundary
+    result (expiry versus dead armer). Both list calls raise on genuine
+    store failures -- callers decide whether to fail open.
     """
     snapshot = list_holds({}, now=now)
     before = validated_holds(snapshot)
+    pruned = pruned_hold_outcomes(snapshot)
     if not before:
-        return [], []
+        return [], [], pruned
     liveness = liveness_facts_for_holds(
         before, records, allow_index_scan=allow_index_scan, now=now
     )
     snapshot = list_holds(liveness, now=now)
-    return before, validated_holds(snapshot)
+    pruned.extend(pruned_hold_outcomes(snapshot))
+    return before, validated_holds(snapshot), pruned
 
 
 def release_proc_agent_holds(
@@ -400,7 +407,9 @@ def arm_agent_hold(
     artifact_dirs: tuple[str, ...] = ()
     if pending:
         capture = _capture_pending_targets(
-            project=armer_wire["project"] if scope == "project" else None
+            project=armer_wire["project"] if scope == "project" else None,
+            armer=armer_wire,
+            scope=scope,
         )
         artifact_dirs = capture.artifact_dirs
     if selectors is not None:
@@ -417,6 +426,13 @@ def arm_agent_hold(
             future=future,
             artifact_dirs=artifact_dirs,
         )
+    capture_wire = None
+    if capture is not None:
+        capture_wire = {
+            "waiting_count": capture.waiting_count,
+            "queued_count": capture.queued_count,
+            "skipped_running_count": capture.skipped_running_count,
+        }
     arm = require_rust_binding("agent_hold_arm_relative")
     with runner_slot_admission_lock():
         record = dict(
@@ -428,6 +444,7 @@ def arm_agent_hold(
                 float(ttl_seconds),
                 {},
                 epoch_seconds(now),
+                capture_wire,
             )
         )
     upsert_hold_armed_notification(record, capture, now=now)
@@ -537,6 +554,7 @@ __all__ = [
     "current_armer_wire",
     "find_agent_hold",
     "format_pending_capture",
+    "format_stored_capture",
     "list_agent_holds_without_liveness",
     "list_current_agent_holds",
     "preview_pending_capture",

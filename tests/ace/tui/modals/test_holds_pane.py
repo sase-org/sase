@@ -33,14 +33,18 @@ def _hold(
     project: str = "proj",
     names: list[str] | None = None,
     future: bool = False,
+    capture: dict[str, int] | None = None,
     expires_at: float | None = 4_102_444_800.0,  # far future by default
 ) -> dict[str, Any]:
-    return {
+    record: dict[str, Any] = {
         "armer": {"kind": kind, "key": key, "display": display},
         "scope": {"kind": scope_kind, "project": project},
         "selectors": {"names": names or [], "future": future},
         "expires_at": expires_at,
     }
+    if capture is not None:
+        record["capture"] = capture
+    return record
 
 
 @asynccontextmanager
@@ -56,15 +60,26 @@ async def _mounted_pane(monkeypatch: pytest.MonkeyPatch, holds: list[dict[str, A
 async def test_loads_and_renders_active_holds(monkeypatch: pytest.MonkeyPatch) -> None:
     holds = [
         _hold("agent:hold-a", display="hold-a"),
-        _hold("agent:hold-b", display="hold-b", names=["x"]),
+        _hold(
+            "agent:hold-b",
+            display="hold-b",
+            names=["x"],
+            capture={
+                "waiting_count": 2,
+                "queued_count": 1,
+                "skipped_running_count": 3,
+            },
+        ),
     ]
     async with _mounted_pane(monkeypatch, holds) as (_pilot, pane):
         option_list = pane.query_one("#holds-pane-list", OptionList)
         assert option_list.option_count == 2
         rows = [option_list.get_option_at_index(i).prompt.plain for i in range(2)]
         assert "hold-a" in rows[0]
+        assert "capture not recorded" in rows[0]
         assert "hold-b" in rows[1]
         assert "names=x" in rows[1]
+        assert "2 waiting + 1 queued; skipped 3 running" in rows[1]
         assert "2 active" in pane._header_text().plain
 
 

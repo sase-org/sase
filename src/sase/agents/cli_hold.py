@@ -20,6 +20,7 @@ from sase.core.agent_hold_facade import (
     AgentHoldArmResult,
     current_armer_wire,
     find_agent_hold,
+    format_stored_capture,
     list_current_agent_holds,
     release_agent_hold,
     resolve_hold_ttl_seconds,
@@ -307,6 +308,7 @@ def _print_holds_table(holds: Sequence[Mapping[str, Any]]) -> None:
     table.add_column("KIND")
     table.add_column("SCOPE")
     table.add_column("SELECTORS")
+    table.add_column("CAPTURE")
     table.add_column("EXPIRES")
 
     for hold in holds:
@@ -317,6 +319,7 @@ def _print_holds_table(holds: Sequence[Mapping[str, Any]]) -> None:
             str(armer.get("kind", "-")),
             _scope_label(hold.get("scope")),
             _selectors_label(hold.get("selectors")),
+            format_stored_capture(hold),
             _format_epoch_local(hold.get("expires_at")),
         )
 
@@ -353,6 +356,8 @@ def _print_hold_detail(hold: Mapping[str, Any]) -> None:
     body.append(f"{_format_epoch_local(hold.get('created_at'))}\n")
     body.append("Expires: ", style="bold")
     body.append(f"{_format_epoch_local(hold.get('expires_at'))}\n")
+    body.append("Capture: ", style="bold")
+    body.append(f"{format_stored_capture(hold)}\n")
 
     body.append("\nSelectors:\n", style="bold")
     any_selector = False

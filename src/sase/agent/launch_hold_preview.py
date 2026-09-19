@@ -37,9 +37,11 @@ def hold_confirmation_body(prompt: str, *, project: str | None = None) -> str | 
 
     threshold = get_agent_hold_confirm_capture_threshold()
     descriptions: list[str] = []
-    for label, hold, hold_project in _iter_prompt_holds(prompt, project=project):
-        if _hold_is_broad(hold, project=hold_project, threshold=threshold):
-            descriptions.append(_broad_hold_description(label, hold, hold_project))
+    for label, hold, hold_project, armer in _iter_prompt_holds(prompt, project=project):
+        if _hold_is_broad(hold, project=hold_project, threshold=threshold, armer=armer):
+            descriptions.append(
+                _broad_hold_description(label, hold, hold_project, armer=armer)
+            )
     if not descriptions:
         return None
     return "\n\n".join(descriptions)
@@ -47,7 +49,7 @@ def hold_confirmation_body(prompt: str, *, project: str | None = None) -> str | 
 
 def _iter_prompt_holds(
     prompt: str, *, project: str | None
-) -> list[tuple[str, Mapping[str, Any], str | None]]:
+) -> list[tuple[str, Mapping[str, Any], str | None, Mapping[str, Any] | None]]:
     """Enumerate ``(label, hold_fields, project)`` for every unit in *prompt*."""
     from sase.xprompt.code_value import typed_launch_units_enabled
 
@@ -58,7 +60,7 @@ def _iter_prompt_holds(
 
 def _typed_prompt_holds(
     prompt: str,
-) -> list[tuple[str, Mapping[str, Any], str | None]]:
+) -> list[tuple[str, Mapping[str, Any], str | None, Mapping[str, Any] | None]]:
     from sase.agent.launch_request_planning import (
         expand_prompt_for_typed_launch,
         prepare_typed_launch_plan,
@@ -76,7 +78,9 @@ def _typed_prompt_holds(
         return []
     project = typed_plan.get("selected_project")
     project = project if isinstance(project, str) else None
-    entries: list[tuple[str, Mapping[str, Any], str | None]] = []
+    entries: list[
+        tuple[str, Mapping[str, Any], str | None, Mapping[str, Any] | None]
+    ] = []
     for unit in typed_plan.get("units") or []:
         if not isinstance(unit, Mapping):
             continue
@@ -86,7 +90,14 @@ def _typed_prompt_holds(
         hold = payload.get("hold")
         if not isinstance(hold, Mapping) or not hold:
             continue
-        entries.append((_typed_unit_hold_label(unit, payload), hold, project))
+        entries.append(
+            (
+                _typed_unit_hold_label(unit, payload),
+                hold,
+                project,
+                _armer_from_typed_payload(payload, project),
+            )
+        )
     return entries
 
 
@@ -101,11 +112,13 @@ def _typed_unit_hold_label(unit: Mapping[str, Any], payload: Mapping[str, Any]) 
 
 def _non_typed_prompt_holds(
     prompt: str, *, project: str | None
-) -> list[tuple[str, Mapping[str, Any], str | None]]:
+) -> list[tuple[str, Mapping[str, Any], str | None, Mapping[str, Any] | None]]:
     from sase.agent.launch_guard import plan_launch_units
     from sase.xprompt.directives import extract_prompt_directives
 
-    entries: list[tuple[str, Mapping[str, Any], str | None]] = []
+    entries: list[
+        tuple[str, Mapping[str, Any], str | None, Mapping[str, Any] | None]
+    ] = []
     try:
         units = plan_launch_units(prompt)
     except Exception:  # noqa: BLE001 - preflight is best-effort.
@@ -119,12 +132,47 @@ def _non_typed_prompt_holds(
             if not directives.hold:
                 continue
             label = f"agent {unit.index} of {unit.total}"
-            entries.append((label, dict(directives.hold), project))
+            entries.append((label, dict(directives.hold), project, None))
     return entries
 
 
+def _armer_from_typed_payload(
+    payload: Mapping[str, Any], project: str | None
+) -> dict[str, Any] | None:
+    if payload.get("kind") == "proc":
+        name = payload.get("shell_name") or payload.get("label")
+        if not isinstance(name, str) or not name:
+            return None
+        return {
+            "kind": "proc",
+            "key": f"proc:{name}",
+            "display": name,
+            "project": project or "unknown",
+            "proc_id": name,
+        }
+    identity = payload.get("identity")
+    if not isinstance(identity, str) or not identity:
+        return None
+    family = payload.get("family_attach_parent")
+    clan = payload.get("clan")
+    return {
+        "kind": "agent",
+        "key": f"agent:{identity}",
+        "display": identity,
+        "project": project or "unknown",
+        "agent_name": identity,
+        "family": family if isinstance(family, str) and family else identity,
+        "clan": clan if isinstance(clan, str) and clan else None,
+        "pid": 1,
+    }
+
+
 def _hold_is_broad(
-    hold: Mapping[str, Any], *, project: str | None, threshold: int
+    hold: Mapping[str, Any],
+    *,
+    project: str | None,
+    threshold: int,
+    armer: Mapping[str, Any] | None = None,
 ) -> bool:
     scope = str(hold.get("scope") or "project")
     if hold.get("future") and scope == "host":
@@ -135,14 +183,18 @@ def _hold_is_broad(
         return False
     from sase.core.agent_hold_facade import preview_pending_capture
 
-    capture = preview_pending_capture(scope, project=project)
+    capture = preview_pending_capture(scope, project=project, armer=armer)
     if capture is None:
         return False
     return (capture.waiting_count + capture.queued_count) > threshold
 
 
 def _broad_hold_description(
-    label: str, hold: Mapping[str, Any], project: str | None
+    label: str,
+    hold: Mapping[str, Any],
+    project: str | None,
+    *,
+    armer: Mapping[str, Any] | None = None,
 ) -> str:
     from sase.core.agent_hold_facade import (
         format_pending_capture,
@@ -155,7 +207,7 @@ def _broad_hold_description(
     lines = [f"{label}: `{directive}`"]
     if hold.get("pending"):
         capture_text = format_pending_capture(
-            preview_pending_capture(scope, project=project)
+            preview_pending_capture(scope, project=project, armer=armer)
         )
         if capture_text:
             lines.append(capture_text)

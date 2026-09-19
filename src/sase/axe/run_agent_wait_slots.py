@@ -65,7 +65,7 @@ from sase.core.agent_scan_wire import (
     AgentArtifactRecordWire,
     AgentArtifactScanOptionsWire,
 )
-from sase.core.agent_hold_notifications import notify_liveness_dropped_holds
+from sase.core.agent_hold_notifications import notify_hold_prune_outcomes
 from sase.core.paths import sase_projects_dir
 from sase.core.runner_slots import (
     DEFAULT_WAIT_PRIORITY,
@@ -177,8 +177,8 @@ def _try_claim_runner_slot(
     publication. Lifecycle and deadlock notifications are sent after the
     lock is released.
     """
-    holds_before: list[dict[str, Any]] = []
     holds_after: list[dict[str, Any]] = []
+    holds_pruned: list[dict[str, Any]] = []
     hold_now: datetime | None = None
     deadlocks: list[tuple[str, str | None, str, AgentArtifactRecordWire]] = []
     with runner_slot_admission_lock():
@@ -259,7 +259,9 @@ def _try_claim_runner_slot(
             raise queue_weight_error
         candidate = enrich_candidate_from_records(candidate, records)
         hold_now = datetime.now(UTC)
-        holds_before, holds_after = snapshot_active_agent_holds(records, now=hold_now)
+        _, holds_after, holds_pruned = snapshot_active_agent_holds(
+            records, now=hold_now
+        )
         is_live = record_liveness_probe()
         snapshot = runner_capacity_snapshot(
             records,
@@ -352,7 +354,7 @@ def _try_claim_runner_slot(
                 )
             result = (None, parked)
     if hold_now is not None:
-        notify_liveness_dropped_holds(holds_before, holds_after, now=hold_now)
+        notify_hold_prune_outcomes(holds_pruned, now=hold_now)
     for artifacts, agent_name, held_by, armer_record in deadlocks:
         _notify_hold_deadlock(
             artifacts_dir=artifacts,
