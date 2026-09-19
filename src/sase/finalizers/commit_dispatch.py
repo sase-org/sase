@@ -55,6 +55,7 @@ from sase.finalizers.commit_repair import (
     resolve_commit_conflict,
     stitch_attempt_fingerprint,
     stitch_attempt_input_fields,
+    stitch_failure_message,
 )
 from sase.finalizers.commit_types import (
     BuiltinCommitFinalizerError,
@@ -260,16 +261,16 @@ def dispatch_commit_decisions(
             assigned_bead_id=assigned_bead_id,
         )
         attempt_fingerprint = stitch_attempt_fingerprint(attempt_fields)
-        message_text = identical_attempt_message(
+        identical_message = identical_attempt_message(
             repo, context, instance_id, attempt_fingerprint
         )
-        if message_text is not None:
+        if identical_message is not None:
             raise BuiltinCommitFinalizerError(
-                message_text,
+                identical_message,
                 result=failed_result(
                     instance_id,
                     "stitch_retry_skipped_identical_inputs",
-                    message_text,
+                    identical_message,
                     attempts=[
                         FinalizerAttemptWire(
                             attempt=preflight_attempt(ledger),
