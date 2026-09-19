@@ -233,6 +233,7 @@ def enrich_candidate_from_records(
                 ),
                 "clan": None if meta is None else meta.agent_clan,
                 "tribe": None if meta is None else (meta.tribe or meta.clan_tribe),
+                "tribes": [],
                 "created_at": candidate_created_at_from_timestamp(record.timestamp),
                 "has_agent_meta": meta is not None,
                 "has_done_marker": record.has_done_marker,
@@ -252,6 +253,22 @@ def enrich_candidate_from_records(
                 ),
             }
         )
+        from sase.core.agent_hold_identity import (
+            apply_hold_identity_to_capacity_records,
+            attach_hold_identity_scratch_from_meta,
+        )
+
+        attach_hold_identity_scratch_from_meta(
+            enriched,
+            cl_name=None if meta is None else meta.cl_name,
+            clan_generation=None if meta is None else meta.agent_clan_generation,
+            parent_timestamp=None if meta is None else meta.parent_timestamp,
+            timestamp=record.timestamp,
+            meta_tribe=None if meta is None else meta.tribe,
+            clan_tribe=None if meta is None else meta.clan_tribe,
+            clan=None if meta is None else meta.agent_clan,
+        )
+        apply_hold_identity_to_capacity_records([enriched], scan_records=records)
         return enriched
     return candidate
 

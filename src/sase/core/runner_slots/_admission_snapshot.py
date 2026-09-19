@@ -8,6 +8,11 @@ from typing import Any
 
 from sase.core.agent_scan_wire import AgentArtifactRecordWire
 
+from sase.core.agent_hold_identity import (
+    apply_hold_identity_to_capacity_records,
+    strip_hold_identity_scratch_fields,
+)
+
 from ._admission_capacity_records import (
     capacity_record_from_scan,
     with_queue_capacity_alias,
@@ -64,6 +69,7 @@ def _supports_legacy_capacity_fallback(message: str) -> bool:
             "workflow",
             "clan",
             "tribe",
+            "tribes",
             "created_at",
         )
     )
@@ -73,7 +79,7 @@ def _drop_queue_capacity_alias(record: Mapping[str, Any]) -> dict[str, Any]:
     item = with_queue_capacity_alias(record)
     item.pop("queue_capacity", None)
     item.pop("queue_capacity_explicit", None)
-    for key in ("agent_name", "workflow", "clan", "tribe", "created_at"):
+    for key in ("agent_name", "workflow", "clan", "tribe", "tribes", "created_at"):
         item.pop(key, None)
     return item
 
@@ -98,16 +104,28 @@ def runner_capacity_snapshot(
     values supplied here -- a not-yet-admitted record's stale on-disk
     ``run_started_at``/``queue_weight`` can never grant itself a claim.
     """
+    scan_records = list(records)
     capacity_records = [
-        capacity_record_from_scan(record, is_live) for record in records
+        capacity_record_from_scan(record, is_live) for record in scan_records
     ]
+    candidate_record = (
+        None if candidate is None else with_queue_capacity_alias(candidate)
+    )
+    identity_records = [
+        *capacity_records,
+        *([] if candidate_record is None else [candidate_record]),
+    ]
+    apply_hold_identity_to_capacity_records(
+        identity_records,
+        scan_records=scan_records,
+    )
     return runner_capacity_snapshot_from_capacity_records(
         capacity_records,
         effective_limit=effective_limit,
         now=now,
         deference_seconds_per_step=deference_seconds_per_step,
         deference_max_seconds=deference_max_seconds,
-        candidate=candidate,
+        candidate=candidate_record,
         active_holds=active_holds,
     )
 
@@ -123,9 +141,14 @@ def runner_capacity_snapshot_from_capacity_records(
     active_holds: Iterable[Mapping[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Return the Rust capacity snapshot for already-projected record dicts."""
-    records_list = [with_queue_capacity_alias(record) for record in records]
+    records_list = [
+        strip_hold_identity_scratch_fields(with_queue_capacity_alias(record))
+        for record in records
+    ]
     candidate_record = (
-        None if candidate is None else with_queue_capacity_alias(candidate)
+        None
+        if candidate is None
+        else strip_hold_identity_scratch_fields(with_queue_capacity_alias(candidate))
     )
     holds_list = [dict(hold) for hold in active_holds or ()]
     request = {

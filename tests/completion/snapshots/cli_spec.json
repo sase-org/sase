@@ -767,7 +767,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "745801e455b6ac12",
+                "description_digest": "59a1f3076a06081d",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "create",
@@ -877,7 +877,16 @@
                   "hold",
                   "create"
                 ],
-                "positionals": [],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "selectors",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "SELECTOR",
+                    "nargs": "*"
+                  }
+                ],
                 "subcommands": []
               },
               {
@@ -924,7 +933,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "9cfd76eca950d59b",
+                "description_digest": "ddd91dc8927b9f52",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "release",
@@ -959,13 +968,22 @@
                   "hold",
                   "release"
                 ],
-                "positionals": [],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "armer_key",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "ARMER_KEY",
+                    "nargs": "?"
+                  }
+                ],
                 "subcommands": []
               },
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "d516c3096c437ece",
+                "description_digest": "f629c1a7afa29121",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "run",
@@ -1090,7 +1108,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "5ced353ed4fc0cf0",
+                "description_digest": "b16996baccbb1847",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "show",
@@ -1137,7 +1155,16 @@
                   "hold",
                   "show"
                 ],
-                "positionals": [],
+                "positionals": [
+                  {
+                    "choices": null,
+                    "dest": "armer_key",
+                    "is_remainder": false,
+                    "kind": null,
+                    "metavar": "ARMER_KEY",
+                    "nargs": "?"
+                  }
+                ],
                 "subcommands": []
               }
             ]

@@ -22,6 +22,7 @@ def _create_args(**overrides: object) -> argparse.Namespace:
         "names": [],
         "tribes": [],
         "hoods": [],
+        "selectors": [],
         "future": False,
         "pending": False,
         "scope": "project",
@@ -50,7 +51,7 @@ def test_create_requires_at_least_one_selector_flag(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert cli_hold._handle_create(_create_args()) == 2
-    assert "at least one of -n/-t/-H/-f/-p" in capsys.readouterr().err
+    assert "at least one selector is required" in capsys.readouterr().err
 
 
 def test_create_rejects_ttl_above_configured_maximum(
@@ -77,6 +78,24 @@ def test_create_rejects_a_kin_selector_naming_the_armers_own_identity(
 
     assert exit_code == 1
     assert "sase agent hold create:" in capsys.readouterr().err
+
+
+def test_create_positional_selectors_arm_a_family_hold(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        "sase.core.agent_hold_facade._project_for_cwd", lambda: "scratch"
+    )
+    exit_code = cli_hold._handle_create(
+        _create_args(selectors=["team", "@ops"], scope="host")
+    )
+    assert exit_code == 0
+    assert "Armed hold" in capsys.readouterr().out
+    holds = list_current_agent_holds()
+    assert len(holds) == 1
+    assert holds[0]["selectors"]["names"] == ["team"]
+    assert holds[0]["selectors"]["families"] == ["team"]
+    assert "ops" in holds[0]["selectors"]["tribes"]
 
 
 def test_create_arms_a_hold_end_to_end(
@@ -114,9 +133,19 @@ def test_list_json_outputs_current_holds(
 def test_show_unknown_key_exits_with_error(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    exit_code = cli_hold._handle_show(argparse.Namespace(key="nope", json=False))
+    exit_code = cli_hold._handle_show(
+        argparse.Namespace(key="nope", armer_key=None, json=False)
+    )
     assert exit_code == 2
     assert "no active hold for nope" in capsys.readouterr().err
+
+
+def test_show_requires_armer_key(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = cli_hold._handle_show(
+        argparse.Namespace(key=None, armer_key=None, json=False)
+    )
+    assert exit_code == 2
+    assert "ARMER_KEY is required" in capsys.readouterr().err
 
 
 def test_show_json_outputs_raw_record(
@@ -130,7 +159,9 @@ def test_show_json_outputs_raw_record(
     key = list_current_agent_holds()[0]["armer"]["key"]
     capsys.readouterr()
 
-    exit_code = cli_hold._handle_show(argparse.Namespace(key=key, json=True))
+    exit_code = cli_hold._handle_show(
+        argparse.Namespace(key=None, armer_key=key, json=True)
+    )
     assert exit_code == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["armer"]["key"] == key
@@ -145,13 +176,15 @@ def test_release_removes_current_agents_own_hold_by_default(
     cli_hold._handle_create(_create_args(future=True, scope="host"))
     capsys.readouterr()
 
-    exit_code = cli_hold._handle_release(argparse.Namespace(key=None))
+    exit_code = cli_hold._handle_release(argparse.Namespace(key=None, armer_key=None))
     assert exit_code == 0
     assert list_current_agent_holds() == []
 
 
 def test_release_reports_no_active_hold(capsys: pytest.CaptureFixture[str]) -> None:
-    exit_code = cli_hold._handle_release(argparse.Namespace(key="agent:missing"))
+    exit_code = cli_hold._handle_release(
+        argparse.Namespace(key="agent:missing", armer_key=None)
+    )
     assert exit_code == 1
     assert "no active hold" in capsys.readouterr().err
 

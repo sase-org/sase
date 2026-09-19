@@ -245,12 +245,13 @@ def _try_claim_runner_slot(
                 agent_name=_agent_meta_str(agent_meta, "name"),
                 workflow=_agent_meta_str(agent_meta, "workflow_name"),
                 clan=_agent_meta_str(agent_meta, "agent_clan"),
-                tribe=(
-                    _agent_meta_str(agent_meta, "tribe")
-                    or _agent_meta_str(agent_meta, "clan_tribe")
-                ),
+                tribe=_agent_meta_str(agent_meta, "tribe"),
                 agent_family=_agent_meta_str(agent_meta, "agent_family"),
                 created_at=candidate_created_at_from_timestamp(timestamp),
+                cl_name=cl_name or _agent_meta_str(agent_meta, "cl_name"),
+                clan_generation=_agent_meta_str(agent_meta, "agent_clan_generation"),
+                clan_tribe=_agent_meta_str(agent_meta, "clan_tribe"),
+                parent_timestamp=_agent_meta_str(agent_meta, "parent_timestamp"),
             )
             records = scan_runner_slot_records()
             queue_weight_error = candidate_scan_queue_weight_error(

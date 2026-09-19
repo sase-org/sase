@@ -122,8 +122,11 @@ def refresh_runner_slot_context(
 
     capacity_source = agents if capacity_agents is None else capacity_agents
     parsed_artifact_paths: dict[str, Any] = {}
+    clan_containers = _clan_container_lookup(capacity_source)
     capacity_records = tuple(
-        _capacity_record_from_agent(agent, parsed_artifact_paths)
+        _capacity_record_from_agent(
+            agent, parsed_artifact_paths, clan_containers=clan_containers
+        )
         for agent in capacity_source
     )
     raw_snapshot = runner_capacity_snapshot_from_capacity_records(
@@ -374,11 +377,51 @@ def _display_running_lane_count(lane_candidates: list[Agent]) -> int:
     return running_count
 
 
+def _clan_container_lookup(
+    agents: list[Agent],
+) -> dict[tuple[str | None, str | None], Agent]:
+    return {
+        (agent.agent_clan, agent.agent_clan_generation): agent
+        for agent in agents
+        if agent.is_clan_container and agent.agent_clan
+    }
+
+
+def _tui_hold_membership_tribes(
+    agent: Agent,
+    clan_containers: dict[tuple[str | None, str | None], Agent],
+) -> tuple[str, ...]:
+    from sase.core.agent_hold_identity import hold_membership_tribes
+
+    container = clan_containers.get((agent.agent_clan, agent.agent_clan_generation))
+    if agent.is_clan_container:
+        effective_clan = agent.clan_tribe
+    elif container is not None:
+        effective_clan = container.clan_tribe
+    else:
+        effective_clan = agent.clan_tribe
+    return hold_membership_tribes(direct=(agent.tribe,), effective_clan=effective_clan)
+
+
 def _capacity_record_from_agent(
-    agent: Agent, parsed_artifact_paths: dict[str, Any]
+    agent: Agent,
+    parsed_artifact_paths: dict[str, Any],
+    *,
+    clan_containers: dict[tuple[str | None, str | None], Agent] | None = None,
 ) -> dict[str, Any]:
     artifacts_dir = _capacity_artifact_dir(agent)
     parsed = _parsed_artifact_path(agent, parsed_artifact_paths)
+    membership = _tui_hold_membership_tribes(agent, clan_containers or {})
+    from sase.core.agent_hold_identity import primary_hold_tribe
+
+    container = (clan_containers or {}).get(
+        (agent.agent_clan, agent.agent_clan_generation)
+    )
+    effective_clan = (
+        agent.clan_tribe
+        if agent.is_clan_container
+        else (container.clan_tribe if container is not None else agent.clan_tribe)
+    )
     return {
         "artifact_dir": artifacts_dir,
         "project_name": _project_name(agent, parsed),
@@ -387,7 +430,10 @@ def _capacity_record_from_agent(
         "agent_name": agent.agent_name,
         "workflow": agent.workflow,
         "clan": agent.agent_clan,
-        "tribe": agent.tribe or agent.clan_tribe,
+        "tribe": primary_hold_tribe(
+            membership, preferred=(agent.tribe, effective_clan)
+        ),
+        "tribes": list(membership),
         "created_at": candidate_created_at_from_timestamp(_capacity_timestamp(agent)),
         "has_agent_meta": not (agent.is_clan_container or agent.is_proc_shell),
         "has_done_marker": agent.stop_time is not None

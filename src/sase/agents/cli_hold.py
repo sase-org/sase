@@ -49,13 +49,54 @@ def handle_agents_hold(args: argparse.Namespace) -> int:
 
 
 def _selector_kwargs(args: argparse.Namespace) -> dict[str, Any]:
+    names = [str(value) for value in (getattr(args, "names", None) or [])]
+    tribes = [str(value) for value in (getattr(args, "tribes", None) or [])]
+    for selector in getattr(args, "selectors", None) or []:
+        text = str(selector).strip()
+        if not text:
+            continue
+        if text.startswith("@"):
+            tribes.append(text)
+        else:
+            names.append(text)
     return {
-        "names": list(getattr(args, "names", None) or []),
-        "tribes": list(getattr(args, "tribes", None) or []),
+        "names": names,
+        "tribes": tribes,
         "hoods": list(getattr(args, "hoods", None) or []),
         "future": bool(getattr(args, "future", False)),
         "pending": bool(getattr(args, "pending", False)),
     }
+
+
+def _resolved_armer_key(
+    args: argparse.Namespace, *, err: Console, required: bool
+) -> str | None:
+    positional = getattr(args, "armer_key", None)
+    flagged = getattr(args, "key", None)
+    if (
+        isinstance(positional, str)
+        and positional
+        and isinstance(flagged, str)
+        and flagged
+        and positional != flagged
+    ):
+        err.print(
+            "sase agent hold: positional ARMER_KEY and -k/--key disagree",
+            style="red",
+            soft_wrap=True,
+        )
+        raise ValueError("conflicting armer keys")
+    key = positional or flagged
+    if isinstance(key, str) and key:
+        return key
+    if required:
+        err.print(
+            "sase agent hold show: ARMER_KEY is required",
+            style="red",
+            soft_wrap=True,
+        )
+        raise ValueError("missing armer key")
+    return None
 
 
 def _has_explicit_selector(selectors: Mapping[str, Any]) -> bool:
@@ -88,7 +129,8 @@ def _handle_create(args: argparse.Namespace) -> int:
     selectors = _selector_kwargs(args)
     if not _has_explicit_selector(selectors):
         err.print(
-            "sase agent hold create: at least one of -n/-t/-H/-f/-p is required",
+            "sase agent hold create: at least one selector is required "
+            "(name, @tribe, or -n/-t/-H/-f/-p)",
             style="red",
             soft_wrap=True,
         )
@@ -123,7 +165,10 @@ def _handle_list(args: argparse.Namespace) -> int:
 
 def _handle_release(args: argparse.Namespace) -> int:
     err = Console(stderr=True)
-    key = getattr(args, "key", None)
+    try:
+        key = _resolved_armer_key(args, err=err, required=False)
+    except ValueError:
+        return 2
     try:
         if key is None:
             key = current_armer_wire()["key"]
@@ -144,7 +189,11 @@ def _handle_release(args: argparse.Namespace) -> int:
 
 def _handle_show(args: argparse.Namespace) -> int:
     err = Console(stderr=True)
-    key: str = args.key
+    try:
+        key = _resolved_armer_key(args, err=err, required=True)
+    except ValueError:
+        return 2
+    assert key is not None
     try:
         hold = find_agent_hold(key)
     except Exception as exc:  # noqa: BLE001 - surfaced to the CLI, not swallowed.

@@ -95,12 +95,50 @@ def format_hold_directive(fields: HoldFields | Mapping[str, Any] | None) -> str 
 def hold_fields_to_selectors(
     fields: HoldFields | Mapping[str, Any],
     pending_artifact_dirs: Sequence[str] | None = None,
+    *,
+    identity: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Expand parsed hold fields into durable agent-hold selectors."""
     payload = fields.to_dict() if isinstance(fields, HoldFields) else dict(fields)
     binding = require_rust_binding("hold_fields_to_selectors")
-    selectors = binding(payload, list(pending_artifact_dirs or ()))
+    identity_payload = (
+        dict(identity) if identity is not None else _hold_selector_identity()
+    )
+    try:
+        selectors = binding(
+            payload, list(pending_artifact_dirs or ()), identity_payload
+        )
+    except TypeError:
+        selectors = binding(payload, list(pending_artifact_dirs or ()))
     return dict(selectors) if isinstance(selectors, Mapping) else {}
+
+
+def _hold_selector_identity() -> dict[str, Any]:
+    """Load stored and config evidence for public tribe-name resolution."""
+    layers: list[dict[str, Any]] = []
+    stored: list[str] = []
+    try:
+        from sase.config.inventory import discover_layer_inputs
+
+        layers = [
+            {
+                "name": str(layer.get("name") or ""),
+                "kind": str(layer.get("kind") or ""),
+                "path": layer.get("path"),
+                "value": layer.get("value"),
+            }
+            for layer in discover_layer_inputs()
+            if isinstance(layer, Mapping)
+        ]
+    except Exception:  # noqa: BLE001 - expansion still has the context-free alias.
+        layers = []
+    try:
+        from sase.core.agent_tribe_evidence import stored_tribe_names_for_resolution
+
+        stored = list(stored_tribe_names_for_resolution())
+    except Exception:  # noqa: BLE001 - expansion still has the context-free alias.
+        stored = []
+    return {"stored_tribes": stored, "layers": layers}
 
 
 __all__ = [

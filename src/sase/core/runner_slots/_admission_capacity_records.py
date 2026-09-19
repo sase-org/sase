@@ -129,6 +129,8 @@ def capacity_record_from_scan(
     # code is the first thing a process touches.
     from sase.core.agent_hold_facade import candidate_created_at_from_timestamp
 
+    from sase.core.agent_hold_identity import attach_hold_identity_scratch_from_meta
+
     meta = record.agent_meta
     state = record.workflow_state
     waiting = record.waiting
@@ -136,7 +138,7 @@ def capacity_record_from_scan(
     queue_weight, queue_weight_explicit, queue_weight_invalid = _record_queue_weight(
         record
     )
-    return with_queue_capacity_alias(
+    payload = with_queue_capacity_alias(
         {
             "artifact_dir": record.artifact_dir,
             "project_name": record.project_name,
@@ -157,6 +159,7 @@ def capacity_record_from_scan(
             ),
             "clan": None if meta is None else meta.agent_clan,
             "tribe": None if meta is None else (meta.tribe or meta.clan_tribe),
+            "tribes": [],
             "created_at": candidate_created_at_from_timestamp(record.timestamp),
             "has_agent_meta": meta is not None,
             "has_done_marker": record.has_done_marker,
@@ -195,6 +198,17 @@ def capacity_record_from_scan(
             "eligible_since": None if waiting is None else waiting.eligible_since,
         }
     )
+    attach_hold_identity_scratch_from_meta(
+        payload,
+        cl_name=None if meta is None else meta.cl_name,
+        clan_generation=None if meta is None else meta.agent_clan_generation,
+        parent_timestamp=None if meta is None else meta.parent_timestamp,
+        timestamp=record.timestamp,
+        meta_tribe=None if meta is None else meta.tribe,
+        clan_tribe=None if meta is None else meta.clan_tribe,
+        clan=None if meta is None else meta.agent_clan,
+    )
+    return payload
 
 
 def _project_name_from_artifact_dir(artifacts_dir: str) -> str:
@@ -230,8 +244,14 @@ def _synthetic_capacity_record(
     tribe: str | None = None,
     agent_family: str | None = None,
     created_at: float | None = None,
+    cl_name: str | None = None,
+    clan_generation: str | None = None,
+    clan_tribe: str | None = None,
+    parent_timestamp: str | None = None,
 ) -> dict[str, Any]:
-    return with_queue_capacity_alias(
+    from sase.core.agent_hold_identity import attach_hold_identity_scratch_from_meta
+
+    payload = with_queue_capacity_alias(
         {
             "artifact_dir": artifacts_dir,
             "project_name": _project_name_from_artifact_dir(artifacts_dir),
@@ -241,6 +261,7 @@ def _synthetic_capacity_record(
             "workflow": workflow,
             "clan": clan,
             "tribe": tribe,
+            "tribes": [tribe] if tribe else [],
             "created_at": created_at,
             "has_agent_meta": True,
             "has_done_marker": False,
@@ -250,7 +271,7 @@ def _synthetic_capacity_record(
             "pid": None,
             "run_started_at": None,
             "runner_claim_owner_key": None,
-            "parent_timestamp": None,
+            "parent_timestamp": parent_timestamp,
             "agent_family": agent_family,
             "agent_family_role": None,
             "agent_family_parallel": False,
@@ -267,6 +288,17 @@ def _synthetic_capacity_record(
             "eligible_since": eligible_since,
         }
     )
+    attach_hold_identity_scratch_from_meta(
+        payload,
+        cl_name=cl_name,
+        clan_generation=clan_generation,
+        parent_timestamp=parent_timestamp,
+        timestamp=timestamp,
+        meta_tribe=tribe,
+        clan_tribe=clan_tribe,
+        clan=clan,
+    )
+    return payload
 
 
 def runner_slot_candidate_record(
@@ -288,6 +320,10 @@ def runner_slot_candidate_record(
     tribe: str | None = None,
     agent_family: str | None = None,
     created_at: float | None = None,
+    cl_name: str | None = None,
+    clan_generation: str | None = None,
+    clan_tribe: str | None = None,
+    parent_timestamp: str | None = None,
 ) -> dict[str, Any]:
     """Build the synthetic candidate sent as the Rust request's own field."""
     if queue_capacity is None and wait_runners is not None:
@@ -309,4 +345,8 @@ def runner_slot_candidate_record(
         tribe=tribe,
         agent_family=agent_family,
         created_at=created_at,
+        cl_name=cl_name,
+        clan_generation=clan_generation,
+        clan_tribe=clan_tribe,
+        parent_timestamp=parent_timestamp,
     )

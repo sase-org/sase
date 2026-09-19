@@ -48,23 +48,34 @@ def test_hold_selectors_wire_normalizes_tribes_and_defaults() -> None:
         future=True,
         artifact_dirs=["/a/w1"],
     )
-    assert selectors == {
-        "artifact_dirs": ["/a/w1"],
-        "names": ["a.b--code"],
-        "hoods": ["fi"],
-        "tribes": ["ops", "infra"],
-        "future": True,
-    }
+    assert selectors["artifact_dirs"] == ["/a/w1"]
+    assert selectors["names"] == ["a.b--code"]
+    assert selectors["families"] == []
+    assert selectors["clans"] == ["a.b--code"]
+    assert selectors["workflows"] == ["a.b--code"]
+    assert selectors["hoods"] == ["fi"]
+    assert selectors["tribes"] == ["infra", "ops"]
+    assert selectors["future"] is True
+
+
+def test_hold_selectors_wire_expands_family_names() -> None:
+    selectors = _hold_selectors_wire(names=["team"])
+    assert selectors["names"] == ["team"]
+    assert selectors["families"] == ["team"]
+    assert selectors["clans"] == ["team"]
+    assert selectors["workflows"] == ["team"]
 
 
 def test_hold_selectors_wire_defaults_are_empty() -> None:
-    assert _hold_selectors_wire() == {
-        "artifact_dirs": [],
-        "names": [],
-        "hoods": [],
-        "tribes": [],
-        "future": False,
-    }
+    selectors = _hold_selectors_wire()
+    assert selectors["artifact_dirs"] == []
+    assert selectors["names"] == []
+    assert selectors["families"] == []
+    assert selectors["clans"] == []
+    assert selectors["workflows"] == []
+    assert selectors["hoods"] == []
+    assert selectors["tribes"] == []
+    assert selectors["future"] is False
 
 
 def test_current_armer_wire_uses_agent_metadata_when_artifacts_dir_set(

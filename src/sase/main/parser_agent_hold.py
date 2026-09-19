@@ -41,7 +41,10 @@ def _add_selector_arguments(parser: argparse.ArgumentParser) -> None:
         action="append",
         default=[],
         metavar="NAME",
-        help="Block this exact agent name or proc shell name (repeatable)",
+        help=(
+            "Block this agent, family, clan, workflow, or proc shell name "
+            "(repeatable; role-suffixed names stay exact)"
+        ),
     )
     parser.add_argument(
         "-t",
@@ -101,7 +104,7 @@ def _add_scope_and_ttl_arguments(
 def _register_create_parser(hold_sub: argparse._SubParsersAction) -> None:
     create_parser = hold_sub.add_parser(
         "create",
-        help="Arm a hold; requires at least one of -n/-t/-H/-f/-p",
+        help="Arm a hold from name/@tribe selectors or -n/-t/-H/-f/-p",
     )
     _add_selector_arguments(create_parser)
     _add_scope_and_ttl_arguments(
@@ -109,6 +112,15 @@ def _register_create_parser(hold_sub: argparse._SubParsersAction) -> None:
         ttl_help=(
             "Hold TTL: bare seconds or a duration like 90s / 45m / 2h "
             "(default: the configured agent_hold_default_ttl)"
+        ),
+    )
+    create_parser.add_argument(
+        "selectors",
+        nargs="*",
+        metavar="SELECTOR",
+        help=(
+            "Name or @tribe selectors to block; same expansion as %%hold "
+            "names and @tribes"
         ),
     )
 
@@ -136,6 +148,12 @@ def _register_release_parser(hold_sub: argparse._SubParsersAction) -> None:
         "--key",
         default=None,
         metavar="ARMER_KEY",
+        help="Armer key to release; alias for the optional positional ARMER_KEY",
+    )
+    release_parser.add_argument(
+        "armer_key",
+        nargs="?",
+        metavar="ARMER_KEY",
         help="Armer key to release (default: the current agent/session's own hold)",
     )
 
@@ -148,7 +166,13 @@ def _register_show_parser(hold_sub: argparse._SubParsersAction) -> None:
     show_parser.add_argument(
         "-k",
         "--key",
-        required=True,
+        default=None,
+        metavar="ARMER_KEY",
+        help="Armer key to show; alias for the positional ARMER_KEY",
+    )
+    show_parser.add_argument(
+        "armer_key",
+        nargs="?",
         metavar="ARMER_KEY",
         help="Armer key to show",
     )

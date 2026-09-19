@@ -188,7 +188,7 @@ def test_fish_loader_sources_grammar_once_and_skips_later_ensure(
         "complete -C 'sase '"
     )
     result = subprocess.run(
-        [fish, "-c", snippet],
+        [fish, "-N", "-c", snippet],
         check=False,
         capture_output=True,
         text=True,

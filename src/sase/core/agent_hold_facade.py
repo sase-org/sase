@@ -324,19 +324,19 @@ def _hold_selectors_wire(
     future: bool = False,
     artifact_dirs: Sequence[str] = (),
 ) -> dict[str, Any]:
-    """Build the selectors wire payload from CLI-facing selector inputs."""
-    return {
-        "artifact_dirs": list(artifact_dirs),
-        "names": list(names),
-        "hoods": list(hoods),
-        "tribes": [_normalize_tribe(tribe) for tribe in tribes],
-        "future": bool(future),
-    }
+    """Build selectors through the shared Rust expansion contract."""
+    from sase.xprompt.hold_directive import HoldFields, hold_fields_to_selectors
 
-
-def _normalize_tribe(value: str) -> str:
-    stripped = value.strip()
-    return stripped[1:] if stripped.startswith("@") else stripped
+    return hold_fields_to_selectors(
+        HoldFields(
+            names=tuple(str(name) for name in names if str(name).strip()),
+            tribes=tuple(str(tribe) for tribe in tribes if str(tribe).strip()),
+            hoods=tuple(str(hood) for hood in hoods if str(hood).strip()),
+            pending=bool(artifact_dirs),
+            future=bool(future),
+        ),
+        artifact_dirs,
+    )
 
 
 def arm_agent_hold(
