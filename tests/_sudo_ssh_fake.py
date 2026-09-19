@@ -133,6 +133,31 @@ def current_process_identity(pid: int) -> str:
     return f"{boot}:{start}"
 
 
+_FAKE_LOGIN_SHELL = r"""#!/usr/bin/env python3
+import os
+import subprocess
+import sys
+
+if sys.argv[1:2] != ["-lc"] or len(sys.argv) != 3:
+    print(f"unexpected login shell argv: {sys.argv[1:]!r}", file=sys.stderr)
+    raise SystemExit(64)
+
+env = dict(os.environ)
+if env.get("SASE_FAKE_LOGIN_PROVIDES_SASE") == "1":
+    env["PATH"] = env["SASE_FAKE_LOGIN_BIN"] + os.pathsep + env.get("PATH", "")
+raise SystemExit(subprocess.run(["/bin/sh", "-c", sys.argv[2]], env=env).returncode)
+"""
+
+
+def _path_without_command(raw: str, name: str) -> str:
+    """Return *raw* PATH with directories that contain *name* removed."""
+    parts: list[str] = []
+    for item in raw.split(os.pathsep):
+        if item and not (Path(item) / name).exists():
+            parts.append(item)
+    return os.pathsep.join(parts)
+
+
 class FakeOpenSSHEndpoint:
     """Join remote argv like OpenSSH and execute it against an isolated root."""
 
@@ -141,17 +166,30 @@ class FakeOpenSSHEndpoint:
         root: Path,
         *,
         capabilities: tuple[str, ...] = ("detached_execution",),
+        login_provides_sase: bool = True,
     ) -> None:
         self.root = root
         self.capabilities = capabilities
+        self.login_provides_sase = login_provides_sase
         self.calls: list[list[str]] = []
         self.joined: list[str] = []
         self.unreachable = False
         self.fail_after_calls: int | None = None
         self.liveness_exit: int | None = None
-        bin_dir = root / "bin"
-        bin_dir.mkdir(parents=True, exist_ok=True)
-        shim = bin_dir / "sase"
+        self.system_bin = root / "system-bin"
+        self.login_bin = root / "login-bin"
+        self.system_bin.mkdir(parents=True, exist_ok=True)
+        self.login_bin.mkdir(parents=True, exist_ok=True)
+        python3 = self.system_bin / "python3"
+        if not python3.exists():
+            python3.symlink_to(sys.executable)
+        login_shell = self.system_bin / "fake-login-shell"
+        login_shell.write_text(
+            f"#!{sys.executable}\n" + _FAKE_LOGIN_SHELL.split("\n", 1)[1],
+            encoding="utf-8",
+        )
+        login_shell.chmod(0o755)
+        shim = self.login_bin / "sase"
         script = _FAKE_REMOTE_SASE
         if script.startswith("#!"):
             script = script.split("\n", 1)[1]
@@ -179,7 +217,17 @@ class FakeOpenSSHEndpoint:
                 argv, self.liveness_exit, stdout=empty_out, stderr=empty_out
             )
         env = os.environ.copy()
-        env["PATH"] = f"{self.root / 'bin'}{os.pathsep}{env.get('PATH', '')}"
+        env["PATH"] = os.pathsep.join(
+            part
+            for part in (
+                str(self.system_bin),
+                _path_without_command(env.get("PATH", ""), "sase"),
+            )
+            if part
+        )
+        env["SHELL"] = str(self.system_bin / "fake-login-shell")
+        env["SASE_FAKE_LOGIN_BIN"] = str(self.login_bin)
+        env["SASE_FAKE_LOGIN_PROVIDES_SASE"] = "1" if self.login_provides_sase else "0"
         env["SASE_FAKE_REMOTE_CAPABILITIES"] = ",".join(self.capabilities)
         env.setdefault("SASE_FAKE_EXEC_SLEEP", "0")
         env.setdefault("SASE_FAKE_LEDGER_OUTCOME", "completed")
@@ -187,7 +235,7 @@ class FakeOpenSSHEndpoint:
         stdin = kwargs.get("input")
         try:
             return _REAL_RUN(
-                ["sh", "-c", joined],
+                ["/bin/sh", "-c", joined],
                 input=stdin,
                 env=env,
                 stdout=subprocess.PIPE

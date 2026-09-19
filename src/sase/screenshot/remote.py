@@ -14,6 +14,7 @@ from uuid import uuid4
 
 from sase.core.paths import get_sase_managed_tmpdir
 from sase.core.time import generate_timestamp
+from sase.dispatch.ssh_login_shell import remote_login_shell_argv
 from sase.dispatch.ssh_target import RemoteSshTarget, resolve_remote_ssh_target
 from sase.screenshot.local import (
     SCREENSHOT_CONTRACT_SCHEMA_VERSION,
@@ -520,7 +521,7 @@ def _ssh_argv(
     login_shell: bool = False,
 ) -> list[str]:
     command_argv = (
-        _remote_login_shell_argv(remote_argv) if login_shell else list(remote_argv)
+        remote_login_shell_argv(remote_argv) if login_shell else list(remote_argv)
     )
     return [
         "ssh",
@@ -529,16 +530,6 @@ def _ssh_argv(
         "--",
         host,
         shlex.join(command_argv),
-    ]
-
-
-def _remote_login_shell_argv(remote_argv: Sequence[str]) -> list[str]:
-    return [
-        "sh",
-        "-c",
-        'shell="${SHELL:-/bin/sh}"; exec "$shell" -lc "$1"',
-        "sase-login-shell",
-        "exec " + shlex.join(remote_argv),
     ]
 
 

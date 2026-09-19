@@ -14,7 +14,9 @@ from typing import Any, BinaryIO, Literal, TextIO, overload
 from uuid import uuid4
 
 from sase.dispatch.models import validate_ssh_target
+from sase.dispatch.ssh_login_shell import remote_login_shell_command
 from sase.notification_gates.models import GateError
+from sase.sudo.ssh_cli import unavailable_remote_cli_message
 
 CommandRunner = Callable[..., subprocess.CompletedProcess[Any]]
 
@@ -427,7 +429,18 @@ def _encode_ssh_remote_command(*argv: str) -> str:
             "ssh",
             "remote sudo command must not be empty",
         )
-    return " ".join(shlex.quote(part) for part in argv)
+    return shlex.join(argv)
+
+
+def _encode_target_sase_command(*argv: str) -> str:
+    """Return a login-shell remote command for a target-side ``sase`` argv."""
+    if not argv:
+        raise GateError(
+            "invalid_sudo_finalize",
+            "ssh",
+            "remote sudo command must not be empty",
+        )
+    return remote_login_shell_command(argv)
 
 
 def _require_ssh_target(host: str) -> None:
@@ -451,7 +464,8 @@ def _probe_contract(host: str, *, command_runner: CommandRunner) -> _RemoteSudoC
         "remote_sudo_unavailable",
         command_runner,
         _ssh_argv(
-            host, _encode_ssh_remote_command("sase", "sudo", "exec", "--contract")
+            host,
+            _encode_target_sase_command("sase", "sudo", "exec", "--contract"),
         ),
         kwargs={
             "check": False,
@@ -465,7 +479,7 @@ def _probe_contract(host: str, *, command_runner: CommandRunner) -> _RemoteSudoC
         raise GateError(
             "remote_sudo_unavailable",
             "ssh",
-            f"could not reach sudo target {host!r} or target CLI is missing",
+            unavailable_remote_cli_message(host, completed),
         )
     try:
         payload = json.loads(completed.stdout)
@@ -549,7 +563,7 @@ def _run_target_exec(
     command_runner: CommandRunner,
     timeout_seconds: float | None,
 ) -> None:
-    remote = _encode_ssh_remote_command(
+    remote = _encode_target_sase_command(
         "sase",
         "sudo",
         "exec",
@@ -588,7 +602,7 @@ def _run_target_exec_detached(
     command_runner: CommandRunner,
     timeout_seconds: float | None,
 ) -> None:
-    remote = _encode_ssh_remote_command(
+    remote = _encode_target_sase_command(
         "sase",
         "sudo",
         "exec",

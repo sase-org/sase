@@ -229,18 +229,24 @@ destination and is shown to the reviewer as an unenrolled host.
 
 Review still happens on the controller. On approval, the controller:
 
-1. checks that `ssh <target> sase sudo exec --contract` reports a compatible contract;
+1. checks that `ssh <target>` running `sase sudo exec --contract` through the account's
+   noninteractive login shell reports a compatible contract;
 2. stages the sealed manifest in a private temporary file under the target's `/tmp`;
-3. runs `ssh -t <target> sase sudo exec --detach ...`, so the target's own runner
-   prompts for authentication inside the SSH terminal and then starts a remote detached
-   executor;
+3. runs `ssh -t <target>` with `sase sudo exec --detach ...` through that same login
+   shell, so the target's own runner prompts for authentication inside the SSH terminal
+   and then starts a remote detached executor;
 4. starts a local finalize proc that polls the target's JSON ledger, validates it, and
    removes the staged files after settlement.
 
-The target needs `sase` on its non-interactive SSH `PATH`, its own `sase_sudo_runner`,
-and `agent_sudo_requests` enabled, because `sase sudo exec` is behind the same flag. The
-PAM conversation stays inside the SSH terminal channel between the reviewer and the
-target machine; the fleet gateway never carries password material.
+Target-side SASE invocations — the contract probe and both synchronous and detached
+`sase sudo exec` — run through the account's noninteractive login shell so tools
+installed under login-profile paths such as `~/.local/bin` can be found, matching the
+remote screenshot contract. Manifest staging, ledger and log reads, liveness probes,
+stop signaling, and cleanup stay direct, minimal remote commands. The target needs
+`sase` available in that login environment, its own `sase_sudo_runner`, and
+`agent_sudo_requests` enabled, because `sase sudo exec` is behind the same flag. The PAM
+conversation stays inside the SSH terminal channel between the reviewer and the target
+machine; the fleet gateway never carries password material.
 
 The local gate settles from the returned ledger. If the target is unreachable, has no
 compatible `sase sudo exec`, lacks a TTY, or produces no ledger, the gate remains

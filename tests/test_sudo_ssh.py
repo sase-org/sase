@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import os
 import signal
+import subprocess
 from io import BytesIO
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from sase.dispatch.ssh_login_shell import LOGIN_SHELL_ARGV0
 from sase.notification_gates.models import GateError
 from sase.sudo.ssh import (
     _encode_ssh_remote_command,
@@ -21,6 +23,7 @@ from sase.sudo.ssh import (
     run_remote_sudo_detached,
     wait_for_remote_sudo_ledger,
 )
+from sase.sudo.ssh_cli import unavailable_remote_cli_message
 
 from tests._sudo_ssh_fake import (
     FakeOpenSSHEndpoint,
@@ -35,6 +38,33 @@ def _manifest() -> dict[str, Any]:
         "request_id": "sudo-1",
         "cwd": "/tmp/remote cwd",
     }
+
+
+def _sase_exec_commands(fake: FakeOpenSSHEndpoint) -> list[str]:
+    return [command for command in fake.joined if LOGIN_SHELL_ARGV0 in command]
+
+
+def _assert_target_sase_uses_login_environment(fake: FakeOpenSSHEndpoint) -> None:
+    wrapped = _sase_exec_commands(fake)
+    assert wrapped
+    assert all("exec sase sudo exec" in command for command in wrapped)
+    assert all(
+        LOGIN_SHELL_ARGV0 not in command
+        for command in fake.joined
+        if "mkdir -p -m 700" in command
+        or command.startswith("cat ")
+        or "rm -rf" in command
+        or "umask 077" in command
+        or "/proc/" in command
+    )
+    for argv in fake.calls:
+        joined = " ".join(argv)
+        if "exec sase sudo exec" not in joined:
+            continue
+        if "--manifest" in joined:
+            assert "-t" in argv
+        elif "--contract" in joined:
+            assert "-t" not in argv
 
 
 def test_openssh_join_drops_quotes_across_separate_argv_items() -> None:
@@ -65,6 +95,8 @@ def test_run_remote_sudo_stages_executes_fetches_and_cleans(tmp_path: Path) -> N
     assert ledger["outcome"] == "completed"
     assert ledger["request_id"] == "sudo-1"
     assert not Path(paths["directory"]).exists()
+    assert not (fake.system_bin / "sase").exists()
+    assert (fake.login_bin / "sase").is_file()
     assert any("sase sudo exec --contract" in command for command in fake.joined)
     assert any(
         "--manifest" in command and "remote cwd" in command for command in fake.joined
@@ -72,6 +104,7 @@ def test_run_remote_sudo_stages_executes_fetches_and_cleans(tmp_path: Path) -> N
     staged = next(command for command in fake.joined if "mkdir -p -m 700" in command)
     assert "exit 11" in staged
     assert "exit 13" in staged
+    _assert_target_sase_uses_login_environment(fake)
 
 
 def test_run_remote_sudo_rejects_contract_mismatch(tmp_path: Path) -> None:
@@ -143,6 +176,7 @@ def test_run_remote_sudo_detached_fetches_handshake_and_leaves_files(
     assert Path(paths["handshake"]).is_file()
     assert Path(paths["directory"]).is_dir()
     assert not any("rm -rf" in command for command in fake.joined)
+    _assert_target_sase_uses_login_environment(fake)
 
 
 def test_run_remote_sudo_detached_auth_failure_fetches_ledger_and_cleans(
@@ -301,19 +335,6 @@ def test_wait_for_remote_sudo_ledger_unreachable_keeps_offset(
     inner = FakeOpenSSHEndpoint(tmp_path)
     inner.fail_after_calls = 2
 
-    def runner(argv: list[str], **kwargs: Any) -> Any:
-        completed = inner(argv, **kwargs)
-        if len(inner.calls) == 6:
-            Path(paths["ledger"]).write_text(
-                '{"schema_version":1,"request_id":"sudo-1",'
-                '"manifest_sha256":"abc","outcome":"completed",'
-                '"entries":[],"diagnostic":null}\n',
-                encoding="utf-8",
-            )
-            inner.fail_after_calls = None
-            inner.unreachable = False
-        return completed
-
     with pytest.raises(GateError) as excinfo:
         wait_for_remote_sudo_ledger(
             "target",
@@ -322,7 +343,7 @@ def test_wait_for_remote_sudo_ledger_unreachable_keeps_offset(
                 "executor_pid": os.getpid(),
                 "executor_identity": current_process_identity(os.getpid()),
             },
-            command_runner=runner,
+            command_runner=inner,
             timeout_seconds=0.05,
             dest=dest,
         )
@@ -382,3 +403,52 @@ def test_detached_capability_skew_falls_back_before_staging(tmp_path: Path) -> N
         )
     assert excinfo.value.code == "detach_unsupported"
     assert not Path(paths["directory"]).exists()
+
+
+def test_run_remote_sudo_missing_login_sase_stays_pending(tmp_path: Path) -> None:
+    fake = FakeOpenSSHEndpoint(tmp_path, login_provides_sase=False)
+    paths = allocate_remote_sudo_paths(base=str(tmp_path / "missing"))
+    with pytest.raises(GateError) as excinfo:
+        run_remote_sudo(
+            "target",
+            _manifest(),
+            manifest_sha256="abc",
+            command_runner=fake,
+            paths=paths,
+        )
+    assert excinfo.value.code == "remote_sudo_unavailable"
+    message = str(excinfo.value)
+    assert "remote login environment" in message
+    assert "sase" in message.lower()
+    assert "password" not in message.lower()
+    assert not Path(paths["directory"]).exists()
+    assert not any("mkdir -p -m 700" in command for command in fake.joined)
+    assert any("sase sudo exec --contract" in command for command in fake.joined)
+
+
+def test_unavailable_cli_message_omits_password_and_bounds_output() -> None:
+    secret = subprocess.CompletedProcess(
+        ["ssh"],
+        127,
+        stdout="",
+        stderr="Password: hunter2\nsase: not found\n",
+    )
+    secret_message = unavailable_remote_cli_message("apollo", secret)
+    assert "remote login environment" in secret_message
+    assert "hunter2" not in secret_message
+    assert "Password" not in secret_message
+    assert "login environment" in secret_message
+
+    long_stderr = "sase: not found\n" + ("x" * 5000)
+    bounded = subprocess.CompletedProcess(["ssh"], 127, stdout="", stderr=long_stderr)
+    bounded_message = unavailable_remote_cli_message("apollo", bounded)
+    assert "...<truncated>" in bounded_message
+    assert "x" * 5000 not in bounded_message
+
+    transport = subprocess.CompletedProcess(
+        ["ssh"], 255, stdout="", stderr="Connection refused"
+    )
+    transport_message = unavailable_remote_cli_message("apollo", transport)
+    assert "could not reach sudo target 'apollo'" in transport_message
+    assert "Connection refused" in transport_message
+    assert "login environment" not in transport_message
