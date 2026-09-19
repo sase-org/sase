@@ -87,6 +87,7 @@ def hold_deadlock_armer_record(
     candidate_agent_name: str | None,
     active_holds: list[dict[str, Any]],
     records: list[AgentArtifactRecordWire],
+    candidate: Mapping[str, Any] | None = None,
 ) -> AgentArtifactRecordWire | None:
     """Return the armer's own record when the hold is a mutual deadlock.
 
@@ -94,10 +95,12 @@ def hold_deadlock_armer_record(
     record only when the armer is itself pre-run (WAITING/QUEUED, never a
     RUNNING or done row -- those have left admission for good) and is
     blocked on the very candidate it holds, directly or transitively
-    through its own ``%wait`` set. The TTL is still the forward-progress
+    through the relevant wait set. Graph reachability, identity matching,
+    and hood edges live in Rust. The TTL is still the forward-progress
     guarantee; this only surfaces the deadlock, it never breaks it.
     """
-    if not candidate_agent_name:
+    candidate_name = _candidate_deadlock_name(candidate_agent_name, candidate)
+    if not candidate_name:
         return None
     hold = next(
         (
@@ -123,30 +126,165 @@ def hold_deadlock_armer_record(
         return None
     if armer_record.has_done_marker:
         return None
-    by_name = {
-        record.agent_meta.name: record
-        for record in records
-        if record.agent_meta is not None and record.agent_meta.name
-    }
-    seen: set[str] = {armer_dir}
-    current: AgentArtifactRecordWire | None = armer_record
-    while current is not None and current.waiting is not None:
-        waiting_for = current.waiting.waiting_for
-        if candidate_agent_name in waiting_for:
-            return armer_record
-        next_record = next(
+    from sase.core.rust import require_rust_binding
+
+    nodes = [_hold_deadlock_wait_node_wire(record) for record in records]
+    _apply_hold_deadlock_identity(nodes, records)
+    reaches = require_rust_binding("agent_hold_deadlock_reaches")
+    if reaches(
+        armer_dir,
+        _hold_deadlock_candidate_wire(
+            candidate_name,
+            candidate,
+            records,
+            by_dir,
+        ),
+        nodes,
+    ):
+        return armer_record
+    return None
+
+
+def _candidate_deadlock_name(
+    candidate_agent_name: str | None,
+    candidate: Mapping[str, Any] | None,
+) -> str | None:
+    if candidate_agent_name:
+        return candidate_agent_name
+    if candidate is None:
+        return None
+    name = candidate.get("agent_name")
+    return name if isinstance(name, str) and name else None
+
+
+def _hold_deadlock_candidate_wire(
+    candidate_agent_name: str,
+    candidate: Mapping[str, Any] | None,
+    records: list[AgentArtifactRecordWire],
+    by_dir: Mapping[str, AgentArtifactRecordWire],
+) -> dict[str, Any]:
+    payload = dict(candidate or {})
+    artifact_dir = payload.get("artifact_dir")
+    record = by_dir.get(artifact_dir) if isinstance(artifact_dir, str) else None
+    if record is None:
+        record = next(
             (
-                by_name[name]
-                for name in waiting_for
-                if name in by_name and by_name[name].artifact_dir not in seen
+                item
+                for item in records
+                if item.agent_meta is not None
+                and item.agent_meta.name == candidate_agent_name
             ),
             None,
         )
-        if next_record is None:
-            return None
-        seen.add(next_record.artifact_dir)
-        current = next_record
-    return None
+    meta = None if record is None else record.agent_meta
+    tribes = payload.get("tribes")
+    tribe_values = [str(item) for item in tribes] if isinstance(tribes, list) else []
+    tribe = payload.get("tribe")
+    if isinstance(tribe, str) and tribe and tribe not in tribe_values:
+        tribe_values.append(tribe)
+    if not tribe_values and meta is not None:
+        for value in (meta.tribe, meta.clan_tribe):
+            if isinstance(value, str) and value and value not in tribe_values:
+                tribe_values.append(value)
+    family = payload.get("agent_family")
+    if not isinstance(family, str) or not family:
+        family = payload.get("family")
+    if not isinstance(family, str) or not family:
+        family = None if meta is None else meta.agent_family
+    workflow = payload.get("workflow")
+    if not isinstance(workflow, str) or not workflow:
+        workflow = None if meta is None else meta.workflow_name
+    clan = payload.get("clan")
+    if not isinstance(clan, str) or not clan:
+        clan = None if meta is None else meta.agent_clan
+    timestamp = payload.get("timestamp")
+    if not isinstance(timestamp, str) or not timestamp:
+        timestamp = None if record is None else record.timestamp
+    if not isinstance(artifact_dir, str) or not artifact_dir:
+        artifact_dir = None if record is None else record.artifact_dir
+    return {
+        "artifact_dir": artifact_dir,
+        "agent_name": candidate_agent_name,
+        "family": family,
+        "clan": clan,
+        "workflow": workflow,
+        "timestamp": timestamp,
+        "tribes": tribe_values,
+    }
+
+
+def _hold_deadlock_wait_node_wire(
+    record: AgentArtifactRecordWire,
+) -> dict[str, Any]:
+    meta = record.agent_meta
+    waiting = record.waiting
+    waiting_for: list[str] = []
+    wait_for_hoods: list[str] = []
+    if waiting is not None:
+        waiting_for = [name for name in waiting.waiting_for if name]
+        wait_for_hoods = [hood for hood in waiting.wait_for_hoods if hood]
+        if not wait_for_hoods and meta is not None:
+            wait_for_hoods = [hood for hood in meta.wait_for_hoods if hood]
+    elif meta is not None:
+        waiting_for = [name for name in meta.wait_for if name]
+        wait_for_hoods = [hood for hood in meta.wait_for_hoods if hood]
+    tribes: list[str] = []
+    if meta is not None:
+        for value in (meta.tribe, meta.clan_tribe):
+            if isinstance(value, str) and value and value not in tribes:
+                tribes.append(value)
+    return {
+        "artifact_dir": record.artifact_dir,
+        "agent_name": None if meta is None else meta.name,
+        "family": None if meta is None else meta.agent_family,
+        "clan": None if meta is None else meta.agent_clan,
+        "workflow": None if meta is None else meta.workflow_name,
+        "timestamp": record.timestamp,
+        "waiting_for": waiting_for,
+        "wait_for_hoods": wait_for_hoods,
+        "tribes": tribes,
+        "running": record.running is not None,
+        "has_done_marker": record.has_done_marker,
+    }
+
+
+def _apply_hold_deadlock_identity(
+    nodes: list[dict[str, Any]],
+    records: list[AgentArtifactRecordWire],
+) -> None:
+    from sase.core.agent_hold_identity import (
+        apply_hold_identity_to_capacity_records,
+        attach_hold_identity_scratch_from_meta,
+        strip_hold_identity_scratch_fields,
+    )
+
+    rows: list[dict[str, Any]] = []
+    for record, node in zip(records, nodes, strict=True):
+        meta = record.agent_meta
+        row: dict[str, Any] = {
+            "artifact_dir": record.artifact_dir,
+            "timestamp": record.timestamp,
+            "clan": node.get("clan"),
+        }
+        attach_hold_identity_scratch_from_meta(
+            row,
+            cl_name=None if meta is None else meta.cl_name,
+            clan_generation=None if meta is None else meta.agent_clan_generation,
+            parent_timestamp=None if meta is None else meta.parent_timestamp,
+            timestamp=record.timestamp,
+            meta_tribe=None if meta is None else meta.tribe,
+            clan_tribe=None if meta is None else meta.clan_tribe,
+            clan=None if meta is None else meta.agent_clan,
+        )
+        rows.append(row)
+    apply_hold_identity_to_capacity_records(rows, scan_records=records)
+    for node, row in zip(nodes, rows, strict=True):
+        tribes = row.get("tribes")
+        if isinstance(tribes, list):
+            node["tribes"] = [
+                str(item) for item in tribes if isinstance(item, str) and item
+            ]
+        strip_hold_identity_scratch_fields(row)
 
 
 def candidate_blocker_codes(blockers: object) -> set[str]:

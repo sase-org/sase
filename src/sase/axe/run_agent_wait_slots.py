@@ -440,6 +440,7 @@ def _hold_deadlock_armers(
             candidate_agent_name=candidate_agent_name,
             active_holds=active_holds,
             records=records,
+            candidate=candidate,
         )
         if armer_record is not None:
             found.append((artifacts_dir, candidate_agent_name, held_by, armer_record))
