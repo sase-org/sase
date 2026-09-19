@@ -28,6 +28,8 @@ _READ_TOOL_FIXTURE = _FIXTURES / "muse_exec_read_tool_R708.1.jsonl"
 _WRITE_BASH_FIXTURE = _FIXTURES / "muse_exec_write_bash_tools_R708.1.jsonl"
 
 _MUSE_MODELS = [
+    "muse-spark-1.3",
+    "muse-spark-1.3-contributor",
     "muse-spark-1.2",
     "muse-spark-1.2-contributor",
     "muse-spark-1.1",
@@ -80,15 +82,18 @@ def test_muse_provider_is_llm_provider() -> None:
 
 
 def test_muse_provider_is_registered_as_an_entry_point() -> None:
-    provider, model = resolve_model_provider("muse/muse-spark-1.2")
+    provider, model = resolve_model_provider("muse/muse-spark-1.3")
     assert provider == "muse"
-    assert model == "muse-spark-1.2"
+    assert model == "muse-spark-1.3"
 
 
-def test_muse_known_models_resolve_implicitly() -> None:
-    provider, model = resolve_model_provider("muse-spark-1.2-contributor")
+@pytest.mark.parametrize(
+    "model", ["muse-spark-1.3", "muse-spark-1.2-contributor", "muse-spark-1.1"]
+)
+def test_muse_known_models_resolve_implicitly(model: str) -> None:
+    provider, resolved_model = resolve_model_provider(model)
     assert provider == "muse"
-    assert model == "muse-spark-1.2-contributor"
+    assert resolved_model == model
 
 
 def test_muse_provider_metadata_hooks() -> None:
@@ -100,6 +105,8 @@ def test_muse_provider_metadata_hooks() -> None:
     assert provider.llm_cli_status_color() == "#0064E0"
     assert provider.llm_known_model_names() == _MUSE_MODELS
     assert provider.llm_model_short_aliases() == {
+        "muse-spark-1.3": "spark13",
+        "muse-spark-1.3-contributor": "spark13c",
         "muse-spark-1.2": "spark12",
         "muse-spark-1.2-contributor": "spark12c",
         "muse-spark-1.1": "spark11",
@@ -122,9 +129,9 @@ def test_muse_provider_has_no_autodetect_priority() -> None:
 def test_muse_provider_resolve_model_name_never_routes_a_tier_to_contributor() -> None:
     """Both tiers map to the paid model; `small` phases route to `@small` directly."""
     provider = MuseProvider()
-    assert provider.resolve_model_name() == "muse-spark-1.2"
-    assert provider.resolve_model_name("large") == "muse-spark-1.2"
-    assert provider.resolve_model_name("small") == "muse-spark-1.2"
+    assert provider.resolve_model_name() == "muse-spark-1.3"
+    assert provider.resolve_model_name("large") == "muse-spark-1.3"
+    assert provider.resolve_model_name("small") == "muse-spark-1.3"
 
 
 def test_muse_install_metadata_declares_channel_and_script_install() -> None:
@@ -201,7 +208,7 @@ def test_muse_command_construction(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert cmd[:3] == ["/opt/muse/bin/muse", "exec", "--json"]
     assert cmd[cmd.index("--workspace") + 1] == os.getcwd()
-    assert cmd[cmd.index("--model") + 1] == "muse-spark-1.2"
+    assert cmd[cmd.index("--model") + 1] == "muse-spark-1.3"
     assert "--trust-workspace" in cmd
     assert "--disable-approval" in cmd
     assert "--disable-sandbox" in cmd
@@ -304,8 +311,7 @@ def test_muse_model_override_wins_over_the_tier(
         ("medium", "medium"),
         ("high", "high"),
         ("xhigh", "xhigh"),
-        # Muse rejects `max` by name; `ultra` is its top level.
-        ("max", "ultra"),
+        ("max", "max"),
     ],
 )
 def test_muse_covers_every_canonical_effort_level(level: str, expected: str) -> None:

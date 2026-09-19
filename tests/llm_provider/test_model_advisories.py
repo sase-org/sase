@@ -16,7 +16,7 @@ from sase.llm_provider.model_label import model_value_text
 from sase.llm_provider.muse import _TIER_TO_MODEL, MuseProvider
 from sase.llm_provider.registry import model_advisory_for, model_advisory_map
 
-_CONTRIBUTOR = "muse-spark-1.2-contributor"
+_CONTRIBUTORS = ("muse-spark-1.3-contributor", "muse-spark-1.2-contributor")
 
 
 class _Plugin:
@@ -100,19 +100,21 @@ def test_one_bad_entry_does_not_drop_its_siblings() -> None:
 # --- Muse's Contributor advisory ------------------------------------------
 
 
-def test_muse_flags_the_contributor_model() -> None:
+@pytest.mark.parametrize("contributor", _CONTRIBUTORS)
+def test_muse_flags_the_contributor_model(contributor: str) -> None:
     advisories = MuseProvider().llm_model_advisories()
 
-    assert set(advisories) == {_CONTRIBUTOR}
-    assert advisories[_CONTRIBUTOR]["severity"] == "warn"
-    assert advisories[_CONTRIBUTOR]["label"] == "trains on your data"
-    assert "train" in advisories[_CONTRIBUTOR]["detail"]
+    assert set(advisories) == set(_CONTRIBUTORS)
+    assert advisories[contributor]["severity"] == "warn"
+    assert advisories[contributor]["label"] == "trains on your data"
+    assert contributor.removesuffix("-contributor") in advisories[contributor]["detail"]
 
 
-def test_registry_publishes_the_contributor_advisory() -> None:
-    assert model_advisory_map()[_CONTRIBUTOR]["label"] == "trains on your data"
-    assert model_advisory_for(_CONTRIBUTOR) is not None
-    assert model_advisory_for("muse-spark-1.2") is None
+@pytest.mark.parametrize("contributor", _CONTRIBUTORS)
+def test_registry_publishes_the_contributor_advisory(contributor: str) -> None:
+    assert model_advisory_map()[contributor]["label"] == "trains on your data"
+    assert model_advisory_for(contributor) is not None
+    assert model_advisory_for(contributor.removesuffix("-contributor")) is None
     assert model_advisory_for(None) is None
 
 
@@ -132,12 +134,13 @@ def test_tier_mapping_never_routes_to_an_advisory_model() -> None:
 # --- Render sites ----------------------------------------------------------
 
 
-def test_model_picker_row_carries_the_advisory() -> None:
+@pytest.mark.parametrize("contributor", _CONTRIBUTORS)
+def test_model_picker_row_carries_the_advisory(contributor: str) -> None:
     from sase.ace.tui.modals.model_picker_rows import build_model_rows
 
     rows = {row.model_id: row for row in build_model_rows() if row.is_model}
 
-    flagged = rows[_CONTRIBUTOR]
+    flagged = rows[contributor]
     assert flagged.advisory_label == "trains on your data"
     assert flagged.advisory_severity == "warn"
     assert "⚠ trains on your data" in flagged.label
@@ -145,22 +148,25 @@ def test_model_picker_row_carries_the_advisory() -> None:
     # The detail is searchable, so filtering on the terms finds the row.
     assert any("trains on your data" in term for term in flagged.search_terms)
 
-    assert rows["muse-spark-1.2"].advisory_label is None
-    assert "⚠" not in rows["muse-spark-1.2"].label
+    standard = contributor.removesuffix("-contributor")
+    assert rows[standard].advisory_label is None
+    assert "⚠" not in rows[standard].label
 
 
-def test_model_picker_option_renders_the_advisory() -> None:
+@pytest.mark.parametrize("contributor", _CONTRIBUTORS)
+def test_model_picker_option_renders_the_advisory(contributor: str) -> None:
     from sase.ace.tui.modals.model_picker_options import build_model_options
 
     options = {
         option.id: str(option.prompt) for option in build_model_options() if option
     }
 
-    assert "⚠ trains on your data" in options[_CONTRIBUTOR]
-    assert "⚠" not in options["muse-spark-1.2"]
+    assert "⚠ trains on your data" in options[contributor]
+    assert "⚠" not in options[contributor.removesuffix("-contributor")]
 
 
-def test_model_completion_detail_carries_the_advisory() -> None:
+@pytest.mark.parametrize("contributor", _CONTRIBUTORS)
+def test_model_completion_detail_carries_the_advisory(contributor: str) -> None:
     from sase.xprompt.model_completion import build_model_completion_catalog
 
     entries = {
@@ -169,16 +175,18 @@ def test_model_completion_detail_carries_the_advisory() -> None:
         if entry.kind == "model"
     }
 
-    flagged = entries[_CONTRIBUTOR]
+    flagged = entries[contributor]
     assert flagged.advisory_label == "trains on your data"
     assert flagged.advisory_severity == "warn"
     assert "⚠ trains on your data" in flagged.description
 
-    assert entries["muse-spark-1.2"].advisory_label == ""
-    assert "⚠" not in entries["muse-spark-1.2"].description
+    standard = contributor.removesuffix("-contributor")
+    assert entries[standard].advisory_label == ""
+    assert "⚠" not in entries[standard].description
 
 
-def test_model_completion_payload_exposes_the_advisory() -> None:
+@pytest.mark.parametrize("contributor", _CONTRIBUTORS)
+def test_model_completion_payload_exposes_the_advisory(contributor: str) -> None:
     from sase.xprompt.model_completion import model_completion_catalog_payload
 
     entries = {
@@ -186,14 +194,33 @@ def test_model_completion_payload_exposes_the_advisory() -> None:
         for entry in model_completion_catalog_payload()["entries"]  # type: ignore[index]
     }
 
-    assert entries[_CONTRIBUTOR]["advisory_label"] == "trains on your data"
-    assert entries["muse-spark-1.2"]["advisory_label"] == ""
+    assert entries[contributor]["advisory_label"] == "trains on your data"
+    assert entries[contributor.removesuffix("-contributor")]["advisory_label"] == ""
 
 
-def test_model_label_marks_an_active_advisory_model() -> None:
-    flagged = model_value_text(_CONTRIBUTOR, "muse", "high")
-    plain = model_value_text("muse-spark-1.2", "muse", "high")
+def test_model_completion_and_lsp_catalog_include_spark_13_metadata() -> None:
+    """The payload materializes the catalog consumed by the xprompt LSP."""
+    from sase.xprompt.model_completion import model_completion_catalog_payload
+
+    entries = {
+        entry["value"]: entry
+        for entry in model_completion_catalog_payload()["entries"]  # type: ignore[index]
+    }
+
+    assert entries["muse-spark-1.3"]["aliases"] == ["spark13"]
+    assert entries["muse-spark-1.3"]["advisory_label"] == ""
+    assert entries["muse-spark-1.3-contributor"]["aliases"] == ["spark13c"]
+    assert (
+        entries["muse-spark-1.3-contributor"]["advisory_label"] == "trains on your data"
+    )
+
+
+@pytest.mark.parametrize("contributor", _CONTRIBUTORS)
+def test_model_label_marks_an_active_advisory_model(contributor: str) -> None:
+    flagged = model_value_text(contributor, "muse", "high")
+    standard = contributor.removesuffix("-contributor")
+    plain = model_value_text(standard, "muse", "high")
 
     assert flagged is not None and plain is not None
-    assert flagged.plain == f"MUSE({_CONTRIBUTOR}) ⚠ @ high"
-    assert plain.plain == "MUSE(muse-spark-1.2) @ high"
+    assert flagged.plain == f"MUSE({contributor}) ⚠ @ high"
+    assert plain.plain == f"MUSE({standard}) @ high"

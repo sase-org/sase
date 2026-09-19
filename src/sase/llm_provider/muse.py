@@ -32,25 +32,27 @@ if TYPE_CHECKING:
 
 # Both tiers map to the full-price model on purpose. ``small`` is what compact
 # size aliases can reach for automatically, and
-# ``muse-spark-1.2-contributor`` is trained on its inputs and outputs — SASE
+# Contributor models are trained on their inputs and outputs — SASE
 # must never route a user's proprietary source into Meta's training corpus
 # without being told to. The Contributor model stays fully reachable by name.
 _TIER_TO_MODEL: dict[ModelTier, str] = {
-    "large": "muse-spark-1.2",
-    "small": "muse-spark-1.2",
+    "large": "muse-spark-1.3",
+    "small": "muse-spark-1.3",
 }
 
-_CONTRIBUTOR_MODEL = "muse-spark-1.2-contributor"
+_CONTRIBUTOR_MODELS = (
+    "muse-spark-1.3-contributor",
+    "muse-spark-1.2-contributor",
+)
 
-# Muse accepts ``none|minimal|low|medium|high|xhigh|ultra`` and rejects ``max``
-# by name, so SASE's canonical ``max`` maps onto Muse's ``ultra``. Muse is the
-# first provider to cover all seven canonical levels. Muse's own default is
-# ``high``, so a run with no resolved effort shows blank in SASE while Muse
-# actually used ``high``.
+# Muse accepts every canonical level. Meta documents ``max`` reasoning for the
+# standard Spark 1.3 model only; explicit requests for other model versions are
+# left to the CLI to validate. Muse's own default is ``high``, so a run with no
+# resolved effort shows blank in SASE while Muse actually used ``high``.
 _EFFORT_CLI_ARGS: dict[str, list[str]] = {
     level: ["--reasoning-effort", level]
-    for level in ("none", "minimal", "low", "medium", "high", "xhigh")
-} | {"max": ["--reasoning-effort", "ultra"]}
+    for level in ("none", "minimal", "low", "medium", "high", "xhigh", "max")
+}
 
 _MUSE_PATH_ENV = "SASE_MUSE_PATH"
 _MUSE_CLI_NAME = "muse"
@@ -162,16 +164,20 @@ class MuseProvider(LLMProvider):
     @hookimpl
     def llm_known_model_names(self) -> list[str]:
         return [
+            "muse-spark-1.3",
+            "muse-spark-1.3-contributor",
             "muse-spark-1.2",
-            _CONTRIBUTOR_MODEL,
+            "muse-spark-1.2-contributor",
             "muse-spark-1.1",
         ]
 
     @hookimpl
     def llm_model_short_aliases(self) -> dict[str, str]:
         return {
+            "muse-spark-1.3": "spark13",
+            "muse-spark-1.3-contributor": "spark13c",
             "muse-spark-1.2": "spark12",
-            _CONTRIBUTOR_MODEL: "spark12c",
+            "muse-spark-1.2-contributor": "spark12c",
             "muse-spark-1.1": "spark11",
         }
 
@@ -181,16 +187,17 @@ class MuseProvider(LLMProvider):
         # fully reachable by name; this makes the trade visible everywhere the
         # model is, so nobody agrees to it without seeing it.
         return {
-            _CONTRIBUTOR_MODEL: {
+            contributor_model: {
                 "severity": "warn",
                 "label": "trains on your data",
                 "detail": (
                     "Meta uses this model's inputs and outputs to train and "
-                    "improve its AI models. Same capabilities as "
-                    "muse-spark-1.2 at roughly 95% lower cost. Rate limited; "
-                    "available in select countries."
+                    f"improve its AI models. Same capabilities as "
+                    f"{contributor_model.removesuffix('-contributor')} at roughly "
+                    "95% lower cost. Rate limited; available in select countries."
                 ),
             }
+            for contributor_model in _CONTRIBUTOR_MODELS
         }
 
     @hookimpl

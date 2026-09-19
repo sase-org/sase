@@ -85,7 +85,7 @@ Muse Code is your provider, because `muse` is explicit-only and never auto-detec
 # Auto-detected providers:
 sase run "#git:home summarize this workspace's layout; do not change files"
 # Muse Code:
-sase run "%model:muse/muse-spark-1.2 #git:home summarize this workspace's layout; do not change files"
+sase run "%model:muse/muse-spark-1.3 #git:home summarize this workspace's layout; do not change files"
 # Then:
 sase agent list
 ```

@@ -4225,7 +4225,7 @@ tmux_agent:
     opencode: { effort: "off" }
     agy: { model: "gemini-3.7-flash-high" }
     qwen: { model: "qwen3.6-plus" }
-    muse: { model: "muse-spark-1.2" }
+    muse: { model: "muse-spark-1.3" }
 ```
 
 - `codex` and `grok` cap out at `xhigh`. A config-default effort is best-effort, so
@@ -4926,12 +4926,13 @@ mid-run; update Muse with `sase agent-cli update muse` instead. Muse's sandbox m
 disables it by default; `SASE_MUSE_SANDBOX=on` keeps the sandbox with
 `--sandbox-network enabled` at the documented cost of in-run commits failing.
 
-Muse's `muse-spark-1.2-contributor` model carries a **model advisory**: Meta uses its
-inputs and outputs to train and improve Meta's AI models. SASE keeps it fully reachable
-by name but never routes a tier map or any built-in size alias to it automatically. The
-advisory renders in sase's TUI model picker, in `%model` completion detail, and in the
-resolved model label, and `sase doctor -C llm.model_advisory` warns when a configured
-default or model alias resolves to any advisory-flagged model. See
+Muse's `muse-spark-1.3-contributor` and `muse-spark-1.2-contributor` models carry a
+**model advisory**: Meta uses their inputs and outputs to train and improve Meta's AI
+models. SASE keeps them fully reachable by name but never routes a tier map or any
+built-in size alias to either automatically. The advisory renders in sase's TUI model
+picker, in `%model` completion detail, and in the resolved model label, and
+`sase doctor -C llm.model_advisory` warns when a configured default or model alias
+resolves to any advisory-flagged model. See
 [LLM Providers — Model advisories](llms.md#model-advisories).
 
 Grok Build uses

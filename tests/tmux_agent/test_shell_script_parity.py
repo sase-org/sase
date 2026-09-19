@@ -33,7 +33,7 @@ _PARITY_CONFIG = TmuxAgentConfig(
         "opencode": TmuxAgentProviderConfig(effort="off"),
         "agy": TmuxAgentProviderConfig(model="gemini-3.7-flash-high"),
         "qwen": TmuxAgentProviderConfig(model="qwen3.6-plus"),
-        "muse": TmuxAgentProviderConfig(model="muse-spark-1.2"),
+        "muse": TmuxAgentProviderConfig(model="muse-spark-1.3"),
     },
 )
 
@@ -82,9 +82,9 @@ _EXPECTED_ARGV: dict[str, tuple[str, frozenset[str]]] = {
             {
                 "--yolo",
                 "--model",
-                "muse-spark-1.2",
+                "muse-spark-1.3",
                 "--reasoning-effort",
-                "ultra",
+                "max",
             }
         ),
     ),

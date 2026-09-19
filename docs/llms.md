@@ -736,31 +736,33 @@ with no other provider and is genuinely useful for read-only research agents, bu
 
 | Tier    | Muse Model       |
 | ------- | ---------------- |
-| `large` | `muse-spark-1.2` |
-| `small` | `muse-spark-1.2` |
+| `large` | `muse-spark-1.3` |
+| `small` | `muse-spark-1.3` |
 
-| Model                        | Context | In / Cached / Out (per 1M) | Notes                                                                                                                                         |
-| ---------------------------- | ------- | -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `muse-spark-1.2`             | 1M      | $1.25 / $0.15 / $4.25      | Coding-optimized, purpose-built for agentic workflows.                                                                                        |
-| `muse-spark-1.2-contributor` | 1M      | $0.10 / $0.002 / $0.20     | Same model and capabilities. **Meta uses its inputs and outputs to train and improve Meta's AI models.** Rate limited; select countries only. |
-| `muse-spark-1.1`             | 1M      | $1.25 / $0.15 / $4.25      | Agentic and multimodal (text, images, video, documents).                                                                                      |
+| Model                        | Context | In / Cached / Out (per 1M) | Notes                                                                                                                                      |
+| ---------------------------- | ------- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `muse-spark-1.3`             | 1M      | $1.25 / $0.15 / $4.25      | Current coding-optimized model for agentic workflows.                                                                                      |
+| `muse-spark-1.3-contributor` | 1M      | $0.10 / $0.002 / $0.20     | Same capabilities as 1.3. **Meta uses its inputs and outputs to train and improve Meta's AI models.** Rate limited; select countries only. |
+| `muse-spark-1.2`             | 1M      | $1.25 / $0.15 / $4.25      | Supported prior coding-optimized model.                                                                                                    |
+| `muse-spark-1.2-contributor` | 1M      | $0.10 / $0.002 / $0.20     | Same capabilities as 1.2. **Meta uses its inputs and outputs to train and improve Meta's AI models.** Rate limited; select countries only. |
+| `muse-spark-1.1`             | 1M      | $1.25 / $0.15 / $4.25      | Agentic and multimodal (text, images, video, documents).                                                                                   |
 
-**Both tiers map to `muse-spark-1.2` on purpose.** `small` is what `@small` and
+**Both tiers map to `muse-spark-1.3` on purpose.** `small` is what `@small` and
 `@xsmall` reach for automatically, so mapping it to the Contributor model would silently
 ship a user's proprietary source into Meta's training corpus. SASE does not make that
 decision on anyone's behalf. The Contributor model stays fully available — it is a known
-model name, it has the short alias `spark12c`, and
-`%model:muse/muse-spark-1.2-contributor` works — but reaching it requires typing its
-name, and a [model advisory](#model-advisories) makes sure the trade is visible when you
-do.
+model name, it has the short aliases `spark13c` and `spark12c`, and either
+`%model:muse/muse-spark-1.3-contributor` or `%model:muse/muse-spark-1.2-contributor`
+works — but reaching one requires typing its name, and a
+[model advisory](#model-advisories) makes sure the trade is visible when you do.
 
 ### Muse Reasoning Effort
 
-Muse accepts `none|minimal|low|medium|high|xhigh|ultra` and rejects `max` by name, so
-SASE's canonical `max` maps onto Muse's `ultra`. Muse is the first provider to cover all
-seven canonical levels. Muse's own internal default is `high`, so a run with no resolved
-effort shows blank in SASE while Muse actually used `high`; the recorded model identity
-(below) closes the equivalent gap for the model.
+Muse accepts all seven canonical levels, including `max`. Meta documents `max` reasoning
+for the standard `muse-spark-1.3` model; it is not claimed for Contributor or older
+models. Muse's own internal default is `high`, so a run with no resolved effort shows
+blank in SASE while Muse actually used `high`; the recorded model identity (below)
+closes the equivalent gap for the model.
 
 ### The Event Stream
 
@@ -1540,7 +1542,7 @@ Use `provider/model` to specify both explicitly:
 %model:agy/gemini-3.6-flash-high
 %model:qwen/qwen3.6-plus
 %model:opencode/anthropic/claude-sonnet-4-5
-%model:muse/muse-spark-1.2
+%model:muse/muse-spark-1.3
 %model:grok/grok-4.6
 %model:fakey/fakey-large
 ```
@@ -1563,7 +1565,7 @@ Known model names are automatically mapped to their provider:
 | `gemini-3.8-flash-high`, `gemini-3.8-flash-medium`, `gemini-3.8-flash-low`, `gemini-3.7-flash-high`, `gemini-3.7-flash-medium`, `gemini-3.7-flash-low`, `gemini-3.6-flash-high`, `gemini-3.6-flash-medium`, `gemini-3.6-flash-low`, `gemini-3.5-flash-high`, `gemini-3.5-flash-medium`, `gemini-3.5-flash-low`, `gemini-3.1-pro-high`, `gemini-3.1-pro-low`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`, `gpt-oss-120b-medium` | agy      |
 | `qwen3.6-plus`, `qwen3-coder-plus`, `qwen3-coder-flash`, `qwen3-max`, `qwen-plus`, `qwen-max`                                                                                                                                                                                                                                                                                                                                       | qwen     |
 | `anthropic/claude-sonnet-4-5`, `anthropic/claude-opus-4-5`, `openai/gpt-5`, `openai/gpt-5-mini`, `google/gemini-3-flash-preview`, `qwen/qwen3-coder-plus`                                                                                                                                                                                                                                                                           | opencode |
-| `muse-spark-1.2`, `muse-spark-1.2-contributor`, `muse-spark-1.1`                                                                                                                                                                                                                                                                                                                                                                    | muse     |
+| `muse-spark-1.3`, `muse-spark-1.3-contributor`, `muse-spark-1.2`, `muse-spark-1.2-contributor`, `muse-spark-1.1`                                                                                                                                                                                                                                                                                                                    | muse     |
 | `grok-4.6`                                                                                                                                                                                                                                                                                                                                                                                                                          | grok     |
 | `fakey-large`, `fakey-small`                                                                                                                                                                                                                                                                                                                                                                                                        | fakey    |
 
@@ -1600,7 +1602,7 @@ yourself.
 | agy      | `gemini-3.8-flash-high` → `flash38h`, `gemini-3.8-flash-medium` → `flash38m`, `gemini-3.8-flash-low` → `flash38l`, `gemini-3.7-flash-high` → `flash37h`, `gemini-3.7-flash-medium` → `flash37m`, `gemini-3.7-flash-low` → `flash37l`, `gemini-3.6-flash-high` → `flash36h`, `gemini-3.6-flash-medium` → `flash36m`, `gemini-3.6-flash-low` → `flash36l`, `gemini-3.5-flash-high` → `flash35h`, `gemini-3.5-flash-medium` → `flash35m`, `gemini-3.5-flash-low` → `flash35l`, `gemini-3.1-pro-high` → `pro31h`, `gemini-3.1-pro-low` → `pro31l`, `claude-sonnet-4-6` → `sonnet46`, `claude-opus-4-6-thinking` → `opus46t`, `gpt-oss-120b-medium` → `gptoss120m` |
 | qwen     | `qwen3.6-plus` → `qwen36p`, `qwen3-coder-plus` → `qwen3cp`, `qwen3-coder-flash` → `qwen3cf`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | opencode | `anthropic/claude-sonnet-4-5` → `sonnet45`, `anthropic/claude-opus-4-5` → `opus45`, `openai/gpt-5` → `gpt5`, `openai/gpt-5-mini` → `gpt5m`, `google/gemini-3-flash-preview` → `flash3`, `qwen/qwen3-coder-plus` → `qwen3cp`                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| muse     | `muse-spark-1.2` → `spark12`, `muse-spark-1.2-contributor` → `spark12c`, `muse-spark-1.1` → `spark11`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| muse     | `muse-spark-1.3` → `spark13`, `muse-spark-1.3-contributor` → `spark13c`, `muse-spark-1.2` → `spark12`, `muse-spark-1.2-contributor` → `spark12c`, `muse-spark-1.1` → `spark11`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | fakey    | `fakey-large` → `fakeyl`, `fakey-small` → `fakeys`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 
 Source: `llm_model_short_aliases()` in each provider module under
@@ -1634,8 +1636,8 @@ Opting in globally is the user's call; doing it without being told is not. For t
 reason, no bundled provider's tier map points at an advisory-flagged model, and a test
 asserts that so a future cost optimization cannot quietly reintroduce the problem.
 
-The only bundled advisory today is Muse's `muse-spark-1.2-contributor` (see
-[Muse Code Integration](#muse-code-integration)).
+The bundled advisories are Muse's `muse-spark-1.3-contributor` and
+`muse-spark-1.2-contributor` (see [Muse Code Integration](#muse-code-integration)).
 
 Source: `model_advisory_map()` / `model_advisory_for()` in
 `src/sase/llm_provider/registry.py`, `src/sase/doctor/checks_providers_advisory.py`
@@ -1706,16 +1708,16 @@ governs what happens on a provider that cannot honor the requested level:
 
 ### Provider Support Matrix
 
-| Provider            | Mechanism                             | Supported levels                  | Rejected           |
-| ------------------- | ------------------------------------- | --------------------------------- | ------------------ |
-| Claude              | `--effort <level>`                    | low, medium, high, xhigh, max     | none, minimal      |
-| Codex               | `-c model_reasoning_effort="<level>"` | minimal, low, medium, high, xhigh | none, max          |
-| OpenCode            | `--variant <level>`                   | all (validated by OpenCode/model) | —                  |
-| Antigravity (`agy`) | none today                            | —                                 | all                |
-| Qwen                | none today                            | —                                 | all                |
-| Muse Code           | `--reasoning-effort <level>`          | all seven (`max` sent as `ultra`) | —                  |
-| Grok Build          | `--effort <level>`                    | low, medium, high, xhigh          | none, minimal, max |
-| Fakey               | `--effort <level>`                    | all                               | —                  |
+| Provider            | Mechanism                             | Supported levels                   | Rejected           |
+| ------------------- | ------------------------------------- | ---------------------------------- | ------------------ |
+| Claude              | `--effort <level>`                    | low, medium, high, xhigh, max      | none, minimal      |
+| Codex               | `-c model_reasoning_effort="<level>"` | minimal, low, medium, high, xhigh  | none, max          |
+| OpenCode            | `--variant <level>`                   | all (validated by OpenCode/model)  | —                  |
+| Antigravity (`agy`) | none today                            | —                                  | all                |
+| Qwen                | none today                            | —                                  | all                |
+| Muse Code           | `--reasoning-effort <level>`          | all seven (`max` for standard 1.3) | —                  |
+| Grok Build          | `--effort <level>`                    | low, medium, high, xhigh           | none, minimal, max |
+| Fakey               | `--effort <level>`                    | all                                | —                  |
 
 For `agy` and `qwen` (no reasoning-effort mechanism today), every level is
 "unsupported": an explicit effort raises, while a config-default effort is skipped with

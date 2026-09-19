@@ -80,7 +80,7 @@ identity warning from `sase doctor` before launching:
 # Auto-detected providers:
 sase run "#git:home summarize this workspace's layout; do not change files"
 # Muse Code:
-sase run "%model:muse/muse-spark-1.2 #git:home summarize this workspace's layout; do not change files"
+sase run "%model:muse/muse-spark-1.3 #git:home summarize this workspace's layout; do not change files"
 # Grok Build:
 sase run "%model:grok/grok-4.6 #git:home summarize this workspace's layout; do not change files"
 # Then, while it is still running:

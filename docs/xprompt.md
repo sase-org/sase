@@ -1919,7 +1919,7 @@ Directives use the same argument syntax as xprompt references:
 %model:codex/o3              # Provider/model syntax — switches both provider and model
 %m:agy/gemini-3.7-flash-high # Provider/model value with a stable Antigravity slug
 %model:opencode/anthropic/claude-sonnet-4-5 # Nested provider/model syntax
-%model:muse/muse-spark-1.2   # Meta Muse Code — never auto-detected from PATH
+%model:muse/muse-spark-1.3   # Meta Muse Code — never auto-detected from PATH
 %model:grok/grok-4.6         # xAI Grok Build — never auto-detected; also in alias pools
 %model:@fast                 # Configured/implicit model alias; Model shows ← @fast
 %model(opus, medium=codex/gpt-5.6-sol) # This agent uses opus; medium follow-ups use Codex
@@ -2041,7 +2041,7 @@ candidates; the original reference remains authoritative for display and metadat
 complete ordering, execution, and persistence details.
 
 The `%model` directive also supports automatic provider resolution: known model names
-(e.g., `opus`, `o3`, `qwen3.6-plus`, `muse-spark-1.2`) are automatically mapped to their
+(e.g., `opus`, `o3`, `qwen3.6-plus`, `muse-spark-1.3`) are automatically mapped to their
 provider. See [Per-Prompt Provider Switching](llms.md#per-prompt-provider-switching) for
 the full model-to-provider mapping. sase's TUI and the xprompt LSP complete `%model:` /
 `%m:` values from the same model catalog used for provider resolution. The inserted

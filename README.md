@@ -84,7 +84,7 @@ sase doctor                                               # check install, confi
 sase completion install                                   # optional: <TAB> completion for zsh, bash, or fish
 sase run "#git:home summarize what this repository does; do not change files" # auto-detected providers
 # Or, for Muse Code:
-sase run "%model:muse/muse-spark-1.2 #git:home summarize what this repository does; do not change files"
+sase run "%model:muse/muse-spark-1.3 #git:home summarize what this repository does; do not change files"
 # Or, for Grok Build:
 sase run "%model:grok/grok-4.6 #git:home summarize what this repository does; do not change files"
 sase tui                                                  # open the interactive control surface

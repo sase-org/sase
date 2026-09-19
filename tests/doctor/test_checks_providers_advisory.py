@@ -9,7 +9,7 @@ import pytest
 from sase.doctor.checks_providers_advisory import check_llm_model_advisory
 from sase.llm_provider.alias_view import AliasView
 
-_FLAGGED = "muse-spark-1.2-contributor"
+_FLAGGED = ("muse-spark-1.3-contributor", "muse-spark-1.2-contributor")
 _ADVISORY = {
     "severity": "warn",
     "label": "trains on your data",
@@ -45,7 +45,11 @@ def routes(monkeypatch: pytest.MonkeyPatch):
         )
         monkeypatch.setattr(
             "sase.llm_provider.registry.model_advisory_map",
-            lambda: {_FLAGGED: dict(_ADVISORY)} if advisories is None else advisories,
+            lambda: (
+                {model: dict(_ADVISORY) for model in _FLAGGED}
+                if advisories is None
+                else advisories
+            ),
         )
         monkeypatch.setattr(
             "sase.llm_provider.registry.get_default_provider_name",
@@ -54,7 +58,7 @@ def routes(monkeypatch: pytest.MonkeyPatch):
         payload: dict[str, Any] = {
             "providers": {
                 "muse": {
-                    "model_resolutions": resolutions or {"large": "muse-spark-1.2"}
+                    "model_resolutions": resolutions or {"large": "muse-spark-1.3"}
                 }
             }
         }
@@ -67,7 +71,7 @@ def routes(monkeypatch: pytest.MonkeyPatch):
 
 
 def test_ok_when_no_provider_flags_a_model(routes) -> None:
-    routes([_view("default", "muse", "muse-spark-1.2")], advisories={})
+    routes([_view("default", "muse", "muse-spark-1.3")], advisories={})
 
     check = check_llm_model_advisory()
 
@@ -77,20 +81,23 @@ def test_ok_when_no_provider_flags_a_model(routes) -> None:
 
 
 def test_ok_when_nothing_routes_to_a_flagged_model(routes) -> None:
-    routes([_view("default", "muse", "muse-spark-1.2")])
+    routes([_view("default", "muse", "muse-spark-1.3")])
 
     check = check_llm_model_advisory()
 
     assert check.status == "OK"
     assert check.details == ()
-    assert list(check.data["advisory_models"]) == [_FLAGGED]
+    assert list(check.data["advisory_models"]) == sorted(_FLAGGED)
 
 
-def test_warns_for_a_configured_alias_and_quotes_the_detail(routes) -> None:
+@pytest.mark.parametrize("flagged", _FLAGGED)
+def test_warns_for_a_configured_alias_and_quotes_the_detail(
+    routes, flagged: str
+) -> None:
     routes(
         [
-            _view("default", "muse", "muse-spark-1.2"),
-            _view("cheap", "muse", _FLAGGED),
+            _view("default", "muse", "muse-spark-1.3"),
+            _view("cheap", "muse", flagged),
         ]
     )
 
@@ -99,17 +106,20 @@ def test_warns_for_a_configured_alias_and_quotes_the_detail(routes) -> None:
     assert check.status == "WARN"
     assert check.summary == "1 configured route(s) resolve to an advisory-flagged model"
     assert check.details == (
-        f"@cheap -> muse/{_FLAGGED}: Meta trains on this model's inputs and outputs.",
+        f"@cheap -> muse/{flagged}: Meta trains on this model's inputs and outputs.",
     )
     finding = check.data["findings"][0]
     assert finding["source"] == "@cheap"
-    assert finding["model"] == _FLAGGED
+    assert finding["model"] == flagged
     assert finding["severity"] == "warn"
     assert check.next_steps
 
 
-def test_warns_when_the_default_provider_tier_lands_on_a_flagged_model(routes) -> None:
-    routes([], resolutions={"large": _FLAGGED, "small": _FLAGGED})
+@pytest.mark.parametrize("flagged", _FLAGGED)
+def test_warns_when_the_default_provider_tier_lands_on_a_flagged_model(
+    routes, flagged: str
+) -> None:
+    routes([], resolutions={"large": flagged, "small": flagged})
 
     check = check_llm_model_advisory()
 

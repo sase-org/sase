@@ -98,7 +98,7 @@ routing, skills, and sase's TUI rows.
 
 Provider and model selection is still flexible per prompt. You can write
 `%model:codex/o3`, `%model:claude/opus`, `%m:agy/gemini-3.7-flash-high`,
-`%model:opencode/anthropic/claude-sonnet-4-5`, or `%model:muse/muse-spark-1.2`. Known
+`%model:opencode/anthropic/claude-sonnet-4-5`, or `%model:muse/muse-spark-1.3`. Known
 model names auto-map to providers, and when no provider is configured SASE auto-detects
 installed built-ins with unambiguous CLI names in priority order: `claude`, `codex`,
 `qwen`, `opencode`, then `agy`. Muse Code remains explicit-only. For repeated workflows,
@@ -383,7 +383,7 @@ Muse form only when selecting Muse explicitly:
 # Auto-detected providers:
 sase run "#git:home summarize what this repository does; do not change files"
 # Muse Code:
-sase run "%model:muse/muse-spark-1.2 #git:home summarize what this repository does; do not change files"
+sase run "%model:muse/muse-spark-1.3 #git:home summarize what this repository does; do not change files"
 # Then:
 sase agent list
 sase tui

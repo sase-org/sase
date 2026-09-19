@@ -1413,7 +1413,7 @@ llm_provider:
   # weight it (`A | 3 B` selects B three times as often as A). Weights are
   # invalid in `||` fallback chains and last-resort candidates.
   # Values may be a bare known model (opus), an explicit
-  # provider/model (codex/gpt-5.6-sol or muse/muse-spark-1.2), a nested
+  # provider/model (codex/gpt-5.6-sol or muse/muse-spark-1.3), a nested
   # provider-local path (opencode/anthropic/claude-sonnet-4-5), or an
   # @<alias> reference. An alias
   # reference may carry a trailing @<effort> that overrides its target's effort.
