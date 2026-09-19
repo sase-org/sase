@@ -86,6 +86,8 @@ async def test_dot_history_shortcuts_submit_as_plain_prompt_text(prompt: str) ->
 
     async with app.run_test() as pilot:
         await pilot.press("enter")
+        await pilot.pause()
+        await pilot.press("enter")
 
     assert app.history_requests == []
     assert [event.value for event in app.submissions] == [prompt]

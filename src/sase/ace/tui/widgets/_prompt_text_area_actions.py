@@ -11,6 +11,7 @@ parent ``PromptInputBar`` bridge).
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 from textual.screen import ModalScreen
@@ -23,6 +24,28 @@ from sase.ace.tui.widgets.file_completion import CompletionCandidate
 
 if TYPE_CHECKING:
     from sase.ace.tui.widgets.prompt_text_area import PromptTextArea
+
+
+@dataclass(frozen=True, slots=True)
+class _SubmitChoicePaneOrigin:
+    item_id: str
+    text: str
+    role: str
+
+
+@dataclass(frozen=True, slots=True)
+class _SubmitChoiceOrigin:
+    bar: Any
+    stack: Any
+    mode: str
+    generation: int
+    selected_index: int
+    selected_item_id: str
+    frontmatter: str
+    binding: object | None
+    readonly_target: object | None
+    target_generation: int
+    panes: tuple[_SubmitChoicePaneOrigin, ...]
 
 
 class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
@@ -179,23 +202,26 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
         )
 
     def _open_submit_choice_panel(self) -> None:
-        """Open the prompt-stack submit chooser for ambiguous ``<enter>``."""
+        """Open the prompt submit chooser for plain ``<enter>``."""
         from sase.ace.tui.modals.prompt_submit_choice_modal import (
             PromptSubmitChoice,
             PromptSubmitChoiceModal,
         )
 
         bar = self._find_prompt_bar()
-        if bar is None:
-            return
-        target = bar.xprompt_target()
-        if not bar.is_stacked() and target is None:
+        if (
+            bar is None
+            or bar._mode != "prompt"
+            or bar._stack.selected_item.is_auxiliary_pane
+        ):
             return
 
         prompt_texts = bar.all_prompt_texts()
         prompt_count = sum(1 for text in prompt_texts if text.strip())
         if prompt_count <= 0:
             return
+        target = bar.xprompt_target()
+        origin = self._capture_submit_choice_origin(bar)
 
         self._clear_file_completion()
         self._clear_soft_completion(cancel_timer=True)
@@ -203,6 +229,10 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
 
         def _on_result(result: PromptSubmitChoice | None) -> None:
             self._refocus_if_needed()
+            if result is not None and not self._submit_choice_origin_is_current(origin):
+                self._notify_submit_choice_stale()
+                self._refocus_submit_choice_origin(origin)
+                return
             if result == "send":
                 self.action_submit_prompt()
             elif result == "all":
@@ -223,6 +253,79 @@ class PromptTextAreaActionsMixin(PromptTextAreaEditActionsMixin):
             ),
             _on_result,
         )
+
+    @staticmethod
+    def _capture_submit_choice_origin(bar: Any) -> _SubmitChoiceOrigin:
+        """Snapshot the prompt-bar state represented by the submit chooser."""
+        bar._sync_state_from_widgets()
+        stack = bar._stack
+        return _SubmitChoiceOrigin(
+            bar=bar,
+            stack=stack,
+            mode=bar._mode,
+            generation=bar._generation,
+            selected_index=stack.selected_index,
+            selected_item_id=stack.selected_item.item_id,
+            frontmatter=stack.frontmatter,
+            binding=stack.binding,
+            readonly_target=getattr(bar, "_readonly_xprompt_target", None),
+            target_generation=getattr(bar, "_xprompt_target_generation", 0),
+            panes=tuple(
+                _SubmitChoicePaneOrigin(
+                    item_id=item.item_id,
+                    text=item.text,
+                    role=item.role,
+                )
+                for item in stack.items
+            ),
+        )
+
+    @staticmethod
+    def _submit_choice_origin_is_current(origin: _SubmitChoiceOrigin) -> bool:
+        """Return whether the chooser still describes the mounted draft."""
+        bar = origin.bar
+        if (
+            not bar.is_mounted
+            or bar._stack is not origin.stack
+            or bar._mode != origin.mode
+            or bar._generation != origin.generation
+            or bar._stack.selected_index != origin.selected_index
+            or bar._stack.selected_item.item_id != origin.selected_item_id
+            or bar._stack.frontmatter != origin.frontmatter
+            or bar._stack.binding is not origin.binding
+            or getattr(bar, "_readonly_xprompt_target", None)
+            is not origin.readonly_target
+            or getattr(bar, "_xprompt_target_generation", 0) != origin.target_generation
+        ):
+            return False
+        panes = tuple(
+            _SubmitChoicePaneOrigin(
+                item_id=item.item_id,
+                text=item.text,
+                role=item.role,
+            )
+            for item in bar._stack.items
+        )
+        return panes == origin.panes
+
+    def _refocus_submit_choice_origin(self, origin: _SubmitChoiceOrigin) -> None:
+        """Return focus to the current draft after a stale chooser closes."""
+        try:
+            if origin.bar.is_mounted:
+                origin.bar.active_text_area().focus()
+        except Exception:
+            pass
+
+    def _notify_submit_choice_stale(self) -> None:
+        """Tell the user a stale submit chooser was ignored."""
+        notify = getattr(self.app, "notify", None)
+        if callable(notify):
+            notify(
+                "Prompt changed while confirmation was open. Review it and submit again.",
+                severity="warning",
+                title="Prompt not launched",
+                markup=False,
+            )
 
     def _enter_normal_mode(self) -> None:
         """Switch to vim NORMAL mode, clearing prompt-only transient UI.

@@ -742,6 +742,8 @@ ace:
     check_interval_minutes: 10 # attempt a periodic check this often
     check_ttl_minutes: 10 # refresh latest-version checks at most this often
     recompute_interval_minutes: 60 # periodic full network recompute cadence
+  prompt_submission:
+    confirm_on_enter: true # plain Enter opens the prompt submission panel first
   keymaps:
     config:
       select_subtab: "0"
@@ -813,6 +815,7 @@ ace:
 | `prompt_completion`                 | dict         | see below | Live soft-completion settings for sase's TUI prompt input.                                                                                                 |
 | `prompt_inputs`                     | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                 |
 | `prompt_spellcheck`                 | dict         | see below | Sticky misspelling highlight settings for sase's TUI prompt input.                                                                                         |
+| `prompt_submission`                 | dict         | see below | Plain-Enter submission confirmation settings for sase's TUI prompt input.                                                                                  |
 | `repro_output_dir`                  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
 | `snippet_config_path`               | str          | `""`      | Config file that receives new `ace.snippets` entries written from the prompt bar (see below).                                                              |
 | `snippets`                          | dict[string] | `{}`      | Trigger-word → template mappings for prompt input snippet expansion.                                                                                       |
@@ -1641,6 +1644,32 @@ Source: `src/sase/history/prompt_misspellings.py`, `src/sase/core/word_lookup.py
 `src/sase/ace/tui/widgets/_misspelling_highlight.py`,
 `src/sase/ace/tui/actions/_startup_misspellings.py`,
 `src/sase/ace/tui/modals/spellcheck_panel_modal.py`
+
+#### `ace.prompt_submission`
+
+Controls whether plain `Enter` asks for confirmation before launching agent prompts from
+sase's TUI prompt input.
+
+```yaml
+ace:
+  prompt_submission:
+    confirm_on_enter: true
+```
+
+| Field              | Type | Default | Description                                                                                                           |
+| ------------------ | ---- | ------- | --------------------------------------------------------------------------------------------------------------------- |
+| `confirm_on_enter` | bool | `true`  | When true, plain `Enter` opens the submission panel and `Enter` inside that panel confirms its primary launch action. |
+
+When enabled, the panel appears for non-empty ordinary single-pane prompts, targeted
+single-pane drafts, and multi-pane prompt stacks. `g<enter>` in NORMAL mode and
+`Ctrl+G Enter` in INSERT mode stay direct selected-pane launch routes. Set
+`confirm_on_enter: false` to restore immediate plain-Enter launch: a single pane sends
+normally, a stack submits the active pane, and a targeted pane launches instead of
+opening the launch/write/save chooser.
+
+Source: `src/sase/ace/tui/prompt_submission_settings.py`,
+`src/sase/ace/tui/widgets/_prompt_text_area_key_handling.py`,
+`src/sase/ace/tui/modals/prompt_submit_choice_modal.py`
 
 #### `ace.prompt_inputs`
 

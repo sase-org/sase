@@ -3321,10 +3321,12 @@ fenced-code separators keep the same parsing rules described below. A `#name` xp
 swarm invocation remains a single pane until launch. During live editing, typed `---`
 lines are ordinary prompt text; add panes explicitly from the prompt-stack controls.
 Stash restore and marked-agent kill-and-edit can also seed multiple panes, but those
-paths preserve each selected draft or agent prompt as one pane. Use `Enter` to choose
-how to submit stacked panes, `g<enter>` to launch the selected pane directly, or
+paths preserve each selected draft or agent prompt as one pane. By default, use `Enter`
+to open the submission panel and press `Enter` again to confirm its primary launch
+action; use `g<enter>` or `Ctrl+G Enter` to launch the selected pane directly, or
 `Ctrl+S` to stash the active pane. Inside the `Enter` submit chooser, `a` or `Ctrl+S`
-submits all panes top-to-bottom. See the
+submits all panes top-to-bottom. Set `ace.prompt_submission.confirm_on_enter: false` to
+make plain `Enter` submit the active pane immediately, including in a stack. See the
 [sase's TUI prompt-stack guide](ace.md#prompt-stacks) for the editing keybindings and
 the default active-pane behavior.
 

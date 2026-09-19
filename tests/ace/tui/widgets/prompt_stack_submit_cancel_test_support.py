@@ -5,6 +5,7 @@ from __future__ import annotations
 from textual.app import App, ComposeResult
 from textual.pilot import Pilot
 
+from sase.ace.tui.prompt_submission_settings import PromptSubmissionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 
 
@@ -13,10 +14,19 @@ class CaptureApp(App[None]):
 
     ENABLE_COMMAND_PALETTE = False
 
-    def __init__(self, initial_value: str = "", mode: str = "prompt") -> None:
+    def __init__(
+        self,
+        initial_value: str = "",
+        mode: str = "prompt",
+        *,
+        confirm_on_enter: bool = True,
+    ) -> None:
         super().__init__()
         self._initial_value = initial_value
         self._mode = mode
+        self._prompt_submission_settings = PromptSubmissionSettings(
+            confirm_on_enter=confirm_on_enter
+        )
         self.submitted: list[PromptInputBar.Submitted] = []
         self.cancelled: list[PromptInputBar.Cancelled] = []
         self.stashed: list[PromptInputBar.Stashed] = []
@@ -45,6 +55,10 @@ class CaptureApp(App[None]):
 
     def on_prompt_input_bar_submitted(self, event: PromptInputBar.Submitted) -> None:
         self.submitted.append(event)
+
+    def get_prompt_submission_settings(self) -> PromptSubmissionSettings:
+        """Return prompt submission behavior for widget tests."""
+        return self._prompt_submission_settings
 
     def on_prompt_input_bar_cancelled(self, event: PromptInputBar.Cancelled) -> None:
         self.cancelled.append(event)

@@ -15,6 +15,10 @@ from typing import TYPE_CHECKING, Any, cast
 
 from textual.events import Key
 
+from sase.ace.tui.prompt_submission_settings import (
+    DEFAULT_PROMPT_SUBMISSION_SETTINGS,
+    PromptSubmissionSettings,
+)
 from sase.ace.tui.widgets._prompt_bullet_editing import plan_prompt_bullet_shift
 from sase.ace.tui.widgets._prompt_ordered_shift_editing import (
     plan_prompt_ordered_shift,
@@ -125,6 +129,25 @@ class PromptTextAreaKeyHandlingMixin(
         def action_open_prompt_history(self) -> None: ...
         def action_submit_prompt(self) -> None: ...
 
+    def _prompt_submission_settings(self) -> PromptSubmissionSettings:
+        """Return cached prompt-submission settings from the app."""
+        getter = getattr(self.app, "get_prompt_submission_settings", None)
+        if callable(getter):
+            value = getter()
+            if isinstance(value, PromptSubmissionSettings):
+                return value
+        return DEFAULT_PROMPT_SUBMISSION_SETTINGS
+
+    def _plain_enter_opens_submit_choice(self, bar: Any | None) -> bool:
+        """Return whether plain Enter should open the launch chooser."""
+        if bar is None or bar._mode != "prompt":
+            return False
+        if not self._prompt_submission_settings().confirm_on_enter:
+            return False
+        if bar._stack.selected_item.is_auxiliary_pane:
+            return False
+        return any(text.strip() for text in bar.all_prompt_texts())
+
     def _open_auto_reference_completion_after_change(
         self,
         character: str | None,
@@ -204,17 +227,7 @@ class PromptTextAreaKeyHandlingMixin(
             event.stop()
             event.prevent_default()
             bar = self._find_prompt_bar()
-            prompt_texts = bar.all_prompt_texts() if bar is not None else []
-            active_is_auxiliary = bool(
-                bar is not None and bar._stack.selected_item.is_auxiliary_pane
-            )
-            should_choose_submit = (
-                bar is not None
-                and not active_is_auxiliary
-                and (bar.is_stacked() or bar.xprompt_target() is not None)
-                and any(text.strip() for text in prompt_texts)
-            )
-            if should_choose_submit:
+            if self._plain_enter_opens_submit_choice(bar):
                 self._open_submit_choice_panel()
             else:
                 self._clear_xprompt_arg_hint()

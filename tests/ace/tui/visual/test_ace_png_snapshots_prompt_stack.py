@@ -179,6 +179,31 @@ async def test_prompt_submit_choice_modal_png_snapshot(
         )
 
 
+async def test_prompt_submit_choice_single_pane_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        await mount_prompt_bar(page, "Review the single-prompt launch panel.")
+
+        page.app.push_screen(PromptSubmitChoiceModal(prompt_count=1, pane_count=1))
+        await page.expect_modal("PromptSubmitChoiceModal")
+        await wait_for_svg_contains(page, "Launch agent")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "prompt_submit_choice_single_pane_120x40",
+            title="ACE prompt stack — single-pane submit chooser",
+        )
+
+
 async def test_prompt_stack_targeted_clean_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

@@ -134,6 +134,8 @@ async def test_picker_cancel_restores_prompt_owner_and_enter_submits(
         assert app.focused is text_area
         await pilot.press("enter")
         await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
 
         assert app.bulk_stops == 0
         assert app.submitted == ["#gh:sase"]
@@ -166,6 +168,8 @@ async def test_picker_select_keeps_prompt_owner_and_enter_submits(
         monkeypatch.setattr(
             bar, "_maybe_preflight_dispatch_submission", lambda _prepared: False
         )
+        await pilot.press("enter")
+        await pilot.pause()
         await pilot.press("enter")
         await pilot.pause()
 

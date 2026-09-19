@@ -189,9 +189,17 @@ def init_late_startup_state(
         CurrentProjectSettings,
         parse_current_project_settings,
     )
+    from ..prompt_submission_settings import (
+        PromptSubmissionSettings,
+        parse_prompt_submission_settings,
+    )
 
     settings: CurrentProjectSettings = parse_current_project_settings(ace_cfg)
     self._current_project_settings = settings
+    prompt_submission_settings: PromptSubmissionSettings = (
+        parse_prompt_submission_settings(ace_cfg)
+    )
+    self._prompt_submission_settings = prompt_submission_settings
     self._agents_repro_output_dir = (
         str(ace_cfg.get("repro_output_dir", "")) if isinstance(ace_cfg, dict) else ""
     )

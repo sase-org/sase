@@ -14,6 +14,7 @@ from sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane import (
     PromptBarSnippetPaneMixin,
 )
 from sase.ace.tui.modals import ConfirmActionModal
+from sase.ace.tui.modals.prompt_submit_choice_modal import PromptSubmitChoiceModal
 from sase.ace.tui.modals.snippet_name_modal import (
     SnippetNameModal,
     SnippetNameResult,
@@ -249,6 +250,11 @@ async def test_launch_with_dirty_snippet_confirms_and_excludes_snippet_payload(
         assert bar._stack.has_snippet_pane
         bar.focus_item(0)
         await pilot.pause()
+
+        await pilot.press("enter")
+        await pilot.pause()
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
+        assert app.submitted == []
 
         await pilot.press("enter")
         await pilot.pause()

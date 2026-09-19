@@ -110,6 +110,30 @@ def test_config_schema_validates_ace_prompt_spellcheck_settings() -> None:
             validator.validate({"ace": {"prompt_spellcheck": invalid}})
 
 
+def test_config_schema_validates_ace_prompt_submission_settings() -> None:
+    validator = Draft7Validator(schema())
+    public_schema = schema()
+    prompt_submission = public_schema["properties"]["ace"]["properties"][
+        "prompt_submission"
+    ]
+    default_config = yaml.safe_load(
+        (REPO_ROOT / "src/sase/default_config.yml").read_text(encoding="utf-8")
+    )
+
+    validator.validate({"ace": {"prompt_submission": {"confirm_on_enter": False}}})
+    validator.validate({"ace": {"prompt_submission": {"confirm_on_enter": True}}})
+    assert default_config["ace"]["prompt_submission"] == {"confirm_on_enter": True}
+    assert prompt_submission["additionalProperties"] is False
+    assert prompt_submission["properties"]["confirm_on_enter"]["default"] is True
+    for invalid in (
+        {"confirm_on_enter": "false"},
+        {"confirm_on_enter": 0},
+        {"unknown": True},
+    ):
+        with pytest.raises(ValidationError):
+            validator.validate({"ace": {"prompt_submission": invalid}})
+
+
 def test_config_schema_validates_ace_current_project_settings() -> None:
     validator = Draft7Validator(schema())
     documented = {

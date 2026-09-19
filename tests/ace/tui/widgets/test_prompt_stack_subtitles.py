@@ -46,8 +46,31 @@ async def test_multi_pane_insert_subtitle_points_to_nav() -> None:
         assert "[↑/↓] move" not in subtitle
 
 
+async def test_multi_pane_insert_subtitle_uses_send_when_confirm_disabled() -> None:
+    app = CaptureApp("first\n---\nsecond", confirm_on_enter=False)
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        subtitle = bar.insert_mode_subtitle()
+        assert "[Enter] send" in subtitle
+        assert "[Enter] submit…" not in subtitle
+        assert "[^G Enter] this" not in subtitle
+
+
 async def test_single_pane_insert_subtitle_keeps_normal_hint() -> None:
     app = CaptureApp("solo")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+        assert (
+            bar.insert_mode_subtitle() == "[Enter] launch…  [Esc] normal  [^C] cancel"
+        )
+
+
+async def test_single_pane_insert_subtitle_uses_send_when_confirm_disabled() -> None:
+    app = CaptureApp("solo", confirm_on_enter=False)
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()

@@ -11,6 +11,7 @@ import pytest
 from textual.app import App, ComposeResult
 
 from sase import project_aliases, project_display_names
+from sase.ace.tui.prompt_submission_settings import PromptSubmissionSettings
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.xprompt_arg_assist import (
     XPromptAssistEntry,
@@ -32,9 +33,14 @@ class CompletionTestApp(App[None]):
         self,
         snippets: dict[str, str] | None = None,
         common_placeholders: list[str] | None = None,
+        *,
+        confirm_on_enter: bool = False,
     ) -> None:
         super().__init__()
         self._snippets: dict[str, str] = snippets or {}
+        self._prompt_submission_settings = PromptSubmissionSettings(
+            confirm_on_enter=confirm_on_enter
+        )
         # ``None`` stands in for a cold cache, exactly as the real app's
         # ``common_placeholders()`` does before its first warm lands.
         self._common_placeholders: list[str] | None = common_placeholders
@@ -45,6 +51,9 @@ class CompletionTestApp(App[None]):
 
     def get_snippets(self) -> dict[str, str]:
         return self._snippets
+
+    def get_prompt_submission_settings(self) -> PromptSubmissionSettings:
+        return self._prompt_submission_settings
 
     def common_placeholders(self) -> list[str] | None:
         return self._common_placeholders

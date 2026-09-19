@@ -408,6 +408,8 @@ ace:
   prompt_spellcheck:
     highlight: true
     max_remembered_words: 5000
+  prompt_submission:
+    confirm_on_enter: true
   prompt_inputs:
     collect_raw_placeholders: true
     xprompt_placeholder_args: true

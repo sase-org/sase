@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sase.ace.tui.prompt_submission_settings import (
+    DEFAULT_PROMPT_SUBMISSION_SETTINGS,
+    PromptSubmissionSettings,
+)
 from sase.ace.tui.widgets.prompt_stack import PromptStackState
 
 if TYPE_CHECKING:
@@ -40,6 +44,15 @@ class PromptInputBarSubtitlesMixin(_MixinBase):
             return None
         return item.mini_xprompt_target.name
 
+    def _confirm_prompt_submission_on_enter(self) -> bool:
+        """Return cached plain-Enter confirmation behavior."""
+        getter = getattr(self.app, "get_prompt_submission_settings", None)
+        if callable(getter):
+            settings = getter()
+            if isinstance(settings, PromptSubmissionSettings):
+                return settings.confirm_on_enter
+        return DEFAULT_PROMPT_SUBMISSION_SETTINGS.confirm_on_enter
+
     def insert_mode_subtitle(self) -> str:
         """Return the insert-mode subtitle, advertising the stack when stacked.
 
@@ -65,12 +78,18 @@ class PromptInputBarSubtitlesMixin(_MixinBase):
             )
         target_hint = self._target_save_hint()
         if self._mode == "prompt" and self._stack.agent_count > 1:
+            if not self._confirm_prompt_submission_on_enter():
+                return f"[Enter] send  [Esc] nav  [^C] cancel  [^S] stash{target_hint}"
             return (
                 "[Enter] submit…  [Esc] nav  [^C] cancel  [^S] stash  "
                 f"[^G Enter] this{target_hint}"
             )
         if self._mode == "prompt" and self._target_hint_reference() is not None:
+            if not self._confirm_prompt_submission_on_enter():
+                return f"[Enter] send  [Esc] normal  [^C] cancel{target_hint}"
             return f"[Enter] submit…  [Esc] normal  [^C] cancel{target_hint}"
+        if self._mode == "prompt" and self._confirm_prompt_submission_on_enter():
+            return "[Enter] launch…  [Esc] normal  [^C] cancel"
         return "[Enter] send  [Esc] normal  [^C] cancel"
 
     def normal_mode_subtitle(self) -> str:

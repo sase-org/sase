@@ -8,6 +8,7 @@ import pytest
 from textual.widgets import Button
 
 from sase.ace.tui.modals import ConfirmActionModal
+from sase.ace.tui.modals.prompt_submit_choice_modal import PromptSubmitChoiceModal
 from sase.ace.tui.widgets.prompt_input_bar import PromptInputBar
 from sase.ace.tui.widgets.prompt_stack import XPromptBinding
 from tests.ace.tui.widgets.prompt_stack_submit_cancel_test_support import (
@@ -27,6 +28,11 @@ async def test_single_prompt_todo_confirmation_rejects_without_mutation(
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
+        assert app.submitted == []
         await pilot.press("enter")
         await pilot.pause()
 
@@ -63,6 +69,11 @@ async def test_single_prompt_todo_confirmation_launches_unchanged_once() -> None
 
         await pilot.press("enter")
         await pilot.pause()
+
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
+        await pilot.press("enter")
+        await pilot.pause()
+
         assert isinstance(app.screen, ConfirmActionModal)
 
         await pilot.press("y")
@@ -85,13 +96,17 @@ async def test_single_prompt_todo_confirmation_launches_unchanged_once() -> None
         "TODOS TODO2 preTODO remain ordinary",
     ],
 )
-async def test_todo_free_and_literal_shaped_prompts_submit_immediately(
+async def test_todo_free_and_literal_shaped_prompts_submit_after_primary_choice(
     prompt: str,
 ) -> None:
     app = CaptureApp(prompt)
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
         await pilot.press("enter")
         await pilot.pause()
 
@@ -229,6 +244,47 @@ async def test_whole_stack_todo_confirmation_counts_submitted_markers() -> None:
         assert event.whole_stack is True
 
 
+async def test_submit_choice_fails_closed_after_stack_rebuild() -> None:
+    app = CaptureApp("original")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        await pilot.press("enter")
+        await pilot.pause()
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
+
+        bar.load_stack_from_xprompt_markdown("replacement\n---\nother")
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert app.submitted == []
+        assert bar.all_prompt_texts() == ["replacement", "other"]
+
+
+async def test_submit_choice_fails_closed_after_origin_unmount() -> None:
+    app = CaptureApp("original")
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        await pilot.press("enter")
+        await pilot.pause()
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
+
+        await bar.remove()
+        await pilot.pause()
+        assert not app.query(PromptInputBar)
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert app.submitted == []
+        assert not app.query(PromptInputBar)
+
+
 async def test_todo_confirmation_fails_closed_after_stack_rebuild() -> None:
     app = CaptureApp("TODO: original")
 
@@ -236,6 +292,9 @@ async def test_todo_confirmation_fails_closed_after_stack_rebuild() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
+        await pilot.press("enter")
+        await pilot.pause()
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
         await pilot.press("enter")
         await pilot.pause()
         assert isinstance(app.screen, ConfirmActionModal)
@@ -256,6 +315,9 @@ async def test_todo_confirmation_fails_closed_after_origin_unmount() -> None:
         await pilot.pause()
         bar = app.query_one(PromptInputBar)
 
+        await pilot.press("enter")
+        await pilot.pause()
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
         await pilot.press("enter")
         await pilot.pause()
         assert isinstance(app.screen, ConfirmActionModal)

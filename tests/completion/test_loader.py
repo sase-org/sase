@@ -178,10 +178,13 @@ def test_fish_loader_sources_grammar_once_and_skips_later_ensure(
     _write_ensure_sase(bin_dir, grammar, log)
     loader_dir = tmp_path / "load ers"
     loader_dir.mkdir()
+    empty_completion_dir = tmp_path / "empty completions"
+    empty_completion_dir.mkdir()
     loader = loader_dir / "sase.fish"
     loader.write_text(emit_loader("fish"), encoding="utf-8")
 
     snippet = (
+        f"set -g fish_complete_path {shlex.quote(str(empty_completion_dir))}; "
         f"set -gx PATH {shlex.quote(str(bin_dir))} $PATH; "
         f"source {shlex.quote(str(loader))}; "
         "complete -C 'sase '; "

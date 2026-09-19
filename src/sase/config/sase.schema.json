@@ -1951,6 +1951,18 @@
             }
           }
         },
+        "prompt_submission": {
+          "type": "object",
+          "description": "Prompt submission confirmation settings for sase's TUI prompt input",
+          "additionalProperties": false,
+          "properties": {
+            "confirm_on_enter": {
+              "type": "boolean",
+              "description": "Whether plain Enter opens the prompt submission panel before launching agent prompts. Prefix routes such as g<enter> and Ctrl+G Enter remain direct.",
+              "default": true
+            }
+          }
+        },
         "prompt_inputs": {
           "type": "object",
           "description": "Prompt input collection settings for sase's TUI prompt input",

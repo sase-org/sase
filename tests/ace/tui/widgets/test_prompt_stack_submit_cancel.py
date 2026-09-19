@@ -2,11 +2,12 @@
 
 Covers the core interaction behavior of the multi-agent prompt stack:
 
-- ``<enter>`` opens a submit chooser for non-empty multi-pane stacks.
+- ``<enter>`` opens a submit chooser for non-empty agent prompts by default.
 - ``g<enter>`` submits only the selected pane and keeps the bar mounted
   while other panes remain, dropping an empty selected pane instead of launching
   it.
-- ``<enter>`` on the final pane submits the whole bar (unmount path).
+- ``<enter>`` on the final pane opens the chooser, then confirms the whole-bar
+  unmount path.
 - ``<ctrl+s>`` stashes the active pane.
 - ``<ctrl+c>`` cancels only the selected pane and keeps the bar mounted while
   other panes remain.
@@ -88,12 +89,15 @@ async def test_untargeted_multi_pane_choice_rows_are_unchanged() -> None:
 
         assert isinstance(app.screen, PromptSubmitChoiceModal)
         assert _submit_choice_rows(app.screen) == [
-            ("  a   Submit all\n      Launch all 2 prompts as one xprompt swarm."),
+            (
+                "  enter/a   Submit all\n"
+                "      Launch all 2 prompts as one xprompt swarm."
+            ),
             (
                 "  c   Submit current\n"
                 "      Launch only the selected prompt as a single agent."
             ),
-            "  a/^S all · c current · esc cancel",
+            "  enter/a/^S all · c current · esc/q cancel",
         ]
 
 
@@ -112,7 +116,7 @@ async def test_enter_on_targeted_single_pane_pushes_submit_choice_modal(
 
         assert isinstance(app.screen, PromptSubmitChoiceModal)
         rows = _submit_choice_rows(app.screen)
-        assert any("Send" in row for row in rows)
+        assert any("Launch agent" in row for row in rows)
         assert any("Save to" in row and "#draft" in row for row in rows)
         assert any("No unsaved changes since the last save." in row for row in rows)
         assert any("Save as a new xprompt" in row for row in rows)
@@ -203,7 +207,10 @@ async def test_targeted_multi_pane_choice_rows_include_launch_and_save(
         assert any("Launch current" in row for row in rows)
         assert any("Save to" in row and "#draft" in row for row in rows)
         assert any("Save as a new xprompt" in row for row in rows)
-        assert rows[-1] == "  a/^S all · c current · w save · X save as · esc cancel"
+        assert (
+            rows[-1]
+            == "  enter/a/^S all · c current · w save · X save as · esc/q cancel"
+        )
 
 
 async def test_targeted_submit_choice_dirty_copy_names_write_path(
@@ -226,7 +233,7 @@ async def test_targeted_submit_choice_dirty_copy_names_write_path(
         assert not any("No unsaved changes since the last save." in row for row in rows)
 
 
-@pytest.mark.parametrize("choice_key", ["a", "ctrl+s"])
+@pytest.mark.parametrize("choice_key", ["enter", "a", "ctrl+s"])
 async def test_submit_choice_all_submits_whole_stack(choice_key: str) -> None:
     app = CaptureApp("first\n---\nsecond\n---\nthird")
 
@@ -266,7 +273,10 @@ async def test_submit_choice_current_submits_selected_pane() -> None:
         assert bar.all_prompt_texts() == ["first", "second"]
 
 
-async def test_submit_choice_escape_cancels_without_mutating_stack() -> None:
+@pytest.mark.parametrize("cancel_key", ["escape", "q"])
+async def test_submit_choice_cancel_cancels_without_mutating_stack(
+    cancel_key: str,
+) -> None:
     app = CaptureApp("first\n---\nsecond\n---\nthird")
 
     async with app.run_test(size=(80, 30)) as pilot:
@@ -275,7 +285,7 @@ async def test_submit_choice_escape_cancels_without_mutating_stack() -> None:
 
         await pilot.press("enter")
         await pilot.pause()
-        await pilot.press("escape")
+        await pilot.press(cancel_key)
         await pilot.pause()
 
         assert app.submitted == []
@@ -384,11 +394,21 @@ async def test_enter_on_empty_selected_pane_opens_submit_choice() -> None:
         assert bar.all_prompt_texts() == ["first", "second"]
 
 
-async def test_enter_on_final_pane_submits_whole_bar() -> None:
+async def test_enter_on_single_pane_opens_choice_then_confirms() -> None:
     app = CaptureApp("only one")
 
     async with app.run_test(size=(80, 24)) as pilot:
         await pilot.pause()
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert isinstance(app.screen, PromptSubmitChoiceModal)
+        assert app.submitted == []
+        assert _submit_choice_rows(app.screen) == [
+            ("  enter/s   Launch agent\n      Start one agent with this prompt."),
+            "  enter/s launch · esc/q cancel",
+        ]
 
         await pilot.press("enter")
         await pilot.pause()
@@ -398,6 +418,35 @@ async def test_enter_on_final_pane_submits_whole_bar() -> None:
         assert event.value == "only one"
         assert event.keep_bar is False
         assert event.whole_stack is False
+
+
+async def test_enter_confirm_disabled_submits_single_pane_immediately() -> None:
+    app = CaptureApp("only one", confirm_on_enter=False)
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+
+        await pilot.press("enter")
+        await pilot.pause()
+
+        assert not isinstance(app.screen, PromptSubmitChoiceModal)
+        assert [event.value for event in app.submitted] == ["only one"]
+
+
+async def test_enter_confirm_disabled_submits_stack_active_pane() -> None:
+    app = CaptureApp("first\n---\nsecond", confirm_on_enter=False)
+
+    async with app.run_test(size=(80, 24)) as pilot:
+        await pilot.pause()
+        bar = app.query_one(PromptInputBar)
+
+        await pilot.press("enter")
+        await pilot.pause()
+        await pilot.pause()
+
+        assert [event.value for event in app.submitted] == ["second"]
+        assert app.submitted[0].keep_bar is True
+        assert bar.all_prompt_texts() == ["first"]
 
 
 async def test_g_enter_drains_stack_one_pane_at_a_time() -> None:

@@ -63,9 +63,10 @@ class _PromptSubmitChoiceRow:
 
 
 class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
-    """Single-key chooser for ambiguous prompt-stack submit intent."""
+    """Single-key chooser for prompt submit intent."""
 
     BINDINGS = [
+        Binding("enter", "choose_primary", "Choose primary", show=False),
         Binding("s", "choose_send", "Send", show=False),
         Binding("a", "choose_all", "Submit all", show=False),
         Binding("ctrl+s", "choose_all", "Submit all", show=False),
@@ -101,7 +102,7 @@ class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
                 classes="duration-choice-body",
             ):
                 yield Label(
-                    "Submit prompt stack",
+                    self._title(),
                     id="prompt-submit-choice-title",
                     classes="duration-choice-title",
                 )
@@ -119,18 +120,25 @@ class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
                     classes="prompt-submit-choice-row duration-choice-row",
                 )
 
+    def _title(self) -> str:
+        if self._pane_count <= 1:
+            if self._target is None:
+                return "Launch prompt?"
+            return "Launch or save prompt?"
+        return "Submit prompt stack"
+
     def _choice_rows(self) -> list[_PromptSubmitChoiceRow]:
         rows: list[_PromptSubmitChoiceRow] = []
         is_multi_pane = self._pane_count > 1
-        if self._target is not None and not is_multi_pane:
+        if not is_multi_pane:
             rows.append(
                 _PromptSubmitChoiceRow(
-                    "s",
-                    "Send",
-                    "Launch this draft as one agent.",
+                    "enter/s",
+                    "Launch agent",
+                    "Start one agent with this prompt.",
                     "send",
                     tone="primary",
-                    summary="s send",
+                    summary="enter/s launch",
                 )
             )
         if is_multi_pane:
@@ -138,12 +146,12 @@ class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
                 rows.extend(
                     [
                         _PromptSubmitChoiceRow(
-                            "a",
+                            "enter/a",
                             "Submit all",
                             self._all_subtitle(),
                             "all",
                             tone="primary",
-                            summary="a/^S all",
+                            summary="enter/a/^S all",
                         ),
                         _PromptSubmitChoiceRow(
                             "c",
@@ -158,12 +166,12 @@ class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
                 rows.extend(
                     [
                         _PromptSubmitChoiceRow(
-                            "a",
+                            "enter/a",
                             f"Launch all {self._prompt_count}",
                             self._all_subtitle(),
                             "all",
                             tone="primary",
-                            summary="a/^S all",
+                            summary="enter/a/^S all",
                         ),
                         _PromptSubmitChoiceRow(
                             "c",
@@ -256,12 +264,19 @@ class PromptSubmitChoiceModal(ModalScreen[PromptSubmitChoice | None]):
     @staticmethod
     def _summary_line(rows: list[_PromptSubmitChoiceRow]) -> str:
         rendered = [row.summary or f"{row.key} {row.result}" for row in rows]
-        rendered.append("esc cancel")
+        rendered.append("esc/q cancel")
         return " · ".join(rendered)
 
+    def action_choose_primary(self) -> None:
+        """Choose the context's primary submit action."""
+        if self._pane_count > 1:
+            self.dismiss("all")
+        else:
+            self.dismiss("send")
+
     def action_choose_send(self) -> None:
-        """Submit the single targeted pane."""
-        if self._target is not None and self._pane_count <= 1:
+        """Submit the single pane."""
+        if self._pane_count <= 1:
             self.dismiss("send")
 
     def action_choose_all(self) -> None:

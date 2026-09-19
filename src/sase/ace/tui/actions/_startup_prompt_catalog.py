@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, cast
 if TYPE_CHECKING:
     from ..glossary_catalog import PromptGlossaryContext
     from ..prompt_catalog import PromptCatalogSnapshot
+    from ..prompt_submission_settings import PromptSubmissionSettings
     from ..repo_mention_catalog import PromptRepoMentionContext
     from ..widgets.prompt_completion import (
         PromptCompletionSettings,
@@ -75,6 +76,10 @@ class StartupPromptCatalogMixin:
     def get_prompt_spellcheck_settings(self: Any) -> PromptSpellcheckSettings:
         """Return parsed sticky-misspelling-highlight behavior settings."""
         return self._prompt_spellcheck_settings
+
+    def get_prompt_submission_settings(self: Any) -> PromptSubmissionSettings:
+        """Return parsed prompt submission behavior settings."""
+        return self._prompt_submission_settings
 
     def get_prompt_catalog_assist_entries(
         self: Any,

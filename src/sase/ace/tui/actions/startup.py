@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from ..current_project_settings import CurrentProjectSettings
     from ..glossary_catalog import PromptGlossaryContext
     from ..prompt_catalog import PromptCatalogSnapshot
+    from ..prompt_submission_settings import PromptSubmissionSettings
     from ..repo_mention_catalog import PromptRepoMentionContext
     from ..widgets.prompt_completion import (
         PromptCompletionSettings,
@@ -191,6 +192,7 @@ class StartupMixin(
     _prompt_source_debounce_config_dirty: bool
     _prompt_completion_settings: PromptCompletionSettings
     _prompt_spellcheck_settings: PromptSpellcheckSettings
+    _prompt_submission_settings: PromptSubmissionSettings
     _current_project_settings: CurrentProjectSettings
     _history_prompt_word_index_cache: PromptWordIndex | None
     _history_prompt_word_deletions_cache: frozenset[str] | None
