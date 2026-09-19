@@ -18,6 +18,8 @@ from typing import Any
 
 
 PHASE_PENDING = "phase-pending"
+_ROOT = Path(__file__).resolve().parent.parent
+_RUN_SILENT = _ROOT / "tools" / "run_silent"
 
 
 def _phase_pending(case_id: str, reason: str) -> dict[str, Any]:
@@ -75,6 +77,7 @@ def _foreground_cases(
         cases.append(_case_compact_quiet(sase, env))
         cases.append(_case_enclosing_owner(sase, env))
         cases.append(_case_handshake(sase, env, tmp))
+        cases.append(_case_timeline(sase, env))
     finally:
         for proc in children:
             _kill_tree(proc)
@@ -390,6 +393,51 @@ def _case_handshake(sase: str, env: dict[str, str], tmp: Path) -> dict[str, Any]
         "id": "dod-5-running-before-spawn",
         "status": "pass" if ok else "fail",
         "observed": {"exit": proc.returncode, "state": state},
+    }
+
+
+def _case_timeline(sase: str, env: dict[str, str]) -> dict[str, Any]:
+    run_silent = str(_RUN_SILENT)
+    pipeline = (
+        f"{json.dumps(run_silent)} alpha true && "
+        f"{json.dumps(run_silent)} alpha true && "
+        f"{json.dumps(run_silent)} beta sh -c 'exit 3'"
+    )
+    proc = _run_sase(sase, ["tool", "run", "--", "bash", "-lc", pipeline], env)
+    run_id = _run_id_from_stderr(proc.stderr)
+    shown = (
+        json.loads(_run_sase(sase, ["tool", "show", run_id, "-j"], env).stdout)
+        if run_id
+        else {}
+    )
+    stages = shown.get("stages") or []
+    names = [stage.get("description") for stage in stages]
+    ids = [stage.get("stage_id") for stage in stages]
+    human = _run_sase(sase, ["tool", "show", run_id], env) if run_id else None
+    unattributed = shown.get("unattributed_ms")
+    ok = (
+        proc.returncode == 3
+        and names == ["alpha", "alpha", "beta"]
+        and len(set(ids)) == 3
+        and type(unattributed) is int
+        and unattributed >= 0
+        and human is not None
+        and human.returncode == 0
+        and "UNATTRIB" in human.stdout
+        and "alpha" in human.stdout
+        and stages[0].get("incomplete") is False
+        and stages[2].get("exit_code") == 3
+    )
+    return {
+        "id": "dod-6-timeline",
+        "status": "pass" if ok else "fail",
+        "run_id": run_id,
+        "observed": {
+            "exit": proc.returncode,
+            "names": names,
+            "unattributed_ms": unattributed,
+            "stage_count": len(stages),
+        },
     }
 
 

@@ -34,6 +34,13 @@ from sase.tool.ownership import (
     compact_requested,
     resolve_ownership,
 )
+from sase.tool.stage_protocol import (
+    StageIngestor,
+    format_unattributed_line,
+    unattributed_from_stages,
+)
+
+# tools/_run_silent_record.py appends JSONL; this executor only tails and ingests.
 
 
 _TOOL_RUN_ID_ENV = "SASE_TOOL_RUN_ID"
@@ -232,6 +239,14 @@ def _execute_resolved(
         else None
     )
     log_failed = False
+    ingestor: StageIngestor | None = None
+    if recorded and events_path is not None:
+        ingestor = StageIngestor(
+            path=events_path,
+            run_id=run_id,
+            compact=compact,
+            event_max_bytes=int(policy.get("event_max_bytes") or 0),
+        )
 
     def on_stdout(chunk: bytes) -> None:
         nonlocal log_failed
@@ -253,8 +268,15 @@ def _execute_resolved(
 
     if durable_id:
         _write_display(sys.stderr, f"sase tool run {durable_id}\n".encode())
+
+    def on_tick() -> None:
+        if ingestor is None:
+            return
+        for line in ingestor.tick():
+            _write_display(sys.stderr, f"{line}\n".encode())
+
     pumps = _start_pumps(proc, on_stdout, on_stderr)
-    wait_code = _wait_child(proc, signals)
+    wait_code = _wait_child(proc, signals, on_tick=on_tick)
     for pump in pumps:
         pump.join(timeout=5.0)
     if stdout_sink is not None:
@@ -262,6 +284,11 @@ def _execute_resolved(
     if stderr_sink is not None:
         stderr_sink.close()
     duration_ms = _duration_ms(started)
+    ingest_diagnostics: list[str] = []
+    if ingestor is not None:
+        for line in ingestor.flush():
+            _write_display(sys.stderr, f"{line}\n".encode())
+        ingest_diagnostics = list(ingestor.diagnostics)
     if log_failed and recorded:
         _warn_once(_WARN_INCOMPLETE)
 
@@ -276,6 +303,7 @@ def _execute_resolved(
             duration_ms=duration_ms,
             child_pid=child_pid,
             child_pgid=child_pgid,
+            diagnostics=ingest_diagnostics or None,
         )
         if not finished:
             _warn_once(_WARN_INCOMPLETE)
@@ -288,6 +316,7 @@ def _execute_resolved(
             tail_lines=request.tail_lines,
             stdout_sink=stdout_sink,
             stderr_sink=stderr_sink,
+            stages=list(ingestor.stages.values()) if ingestor is not None else (),
         )
     return exit_code
 
@@ -446,12 +475,22 @@ def _pump_child_stream(stream: BinaryIO, callback: Callable[[bytes], None]) -> N
     pump_output(stream, callback)
 
 
-def _wait_child(proc: subprocess.Popen[bytes], signals: _SignalState) -> int | None:
+def _wait_child(
+    proc: subprocess.Popen[bytes],
+    signals: _SignalState,
+    *,
+    on_tick: Callable[[], None] | None = None,
+) -> int | None:
     escalate_at: float | None = None
     while True:
         try:
             return proc.wait(timeout=0.1)
         except subprocess.TimeoutExpired:
+            if on_tick is not None:
+                try:
+                    on_tick()
+                except Exception:  # noqa: BLE001 - ingest cannot change the child.
+                    pass
             if (signals.sigint or signals.sigterm) and escalate_at is None:
                 escalate_at = time.monotonic() + _TERM_ESCALATE_SECONDS
             if escalate_at is not None and time.monotonic() >= escalate_at:
@@ -493,18 +532,26 @@ def _write_footer(
     tail_lines: int,
     stdout_sink: BoundedLogSink | None,
     stderr_sink: BoundedLogSink | None,
+    stages: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
 ) -> None:
     dropped = 0
     if stdout_sink is not None:
         dropped += stdout_sink.dropped
     if stderr_sink is not None:
         dropped += stderr_sink.dropped
+    attribution = (
+        unattributed_from_stages(list(stages), duration_ms) if stages else None
+    )
     if compact:
         line = f"{state}"
         if exit_code:
             line += f"/{exit_code}"
         line += f"  {duration_ms}ms\n"
         _write_display(sys.stderr, line.encode())
+        if attribution is not None:
+            _write_display(
+                sys.stderr, f"{format_unattributed_line(attribution)}\n".encode()
+            )
         if state != "succeeded" and tail_lines > 0:
             tail = _compact_tail(stdout_sink, stderr_sink, tail_lines)
             if tail:
@@ -522,6 +569,10 @@ def _write_footer(
         sys.stderr,
         f"{state}  exit={exit_code}  duration={duration_ms}ms{extra}\n".encode(),
     )
+    if attribution is not None:
+        _write_display(
+            sys.stderr, f"{format_unattributed_line(attribution)}\n".encode()
+        )
 
 
 def _compact_tail(

@@ -23,6 +23,7 @@ from sase.tool.render import (
     format_state,
     format_tool_name,
 )
+from sase.tool.stage_protocol import attach_timeline, format_stage_progress
 
 
 _RUN_STATES = frozenset(
@@ -125,6 +126,7 @@ def handle_show(request: ToolShowCliRequest) -> int:
         return 2
     if request.logs:
         return _replay_logs(run)
+    attach_timeline(envelope)
     if request.json:
         print(json.dumps(envelope, indent=2, sort_keys=True))
         return 0
@@ -288,6 +290,15 @@ def _print_show(envelope: dict[str, Any]) -> None:
         f"STDERR    {logs.get('stderr_path') or EMPTY}",
         f"EVENTS    {logs.get('events_path') or EMPTY}",
     ]
+    if envelope.get("stages"):
+        unattributed = envelope.get("unattributed_ms")
+        unattr_line = (
+            "UNATTRIB  "
+            f"{format_duration_ms(unattributed if type(unattributed) is int else None)}"
+        )
+        if envelope.get("unattributed_incomplete"):
+            unattr_line += "  incomplete"
+        lines.append(unattr_line)
     print("\n".join(lines))
     stages = envelope.get("stages") or ()
     if stages:
@@ -295,11 +306,7 @@ def _print_show(envelope: dict[str, Any]) -> None:
         for stage in stages:
             if not isinstance(stage, dict):
                 continue
-            desc = stage.get("description") or EMPTY
-            elapsed = stage.get("elapsed_ms")
-            print(
-                f"  {desc}  {format_duration_ms(elapsed if type(elapsed) is int else None)}"
-            )
+            print(f"  {format_stage_progress(stage)}")
 
 
 def _logs_map(run: dict[str, Any]) -> dict[str, Any]:

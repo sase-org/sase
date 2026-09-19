@@ -53,6 +53,10 @@ def test_run_silent_writes_isolated_monitor_stage_report(tmp_path: Path) -> None
     assert report["status"] == "failed"
     assert report["exit_code"] == 7
     assert report["diagnostic_refs"]
+    assert type(report["started_at_epoch"]) is float
+    assert type(report["elapsed_seconds"]) is float
+    assert report["elapsed_seconds"] >= 0
+    assert report["started_at_epoch"] <= report["recorded_at_epoch"]
     evidence_path = tmp_path / "artifacts" / report["diagnostic_locators"][0]
     assert evidence_path.read_text(encoding="utf-8") == "stage boom\n"
 

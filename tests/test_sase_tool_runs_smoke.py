@@ -51,4 +51,5 @@ def test_tool_runs_harness_covers_foreground_run() -> None:
     assert statuses["dod-5-running-before-spawn"] == "pass"
     assert statuses["dod-7-agent-output"] == "pass"
     assert statuses["dod-8-enclosing-owner"] == "pass"
+    assert statuses["dod-6-timeline"] == "pass"
     assert report["failed"] == 0

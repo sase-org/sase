@@ -11,6 +11,7 @@ from sase.core.process_identity import (
     process_identity_token,
 )
 from sase.core.tool_run import tool_run_list, tool_run_reconcile
+from sase.tool.stage_protocol import ingest_event_file
 
 
 _LOST_REASON = "runner exited without settling"
@@ -93,6 +94,16 @@ def _observe_wrapper(run: dict[str, Any]) -> dict[str, Any]:
     return fact
 
 
+def _events_path(run: dict[str, Any]) -> Path | None:
+    logs = run.get("logs")
+    if not isinstance(logs, dict):
+        return None
+    raw = logs.get("events_path")
+    if not raw:
+        return None
+    return Path(str(raw))
+
+
 def reconcile_unsettled_tool_runs() -> dict[str, Any]:
     """Collect bounded liveness facts and persist lost transitions."""
 
@@ -112,8 +123,13 @@ def reconcile_unsettled_tool_runs() -> dict[str, Any]:
             continue
         diagnostics.extend(str(item) for item in listed.get("diagnostics") or ())
         for run in listed.get("runs") or ():
-            if isinstance(run, dict):
-                facts.append(_observe_wrapper(run))
+            if not isinstance(run, dict):
+                continue
+            events_path = _events_path(run)
+            run_id = str(run.get("run_id") or "")
+            if events_path is not None and run_id:
+                diagnostics.extend(ingest_event_file(events_path, run_id))
+            facts.append(_observe_wrapper(run))
     if not facts and not diagnostics:
         try:
             return tool_run_reconcile({"schema_version": 1, "facts": []})
