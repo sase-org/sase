@@ -1,0 +1,28 @@
+objective: Close parent epic sase-11l.11 after just fix / just check-full / sase-core just check, then continue sase-11l ancestor landing if it remains complete.
+constraints:
+  - Do not force-close sase-11l.11 or sase-11l.
+  - Do not change pyproject.toml or uv.lock; published sase-core-rs floor stays on sase-10d / sase-12y.4.
+  - Plan remaining epic-caused work with /sase_plan; do not include close/symvision/plan-status as a child phase.
+  - Commit the already-edited plans sidecar file 202609/hold_deadlock_core_pin.md (status: done for sase-11l.11.5).
+findings:
+  - "sase-11l.11.5 closed. Pin 39602c950f8882d71dab1e3b74c17d2751e8b1cf (v0.34.63) is origin/master, descendant of 0a7301ca435d, installed sase-core-rs 0.34.63 exposes agent_hold_deadlock_reaches. just symvision passed. No --epic-symbol entries for 11.5 or 11.11."
+  - "sase-11l.11.1 closed: shared hold_fields_to_selectors, identity overlay, positional CLI operands. Commit 0e4cfe92cb."
+  - "sase-11l.11.2 closed: runner_slot_admission_lock shared by arm/claim/proc commit. Commit 8de747c36a."
+  - "sase-11l.11.3 closed: format_stored_capture, prune outcomes, pane/CLI render. Commit a1bb1df454."
+  - "sase-11l.11.4 closed: hold_deadlock_armer_record delegates to agent_hold_deadlock_reaches. Commit 388d516030."
+  - "sase-11l.11.5 closed: source pin ratchet. Commit 0fc51c2998."
+  - "Later commits 9cfa200675, 485a6082e1, 423316a051 do not touch hold/deadlock/pin files. Hold files after 11.1 were only edited by 11.2-11.4."
+  - "Focused hold regressions 104 passed (selector parity, admission ordering, hold service, deadlock, parser, handler, holds pane)."
+  - "sase-11l.11.4 PROPOSED FOLLOW-UP corroborate sase-10d: already +1 on ready task sase-10d and DISCOVERED ISSUE on in-progress sase-12y.4. Decline a new task as duplicate."
+  - "No other PROPOSED FOLLOW-UP notes on 11.11 children."
+remaining_work:
+  - If this monitor failed because of hold/pin work, fix it, re-run the failed gate, then close.
+  - If it failed for unrelated reasons, file via /sase_new_task (or DISCOVERED ISSUE on an active causal epic) and do not close 11.11 as done.
+  - "If it passed: epic-symbols sase-11l.11, close sase-11l.11 with a verification note, just symvision, set status done on plan:202609/hold_landing_repairs.md, then recheck parent sase-11l and close it only when still complete."
+source_refs:
+  - plan:202609/hold_landing_repairs.md
+  - plan:202609/hold_deadlock_core_pin.md
+  - sase-core-revision.txt
+  - src/sase/axe/run_agent_wait_slot_candidate.py
+  - src/sase/core/agent_hold_identity.py
+  - src/sase/core/runner_slots/_admission_lock.py
