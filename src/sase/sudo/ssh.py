@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import os
 import shlex
 import signal
 import subprocess
 import sys
 import time
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass
 from typing import Any, BinaryIO, Literal, TextIO, overload
 from uuid import uuid4
@@ -459,6 +461,41 @@ def _ssh_argv(host: str, remote_command: str, *, tty: bool = False) -> list[str]
     return argv
 
 
+def _open_controlling_tty() -> int:
+    """Open the controlling terminal for authentication SSH stdio."""
+    flags = os.O_RDWR | getattr(os, "O_CLOEXEC", 0)
+    return os.open("/dev/tty", flags)
+
+
+def _tty_required() -> GateError:
+    return GateError(
+        "tty_required",
+        "ssh",
+        "remote sudo authentication requires a controlling TTY; "
+        "the gate remains pending",
+    )
+
+
+@contextmanager
+def _authentication_ssh_stdio(host: str) -> Iterator[dict[str, Any]]:
+    """Attach authentication ``ssh -t`` to ``/dev/tty``, not inherited pipes."""
+    try:
+        fd = _open_controlling_tty()
+    except OSError as exc:
+        raise _tty_required() from exc
+    try:
+        try:
+            os.write(fd, f"sase sudo: authenticate on {host}\n".encode())
+        except OSError as exc:
+            raise _tty_required() from exc
+        yield {"stdin": fd, "stdout": fd, "stderr": fd}
+    finally:
+        try:
+            os.close(fd)
+        except OSError:
+            pass
+
+
 def _probe_contract(host: str, *, command_runner: CommandRunner) -> _RemoteSudoContract:
     completed = _run_ssh(
         "remote_sudo_unavailable",
@@ -574,18 +611,18 @@ def _run_target_exec(
         "--ledger",
         paths.ledger,
     )
-    completed = _run_ssh(
-        "remote_sudo_exec_failed",
-        command_runner,
-        _ssh_argv(host, remote, tty=True),
-        kwargs={
-            "check": False,
-            "stderr": None,
-            "stdout": None,
-            "text": True,
-            "timeout": timeout_seconds,
-        },
-    )
+    with _authentication_ssh_stdio(host) as stdio:
+        completed = _run_ssh(
+            "remote_sudo_exec_failed",
+            command_runner,
+            _ssh_argv(host, remote, tty=True),
+            kwargs={
+                "check": False,
+                **stdio,
+                "text": True,
+                "timeout": timeout_seconds,
+            },
+        )
     if completed.returncode not in {0, 10, 11, 12, 14}:
         raise GateError(
             "remote_sudo_exec_failed",
@@ -616,18 +653,18 @@ def _run_target_exec_detached(
         "--ledger",
         paths.ledger,
     )
-    completed = _run_ssh(
-        "remote_sudo_exec_failed",
-        command_runner,
-        _ssh_argv(host, remote, tty=True),
-        kwargs={
-            "check": False,
-            "stderr": None,
-            "stdout": None,
-            "text": True,
-            "timeout": timeout_seconds,
-        },
-    )
+    with _authentication_ssh_stdio(host) as stdio:
+        completed = _run_ssh(
+            "remote_sudo_exec_failed",
+            command_runner,
+            _ssh_argv(host, remote, tty=True),
+            kwargs={
+                "check": False,
+                **stdio,
+                "text": True,
+                "timeout": timeout_seconds,
+            },
+        )
     if completed.returncode not in {0, 10, 11, 12, 14}:
         raise GateError(
             "remote_sudo_exec_failed",

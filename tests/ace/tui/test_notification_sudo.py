@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ from sase.ace.tui.actions.agents._notification_sudo import (
     _load_sudo_request_modal_data,
     _run_sudo_terminal_handoff,
     _sudo_cli_message,
+    _terminal_banner,
     handle_sudo_request,
 )
 from sase.ace.tui.modals import SudoRequestModalData, SudoRequestModalResult
@@ -324,6 +326,51 @@ def test_sudo_terminal_handoff_reports_auth_failure_and_keeps_gate_pending(
         ("Sudo authentication failed; gate remains pending", "warning")
     ]
     assert app.refresh_count == 1
+
+
+def test_terminal_banner_names_machine_when_modal_has_one() -> None:
+    local = _terminal_banner(_modal_data(), ("refresh",))
+    assert local == (
+        "SASE sudo authentication handoff. "
+        "Request sudo-123; reviewed commands: refresh."
+    )
+    remote = _terminal_banner(
+        replace(_modal_data(), machine="apollo"),
+        ("refresh", "verify"),
+    )
+    assert remote == (
+        "SASE sudo authentication handoff. "
+        "Request sudo-123 on apollo; reviewed commands: refresh, verify."
+    )
+
+
+def test_sudo_terminal_handoff_keeps_json_stdout_pipe_when_machine_named(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    data = replace(_modal_data(), machine="apollo")
+    result = SudoRequestModalResult(action="run", command_ids=("refresh",))
+    app = _SudoActionApp(result)
+    run_calls: list[tuple[list[str], dict[str, object]]] = []
+
+    def fake_run(
+        argv: list[str],
+        **kwargs: object,
+    ) -> subprocess.CompletedProcess[str]:
+        run_calls.append((list(argv), kwargs))
+        return subprocess.CompletedProcess(
+            argv,
+            0,
+            stdout=json.dumps({"status": "answered", "outcome": "completed"}),
+        )
+
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_sudo.subprocess.run",
+        fake_run,
+    )
+    _run_sudo_terminal_handoff(app, _notification(), data, result)
+
+    assert run_calls[0][1]["stdout"] is subprocess.PIPE
+    assert run_calls[0][1]["stderr"] is None
 
 
 def test_sudo_cli_message_reports_execution_started() -> None:

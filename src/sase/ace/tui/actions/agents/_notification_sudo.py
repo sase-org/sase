@@ -249,9 +249,10 @@ def _sudo_answer_argv(request_id: str, command_ids: tuple[str, ...]) -> list[str
 
 def _terminal_banner(data: SudoRequestModalData, command_ids: tuple[str, ...]) -> str:
     command_summary = ", ".join(command_ids) if command_ids else "all commands"
+    target = f" on {data.machine}" if data.machine else ""
     return (
         "SASE sudo authentication handoff. "
-        f"Request {data.request_id}; reviewed commands: {command_summary}."
+        f"Request {data.request_id}{target}; reviewed commands: {command_summary}."
     )
 
 

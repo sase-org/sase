@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import errno
 import os
 import signal
 import subprocess
@@ -32,12 +33,67 @@ from tests._sudo_ssh_fake import (
 )
 
 
+_FAKE_PAM_BYTES = b"FAKE-PAM-PROMPT\n"
+
+
+@pytest.fixture(autouse=True)
+def fake_controlling_tty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    path = tmp_path / "controlling-tty"
+    path.touch()
+    monkeypatch.setattr(
+        "sase.sudo.ssh._open_controlling_tty",
+        lambda: os.open(path, os.O_RDWR),
+    )
+    return path
+
+
 def _manifest() -> dict[str, Any]:
     return {
         "schema_version": 1,
         "request_id": "sudo-1",
         "cwd": "/tmp/remote cwd",
     }
+
+
+def _record_ssh_calls(
+    fake: FakeOpenSSHEndpoint,
+    *,
+    pam_bytes: bytes = b"",
+) -> tuple[Any, list[tuple[list[str], dict[str, Any]]]]:
+    recorded: list[tuple[list[str], dict[str, Any]]] = []
+
+    def runner(argv: list[str], **kwargs: Any) -> Any:
+        recorded.append((list(argv), dict(kwargs)))
+        stdout = kwargs.get("stdout")
+        if pam_bytes and "-t" in argv and isinstance(stdout, int):
+            os.write(stdout, pam_bytes)
+        return fake(argv, **kwargs)
+
+    return runner, recorded
+
+
+def _assert_auth_ssh_uses_tty_stdio(
+    recorded: list[tuple[list[str], dict[str, Any]]],
+    fake: FakeOpenSSHEndpoint,
+) -> None:
+    auth = [kwargs for argv, kwargs in recorded if "-t" in argv]
+    assert len(auth) == 1
+    stdio = auth[0]
+    tty_fd = stdio["stdin"]
+    assert isinstance(tty_fd, int)
+    assert stdio["stdout"] is tty_fd
+    assert stdio["stderr"] is tty_fd
+    assert stdio["stdout"] is not subprocess.PIPE
+    assert stdio.get("input") is None
+    for argv, kwargs in recorded:
+        if "-t" in argv:
+            continue
+        assert kwargs.get("stdin") != tty_fd
+        assert kwargs.get("stdout") != tty_fd
+        assert kwargs.get("stderr") != tty_fd
+    assert any("sase sudo exec --contract" in command for command in fake.joined)
+    assert any("mkdir -p -m 700" in command for command in fake.joined)
+    assert any(command.startswith("cat ") for command in fake.joined)
 
 
 def _sase_exec_commands(fake: FakeOpenSSHEndpoint) -> list[str]:
@@ -424,6 +480,124 @@ def test_run_remote_sudo_missing_login_sase_stays_pending(tmp_path: Path) -> Non
     assert not Path(paths["directory"]).exists()
     assert not any("mkdir -p -m 700" in command for command in fake.joined)
     assert any("sase sudo exec --contract" in command for command in fake.joined)
+
+
+def test_sync_auth_ssh_uses_controlling_tty_stdio(
+    tmp_path: Path, fake_controlling_tty: Path
+) -> None:
+    fake = FakeOpenSSHEndpoint(tmp_path)
+    runner, recorded = _record_ssh_calls(fake)
+    paths = allocate_remote_sudo_paths(base=str(tmp_path / "tty-sync"))
+    ledger = run_remote_sudo(
+        "apollo",
+        _manifest(),
+        manifest_sha256="abc",
+        command_runner=runner,
+        paths=paths,
+    )
+    assert ledger["outcome"] == "completed"
+    _assert_auth_ssh_uses_tty_stdio(recorded, fake)
+    assert any("rm -rf" in command for command in fake.joined)
+    _assert_target_sase_uses_login_environment(fake)
+    assert "sase sudo: authenticate on apollo\n" in fake_controlling_tty.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_detached_auth_ssh_uses_controlling_tty_stdio(
+    tmp_path: Path, fake_controlling_tty: Path
+) -> None:
+    fake = FakeOpenSSHEndpoint(tmp_path)
+    runner, recorded = _record_ssh_calls(fake)
+    paths = allocate_remote_sudo_paths(base=str(tmp_path / "tty-detach"))
+    payload, _returned = run_remote_sudo_detached(
+        "apollo",
+        _manifest(),
+        manifest_sha256="abc",
+        command_runner=runner,
+        paths=paths,
+    )
+    assert payload["kind"] == "sudo_exec_started"
+    _assert_auth_ssh_uses_tty_stdio(recorded, fake)
+    _assert_target_sase_uses_login_environment(fake)
+    assert "sase sudo: authenticate on apollo\n" in fake_controlling_tty.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_piped_parent_stdout_settles_from_ledger_without_reading_pam(
+    tmp_path: Path, fake_controlling_tty: Path
+) -> None:
+    fake = FakeOpenSSHEndpoint(tmp_path)
+    runner, recorded = _record_ssh_calls(fake, pam_bytes=_FAKE_PAM_BYTES)
+    paths = allocate_remote_sudo_paths(base=str(tmp_path / "piped-sync"))
+    ledger = run_remote_sudo(
+        "apollo",
+        _manifest(),
+        manifest_sha256="abc",
+        command_runner=runner,
+        paths=paths,
+    )
+    assert ledger["outcome"] == "completed"
+    assert ledger["request_id"] == "sudo-1"
+    _assert_auth_ssh_uses_tty_stdio(recorded, fake)
+    contents = fake_controlling_tty.read_bytes()
+    assert b"sase sudo: authenticate on apollo\n" in contents
+    assert _FAKE_PAM_BYTES in contents
+
+
+def test_piped_parent_stdout_settles_from_handshake_without_reading_pam(
+    tmp_path: Path, fake_controlling_tty: Path
+) -> None:
+    fake = FakeOpenSSHEndpoint(tmp_path)
+    runner, recorded = _record_ssh_calls(fake, pam_bytes=_FAKE_PAM_BYTES)
+    paths = allocate_remote_sudo_paths(base=str(tmp_path / "piped-detach"))
+    payload, returned = run_remote_sudo_detached(
+        "apollo",
+        _manifest(),
+        manifest_sha256="abc",
+        command_runner=runner,
+        paths=paths,
+    )
+    assert payload["kind"] == "sudo_exec_started"
+    assert returned == paths
+    assert Path(paths["handshake"]).is_file()
+    _assert_auth_ssh_uses_tty_stdio(recorded, fake)
+    contents = fake_controlling_tty.read_bytes()
+    assert _FAKE_PAM_BYTES in contents
+
+
+@pytest.mark.parametrize(
+    "run_fn",
+    [run_remote_sudo, run_remote_sudo_detached],
+    ids=["sync", "detached"],
+)
+def test_missing_controlling_tty_raises_tty_required(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    run_fn: Any,
+) -> None:
+    def factory() -> int:
+        raise OSError(errno.ENXIO, "No such device or address")
+
+    monkeypatch.setattr("sase.sudo.ssh._open_controlling_tty", factory)
+    fake = FakeOpenSSHEndpoint(tmp_path)
+    paths = allocate_remote_sudo_paths(base=str(tmp_path / "missing-tty"))
+    with pytest.raises(GateError) as excinfo:
+        run_fn(
+            "apollo",
+            _manifest(),
+            manifest_sha256="abc",
+            command_runner=fake,
+            paths=paths,
+        )
+    assert excinfo.value.code == "tty_required"
+    assert "password" not in str(excinfo.value).lower()
+    assert not Path(paths["ledger"]).exists()
+    assert not Path(paths["handshake"]).exists()
+    assert not any("sase sudo exec --manifest" in command for command in fake.joined)
+    assert any("sase sudo exec --contract" in command for command in fake.joined)
+    assert any("mkdir -p -m 700" in command for command in fake.joined)
 
 
 def test_unavailable_cli_message_omits_password_and_bounds_output() -> None:
