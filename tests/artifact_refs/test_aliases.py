@@ -99,7 +99,7 @@ def test_completion_kinds_include_public_job_alias_but_exclude_historical_kinds(
     parsable = set(parsable_artifact_ref_kinds())
 
     assert {"stitch", "patch", "bead", "agent", "file", "job"} <= completion
-    assert not {"commit", "plans", "chat", "bug"} & completion
+    assert not {"commit", "plans", "chat", "bug", "tool"} & completion
     assert {
         "stitch",
         "patch",
@@ -111,6 +111,7 @@ def test_completion_kinds_include_public_job_alias_but_exclude_historical_kinds(
         "chat",
         "bug",
         "job",
+        "tool",
     } <= parsable
 
 

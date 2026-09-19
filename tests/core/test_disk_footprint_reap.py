@@ -45,6 +45,14 @@ def test_disk_reap_proc_preview_uses_runtime_owner(monkeypatch) -> None:
         "sase.core.disk_footprint.sweep_orphan_proc_runtime_dirs",
         fake_sweep,
     )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.tool_run_reap_step",
+        lambda *, apply: DiskReapStep(
+            owner="tool_run_retention",
+            mode="dry_run" if not apply else "apply",
+            summary="tool-run ok",
+        ),
+    )
 
     result = run_disk_reap(
         apply=False,
@@ -257,6 +265,14 @@ def test_managed_tmp_reap_failure_is_a_step_and_group_continues(
             summary="proc ok",
         ),
     )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap.tool_run_reap_step",
+        lambda *, apply: DiskReapStep(
+            owner="tool_run_retention",
+            mode="apply" if apply else "dry_run",
+            summary="tool-run ok",
+        ),
+    )
 
     result = reap.run_disk_reap(
         apply=True,
@@ -270,6 +286,7 @@ def test_managed_tmp_reap_failure_is_a_step_and_group_continues(
     assert [step.owner for step in result.steps] == [
         "managed_tmp_reaper",
         "proc_runtime_sweep",
+        "tool_run_retention",
     ]
     assert result.steps[0].owner_error is not None
     assert result.failed is True

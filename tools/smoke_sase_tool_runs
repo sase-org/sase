@@ -1,0 +1,274 @@
+#!/usr/bin/env python3
+"""Black-box ToolRun harness. Phase 1 exercises the real store; public CLI is pending."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from collections.abc import Sequence
+from pathlib import Path
+from typing import Any
+
+
+PHASE_PENDING = "phase-pending"
+
+
+def _phase_pending(case_id: str, reason: str) -> dict[str, Any]:
+    return {
+        "id": case_id,
+        "status": PHASE_PENDING,
+        "reason": reason,
+    }
+
+
+def _run_sase(sase: str, args: Sequence[str], env: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sase, *args],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+
+
+def run_harness(*, sase: str, live: bool, keep: bool) -> dict[str, Any]:
+    tmp = Path(tempfile.mkdtemp(prefix="sase-tool-runs-harness-"))
+    home = tmp / "sase-home"
+    home.mkdir()
+    env = os.environ.copy()
+    env["SASE_HOME"] = str(home)
+    cases: list[dict[str, Any]] = []
+
+    try:
+        import sase_core_rs
+
+        from sase.core.tool_run import (
+            tool_run_append_event,
+            tool_run_begin,
+            tool_run_canonicalize_fingerprint,
+            tool_run_finish,
+            tool_run_list,
+            tool_run_normalize_definition,
+            tool_run_reconcile,
+            tool_run_show,
+            tool_run_store_stats,
+            tool_run_summary,
+            tool_run_unknown_evidence,
+            tool_run_wire_schema_version,
+        )
+
+        store_path = str(home / "tools" / "runs.sqlite")
+        if tool_run_wire_schema_version() != 1:
+            raise RuntimeError("unexpected tool_run schema version")
+        if tool_run_unknown_evidence("not observed")["completeness"]["complete"]:
+            raise RuntimeError("unknown evidence must stay incomplete")
+        definition = {
+            "schema_version": 1,
+            "name": "check",
+            "argv": ["just", "check"],
+            "description": "check",
+            "stages": "run_silent",
+            "inputs": ["Justfile"],
+            "env": [],
+            "args": "deny",
+            "fingerprint": {"repos": [], "toolchain": {}},
+        }
+        digest = tool_run_normalize_definition(definition)["digest"]
+        tool_run_canonicalize_fingerprint(
+            {
+                "schema_version": 1,
+                "completeness": {
+                    "complete": False,
+                    "missing": ["evidence not yet observed"],
+                },
+            }
+        )
+        started = tool_run_begin(
+            {
+                "schema_version": 1,
+                "tool_name": "check",
+                "definition": definition,
+                "display_argv": ["just", "check"],
+                "project": "sase",
+                "now_ts": 10,
+                "commit_running": True,
+            },
+            store_path=store_path,
+        )
+        run_id = started["run"]["run_id"]
+        finished = tool_run_finish(
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "state": "succeeded",
+                "exit_code": 0,
+                "duration_ms": 9,
+                "now_ts": 19,
+            },
+            store_path=store_path,
+        )
+        listed = tool_run_list({"schema_version": 1, "limit": 10}, store_path=store_path)
+        shown = tool_run_show(run_id, store_path=store_path)
+        stats = tool_run_store_stats(store_path=store_path)
+        summary = tool_run_summary(
+            {
+                "schema_version": 1,
+                "project": "sase",
+                "tool_name": "check",
+                "definition_digest": digest,
+                "now_ts": 19,
+            },
+            store_path=store_path,
+        )
+        tool_run_append_event(
+            {
+                "schema_version": 1,
+                "event": {
+                    "schema_version": 1,
+                    "event_id": "evt-sample-1",
+                    "run_id": run_id,
+                    "attempt": 1,
+                    "kind": "sample",
+                    "created_ts": 15,
+                    "sample": {
+                        "schema_version": 1,
+                        "sample_id": "smp-1",
+                        "run_id": run_id,
+                        "attempt": 1,
+                        "observed_ts": 15,
+                        "availability": ["loadavg unavailable"],
+                    },
+                },
+            },
+            store_path=store_path,
+        )
+        reconciled = tool_run_reconcile(
+            {"schema_version": 1, "facts": [], "now_ts": 19},
+            store_path=store_path,
+        )
+        core_ok = (
+            started["run"]["state"] == "running"
+            and finished["run"]["state"] == "succeeded"
+            and listed["runs"]
+            and shown["run"]["run_id"] == run_id
+            and stats["run_count"] == 1
+            and summary.get("last", {}).get("run_id") == run_id
+            and reconciled.get("persisted") is True
+            and int(sase_core_rs.tool_run_wire_schema_version()) == 1
+        )
+        cases.append(
+            {
+                "id": "core-ledger-round-trip",
+                "status": "pass" if core_ok else "fail",
+                "run_id": run_id,
+                "observed": {
+                    "begin_state": started["run"]["state"],
+                    "finish_state": finished["run"]["state"],
+                    "run_count": stats["run_count"],
+                },
+            }
+        )
+    except Exception as error:  # noqa: BLE001 - harness reports the failure.
+        cases.append(
+            {
+                "id": "core-ledger-round-trip",
+                "status": "fail",
+                "observed": str(error),
+            }
+        )
+
+    help_proc = _run_sase(sase, ["tool", "-h"], env)
+    if help_proc.returncode == 0 and "list" in help_proc.stdout:
+        cases.append(
+            {
+                "id": "dod-1-catalog",
+                "status": "pass",
+                "observed": "sase tool help is available",
+            }
+        )
+    else:
+        cases.append(
+            _phase_pending(
+                "dod-1-catalog",
+                "sase tool list is implemented in the catalog phase",
+            )
+        )
+    cases.append(
+        _phase_pending(
+            "dod-2-exact-execution",
+            "sase tool run is implemented in the foreground-run phase",
+        )
+    )
+    cases.append(
+        _phase_pending(
+            "dod-3-signals",
+            "signal handling is implemented in the foreground-run phase",
+        )
+    )
+    if live:
+        cases.append(
+            _phase_pending(
+                "live-owner",
+                "live monitor/proc owner cases belong to later phases",
+            )
+        )
+    else:
+        cases.append(
+            {
+                "id": "live-not-run",
+                "status": PHASE_PENDING,
+                "reason": "live cases not requested; pass --live to label them",
+            }
+        )
+
+    failed = [case for case in cases if case.get("status") == "fail"]
+    report = {
+        "schema_version": 1,
+        "sase": sase,
+        "home": str(home),
+        "cases": cases,
+        "failed": len(failed),
+        "phase_pending": sum(1 for case in cases if case.get("status") == PHASE_PENDING),
+    }
+    if keep:
+        report["kept"] = str(tmp)
+    elif tmp.exists():
+        shutil.rmtree(tmp, ignore_errors=True)
+    return report
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "-s",
+        "--sase",
+        default="sase",
+        help="sase executable to inspect (default: PATH lookup)",
+    )
+    parser.add_argument("-l", "--live", action="store_true")
+    parser.add_argument("-k", "--keep", action="store_true")
+    parser.add_argument("-j", "--json", action="store_true")
+    args = parser.parse_args(argv)
+    sase = args.sase
+    if sase != "sase" and not Path(sase).exists():
+        print(f"[tool-runs-harness] sase executable not found: {sase}", file=sys.stderr)
+        return 2
+    report = run_harness(sase=sase, live=args.live, keep=args.keep)
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+    else:
+        for case in report["cases"]:
+            print(f"{case['id']}: {case['status']}")
+        print(
+            f"failed={report['failed']} phase-pending={report['phase_pending']}"
+        )
+    return 1 if report["failed"] else 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

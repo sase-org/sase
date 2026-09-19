@@ -173,3 +173,16 @@ def test_filtered_document_resolution_preserves_core_diagnostic(
     assert resolution.resolved_path is None
     assert resolution.diagnostic is not None
     assert "kind=plans" in resolution.diagnostic
+
+
+def test_tool_kind_is_reserved_and_unresolved(tmp_path: Path) -> None:
+    context = make_context(tmp_path)
+    resolution = artifact_refs.resolve_artifact_ref(
+        "tool:0123456789abcdef0123456789abcdef",
+        context=context,
+    )
+
+    assert resolution.status == "unknown_kind"
+    assert resolution.resolved_path is None
+    assert resolution.diagnostic is not None
+    assert "no public artifact projection" in resolution.diagnostic

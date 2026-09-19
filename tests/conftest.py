@@ -137,7 +137,13 @@ def pytest_collection_finish(session: pytest.Session) -> None:
 
 @pytest.fixture(scope="session", autouse=True)
 def _disable_detach_scope_by_default() -> Iterator[None]:
-    """Keep ordinary tests from spawning real transient systemd scopes."""
+    """Keep ordinary tests from spawning real transient systemd scopes.
+
+    These names must stay in ``_ENV_KEYS_TO_IGNORE``. The per-test env
+    snapshot runs before session fixtures on the first test; restoring that
+    snapshot would otherwise drop the guards and leak systemd-run wrapping
+    into later tests when the suite itself runs inside a SASE-owned cgroup.
+    """
     monkeypatch = pytest.MonkeyPatch()
     monkeypatch.setenv("SASE_DETACH_SCOPE_DISABLE", "1")
     monkeypatch.setenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", "1")

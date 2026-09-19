@@ -240,6 +240,8 @@ def test_payload_counts_and_truncation_are_propagated_from_catalog() -> None:
 def test_chat_kind_is_excluded_from_kind_and_payload_completion() -> None:
     assert "chat" not in {kind.casefold() for kind in completion_artifact_ref_kinds()}
     assert "chat" in {kind.casefold() for kind in parsable_artifact_ref_kinds()}
+    assert "tool" not in {kind.casefold() for kind in completion_artifact_ref_kinds()}
+    assert "tool" in {kind.casefold() for kind in parsable_artifact_ref_kinds()}
 
     catalog = ArtifactRefCompletionCatalog(
         project=None,

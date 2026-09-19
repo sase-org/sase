@@ -287,6 +287,16 @@ def sase_state_rows(
         ),
         DiskFootprintRow(
             section="sase_home",
+            name="tools",
+            path=str(sase_home() / "tools"),
+            physical_path=str(normalize_path_no_follow(sase_home() / "tools")),
+            size_bytes=tree_size_fn(sase_home() / "tools"),
+            owner="tool_run_retention",
+            horizon="summary 180d, detail 60d, logs 14d after settlement",
+            reclaim="sase disk reap --apply",
+        ),
+        DiskFootprintRow(
+            section="sase_home",
             name="cache/rust-prebuild",
             path=str(sase_home() / "cache" / "rust-prebuild"),
             physical_path=str(

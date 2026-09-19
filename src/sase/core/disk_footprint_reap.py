@@ -9,6 +9,7 @@ from sase.config import get_artifact_retention_keep_recent_run_months
 from sase.core import disk_footprint_reap_artifacts as _artifacts
 from sase.core import disk_footprint_reap_managed_tmp as _managed_tmp
 from sase.core import disk_footprint_reap_proc as _proc
+from sase.core import disk_footprint_reap_tool_run as _tool_run
 from sase.core import disk_footprint_reap_workspace as _workspace
 from sase.core.agent_artifact_run_retention import (
     AceRunRetentionPolicy,
@@ -54,6 +55,7 @@ def run_disk_reap(
         )
     )
     steps.append(proc_runtime_reap_step(apply=apply))
+    steps.append(tool_run_reap_step(apply=apply))
     if include_artifact_runs:
         steps.append(artifact_run_reap_step(apply=apply, project=project))
     if include_workspace_compact:
@@ -87,6 +89,10 @@ def managed_tmp_reap_step(
 def proc_runtime_reap_step(*, apply: bool) -> DiskReapStep:
     _sync_proc_patchables()
     return _proc.proc_runtime_reap_step(apply=apply)
+
+
+def tool_run_reap_step(*, apply: bool) -> DiskReapStep:
+    return _tool_run.tool_run_reap_step(apply=apply)
 
 
 def artifact_run_reap_step(*, apply: bool, project: str | None) -> DiskReapStep:
@@ -148,6 +154,7 @@ __all__ = [
     "managed_tmp_reap_step",
     "proc_runtime_reap_step",
     "run_disk_reap",
+    "tool_run_reap_step",
     "workspace_compact_steps",
     "workspace_project_keys",
 ]

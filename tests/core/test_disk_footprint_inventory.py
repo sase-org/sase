@@ -71,6 +71,8 @@ def test_collect_disk_footprint_attributes_owned_paths_and_strays(
 
     rows_by_path = {Path(row.path): row for row in report.rows}
     assert rows_by_path[managed / "cargo-targets"].owner == "managed_tmp_reaper"
+    assert rows_by_path[sase_home / "tools"].owner == "tool_run_retention"
+    assert rows_by_path[sase_home / "tools"].horizon.startswith("summary 180d")
     assert rows_by_path[projects / "proj" / "artifacts" / "ace-run"].owner == (
         "artifact_run_retention"
     )

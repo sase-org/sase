@@ -18,7 +18,7 @@ from sase.sessions import SessionIdentity
 def proc_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     """Point every proc, log, and session path at an isolated home."""
     home = tmp_path / "home"
-    home.mkdir()
+    home.mkdir(exist_ok=True)
     monkeypatch.setenv("SASE_HOME", str(home))
     monkeypatch.setenv("COLUMNS", "160")
     use_sessions(monkeypatch, [])

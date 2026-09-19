@@ -52,3 +52,25 @@ def test_restore_sase_environment_does_not_drop_session_detach_scope_disable(
 
     assert os.environ.get("SASE_DETACH_SCOPE_DISABLE") == "1"
     assert os.environ.get("SASE_AXE_DISABLE_SYSTEMD_SCOPE") == "1"
+
+
+def test_restore_sase_environment_preserves_session_detach_scope_guards(
+    monkeypatch,
+) -> None:
+    """Session autouse sets these after the first protocol snapshot.
+
+    Restore must not drop them, or later tests leak systemd-run wrapping
+    when the suite runs inside a SASE-owned cgroup.
+    """
+    monkeypatch.delenv("SASE_DETACH_SCOPE_DISABLE", raising=False)
+    monkeypatch.delenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", raising=False)
+    baseline = snapshot_sase_environment()
+    assert "SASE_DETACH_SCOPE_DISABLE" not in baseline
+    assert "SASE_AXE_DISABLE_SYSTEMD_SCOPE" not in baseline
+
+    monkeypatch.setenv("SASE_DETACH_SCOPE_DISABLE", "1")
+    monkeypatch.setenv("SASE_AXE_DISABLE_SYSTEMD_SCOPE", "1")
+    restore_sase_environment(baseline)
+
+    assert os.environ["SASE_DETACH_SCOPE_DISABLE"] == "1"
+    assert os.environ["SASE_AXE_DISABLE_SYSTEMD_SCOPE"] == "1"

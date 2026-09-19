@@ -1,0 +1,158 @@
+#!/usr/bin/env python3
+"""Smoke the ToolRun ledger API from a real sase_core_rs wheel."""
+
+from __future__ import annotations
+
+import argparse
+import importlib
+import sys
+import tempfile
+from pathlib import Path
+from types import ModuleType
+from typing import Any
+
+
+TOOL_RUN_BINDINGS = (
+    "tool_run_wire_schema_version",
+    "tool_run_normalize_definition",
+    "tool_run_canonicalize_fingerprint",
+    "tool_run_unknown_evidence",
+    "tool_run_begin",
+    "tool_run_append_event",
+    "tool_run_finish",
+    "tool_run_reconcile",
+    "tool_run_list",
+    "tool_run_show",
+    "tool_run_summary",
+    "tool_run_retention_preview",
+    "tool_run_retention_apply",
+    "tool_run_store_stats",
+)
+
+
+def _require_bindings(module: ModuleType) -> None:
+    missing = [
+        name for name in TOOL_RUN_BINDINGS if not callable(getattr(module, name, None))
+    ]
+    if missing:
+        raise RuntimeError("missing tool_run binding(s): " + ", ".join(missing))
+
+
+def validate_round_trip(module: ModuleType) -> dict[str, Any]:
+    """Exercise the ToolRun store against a temporary SQLite path."""
+
+    _require_bindings(module)
+    if int(module.tool_run_wire_schema_version()) != 1:
+        raise RuntimeError("unexpected tool_run schema version")
+    unknown = module.tool_run_unknown_evidence("not observed")
+    if unknown.get("completeness", {}).get("complete") is not False:
+        raise RuntimeError(f"unknown evidence must stay explicit: {unknown!r}")
+
+    definition = {
+        "schema_version": 1,
+        "name": "check",
+        "argv": ["just", "check"],
+        "description": "check",
+        "stages": "run_silent",
+        "inputs": ["Justfile"],
+        "env": [],
+        "args": "deny",
+        "fingerprint": {"repos": [], "toolchain": {}},
+    }
+    normalized = module.tool_run_normalize_definition(definition)
+    digest = normalized["digest"]
+    with tempfile.TemporaryDirectory(prefix="sase-core-rs-tool-runs-smoke-") as tmp:
+        store_path = str(Path(tmp) / "tools" / "runs.sqlite")
+        started = module.tool_run_begin(
+            store_path,
+            {
+                "schema_version": 1,
+                "tool_name": "check",
+                "definition": definition,
+                "display_argv": ["just", "check"],
+                "project": "sase",
+                "now_ts": 10,
+                "commit_running": True,
+            },
+            1_000,
+        )
+        run = started["run"]
+        if run.get("state") != "running":
+            raise RuntimeError(f"expected running begin, got {started!r}")
+        run_id = run["run_id"]
+        finished = module.tool_run_finish(
+            store_path,
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "state": "succeeded",
+                "exit_code": 0,
+                "duration_ms": 12,
+                "now_ts": 22,
+            },
+            1_000,
+        )
+        if finished["run"].get("state") != "succeeded":
+            raise RuntimeError(f"unexpected finish: {finished!r}")
+        listed = module.tool_run_list(
+            store_path,
+            {"schema_version": 1, "limit": 10, "project": "sase"},
+            1_000,
+        )
+        if not listed.get("runs"):
+            raise RuntimeError(f"list returned no runs: {listed!r}")
+        shown = module.tool_run_show(
+            store_path,
+            {"schema_version": 1, "run_id": run_id},
+            1_000,
+        )
+        if shown.get("run", {}).get("run_id") != run_id:
+            raise RuntimeError(f"show missed run: {shown!r}")
+        summary = module.tool_run_summary(
+            store_path,
+            {
+                "schema_version": 1,
+                "project": "sase",
+                "tool_name": "check",
+                "definition_digest": digest,
+                "now_ts": 22,
+            },
+            1_000,
+        )
+        if summary.get("typical_duration_ms") != 12:
+            raise RuntimeError(f"unexpected typical duration: {summary!r}")
+        stats = module.tool_run_store_stats(store_path, 1_000)
+        if stats.get("run_count") != 1:
+            raise RuntimeError(f"unexpected stats: {stats!r}")
+        preview = module.tool_run_retention_preview(
+            store_path,
+            {"schema_version": 1, "now_ts": 22},
+            1_000,
+        )
+        if preview.get("dry_run") is not True:
+            raise RuntimeError(f"preview must be dry-run: {preview!r}")
+    return {
+        "schema_version": 1,
+        "run_state": finished["run"]["state"],
+        "run_count": stats["run_count"],
+        "typical_duration_ms": summary["typical_duration_ms"],
+        "unknown_complete": unknown["completeness"]["complete"],
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.parse_args(argv)
+    try:
+        module = importlib.import_module("sase_core_rs")
+        result = validate_round_trip(module)
+    except Exception as error:
+        print(f"[tool-run-smoke] {error}", file=sys.stderr)
+        return 1
+    version = getattr(module, "__version__", "<unknown>")
+    print(f"[tool-run-smoke] sase-core-rs {version}: {result}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
