@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
@@ -286,7 +287,9 @@ async def test_agents_neighbor_jump_expands_target_panel_png_snapshot(
         assert page.app._panel_group.panel_keys == [None, "alpha", "zeta"]
         assert page.app._panel_group.focused_key == "alpha"
         assert page.app._agents[page.app.current_idx].identity == target.identity
-        target_widget = page.app.query_one("#agent-list-panel-1", AgentList)
+        target_widget = page.app.query_one(
+            f"#{panel_widget_id_for_key('alpha')}", AgentList
+        )
         assert target_widget.highlighted is not None
 
         ace_png_visual.assert_page_png(

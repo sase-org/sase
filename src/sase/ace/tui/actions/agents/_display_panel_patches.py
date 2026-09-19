@@ -13,7 +13,7 @@ from ...models.agent_groups import (
     status_bucket_for,
     status_grouping_signature,
 )
-from ._display_helpers import TabName, panel_widget_id
+from ._display_helpers import TabName, panel_widget_id_for_key
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
 from ._refresh_trace import (
     AgentRefreshDisplayCost,
@@ -122,13 +122,6 @@ class PanelPatchMixin:
             return True
         if self.current_tab != "agents":
             return False
-        if getattr(self, "_agent_search_query", ""):
-            self._record_display_patch_trace(
-                display_cost="row_remove",
-                fallback_reason="active_search",
-                count=len(removed_identities),
-            )
-            return False
         if getattr(self, "_grouping_mode", GroupingMode.STANDARD) not in {
             GroupingMode.STANDARD,
             GroupingMode.BY_STATUS,
@@ -215,15 +208,17 @@ class PanelPatchMixin:
             return False
 
         target_identities = {agent.identity for agent in target_widget._agents}
-        if target_widget.has_class("-collapsed-panel") or (
-            target_identities and target_identities <= removed_identities
-        ):
+        if target_widget.has_class("-collapsed-panel"):
+            return True
+        if target_identities and target_identities <= removed_identities:
+            # Last visible rows of this tribe: keep the tribe-stable widget
+            # as a title strip instead of rebuilding siblings.
+            target_widget.render_collapsed()
             self._record_display_patch_trace(
                 display_cost="row_remove",
-                fallback_reason="panel_membership_change",
                 count=len(removed_identities),
             )
-            return False
+            return True
 
         if not target_widget.try_remove_rows(removed_identities):
             self._record_display_patch_trace(
@@ -303,7 +298,7 @@ class PanelPatchMixin:
             )
             return False
 
-        wid = panel_widget_id(target_panel_idx)
+        wid = panel_widget_id_for_key(agent_panel_key)
         try:
             widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
         except NoMatches:

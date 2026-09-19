@@ -364,10 +364,12 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         first_agents_load = not self._agents_first_load_done
         if first_agents_load:
             self._agents_first_load_done = True
-            from ...widgets import AgentList
-
             try:
-                self.query_one("#agent-list-panel", AgentList).loading = False  # type: ignore[attr-defined]
+                from ._display_helpers import first_agent_list_widget
+
+                widget = first_agent_list_widget(self)
+                if widget is not None:
+                    widget.loading = False
             except Exception:
                 pass
 

@@ -7,6 +7,7 @@ from typing import Any
 from rich.text import Text
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
+from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 from sase.ace.tui.actions.agents._display_panels import (
     _PANEL_COUNT_STYLE,
     _PANEL_METRIC_STYLES,
@@ -39,6 +40,15 @@ class _ListWidget:
     def focus(self) -> None:
         return
 
+    def remove(self) -> None:
+        return
+
+    def render_collapsed(self) -> None:
+        self._panel_collapsed = True
+
+    def clear_highlight(self) -> None:
+        return
+
 
 class _Container:
     def __init__(self, children: list[_ListWidget]) -> None:
@@ -46,6 +56,24 @@ class _Container:
 
     def mount(self, widget: _ListWidget) -> None:
         self.children.append(widget)
+
+    def move_child(
+        self,
+        child: _ListWidget,
+        *,
+        before: _ListWidget | int | None = None,
+        after: _ListWidget | int | None = None,
+    ) -> None:
+        if child in self.children:
+            self.children.remove(child)
+        if before is not None:
+            idx = before if isinstance(before, int) else self.children.index(before)
+            self.children.insert(idx, child)
+        elif after is not None:
+            idx = after if isinstance(after, int) else self.children.index(after)
+            self.children.insert(idx + 1, child)
+        else:
+            self.children.append(child)
 
 
 class _FakeApp(AgentDisplayMixin):
@@ -73,11 +101,9 @@ class _FakeApp(AgentDisplayMixin):
             merge_tribe_panels=merge_tribe_panels,
         )
 
-        from sase.ace.tui.actions.agents._display import _panel_widget_id
-
         self._panel_widgets: dict[str, _ListWidget] = {}
-        for idx in range(len(self._panel_group.panel_keys)):
-            wid = _panel_widget_id(idx)
+        for key in self._panel_group.panel_keys:
+            wid = panel_widget_id_for_key(key)
             self._panel_widgets[wid] = _ListWidget(wid)
         self._container = _Container(list(self._panel_widgets.values()))
 
@@ -112,6 +138,10 @@ def _agent(
         parent_timestamp=parent_timestamp,
         agent_family_parallel=agent_family_parallel,
     )
+
+
+def _pw(app: _FakeApp, key: str | None) -> _ListWidget:
+    return app._panel_widgets[panel_widget_id_for_key(key)]
 
 
 def _title_text(widget: _ListWidget) -> Text:

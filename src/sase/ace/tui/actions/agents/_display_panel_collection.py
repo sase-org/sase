@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._display_helpers import panel_widget_id
+from ._display_helpers import panel_widget_id_for_key
 from ._display_panel_state import PanelRefreshStateMixin
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
 from ._folding_panel_sweep import retire_panel_fold_sweep_records
@@ -24,6 +24,106 @@ if TYPE_CHECKING:
 class PanelCollectionMixin(PanelRefreshStateMixin):
     """Panel collection synchronization and title rendering helpers."""
 
+    def _session_sticky_query_value(self) -> str:
+        """Return the committed Agents query that owns session-sticky panels."""
+        return getattr(self, "_agent_search_query", "") or ""
+
+    def _session_mounted_panel_key_set(self) -> set[PanelKey]:
+        """Return mounted-this-session keys, clearing them on query change."""
+        query = self._session_sticky_query_value()
+        last = getattr(self, "_session_sticky_query", None)
+        mounted = getattr(self, "_session_mounted_panel_keys", None)
+        if mounted is None:
+            mounted = set()
+            self._session_mounted_panel_keys = mounted  # type: ignore[attr-defined]
+        if last is None:
+            self._session_sticky_query = query  # type: ignore[attr-defined]
+        elif last != query:
+            mounted.clear()
+            self._session_sticky_query = query  # type: ignore[attr-defined]
+        return mounted
+
+    def _remember_session_mounted_occupancy(self) -> None:
+        """Record tribe keys that currently have rendered occupancy."""
+        from ...models.agent_panels import (
+            agent_is_rendered_in_agents_panel,
+            normalize_panel_key,
+            panel_key_per_agent,
+        )
+
+        mounted = self._session_mounted_panel_key_set()
+        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
+        keys = panel_key_per_agent(self._agents, merge_tribe_panels=merge_tribe_panels)
+        for agent, key in zip(self._agents, keys, strict=True):
+            if agent_is_rendered_in_agents_panel(agent):
+                mounted.add(normalize_panel_key(key))
+
+    def _widget_panel_keys(
+        self,
+        occupancy_keys: list[PanelKey],
+        *,
+        occupancy_with_rows: set[PanelKey],
+    ) -> list[PanelKey]:
+        """Union occupancy with session-sticky keys without pre-mounting."""
+        from ...models.agent_panels import normalize_panel_key
+
+        sticky = {
+            normalize_panel_key(key) for key in self._session_mounted_panel_key_set()
+        }
+        occupancy = [normalize_panel_key(key) for key in occupancy_keys]
+        rendered_present = bool(occupancy_with_rows)
+        if not rendered_present and sticky:
+            merged = list(
+                dict.fromkeys(key for key in (*occupancy, *sticky) if key in sticky)
+            )
+        else:
+            merged = list(dict.fromkeys([*occupancy, *sticky]))
+        return merged
+
+    def _occupancy_keys_with_rows(self) -> set[PanelKey]:
+        """Return occupancy keys that currently have at least one rendered row."""
+        from ...models.agent_panels import (
+            agent_is_rendered_in_agents_panel,
+            normalize_panel_key,
+            panel_key_per_agent,
+        )
+
+        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
+        return {
+            normalize_panel_key(key)
+            for agent, key in zip(
+                self._agents,
+                panel_key_per_agent(
+                    self._agents, merge_tribe_panels=merge_tribe_panels
+                ),
+                strict=True,
+            )
+            if agent_is_rendered_in_agents_panel(agent)
+        }
+
+    def _sorted_widget_panel_keys(
+        self,
+        occupancy_keys: list[PanelKey],
+        *,
+        occupancy_with_rows: set[PanelKey],
+    ) -> list[PanelKey]:
+        """Return occupancy ∪ sticky keys in canonical expanded/collapsed order."""
+        from ...models.agent_panels import AgentPanelGroup
+
+        merged = self._widget_panel_keys(
+            occupancy_keys, occupancy_with_rows=occupancy_with_rows
+        )
+        collapsed_keys = effective_panel_collapses(self, merged)
+        expanded_intent: set[PanelKey] = getattr(self, "_expanded_panel_keys", set())
+        for key in merged:
+            if key not in occupancy_with_rows and key not in expanded_intent:
+                collapsed_keys.add(key)
+        return AgentPanelGroup.from_panel_keys(
+            merged,
+            getattr(self._panel_group, "focused_key", None),
+            collapsed_panel_keys=collapsed_keys,
+        ).panel_keys
+
     def _sync_panel_group(self) -> None:
         """Recompute :attr:`_panel_group` from the current :attr:`_agents`."""
         from ...models.agent_panels import (
@@ -35,6 +135,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
 
         prev_focused = self._panel_group.focused_key
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
+        self._remember_session_mounted_occupancy()
         if merge_tribe_panels:
             self._panel_group = AgentPanelGroup.from_agents(
                 self._agents,
@@ -48,6 +149,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             for agent in agents_with_children:
                 if agent_is_rendered_in_agents_panel(agent):
                     live_keys.add(normalize_panel_key(agent.tribe))
+            live_keys.update(self._session_mounted_panel_key_set())
             retire_panel_fold_intents(self, live_keys)
             retire_panel_fold_sweep_records(self, live_keys)
             collapsed_keys = effective_panel_collapses(self, panel_keys)
@@ -173,10 +275,10 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         fold_restore_marked = restore_marked_fn() if callable(restore_marked_fn) else {}
         title_hints = getattr(self, "_active_panel_title_jump_hints", None)
         panel_jump_hints = title_hints() if callable(title_hints) else None
-        for idx, key in enumerate(self._panel_group.panel_keys):
+        for key in self._panel_group.panel_keys:
             try:
                 widget = self.query_one(  # type: ignore[attr-defined]
-                    f"#{panel_widget_id(idx)}", AgentList
+                    f"#{panel_widget_id_for_key(key)}", AgentList
                 )
             except NoMatches:
                 continue

@@ -8,7 +8,7 @@ from typing import Any
 
 from textual.css.query import NoMatches
 
-from sase.ace.tui.actions.agents._display_helpers import panel_widget_id
+from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 from sase.ace.tui.agent_completion import (
     build_agent_completion_candidates,
     visible_agent_completion_agents,
@@ -44,7 +44,8 @@ class _CompletionApp:
         if self._panel_rows is None:
             raise NoMatches(selector)
         for panel_idx, agents in self._panel_rows.items():
-            if selector == f"#{panel_widget_id(panel_idx)}":
+            key = self._panel_group.panel_keys[panel_idx]
+            if selector == f"#{panel_widget_id_for_key(key)}":
                 return _FakeAgentList(agents)
         raise NoMatches(selector)
 

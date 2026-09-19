@@ -68,6 +68,8 @@ def test_refresh_trace_taxonomy_covers_phase_one_terms() -> None:
     assert ALL_AGENT_REFRESH_DISPLAY_COSTS == {
         "display_full_rebuild",
         "display_panel_rebuild",
+        "display_panel_insert",
+        "display_panel_remove",
         "row_patch",
         "row_remove",
         "row_insert",

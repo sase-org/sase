@@ -5,6 +5,7 @@ from __future__ import annotations
 from textual import events
 
 from ..widgets import AgentList, BgCmdList, PatchList, TabBar
+from .agents._display_helpers import panel_widget_id_for_key
 from .agents._panel_fold_intent import panel_is_collapsed
 from ._event_base import EventHandlersBase
 
@@ -25,21 +26,19 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         if not isinstance(widget, AgentList):
             return
         wid = widget.id
-        try:
-            if wid == "agent-list-panel":
-                panel_idx = 0
-            elif wid is not None and wid.startswith("agent-list-panel-"):
-                panel_idx = int(wid.rsplit("-", 1)[-1])
-            else:
-                return
-        except ValueError:
-            return
-
         panel_group = getattr(self, "_panel_group", None)
         if panel_group is None:
             return
         panel_keys = panel_group.panel_keys
-        if not (0 <= panel_idx < len(panel_keys)):
+        panel_idx = next(
+            (
+                idx
+                for idx, key in enumerate(panel_keys)
+                if panel_widget_id_for_key(key) == wid
+            ),
+            None,
+        )
+        if panel_idx is None:
             return
         panel_key = panel_keys[panel_idx]
         if (
@@ -118,17 +117,15 @@ class EventWidgetHandlersMixin(EventHandlersBase):
             return
         wid = widget.id
         panel_keys = self._panel_group.panel_keys  # type: ignore[attr-defined]
-        # Map widget id back to panel index.
-        try:
-            if wid == "agent-list-panel":
-                panel_idx = 0
-            elif wid is not None and wid.startswith("agent-list-panel-"):
-                panel_idx = int(wid.rsplit("-", 1)[-1])
-            else:
-                return
-        except ValueError:
-            return
-        if not (0 <= panel_idx < len(panel_keys)):
+        panel_idx = next(
+            (
+                idx
+                for idx, key in enumerate(panel_keys)
+                if panel_widget_id_for_key(key) == wid
+            ),
+            None,
+        )
+        if panel_idx is None:
             return
         panel_key = panel_keys[panel_idx]
 

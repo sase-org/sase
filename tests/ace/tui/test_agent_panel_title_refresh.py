@@ -3,17 +3,19 @@
 Each ``AgentList`` panel must show a ``border_title`` identifying its tribe
 (``@default`` / ``@<tribe>``) plus a ``· N`` agent count, refreshed every
 time :meth:`AgentDisplayMixin._refresh_panel_widgets` runs (panel widget
-ids correspond to index slots, not fixed tribes — alphabetic shifts can
-flip which tribe a slot points at).
+ids are tribe-stable, not index slots).
 """
 
 from __future__ import annotations
+
+from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 
 from ._agent_panel_title_helpers import (
     _FakeApp,
     _agent,
     _assert_title_metric_styles,
     _assert_title_span,
+    _pw,
     _title_text,
 )
 
@@ -30,7 +32,7 @@ def test_panel_titles_label_default_and_named_tribes_with_counts() -> None:
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    main = app._panel_widgets["agent-list-panel"]
+    main = _pw(app, None)
     main_title = _title_text(main)
     assert main_title.plain == "⌂ @default · 2 [R2]"
     _assert_title_span(main_title, start=0, end=2, style="bold #87D7FF", text="⌂ ")
@@ -38,9 +40,8 @@ def test_panel_titles_label_default_and_named_tribes_with_counts() -> None:
         main_title, start=2, end=10, style="bold #87D7FF", text="@default"
     )
 
-    # Tribe panels follow in alphabetical order: apple (idx 1), banana (idx 2).
-    apple = app._panel_widgets["agent-list-panel-1"]
-    banana = app._panel_widgets["agent-list-panel-2"]
+    apple = _pw(app, "apple")
+    banana = _pw(app, "banana")
     apple_title = _title_text(apple)
     banana_title = _title_text(banana)
     assert apple_title.plain == "@apple · 2 [R2]"
@@ -54,9 +55,7 @@ def test_panel_titles_label_default_and_named_tribes_with_counts() -> None:
 
 
 def test_panel_titles_track_alphabetical_slot_order() -> None:
-    """Slot identity is by index, not tribe — titles follow alphabetic order
-    of the current tribe set, not insertion order of the agents.
-    """
+    """Widget ids are tribe-stable; titles still follow alphabetic panel order."""
     agents = [
         _agent(name="z1", tribe="zulu", suffix="t1"),
         _agent(name="a1", tribe="alpha", suffix="t2"),
@@ -66,16 +65,10 @@ def test_panel_titles_track_alphabetical_slot_order() -> None:
     app._refresh_panel_widgets(jump_hints=None)
 
     assert app._panel_group.panel_keys == ["alpha", "mike", "zulu"]
-    assert (
-        _title_text(app._panel_widgets["agent-list-panel"]).plain == "@alpha · 1 [R1]"
-    )
-    assert (
-        _title_text(app._panel_widgets["agent-list-panel-1"]).plain == "@mike · 1 [R1]"
-    )
-    assert (
-        _title_text(app._panel_widgets["agent-list-panel-2"]).plain == "@zulu · 1 [R1]"
-    )
-    assert "agent-list-panel-3" not in app._panel_widgets
+    assert _title_text(_pw(app, "alpha")).plain == "@alpha · 1 [R1]"
+    assert _title_text(_pw(app, "mike")).plain == "@mike · 1 [R1]"
+    assert _title_text(_pw(app, "zulu")).plain == "@zulu · 1 [R1]"
+    assert panel_widget_id_for_key("chop") not in app._panel_widgets
 
 
 def test_panel_title_counts_are_scoped_to_each_panel() -> None:
@@ -93,18 +86,12 @@ def test_panel_title_counts_are_scoped_to_each_panel() -> None:
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "⌂ @default · 1 [W1]"
-    )
-    assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
-        "@apple · 2 [S1 R1]"
-    )
-    assert _title_text(app._panel_widgets["agent-list-panel-2"]).plain == (
-        "@banana · 3 [F1 U1 D1]"
-    )
-    no_tribe_title = _title_text(app._panel_widgets["agent-list-panel"])
-    apple_title = _title_text(app._panel_widgets["agent-list-panel-1"])
-    banana_title = _title_text(app._panel_widgets["agent-list-panel-2"])
+    assert _title_text(_pw(app, None)).plain == ("⌂ @default · 1 [W1]")
+    assert _title_text(_pw(app, "apple")).plain == ("@apple · 2 [S1 R1]")
+    assert _title_text(_pw(app, "banana")).plain == ("@banana · 3 [F1 U1 D1]")
+    no_tribe_title = _title_text(_pw(app, None))
+    apple_title = _title_text(_pw(app, "apple"))
+    banana_title = _title_text(_pw(app, "banana"))
     _assert_title_metric_styles(
         no_tribe_title,
         neutral_ranges=[(10, 17), (18, 19)],
@@ -139,12 +126,8 @@ def test_panel_title_unread_and_read_counts_are_panel_scoped() -> None:
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "@apple · 2 [U1 D1]"
-    )
-    assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
-        "@banana · 2 [U1 D1]"
-    )
+    assert _title_text(_pw(app, "apple")).plain == ("@apple · 2 [U1 D1]")
+    assert _title_text(_pw(app, "banana")).plain == ("@banana · 2 [U1 D1]")
 
 
 def test_panel_titles_omit_starting_shorthand_for_hidden_starting_agents() -> None:
@@ -156,11 +139,11 @@ def test_panel_titles_omit_starting_shorthand_for_hidden_starting_agents() -> No
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    apple_title = _title_text(app._panel_widgets["agent-list-panel"])
+    apple_title = _title_text(_pw(app, "apple"))
     assert app._panel_group.panel_keys == ["apple"]
     assert apple_title.plain == "@apple · 1 [R1]"
     assert "T" not in apple_title.plain
-    assert "agent-list-panel-1" not in app._panel_widgets
+    assert panel_widget_id_for_key("banana") not in app._panel_widgets
 
 
 def test_panel_title_shorthand_counts_only_top_level_agents() -> None:
@@ -177,9 +160,7 @@ def test_panel_title_shorthand_counts_only_top_level_agents() -> None:
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "@apple · 1 [R1]"
-    )
+    assert _title_text(_pw(app, "apple")).plain == ("@apple · 1 [R1]")
 
 
 def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> None:
@@ -260,12 +241,8 @@ def test_panel_title_projects_parallel_family_member_statuses_per_panel() -> Non
 
     # Family roots count once as agent nodes. Loaded member shells and serial
     # descendants do not widen panel title totals or chips.
-    assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "@apple · 2 [R1 W1]"
-    )
-    assert _title_text(app._panel_widgets["agent-list-panel-1"]).plain == (
-        "@banana · 1 [R1]"
-    )
+    assert _title_text(_pw(app, "apple")).plain == ("@apple · 2 [R1 W1]")
+    assert _title_text(_pw(app, "banana")).plain == ("@banana · 1 [R1]")
 
 
 def test_panel_title_uses_family_owner_status_in_all_layouts() -> None:
@@ -299,9 +276,7 @@ def test_panel_title_uses_family_owner_status_in_all_layouts() -> None:
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    assert _title_text(app._panel_widgets["agent-list-panel"]).plain == (
-        "@apple · 2 [R1 D1]"
-    )
+    assert _title_text(_pw(app, "apple")).plain == ("@apple · 2 [R1 D1]")
 
     app._collapsed_panel_keys = {"apple"}
     collapsed_title = app._agent_panel_title(
@@ -343,8 +318,8 @@ def test_settled_monitor_badge_is_panel_scoped() -> None:
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    apple_title = _title_text(app._panel_widgets["agent-list-panel"])
-    banana_title = _title_text(app._panel_widgets["agent-list-panel-1"])
+    apple_title = _title_text(_pw(app, "apple"))
+    banana_title = _title_text(_pw(app, "banana"))
     assert apple_title.plain == "@apple · 1 [R1] ⚙1"
     assert banana_title.plain == "@banana · 1 [R1]"
 
@@ -385,8 +360,8 @@ def test_running_monitor_badge_is_panel_scoped() -> None:
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    apple_title = _title_text(app._panel_widgets["agent-list-panel"])
-    banana_title = _title_text(app._panel_widgets["agent-list-panel-1"])
+    apple_title = _title_text(_pw(app, "apple"))
+    banana_title = _title_text(_pw(app, "banana"))
     assert apple_title.plain == "@apple · 1 [R1] ⚙1 ⚙1"
     assert banana_title.plain == "@banana · 1 [R1]"
 

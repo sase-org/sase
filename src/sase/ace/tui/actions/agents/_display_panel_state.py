@@ -34,6 +34,20 @@ class PanelRefreshStateMixin:
     _panel_group: AgentPanelGroup
     _agent_panels_grouped: bool
     _collapsed_panel_keys: set[PanelKey]
+    _expanded_panel_keys: set[PanelKey]
+
+    def _occupancy_keys_with_rows(self) -> set[PanelKey]:
+        """Return occupancy keys that currently have rendered rows."""
+        raise NotImplementedError
+
+    def _sorted_widget_panel_keys(
+        self,
+        occupancy_keys: list[PanelKey],
+        *,
+        occupancy_with_rows: set[PanelKey],
+    ) -> list[PanelKey]:
+        """Return occupancy ∪ sticky keys in canonical visual order."""
+        raise NotImplementedError
 
     def _agent_panel_index(self) -> AgentPanelIndex:
         """Return the memoized panel index supplied by the display mixin."""

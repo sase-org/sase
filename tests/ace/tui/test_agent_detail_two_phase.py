@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
+from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 from sase.ace.tui.actions.agents._selection import AgentSelectionMixin
 from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -49,6 +50,9 @@ class _ListWidget:
         self._classes.discard(name)
 
     def focus(self) -> None:
+        return
+
+    def clear_highlight(self) -> None:
         return
 
 
@@ -244,6 +248,11 @@ class _SummaryApp(AgentSelectionMixin, _FakeApp):
             focused_key="collapsed",
             collapsed_panel_keys=self._collapsed_panel_keys,
         )
+        wid = panel_widget_id_for_key("collapsed")
+        list_widget = _ListWidget(wid)
+        self._container = _Container([list_widget])
+        self._widgets["#agent-list-container"] = self._container
+        self._widgets[f"#{wid}"] = list_widget
 
 
 def test_debounced_refresh_runs_immediate_phase_only() -> None:

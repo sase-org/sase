@@ -16,6 +16,8 @@ AgentRefreshDataCost = Literal[
 AgentRefreshDisplayCost = Literal[
     "display_full_rebuild",
     "display_panel_rebuild",
+    "display_panel_insert",
+    "display_panel_remove",
     "row_patch",
     "row_remove",
     "row_insert",
@@ -51,6 +53,8 @@ ALL_AGENT_REFRESH_DISPLAY_COSTS: frozenset[AgentRefreshDisplayCost] = frozenset(
     {
         "display_full_rebuild",
         "display_panel_rebuild",
+        "display_panel_insert",
+        "display_panel_remove",
         "row_patch",
         "row_remove",
         "row_insert",

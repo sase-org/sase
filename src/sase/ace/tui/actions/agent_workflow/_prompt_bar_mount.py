@@ -289,7 +289,15 @@ class PromptBarMountMixin:
         tab = getattr(self, "current_tab", None)
         candidates: tuple[str, ...]
         if tab == "agents":
-            candidates = ("#agent-list-panel",)
+            from ..agents._display_helpers import (
+                _MAIN_PANEL_ID,
+                first_agent_list_widget,
+            )
+
+            widget = first_agent_list_widget(self)
+            if widget is not None:
+                return widget
+            candidates = (f"#{_MAIN_PANEL_ID}",)
         elif tab == "axe":
             candidates = ("#bgcmd-list-panel",)
         else:

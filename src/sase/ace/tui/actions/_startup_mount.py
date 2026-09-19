@@ -186,7 +186,17 @@ class StartupMountMixin:
     def _focus_startup_visible_tab(self: Any) -> None:
         """Keep hidden startup panes from retaining keyboard focus."""
         if self.current_tab == "agents":
-            selector = "#agent-list-panel"
+            from .agents._display_helpers import first_agent_list_widget
+
+            widget = first_agent_list_widget(self)
+            if widget is None:
+                log.debug("startup focus normalization skipped: no AgentList")
+                return
+            try:
+                widget.focus()
+            except Exception:
+                log.debug("startup focus normalization skipped: AgentList unfocusable")
+            return
         elif self.current_tab == "axe":
             selector = "#bgcmd-list-panel"
         else:
@@ -262,16 +272,19 @@ class StartupMountMixin:
         """
         from ..widgets import (
             AgentInfoPanel,
-            AgentList,
             AxeDashboard,
             AxeInfoPanel,
         )
 
         if not self._agents_first_load_done:
-            try:
-                self.query_one("#agent-list-panel", AgentList).loading = True
-            except Exception:
-                pass
+            from .agents._display_helpers import first_agent_list_widget
+
+            widget = first_agent_list_widget(self)
+            if widget is not None:
+                try:
+                    widget.loading = True
+                except Exception:
+                    pass
             try:
                 self.query_one("#agent-info-panel", AgentInfoPanel).set_loading(True)
             except Exception:

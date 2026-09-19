@@ -22,9 +22,11 @@ class AgentArtifactFileActionMixin:
         if self.current_tab != "agents":
             return
         try:
-            from ...widgets import AgentList
+            from ._display_helpers import first_agent_list_widget
 
-            self.query_one("#agent-list-panel", AgentList).focus()  # type: ignore[attr-defined]
+            widget = first_agent_list_widget(self)
+            if widget is not None:
+                widget.focus()
         except Exception:
             return
 

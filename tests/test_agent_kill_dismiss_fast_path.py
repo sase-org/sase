@@ -187,8 +187,8 @@ def test_kill_falls_back_when_no_panel_widget() -> None:
     assert app.refresh_calls == [(True, True)]
 
 
-def test_kill_falls_back_under_search(monkeypatch: Any) -> None:
-    """An active agent search query disables the fast path."""
+def test_kill_uses_fast_path_under_standing_search(monkeypatch: Any) -> None:
+    """A standing filter query no longer disables in-place row removal."""
     panel = _wire_agent_list(monkeypatch)
     a = _agent(raw_suffix="r1")
     b = _agent(raw_suffix="r2")
@@ -201,7 +201,8 @@ def test_kill_falls_back_under_search(monkeypatch: Any) -> None:
     with patch("sase.ace.tui.actions.agents._killing.os.killpg"):
         app._do_kill_agent(a)
 
-    assert app.refresh_calls == [(True, True)]
+    assert app.refresh_calls == [(False, True)]
+    assert a.identity not in {agent.identity for agent in panel._agents}
 
 
 def test_kill_by_status_uses_fast_path_when_group_tree_stays_stable(
@@ -307,8 +308,6 @@ def _build_dismiss_app(panel_widget: AgentList | None) -> Any:
             # so the test harness doesn't need to wire ``query_one``.
             if panel_widget is None:
                 return False
-            if self._agent_search_query:
-                return False
             if self._grouping_mode not in {
                 GroupingMode.STANDARD,
                 GroupingMode.BY_STATUS,
@@ -365,20 +364,20 @@ def test_dismiss_falls_back_when_widget_missing() -> None:
     assert app.refresh_calls == []
 
 
-def test_dismiss_falls_back_under_search(monkeypatch: Any) -> None:
+def test_dismiss_uses_fast_path_under_standing_search(monkeypatch: Any) -> None:
     panel = _wire_agent_list(monkeypatch)
     leaf = _agent(raw_suffix="d1", status="DONE", pid=None)
-    panel.update_list([leaf], current_idx=0)
+    keep = _agent(raw_suffix="d2", status="DONE", pid=None)
+    panel.update_list([leaf, keep], current_idx=0)
     app = _build_dismiss_app(panel)
-    app._agents = [leaf]
-    app._agents_with_children = [leaf]
+    app._agents = [leaf, keep]
+    app._agents_with_children = [leaf, keep]
     app._agent_search_query = "done"
 
     app._apply_dismissal_in_memory([leaf])
 
-    # Search active -> fast path returns False -> _refilter_agents is taken.
-    assert app.refilter_count == 1
-    assert app.refresh_calls == []
+    assert app.refilter_count == 0
+    assert leaf.identity not in {agent.identity for agent in panel._agents}
 
 
 def test_dismiss_workflow_parent_with_children_falls_back(

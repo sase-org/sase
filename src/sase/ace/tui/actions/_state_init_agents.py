@@ -293,6 +293,10 @@ def init_agent_state(self: Any) -> None:
     # journal, and latest-generation off-thread writer.
     self._collapsed_panel_keys = set()
     self._expanded_panel_keys = set()
+    # Tribe widgets mounted this session, reused when occupancy hits zero
+    # under the same committed query. Never pre-mounts unseen tribes.
+    self._session_mounted_panel_keys = set()
+    self._session_sticky_query = ""
     # ``H`` remembers one pre-isolation split-panel layout in memory. The
     # record is intentionally session-local and never enters fold-state
     # persistence.

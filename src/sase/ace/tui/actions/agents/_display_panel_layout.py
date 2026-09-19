@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...util.trace import tui_trace
-from ._display_helpers import panel_widget_id
+from ._display_helpers import panel_widget_id_for_key
 from ._display_panel_state import PanelRefreshStateMixin
 from ._panel_fold_intent import effective_panel_collapses, panel_is_collapsed
 
@@ -168,14 +168,14 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
         for idx in target_indices:
             if idx < 0 or idx >= len(self._panel_group.panel_keys):
                 continue
-            wid = panel_widget_id(idx)
+            key = self._panel_group.panel_keys[idx]
+            wid = panel_widget_id_for_key(key)
             try:
                 widget = self.query_one(  # type: ignore[attr-defined]
                     f"#{wid}", AgentList
                 )
             except NoMatches:
                 continue
-            key = self._panel_group.panel_keys[idx]
             panel_agents = panel_index.slice_for(key).agents
             self._set_agent_panel_title(
                 widget,
@@ -232,7 +232,7 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
         panel_focus = resolve_panel() if callable(resolve_panel) else None
         selected_expanded = bool(panel_focus is not None and not panel_focus.collapsed)
         panel_index = self._agent_panel_index()
-        wid = panel_widget_id(self._panel_group.focused_idx)
+        wid = panel_widget_id_for_key(self._panel_group.focused_key)
         try:
             widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
         except NoMatches:
@@ -286,7 +286,7 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
         if callable(hint_bar_active) and hint_bar_active():
             return
 
-        wid = panel_widget_id(self._panel_group.focused_idx)
+        wid = panel_widget_id_for_key(self._panel_group.focused_key)
         try:
             widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
         except NoMatches:

@@ -21,6 +21,7 @@ from sase.ace.tui.actions.agents._display_panel_titles import (
 from sase.ace.tui.actions.agents._panel_navigation import AgentPanelNavigationMixin
 from sase.ace.tui.actions.agents._selection import AgentSelectionMixin
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
+from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 from sase.ace.tui.actions.navigation._basic import BasicNavigationMixin
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
@@ -61,6 +62,10 @@ class _ListWidget:
         self.last_panel_tribe = kwargs.get("panel_tribe")
         self.last_fold_registry = kwargs.get("fold_registry")
         self._panel_collapsed = False
+        self._agents = agents
+        grouping_mode = kwargs.get("grouping_mode")
+        if grouping_mode is not None:
+            self._grouping_mode = grouping_mode
 
     def render_collapsed(self) -> None:
         self.render_collapsed_calls += 1
@@ -82,6 +87,9 @@ class _ListWidget:
     def focus(self) -> None:
         return
 
+    def remove(self) -> None:
+        return
+
 
 class _Size:
     def __init__(self, height: int) -> None:
@@ -95,6 +103,24 @@ class _Container:
 
     def mount(self, widget: _ListWidget) -> None:
         self.children.append(widget)
+
+    def move_child(
+        self,
+        child: _ListWidget,
+        *,
+        before: _ListWidget | int | None = None,
+        after: _ListWidget | int | None = None,
+    ) -> None:
+        if child in self.children:
+            self.children.remove(child)
+        if before is not None:
+            idx = before if isinstance(before, int) else self.children.index(before)
+            self.children.insert(idx, child)
+        elif after is not None:
+            idx = after if isinstance(after, int) else self.children.index(after)
+            self.children.insert(idx + 1, child)
+        else:
+            self.children.append(child)
 
 
 class _FakeApp(AgentDisplayMixin):
@@ -130,16 +156,18 @@ class _FakeApp(AgentDisplayMixin):
             merge_tribe_panels=agent_panels_grouped,
         )
         self._collapsed_panel_keys: set[str | None] = set()
+        self._expanded_panel_keys: set[str | None] = set()
         self._expanded_panel_focus = False
-
-        from sase.ace.tui.actions.agents._display import _panel_widget_id
+        self._agent_search_query = ""
+        self._session_mounted_panel_keys: set[str | None] = set()
+        self._session_sticky_query = ""
 
         assert len(option_counts) == len(self._panel_group.panel_keys), (
             "option_counts must match the number of panels"
         )
         self._panel_widgets: dict[str, _ListWidget] = {}
-        for idx, count in enumerate(option_counts):
-            wid = _panel_widget_id(idx)
+        for key, count in zip(self._panel_group.panel_keys, option_counts, strict=True):
+            wid = panel_widget_id_for_key(key)
             self._panel_widgets[wid] = _ListWidget(wid, count)
         self._container = _Container(
             list(self._panel_widgets.values()), container_height
@@ -203,6 +231,10 @@ def _three_panel_agents() -> list[Agent]:
     ]
 
 
+def _pw(app: _FakeApp, key: str | None) -> _ListWidget:
+    return app._panel_widgets[panel_widget_id_for_key(key)]
+
+
 def _two_tribe_assigned_panel_agents() -> list[Agent]:
     """2 panels: @apple, @banana."""
     return [
@@ -219,9 +251,9 @@ def test_fits_regime_main_panel_absorbs_leftover() -> None:
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    main = app._panel_widgets["agent-list-panel"]
-    apple = app._panel_widgets["agent-list-panel-1"]
-    banana = app._panel_widgets["agent-list-panel-2"]
+    main = _pw(app, None)
+    apple = _pw(app, "apple")
+    banana = _pw(app, "banana")
 
     # The first panel gets the flexible height so it absorbs any leftover
     # space in the column.
@@ -238,13 +270,13 @@ def test_panel_separator_class_tracks_panel_position() -> None:
     app = _FakeApp(agents, option_counts=[2, 4, 6], container_height=30)
 
     # Simulate a reused slot carrying stale position state before refresh.
-    app._panel_widgets["agent-list-panel"]._classes.add("agent-panel-separated")
+    _pw(app, None)._classes.add("agent-panel-separated")
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    main = app._panel_widgets["agent-list-panel"]
-    apple = app._panel_widgets["agent-list-panel-1"]
-    banana = app._panel_widgets["agent-list-panel-2"]
+    main = _pw(app, None)
+    apple = _pw(app, "apple")
+    banana = _pw(app, "banana")
 
     assert "agent-panel-separated" not in main._classes
     assert "agent-panel-separated" in apple._classes
@@ -259,14 +291,14 @@ def test_collapsed_no_tribe_panel_moves_last_and_stays_fixed() -> None:
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    apple = app._panel_widgets["agent-list-panel"]
-    banana = app._panel_widgets["agent-list-panel-1"]
-    no_tribe = app._panel_widgets["agent-list-panel-2"]
+    apple = _pw(app, "apple")
+    banana = _pw(app, "banana")
+    no_tribe = _pw(app, None)
     assert app._panel_group.panel_keys == ["apple", "banana", None]
     assert apple.styles.height.unit is Unit.FRACTION
     assert apple.styles.height.value == 1.0
     assert banana.styles.height.unit is Unit.CELLS
-    assert banana.styles.height.value == 6.0
+    assert banana.styles.height.value == 8.0
     assert no_tribe.render_collapsed_calls == 1
     assert no_tribe.styles.height.unit is Unit.CELLS
     assert no_tribe.styles.height.value == 2.0
@@ -285,7 +317,7 @@ def test_collapsed_panel_hint_routes_by_key_in_full_and_selective_refreshes() ->
         panel_jump_hints={target: "7"},
     )
 
-    banana = app._panel_widgets["agent-list-panel-2"]
+    banana = _pw(app, "banana")
     assert getattr(banana.border_title, "plain", "") == "[7] ▸ @banana · 1 [R1]"
 
     app._entry_jump_mode_active = True
@@ -311,7 +343,7 @@ def test_expanded_panel_jump_hint_routes_by_key_in_full_and_selective_refreshes(
         panel_jump_hints={target: "7"},
     )
 
-    banana = app._panel_widgets["agent-list-panel-2"]
+    banana = _pw(app, "banana")
     assert getattr(banana.border_title, "plain", "") == "[7] @banana · 1 [R1]"
 
     app._entry_jump_mode_active = True
@@ -331,14 +363,14 @@ def test_full_rebuild_focus_class_tracks_focused_panel_key() -> None:
     app.current_idx = 2
 
     # Simulate stale focus state from a prior panel before a full rebuild.
-    app._panel_widgets["agent-list-panel"]._classes.add("-focused-panel")
-    app._panel_widgets["agent-list-panel-1"]._classes.add("-focused-panel")
+    _pw(app, None)._classes.add("-focused-panel")
+    _pw(app, "apple")._classes.add("-focused-panel")
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    main = app._panel_widgets["agent-list-panel"]
-    apple = app._panel_widgets["agent-list-panel-1"]
-    banana = app._panel_widgets["agent-list-panel-2"]
+    main = _pw(app, None)
+    apple = _pw(app, "apple")
+    banana = _pw(app, "banana")
 
     assert app._panel_group.focused_key == "banana"
     assert "-focused-panel" not in main._classes
@@ -362,9 +394,9 @@ def test_full_rebuild_selected_expanded_panel_uses_whole_panel_visuals() -> None
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    main = app._panel_widgets["agent-list-panel"]
-    apple = app._panel_widgets["agent-list-panel-1"]
-    banana = app._panel_widgets["agent-list-panel-2"]
+    main = _pw(app, None)
+    apple = _pw(app, "apple")
+    banana = _pw(app, "banana")
     assert "-whole-panel-focus" not in main._classes
     assert "-whole-panel-focus" not in apple._classes
     assert "-whole-panel-focus" in banana._classes
@@ -385,8 +417,8 @@ def test_whole_panel_navigation_refreshes_selected_and_collapsed_titles() -> Non
     app._sync_panel_group()
     app._refresh_panel_widgets(jump_hints=None)
 
-    banana = app._panel_widgets["agent-list-panel-1"]
-    apple = app._panel_widgets["agent-list-panel-2"]
+    banana = _pw(app, "banana")
+    apple = _pw(app, "apple")
     assert getattr(banana.border_title, "plain", "") == "@banana · 1 [R1]"
     assert getattr(apple.border_title, "plain", "") == "▸ @apple · 1 [R1]"
     _assert_title_range_style(_title_text(apple), start=0, end=2, style="#AFAFAF")
@@ -422,9 +454,9 @@ def test_separator_rows_are_included_in_fit_boundary() -> None:
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    main = app._panel_widgets["agent-list-panel"]
-    apple = app._panel_widgets["agent-list-panel-1"]
-    banana = app._panel_widgets["agent-list-panel-2"]
+    main = _pw(app, None)
+    apple = _pw(app, "apple")
+    banana = _pw(app, "banana")
 
     assert main.styles.height.unit is Unit.CELLS
     assert main.styles.height.value == 4.0
@@ -442,8 +474,8 @@ def test_overflow_regime_protects_small_tribe_panel_before_large_panel() -> None
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    apple = app._panel_widgets["agent-list-panel"]
-    banana = app._panel_widgets["agent-list-panel-1"]
+    apple = _pw(app, "apple")
+    banana = _pw(app, "banana")
 
     assert apple.styles.height.unit is Unit.CELLS
     assert apple.styles.height.value == 4.0
@@ -459,9 +491,9 @@ def test_overflow_regime_keeps_small_no_tribe_panel_natural() -> None:
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    main = app._panel_widgets["agent-list-panel"]
-    apple = app._panel_widgets["agent-list-panel-1"]
-    banana = app._panel_widgets["agent-list-panel-2"]
+    main = _pw(app, None)
+    apple = _pw(app, "apple")
+    banana = _pw(app, "banana")
 
     assert main.styles.height.unit is Unit.CELLS
     assert main.styles.height.value == 8.0
@@ -480,9 +512,9 @@ def test_overflow_regime_leaves_large_no_tribe_panel_fractional() -> None:
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    main = app._panel_widgets["agent-list-panel"]
-    apple = app._panel_widgets["agent-list-panel-1"]
-    banana = app._panel_widgets["agent-list-panel-2"]
+    main = _pw(app, None)
+    apple = _pw(app, "apple")
+    banana = _pw(app, "banana")
 
     assert main.styles.height.unit is Unit.FRACTION
     assert main.styles.height.value == 23.0
@@ -498,9 +530,9 @@ def test_overflow_regime_shares_multiple_large_panels_proportionally() -> None:
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    main = app._panel_widgets["agent-list-panel"]
-    apple = app._panel_widgets["agent-list-panel-1"]
-    banana = app._panel_widgets["agent-list-panel-2"]
+    main = _pw(app, None)
+    apple = _pw(app, "apple")
+    banana = _pw(app, "banana")
 
     assert main.styles.height.unit is Unit.FRACTION
     assert main.styles.height.value == 11.0
@@ -551,16 +583,16 @@ def test_split_panel_refreshes_thread_enclosing_tribe_context() -> None:
 
     app._refresh_panel_widgets(jump_hints=None)
 
-    main = app._panel_widgets["agent-list-panel"]
-    apple = app._panel_widgets["agent-list-panel-1"]
-    banana = app._panel_widgets["agent-list-panel-2"]
+    main = _pw(app, None)
+    apple = _pw(app, "apple")
+    banana = _pw(app, "banana")
     assert [
         main.last_panel_tribe,
         apple.last_panel_tribe,
         banana.last_panel_tribe,
     ] == [None, "apple", "banana"]
 
-    banana.last_panel_tribe = None
+    assert banana.last_panel_tribe == "banana"
     assert app._refresh_affected_panel_widgets({"banana"}) is True
     assert banana.last_panel_tribe == "banana"
 
@@ -574,9 +606,9 @@ def test_each_panel_widget_receives_its_scoped_fold_registry() -> None:
     registries = [
         app._panel_widgets[wid].last_fold_registry
         for wid in (
-            "agent-list-panel",
-            "agent-list-panel-1",
-            "agent-list-panel-2",
+            panel_widget_id_for_key(None),
+            panel_widget_id_for_key("apple"),
+            panel_widget_id_for_key("banana"),
         )
     ]
     assert registries == [

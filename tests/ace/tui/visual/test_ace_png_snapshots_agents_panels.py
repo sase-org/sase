@@ -8,6 +8,7 @@ import pytest
 from rich.text import Text
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 from sase.ace.tui.actions.agents._panel_fold_intent import (
     effective_panel_collapses,
 )
@@ -251,7 +252,7 @@ async def test_agents_collapsed_panel_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert page.app._panel_group.panel_keys[-1] == "chop"
-        collapsed_widget = page.app.query_one("#agent-list-panel-2")
+        collapsed_widget = page.app.query_one(f"#{panel_widget_id_for_key('chop')}")
         assert collapsed_widget.option_count == 0
         assert collapsed_widget.styles.height is not None
         assert collapsed_widget.styles.height.value == 2.0
@@ -355,8 +356,7 @@ async def test_agents_collapsed_panel_png_snapshot(
             target[0] in {"group", "agent"} and target[1] == "chop"
             for target in fold_hints
         )
-        chop_idx = page.app._panel_group.panel_keys.index("chop")
-        chop_widget = page.app.query_one(f"#agent-list-panel-{chop_idx}")
+        chop_widget = page.app.query_one(f"#{panel_widget_id_for_key('chop')}")
         chop_render = "\n".join(
             str(chop_widget.get_option_at_index(index).prompt)
             for index in range(chop_widget.option_count)
@@ -413,7 +413,7 @@ async def test_agents_collapsed_panel_png_snapshot(
         assert page.app._agents[page.app.current_idx].tribe == "chop"
         # A collapsed panel has no selectable rows, so mouse focus itself must
         # move whole-panel focus and route the detail pane to its summary.
-        await page.click("#agent-list-panel-2")
+        await page.click(f"#{panel_widget_id_for_key(None)}")
         await page.wait_for(lambda _screen: page.app._panel_group.focused_key is None)
         await wait_for_visual_idle(page)
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
@@ -472,13 +472,10 @@ async def test_agents_leader_jump_auto_expands_panel_png_snapshot(
 
         assert page.app._agents[page.app.current_idx].identity == target.identity
         assert target.identity not in page.app._unread_completed_agent_ids
-        focused_idx = page.app._panel_group.focused_idx
-        widget_id = (
-            "#agent-list-panel"
-            if focused_idx == 0
-            else f"#agent-list-panel-{focused_idx}"
+        target_widget = page.app.query_one(
+            f"#{panel_widget_id_for_key(page.app._panel_group.focused_key)}",
+            AgentList,
         )
-        target_widget = page.app.query_one(widget_id, AgentList)
         assert "❖" not in Text.from_markup(target_widget.border_title).plain
         assert target_widget.highlighted is not None
 
@@ -500,7 +497,7 @@ async def test_agents_leader_jump_auto_expands_panel_png_snapshot(
         assert page.app.current_idx == 2
         assert page.app._agents[page.app.current_idx].identity == target.identity
         assert target.identity not in page.app._unread_completed_agent_ids
-        target_widget = page.app.query_one("#agent-list-panel-1")
+        target_widget = page.app.query_one(f"#{panel_widget_id_for_key('chop')}")
         assert target_widget.highlighted is not None
 
         ace_png_visual.assert_page_png(

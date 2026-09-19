@@ -10,6 +10,7 @@ import pytest
 
 from sase.ace.tui.actions.agents._core import AgentsMixinCore
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
+from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 from sase.ace.tui.actions.agents._display_panels import PanelsMixin
 from sase.ace.tui.actions.agents._panels import AgentPanelsMixin
 from sase.ace.tui.actions.agents._unread import AgentUnreadMixin
@@ -130,13 +131,10 @@ class _OptimizedPanelSwitchApp(AgentPanelsMixin, PanelsMixin, HintMixinBase):
         self._rewind_mode_active = False
         self.artifact_file_viewer_guard_active = False
         self._widgets = {
-            "agent-list-panel": _TrackingPanelWidget("agent-list-panel", highlighted=0),
-            "agent-list-panel-1": _TrackingPanelWidget(
-                "agent-list-panel-1", highlighted=0
-            ),
-            "agent-list-panel-2": _TrackingPanelWidget(
-                "agent-list-panel-2", highlighted=0
-            ),
+            panel_widget_id_for_key(key): _TrackingPanelWidget(
+                panel_widget_id_for_key(key), highlighted=0
+            )
+            for key in self._panel_group.panel_keys
         }
         self.info_updates = 0
         self.detail_updates = 0
@@ -539,12 +537,12 @@ def test_optimized_panel_switch_clears_old_panel_highlight() -> None:
     app = _OptimizedPanelSwitchApp(agents, focused_key="alpha")
     app.current_idx = 1
     app._agent_detail_debouncer = _Debouncer()
-    app._widgets["agent-list-panel-1"]._classes.add("-focused-panel")
+    app._widgets[panel_widget_id_for_key("alpha")]._classes.add("-focused-panel")
 
     app.action_focus_next_agent_panel()
 
-    old_widget = app._widgets["agent-list-panel-1"]
-    new_widget = app._widgets["agent-list-panel-2"]
+    old_widget = app._widgets[panel_widget_id_for_key("alpha")]
+    new_widget = app._widgets[panel_widget_id_for_key("beta")]
     assert app._panel_group.focused_key == "beta"
     assert app.current_idx == 2
     assert old_widget.highlighted is None
@@ -568,7 +566,7 @@ def test_optimized_panel_switch_does_not_steal_focus_from_hint_bar() -> None:
 
     app._refresh_focused_agent_panel_impl(old_focused_idx=None)
 
-    focused_widget = app._widgets["agent-list-panel-1"]
+    focused_widget = app._widgets[panel_widget_id_for_key("alpha")]
     assert focused_widget.highlighted == 0
     assert focused_widget.update_highlight_calls == [(0, 42, None)]
     assert "-focused-panel" in focused_widget._classes
@@ -591,7 +589,7 @@ def test_focused_panel_widget_focus_skips_all_hint_bar_modes(
 
     app._focus_focused_panel_widget()
 
-    assert app._widgets["agent-list-panel-1"].focus_calls == 0
+    assert app._widgets[panel_widget_id_for_key("alpha")].focus_calls == 0
 
 
 def test_refresh_panel_highlights_clears_every_nonfocused_panel() -> None:
@@ -602,14 +600,14 @@ def test_refresh_panel_highlights_clears_every_nonfocused_panel() -> None:
     ]
     app = _OptimizedPanelSwitchApp(agents, focused_key="alpha")
     app.current_idx = 1
-    app._widgets["agent-list-panel"]._classes.add("-focused-panel")
-    app._widgets["agent-list-panel-2"]._classes.add("-focused-panel")
+    app._widgets[panel_widget_id_for_key(None)]._classes.add("-focused-panel")
+    app._widgets[panel_widget_id_for_key("beta")]._classes.add("-focused-panel")
 
     app._refresh_panel_highlights_impl()
 
-    focused_widget = app._widgets["agent-list-panel-1"]
-    stale_main = app._widgets["agent-list-panel"]
-    stale_beta = app._widgets["agent-list-panel-2"]
+    focused_widget = app._widgets[panel_widget_id_for_key("alpha")]
+    stale_main = app._widgets[panel_widget_id_for_key(None)]
+    stale_beta = app._widgets[panel_widget_id_for_key("beta")]
     assert focused_widget.highlighted == 0
     assert focused_widget.update_highlight_calls == [(0, 42, None)]
     assert "-focused-panel" in focused_widget._classes
@@ -629,7 +627,7 @@ def test_refresh_panel_highlights_skips_descendant_scan_for_single_panel() -> No
 
     app._refresh_panel_highlights_impl()
 
-    focused_widget = app._widgets["agent-list-panel"]
+    focused_widget = app._widgets[panel_widget_id_for_key("alpha")]
     assert focused_widget.update_highlight_calls == [(0, 42, None)]
     assert "-focused-panel" in focused_widget._classes
     assert app.query_calls == 0

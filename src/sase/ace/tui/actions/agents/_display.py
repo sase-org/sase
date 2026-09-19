@@ -34,7 +34,12 @@ from ._display_diff import (
     rendered_panel_key_by_identity,
 )
 from ._display_detail import DetailMixin
-from ._display_helpers import _MAIN_PANEL_ID, TabName, panel_widget_id
+from ._display_helpers import (
+    _MAIN_PANEL_ID,
+    TabName,
+    panel_widget_id,
+    panel_widget_id_for_key,
+)
 from ._display_panels import PanelsMixin
 from ._loading import DISMISSABLE_STATUSES
 from ._panel_fold_intent import effective_panel_collapses
@@ -48,11 +53,19 @@ from ._neighbors import AgentNeighborMixin
 log = logging.getLogger(__name__)
 
 # Tests import the legacy private alias from this module — keep it.
+# Prefer ``panel_widget_id_for_key`` or the mixin method that maps a slot
+# index through ``self._panel_group.panel_keys``.
 _panel_widget_id = panel_widget_id
 
 # Re-exports for backward compatibility with callers/tests that import
 # these names directly from ``_display``.
-__all__ = ["AgentDisplayMixin", "TabName", "_MAIN_PANEL_ID", "_panel_widget_id"]
+__all__ = [
+    "AgentDisplayMixin",
+    "TabName",
+    "_MAIN_PANEL_ID",
+    "_panel_widget_id",
+    "panel_widget_id_for_key",
+]
 
 
 class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
@@ -270,29 +283,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             return False
 
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
-        collapsed_panel_keys = effective_panel_collapses(self)
         if not self._agent_display_widgets_have_previous_rows(previous_agents):
-            return False
-
-        old_panel_keys = tuple(getattr(self._panel_group, "panel_keys", ()))
-        if (
-            panel_keys_for_display(
-                previous_agents,
-                merge_tribe_panels=merge_tribe_panels,
-                collapsed_panel_keys=collapsed_panel_keys,
-            )
-            != old_panel_keys
-        ):
-            self._record_display_full_rebuild_fallback("panel_membership_change")
-            return False
-
-        next_panel_keys = panel_keys_for_display(
-            self._agents,
-            merge_tribe_panels=merge_tribe_panels,
-            collapsed_panel_keys=collapsed_panel_keys,
-        )
-        if next_panel_keys != old_panel_keys:
-            self._record_display_full_rebuild_fallback("panel_membership_change")
             return False
 
         diff = build_agent_display_diff(previous_agents, self._agents)

@@ -340,7 +340,8 @@ async def test_confirming_last_panel_member_preserves_neighbors_and_valid_focus(
             home.identity,
             keep.identity,
         }
-        assert "alpha" not in page.app._collapsed_panel_keys
+        # Occupancy no longer includes @alpha. Session-sticky widgets may keep
+        # the fold intent so a remount does not re-apply initially_expanded.
         assert page.app._panel_group.focused_key in {None, "keep"}
         selected = page.app._get_selected_agent()
         assert selected is not None

@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
+from textual.css.query import NoMatches
+
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
+from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 from sase.ace.tui.actions.agents._display_diff import (
     build_agent_display_diff,
     diff_touches_workflow_tree,
@@ -34,12 +37,44 @@ class _Size:
 
 
 class _Container:
-    def __init__(self, children: list[AgentList]) -> None:
+    def __init__(self, app: _DisplayDiffApp, children: list[AgentList]) -> None:
+        self._app = app
         self.children = list(children)
         self.size = _Size(40)
 
     def mount(self, widget: AgentList) -> None:
+        widget.update_list_calls = getattr(widget, "update_list_calls", 0)
+        original_update_list = widget.update_list
+
+        def counted_update_list(*args: Any, **kwargs: Any) -> None:
+            widget.update_list_calls += 1  # type: ignore[attr-defined]
+            original_update_list(*args, **kwargs)
+
+        widget.update_list = counted_update_list  # type: ignore[method-assign]
+        widget.remove = lambda: (  # type: ignore[method-assign]
+            self.children.remove(widget) if widget in self.children else None
+        )
         self.children.append(widget)
+        if widget.id:
+            self._app._widgets[f"#{widget.id}"] = widget
+
+    def move_child(
+        self,
+        child: AgentList,
+        *,
+        before: AgentList | int | None = None,
+        after: AgentList | int | None = None,
+    ) -> None:
+        if child in self.children:
+            self.children.remove(child)
+        if before is not None:
+            idx = before if isinstance(before, int) else self.children.index(before)
+            self.children.insert(idx, child)
+        elif after is not None:
+            idx = after if isinstance(after, int) else self.children.index(after)
+            self.children.insert(idx + 1, child)
+        else:
+            self.children.append(child)
 
 
 class _QueryResult:
@@ -106,10 +141,11 @@ class _DisplayDiffApp(AgentDisplayMixin):
             "#keybinding-footer": _FooterWidget(),
         }
         panel_widgets: list[AgentList] = []
-        from sase.ace.tui.actions.agents._display import _panel_widget_id
+        self._container = _Container(self, [])
+        self._widgets["#agent-list-container"] = self._container
 
-        for idx, _key in enumerate(self._panel_group.panel_keys):
-            wid = _panel_widget_id(idx)
+        for key in self._panel_group.panel_keys:
+            wid = panel_widget_id_for_key(key)
             widget = AgentList(id=wid)
             widget.update_list_calls = 0  # type: ignore[attr-defined]
             original_update_list = widget.update_list
@@ -127,14 +163,21 @@ class _DisplayDiffApp(AgentDisplayMixin):
             monkeypatch.setattr(widget, "post_message", lambda _msg: None)
             panel_widgets.append(widget)
             self._widgets[f"#{wid}"] = widget
-        self._container = _Container(panel_widgets)
+            self._container.children.append(widget)
         self._widgets["#agent-list-container"] = self._container
 
         self._refresh_panel_widgets(jump_hints=None)
 
     def query_one(self, selector: str, _type: Any = None) -> Any:
         del _type
-        return self._widgets[selector]
+        if selector in self._widgets:
+            return self._widgets[selector]
+        wid = selector.lstrip("#")
+        for child in self._container.children:
+            if getattr(child, "id", None) == wid:
+                self._widgets[selector] = child
+                return child
+        raise NoMatches(selector)
 
     def query(self, _selector: str) -> _QueryResult:
         return _QueryResult(self._container.children)
@@ -205,6 +248,10 @@ def _workflow_agent(
         parent_timestamp=parent_timestamp,
         parent_workflow=parent_workflow,
     )
+
+
+def _widget_sel(key: str | None) -> str:
+    return f"#{panel_widget_id_for_key(key)}"
 
 
 def _display_costs(app: _DisplayDiffApp) -> list[str | None]:

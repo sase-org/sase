@@ -11,6 +11,7 @@ from ._agent_display_diff_helpers import (
     _DisplayDiffApp,
     _agent,
     _display_costs,
+    _widget_sel,
 )
 
 
@@ -20,7 +21,7 @@ def test_same_position_row_change_patches_without_panel_rebuild(
     old_agent = _agent("alpha", tribe="apple", suffix="a1", status="RUNNING")
     new_agent = replace(old_agent, status="DONE")
     app = _DisplayDiffApp([old_agent], monkeypatch)
-    widget = app._widgets["#agent-list-panel"]
+    widget = app._widgets[_widget_sel("apple")]
 
     app._agents = [new_agent]
     app._refresh_agents_display_after_finalize(
@@ -62,7 +63,7 @@ def test_unchanged_active_search_uses_incremental_without_panel_rebuild(
 ) -> None:
     agent = _agent("alpha", tribe="apple", suffix="a1", status="RUNNING")
     app = _DisplayDiffApp([agent], monkeypatch)
-    widget = app._widgets["#agent-list-panel"]
+    widget = app._widgets[_widget_sel("apple")]
     app._agent_search_query = "status:RUNNING"
     app._agent_display_last_search_query = "status:RUNNING"
     widget.update_list_calls = 0
@@ -146,7 +147,7 @@ def test_row_patch_refreshes_family_lane_panel_title_without_rebuild(
         status="DONE",
     )
     app = _DisplayDiffApp([planner, coder, standalone], monkeypatch)
-    widget = app._widgets["#agent-list-panel"]
+    widget = app._widgets[_widget_sel("apple")]
 
     assert Text.from_markup(widget.border_title).plain == "@apple · 2 [R1 D1]"
 
@@ -191,8 +192,8 @@ def test_single_panel_addition_rebuilds_only_affected_panel(monkeypatch: Any) ->
     banana = _agent("banana-one", tribe="banana", suffix="b1")
     added = _agent("apple-two", tribe="apple", suffix="a2")
     app = _DisplayDiffApp([apple, banana], monkeypatch)
-    apple_widget = app._widgets["#agent-list-panel"]
-    banana_widget = app._widgets["#agent-list-panel-1"]
+    apple_widget = app._widgets[_widget_sel("apple")]
+    banana_widget = app._widgets[_widget_sel("banana")]
 
     app._agents = [apple, added, banana]
     app._refresh_agents_display_after_finalize(
@@ -218,8 +219,8 @@ def test_single_panel_removal_removes_then_rebuilds_affected_panel(
     apple_two = _agent("apple-two", tribe="apple", suffix="a2")
     banana = _agent("banana-one", tribe="banana", suffix="b1")
     app = _DisplayDiffApp([apple_one, apple_two, banana], monkeypatch)
-    apple_widget = app._widgets["#agent-list-panel"]
-    banana_widget = app._widgets["#agent-list-panel-1"]
+    apple_widget = app._widgets[_widget_sel("apple")]
+    banana_widget = app._widgets[_widget_sel("banana")]
 
     app._agents = [apple_one, banana]
     app._refresh_agents_display_after_finalize(
@@ -227,12 +228,11 @@ def test_single_panel_removal_removes_then_rebuilds_affected_panel(
         defer_detail=True,
     )
 
-    assert apple_widget.update_list_calls == 2
+    assert apple_widget.update_list_calls == 1
     assert banana_widget.update_list_calls == 1
     assert [agent.identity for agent in apple_widget._agents] == [apple_one.identity]
     assert app.full_rebuilds == 0
     assert "row_remove" in _display_costs(app)
-    assert "display_panel_rebuild" in _display_costs(app)
 
 
 def test_tribe_move_between_existing_panels_rebuilds_source_and_target(
@@ -243,8 +243,8 @@ def test_tribe_move_between_existing_panels_rebuilds_source_and_target(
     banana = _agent("banana-one", tribe="banana", suffix="b1")
     moved = replace(apple_one, tribe="banana")
     app = _DisplayDiffApp([apple_one, apple_two, banana], monkeypatch)
-    apple_widget = app._widgets["#agent-list-panel"]
-    banana_widget = app._widgets["#agent-list-panel-1"]
+    apple_widget = app._widgets[_widget_sel("apple")]
+    banana_widget = app._widgets[_widget_sel("banana")]
 
     app._agents = [moved, apple_two, banana]
     app._refresh_agents_display_after_finalize(
@@ -268,7 +268,7 @@ def test_merged_panel_tribe_label_change_rebuilds_panel(monkeypatch: Any) -> Non
     old_agent = _agent("alpha", tribe="apple", suffix="a1")
     new_agent = replace(old_agent, tribe="banana")
     app = _DisplayDiffApp([old_agent], monkeypatch, merge_tribe_panels=True)
-    widget = app._widgets["#agent-list-panel"]
+    widget = app._widgets[_widget_sel(None)]
 
     app._agents = [new_agent]
     app._refresh_agents_display_after_finalize(
@@ -283,10 +283,14 @@ def test_merged_panel_tribe_label_change_rebuilds_panel(monkeypatch: Any) -> Non
     assert "row_patch" not in _display_costs(app)
 
 
-def test_panel_collection_change_falls_back_to_full_rebuild(monkeypatch: Any) -> None:
+def test_panel_collection_change_inserts_without_full_rebuild(
+    monkeypatch: Any,
+) -> None:
     apple = _agent("apple-one", tribe="apple", suffix="a1")
     banana = _agent("banana-one", tribe="banana", suffix="b1")
     app = _DisplayDiffApp([apple], monkeypatch)
+    apple_widget = app._widgets[_widget_sel("apple")]
+    apple_widget.update_list_calls = 0
 
     app._agents = [apple, banana]
     app._refresh_agents_display_after_finalize(
@@ -294,11 +298,12 @@ def test_panel_collection_change_falls_back_to_full_rebuild(monkeypatch: Any) ->
         defer_detail=True,
     )
 
-    assert app.full_rebuilds == 1
-    assert app._agents_refresh_trace_records[0].fallback_reason == (
-        "panel_membership_change"
-    )
-    assert "display_full_rebuild" in _display_costs(app)
+    assert app._widgets[_widget_sel("apple")] is apple_widget
+    assert apple_widget.update_list_calls == 0
+    assert _widget_sel("banana") in app._widgets
+    assert app.full_rebuilds == 0
+    assert "display_panel_insert" in _display_costs(app)
+    assert "display_full_rebuild" not in _display_costs(app)
 
 
 def test_same_list_falls_back_when_previous_rows_were_not_rendered(
@@ -306,7 +311,7 @@ def test_same_list_falls_back_when_previous_rows_were_not_rendered(
 ) -> None:
     agent = _agent("alpha", tribe=None, suffix="a1")
     app = _DisplayDiffApp([agent], monkeypatch)
-    widget = app._widgets["#agent-list-panel"]
+    widget = app._widgets[_widget_sel(None)]
     widget.clear_options()
 
     app._agents = [agent]

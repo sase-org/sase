@@ -130,7 +130,7 @@ async def _run_fast_deferred_mount_state_loads(app: AceApp) -> None:
 
 def _finish_fast_agent_startup(app: AceApp) -> None:
     """Complete the empty Agents startup surface without scheduling I/O."""
-    from sase.ace.tui.widgets import AgentInfoPanel, AgentList
+    from sase.ace.tui.widgets import AgentInfoPanel
 
     # The real loader establishes both projections before flipping its first-
     # load flag. Keep the same invariant so later tab switches can run the
@@ -140,7 +140,11 @@ def _finish_fast_agent_startup(app: AceApp) -> None:
     app._agents_refresh_scheduled = False
     app._agents_first_load_done = True
     try:
-        app.query_one("#agent-list-panel", AgentList).loading = False
+        from sase.ace.tui.actions.agents._display_helpers import first_agent_list_widget
+
+        widget = first_agent_list_widget(app)
+        if widget is not None:
+            widget.loading = False
     except Exception:
         pass
     try:
