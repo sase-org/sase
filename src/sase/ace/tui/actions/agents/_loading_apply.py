@@ -587,9 +587,13 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             from ..event_refresh._freshness import note_surface_refreshed
 
             note_surface_refreshed(self, "agents_full_history")
-        elif not _cache_query_matches_load(self, load_state):
-            # Only a committed-query change disarms the latch; an incomplete
-            # load with a missing or unrelated key must not.
+        elif not history_complete_for_query:
+            # The latch belongs to the query that produced complete history,
+            # not to whatever roster was applied last: an incomplete load for
+            # a different query key must disarm it even when the applied key
+            # is unset or already matches this load. The reconcile-arming
+            # check above uses this same latch-key comparison, so the two
+            # stay consistent.
             self._agents_complete_history_query_key = None
             self._agents_seen_complete_history = False
         self._agents_applied_query_key = history_query_key
