@@ -20,7 +20,8 @@ UpdateOptionScope = Literal["everything", "sase", "providers", "restart"]
 
 _EVERYTHING_ACCENT = "$primary"
 _STALE_AFTER_SECONDS = 30 * 60
-_DETAIL_NAME_LIMIT = 4
+_PROVIDER_DETAIL_LIMIT = 6
+_PROVIDER_NAME_LIMIT = 18
 
 _ROW_COPY: dict[UpdateOptionScope, tuple[str, str, str]] = {
     "restart": (
@@ -64,8 +65,8 @@ class UpdateOptionRow:
     title: str
     description: str
     chip: UpdateOptionChip
-    detail: str | None
     accent: str
+    details: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,7 +89,7 @@ def build_update_panel_state(
     """Project the cached update-status snapshot into three option rows."""
     sase_row = _sase_row(status)
     providers_row = _providers_row(status)
-    everything_row = _everything_row(sase_row, providers_row)
+    everything_row = _everything_row(status, sase_row, providers_row)
     rows: tuple[UpdateOptionRow, ...] = (everything_row, sase_row, providers_row)
     if running_code is not None and running_code.is_stale:
         rows = (_restart_row(running_code), *rows)
@@ -107,7 +108,7 @@ def _restart_row(running_code: RunningCodeState) -> UpdateOptionRow:
         "restart",
         "stale",
         len(stale_roots),
-        _stale_running_code_detail(stale_roots),
+        _one(_stale_running_code_detail(stale_roots)),
         CORE_UPDATE_ACCENT,
         glyph="↻",
     )
@@ -116,17 +117,17 @@ def _restart_row(running_code: RunningCodeState) -> UpdateOptionRow:
 def _sase_row(status: UpdateStatus | None) -> UpdateOptionRow:
     count = 0 if status is None else status.component_count
     kind, error = _sase_kind(status)
-    detail: str | None
+    details: tuple[str, ...]
     if kind == "failed":
-        detail = error
+        details = _one(error)
     elif kind == "available" and status is not None:
-        detail = _sase_detail(status)
+        details = _one(_sase_detail(status))
     else:
-        detail = None
+        details = ()
     accent = UPDATES_ACCENT
     if status is not None and status.has_core_update:
         accent = CORE_UPDATE_ACCENT
-    return _row("sase", kind, count, detail, accent)
+    return _row("sase", kind, count, details, accent)
 
 
 def _providers_row(status: UpdateStatus | None) -> UpdateOptionRow:
@@ -136,16 +137,18 @@ def _providers_row(status: UpdateStatus | None) -> UpdateOptionRow:
         count=count,
         missing=status is None,
     )
+    details: tuple[str, ...]
     if kind == "failed":
-        detail = error
+        details = _one(error)
     elif kind == "available" and status is not None:
-        detail = _providers_detail(status)
+        details = _provider_details(status)
     else:
-        detail = None
-    return _row("providers", kind, count, detail, AGENT_CLI_ACCENT)
+        details = ()
+    return _row("providers", kind, count, details, AGENT_CLI_ACCENT)
 
 
 def _everything_row(
+    status: UpdateStatus | None,
     sase_row: UpdateOptionRow,
     providers_row: UpdateOptionRow,
 ) -> UpdateOptionRow:
@@ -159,15 +162,41 @@ def _everything_row(
         kind = "available"
     else:
         kind = "current"
-    detail = None
+    details: tuple[str, ...] = ()
     if kind == "failed":
         errors = tuple(
-            row.detail
+            detail
             for row in (sase_row, providers_row)
-            if row.chip.kind == "failed" and row.detail
+            if row.chip.kind == "failed"
+            for detail in row.details
+            if detail
         )
-        detail = " · ".join(dict.fromkeys(errors)) or None
-    return _row("everything", kind, count, detail, _EVERYTHING_ACCENT)
+        details = _one(" · ".join(dict.fromkeys(errors)))
+    elif kind == "available":
+        details = _one(_everything_summary(status, sase_row, providers_row))
+    return _row("everything", kind, count, details, _EVERYTHING_ACCENT)
+
+
+def _everything_summary(
+    status: UpdateStatus | None,
+    sase_row: UpdateOptionRow,
+    providers_row: UpdateOptionRow,
+) -> str:
+    """Compact combined line: the SASE breakdown plus a provider count clause."""
+    parts: list[str] = []
+    if sase_row.chip.kind == "available":
+        parts.extend(sase_row.details)
+    if providers_row.chip.kind == "available" and status is not None:
+        clause = f"providers {status.agent_cli_count}"
+        manual = status.manual_agent_cli_count
+        if manual:
+            clause = f"{clause} ({manual} manual)"
+        parts.append(clause)
+    return " · ".join(parts)
+
+
+def _one(text: str | None) -> tuple[str, ...]:
+    return (text,) if text else ()
 
 
 def _sase_kind(
@@ -222,27 +251,44 @@ def _sase_detail(status: UpdateStatus) -> str | None:
     return " · ".join(parts) or None
 
 
-def _providers_detail(status: UpdateStatus) -> str | None:
-    names = [candidate.display_name for candidate in status.provider_candidates]
-    if not names:
-        return None
-    shown = names[:_DETAIL_NAME_LIMIT]
-    remaining = len(names) - _DETAIL_NAME_LIMIT
+def _provider_details(status: UpdateStatus) -> tuple[str, ...]:
+    """One aligned ``name  installed → latest`` line per captured provider."""
+    candidates = status.provider_candidates
+    shown = candidates[:_PROVIDER_DETAIL_LIMIT]
+    names = [_truncate_name(candidate.display_name) for candidate in shown]
+    width = max((len(name) for name in names), default=0)
+    lines: list[str] = []
+    for name, candidate in zip(names, shown, strict=True):
+        transition = (
+            f"{_version(candidate.installed_version)} → "
+            f"{_version(candidate.latest_version)}"
+        )
+        line = f"• {name.ljust(width)}  {transition}"
+        if candidate.manual_only:
+            line = f"{line} · manual steps"
+        lines.append(line)
+    remaining = len(candidates) - len(shown)
     if remaining > 0:
-        shown.append(f"+{remaining} more")
-    detail = ", ".join(shown)
-    manual = status.manual_agent_cli_count
-    if manual:
-        verb = "needs" if manual == 1 else "need"
-        detail = f"{detail} · {manual} {verb} manual steps"
-    return detail
+        noun = "provider" if remaining == 1 else "providers"
+        lines.append(f"• +{remaining} more {noun}")
+    return tuple(lines)
+
+
+def _truncate_name(name: str) -> str:
+    if len(name) <= _PROVIDER_NAME_LIMIT:
+        return name
+    return f"{name[: _PROVIDER_NAME_LIMIT - 1]}…"
+
+
+def _version(value: str | None) -> str:
+    return value or "unknown"
 
 
 def _row(
     scope: UpdateOptionScope,
     kind: UpdateOptionChipKind,
     count: int,
-    detail: str | None,
+    details: tuple[str, ...],
     accent: str,
     *,
     glyph: str = UPDATE_GLYPH,
@@ -254,8 +300,8 @@ def _row(
         title=title,
         description=description,
         chip=_chip(kind, count, glyph=glyph),
-        detail=detail,
         accent=accent,
+        details=details,
     )
 
 

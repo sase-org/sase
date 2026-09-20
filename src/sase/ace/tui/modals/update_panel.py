@@ -179,10 +179,10 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
         prompt.append_text(chip)
         prompt.append("\n")
         prompt.append(row.description, style="dim")
-        if row.detail:
+        detail_style = f"dim {accent}".strip() if accent else "dim"
+        for detail in row.details:
             prompt.append("\n")
-            detail_style = f"dim {accent}".strip() if accent else "dim"
-            prompt.append(row.detail, style=detail_style)
+            prompt.append(detail, style=detail_style)
         return prompt
 
     def _rich_accent(self, accent: str) -> str:

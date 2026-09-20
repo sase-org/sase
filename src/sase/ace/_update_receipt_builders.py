@@ -241,7 +241,7 @@ def _build_comprehensive_receipt(
         )
 
     provider_results = [
-        _provider_receipt_result(provider) for provider in result.provider_results
+        provider_receipt_result(provider) for provider in result.provider_results
     ]
     if result.provider_error:
         provider_results.append(
@@ -260,9 +260,10 @@ def _build_comprehensive_receipt(
     )
 
 
-def _provider_receipt_result(
+def provider_receipt_result(
     result: AgentCliUpdateResult,
 ) -> ProviderUpdateReceiptResult:
+    """Convert one provider execution result into its bounded receipt form."""
     status: ProviderReceiptStatus = result.status.value  # type: ignore[assignment]
     return ProviderUpdateReceiptResult(
         name=result.name,

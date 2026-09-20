@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import time
-from typing import Literal
+from typing import Any, Literal
 
 from sase.ace.comprehensive_update import ComprehensiveUpdateResult
 from sase.ace.tui.modals.plugin_action_confirm_modal import (
@@ -36,6 +36,7 @@ from sase.ace.tui.update_restart import restart_after_update
 from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
 from sase.ace.update_scope import UpdateLeg
 
+from ._update_completion_toast import COMPLETION_TOAST_TIMEOUT_SECONDS, completion_toast
 from .proc_actions import TrackedProcCompletion, TrackedProcResult
 
 
@@ -219,12 +220,14 @@ class UpdateRunActionsMixin:
             self._restart_after_update(message)
             return
 
-        severity: Literal["information", "warning", "error"] = "information"
-        if result.fully_failed:
-            severity = "error"
-        elif result.has_failures:
-            severity = "warning"
-        self._notify(message, severity=severity)
+        toast = completion_toast(result)
+        self._notify(
+            toast.message,
+            severity=toast.severity,
+            title=toast.title,
+            markup=True,
+            timeout=COMPLETION_TOAST_TIMEOUT_SECONDS,
+        )
 
     def _restart_after_update(self, message: str) -> None:
         restart_after_update(self, message, notify=self._notify)
@@ -234,10 +237,23 @@ class UpdateRunActionsMixin:
         message: str,
         *,
         severity: Literal["information", "warning", "error"] = "information",
+        title: str | None = None,
+        markup: bool = False,
+        timeout: float | None = None,
     ) -> None:
         notify = getattr(self, "notify", None)
-        if callable(notify):
-            notify(message, severity=severity)
+        if not callable(notify):
+            return
+        # Forward only what was supplied so plain ``notify(message, severity=...)``
+        # callers and test doubles keep working.
+        extra: dict[str, Any] = {}
+        if title is not None:
+            extra["title"] = title
+        if markup:
+            extra["markup"] = True
+        if timeout is not None:
+            extra["timeout"] = timeout
+        notify(message, severity=severity, **extra)
 
 
 __all__ = ["UpdateRunActionsMixin"]

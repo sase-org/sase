@@ -34,10 +34,12 @@ from sase.ace.tui.proc_observer import (
     recount_projection,
     store_proc_row,
 )
-from sase.ace.update_scope import UpdateScope
+from sase.ace.update_scope import UpdateLeg, UpdateScope
 from sase.agent_clis.models import (
     AgentCliUpdateEntry,
+    AgentCliUpdateResult,
     AgentCliUpdatesReady,
+    UpdateResultStatus,
     UpdateStrategy,
 )
 from sase.monitor_state import MONITOR_PROC_ORIGIN
@@ -110,12 +112,20 @@ class _Harness(UpdateRunActionsMixin):
         self.screens: list[object] = []
         self.callbacks: list[Any] = []
         self.messages: list[tuple[str, str]] = []
+        self.notify_kwargs: list[dict[str, Any]] = []
         self.restarts: list[str] = []
         self.updates_refreshes = 0
         self._automatic_update_status = None
 
-    def notify(self, message: str, *, severity: str = "information") -> None:
+    def notify(
+        self,
+        message: str,
+        *,
+        severity: str = "information",
+        **kwargs: Any,
+    ) -> None:
         self.messages.append((message, severity))
+        self.notify_kwargs.append(kwargs)
 
     def push_screen(self, screen: object, callback: object | None = None) -> None:
         self.screens.append(screen)
@@ -483,6 +493,54 @@ def test_non_changing_result_toasts_without_restart() -> None:
     assert harness.messages[0][1] == "information"
     assert "already current" in harness.messages[0][0]
     assert harness.updates_refreshes == 1
+
+
+def test_providers_only_result_raises_rich_completion_toast() -> None:
+    harness = _Harness()
+    result = ComprehensiveUpdateResult(
+        sase=ComprehensiveSaseUpdateResult(
+            SaseUpdateResultStatus.SKIPPED,
+            "not selected",
+        ),
+        provider_results=(
+            AgentCliUpdateResult(
+                name="claude",
+                display_name="Claude Code",
+                status=UpdateResultStatus.UPDATED,
+                old_version="2.1.0",
+                new_version="2.2.0",
+                command=None,
+                docs_url=None,
+            ),
+        ),
+        selected_legs=frozenset({UpdateLeg.PROVIDERS}),
+    )
+
+    harness._on_scoped_update_complete(_completion(result))
+
+    assert harness.restarts == []
+    assert harness.messages == [
+        (
+            "[bold]Agent CLIs[/]\n• Claude Code: [dim]2.1.0 →[/] [green]2.2.0[/]",
+            "information",
+        )
+    ]
+    assert harness.notify_kwargs == [
+        {"title": "✓ Providers updated", "markup": True, "timeout": 10.0}
+    ]
+
+
+def test_notify_forwards_only_supplied_arguments() -> None:
+    harness = _Harness()
+
+    harness._notify("plain", severity="warning")
+    harness._notify("rich", title="T", markup=True, timeout=3.0)
+
+    assert harness.messages == [("plain", "warning"), ("rich", "information")]
+    assert harness.notify_kwargs == [
+        {},
+        {"title": "T", "markup": True, "timeout": 3.0},
+    ]
 
 
 def test_preview_proc_body_collects_inputs_then_builds_preview(

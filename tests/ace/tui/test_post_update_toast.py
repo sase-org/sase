@@ -16,6 +16,7 @@ from sase.ace.tui._keymap_unification_notice import (
     mark_keymap_unification_notice_shown,
 )
 from sase.ace.tui.actions import post_update_toast, update_toast
+from sase.ace.tui.actions._update_provider_toast_lines import provider_result_lines
 from sase.ace.tui.actions.post_update_toast import PostUpdateToastMixin
 from sase.ace.update_receipt import (
     _ProviderUpdateReceiptResult,
@@ -253,6 +254,86 @@ def test_post_update_toast_renders_provider_partial_failure_and_manual_guidance(
     assert "Claude Code: [red]failed" in message
     assert "Codex CLI: [yellow]manual" in message
     assert "brew upgrade codex" in message
+
+
+def test_provider_result_lines_renders_every_status_and_overflow() -> None:
+    lines = provider_result_lines(
+        (
+            _ProviderUpdateReceiptResult(
+                name="claude",
+                display_name="Claude Code",
+                status="updated",
+                old_version="2.1.0",
+                new_version="2.2.0",
+            ),
+            _ProviderUpdateReceiptResult(
+                name="gemini",
+                display_name="Gemini CLI",
+                status="updated",
+                reason="restart the CLI",
+            ),
+            _ProviderUpdateReceiptResult(
+                name="cursor",
+                display_name="Cursor",
+                status="already_current",
+            ),
+            _ProviderUpdateReceiptResult(
+                name="opencode",
+                display_name="OpenCode",
+                status="failed",
+                reason="exit 1",
+            ),
+            _ProviderUpdateReceiptResult(
+                name="codex",
+                display_name="Codex CLI",
+                status="skipped",
+                reason="Homebrew requires a manual upgrade",
+                suggested_command=("brew", "upgrade", "codex cli"),
+            ),
+            _ProviderUpdateReceiptResult(
+                name="amp",
+                display_name="Amp",
+                status="skipped",
+            ),
+        ),
+        overflow=3,
+    ).split("\n")
+
+    assert lines == [
+        "[bold]Agent CLIs[/]",
+        "• Claude Code: [dim]2.1.0 →[/] [green]2.2.0[/]",
+        "• Gemini CLI: [dim]unknown →[/] [green]unknown[/] — [yellow]restart the CLI[/]",
+        "• Cursor: [dim]already current[/]",
+        "• OpenCode: [red]failed[/] — exit 1",
+        "• Codex CLI: [yellow]manual[/] — Homebrew requires a manual upgrade",
+        "  [dim]brew upgrade 'codex cli'[/]",
+        "• Amp: [yellow]skipped[/] — skipped",
+        "…and 3 more provider results",
+    ]
+
+
+def test_provider_result_lines_is_empty_without_results_or_overflow() -> None:
+    assert provider_result_lines(()) == ""
+    assert provider_result_lines((), overflow=2) == (
+        "[bold]Agent CLIs[/]\n…and 2 more provider results"
+    )
+
+
+def test_provider_result_lines_escapes_markup_significant_text() -> None:
+    lines = provider_result_lines(
+        (
+            _ProviderUpdateReceiptResult(
+                name="odd",
+                display_name="Odd [red]CLI",
+                status="failed",
+                reason="bad [/] reason",
+            ),
+        )
+    )
+
+    assert escape("Odd [red]CLI") in lines
+    assert escape("bad [/] reason") in lines
+    assert "Odd [red]CLI" not in lines
 
 
 def test_post_update_toast_managed_receipt_keeps_legacy_rendering() -> None:

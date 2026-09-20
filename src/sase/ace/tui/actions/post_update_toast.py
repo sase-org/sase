@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import shlex
 
 from textual.markup import escape
 
@@ -16,6 +15,7 @@ from sase.dev_update.models import RepoDiffStat
 
 from ..modals.config_center_modal import center_tab_accent
 from . import update_toast
+from ._update_provider_toast_lines import provider_result_lines
 
 log = logging.getLogger(__name__)
 
@@ -132,7 +132,9 @@ def _format_post_update_toast_message(
             accent,
             show_commits=bool(commits),
         )
-    provider_lines = _provider_result_lines(receipt)
+    provider_lines = provider_result_lines(
+        receipt.provider_results, overflow=receipt.provider_overflow
+    )
     return "\n\n".join(part for part in (summary, commits, provider_lines) if part)
 
 
@@ -167,38 +169,6 @@ def _truncate_commit_subject(subject: str) -> str:
     if len(subject) <= _COMMIT_SUBJECT_MAX:
         return subject
     return f"{subject[: _COMMIT_SUBJECT_MAX - 1]}…"
-
-
-def _provider_result_lines(receipt: UpdateToastReceipt) -> str:
-    if not receipt.provider_results and receipt.provider_overflow <= 0:
-        return ""
-    lines = ["[bold]Agent CLIs[/]"]
-    for result in receipt.provider_results:
-        name = escape(result.display_name)
-        if result.status == "updated":
-            old = escape(result.old_version or "unknown")
-            new = escape(result.new_version or "unknown")
-            line = f"• {name}: [dim]{old} →[/] [green]{new}[/]"
-            if result.reason:
-                line += f" — [yellow]{escape(result.reason)}[/]"
-            lines.append(line)
-            continue
-        if result.status == "already_current":
-            lines.append(f"• {name}: [dim]already current[/]")
-            continue
-        reason = escape(result.reason or "skipped")
-        if result.status == "failed":
-            lines.append(f"• {name}: [red]failed[/] — {reason}")
-            continue
-        if result.suggested_command:
-            command = escape(shlex.join(result.suggested_command))
-            lines.append(f"• {name}: [yellow]manual[/] — {reason}")
-            lines.append(f"  [dim]{command}[/]")
-        else:
-            lines.append(f"• {name}: [yellow]skipped[/] — {reason}")
-    if receipt.provider_overflow:
-        lines.append(f"…and {receipt.provider_overflow} more provider results")
-    return "\n".join(lines)
 
 
 def _format_legacy_post_update_toast_message(

@@ -7454,10 +7454,12 @@ containing only the selected legs. `E` / `S` / `P` plan those same scopes and sk
 that final confirmation after a runnable preview succeeds; failed or already-current
 previews still do not mutate. `,E` is the global direct alias for `,U` then capital `E`:
 it uses the same cached snapshots, preview planning, no-op handling, and error reporting
-without mounting the panel. `r` re-checks in place; `q` / `Esc` cancel. An Everything
-confirmation groups SASE and Agent CLI work into labeled sections with
-update/current/skipped glyphs, counts, and commands. The tracked proc runs Agent CLI
-commands first and the SASE/core/plugin leg second. A failure in one leg is reported
+without mounting the panel. The providers row lists each captured provider with its
+installed-to-latest version transition and marks manual-only providers by name, and the
+Everything row summarizes both legs on one line. `r` re-checks in place; `q` / `Esc`
+cancel. An Everything confirmation groups SASE and Agent CLI work into labeled sections
+with update/current/skipped glyphs, counts, and commands. The tracked proc runs Agent
+CLI commands first and the SASE/core/plugin leg second. A failure in one leg is reported
 alongside the independent earlier results. After a changed core/plugin update restarts
 sase's TUI, the one-shot result toast can show applied commits grouped by repository as
 well as file/line statistics. Configure the toast with
@@ -7469,11 +7471,12 @@ automatic result, revalidates exactly those names, and never broadens the captur
 from an Updates-pane load. Manual-only providers remain in the preview with their
 suggested command or docs. A real SASE/core/plugin code change restarts sase's TUI and
 its service controller only after provider work finishes, while provider-only updates
-refresh in place. Before that restart, sase's TUI waits up to 60 seconds for tracked
-background procs to finish (a toast reports the queued restart) and then restarts anyway
-with a warning naming whatever is still active. Long-lived services that outlive sase's
-TUI by design — monitor shells and the persistent Telegram receiver — never delay the
-restart.
+refresh in place and report per-provider results (versions, failures, and manual
+commands) in the completion toast instead of restarting. Before that restart, sase's TUI
+waits up to 60 seconds for tracked background procs to finish (a toast reports the
+queued restart) and then restarts anyway with a warning naming whatever is still active.
+Long-lived services that outlive sase's TUI by design — monitor shells and the
+persistent Telegram receiver — never delay the restart.
 
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate
 pane-wide agent-CLI action: it updates `Space`-marked agent CLIs from anywhere in the

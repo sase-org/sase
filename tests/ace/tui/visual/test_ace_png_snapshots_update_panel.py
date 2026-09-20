@@ -57,7 +57,7 @@ def _row(
     kind: UpdateOptionChipKind = "unknown",
     text: str = "· not checked yet",
     count: int = 0,
-    detail: str | None = None,
+    details: tuple[str, ...] = (),
     accent: str = UPDATES_ACCENT,
 ) -> UpdateOptionRow:
     key, title, description = _COPY[scope]
@@ -67,8 +67,8 @@ def _row(
         title=title,
         description=description,
         chip=UpdateOptionChip(kind=kind, text=text, count=count),
-        detail=detail,
         accent=accent,
+        details=details,
     )
 
 
@@ -79,24 +79,31 @@ def _pending_state() -> UpdatePanelState:
             _row(
                 "everything",
                 kind="available",
-                text="↑ 6 available",
-                count=6,
+                text="↑ 5 available",
+                count=5,
+                details=(
+                    "sase 1 · sase-core 1 · core rebuild · providers 3 (1 manual)",
+                ),
                 accent="$primary",
             ),
             _row(
                 "sase",
                 kind="available",
-                text="↑ 4 available",
-                count=4,
-                detail="sase 1 · sase-core 1 · plugins 2 · core rebuild",
+                text="↑ 2 available",
+                count=2,
+                details=("sase 1 · sase-core 1 · core rebuild",),
                 accent=CORE_UPDATE_ACCENT,
             ),
             _row(
                 "providers",
                 kind="available",
-                text="↑ 2 available",
-                count=2,
-                detail="claude, codex · 1 needs manual steps",
+                text="↑ 3 available",
+                count=3,
+                details=(
+                    "• Claude Code  2.1.0 → 2.2.0",
+                    "• Codex CLI    0.9.1 → 1.0.0 · manual steps",
+                    "• Gemini CLI   unknown → 1.4.0",
+                ),
                 accent=AGENT_CLI_ACCENT,
             ),
         ),
@@ -153,12 +160,13 @@ async def test_update_panel_pending_png_snapshot(
             lambda: (
                 option_list.option_count == 3
                 and "e/E" in _option_plain(option_list, 0)
+                and "providers 3 (1 manual)" in _option_plain(option_list, 0)
                 and "core rebuild" in _option_plain(option_list, 1)
-                and "needs manual steps" in _option_plain(option_list, 2)
+                and "0.9.1 → 1.0.0 · manual steps" in _option_plain(option_list, 2)
             ),
             description="pending Update panel rows",
         )
-        await wait_for_svg_contains(page, "core rebuild")
+        await wait_for_svg_contains(page, "manual steps")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

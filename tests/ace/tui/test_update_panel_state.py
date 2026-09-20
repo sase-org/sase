@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from sase.ace.tui.update_panel_state import build_update_panel_state
+from sase.ace.tui.update_panel_state import (
+    _PROVIDER_DETAIL_LIMIT,
+    _PROVIDER_NAME_LIMIT,
+    build_update_panel_state,
+)
 from sase.ace.tui.stale_running_code import RunningCodeRoot, RunningCodeState
 from sase.ace.tui.widgets.update_accents import (
     AGENT_CLI_ACCENT,
@@ -39,12 +43,14 @@ def _candidate(
     display_name: str,
     *,
     manual_only: bool = False,
+    installed: str = "1.0.0",
+    latest: str = "1.1.0",
 ) -> ProviderUpdateCandidate:
     return ProviderUpdateCandidate(
         provider,
         display_name,
-        "1.0.0",
-        "1.1.0",
+        installed,
+        latest,
         manual_only=manual_only,
     )
 
@@ -96,7 +102,7 @@ def test_everything_current_projects_three_up_to_date_rows() -> None:
     assert [row.key for row in state.rows] == ["e", "s", "p"]
     assert all(row.chip.kind == "current" for row in state.rows)
     assert all(row.chip.text == "✓ up to date" for row in state.rows)
-    assert all(row.detail is None for row in state.rows)
+    assert all(row.details == () for row in state.rows)
     assert all(row.chip.count == 0 for row in state.rows)
     assert state.freshness_label == "just now"
     assert state.stale is False
@@ -123,17 +129,22 @@ def test_mixed_counts_sum_into_everything_and_show_breakdowns() -> None:
     assert everything.chip.kind == "available"
     assert everything.chip.text == "↑ 6 available"
     assert everything.chip.count == 6
-    assert everything.detail is None
+    assert everything.details == (
+        "sase 1 · sase-core 1 · plugins 2 · core rebuild · providers 2",
+    )
     assert everything.accent == "$primary"
 
     assert sase.chip.kind == "available"
     assert sase.chip.text == "↑ 4 available"
-    assert sase.detail == "sase 1 · sase-core 1 · plugins 2 · core rebuild"
+    assert sase.details == ("sase 1 · sase-core 1 · plugins 2 · core rebuild",)
     assert sase.accent == CORE_UPDATE_ACCENT
 
     assert providers.chip.kind == "available"
     assert providers.chip.text == "↑ 2 available"
-    assert providers.detail == "Claude Code, Codex CLI"
+    assert providers.details == (
+        "• Claude Code  1.0.0 → 1.1.0",
+        "• Codex CLI    1.0.0 → 1.1.0",
+    )
     assert providers.accent == AGENT_CLI_ACCENT
 
 
@@ -143,7 +154,8 @@ def test_core_rebuild_switches_sase_accent_without_host_plugins() -> None:
     sase = state.rows[1]
 
     assert sase.accent == CORE_UPDATE_ACCENT
-    assert sase.detail == "sase-core 1 · core rebuild"
+    assert sase.details == ("sase-core 1 · core rebuild",)
+    assert state.rows[0].details == ("sase-core 1 · core rebuild",)
     assert state.rows[0].chip.count == 1
 
 
@@ -157,9 +169,9 @@ def test_failed_provider_source_uses_error_as_detail() -> None:
 
     assert providers.chip.kind == "failed"
     assert providers.chip.text == "! check failed"
-    assert providers.detail == "npm registry down"
+    assert providers.details == ("npm registry down",)
     assert everything.chip.kind == "failed"
-    assert everything.detail == "npm registry down"
+    assert everything.details == ("npm registry down",)
 
 
 def test_never_checked_app_renders_unknown_rows_and_stale_subtitle() -> None:
@@ -168,29 +180,150 @@ def test_never_checked_app_renders_unknown_rows_and_stale_subtitle() -> None:
     assert len(state.rows) == 3
     assert all(row.chip.kind == "unknown" for row in state.rows)
     assert all(row.chip.text == "· not checked yet" for row in state.rows)
-    assert all(row.detail is None for row in state.rows)
+    assert all(row.details == () for row in state.rows)
     assert state.freshness_label == "never checked — press r"
     assert state.stale is True
     assert state.rows[1].accent == UPDATES_ACCENT
 
 
-def test_manual_only_providers_append_caveat_and_truncate_names() -> None:
+def test_provider_details_carry_installed_to_latest_per_candidate() -> None:
     status = _status(
+        providers=(
+            _candidate("claude", "Claude Code", installed="2.1.0", latest="2.2.0"),
+            _candidate("gemini", "Gemini CLI", installed="0.9.1", latest="1.4.0"),
+        ),
+    )
+    providers = build_update_panel_state(status, now=_NOW).rows[2]
+
+    assert providers.chip.count == 2
+    assert providers.details == (
+        "• Claude Code  2.1.0 → 2.2.0",
+        "• Gemini CLI   0.9.1 → 1.4.0",
+    )
+
+
+def test_manual_only_provider_is_marked_by_name_without_aggregate_clause() -> None:
+    status = _status(
+        providers=(
+            _candidate("claude", "Claude Code"),
+            _candidate("codex", "Codex CLI", manual_only=True),
+        ),
+    )
+    providers = build_update_panel_state(status, now=_NOW).rows[2]
+
+    assert providers.details == (
+        "• Claude Code  1.0.0 → 1.1.0",
+        "• Codex CLI    1.0.0 → 1.1.0 · manual steps",
+    )
+    assert not any("needs manual steps" in line for line in providers.details)
+    assert not any("need manual steps" in line for line in providers.details)
+
+
+def test_missing_installed_version_renders_unknown() -> None:
+    status = _status(
+        providers=(_candidate("gemini", "Gemini CLI", installed="", latest="1.4.0"),),
+    )
+    providers = build_update_panel_state(status, now=_NOW).rows[2]
+
+    assert providers.details == ("• Gemini CLI  unknown → 1.4.0",)
+
+
+def test_provider_details_are_capped_with_overflow_line() -> None:
+    names = ("Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf", "Hotel")
+    status = _status(providers=tuple(_candidate(name.lower(), name) for name in names))
+    providers = build_update_panel_state(status, now=_NOW).rows[2]
+
+    assert providers.chip.count == 8
+    assert len(providers.details) == _PROVIDER_DETAIL_LIMIT + 1
+    assert providers.details[0].startswith("• Alpha    ")
+    assert providers.details[_PROVIDER_DETAIL_LIMIT - 1].startswith("• Foxtrot")
+    assert providers.details[-1] == "• +2 more providers"
+
+
+def test_single_hidden_provider_uses_singular_overflow_noun() -> None:
+    names = ("Alpha", "Bravo", "Charlie", "Delta", "Echo", "Foxtrot", "Golf")
+    status = _status(providers=tuple(_candidate(name.lower(), name) for name in names))
+    providers = build_update_panel_state(status, now=_NOW).rows[2]
+
+    assert providers.details[-1] == "• +1 more provider"
+
+
+def test_long_provider_name_is_truncated_and_columns_stay_aligned() -> None:
+    long_name = "An Extremely Long Provider Display Name"
+    status = _status(
+        providers=(
+            _candidate("long", long_name),
+            _candidate("codex", "Codex CLI"),
+        ),
+    )
+    providers = build_update_panel_state(status, now=_NOW).rows[2]
+
+    truncated = long_name[: _PROVIDER_NAME_LIMIT - 1] + "…"
+    assert providers.details == (
+        f"• {truncated}  1.0.0 → 1.1.0",
+        f"• {'Codex CLI'.ljust(_PROVIDER_NAME_LIMIT)}  1.0.0 → 1.1.0",
+    )
+    assert len({line.index("1.0.0") for line in providers.details}) == 1
+
+
+def test_failed_provider_source_projects_no_per_provider_lines() -> None:
+    status = _status(
+        providers=(_candidate("claude", "Claude Code", manual_only=True),),
+        agent_cli_error="npm registry down",
+    )
+    providers = build_update_panel_state(status, now=_NOW).rows[2]
+
+    assert providers.chip.kind == "failed"
+    assert providers.details == ("npm registry down",)
+
+
+def test_everything_summary_combines_both_legs_with_manual_parenthetical() -> None:
+    status = _status(
+        components=(_component("sase"), _component("github", role="plugin")),
         providers=(
             _candidate("claude", "Claude Code", manual_only=True),
             _candidate("codex", "Codex CLI"),
-            _candidate("gemini", "Gemini CLI"),
-            _candidate("opencode", "OpenCode"),
-            _candidate("cursor", "Cursor"),
         ),
     )
-    state = build_update_panel_state(status, now=_NOW)
-    providers = state.rows[2]
+    everything = build_update_panel_state(status, now=_NOW).rows[0]
 
-    assert providers.chip.count == 5
-    assert providers.detail == (
-        "Claude Code, Codex CLI, Gemini CLI, OpenCode, +1 more · 1 needs manual steps"
+    assert everything.details == ("sase 1 · plugins 1 · providers 2 (1 manual)",)
+
+
+def test_everything_summary_omits_manual_parenthetical_at_zero() -> None:
+    status = _status(
+        components=(_component("sase"),),
+        providers=(_candidate("codex", "Codex CLI"),),
     )
+    everything = build_update_panel_state(status, now=_NOW).rows[0]
+
+    assert everything.details == ("sase 1 · providers 1",)
+
+
+def test_everything_summary_omits_a_leg_without_work() -> None:
+    providers_only = build_update_panel_state(
+        _status(providers=(_candidate("codex", "Codex CLI", manual_only=True),)),
+        now=_NOW,
+    ).rows[0]
+    sase_only = build_update_panel_state(
+        _status(components=(_component("sase"),)),
+        now=_NOW,
+    ).rows[0]
+
+    assert providers_only.details == ("providers 1 (1 manual)",)
+    assert sase_only.details == ("sase 1",)
+
+
+def test_everything_failed_source_takes_precedence_over_summary() -> None:
+    status = _status(
+        components=(_component("sase"),),
+        providers=(_candidate("codex", "Codex CLI"),),
+        plugin_error="registry down",
+    )
+    everything = build_update_panel_state(status, now=_NOW).rows[0]
+
+    assert everything.chip.kind == "failed"
+    assert everything.details == ("registry down",)
 
 
 def test_stale_uses_thirty_minute_threshold() -> None:
@@ -259,7 +392,7 @@ def test_failed_sase_source_hides_component_breakdown() -> None:
     sase = state.rows[1]
 
     assert sase.chip.kind == "failed"
-    assert sase.detail == "registry down"
+    assert sase.details == ("registry down",)
     assert sase.chip.count == 2
 
 
@@ -300,6 +433,6 @@ def test_stale_running_code_adds_restart_row_with_commit_preview() -> None:
     assert restart.key == "x"
     assert restart.chip.kind == "stale"
     assert restart.chip.text == "↻ code changed"
-    assert restart.detail == "sase: 111111111..222222222"
+    assert restart.details == ("sase: 111111111..222222222",)
     assert everything.scope == "everything"
     assert state.stale is True

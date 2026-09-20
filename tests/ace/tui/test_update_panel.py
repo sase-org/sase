@@ -65,7 +65,7 @@ def _row(
     kind: UpdateOptionChipKind = "unknown",
     text: str = "· not checked yet",
     count: int = 0,
-    detail: str | None = None,
+    details: tuple[str, ...] = (),
     accent: str = UPDATES_ACCENT,
 ) -> UpdateOptionRow:
     key, title, description = _COPY[scope]
@@ -75,8 +75,8 @@ def _row(
         title=title,
         description=description,
         chip=UpdateOptionChip(kind=kind, text=text, count=count),
-        detail=detail,
         accent=accent,
+        details=details,
     )
 
 
@@ -107,6 +107,7 @@ def _populated_state() -> UpdatePanelState:
                 kind="available",
                 text="↑ 6 available",
                 count=6,
+                details=("sase 1 · sase-core 1 · plugins 2 · providers 2 (1 manual)",),
                 accent="$primary",
             ),
             _row(
@@ -114,7 +115,7 @@ def _populated_state() -> UpdatePanelState:
                 kind="available",
                 text="↑ 4 available",
                 count=4,
-                detail="sase 1 · sase-core 1 · plugins 2 · core rebuild",
+                details=("sase 1 · sase-core 1 · plugins 2 · core rebuild",),
                 accent=CORE_UPDATE_ACCENT,
             ),
             _row(
@@ -122,7 +123,10 @@ def _populated_state() -> UpdatePanelState:
                 kind="available",
                 text="↑ 2 available",
                 count=2,
-                detail="claude, codex · 1 needs manual steps",
+                details=(
+                    "• claude  1.0.0 → 1.1.0",
+                    "• codex   0.9.1 → 1.0.0 · manual steps",
+                ),
                 accent=AGENT_CLI_ACCENT,
             ),
         ),
@@ -194,8 +198,8 @@ async def test_restart_key_dismisses_when_restart_row_exists() -> None:
         title="Restart ACE",
         description="Running code changed on disk; restart after tracked procs finish.",
         chip=UpdateOptionChip(kind="stale", text="↻ code changed", count=1),
-        detail="sase: 111111111..222222222",
         accent=CORE_UPDATE_ACCENT,
+        details=("sase: 111111111..222222222",),
     )
     async with _TestApp().run_test(size=(100, 40)) as pilot:
         dismissed = await _push(
@@ -326,6 +330,39 @@ async def test_everything_row_keeps_key_and_chip_visible() -> None:
         modal.action_cancel()
         await pilot.pause()
     assert dismissed == [None]
+
+
+async def test_row_prompt_renders_each_detail_on_its_own_line() -> None:
+    async with _TestApp().run_test(size=(100, 40)) as pilot:
+        modal = UpdatePanel(_populated_state())
+        await _push(pilot, modal)
+        option_list = modal.query_one("#update-panel-list", OptionList)
+
+        providers = option_list.get_option_at_index(2).prompt
+        assert isinstance(providers, Text)
+        lines = providers.plain.split("\n")
+        assert lines[2:] == [
+            "• claude  1.0.0 → 1.1.0",
+            "• codex   0.9.1 → 1.0.0 · manual steps",
+        ]
+        detail_spans = [span for span in providers.spans if "dim" in str(span.style)]
+        assert any(AGENT_CLI_ACCENT in str(span.style) for span in detail_spans)
+
+        everything = option_list.get_option_at_index(0).prompt
+        assert isinstance(everything, Text)
+        assert everything.plain.split("\n")[2:] == [
+            "sase 1 · sase-core 1 · plugins 2 · providers 2 (1 manual)"
+        ]
+
+        modal.action_cancel()
+        await pilot.pause()
+
+
+def test_row_prompt_without_details_has_only_title_and_description() -> None:
+    modal = UpdatePanel(_state())
+    prompt = modal._row_prompt(_row("providers", accent=AGENT_CLI_ACCENT))
+
+    assert len(prompt.plain.split("\n")) == 2
 
 
 async def test_never_checked_state_renders_three_selectable_rows() -> None:
