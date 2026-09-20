@@ -15,17 +15,16 @@ _SCREENSHOT_DIR_OPTION = "@sase_screenshot_dir"
 _PROFILING_ENV_DEFAULTS = {"SASE_TUI_TRACE": "1", "SASE_TUI_PERF": "1"}
 
 
-class _TmuxLaunchError(Exception):
+class TmuxLaunchError(Exception):
     """Raised when launching the TUI in tmux fails."""
 
 
-TmuxLaunchError = _TmuxLaunchError
 _RunCommand = Callable[..., subprocess.CompletedProcess[str]]
 _TimeoutValue = float | Callable[[], float] | None
 
 
 @dataclass(frozen=True)
-class _TmuxWindow:
+class TmuxWindow:
     """Details for a tmux window created for agent automation."""
 
     session: str
@@ -45,7 +44,7 @@ class _TmuxWindow:
 
 
 @dataclass(frozen=True)
-class _OwnedBootstrapWindow:
+class OwnedBootstrapWindow:
     session: str
     window_name: str
     window_id: str | None = None
@@ -56,16 +55,16 @@ class _OwnedBootstrapWindow:
 
 
 @dataclass(frozen=True)
-class _ResolvedSession:
+class ResolvedSession:
     session: str
-    bootstrap_window: _OwnedBootstrapWindow | None = None
+    bootstrap_window: OwnedBootstrapWindow | None = None
 
 
 def default_runner(runner: _RunCommand | None) -> _RunCommand:
     return subprocess.run if runner is None else runner
 
 
-def timeout_kwargs(timeout: _TimeoutValue) -> dict[str, float]:
+def _timeout_kwargs(timeout: _TimeoutValue) -> dict[str, float]:
     if timeout is None:
         return {}
     value = timeout() if callable(timeout) else timeout
@@ -77,12 +76,12 @@ def run_tmux_command(
 ) -> subprocess.CompletedProcess[str]:
     try:
         return runner(
-            cmd, capture_output=True, text=True, check=False, **timeout_kwargs(timeout)
+            cmd, capture_output=True, text=True, check=False, **_timeout_kwargs(timeout)
         )
     except subprocess.TimeoutExpired as exc:
-        raise _TmuxLaunchError(f"timed out while trying to {action}") from exc
+        raise TmuxLaunchError(f"timed out while trying to {action}") from exc
     except OSError as exc:
-        raise _TmuxLaunchError(f"failed to {action}: {exc}") from exc
+        raise TmuxLaunchError(f"failed to {action}: {exc}") from exc
 
 
 def kill_window_best_effort(target: str | None, *, runner: _RunCommand) -> None:
@@ -101,7 +100,7 @@ def kill_window_best_effort(target: str | None, *, runner: _RunCommand) -> None:
 
 
 def kill_owned_bootstrap_window(
-    bootstrap: _OwnedBootstrapWindow | None, *, runner: _RunCommand
+    bootstrap: OwnedBootstrapWindow | None, *, runner: _RunCommand
 ) -> None:
     if bootstrap is not None:
         kill_window_best_effort(bootstrap.target, runner=runner)

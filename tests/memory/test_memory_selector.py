@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from sase.memory.link_resolve import MemoryStrandLinkTarget
-from sase.memory.selector import _MemorySelectorError, resolve_memory_selector_batch
+from sase.memory.selector import MemorySelectorError, resolve_memory_selector_batch
 
 
 def _write(path: Path, content: str) -> None:
@@ -130,7 +130,7 @@ def test_unknown_strand_selector_fails_whole_batch_atomically(tmp_path: Path) ->
     _write(tmp_path / "sase" / "memory" / "foo.md", _note())
     _seed_glossary_web(tmp_path)
 
-    with pytest.raises(_MemorySelectorError, match="unknown memory strand"):
+    with pytest.raises(MemorySelectorError, match="unknown memory strand"):
         resolve_memory_selector_batch(
             ["foo.md", "glossary:bogus"],
             project_root=tmp_path,
@@ -139,7 +139,7 @@ def test_unknown_strand_selector_fails_whole_batch_atomically(tmp_path: Path) ->
 
 
 def test_unknown_web_selector_raises(tmp_path: Path) -> None:
-    with pytest.raises(_MemorySelectorError, match="unknown memory web"):
+    with pytest.raises(MemorySelectorError, match="unknown memory web"):
         resolve_memory_selector_batch(
             ["bogus"], project_root=tmp_path, home_root=tmp_path / "home"
         )
@@ -148,7 +148,7 @@ def test_unknown_web_selector_raises(tmp_path: Path) -> None:
 def test_web_descriptor_cannot_be_read_but_strands_can(tmp_path: Path) -> None:
     _seed_glossary_web(tmp_path)
 
-    with pytest.raises(_MemorySelectorError) as exc:
+    with pytest.raises(MemorySelectorError) as exc:
         resolve_memory_selector_batch(
             ["glossary.md"], project_root=tmp_path, home_root=tmp_path / "home"
         )
@@ -166,7 +166,7 @@ def test_web_descriptor_cannot_be_read_but_strands_can(tmp_path: Path) -> None:
 def test_nested_note_selector_suggests_web_keyword_form(tmp_path: Path) -> None:
     _seed_glossary_web(tmp_path)
 
-    with pytest.raises(_MemorySelectorError, match="glossary:stitch"):
+    with pytest.raises(MemorySelectorError, match="glossary:stitch"):
         resolve_memory_selector_batch(
             ["glossary/stitch.md"],
             project_root=tmp_path,
@@ -175,7 +175,7 @@ def test_nested_note_selector_suggests_web_keyword_form(tmp_path: Path) -> None:
 
 
 def test_empty_selector_batch_raises() -> None:
-    with pytest.raises(_MemorySelectorError, match="at least one"):
+    with pytest.raises(MemorySelectorError, match="at least one"):
         resolve_memory_selector_batch([])
 
 

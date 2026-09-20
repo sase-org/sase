@@ -22,31 +22,31 @@ from sase.memory.web import MemoryStrand, MemoryWeb, WebScope
 MemorySelectorKind = Literal["note", "web", "strand"]
 
 
-class _MemorySelectorError(MemoryReadError):
+class MemorySelectorError(MemoryReadError):
     """Raised when a memory selector in a read/show batch cannot be resolved."""
 
 
 @dataclass(frozen=True, slots=True)
-class _NoteSelector:
+class NoteSelector:
     raw: str
     path: str
 
 
 @dataclass(frozen=True, slots=True)
-class _WebSelector:
+class WebSelector:
     raw: str
     web_slug: str
 
 
 @dataclass(frozen=True, slots=True)
-class _StrandSelector:
+class StrandSelector:
     raw: str
     web_slug: str
     keyword: str
 
 
 @dataclass(frozen=True, slots=True)
-class _MemoryWebReadLink:
+class MemoryWebReadLink:
     """One authored link from a rendered strand, classified for output."""
 
     target: MemoryLinkTarget
@@ -54,7 +54,7 @@ class _MemoryWebReadLink:
 
 
 @dataclass(frozen=True, slots=True)
-class _ResolvedNoteLinks:
+class ResolvedNoteLinks:
     """Authored flat-note links split into render and reference targets."""
 
     links: tuple[ResolvedMemoryNoteLink, ...]
@@ -63,7 +63,7 @@ class _ResolvedNoteLinks:
 
 
 @dataclass(frozen=True, slots=True)
-class _PendingNoteStrandRoot:
+class PendingNoteStrandRoot:
     """One flat-note inline link to a web strand awaiting section rendering."""
 
     source_note: MemoryNote
@@ -72,10 +72,10 @@ class _PendingNoteStrandRoot:
 
 
 @dataclass(slots=True)
-class _NoteInlineContext:
+class NoteInlineContext:
     """Mutable cross-batch state for flat-note inline resolution."""
 
-    pending_strand_roots: list[_PendingNoteStrandRoot]
+    pending_strand_roots: list[PendingNoteStrandRoot]
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,7 +88,7 @@ class MemoryWebReadNode:
     depth: int
     referrer: tuple[str, str, GlossarySpanKind] | None
     also_referenced_by: tuple[str, ...]
-    links: tuple[_MemoryWebReadLink, ...] = ()
+    links: tuple[MemoryWebReadLink, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,7 +130,7 @@ class ResolvedMemorySelectorBatch:
 
 
 @dataclass(frozen=True, slots=True)
-class _ResolvedStrandLink:
+class ResolvedStrandLink:
     """One authored link from a strand, resolved against the read universe."""
 
     strand: MemoryStrand
@@ -139,21 +139,21 @@ class _ResolvedStrandLink:
     target: MemoryLinkTarget
 
 
-def classify_selector(raw: str) -> _NoteSelector | _WebSelector | _StrandSelector:
+def classify_selector(raw: str) -> NoteSelector | WebSelector | StrandSelector:
     """Classify one user-supplied flat-note, web, or strand selector."""
     stripped = raw.strip()
     if not stripped:
-        raise _MemorySelectorError("memory selector must not be empty")
+        raise MemorySelectorError("memory selector must not be empty")
     if ":" in stripped:
         web_part, _, keyword_part = stripped.partition(":")
         web_part = web_part.strip()
         keyword_part = keyword_part.strip()
         if not web_part or not keyword_part:
-            raise _MemorySelectorError(f"invalid memory selector: {raw!r}")
-        return _StrandSelector(raw=raw, web_slug=web_part, keyword=keyword_part)
+            raise MemorySelectorError(f"invalid memory selector: {raw!r}")
+        return StrandSelector(raw=raw, web_slug=web_part, keyword=keyword_part)
     if stripped.endswith(".md"):
-        return _NoteSelector(raw=raw, path=stripped)
-    return _WebSelector(raw=raw, web_slug=stripped)
+        return NoteSelector(raw=raw, path=stripped)
+    return WebSelector(raw=raw, web_slug=stripped)
 
 
 def link_target_key(target: MemoryLinkTarget) -> str:

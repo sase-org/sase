@@ -18,11 +18,10 @@ from sase.main.ace_tmux_support import (
     _PROFILING_ENV_DEFAULTS,
     _SCREENSHOT_DIR_OPTION,
     _TimeoutValue,
-    _TmuxLaunchError,
-    _TmuxWindow,
+    TmuxLaunchError,
+    TmuxWindow,
     _WINDOW_CLAIM_FILE,
     _WINDOW_PREFIX,
-    TmuxLaunchError,
     default_runner,
     kill_owned_bootstrap_window,
     kill_window_best_effort,
@@ -47,7 +46,7 @@ def _default_runner(runner):
 
 def _require_tmux_binary() -> None:
     if shutil.which("tmux") is None:
-        raise _TmuxLaunchError("tmux executable not found on PATH")
+        raise TmuxLaunchError("tmux executable not found on PATH")
 
 
 def _resolve_or_create_session(*, runner=None, timeout=None):
@@ -118,7 +117,7 @@ def launch_ace_in_tmux(args: argparse.Namespace) -> None:
         resolved = _resolve_or_create_session()
         window = _claim_window(resolved.session, _build_relaunch_cmd())
         _kill_owned_bootstrap_window(resolved.bootstrap_window)
-    except _TmuxLaunchError as exc:
+    except TmuxLaunchError as exc:
         if window is not None:
             _kill_window_best_effort(window.target)
             release_tmux_window_claim(window.screenshot_dir)
@@ -137,7 +136,7 @@ def create_agent_tmux_window(
     extra_env: dict[str, str] | None = None,
     runner=None,
     timeout: _TimeoutValue = None,
-) -> _TmuxWindow:
+) -> TmuxWindow:
     """Create an automation window in the detached agents tmux session."""
     run = _default_runner(runner)
     _require_tmux_binary()
@@ -202,7 +201,7 @@ def _build_relaunch_cmd() -> str:
     return "exec " + shlex.join([sys.executable, "-m", "sase", *forwarded])
 
 
-def _print_target(window: _TmuxWindow) -> None:
+def _print_target(window: TmuxWindow) -> None:
     print(f"sase_tmux_window={window.window_name}")
     print(f"sase_tmux_session={window.session}")
     print(f"sase_tmux_target={window.target}")

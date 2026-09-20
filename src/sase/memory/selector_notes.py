@@ -25,11 +25,11 @@ from sase.memory.read_log import (
 )
 from sase.memory.render import ResolvedMemoryNote, ResolvedMemoryNoteLink
 from sase.memory.selector_models import (
-    _MemorySelectorError,
-    _NoteInlineContext,
-    _NoteSelector,
-    _PendingNoteStrandRoot,
-    _ResolvedNoteLinks,
+    MemorySelectorError,
+    NoteInlineContext,
+    NoteSelector,
+    PendingNoteStrandRoot,
+    ResolvedNoteLinks,
     always_reference_target,
     link_target_key,
 )
@@ -37,7 +37,7 @@ from sase.memory.web import ScopedMemoryWeb
 
 
 def requested_note_keys(
-    items: list[_NoteSelector], *, project_root: Path, home_root: Path
+    items: list[NoteSelector], *, project_root: Path, home_root: Path
 ) -> frozenset[str]:
     """Return identity keys for top-level note selectors in the batch."""
     keys: set[str] = set()
@@ -49,7 +49,7 @@ def requested_note_keys(
 
 
 def note_selector_keys(
-    item: _NoteSelector, *, project_root: Path, home_root: Path
+    item: NoteSelector, *, project_root: Path, home_root: Path
 ) -> frozenset[str]:
     """Return identity keys for one top-level note selector."""
     try:
@@ -57,12 +57,12 @@ def note_selector_keys(
             item.path, project_root=project_root, home_root=home_root
         )
     except MemoryReadPathError as exc:
-        raise _MemorySelectorError(note_selector_error(item, exc)) from exc
+        raise MemorySelectorError(_note_selector_error(item, exc)) from exc
     return validated_note_keys(validated_path.canonical_path, validated_path.note)
 
 
 def note_selector_canonical_path(
-    item: _NoteSelector, *, project_root: Path, home_root: Path
+    item: NoteSelector, *, project_root: Path, home_root: Path
 ) -> str:
     """Return the canonical path for one top-level note selector."""
     try:
@@ -70,7 +70,7 @@ def note_selector_canonical_path(
             item.path, project_root=project_root, home_root=home_root
         )
     except MemoryReadPathError as exc:
-        raise _MemorySelectorError(note_selector_error(item, exc)) from exc
+        raise MemorySelectorError(_note_selector_error(item, exc)) from exc
     return validated_path.canonical_path
 
 
@@ -95,7 +95,7 @@ def note_tree_keys(view: ResolvedMemoryNote) -> frozenset[str]:
 
 
 def resolve_note_selector(
-    item: _NoteSelector,
+    item: NoteSelector,
     *,
     project_root: Path,
     home_root: Path,
@@ -104,7 +104,7 @@ def resolve_note_selector(
     scoped_webs: tuple[ScopedMemoryWeb, ...],
     depth: int | None,
     seen_note_paths: frozenset[str] = frozenset(),
-    note_inline_context: _NoteInlineContext | None = None,
+    note_inline_context: NoteInlineContext | None = None,
 ) -> ResolvedMemoryNote:
     """Resolve a flat-note selector and any eligible inline linked notes."""
     try:
@@ -112,7 +112,7 @@ def resolve_note_selector(
             item.path, project_root=project_root, home_root=home_root
         )
     except MemoryReadPathError as exc:
-        raise _MemorySelectorError(note_selector_error(item, exc)) from exc
+        raise MemorySelectorError(_note_selector_error(item, exc)) from exc
 
     content = read_memory_content(validated_path)
     children = discover_memory_notes(content.path.content_root)
@@ -124,7 +124,7 @@ def resolve_note_selector(
     current_seen.update(
         validated_note_keys(content.path.canonical_path, content.path.note)
     )
-    resolved = resolve_note_links(
+    resolved = _resolve_note_links(
         content.body,
         source_note=content.path.note,
         notes=notes,
@@ -147,7 +147,7 @@ def resolve_note_selector(
     )
 
 
-def note_selector_error(item: _NoteSelector, exc: MemoryReadPathError) -> str:
+def _note_selector_error(item: NoteSelector, exc: MemoryReadPathError) -> str:
     """Suggest a ``web:keyword`` selector for a nested-looking ``.md`` typo."""
     message = str(exc)
     if "flat" not in message:
@@ -165,7 +165,7 @@ def note_selector_error(item: _NoteSelector, exc: MemoryReadPathError) -> str:
     return message
 
 
-def resolve_note_links(
+def _resolve_note_links(
     body: str,
     *,
     source_note: MemoryNote,
@@ -176,11 +176,11 @@ def resolve_note_links(
     home_root: Path,
     project_name: str,
     seen_note_paths: frozenset[str],
-    note_inline_context: _NoteInlineContext | None,
-) -> _ResolvedNoteLinks:
+    note_inline_context: NoteInlineContext | None,
+) -> ResolvedNoteLinks:
     """Scan and resolve a flat note's authored links."""
     if source_note.link_reference == "none":
-        return _ResolvedNoteLinks(links=(), inline_notes=(), references=())
+        return ResolvedNoteLinks(links=(), inline_notes=(), references=())
     links: list[ResolvedMemoryNoteLink] = []
     inline_notes: list[ResolvedMemoryNote] = []
     references: list[MemoryLinkTarget] = []
@@ -239,13 +239,13 @@ def resolve_note_links(
         elif inline and isinstance(target, MemoryStrandLinkTarget):
             if note_inline_context is not None:
                 note_inline_context.pending_strand_roots.append(
-                    _PendingNoteStrandRoot(
+                    PendingNoteStrandRoot(
                         source_note=source_note, target=target, link=link
                     )
                 )
         else:
             add_reference(target)
-    return _ResolvedNoteLinks(tuple(links), tuple(inline_notes), tuple(references))
+    return ResolvedNoteLinks(tuple(links), tuple(inline_notes), tuple(references))
 
 
 def resolve_extra_note(
@@ -258,12 +258,12 @@ def resolve_extra_note(
     scoped_webs: tuple[ScopedMemoryWeb, ...],
     depth: int | None,
     seen_note_paths: frozenset[str],
-    note_inline_context: _NoteInlineContext | None,
+    note_inline_context: NoteInlineContext | None,
 ) -> ResolvedMemoryNote | None:
     """Resolve a cross-unit inline note, degrading invalid links to references."""
     try:
         return resolve_note_selector(
-            _NoteSelector(raw=target.address, path=target.address),
+            NoteSelector(raw=target.address, path=target.address),
             project_root=project_root,
             home_root=home_root,
             project_name=project_name,

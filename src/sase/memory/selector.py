@@ -16,11 +16,11 @@ from sase.memory.selector_models import (
     MemoryWebReadNode,
     MemoryWebReadSection,
     ResolvedMemorySelectorBatch,
-    _MemorySelectorError,
-    _NoteInlineContext,
-    _NoteSelector,
-    _StrandSelector,
-    _WebSelector,
+    MemorySelectorError,
+    NoteInlineContext,
+    NoteSelector,
+    StrandSelector,
+    WebSelector,
     classify_selector,
     link_target_key,
 )
@@ -51,12 +51,12 @@ def resolve_memory_selector_batch(
 ) -> ResolvedMemorySelectorBatch:
     """Resolve every selector before emitting output or writing an audit event."""
     if not selectors:
-        raise _MemorySelectorError("at least one memory selector is required")
+        raise MemorySelectorError("at least one memory selector is required")
     resolved_home_root = home_root if home_root is not None else Path.home()
     try:
         cli_project = resolve_memory_cli_project(project_ref)
     except MemoryCliProjectError as exc:
-        raise _MemorySelectorError(str(exc)) from exc
+        raise MemorySelectorError(str(exc)) from exc
     if cli_project is not None:
         resolved_project_root, project_name = (
             cli_project.project_root,
@@ -66,18 +66,18 @@ def resolve_memory_selector_batch(
         resolved_project_root = project_root if project_root is not None else Path.cwd()
         project_name = project_memory_name(resolved_project_root)
     classified = [classify_selector(raw) for raw in selectors]
-    has_note = any(isinstance(item, _NoteSelector) for item in classified)
-    has_web = any(isinstance(item, _WebSelector) for item in classified)
-    has_strand = any(isinstance(item, _StrandSelector) for item in classified)
+    has_note = any(isinstance(item, NoteSelector) for item in classified)
+    has_web = any(isinstance(item, WebSelector) for item in classified)
+    has_strand = any(isinstance(item, StrandSelector) for item in classified)
     link_notes, scoped_webs = _discover_link_universe(
         resolved_project_root, resolved_home_root
     )
 
-    note_items = [item for item in classified if isinstance(item, _NoteSelector)]
+    note_items = [item for item in classified if isinstance(item, NoteSelector)]
     requested_keys = requested_note_keys(
         note_items, project_root=resolved_project_root, home_root=resolved_home_root
     )
-    inline_context = _NoteInlineContext(pending_strand_roots=[])
+    inline_context = NoteInlineContext(pending_strand_roots=[])
     root_keys: set[str] = set()
     rendered_keys: set[str] = set()
     resolved_notes = []
@@ -176,7 +176,7 @@ def _discover_link_universe(
 
 
 def _render_unit_candidates(
-    classified: list[_NoteSelector | _WebSelector | _StrandSelector],
+    classified: list[NoteSelector | WebSelector | StrandSelector],
     *,
     project_root: Path,
     home_root: Path,
@@ -188,7 +188,7 @@ def _render_unit_candidates(
                 item, project_root=project_root, home_root=home_root
             ),
         )
-        if isinstance(item, _NoteSelector)
+        if isinstance(item, NoteSelector)
         else MemorySelectorBatchUnit("web", item.web_slug)
         for item in classified
     )

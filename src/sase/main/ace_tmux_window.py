@@ -15,8 +15,8 @@ from sase.main.ace_tmux_support import (
     _WINDOW_PREFIX,
     _RunCommand,
     _TimeoutValue,
-    _TmuxLaunchError,
-    _TmuxWindow,
+    TmuxLaunchError,
+    TmuxWindow,
     kill_window_best_effort,
 )
 
@@ -28,7 +28,7 @@ def release_window_claim(screenshot_dir: str | Path) -> None:
         pass
 
 
-def reserve_window_claim(session: str, window_name: str, *, request_dir) -> str | None:
+def _reserve_window_claim(session: str, window_name: str, *, request_dir) -> str | None:
     screenshot_dir = request_dir(session, window_name)
     try:
         screenshot_dir.mkdir(parents=True, exist_ok=True)
@@ -40,7 +40,7 @@ def reserve_window_claim(session: str, window_name: str, *, request_dir) -> str 
     except FileExistsError:
         return None
     except OSError as exc:
-        raise _TmuxLaunchError(
+        raise TmuxLaunchError(
             f"failed to reserve tmux window {window_name!r}: {exc}"
         ) from exc
     with os.fdopen(fd, "w", encoding="utf-8") as handle:
@@ -48,7 +48,7 @@ def reserve_window_claim(session: str, window_name: str, *, request_dir) -> str 
     return str(screenshot_dir)
 
 
-def tmux_env_args(
+def _tmux_env_args(
     session: str,
     window_name: str,
     *,
@@ -79,10 +79,10 @@ def claim_window(
     runner: _RunCommand,
     timeout: _TimeoutValue,
     extra_env: dict[str, str] | None = None,
-) -> _TmuxWindow:
+) -> TmuxWindow:
     for n in range(1, _MAX_WINDOW_ATTEMPTS + 1):
         window_name = f"{_WINDOW_PREFIX}{n}"
-        screenshot_dir = reserve_window_claim(
+        screenshot_dir = _reserve_window_claim(
             session, window_name, request_dir=request_dir
         )
         if screenshot_dir is None:
@@ -107,7 +107,7 @@ def claim_window(
                     "tmux",
                     "new-window",
                     "-d",
-                    *tmux_env_args(
+                    *_tmux_env_args(
                         session,
                         window_name,
                         request_dir=request_dir,
@@ -128,7 +128,7 @@ def claim_window(
                 action=f"create tmux window {window_name!r} in session {session!r}",
             )
             if result.returncode != 0:
-                raise _TmuxLaunchError(
+                raise TmuxLaunchError(
                     "tmux new-window failed: "
                     + (result.stderr.strip() or result.stdout.strip())
                 )
@@ -136,39 +136,37 @@ def claim_window(
                 result.stdout.strip().splitlines()[-1] if result.stdout else ""
             ).split("\t")
             if len(fields) != 4:
-                raise _TmuxLaunchError(
+                raise TmuxLaunchError(
                     "tmux did not report the new window's target and pane pid"
                 )
             reported_session, window_id, reported_name, pid_str = fields
             if not window_id.startswith("@"):
-                raise _TmuxLaunchError(
-                    f"tmux returned invalid window id: {window_id!r}"
-                )
+                raise TmuxLaunchError(f"tmux returned invalid window id: {window_id!r}")
             if reported_name != temporary_name:
-                raise _TmuxLaunchError(
+                raise TmuxLaunchError(
                     f"tmux reported unexpected temporary window name {reported_name!r}"
                 )
             try:
                 pane_pid = int(pid_str)
             except ValueError as exc:
-                raise _TmuxLaunchError(
+                raise TmuxLaunchError(
                     f"tmux returned non-integer pane pid: {pid_str!r}"
                 ) from exc
-            set_window_metadata(
+            _set_window_metadata(
                 window_id,
                 screenshot_dir=screenshot_dir,
                 run_command=run_command,
                 runner=runner,
                 timeout=timeout,
             )
-            rename_window(
+            _rename_window(
                 window_id,
                 window_name,
                 run_command=run_command,
                 runner=runner,
                 timeout=timeout,
             )
-            return _TmuxWindow(
+            return TmuxWindow(
                 reported_session or session,
                 window_name,
                 window_id,
@@ -187,7 +185,7 @@ def claim_window(
             )
             release_window_claim(screenshot_dir)
             raise
-    raise _TmuxLaunchError(
+    raise TmuxLaunchError(
         f"exhausted {_MAX_WINDOW_ATTEMPTS} window-name attempts in session '{session}'"
     )
 
@@ -209,14 +207,14 @@ def set_session_default_size(
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
-        raise _TmuxLaunchError(
+        raise TmuxLaunchError(
             "failed to set tmux default-size "
             f"to {cols}x{rows}; tmux 2.9 or newer is required"
             + (f": {detail}" if detail else "")
         )
 
 
-def set_window_metadata(
+def _set_window_metadata(
     target: str,
     *,
     screenshot_dir: str,
@@ -240,13 +238,13 @@ def set_window_metadata(
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
-        raise _TmuxLaunchError(
+        raise TmuxLaunchError(
             f"failed to record screenshot request dir for tmux window {target}"
             + (f": {detail}" if detail else "")
         )
 
 
-def rename_window(
+def _rename_window(
     target: str,
     window_name: str,
     *,
@@ -262,7 +260,7 @@ def rename_window(
     )
     if result.returncode != 0:
         detail = result.stderr.strip() or result.stdout.strip()
-        raise _TmuxLaunchError(
+        raise TmuxLaunchError(
             f"failed to rename tmux window {target} to {window_name}"
             + (f": {detail}" if detail else "")
         )
@@ -285,7 +283,7 @@ def resize_and_verify_window(
     )
     if resized.returncode != 0:
         detail = resized.stderr.strip() or resized.stdout.strip()
-        raise _TmuxLaunchError(
+        raise TmuxLaunchError(
             f"failed to resize tmux window {target} to {cols}x{rows}"
             + (f": {detail}" if detail else "")
         )
@@ -304,12 +302,12 @@ def resize_and_verify_window(
     )
     if displayed.returncode != 0:
         detail = displayed.stderr.strip() or displayed.stdout.strip()
-        raise _TmuxLaunchError(
+        raise TmuxLaunchError(
             f"failed to read tmux window size for {target}"
             + (f": {detail}" if detail else "")
         )
     actual, expected = displayed.stdout.strip(), f"{cols}x{rows}"
     if actual != expected:
-        raise _TmuxLaunchError(
+        raise TmuxLaunchError(
             f"tmux window geometry mismatch for {target}: expected {expected}, got {actual or 'empty'}; tmux 2.9 or newer is required for detached fixed-size captures"
         )
