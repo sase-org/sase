@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from sase.config.tools import get_tool_runs_config
@@ -67,6 +68,65 @@ def test_retention_preview_selects_settled_log_files(
     ]
     assert str(stdout) in paths
     assert preview.get("protected_unsettled") == 0
+
+
+def test_reap_reclaims_quarantined_store_at_log_horizon(
+    monkeypatch, tmp_path: Path
+) -> None:
+    home = tmp_path / "home"
+    monkeypatch.setenv("SASE_HOME", str(home))
+    store = str(home / "tools" / "runs.sqlite")
+    tool_run_begin(
+        {
+            "schema_version": 1,
+            "run_id": "run-live",
+            "tool_name": "check",
+            "definition": {
+                "schema_version": 1,
+                "name": "check",
+                "argv": ["true"],
+                "description": "",
+                "stages": "none",
+                "inputs": [],
+                "env": [],
+                "args": "deny",
+                "fingerprint": {"repos": [], "toolchain": {}},
+            },
+            "display_argv": ["true"],
+            "project": "fixture",
+            "now_ts": 10,
+            "commit_running": True,
+        },
+        store_path=store,
+    )
+    # Nanos of 1 quarantines at the epoch: older than any horizon.
+    old = home / "tools" / "runs.sqlite.corrupt-1"
+    old.write_bytes(b"q" * 64)
+    # Quarantined "now": younger than the default 14-day log horizon.
+    young_nanos = int(time.time() * 1_000_000_000)
+    young = home / "tools" / f"runs.sqlite.corrupt-{young_nanos}"
+    young.write_bytes(b"y" * 32)
+
+    preview = tool_run_reap_step(apply=False)
+    candidates = (preview.details or {}).get("file_candidates") or ()
+    paths = [
+        candidate.get("path") for candidate in candidates if isinstance(candidate, dict)
+    ]
+    assert str(old) in paths
+    assert str(young) not in paths
+    kinds = {
+        candidate.get("path"): candidate.get("kind")
+        for candidate in candidates
+        if isinstance(candidate, dict)
+    }
+    assert kinds[str(old)] == "quarantined_store"
+
+    applied = tool_run_reap_step(apply=True)
+    assert not old.exists()
+    assert young.exists()
+    assert Path(store).exists()
+    assert applied.reclaimed_bytes == 64
+    assert (applied.details or {}).get("removed_files") == 1
 
 
 def test_reap_apply_deletes_selected_tool_run_logs(monkeypatch, tmp_path: Path) -> None:
