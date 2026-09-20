@@ -251,6 +251,14 @@ class PanelPatchMixin:
             # Last visible rows of this tribe: keep the tribe-stable widget
             # as a title strip instead of rebuilding siblings.
             target_widget.render_collapsed(grouping_mode=grouping_mode)
+            settle_width = getattr(self, "_settle_agent_list_container_width", None)
+            if callable(settle_width):
+                # The collapsed strip is narrower than the rows it replaced.
+                # Settle the column in this frame: without this, standalone
+                # removals (dismiss, kill) leave the resize to the
+                # WidthChanged message the collapse posted, which moves the
+                # column a pump cycle after the rows.
+                settle_width(container, panel_widgets)
             self._record_display_patch_trace(
                 display_cost="row_remove",
                 count=len(removed_identities),

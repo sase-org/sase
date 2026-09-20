@@ -107,7 +107,17 @@ def _highlighted_identity(widget: Any) -> tuple[Any, ...] | None:
 
 
 def _panel_paints(app: Any, container: Any) -> tuple[_PanelPaint, ...]:
-    panel_keys = list(getattr(getattr(app, "_panel_group", None), "panel_keys", ()))
+    group_keys = list(getattr(getattr(app, "_panel_group", None), "panel_keys", ()))
+    # Observe the same mounted set the painter paints: occupancy plus
+    # session-sticky keys. The group alone drops an emptied sticky panel whose
+    # widget stays mounted as a collapsed strip, which would misreport that
+    # strip's collapse intent as not collapsed.
+    sorted_keys_fn = getattr(app, "_sorted_widget_panel_keys", None)
+    occupancy_fn = getattr(app, "_occupancy_keys_with_rows", None)
+    if callable(sorted_keys_fn) and callable(occupancy_fn):
+        panel_keys = sorted_keys_fn(group_keys, occupancy_with_rows=occupancy_fn())
+    else:
+        panel_keys = group_keys
     collapsed_keys = effective_panel_collapses(app, panel_keys)
     panel_index = app._agent_panel_index()
     key_by_widget_id = {panel_widget_id_for_key(key): key for key in panel_keys}

@@ -217,6 +217,45 @@ def test_unchanged_panels_are_not_rebuilt_when_no_hint_mode_is_active(
     assert (apple.update_list_calls, pear.update_list_calls) == (1, 1)  # type: ignore[attr-defined]
 
 
+def test_panel_fold_inputs_scope_to_the_panel_own_rows() -> None:
+    """Only a panel's own fold keys belong in its paint inputs."""
+    from sase.ace.tui.actions.agents._display_panel_widgets import (
+        _panel_fold_inputs,
+    )
+
+    agents = _agents()
+    apple_agents = [agent for agent in agents if agent.tribe == "apple"]
+
+    counts, visible, expanded = _panel_fold_inputs(
+        apple_agents,
+        fold_counts={"a1": (2, 0), "g1": (3, 0), "zzz": (1, 1)},
+        visible_parent_keys={"a1", "g1"},
+        fully_expanded_parent_keys={"g1"},
+    )
+
+    assert counts == {"a1": (2, 0)}
+    assert visible == {"a1"}
+    assert expanded == set()
+
+
+def test_a_sibling_fold_change_does_not_repaint_this_panel(
+    monkeypatch: Any,
+) -> None:
+    """A fold-count change in one panel must not repaint its siblings."""
+    app = _JumpApp(_agents(), monkeypatch)
+    apple, pear = _panels(app)
+    assert (apple.update_list_calls, pear.update_list_calls) == (1, 1)  # type: ignore[attr-defined]
+
+    app._fold_counts = {"a1": (2, 0), "b1": (0, 0), "g1": (3, 0)}
+    app._refresh_panel_widgets(jump_hints=None)
+    assert (apple.update_list_calls, pear.update_list_calls) == (2, 2)  # type: ignore[attr-defined]
+
+    # Only pear's fold counts change now: pear repaints, apple must not.
+    app._fold_counts = {"a1": (2, 0), "b1": (0, 0), "g1": (7, 1)}
+    app._refresh_panel_widgets(jump_hints=None)
+    assert (apple.update_list_calls, pear.update_list_calls) == (2, 3)  # type: ignore[attr-defined]
+
+
 def _capture_footer() -> tuple[KeybindingFooter, list[tuple[Any, Any]]]:
     footer = KeybindingFooter()
     captured: list[tuple[Any, Any]] = []

@@ -15,6 +15,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.ace.tui._app_layout import agent_list_column_width
 from sase.ace.tui.actions.agents import AgentsMixin
 from sase.ace.tui.actions.agents._dismissing import AgentDismissingMixin
 from sase.ace.tui.models.agent import Agent, AgentType
@@ -531,3 +532,46 @@ def test_kill_keeping_its_panel_stays_on_cheap_refresh(monkeypatch: Any) -> None
 
     assert retire_calls == [{a.identity}]
     assert app.refresh_calls == [(False, True)]
+
+
+def test_removal_collapsing_a_panel_settles_the_column_in_frame(
+    monkeypatch: Any,
+) -> None:
+    """Collapsing a panel's last rows settles the column synchronously.
+
+    Standalone removals (dismiss, kill) finish on the cheap refresh, which
+    never settles: without the in-frame settle the WidthChanged message the
+    collapse posted moves the column a pump cycle after the rows.
+    """
+    from types import SimpleNamespace
+
+    wide_panel = _wire_agent_list(monkeypatch)
+    narrow_panel = _wire_agent_list(monkeypatch)
+    long_agent = _agent(cl_name="w" * 60, raw_suffix="wide-1")
+    short_agent = _agent(cl_name="n", raw_suffix="narrow-1")
+    wide_panel.update_list([long_agent], current_idx=0)
+    narrow_panel.update_list([short_agent], current_idx=0)
+    assert wide_panel._requested_width > narrow_panel._requested_width
+
+    container = _Container([wide_panel, narrow_panel])
+    initial = agent_list_column_width(
+        [wide_panel._requested_width, narrow_panel._requested_width],
+        fallback=0,
+    )
+    container.styles = SimpleNamespace(width=initial)
+
+    app = _build_kill_app(wide_panel)
+    app.query_one = lambda *_args, **_kwargs: container  # type: ignore[method-assign]
+
+    assert app._try_remove_agent_rows({long_agent.identity}) is True
+
+    # render_collapsed records the collapsed flag (the painter owns the CSS
+    # class); the rows are gone and the width request shrank to the title.
+    assert wide_panel._panel_collapsed is True
+    assert wide_panel._agents == []
+    expected = agent_list_column_width(
+        [wide_panel._requested_width, narrow_panel._requested_width],
+        fallback=0,
+    )
+    assert expected < initial
+    assert container.styles.width == expected

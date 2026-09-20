@@ -13,7 +13,10 @@ checkers below assert over those frames rather than over aggregate counters.
 The last two windows are not arrivals: they move ``@default`` rows to another
 status bucket while ``@epic`` changes not at all, then while one ``@epic`` row
 only picks up a badge. These are the sibling-panel cases the panel-scoped
-rebuild gates exist for (sase-142.5).
+rebuild gates exist for (sase-142.5). The removal window drops both
+``@default`` rows, collapsing the panel to its title strip, and the wide
+``starting*`` pair lands after it so the collapse still decides the column
+width: the width must settle in the same frame as the rows.
 """
 
 from __future__ import annotations
@@ -54,6 +57,10 @@ HOST_QUERY = "NOT machine:apollo"
 TERMINAL_SIZE = (120, 30)
 
 #: Arrival windows in the order they are applied.
+#:
+#: The wide ``starting*`` pair lands after the removal on purpose: the
+#: removal window must still decide the column width when it collapses
+#: ``@default``, which a wider ``@epic`` row would otherwise pin.
 ARRIVALS = (
     "noop",
     "plain_member",
@@ -61,10 +68,11 @@ ARRIVALS = (
     "second_clan",
     "starting_narrow",
     "starting_narrow_rendered",
-    "starting",
-    "starting_rendered_wide",
     "sibling_status_move",
     "sibling_move_beside_epic_patch",
+    "default_removed",
+    "starting",
+    "starting_rendered_wide",
 )
 
 #: Arrivals that add one ordinary non-clan row no wider than the existing ones.
@@ -140,10 +148,15 @@ def _clan_member(name: str, clan: str, minute: int, provider: str) -> Agent:
 
 
 def initial_roster() -> list[Agent]:
-    """Loader rows: ``@default`` (2), ``@epic`` (14 nodes + one clan), ``@job`` (2)."""
+    """Loader rows: ``@default`` (2), ``@epic`` (14 nodes + one clan), ``@job`` (2).
+
+    The ``@default`` rows carry long names on purpose: they hold the column
+    width until the wide arrival, so the removal window collapses the panel
+    that decides the width.
+    """
     return [
-        _node("home-a", None, 1),
-        _node("home-b", None, 2),
+        _node("home-a-with-a-long-name-holding-the-column-wide-01", None, 1),
+        _node("home-b-with-a-long-name-holding-the-column-wide-02", None, 2),
         *(_node(f"epic-node-{i:02d}", "epic", 10 + i) for i in range(14)),
         _clan_member("epic-claude", "epic-clan", 30, "claude"),
         _clan_member("epic-codex", "epic-clan", 31, "codex"),
@@ -183,17 +196,6 @@ def arrival_rosters(base: list[Agent]) -> list[tuple[str, list[Agent]]]:
         "starting_narrow_rendered",
         [*current[:-1], dataclasses.replace(narrow, status="RUNNING")],
     )
-    wide = _node(
-        "epic-a-very-long-arriving-node-name-wider-than-every-existing-row",
-        "epic",
-        50,
-        status="STARTING",
-    )
-    arrive("starting", [*current, wide])
-    arrive(
-        "starting_rendered_wide",
-        [*current[:-1], dataclasses.replace(wide, status="RUNNING")],
-    )
     # ``home-a`` finishes: a status-bucket move confined to ``@default``.
     arrive(
         "sibling_status_move",
@@ -213,6 +215,25 @@ def arrival_rosters(base: list[Agent]) -> list[tuple[str, list[Agent]]]:
                 for agent in current[2:]
             ),
         ],
+    )
+    # Both ``@default`` rows leave the roster: the panel keeps its widget as a
+    # collapsed title strip (roster absence never retires a session-sticky
+    # key). ``@default`` holds the column here (``home-a``/``home-b`` are the
+    # widest rows until the wide arrival below), so the collapse must settle
+    # the column in the same frame as the rows (sase-142.5 quiet-applies).
+    arrive("default_removed", [agent for agent in current if agent.tribe])
+    # The wide arrival lands after the removal, so the removal window above
+    # still decides the column width when it collapses ``@default``.
+    wide = _node(
+        "epic-a-very-long-arriving-node-name-wider-than-every-existing-row",
+        "epic",
+        50,
+        status="STARTING",
+    )
+    arrive("starting", [*current, wide])
+    arrive(
+        "starting_rendered_wide",
+        [*current[:-1], dataclasses.replace(wide, status="RUNNING")],
     )
     return rosters
 

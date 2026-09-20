@@ -58,6 +58,40 @@ def _sorted_items(mapping: dict[Any, Any] | None) -> tuple[tuple[Any, Any], ...]
     return tuple(sorted(mapping.items())) if mapping else ()
 
 
+def _panel_fold_inputs(
+    panel_agents: list[Any],
+    *,
+    fold_counts: dict[str, tuple[int, int]],
+    visible_parent_keys: set[str],
+    fully_expanded_parent_keys: set[str],
+) -> tuple[dict[str, tuple[int, int]], set[str], set[str]]:
+    """Restrict global fold inputs to the fold keys one panel's rows own.
+
+    A panel's rows only read their own fold key: ``compute_fold_annotation``
+    looks up ``fold_counts`` by the row's own key and the expanded checks test
+    that same key for membership. Entries owned by other panels therefore
+    cannot change what this panel paints, but they used to change its paint
+    key and repaint it. Scoping to owned keys keeps every sensitivity the
+    panel needs and drops the rest.
+    """
+    from ...models._agent_tree import agent_fold_key
+
+    own_keys = {
+        fold_key
+        for agent in panel_agents
+        if (fold_key := agent_fold_key(agent)) is not None
+    }
+    return (
+        {
+            fold_key: counts
+            for fold_key, counts in (fold_counts or {}).items()
+            if fold_key in own_keys
+        },
+        set(visible_parent_keys or ()) & own_keys,
+        set(fully_expanded_parent_keys or ()) & own_keys,
+    )
+
+
 def _panel_paint_key(
     *,
     jump_hints: dict[int, str] | None,
@@ -384,21 +418,29 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                 for gi in global_indices
             ]
 
+        panel_fold_counts, panel_visible_parents, panel_fully_expanded = (
+            _panel_fold_inputs(
+                panel_agents,
+                fold_counts=fold_counts,
+                visible_parent_keys=visible_parent_keys,
+                fully_expanded_parent_keys=fully_expanded_parent_keys,
+            )
+        )
         paint_key = _panel_paint_key(
             jump_hints=local_jump_hints,
             banner_jump_hints=local_banner_hints,
             marked=marked,
             unread=unread,
             marked_fold_keys=marked_fold_keys,
-            fold_counts=fold_counts,
+            fold_counts=panel_fold_counts,
             attempt_number=attempt_number if is_focused else None,
             current_group_key=(
                 current_group_key if is_focused and not selected_expanded else None
             ),
             tribe_labels=local_tribe_labels,
             panel_tribe=key if not merge_tribe_panels else None,
-            visible_parent_keys=visible_parent_keys,
-            fully_expanded_parent_keys=fully_expanded_parent_keys,
+            visible_parent_keys=panel_visible_parents,
+            fully_expanded_parent_keys=panel_fully_expanded,
             fold_registry=panel_fold_registry(self, key),
         )
         content_unchanged = skip_content or self._panel_content_is_unchanged(
