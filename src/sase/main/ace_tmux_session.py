@@ -11,6 +11,7 @@ from sase.main.ace_tmux_support import (
     OwnedBootstrapWindow,
     ResolvedSession,
     _RunCommand,
+    _RunTmuxCommand,
     _TimeoutValue,
     TmuxLaunchError,
     kill_window_best_effort,
@@ -18,7 +19,7 @@ from sase.main.ace_tmux_support import (
 
 
 def resolve_or_create_session(
-    *, runner: _RunCommand, timeout: _TimeoutValue, run_command
+    *, runner: _RunCommand, timeout: _TimeoutValue, run_command: _RunTmuxCommand
 ) -> ResolvedSession:
     if os.environ.get("TMUX"):
         result = run_command(
@@ -41,7 +42,7 @@ def resolve_or_create_session(
 
 
 def resolve_or_create_agent_session(
-    *, runner: _RunCommand, timeout: _TimeoutValue, run_command
+    *, runner: _RunCommand, timeout: _TimeoutValue, run_command: _RunTmuxCommand
 ) -> ResolvedSession:
     has_session = run_command(
         ["tmux", "has-session", "-t", _AGENTS_SESSION],
@@ -57,7 +58,7 @@ def resolve_or_create_agent_session(
 
 
 def _create_agent_session_with_bootstrap(
-    *, runner: _RunCommand, timeout: _TimeoutValue, run_command
+    *, runner: _RunCommand, timeout: _TimeoutValue, run_command: _RunTmuxCommand
 ) -> ResolvedSession:
     bootstrap_name = f"{_BOOTSTRAP_WINDOW_PREFIX}{uuid.uuid4().hex[:12]}"
     try:

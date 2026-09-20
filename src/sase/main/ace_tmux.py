@@ -16,9 +16,12 @@ from sase.main.ace_tmux_support import (
     _BOOTSTRAP_WINDOW_PREFIX,
     _MAX_WINDOW_ATTEMPTS,
     _PROFILING_ENV_DEFAULTS,
+    _RunCommand,
     _SCREENSHOT_DIR_OPTION,
     _TimeoutValue,
     TmuxLaunchError,
+    OwnedBootstrapWindow,
+    ResolvedSession,
     TmuxWindow,
     _WINDOW_CLAIM_FILE,
     _WINDOW_PREFIX,
@@ -32,14 +35,16 @@ _TUI_COMMAND = "tui"
 _LEGACY_ACE_COMMAND = "ace"
 
 
-def _run_tmux_command(cmd, *, runner, timeout, action):
+def _run_tmux_command(
+    cmd: list[str], *, runner: _RunCommand, timeout: _TimeoutValue, action: str
+) -> subprocess.CompletedProcess[str]:
     """Run a tmux command through the facade's patchable subprocess seam."""
     if runner is subprocess.run:
         runner = subprocess.run
     return run_tmux_command(cmd, runner=runner, timeout=timeout, action=action)
 
 
-def _default_runner(runner):
+def _default_runner(runner: _RunCommand | None) -> _RunCommand:
     # Keep the historical monkeypatch seam at ``ace_tmux.subprocess.run``.
     return subprocess.run if runner is None else runner
 
@@ -49,19 +54,30 @@ def _require_tmux_binary() -> None:
         raise TmuxLaunchError("tmux executable not found on PATH")
 
 
-def _resolve_or_create_session(*, runner=None, timeout=None):
+def _resolve_or_create_session(
+    *, runner: _RunCommand | None = None, timeout: _TimeoutValue = None
+) -> ResolvedSession:
     return ace_tmux_session.resolve_or_create_session(
         runner=_default_runner(runner), timeout=timeout, run_command=_run_tmux_command
     )
 
 
-def _resolve_or_create_agent_session(*, runner=None, timeout=None):
+def _resolve_or_create_agent_session(
+    *, runner: _RunCommand | None = None, timeout: _TimeoutValue = None
+) -> ResolvedSession:
     return ace_tmux_session.resolve_or_create_agent_session(
         runner=_default_runner(runner), timeout=timeout, run_command=_run_tmux_command
     )
 
 
-def _claim_window(session, relaunch_cmd, *, extra_env=None, runner=None, timeout=None):
+def _claim_window(
+    session: str,
+    relaunch_cmd: str,
+    *,
+    extra_env: dict[str, str] | None = None,
+    runner: _RunCommand | None = None,
+    timeout: _TimeoutValue = None,
+) -> TmuxWindow:
     return ace_tmux_window.claim_window(
         session,
         relaunch_cmd,
@@ -77,7 +93,14 @@ def release_tmux_window_claim(screenshot_dir: str | Path) -> None:
     ace_tmux_window.release_window_claim(screenshot_dir)
 
 
-def _set_session_default_size(session, cols, rows, *, runner=None, timeout=None):
+def _set_session_default_size(
+    session: str,
+    cols: int,
+    rows: int,
+    *,
+    runner: _RunCommand | None = None,
+    timeout: _TimeoutValue = None,
+) -> None:
     return ace_tmux_window.set_session_default_size(
         session,
         cols,
@@ -88,7 +111,14 @@ def _set_session_default_size(session, cols, rows, *, runner=None, timeout=None)
     )
 
 
-def _resize_and_verify_window(target, cols, rows, *, runner=None, timeout=None):
+def _resize_and_verify_window(
+    target: str,
+    cols: int,
+    rows: int,
+    *,
+    runner: _RunCommand | None = None,
+    timeout: _TimeoutValue = None,
+) -> None:
     return ace_tmux_window.resize_and_verify_window(
         target,
         cols,
@@ -99,11 +129,15 @@ def _resize_and_verify_window(target, cols, rows, *, runner=None, timeout=None):
     )
 
 
-def _kill_window_best_effort(target, *, runner=None):
+def _kill_window_best_effort(
+    target: str | None, *, runner: _RunCommand | None = None
+) -> None:
     return kill_window_best_effort(target, runner=_default_runner(runner))
 
 
-def _kill_owned_bootstrap_window(bootstrap, *, runner=None):
+def _kill_owned_bootstrap_window(
+    bootstrap: OwnedBootstrapWindow | None, *, runner: _RunCommand | None = None
+) -> None:
     return kill_owned_bootstrap_window(bootstrap, runner=_default_runner(runner))
 
 
@@ -134,7 +168,7 @@ def create_agent_tmux_window(
     cols: int | None = None,
     rows: int | None = None,
     extra_env: dict[str, str] | None = None,
-    runner=None,
+    runner: _RunCommand | None = None,
     timeout: _TimeoutValue = None,
 ) -> TmuxWindow:
     """Create an automation window in the detached agents tmux session."""

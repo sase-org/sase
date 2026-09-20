@@ -13,7 +13,9 @@ from sase.main.ace_tmux_support import (
     _SCREENSHOT_DIR_OPTION,
     _WINDOW_CLAIM_FILE,
     _WINDOW_PREFIX,
+    _RequestDir,
     _RunCommand,
+    _RunTmuxCommand,
     _TimeoutValue,
     TmuxLaunchError,
     TmuxWindow,
@@ -28,7 +30,9 @@ def release_window_claim(screenshot_dir: str | Path) -> None:
         pass
 
 
-def _reserve_window_claim(session: str, window_name: str, *, request_dir) -> str | None:
+def _reserve_window_claim(
+    session: str, window_name: str, *, request_dir: _RequestDir
+) -> str | None:
     screenshot_dir = request_dir(session, window_name)
     try:
         screenshot_dir.mkdir(parents=True, exist_ok=True)
@@ -52,7 +56,7 @@ def _tmux_env_args(
     session: str,
     window_name: str,
     *,
-    request_dir,
+    request_dir: _RequestDir,
     screenshot_dir: str | None = None,
     extra_env: dict[str, str] | None = None,
 ) -> list[str]:
@@ -74,8 +78,8 @@ def claim_window(
     session: str,
     relaunch_cmd: str,
     *,
-    request_dir,
-    run_command,
+    request_dir: _RequestDir,
+    run_command: _RunTmuxCommand,
     runner: _RunCommand,
     timeout: _TimeoutValue,
     extra_env: dict[str, str] | None = None,
@@ -195,7 +199,7 @@ def set_session_default_size(
     cols: int,
     rows: int,
     *,
-    run_command,
+    run_command: _RunTmuxCommand,
     runner: _RunCommand,
     timeout: _TimeoutValue,
 ) -> None:
@@ -218,7 +222,7 @@ def _set_window_metadata(
     target: str,
     *,
     screenshot_dir: str,
-    run_command,
+    run_command: _RunTmuxCommand,
     runner: _RunCommand,
     timeout: _TimeoutValue,
 ) -> None:
@@ -248,7 +252,7 @@ def _rename_window(
     target: str,
     window_name: str,
     *,
-    run_command,
+    run_command: _RunTmuxCommand,
     runner: _RunCommand,
     timeout: _TimeoutValue,
 ) -> None:
@@ -271,7 +275,7 @@ def resize_and_verify_window(
     cols: int,
     rows: int,
     *,
-    run_command,
+    run_command: _RunTmuxCommand,
     runner: _RunCommand,
     timeout: _TimeoutValue,
 ) -> None:

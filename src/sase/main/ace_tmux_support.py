@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from pathlib import Path
 import subprocess
 
 _AGENTS_SESSION = "sase_ace_agents"
@@ -21,6 +22,8 @@ class TmuxLaunchError(Exception):
 
 _RunCommand = Callable[..., subprocess.CompletedProcess[str]]
 _TimeoutValue = float | Callable[[], float] | None
+_RunTmuxCommand = Callable[..., subprocess.CompletedProcess[str]]
+_RequestDir = Callable[[str, str], Path]
 
 
 @dataclass(frozen=True)
