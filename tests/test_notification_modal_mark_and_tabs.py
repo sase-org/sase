@@ -6,6 +6,7 @@ import pytest
 
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.widgets import notification_tab_style
+from sase.notifications import Notification
 
 from tests._notification_modal_helpers import _make_notification
 
@@ -219,3 +220,94 @@ def test_dismiss_last_row_in_active_tag_falls_back_to_nearest_tab() -> None:
 
     mock_mark.assert_called_once_with("done")
     assert modal._active_notification_tag == "review"
+
+
+def _tagged_notifications(*tags: str) -> list[Notification]:
+    return [_make_notification(tag, action="JumpToAgent", tags=[tag]) for tag in tags]
+
+
+def test_digit_selects_first_middle_ninth_and_tenth_tabs() -> None:
+    """1, a middle digit, 9, and 0 select current positions 1, n, 9, and 10."""
+    notifications = _tagged_notifications(*(f"t{i:02d}" for i in range(10)))
+    modal = NotificationModal(notifications)
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    tags = [tab.tag for tab in modal._tag_tabs()]
+    assert tags == [f"t{i:02d}" for i in range(10)]
+
+    modal.action_focus_notification_tag_tab(1)
+    assert modal._active_notification_tag == "t00"
+
+    modal.action_focus_notification_tag_tab(5)
+    assert modal._active_notification_tag == "t04"
+
+    modal.action_focus_notification_tag_tab(9)
+    assert modal._active_notification_tag == "t08"
+
+    modal.action_focus_notification_tag_tab(10)
+    assert modal._active_notification_tag == "t09"
+
+
+def test_unavailable_digit_is_a_consumed_noop() -> None:
+    """A digit past the current tab count does not switch tabs or rebuild."""
+    modal = NotificationModal(_tagged_notifications("alpha", "bravo"))
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    assert modal._active_notification_tag == "alpha"
+
+    modal.action_focus_notification_tag_tab(3)
+    modal.action_focus_notification_tag_tab(10)
+
+    assert modal._active_notification_tag == "alpha"
+    modal._rebuild_list.assert_not_called()
+
+
+def test_pressing_the_active_digit_is_a_noop() -> None:
+    """The digit for the already-active tab does not rebuild the list."""
+    modal = NotificationModal(_tagged_notifications("alpha", "bravo"))
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_focus_notification_tag_tab(1)
+
+    assert modal._active_notification_tag == "alpha"
+    modal._rebuild_list.assert_not_called()
+
+
+def test_digit_tab_jump_clears_marks_pending_confirms_and_plus_one() -> None:
+    """Digit jumps reuse the shared switch path's tab-scoped state reset."""
+    modal = NotificationModal(_tagged_notifications("alpha", "bravo"))
+    modal._marked_notification_ids = {"alpha"}
+    modal._pending_confirm_notification_id = "alpha"
+    modal._pending_confirm_notification_ids = ["alpha"]
+    modal._plus_one_cursor = 2
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+
+    modal.action_focus_notification_tag_tab(2)
+
+    assert modal._active_notification_tag == "bravo"
+    assert modal._marked_notification_ids == set()
+    assert modal._pending_confirm_notification_id is None
+    assert modal._pending_confirm_notification_ids is None
+    assert modal._plus_one_cursor is None
+    modal._rebuild_list.assert_called_once_with(highlight_index=1)
+
+
+def test_digit_tab_selection_resolves_against_current_order_after_mutation() -> None:
+    """Removing a tab cannot leave a stale digit-to-tab mapping."""
+    modal = NotificationModal(_tagged_notifications("alpha", "bravo", "charlie"))
+    modal._rebuild_list = MagicMock()  # type: ignore[method-assign]
+    assert [tab.tag for tab in modal._tag_tabs()] == ["alpha", "bravo", "charlie"]
+
+    modal.action_focus_notification_tag_tab(2)
+    assert modal._active_notification_tag == "bravo"
+
+    modal._notifications = [
+        notification
+        for notification in modal._notifications
+        if notification.id != "bravo"
+    ]
+    modal._active_notification_tag = "alpha"
+    modal._rebuild_list.reset_mock()
+
+    modal.action_focus_notification_tag_tab(2)
+
+    assert [tab.tag for tab in modal._tag_tabs()] == ["alpha", "charlie"]
+    assert modal._active_notification_tag == "charlie"

@@ -20,7 +20,9 @@ from sase.notification_gates.presentation import normalize_gate_chip
 from sase.notification_gates.registry import adapter_for_kind
 from sase.notifications import Notification
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
+    _page_svg_compact_styled_text,
     assert_page_svg_contains,
+    assert_page_svg_styled_text_contains,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -207,6 +209,19 @@ async def test_notification_beads_tab_png_snapshot(
         assert_page_svg_contains(page, "[bead]")
         assert_page_svg_contains(page, "sase-cx")
         assert_page_svg_contains(page, "≈")
+        # Priority order in this fixture is Gates, Errors, Done, Beads, so
+        # the positional shortcuts are 1⚑, 2✖, 3#, 4◈.
+        assert_page_svg_styled_text_contains(page, "1⚑")
+        assert_page_svg_styled_text_contains(page, "2✖")
+        assert_page_svg_styled_text_contains(page, "3#")
+        assert_page_svg_styled_text_contains(page, "4◈")
+        compact_svg = _page_svg_compact_styled_text(page)
+        assert (
+            compact_svg.index("1⚑")
+            < compact_svg.index("2✖")
+            < compact_svg.index("3#")
+            < compact_svg.index("4◈")
+        )
         ace_png_visual.assert_page_png(
             page,
             "notification_beads_tab_120x40",

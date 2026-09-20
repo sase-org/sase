@@ -19,14 +19,21 @@ from textual.widget import Widget
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.llm_calls import cache as tools_cache_module
+from sase.ace.tui.widgets import AgentDetail
 from sase.ace.tui.widgets import llm_calls_panel as llm_calls_panel_module
+from sase.ace.tui.widgets._agent_detail_panels import DetailPanelMode
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
-from sase.ace.tui.widgets.llm_calls_panel import AgentLLMCallsPanel, ToolDetailLevel
+from sase.ace.tui.widgets.llm_calls_panel import (
+    AgentLLMCallsPanel,
+    LLMCallsVisibilityChanged,
+    ToolDetailLevel,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     mark_current_visual_frame_converged,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_state,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -355,8 +362,31 @@ async def _open_llm_calls_panel(page: AcePage) -> AgentLLMCallsPanel:
     # Wait for the debounced detail panel update so AgentDetail._current_agent
     # is populated before the view picker applies LLM Calls.
     await wait_for_visual_idle(page)
-    await page.press("p", "t")
+    await page.press("p")
+    await page.expect_modal("AgentViewModal")
+    await page.pause()
+    await page.press("t")
+    await page.expect_no_modal()
+    detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+    await wait_for_state(
+        page,
+        lambda: detail.panel_mode is DetailPanelMode.LLM_CALLS,
+        description="LLM Calls panel mode",
+    )
     await _wait_for_llm_calls_loaded(page)
+    detail.on_llm_calls_visibility_changed(
+        LLMCallsVisibilityChanged(has_llm_calls=True)
+    )
+    await page.press("p")
+    await page.expect_modal("AgentViewModal")
+    await page.pause()
+    await page.press("2")
+    await page.expect_no_modal()
+    await wait_for_state(
+        page,
+        lambda: detail.is_llm_calls_visible(),
+        description="LLM Calls panel visible",
+    )
     page.app._refresh_agent_footer_bindings_only()
     await wait_for_visual_idle(page)
     return page.app.query_one("#agent-llm-calls-panel", AgentLLMCallsPanel)

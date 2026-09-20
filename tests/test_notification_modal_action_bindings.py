@@ -2,12 +2,16 @@
 
 from unittest.mock import MagicMock, patch
 
+from rich.cells import cell_len
+from textual.binding import Binding
 from textual.content import Content
 
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.notification_modal_constants import (
     DEFAULT_HINT_TEXT,
     GATE_HINT_TEXT,
+    NOTIFICATION_TAB_HINT_TEXT,
+    NOTIFICATION_TAB_SHORTCUTS,
     QUESTION_HINT_TEXT,
 )
 
@@ -53,12 +57,39 @@ def test_notification_modal_binds_brackets_to_tag_tabs() -> None:
 
 def test_notification_modal_footer_hint_advertises_tag_tab_brackets() -> None:
     """The default footer exposes square-bracket tag navigation."""
-    assert "[]: tags" in DEFAULT_HINT_TEXT
+    assert NOTIFICATION_TAB_HINT_TEXT in DEFAULT_HINT_TEXT
+    assert NOTIFICATION_TAB_HINT_TEXT in QUESTION_HINT_TEXT
+    assert NOTIFICATION_TAB_HINT_TEXT in GATE_HINT_TEXT
+    # The hint line already overflows the modal, so the fragment advertises both
+    # digit jumps and bracket cycling in as few cells as a legible label allows.
+    assert "1-0" in NOTIFICATION_TAB_HINT_TEXT
+    assert "[]" in NOTIFICATION_TAB_HINT_TEXT
+    assert cell_len(NOTIFICATION_TAB_HINT_TEXT) <= 11
     assert "+: +1" in DEFAULT_HINT_TEXT
     assert "+: +1" in QUESTION_HINT_TEXT
     assert "+: +1" in GATE_HINT_TEXT
     assert "V: view" in DEFAULT_HINT_TEXT
     assert Content.from_markup(DEFAULT_HINT_TEXT).plain == DEFAULT_HINT_TEXT
+
+
+def test_notification_modal_binds_hidden_digit_tab_shortcuts() -> None:
+    """Digits 1–9 then 0 are modal-local hidden bindings for positional tabs."""
+    expected = [
+        Binding(
+            digit,
+            f"focus_notification_tag_tab({position})",
+            f"Tab {digit}",
+            show=False,
+        )
+        for position, digit in enumerate(NOTIFICATION_TAB_SHORTCUTS, start=1)
+    ]
+    digit_bindings = [b for b in NotificationModal.BINDINGS if isinstance(b, Binding)]
+    assert digit_bindings == expected
+    assert [b.key for b in digit_bindings] == list(NOTIFICATION_TAB_SHORTCUTS)
+    assert [b.action for b in digit_bindings] == [
+        f"focus_notification_tag_tab({position})" for position in range(1, 11)
+    ]
+    assert all(b.show is False for b in digit_bindings)
 
 
 def test_notification_modal_binds_g_and_capital_g_to_detail_scroll() -> None:

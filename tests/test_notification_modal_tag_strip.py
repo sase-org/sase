@@ -5,13 +5,18 @@ predicate the modal applies when it refreshes the strip.
 """
 
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Literal
 from unittest.mock import MagicMock, patch
 
 import pytest
 from rich.cells import cell_len
+from rich.text import Text
 
 from sase.ace.tui.modals.notification_modal import NotificationModal
+from sase.ace.tui.modals.notification_modal_constants import (
+    NOTIFICATION_TAB_SHORTCUTS,
+    notification_tab_shortcut,
+)
 from sase.ace.tui.modals.notification_modal_tags import (
     NotificationTagStrip,
     NotificationTagTab,
@@ -41,6 +46,23 @@ def _four_icon_tabs() -> list[NotificationTagTab]:
         NotificationTagTab(tag="errors", label="Errors", count=1, kind="errors"),
         NotificationTagTab(tag="done", label="Done", count=1, kind="tag"),
     ]
+
+
+def _n_tabs(count: int) -> list[NotificationTagTab]:
+    """Return ``count`` uniquely tagged custom tabs in display order."""
+    return [
+        NotificationTagTab(tag=f"t{i:02d}", label=f"Tab{i:02d}", count=1, kind="tag")
+        for i in range(count)
+    ]
+
+
+def _tier_width(
+    tabs: list[NotificationTagTab],
+    active: str | None,
+    tier: Literal["full", "compact", "micro"],
+) -> int:
+    strip = NotificationTagStrip(tabs, active)
+    return cell_len(strip._render_tabs(tier).plain)
 
 
 def _wire_full_rebuild(modal: NotificationModal) -> tuple[_FakeOptionList, MagicMock]:
@@ -97,7 +119,7 @@ def test_tag_strip_click_ranges_survive_a_two_cell_icon() -> None:
     strip.post_message = MagicMock()  # type: ignore[method-assign]
 
     content = strip._build_content()
-    assert content.plain.startswith(" 🚀 Deploys 1 ")
+    assert content.plain.startswith(" 1 🚀 Deploys 1 ")
     start, end = strip._tab_ranges["review"]
     assert end == cell_len(content.plain)
 
@@ -123,24 +145,26 @@ def test_a_narrow_tag_strip_sheds_inactive_labels_instead_of_whole_tabs() -> Non
     """
     tabs = _four_icon_tabs()
     strip = NotificationTagStrip(tabs, "beads")
-    assert cell_len(strip._build_content().plain) > 43
+    compact_width = _tier_width(tabs, "beads", "compact")
+    assert cell_len(strip._build_content().plain) > compact_width
 
-    strip._width = 43
+    strip._width = compact_width
     content = strip._build_content()
 
-    assert cell_len(content.plain) <= 43
+    assert strip._tier == "compact"
+    assert cell_len(content.plain) <= compact_width
     # The active tab keeps its name so the strip still says where you are.
     assert " Beads 3▾" in content.plain
     assert "Gates" not in content.plain
     assert set(strip._tab_ranges) == {tab.tag for tab in tabs}
-    assert strip._tab_ranges["done"][1] <= 43
+    assert strip._tab_ranges["done"][1] <= compact_width
 
 
 def test_a_narrow_tag_strip_still_routes_a_click_to_the_last_tab() -> None:
     """The tab the full-label render used to clip is clickable again."""
     strip = NotificationTagStrip(_four_icon_tabs(), "beads")
     strip.post_message = MagicMock()  # type: ignore[method-assign]
-    strip._width = 43
+    strip._width = _tier_width(_four_icon_tabs(), "beads", "compact")
     strip._build_content()
 
     start, _end = strip._tab_ranges["done"]
@@ -154,12 +178,13 @@ def test_tag_strip_rerenders_only_when_its_width_changes() -> None:
     strip = NotificationTagStrip(_four_icon_tabs(), "beads")
     strip.update = MagicMock()  # type: ignore[method-assign]
 
-    strip.on_resize(SimpleNamespace(size=SimpleNamespace(width=43)))
-    assert strip._width == 43
+    compact_width = _tier_width(_four_icon_tabs(), "beads", "compact")
+    strip.on_resize(SimpleNamespace(size=SimpleNamespace(width=compact_width)))
+    assert strip._width == compact_width
     assert "Gates" not in strip.update.call_args.args[0].plain
 
     strip.update.reset_mock()
-    strip.on_resize(SimpleNamespace(size=SimpleNamespace(width=43)))
+    strip.on_resize(SimpleNamespace(size=SimpleNamespace(width=compact_width)))
     strip.update.assert_not_called()
 
 
@@ -264,9 +289,126 @@ def test_tag_strip_click_ranges_survive_a_priority_mark() -> None:
 def test_a_narrow_tag_strip_keeps_the_priority_mark_after_shedding_labels() -> None:
     """A pushed-down tab is the one whose position most needs explaining."""
     strip = NotificationTagStrip(_four_icon_tabs(), "hitl")
-    strip._width = 43
+    strip._width = _tier_width(_four_icon_tabs(), "hitl", "compact")
     content = strip._build_content().plain
 
     assert "Beads" not in content
     assert "▾" in content
     assert " 3▾" in content
+
+
+def _style_covering(text: Text, needle: str) -> str:
+    start = text.plain.index(needle)
+    for span in text.spans:
+        if span.start <= start < span.end:
+            return str(span.style)
+    raise AssertionError(f"no span covering {needle!r} in {text.plain!r}")
+
+
+def test_tag_strip_fit_ladder_picks_full_compact_and_micro() -> None:
+    """The widest fitting tier is selected; shortcuts survive every rung."""
+    tabs = _four_icon_tabs()
+    full_width = _tier_width(tabs, "beads", "full")
+    compact_width = _tier_width(tabs, "beads", "compact")
+    micro_width = _tier_width(tabs, "beads", "micro")
+    assert full_width > compact_width > micro_width
+
+    strip = NotificationTagStrip(tabs, "beads")
+    strip._width = full_width
+    full = strip._build_content()
+    assert strip._tier == "full"
+    assert "Gates" in full.plain
+    assert "Beads" in full.plain
+    assert " │ " in full.plain
+
+    strip._width = compact_width
+    compact = strip._build_content()
+    assert strip._tier == "compact"
+    assert "Gates" not in compact.plain
+    assert "Beads" in compact.plain
+    assert all(digit in compact.plain for digit in "1234")
+
+    strip._width = micro_width
+    micro = strip._build_content()
+    assert strip._tier == "micro"
+    assert "Gates" not in micro.plain
+    assert "Beads" not in micro.plain
+    assert all(digit in micro.plain for digit in "1234")
+    assert "│" in micro.plain
+    assert set(strip._tab_ranges) == {tab.tag for tab in tabs}
+
+
+def test_tag_strip_numbers_the_tenth_tab_zero_and_leaves_the_eleventh_unnumbered() -> (
+    None
+):
+    """The tenth current tab is `0`; later tabs have no false number."""
+    assert notification_tab_shortcut(9) == "0"
+    assert notification_tab_shortcut(10) is None
+    tabs = _n_tabs(11)
+    strip = NotificationTagStrip(tabs, "t00")
+    plain = strip._build_content().plain
+
+    assert NOTIFICATION_TAB_SHORTCUTS == (
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "7",
+        "8",
+        "9",
+        "0",
+    )
+    for digit in NOTIFICATION_TAB_SHORTCUTS:
+        assert f" {digit} " in plain
+    assert "Tab10" in plain
+    assert " 11 " not in plain
+    assert set(strip._tab_ranges) == {tab.tag for tab in tabs}
+
+
+def test_tag_strip_active_shortcut_uses_tab_accent_and_inactive_is_muted() -> None:
+    """Active digit matches the tab accent; inactive digits stay muted."""
+    strip = NotificationTagStrip(_four_icon_tabs(), "beads")
+    content = strip._build_content()
+    assert _style_covering(content, "2") == "#AF87FF"
+    assert _style_covering(content, "4") == "#666666"
+
+
+def test_tag_strip_click_range_includes_the_shortcut_digit() -> None:
+    """The visible number is inside the tab's cell-accurate mouse range."""
+    tabs = [
+        NotificationTagTab(tag="deploys", label="Deploys", count=1, icon="🚀"),
+        NotificationTagTab(tag="review", label="Review", count=2),
+    ]
+    strip = NotificationTagStrip(tabs, None)
+    strip.post_message = MagicMock()  # type: ignore[method-assign]
+    content = strip._build_content()
+    start, end = strip._tab_ranges["deploys"]
+    digit_column = start + 1  # full tier: leading space, then the digit
+    assert 0 <= digit_column < end
+    assert content.plain[start:end].lstrip().startswith("1")
+
+    strip.on_click(SimpleNamespace(x=digit_column))
+    assert strip.post_message.call_args.args[0].tag == "deploys"
+
+
+def test_tag_strip_click_ranges_survive_wide_icon_and_priority_mark_with_digits() -> (
+    None
+):
+    """Shortcut cells do not shift later ranges off a two-cell icon or mark."""
+    tabs = [
+        NotificationTagTab(tag="deploys", label="Deploys", count=1, icon="🚀"),
+        NotificationTagTab(tag="beads", label="Beads", count=3, kind="panel"),
+        NotificationTagTab(tag="review", label="Review", count=2, kind="tag"),
+    ]
+    strip = NotificationTagStrip(tabs, None)
+    strip.post_message = MagicMock()  # type: ignore[method-assign]
+    content = strip._build_content()
+    start, end = strip._tab_ranges["review"]
+    assert end == cell_len(content.plain)
+
+    strip.on_click(SimpleNamespace(x=start))
+    assert strip.post_message.call_args.args[0].tag == "review"
+    strip.on_click(SimpleNamespace(x=end - 1))
+    assert strip.post_message.call_args.args[0].tag == "review"

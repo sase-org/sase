@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList, Static
@@ -31,7 +32,11 @@ from sase.notifications import (
 from .base import OptionListNavigationMixin
 from .notification_modal_actions import NotificationStateActionsMixin
 from .notification_modal_attachments import NotificationAttachmentMixin
-from .notification_modal_constants import DEFAULT_HINT_TEXT, HEADER_ID_PREFIX
+from .notification_modal_constants import (
+    DEFAULT_HINT_TEXT,
+    HEADER_ID_PREFIX,
+    NOTIFICATION_TAB_SHORTCUTS,
+)
 from .notification_modal_gate import NotificationGateMixin, NotificationSummaryMixin
 from .notification_modal_options import NotificationOptionMixin
 from .notification_modal_plus_ones import NotificationPlusOneMixin
@@ -86,6 +91,15 @@ class NotificationModal(
         ("ctrl+p", "prev_file", "Previous File"),
         ("left_square_bracket", "prev_notification_tag_tab", "Prev Tag"),
         ("right_square_bracket", "next_notification_tag_tab", "Next Tag"),
+        *(
+            Binding(
+                digit,
+                f"focus_notification_tag_tab({position})",
+                f"Tab {digit}",
+                show=False,
+            )
+            for position, digit in enumerate(NOTIFICATION_TAB_SHORTCUTS, start=1)
+        ),
         ("R", "read_tab", "Read Tab"),
         ("S", "toggle_sections", "Sections"),
         ("M", "toggle_mute", "Toggle Mute"),
@@ -540,6 +554,19 @@ class NotificationModal(
         except ValueError:
             position = 0
         self._switch_notification_tag_tab(tags[(position + 1) % len(tags)])
+
+    def action_focus_notification_tag_tab(self, position: int) -> None:
+        """Switch to the tab at one-based position ``position``, or no-op.
+
+        Positions 1–9 map to the first nine current tabs; 10 is the tenth
+        (the ``0`` key). A missing position is a consumed no-op so the
+        digit cannot leak through to an application-level binding.
+        """
+        self._coerce_active_notification_tag()
+        tabs = self._tag_tabs()
+        if not 1 <= position <= len(tabs):
+            return
+        self._switch_notification_tag_tab(tabs[position - 1].tag)
 
     def on_notification_tag_strip_tab_clicked(
         self, event: NotificationTagStrip.TabClicked

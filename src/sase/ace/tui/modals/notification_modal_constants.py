@@ -52,15 +52,41 @@ def notification_icon(action: str | None, icon: str | None) -> str:
 
 
 HEADER_ID_PREFIX = "hdr:"
+
+# Positional tab shortcuts in display order: 1–9, then 0 for the tenth.
+# Tabs after the tenth stay unnumbered. Bindings and the tag strip both
+# consume this sequence so the rendered digits cannot drift from the keys.
+NOTIFICATION_TAB_SHORTCUTS: tuple[str, ...] = (
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "0",
+)
+NOTIFICATION_TAB_HINT_TEXT = "1-0/[]: tab"
+
+
+def notification_tab_shortcut(index: int) -> str | None:
+    """Return the positional shortcut for tab ``index``, or ``None`` past the tenth."""
+    if 0 <= index < len(NOTIFICATION_TAB_SHORTCUTS):
+        return NOTIFICATION_TAB_SHORTCUTS[index]
+    return None
+
+
 DEFAULT_HINT_TEXT = (
     "Enter: select  d: debug  m: mark  x: dismiss  M: mute  s: snooze  e: edit  V: view  Y: copy path  "
-    "C-n/C-p: next/prev file  C-d/C-u: scroll  g/G: top/bot  R: read tab  S: sections  []: tags  +: +1  q: close"
+    f"C-n/C-p: next/prev file  C-d/C-u: scroll  g/G: top/bot  R: read tab  S: sections  {NOTIFICATION_TAB_HINT_TEXT}  +: +1  q: close"
 )
 QUESTION_HINT_TEXT = (
     "Enter: answer  d: debug  C-d/C-u: scroll  g/G: top/bot  m: mark  x: dismiss  M: mute  "
-    "s: snooze  S: sections  []: tags  +: +1  q: close"
+    f"s: snooze  S: sections  {NOTIFICATION_TAB_HINT_TEXT}  +: +1  q: close"
 )
 GATE_HINT_TEXT = (
     "Enter: review  d: debug  C-n/C-p: file  C-d/C-u: scroll  g/G: top/bot  m: mark  x: dismiss  "
-    "M: mute  s: snooze  S: sections  []: tags  +: +1  q: close"
+    f"M: mute  s: snooze  S: sections  {NOTIFICATION_TAB_HINT_TEXT}  +: +1  q: close"
 )

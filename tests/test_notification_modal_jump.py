@@ -250,3 +250,100 @@ def test_notification_two_character_hint_waits_and_cleans_up() -> None:
     assert modal._get_selected_index() == 62
     assert modal.jump_mode_active is False
     assert modal._jump_state().pending_prefix == ""
+
+
+def test_jump_mode_consumes_a_digit_without_switching_tabs() -> None:
+    """Apostrophe mode keeps first refusal over the same digit that selects a tab."""
+    rows = [
+        _make_notification(f"a{i}", action="JumpToAgent", tags=["alpha"])
+        for i in range(4)
+    ]
+    other = _make_notification("b", action="JumpToAgent", tags=["bravo"])
+    modal = NotificationModal([*rows, other])
+    _wire_fake_option_list(modal, highlighted_index=0)
+    modal._display_file = MagicMock()  # type: ignore[method-assign]
+
+    assert modal._active_notification_tag == "alpha"
+    modal.action_jump_to_entry()
+    event = _KeyEvent(key="2", character="2")
+    modal.on_key(event)  # type: ignore[arg-type]
+
+    assert event.prevented is True
+    assert event.stopped is True
+    assert modal._active_notification_tag == "alpha"
+    assert modal._get_selected_index() == 2
+
+
+async def test_bare_digit_switches_tabs_while_jump_mode_keeps_the_digit() -> None:
+    """Pilot: `2` selects tab two; `' then 2` jumps to the row hint instead."""
+    rows = [
+        _make_notification(f"a{i}", action="JumpToAgent", tags=["alpha"])
+        for i in range(4)
+    ]
+    other = _make_notification("b", action="JumpToAgent", tags=["bravo"])
+    dismissed: list[Notification | None] = []
+
+    async with _TestApp().run_test() as pilot:
+        modal = NotificationModal([*rows, other], initial_index=0)
+        pilot.app.push_screen(modal, callback=dismissed.append)
+        await pilot.pause()
+
+        assert modal._active_notification_tag == "alpha"
+
+        await pilot.press("2")
+        await pilot.pause()
+        assert pilot.app.screen is modal
+        assert dismissed == []
+        assert modal._active_notification_tag == "bravo"
+
+        await pilot.press("1")
+        await pilot.pause()
+        assert modal._active_notification_tag == "alpha"
+
+        await pilot.press("apostrophe")
+        await pilot.press("2")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        assert dismissed == []
+        assert modal._active_notification_tag == "alpha"
+        assert modal._get_selected_index() == 2
+
+
+async def test_two_character_numeric_hint_beats_digit_tab_shortcuts() -> None:
+    """Pilot: `' 1 0` selects the row hinted `10`; neither digit reaches a tab jump."""
+    first = _make_notification("a", action="JumpToAgent", tags=["alpha"])
+    bravo_rows = [
+        _make_notification(f"b{i:02d}", action="JumpToAgent", tags=["bravo"])
+        for i in range(63)
+    ]
+    dismissed: list[Notification | None] = []
+
+    async with _TestApp().run_test() as pilot:
+        modal = NotificationModal([first, *bravo_rows])
+        pilot.app.push_screen(modal, callback=dismissed.append)
+        await pilot.pause()
+
+        # `2` moves to the 63-row tab, so a leaked `1` would visibly jump back to
+        # tab one and a leaked `0` would be a stray tenth-tab press.
+        await pilot.press("2")
+        await pilot.pause()
+        assert modal._active_notification_tag == "bravo"
+
+        await pilot.press("apostrophe")
+        await pilot.pause()
+        assert modal.jump_hints_by_key()[63] == "10"
+
+        await pilot.press("1")
+        await pilot.pause()
+        assert modal._active_notification_tag == "bravo"
+        assert modal._jump_state().pending_prefix == "1"
+
+        await pilot.press("0")
+        await pilot.pause()
+
+        assert pilot.app.screen is modal
+        assert dismissed == []
+        assert modal._active_notification_tag == "bravo"
+        assert modal.jump_mode_active is False
+        assert modal._get_selected_index() == 63

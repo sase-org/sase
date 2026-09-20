@@ -14,11 +14,13 @@ from sase.ace.tui.widgets.file_panel import _linked_deltas as linked_deltas_mod
 from sase.ace.tui.widgets.file_panel._linked_deltas import LinkedDeltaGroup
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    reveal_agent_file_view,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -93,6 +95,8 @@ async def test_agents_external_repo_diff_file_panel_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
+        await reveal_agent_file_view(page)
+        await wait_for_svg_contains(page, "external repo")
 
         assert_page_svg_contains(page, "gh:pallets/click")
         assert_page_svg_contains(page, "external repo")

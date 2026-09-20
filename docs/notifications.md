@@ -57,7 +57,8 @@ pane shows the selected notification's absolute send time alongside its relative
 | `Ctrl+N` / `Ctrl+P` | Cycle through attached files                                                |
 | `Ctrl+D` / `Ctrl+U` | Scroll file content down / up                                               |
 | `g` / `G`           | Jump the detail pane to the top / bottom of its contents                    |
-| `[` / `]`           | Switch notification tabs                                                    |
+| `1`–`9` / `0`       | Jump to the 1st–9th or 10th current tab; a missing position does nothing    |
+| `[` / `]`           | Cycle notification tabs                                                     |
 | `+`                 | Cycle newest-first through the selected row's `+1` evidence, then default   |
 | `R`                 | Mark every unread notification in the **active tab** read (confirms first)  |
 | `S`                 | Toggle the active tab between sectioned and newest-first rows               |
@@ -65,7 +66,10 @@ pane shows the selected notification's absolute send time alongside its relative
 
 The detail-pane scroll keys work with either the notification list or detail pane
 focused. Apostrophe jump mode consumes hint keys first, so `g` and `G` select matching
-jump hints while hints are visible instead of scrolling the detail pane.
+jump hints while hints are visible instead of scrolling the detail pane. The same
+first-refusal applies to digits: `2` selects the second tab in normal mode, while `'`
+then `2` (or a two-character hint such as `10`) jumps to the matching row without
+changing tabs.
 
 Every gate-backed notification (plan, epic, question, launch, workflow HITL, custom,
 sudo, task-triage, flag-triage, snooze, stale-cleanup, and required-plugin) and every
@@ -154,12 +158,20 @@ label. The top-bar indicator chips omit it — a chip is already `<icon><count>`
 badge's left-to-right order plus the hover tooltip (`▾ priority 0`) spell out the
 deviation.
 
-The strip reflows to fit its measured width rather than clipping. When the full-label
-render would overflow, every inactive tab sheds its label and is identified by icon and
-count alone, while the active tab keeps its name so the strip still says where you are.
-Shedding labels is what keeps a tab from falling off the end of the line, where it would
-be both invisible and unclickable; a resize re-renders the strip only when the width
-actually changed.
+The first ten tabs, in that same current order, carry an unboxed shortcut digit
+immediately before the icon: `1`–`9`, then `0` for the tenth. The mapping is positional
+and is resolved from the live classified order on every keypress and every render, so
+dismiss, mute, snooze, mark-read, and priority changes cannot leave a stale digit. Tabs
+past the tenth stay unnumbered and remain reachable with `[` / `]` or the mouse.
+Pressing a digit with no tab at that position is a no-op that stays inside the modal.
+
+The strip reflows to fit its measured width rather than clipping, in three tiers. Full
+shows shortcut, icon, label, count, and optional priority mark for every tab. When that
+would overflow, compact keeps the shortcut on every tab, sheds inactive labels, and
+retains the active name. When compact still does not fit, micro packs shortcut, icon,
+and count with tighter separators. Shortcut digits are never shed. Shedding labels is
+what keeps a tab from falling off the end of the line, where it would be both invisible
+and unclickable; a resize re-renders the strip only when the width actually changed.
 
 A row with multiple tags therefore occupies exactly one tab, not one per tag; dismissing
 it removes the row from at most one tab's count.

@@ -21,12 +21,15 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    assert_page_svg_styled_text_contains,
+    reveal_agent_file_view,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_state,
+    wait_for_svg_contains,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -220,6 +223,8 @@ async def test_agents_linked_repo_diff_file_panel_png_snapshot(
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
+        await reveal_agent_file_view(page)
+        await wait_for_svg_contains(page, "linked repo")
 
         assert_page_svg_contains(page, "sase-core")
         assert_page_svg_contains(page, "linked repo")
@@ -251,6 +256,7 @@ async def test_agents_commit_messages_panel_png_snapshot(
         await page.expect_state("agent_count", 1)
         await wait_for_visual_idle(page)
         await _wait_for_commit_delta_summary(page, agent)
+        await reveal_agent_file_view(page)
         for _ in range(6):
             await page.press("ctrl+f")
             await wait_for_visual_idle(page)
@@ -260,7 +266,7 @@ async def test_agents_commit_messages_panel_png_snapshot(
         assert_page_svg_contains(page, "file_panel.py")
         assert_page_svg_contains(page, "sase-core")
         assert_page_svg_contains(page, "files [1/3]")
-        assert_page_svg_contains(page, "visual_project 1234567890ab")
+        assert_page_svg_styled_text_contains(page, "visual_project 1234567890ab")
         assert_page_svg_contains(page, "primary_001.diff")
         ace_png_visual.assert_page_png(
             page,

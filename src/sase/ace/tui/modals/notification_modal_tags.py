@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 from rich.cells import cell_len
 from rich.text import Text
@@ -21,6 +21,8 @@ from sase.notification_gates.presentation import (
     normalize_gate_origin_agent,
     normalize_gate_panel,
 )
+
+from .notification_modal_constants import notification_tab_shortcut
 
 # The Rust core still keys this synthetic tab "hitl" internally; only the
 # Python-owned display label below has changed to "Gates".
@@ -214,6 +216,14 @@ def shorten_notification_tag(tag: str, *, max_width: int = 18) -> str:
     return f"{tag[: max_width - 3]}..."
 
 
+_TagStripTier = Literal["full", "compact", "micro"]
+_TAG_STRIP_SEPARATORS: dict[_TagStripTier, str] = {
+    "full": " │ ",
+    "compact": "│ ",
+    "micro": "│",
+}
+
+
 class NotificationTagStrip(Static):
     """Clickable one-line tag tab strip for NotificationModal."""
 
@@ -234,6 +244,7 @@ class NotificationTagStrip(Static):
         self._active_tag = active_tag
         self._tab_ranges: dict[str | None, tuple[int, int]] = {}
         self._width = 0
+        self._tier: _TagStripTier = "full"
         super().__init__(self._build_content(), **kwargs)
 
     def set_tabs(
@@ -259,23 +270,36 @@ class NotificationTagStrip(Static):
 
         The strip clips at the modal's width, so a full-label render that
         overflows would drop whole tabs off the end — invisible and, since
-        ``on_click`` only knows the ranges built here, unclickable. When that
-        would happen, inactive tabs shed their labels and are identified by the
-        icon the resolution chain guarantees every tab has; the active tab
-        keeps its name so the strip still says where you are.
-        """
-        text = self._render_tabs(compact=False)
-        if 0 < self._width < cell_len(text.plain):
-            text = self._render_tabs(compact=True)
-        return text
+        ``on_click`` only knows the ranges built here, unclickable. A fit
+        ladder picks the widest representation that still fits:
 
-    def _render_tabs(self, *, compact: bool) -> Text:
-        """Render every tab and record its click range.
+        1. Full: shortcut, icon, label, count, and optional priority mark.
+        2. Compact: shortcut, icon, count/mark for inactive tabs; the active
+           label is retained.
+        3. Micro: tightly separated shortcut/icon/count cells.
+
+        Shortcut digits are never shed. Unknown width (not yet laid out)
+        keeps the full render, matching the pre-mount default.
+        """
+        if self._width <= 0:
+            self._tier = "full"
+            return self._render_tabs("full")
+        tiers: tuple[_TagStripTier, ...] = ("full", "compact", "micro")
+        for tier in tiers:
+            text = self._render_tabs(tier)
+            if cell_len(text.plain) <= self._width or tier == "micro":
+                self._tier = tier
+                return text
+        raise AssertionError("notification tag strip fit ladder must select a tier")
+
+    def _render_tabs(self, tier: _TagStripTier) -> Text:
+        """Render every tab at ``tier`` and record its click range.
 
         Click ranges are accumulated in terminal *cells* rather than in
         characters, because ``on_click`` compares them against ``event.x``. A
         single two-cell icon anywhere in the strip would otherwise shift every
-        range to its right and select the wrong tab.
+        range to its right and select the wrong tab. Shortcut digits sit
+        inside each tab's range so the visible number is clickable.
         """
         # Imported lazily: ``widgets/__init__`` is loaded from inside this
         # package's own import, so a module-scope import would cycle.
@@ -290,6 +314,8 @@ class NotificationTagStrip(Static):
         self._tab_ranges.clear()
         column = 0
         icons = resolve_notification_tab_icons(self._tabs)
+        show_inactive_label = tier == "full"
+        show_active_label = tier != "micro"
 
         def append(fragment: str, style: str) -> None:
             nonlocal column
@@ -298,7 +324,7 @@ class NotificationTagStrip(Static):
 
         for index, tab in enumerate(self._tabs):
             if index > 0:
-                append(" | ", "#444444")
+                append(_TAG_STRIP_SEPARATORS[tier], "#444444")
 
             is_active = tab.tag == self._active_tag
             style = "bold #00D7AF" if is_active else "#888888"
@@ -306,18 +332,30 @@ class NotificationTagStrip(Static):
             icon_color = resolve_notification_tab_color(tab)
             icon_style = icon_color if is_active else f"dim {icon_color}"
             start = column
-            append(" ", style)
-            append(icons[tab.tag], icon_style)
-            append(" ", style)
-            if is_active or not compact:
-                append(shorten_notification_tag(tab.label), style)
+            shortcut = notification_tab_shortcut(index)
+            if shortcut is not None:
+                digit_style = icon_color if is_active else "#666666"
+                if tier == "full":
+                    append(f" {shortcut} ", digit_style)
+                else:
+                    append(f"{shortcut} ", digit_style)
+            elif tier == "full":
                 append(" ", style)
+
+            append(icons[tab.tag], icon_style)
+            if (is_active and show_active_label) or (
+                not is_active and show_inactive_label
+            ):
+                append(" ", style)
+                append(shorten_notification_tag(tab.label), style)
+            append(" ", style)
             append(str(tab.count), count_style)
             mark = notification_tab_priority_mark(tab)
             if isinstance(mark, NotificationTabPriorityMark):
                 mark_style = mark.color if is_active else f"dim {mark.color}"
                 append(mark.glyph, mark_style)
-            append(" ", style)
+            if tier == "full":
+                append(" ", style)
             self._tab_ranges[tab.tag] = (start, column)
 
         return text
