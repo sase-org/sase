@@ -23,8 +23,5 @@ aliases:
     target: "claude/opus@high | codex/gpt-5.6-sol@high | grok/grok-4.6@high"
     description: "Large launch alias for planning-heavy work and default launches."
   xlarge:
-    target:
-      "(claude/claude-fable-5@high | codex/gpt-6-astra@high) || grok/grok-4.6@xhigh"
-    description: >-
-      Extra-large launch alias for maximum-effort work; Grok is last resort when Claude
-      and Codex are unavailable.
+    target: "claude/opus@xhigh | codex/gpt-5.6-sol@xhigh | grok/grok-4.6@xhigh"
+    description: "Extra-large launch alias for maximum-effort work."

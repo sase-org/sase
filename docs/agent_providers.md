@@ -154,8 +154,7 @@ the executable name collides with `grok-dev` (a stale community CLI that also us
 provider explicitly with `llm_provider.provider: grok` or `%model:grok/grok-4.6`; use
 `SASE_GROK_PATH` when you also need to choose the executable. Model-alias routing is
 separate: whenever a `grok` executable is available, the shipped
-`@xsmall`/`@small`/`@medium` load-balanced pools can select it, as can the last
-candidate in the `@large` and `@xlarge` ordered fallbacks (behind Claude and Codex).
+`@xsmall`/`@small`/`@medium`/`@large`/`@xlarge` load-balanced pools can select it.
 
 Routing availability checks only whether the executable exists; it does not verify that
 the binary is Grok Build. Run `sase doctor` before launching. Its bounded
@@ -198,9 +197,10 @@ The `grok-4.6` model — the only model in the authenticated catalog — accepts
 `medium`, `high`, and `xhigh` for `--effort`. `%effort:none`, `%effort:minimal`, and
 `%effort:max` raise a clean SASE error rather than a Grok process crash. The shipped
 Grok `@xlarge` candidate is `grok/grok-4.6@xhigh`, so a Grok-selected xlarge launch
-passes `--effort xhigh`. Codex's `@xlarge` candidate remains `@max`; that alias-borne
-effort is best-effort, not explicit, so when the fallback selects Codex, `max` is logged
-and skipped and the CLI runs at its own default effort instead of erroring.
+passes `--effort xhigh`. The shipped Codex `@xlarge` member is
+`codex/gpt-5.6-sol@xhigh`, so no shipped alias asks Codex for `max`. A user-configured
+Codex target that pairs an alias-borne `@max` is best-effort: `max` is logged and
+skipped and the CLI runs at its own default effort instead of erroring.
 
 ### Usage is best-effort
 

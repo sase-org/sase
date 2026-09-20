@@ -5010,11 +5010,11 @@ generic executable name shared with a stale community CLI (`grok-dev`) and Homeb
 deprecated regex tool. Like Muse, Grok never participates in default-provider
 autodetection. It is reached by explicit selection (see
 [llm_provider.provider](#llm_provider) above) or by the separate model-alias router: the
-shipped `@xsmall`, `@small`, `@medium`, and `@large` round-robin pools and the last
-candidate in the `@xlarge` ordered fallback can select it whenever a `grok` executable
-is available. Routing checks executable presence, while `sase doctor` performs the Grok
-Build identity probe. Grok's `grok-4.6` model accepts only `low`/`medium`/`high`/`xhigh`
-for `--effort`; see [LLM Providers — Reasoning Effort](llms.md#reasoning-effort).
+shipped `@xsmall`, `@small`, `@medium`, `@large`, and `@xlarge` round-robin pools can
+select it whenever a `grok` executable is available. Routing checks executable presence,
+while `sase doctor` performs the Grok Build identity probe. Grok's `grok-4.6` model
+accepts only `low`/`medium`/`high`/`xhigh` for `--effort`; see
+[LLM Providers — Reasoning Effort](llms.md#reasoning-effort).
 
 ### VCS Provider
 

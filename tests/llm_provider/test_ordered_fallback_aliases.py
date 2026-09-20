@@ -238,20 +238,21 @@ def test_launch_and_temporary_overrides_suspend_ordered_fallback(
     assert resolve_model_alias("@fallback", consume=True) == "claude/opus"
 
 
-def test_shipped_xlarge_pool_uses_last_resort_grok(
+def test_shipped_xlarge_round_robins_claude_codex_grok(
     real_model_alias_defaults: None,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The shipped `@xlarge` round-robins Fable/Astra, with Grok as last resort."""
+    """The shipped `@xlarge` round-robins Claude, Codex, and Grok at xhigh."""
     selector = parse_model_alias_selector(
         implicit_alias_targets()[XLARGE_MODEL_ALIAS_NAME]
     )
     assert selector is not None
     assert selector.members == (
-        "claude/claude-fable-5@high",
-        "codex/gpt-6-astra@high",
+        "claude/opus@xhigh",
+        "codex/gpt-5.6-sol@xhigh",
+        "grok/grok-4.6@xhigh",
     )
-    assert selector.fallback_members == ("grok/grok-4.6@xhigh",)
+    assert selector.fallback_members == ()
 
     mock_provider_config(
         monkeypatch,
@@ -262,9 +263,8 @@ def test_shipped_xlarge_pool_uses_last_resort_grok(
         "_resolved_target_is_available",
         lambda _target: True,
     )
-    for _ in range(4):
-        selected = resolve_model_alias("@xlarge", consume=True)
-        assert not selected.startswith("grok/")
+    selected = [resolve_model_alias("@xlarge", consume=True) for _ in range(3)]
+    assert selected == ["claude/opus", "codex/gpt-5.6-sol", "grok/grok-4.6"]
 
     monkeypatch.setattr(
         llm_config,
@@ -272,12 +272,12 @@ def test_shipped_xlarge_pool_uses_last_resort_grok(
         lambda target: target.startswith("codex/"),
     )
     only_codex = resolve_model_alias_with_effort("@xlarge", consume=True)
-    assert (only_codex.target, only_codex.effort) == ("codex/gpt-6-astra", "high")
+    assert (only_codex.target, only_codex.effort) == ("codex/gpt-5.6-sol", "xhigh")
 
     monkeypatch.setattr(
         llm_config,
         "_resolved_target_is_available",
         lambda target: target.startswith("grok/"),
     )
-    diverted = resolve_model_alias_with_effort("@xlarge", consume=True)
-    assert (diverted.target, diverted.effort) == ("grok/grok-4.6", "xhigh")
+    only_grok = resolve_model_alias_with_effort("@xlarge", consume=True)
+    assert (only_grok.target, only_grok.effort) == ("grok/grok-4.6", "xhigh")

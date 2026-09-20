@@ -107,6 +107,14 @@ def test_size_aliases_use_independent_rotations(
                 "grok/": ("grok/grok-4.6", "high"),
             },
         ),
+        (
+            "@xlarge",
+            {
+                "claude/": ("claude/opus", "xhigh"),
+                "codex/": ("codex/gpt-5.6-sol", "xhigh"),
+                "grok/": ("grok/grok-4.6", "xhigh"),
+            },
+        ),
     ],
 )
 def test_packaged_defaults_select_correct_effort_per_provider(

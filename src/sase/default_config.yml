@@ -1430,7 +1430,7 @@ llm_provider:
   #     small: "claude/sonnet@low | codex/gpt-5.6-terra@low"
   #     medium: "claude/sonnet@medium | codex/gpt-5.6-terra@medium | 3 grok/grok-4.6@medium"
   #     large: "claude/opus@high | codex/gpt-5.6-sol@high | grok/grok-4.6@high"
-  #     xlarge: "(claude/claude-fable-5@high | codex/gpt-6-astra@high) || grok/grok-4.6@xhigh"
+  #     xlarge: "claude/opus@xhigh | codex/gpt-5.6-sol@xhigh | grok/grok-4.6@xhigh"
   #   custom:
   #     blogger:
   #       model: claude/opus

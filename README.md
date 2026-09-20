@@ -75,8 +75,7 @@ Prerequisites: Linux or macOS (POSIX; Windows is not supported), Python 3.12+,
 SASE's default provider autodetection never selects Muse or Grok from `PATH`, because
 those executable names are generic. Select Muse explicitly. Model-alias routing is a
 separate mechanism: it can select Grok through the shipped `@xsmall`, `@small`,
-`@medium`, and `@large` pools, or as the last candidate in the `@xlarge` fallback, when
-Grok Build is installed.
+`@medium`, `@large`, and `@xlarge` pools when Grok Build is installed.
 
 ```bash
 uv tool install sase                                      # add a plugin too: uv tool install sase --with sase-github

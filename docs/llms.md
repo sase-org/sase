@@ -186,9 +186,8 @@ provider = get_provider("claude")  # Explicit provider name
    executable names and autodetect only checks `PATH` presence. Muse is reachable only
    by explicit selection (see [Muse Code Integration](#muse-code-integration)). Grok
    never participates in default-provider autodetection either. Model-alias routing is
-   separate: the shipped `@xsmall`/`@small`/`@medium`/`@large` load-balanced pools and
-   the last candidate in the `@xlarge` ordered fallback can select Grok whenever a
-   `grok` executable is available (see
+   separate: the shipped `@xsmall`/`@small`/`@medium`/`@large`/`@xlarge` load-balanced
+   pools can select Grok whenever a `grok` executable is available (see
    [Grok Build Integration](#grok-build-integration)).
 
 ## Commit Finalization
@@ -888,12 +887,11 @@ with a stale community CLI (`grok-dev`, which also uses `~/.grok/`) and with Hom
 deprecated, unrelated `grok` regex tool. Select the provider with
 `llm_provider.provider: grok` or `%model:grok/grok-4.6`; set `SASE_GROK_PATH` when you
 also need to choose the executable. Separately, the shipped
-`@xsmall`/`@small`/`@medium`/`@large` load-balanced pools and the last candidate in the
-`@xlarge` ordered fallback (behind Claude and Codex) can select Grok whenever a `grok`
-executable is available. Routing checks executable presence only; it does not verify the
-binary's identity. Run `sase doctor` before launching: its `grok --version` probe
-reports a distinct wrong-binary advisory, after which you should point `SASE_GROK_PATH`
-at the `@xai-official/grok` binary.
+`@xsmall`/`@small`/`@medium`/`@large`/`@xlarge` load-balanced pools can select Grok
+whenever a `grok` executable is available. Routing checks executable presence only; it
+does not verify the binary's identity. Run `sase doctor` before launching: its
+`grok --version` probe reports a distinct wrong-binary advisory, after which you should
+point `SASE_GROK_PATH` at the `@xai-official/grok` binary.
 
 Grok's provider short name is `grk`, which enables `foo.grk` agent naming.
 
@@ -1436,13 +1434,13 @@ this section covers both. The current shipped size-alias defaults are generated 
 
 <!-- BEGIN GENERATED: model-alias-defaults -->
 
-| Alias     | Description                                                                                                  | Shipped default                                                                   |
-| --------- | ------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
-| `@xsmall` | Extra-small launch alias for lookup, formatting, and tiny edits with obvious checks.                         | `claude/claude-haiku-4-5 \| codex/gpt-5.6-luna@low \| grok/grok-4.6@low`          |
-| `@small`  | Small launch alias for straightforward task and phase work.                                                  | `claude/sonnet@low \| codex/gpt-5.6-terra@low \| grok/grok-4.6@low`               |
-| `@medium` | Medium launch alias for ordinary implementation work.                                                        | `claude/sonnet@medium \| codex/gpt-5.6-terra@medium \| grok/grok-4.6@medium`      |
-| `@large`  | Large launch alias for planning-heavy work and default launches.                                             | `claude/opus@high \| codex/gpt-5.6-sol@high \| grok/grok-4.6@high`                |
-| `@xlarge` | Extra-large launch alias for maximum-effort work; Grok is last resort when Claude and Codex are unavailable. | `(claude/claude-fable-5@high \| codex/gpt-6-astra@high) \|\| grok/grok-4.6@xhigh` |
+| Alias     | Description                                                                          | Shipped default                                                              |
+| --------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| `@xsmall` | Extra-small launch alias for lookup, formatting, and tiny edits with obvious checks. | `claude/claude-haiku-4-5 \| codex/gpt-5.6-luna@low \| grok/grok-4.6@low`     |
+| `@small`  | Small launch alias for straightforward task and phase work.                          | `claude/sonnet@low \| codex/gpt-5.6-terra@low \| grok/grok-4.6@low`          |
+| `@medium` | Medium launch alias for ordinary implementation work.                                | `claude/sonnet@medium \| codex/gpt-5.6-terra@medium \| grok/grok-4.6@medium` |
+| `@large`  | Large launch alias for planning-heavy work and default launches.                     | `claude/opus@high \| codex/gpt-5.6-sol@high \| grok/grok-4.6@high`           |
+| `@xlarge` | Extra-large launch alias for maximum-effort work.                                    | `claude/opus@xhigh \| codex/gpt-5.6-sol@xhigh \| grok/grok-4.6@xhigh`        |
 
 <!-- END GENERATED: model-alias-defaults -->
 
@@ -1863,9 +1861,9 @@ and independent **per-setting** for the three scalar launch-model settings (name
 `setting:big_epic_lander_model` keys in the override store). An override takes effect
 wherever that alias or setting is resolved. For example, an override on `@medium`
 affects only that size alias, and an override on the `epic lander` setting affects only
-below-threshold epic land agents. An active override on `@xlarge` suspends its
-last-resort selection for a single concrete target, just as overrides on `@xsmall`,
-`@small`, and `@medium` suspend their independent load-balanced rotations for the
+below-threshold epic land agents. An active override on `@xlarge` suspends its pool
+rotation for a single concrete target, just as overrides on `@xsmall`, `@small`,
+`@medium`, and `@large` suspend their independent load-balanced rotations for the
 override's duration. The three launch-model settings do not reference a shared alias, so
 an override on the `default model` setting (`llm_provider.default_model`) does not move
 phase/task/tale routing — which resolves through the size aliases directly — or

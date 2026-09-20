@@ -405,7 +405,7 @@ def test_soft_primary_reservation_survives_healthy_tail(
     )
 
 
-def test_shipped_large_honors_grok_priority_while_xlarge_keeps_last_resort(
+def test_shipped_large_and_xlarge_honor_grok_priority(
     monkeypatch: pytest.MonkeyPatch,
     real_model_alias_defaults: None,
 ) -> None:
@@ -422,9 +422,9 @@ def test_shipped_large_honors_grok_priority_while_xlarge_keeps_last_resort(
         "high",
     )
     assert resolve_model_provider_with_effort("@xlarge", routing_context=context) == (
-        "codex",
-        "gpt-6-astra",
-        "high",
+        "grok",
+        "grok-4.6",
+        "xhigh",
     )
     default = resolve_launch_selection(
         PromptDirectives(), consume=False, routing_context=context

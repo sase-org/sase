@@ -20,10 +20,7 @@ import pytest
 
 from sase.axe.run_agent_phases import extract_directives_and_write_meta
 from sase.llm_provider.messages import AIMessage
-from sase.llm_provider.model_alias_policy import (
-    LARGE_MODEL_ALIAS_NAME,
-    XLARGE_MODEL_ALIAS_NAME,
-)
+from sase.llm_provider.model_alias_policy import LARGE_MODEL_ALIAS_NAME
 from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_MODE_SOFT,
     disable_provider,
@@ -265,22 +262,39 @@ def _shipped_selector_member(alias: str, index: int) -> tuple[str, str, str | No
 
 def test_healthy_tail_does_not_invalidate_all_soft_primary_reservation(
     tmp_path: Path,
-    real_model_alias_defaults: None,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    member0 = _shipped_selector_member(XLARGE_MODEL_ALIAS_NAME, 0)
-    artifacts_dir, first_meta = _bootstrap(
-        tmp_path, "tail", "%model:@xlarge\ndo the work"
+    from sase.llm_provider import config as llm_config
+
+    config = {
+        "provider": "claude",
+        "model_aliases": {
+            "custom": {
+                "pool": {
+                    "model": "(claude/opus | codex/gpt-5.5) || grok/grok-4.6",
+                    "description": "Test last-resort pool.",
+                }
+            }
+        },
+    }
+    monkeypatch.setattr(llm_config, "get_llm_provider_config", lambda: config)
+    monkeypatch.setattr(
+        "sase.llm_provider.registry.get_llm_provider_config", lambda: config
     )
-    stale_target = f"{member0[0]}/{member0[1]}"
-    assert first_meta["model_alias_reservation"]["target"] == stale_target
+    llm_config._get_model_aliases_for_token.cache_clear()
+
+    artifacts_dir, first_meta = _bootstrap(
+        tmp_path, "tail", "%model:@pool\ndo the work"
+    )
+    assert first_meta["model_alias_reservation"]["target"] == "claude/opus"
     cursor_before = json.loads(
         (Path.home() / ".sase" / "llm_lb.json").read_text(encoding="utf-8")
-    )["entries"][XLARGE_MODEL_ALIAS_NAME]["cursor"]
+    )["entries"]["pool"]["cursor"]
     disable_provider("claude", None, source="test", mode=PROVIDER_DISABLE_MODE_SOFT)
     disable_provider("codex", None, source="test", mode=PROVIDER_DISABLE_MODE_SOFT)
-    root_meta, marker, captured = _redeem(artifacts_dir, "%model:@xlarge\ndo the work")
+    root_meta, marker, captured = _redeem(artifacts_dir, "%model:@pool\ndo the work")
     provider, model = _selected(captured)
-    assert (provider, model) == (member0[0], member0[1])
+    assert (provider, model) == ("claude", "opus")
     assert root_meta["model"] == model
     assert root_meta["llm_provider"] == provider
     assert marker["model"] == model
@@ -288,7 +302,7 @@ def test_healthy_tail_does_not_invalidate_all_soft_primary_reservation(
     assert root_meta["model_alias_reservation"]["redeemed"] is True
     cursor_after = json.loads(
         (Path.home() / ".sase" / "llm_lb.json").read_text(encoding="utf-8")
-    )["entries"][XLARGE_MODEL_ALIAS_NAME]["cursor"]
+    )["entries"]["pool"]["cursor"]
     assert cursor_after == cursor_before
 
 
