@@ -363,9 +363,6 @@ _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-14d.4(NotificationDelivery)" \
-        --epic-symbol "sase-14d.4(NotificationSound)" \
-        --epic-symbol "sase-14d.4(play_sound_file)" \
         --epic-symbol "sase-14d.5(notification_delivery_rules)" \
         --epic-symbol "sase-14d.5(resolve_sound_player)" \
         --epic-symbol "sase-11y(CapturedServiceEnvironment)" \

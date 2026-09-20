@@ -7,6 +7,7 @@ bell does). No failure ever raises into the caller.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 import sys
@@ -49,6 +50,8 @@ def resolve_sound_player() -> tuple[str, ...] | None:
 def play_sound_file(path: str | Path) -> bool:
     """Play ``path`` with the platform player, blocking until it finishes.
 
+    ``$VAR`` and ``~`` in ``path`` are expanded first.
+
     Returns ``True`` only when a player ran and exited zero. A missing file, a
     missing player, a timeout, or a non-zero exit all return ``False``; nothing
     is ever raised.
@@ -57,7 +60,7 @@ def play_sound_file(path: str | Path) -> bool:
         player = resolve_sound_player()
         if player is None:
             return False
-        sound_path = Path(path).expanduser()
+        sound_path = Path(os.path.expandvars(path)).expanduser()
         if not sound_path.is_file():
             return False
         result = subprocess.run(

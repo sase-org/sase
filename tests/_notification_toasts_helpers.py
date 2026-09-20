@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from types import SimpleNamespace
 from typing import Any
@@ -24,7 +26,7 @@ from sase.core.notification_store_wire import (
     NotificationStoreSnapshotWire,
 )
 from sase.core.time import get_timezone
-from sase.notifications import is_priority
+from sase.notifications import delivery, is_priority
 from sase.notifications.models import Notification
 
 
@@ -39,6 +41,7 @@ def _make(
     notes: list[str] | None = None,
     action_data: dict[str, str] | None = None,
     files: list[str] | None = None,
+    tags: list[str] | None = None,
     id: str | None = None,
     read: bool = False,
     silent: bool = False,
@@ -54,6 +57,7 @@ def _make(
         sender=sender,
         notes=notes or [],
         files=files or [],
+        tags=tags or [],
         action=action,
         action_data=action_data or {},
         read=read,
@@ -162,3 +166,21 @@ def _patch_snapshot(
             next_snooze_deadline=next_snooze_deadline,
         ),
     )
+
+
+@contextmanager
+def _use_delivery_rules(rules: list[dict[str, Any]]) -> Iterator[None]:
+    """Serve ``ace.notification_rules`` to the poll without touching real config."""
+    delivery._delivery_rules_for_token.cache_clear()
+    try:
+        with (
+            patch.object(
+                delivery,
+                "load_merged_config",
+                lambda: {"ace": {"notification_rules": rules}},
+            ),
+            patch.object(delivery, "current_config_token", lambda: ("test-rules",)),
+        ):
+            yield
+    finally:
+        delivery._delivery_rules_for_token.cache_clear()

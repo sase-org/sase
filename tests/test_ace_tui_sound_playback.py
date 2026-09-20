@@ -91,6 +91,23 @@ def test_play_expands_home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> N
     assert calls[0][-1] == str(tmp_path / "chime.wav")
 
 
+def test_play_expands_environment_variables(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _patch_linux(monkeypatch, "aplay")
+    monkeypatch.setenv("SASE_TEST_SOUND_DIR", str(tmp_path))
+    (tmp_path / "chime.wav").write_bytes(b"x")
+    calls: list[list[str]] = []
+
+    def fake_run(argv: list[str], **_: Any) -> subprocess.CompletedProcess[bytes]:
+        calls.append(argv)
+        return subprocess.CompletedProcess(argv, 0)
+
+    monkeypatch.setattr(sound_playback.subprocess, "run", fake_run)
+    assert sound_playback.play_sound_file("$SASE_TEST_SOUND_DIR/chime.wav") is True
+    assert calls[0][-1] == str(tmp_path / "chime.wav")
+
+
 def test_play_missing_file_does_not_launch_player(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

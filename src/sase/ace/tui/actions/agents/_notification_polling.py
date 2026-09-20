@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -19,6 +21,58 @@ from ._notification_utils import (
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
+    from sase.notifications.delivery import NotificationDelivery, NotificationSound
+
+log = logging.getLogger(__name__)
+
+
+def _resolve_arrival_deliveries(
+    arrivals: Sequence[Notification],
+) -> dict[str, NotificationDelivery]:
+    """Resolve every arrival's delivery in one call, keyed by notification id.
+
+    Reads config and crosses the FFI boundary, so it runs on the worker hop. A
+    failure here must never swallow an announcement: it is logged and yields no
+    entries, which :func:`_delivery_for` reads as the built-in toast and bell.
+    """
+    from sase.notifications.delivery import resolve_notification_deliveries
+
+    try:
+        deliveries = resolve_notification_deliveries(arrivals)
+    except Exception:
+        log.exception("Notification delivery rules failed; announcing normally")
+        return {}
+    return {
+        notification.id: delivery
+        for notification, delivery in zip(arrivals, deliveries, strict=True)
+    }
+
+
+def _delivery_for(
+    deliveries: dict[str, NotificationDelivery],
+    notification: Notification,
+) -> NotificationDelivery:
+    from sase.notifications.delivery import DEFAULT_NOTIFICATION_DELIVERY
+
+    return deliveries.get(notification.id, DEFAULT_NOTIFICATION_DELIVERY)
+
+
+def _tick_sound(
+    notifications: Sequence[Notification],
+    deliveries: dict[str, NotificationDelivery],
+) -> NotificationSound | None:
+    """Return the one sound for this poll tick, or ``None`` for a silent tick.
+
+    A burst is announced once, not once per row: the sound is the resolved sound
+    of the first arrival in batch order whose sound is not ``none``.
+    """
+    from sase.notifications.delivery import SOUND_NONE
+
+    for notification in notifications:
+        sound = _delivery_for(deliveries, notification).sound
+        if sound.kind != SOUND_NONE:
+            return sound
+    return None
 
 
 def _prepare_notification_reconciliation(
@@ -27,13 +81,20 @@ def _prepare_notification_reconciliation(
     current_notifications: list[Notification],
     actionable_notifications: list[Notification],
     new_notifications: list[Notification],
+    arrivals: list[Notification],
 ) -> tuple[
     PreparedPlanNotificationReconciliation,
     tuple[Path, ...],
     bool,
     tuple[Path, ...],
+    dict[str, NotificationDelivery],
 ]:
-    """Prepare response, disappearance, and pending-gate dirs on a worker thread."""
+    """Prepare response, disappearance, gate dirs, and deliveries on a worker thread.
+
+    ``arrivals`` is every newly delivered row, before plan reconciliation
+    dismisses any; resolving the superset keeps the delivery lookup on this one
+    hop even though the dismissals are only known afterwards.
+    """
     prepared_plan_notifications = prepare_plan_notification_reconciliation(
         app,
         actionable_notifications,
@@ -52,6 +113,7 @@ def _prepare_notification_reconciliation(
         artifact_dirs,
         needs_broad_fallback,
         pending_gate_dirs,
+        _resolve_arrival_deliveries(arrivals),
     )
 
 
@@ -92,7 +154,8 @@ class AgentNotificationPollingMixin:
     async def _poll_agent_completions_once(self: Any) -> bool:
         """Poll notification store for new unread notifications.
 
-        Detects when unread count increases and applies toast/bell policy.
+        Detects when unread count increases and applies the toast/sound policy
+        that ``ace.notification_rules`` resolves for each arrival.
         Called on every auto-refresh regardless of current tab. The disk
         parse happens off the main thread so the polling tick doesn't
         block the event loop while the user is settling into the TUI.
@@ -150,6 +213,7 @@ class AgentNotificationPollingMixin:
             disappeared_artifact_dirs,
             needs_broad_fallback,
             pending_gate_dirs,
+            deliveries,
         ) = await asyncio.to_thread(
             _prepare_notification_reconciliation,
             self,
@@ -157,6 +221,7 @@ class AgentNotificationPollingMixin:
             notifications,
             unread_active + unread_muted,
             new_non_resurface_notifications,
+            new_notifications,
         )
         delivered_activity_cursors.update(new_activity_cursors)
         # The guarded read (above) already cached this snapshot as soon as
@@ -199,24 +264,30 @@ class AgentNotificationPollingMixin:
         # been filtered out of new_notifications by reconciliation. Snooze
         # expirations are delivered through the durable activity cursor, so a
         # reader that did not win expired_ids still alerts once for the new
-        # resurfaced generation.
-        should_ring_bell = bool(new_notifications)
-        if new_notifications:
-            for message, severity in format_batch_toasts(new_notifications):
-                self.notify(  # type: ignore[attr-defined]
-                    message,
-                    severity=severity,
-                    timeout=8,
-                )
+        # resurfaced generation. Rows whose delivery rule sets ``toast: false``
+        # leave the batch before it is formed so a grouped toast never counts
+        # them; they still reached the indicator and snapshot cache above.
+        toasted_notifications = [
+            notification
+            for notification in new_notifications
+            if _delivery_for(deliveries, notification).toast
+        ]
+        for message, severity in format_batch_toasts(toasted_notifications):
+            self.notify(  # type: ignore[attr-defined]
+                message,
+                severity=severity,
+                timeout=8,
+            )
 
         before_unread_agents = set(getattr(self, "_unread_completed_agent_ids", set()))
         self._reconcile_unread_from_completion_notifications(notifications)
         self._patch_unread_completed_agent_changes(before_unread_agents)
 
-        # Ring the bell last so the tmux subprocess never blocks the event loop
-        # ahead of indicator/toast updates.
-        if should_ring_bell:
-            await self._ring_tmux_bell_async()
+        # Announce the sound last so the bell or player subprocess never blocks
+        # the event loop ahead of indicator/toast updates.
+        tick_sound = _tick_sound(new_notifications, deliveries)
+        if tick_sound is not None:
+            await self._announce_notification_sound_async(tick_sound)
 
         self._once_new_completion_notifications = [  # type: ignore[attr-defined]
             notification
@@ -323,15 +394,26 @@ class AgentNotificationPollingMixin:
                 if callable(schedule_refresh):
                     schedule_refresh()
 
-    async def _ring_tmux_bell_async(self: Any) -> None:
-        """Run the tmux bell on a worker thread.
+    async def _announce_notification_sound_async(
+        self: Any, sound: NotificationSound
+    ) -> None:
+        """Announce one resolved notification sound on a worker thread.
 
-        Keeps `_ring_tmux_bell` as the sync leaf so fake apps and tests can
-        patch a single method without juggling threads.
+        ``bell`` dispatches to `_ring_tmux_bell` and ``file`` to
+        ``play_sound_file``; ``none`` announces nothing. Keeps `_ring_tmux_bell`
+        as the sync leaf so fake apps and tests can patch a single method
+        without juggling threads.
         """
         import asyncio
 
-        await asyncio.to_thread(self._ring_tmux_bell)
+        from sase.notifications.delivery import SOUND_BELL, SOUND_FILE
+
+        if sound.kind == SOUND_FILE and sound.path:
+            from ...sound_playback import play_sound_file
+
+            await asyncio.to_thread(play_sound_file, sound.path)
+        elif sound.kind == SOUND_BELL:
+            await asyncio.to_thread(self._ring_tmux_bell)
 
     def _ring_tmux_bell(self: Any) -> None:
         """Ring tmux bell for an audible notification or reminder."""
