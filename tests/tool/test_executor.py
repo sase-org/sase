@@ -94,9 +94,18 @@ def test_nonexistent_executable_exits_127(
     captured = capsys.readouterr()
     assert code == 127
     assert "executable not found" in captured.err
+    assert captured.out == ""
+    header_lines = [
+        line for line in captured.err.splitlines() if "sase tool run " in line
+    ]
+    assert len(header_lines) == 1
+    run_id = header_lines[0].split("sase tool run ")[1].strip().split()[0]
     run = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]
     assert run["state"] == "failed"
     assert run["exit_code"] == 127
+    assert run["run_id"] == run_id
+    shown = tool_run_show(run_id)
+    assert shown["run"]["run_id"] == run_id
 
 
 def test_not_executable_exits_126(
@@ -112,6 +121,18 @@ def test_not_executable_exits_126(
     captured = capsys.readouterr()
     assert code == 126
     assert "not executable" in captured.err
+    assert captured.out == ""
+    header_lines = [
+        line for line in captured.err.splitlines() if "sase tool run " in line
+    ]
+    assert len(header_lines) == 1
+    run_id = header_lines[0].split("sase tool run ")[1].strip().split()[0]
+    run = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]
+    assert run["state"] == "failed"
+    assert run["exit_code"] == 126
+    assert run["run_id"] == run_id
+    shown = tool_run_show(run_id)
+    assert shown["run"]["run_id"] == run_id
 
 
 def test_fail_open_unwritable_store_executes_once(

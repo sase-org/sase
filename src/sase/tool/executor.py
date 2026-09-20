@@ -229,6 +229,8 @@ def _execute_resolved(
     except OSError as exc:
         exit_code = _spawn_exit_code(exc)
         diagnostic = _spawn_diagnostic(exc, resolved.argv)
+        if durable_id:
+            _write_display(sys.stderr, f"sase tool run {durable_id}\n".encode())
         print(diagnostic, file=sys.stderr)
         if recorded:
             _finish_run(
