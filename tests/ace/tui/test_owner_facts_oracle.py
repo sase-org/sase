@@ -58,6 +58,9 @@ _FACT_IDENTITIES = (
     "asker",
     "asker--ask",
     "asker--code",
+    "chain--plan",
+    "chain--mon",
+    "chain--1",
 )
 
 _DIMENSIONS: dict[str, Callable[[Agent], object]] = {

@@ -27,14 +27,20 @@ class OwnerRosterFixture:
     plan_tiers: dict[str, str] | None = None
 
 
-def write_owner_roster_fixture(root: Path) -> OwnerRosterFixture:
-    """Seed one shared on-disk lifecycle matching current persisted shape."""
+def write_owner_roster_fixture(
+    root: Path, *, now: datetime | None = None
+) -> OwnerRosterFixture:
+    """Seed one shared on-disk lifecycle matching current persisted shape.
+
+    ``now`` pins every persisted time (directory stamps, run starts, finish
+    times) so a caller can render the fixture at a fixed clock.
+    """
     home = root / ".sase"
     projects = home / "projects"
     project = projects / "proj"
     artifacts = project / "artifacts" / "ace-run"
     artifacts.mkdir(parents=True)
-    now = datetime.now()
+    now = now or datetime.now()
     pid = os.getpid()
 
     def ts(minutes: int) -> str:
@@ -180,7 +186,7 @@ def _write_alive(
     artifact.mkdir(parents=True, exist_ok=True)
     meta: dict[str, object] = {
         "name": name,
-        "run_started_at": datetime.now(UTC).isoformat(),
+        "run_started_at": _stamp_iso(artifact.name),
     }
     if "--" in name:
         meta["role_suffix"] = _role_suffix(name)
@@ -289,7 +295,9 @@ def _write_proc(artifact: Path, name: str, *, family: str) -> None:
         {
             "outcome": "completed",
             "name": name,
-            "finished_at": datetime.now().timestamp(),
+            "finished_at": datetime.fromisoformat(
+                _stamp_iso(artifact.name)
+            ).timestamp(),
         },
     )
 
@@ -333,6 +341,9 @@ FACT_FAMILY_OBSERVATIONS = {
     "asker": "dead",
     "asker--ask": "dead",
     "asker--code": "dead",
+    "chain--plan": "dead",
+    "chain--mon": "dead",
+    "chain--1": "dead",
 }
 
 
@@ -391,7 +402,7 @@ def _write_fact_families(
         *,
         family: str,
         role: str,
-        parent: str,
+        parent: str | None,
         done: bool = True,
         alive: bool = False,
         extra: dict[str, object] | None = None,
@@ -403,9 +414,11 @@ def _write_fact_families(
             "agent_family": family,
             "agent_family_role": role,
             "role_suffix": "--" + name.rsplit("--", 1)[1],
-            "parent_timestamp": parent,
             "run_started_at": _stamp_iso(ts_value),
         }
+        if parent:
+            meta["parent_timestamp"] = parent
+            meta["plan_chain_parent_timestamp"] = parent
         meta.update(extra or {})
         _write_json(artifact / "agent_meta.json", meta)
         if done:
@@ -442,7 +455,7 @@ def _write_fact_families(
                 "plan_approved": True,
                 "plan_action": action,
                 "plan_submitted_at": [_iso(now, 60)],
-                "tribe": "@plans",
+                "tribe": "plans",
             },
         )
         if done:
@@ -540,3 +553,27 @@ def _write_fact_families(
     _write_json(ask_session / "question_request.json", {})
     _write_json(ask_session / "question_response.json", {})
     member(s_code, "asker--code", family="asker", role="code", parent=s_root)
+    # Production shape of a completed plan-chain family: no separate root
+    # record exists. The plan shell is its own family root (role "root", no
+    # parent) and every later shell points back at it.
+    c_plan, c_mon, c_one = stamp(75), stamp(74), stamp(73)
+    member(c_plan, "chain--plan", family="chain", role="root", parent=None)
+    member(
+        c_mon,
+        "chain--mon",
+        family="chain",
+        role="monitor",
+        parent=c_plan,
+        extra={
+            "monitor_id": "chain-mon",
+            "proc_id": "chain-mon",
+            "monitor_state": "completed",
+            "monitor_label": "just check",
+            "monitor_command": "just check",
+        },
+    )
+    member(c_one, "chain--1", family="chain", role="root", parent=c_plan)
+    # A directory that only holds a side file is not an agent on either side.
+    bare = artifacts / stamp(72)
+    bare.mkdir(parents=True, exist_ok=True)
+    (bare / "continuation_stage_diagnostics.jsonl").write_text("{}\n", encoding="utf-8")

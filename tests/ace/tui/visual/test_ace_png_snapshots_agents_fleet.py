@@ -4,13 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import datetime, timedelta
+from hashlib import sha256
+from pathlib import Path
 from typing import Any
+
+import json
 
 import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions.agents import _fleet as fleet_mod
 from sase.ace.tui.models.fleet_agents import project_fleet_agents
+from sase.core.rust import require_rust_binding
 from sase.dispatch.federation import FederationConfig, FederationWorkerSettings
 from tests.ace.tui.fleet_fixture import (
     OfflineFleetFacade,
@@ -21,6 +26,7 @@ from tests.ace.tui.fleet_fixture import (
     fleet_multi_host_response,
     fleet_summary,
 )
+from tests.ace.tui.owner_roster_fixture import write_owner_roster_fixture
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     assert_page_svg_styled_text_absent,
@@ -501,4 +507,83 @@ async def test_agents_fleet_remote_tribe_families_png_snapshot(
             page,
             "agents_fleet_remote_tribe_families_120x40",
             title="ACE agents Fleet remote tribe families",
+        )
+
+
+_PRODUCTION_FIXTURE_NOW = datetime(2026, 9, 20, 12, 0, 0)
+
+
+def _production_fixture_response(home_root: Path) -> Mapping[str, Any]:
+    """Real catalog payload assembled from the production-shaped owner fixture.
+
+    Nothing here is hand-authored: the fixture is written in the persisted
+    owner lifecycle shape and the summaries come out of the shared core's
+    catalog assembly, exactly as a gateway would serve them.
+    """
+    fixture = write_owner_roster_fixture(home_root, now=_PRODUCTION_FIXTURE_NOW)
+    # A fresh home would mint a random installation id, so pin the identity.
+    installation = fleet_installation_id("a")
+    (fixture.home / "installation_identity.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "installation_id": installation,
+                "created_at_unix": _unix(_PRODUCTION_FIXTURE_NOW),
+                "generation": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+    payload = require_rust_binding("assemble_fleet_catalog")(
+        {
+            "sase_home": str(fixture.home),
+            "agents_list_projection": True,
+            "observations": fixture.observations,
+            "now_unix": _unix(_PRODUCTION_FIXTURE_NOW),
+        }
+    )
+    summaries = list(payload["summaries"])
+    for summary in summaries:
+        # The row revision hashes the record's absolute artifact path, which
+        # differs per temporary directory; re-derive it from the stable key.
+        revision = summary["row_revision"]
+        digest = sha256(str(revision["logical_key"]).encode()).hexdigest()
+        revision["revision"] = int(digest[:15], 16)
+    return fleet_host_response(
+        alias="apollo",
+        installation_id=installation,
+        summaries=summaries,
+        observed_at_unix=_unix(_PRODUCTION_FIXTURE_NOW),
+    )
+
+
+async def test_agents_fleet_production_families_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pin_agents_visual_now(monkeypatch, _PRODUCTION_FIXTURE_NOW)
+    response = _production_fixture_response(tmp_path)
+    facade = OfflineFleetFacade(
+        summary_response=response,
+        catalog_response=response,
+    )
+    patch_startup_loaders(monkeypatch, agents=[])
+    _patch_fleet_refresh(monkeypatch, facade=facade)
+
+    async with AcePage(patches=patches()) as page:
+        await _open_agents(page, fleet_response=response)
+        await _show_fleet(page)
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "apollo")
+        # The completed root-less plan-chain family renders as a family row
+        # with its rich status, nested shells and the shell/neighbor chips.
+        assert_page_svg_contains(page, "chain")
+        assert_page_svg_contains(page, "TALE DONE")
+        assert_page_svg_contains(page, "EPIC CREATED")
+        ace_png_visual.assert_page_png(
+            page,
+            "agents_fleet_production_families_120x40",
+            title="ACE agents Fleet production-derived families",
         )

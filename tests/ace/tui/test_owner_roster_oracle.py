@@ -12,9 +12,11 @@ from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.agent import Agent
 from sase.ace.tui.models.agent_loader import load_tiered_agents
 from sase.ace.tui.models.agent_panels import agents_for_panel, panel_keys_for
+from sase.ace.tui.models.fleet_agents import project_fleet_agents
 from sase.ace.tui.models.fold_state import FoldStateManager
 from sase.core.rust import require_rust_binding
 
+from tests.ace.tui.fleet_fixture import fleet_host_response
 from tests.ace.tui.owner_roster_fixture import write_owner_roster_fixture
 
 
@@ -48,6 +50,12 @@ def _catalog_signatures(
     *,
     agents_list_projection: bool,
 ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[tuple[str, tuple[str, ...]], ...]]:
+    """Signatures of the rows the viewer builds from the real catalog payload.
+
+    The payload goes through the viewer's own projection, so nesting and
+    grouping are decided by the shared Python classifiers rather than by a
+    second, catalog-only reading of the summaries.
+    """
     assemble = require_rust_binding("assemble_fleet_catalog")
     payload = assemble(
         {
@@ -57,24 +65,12 @@ def _catalog_signatures(
         }
     )
     summaries = list(payload.get("summaries") or [])
-    nested = tuple(
-        sorted(_label(summary) for summary in summaries if _catalog_is_nested(summary))
-    )
-    visible = tuple(
-        sorted(
-            _label(summary) for summary in summaries if not _catalog_is_nested(summary)
-        )
-    )
-    by_tribe: dict[str, list[str]] = {}
-    for summary in summaries:
-        if _catalog_is_nested(summary):
-            continue
-        tribe = str(summary.get("tribe") or "@default")
-        by_tribe.setdefault(tribe, []).append(_label(summary))
-    grouping = tuple(
-        (tribe, tuple(sorted(names))) for tribe, names in sorted(by_tribe.items())
-    )
-    return visible, nested, grouping
+    installation = summaries[0]["logical_locator"]["project"]["origin"][
+        "installation_id"
+    ]
+    response = fleet_host_response(summaries=summaries, installation_id=installation)
+    rows = list(project_fleet_agents(catalog_response=response).fleet_rows)
+    return _owner_signatures(rows)
 
 
 def _owner_signatures(
@@ -104,30 +100,6 @@ def _owner_signatures(
 
 def _owner_is_nested(agent: Agent) -> bool:
     return bool(agent.parent_timestamp) or _is_concrete_family_shell(agent)
-
-
-def _catalog_is_nested(summary: dict[str, object]) -> bool:
-    if summary.get("parent_timestamp"):
-        return True
-    role = str(summary.get("family_role") or "")
-    kind = str(summary.get("row_kind") or "")
-    if role in {"member", "monitor", "gate", "proc"}:
-        return True
-    return kind in {"monitor", "gate", "proc"}
-
-
-def _label(summary: dict[str, object]) -> str:
-    labels = summary.get("labels")
-    if isinstance(labels, dict):
-        agent_label = labels.get("agent_label")
-        if isinstance(agent_label, str) and agent_label:
-            return agent_label
-    logical = summary.get("logical_locator")
-    if isinstance(logical, dict):
-        agent_id = logical.get("agent_id")
-        if isinstance(agent_id, str) and agent_id:
-            return agent_id
-    return str(summary.get("logical_key") or "")
 
 
 def _agent_label(agent: Agent) -> str:
@@ -173,6 +145,10 @@ def _assert_required_fixture_identities(
     assert "lane--plan" in nested
     assert "lane--gate-pending" in nested
     assert visible.count("lane") == 1
+    # A completed plan-chain family has no root record: its shells nest under
+    # the family on both sides and no standalone row is invented for it.
+    assert {"chain--plan", "chain--mon", "chain--1"} <= set(nested)
+    assert "chain" not in visible
 
 
 def _diff(left: Iterable[str], right: Iterable[str]) -> tuple[str, ...]:

@@ -271,6 +271,14 @@ into status subgroups.
 - Remote rows are grouped into the same family and clan nodes as local rows, using the
   membership the owning machine reports. Member shells nest under their remote parent
   and do not repeat its host chip.
+- The owning machine serves the same bounded recent window the local list shows (seven
+  days, at most 200 completed rows). A completed plan-chain family has no separate root
+  record, so its `--plan` shell (the one shell with no parent) stands in for the root
+  and presents the family: every recent shell of it is served and the viewer nests them
+  under one family row. Shells whose parent no record supplies, and artifact directories
+  that carry no lifecycle marker at all, are never served. Workflow step rows are not
+  agents and are not served, so a remote family's `×N` can be lower than the owner's
+  own, which also counts workflow steps.
 - A host whose feed is invalid or served from a stale cache says so loudly. The header
   names the alias and error (for example `apollo: feed invalid: … (cached 5m ago)`, or
   `2 machines with feed errors`), its **by machine** banner adds `feed invalid` or
