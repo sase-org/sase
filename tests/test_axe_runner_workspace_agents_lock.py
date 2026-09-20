@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.axe.runner_workspace import prepare_workspace
+from sase.axe.runner_workspace import WorkspacePreparationError, prepare_workspace
 from sase.core.paths import sase_projects_dir
 from sase.vcs_provider import VCS_DEFAULT_REVISION
 
@@ -85,13 +85,15 @@ def test_prepare_workspace_skips_shared_agents_clone_while_sync_holds_lock(
                 "sase.axe.runner_workspace_prepare.get_vcs_provider",
                 return_value=_successful_provider(),
             ),
+            pytest.raises(WorkspacePreparationError) as exc_info,
         ):
-            result = prepare_workspace(str(repo), "agents", VCS_DEFAULT_REVISION)
+            prepare_workspace(str(repo), "agents", VCS_DEFAULT_REVISION)
     finally:
         fcntl.flock(descriptor, fcntl.LOCK_UN)
         os.close(descriptor)
 
-    assert result is False
+    assert exc_info.value.step == "agents-sync-guard"
+    assert "agents sync lock is busy" in exc_info.value.reason
     clean.assert_not_called()
 
 
@@ -116,9 +118,8 @@ def test_prepare_workspace_holds_agents_lock_across_the_clean(
             "sase.axe.runner_workspace_prepare.get_vcs_provider", return_value=provider
         ),
     ):
-        result = prepare_workspace(str(repo), "agents", VCS_DEFAULT_REVISION)
+        assert prepare_workspace(str(repo), "agents", VCS_DEFAULT_REVISION) is None
 
-    assert result is True
     assert observed == [False]
     assert _lock_is_free(_lock_path(repo))
     provider.checkout.assert_called_once_with("origin/main", str(repo))
@@ -146,7 +147,6 @@ def test_prepare_workspace_leaves_workspace_scoped_agents_clone_unguarded(
             return_value=_successful_provider(),
         ),
     ):
-        result = prepare_workspace(str(repo), "agents", VCS_DEFAULT_REVISION)
+        assert prepare_workspace(str(repo), "agents", VCS_DEFAULT_REVISION) is None
 
-    assert result is True
     assert observed == [True]

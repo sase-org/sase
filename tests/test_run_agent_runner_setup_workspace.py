@@ -9,6 +9,7 @@ from sase.axe.run_agent_runner_setup import (
     capture_sdd_base_sha,
     prepare_workspace_if_needed,
 )
+from sase.axe.runner_workspace import WorkspacePreparationError
 from sase.core.occupancy_guard import WorkspaceOccupiedError
 from sase.running_field import WorkspaceClaim
 from sase.sdd.store import SddStore
@@ -248,3 +249,42 @@ def _git(cwd: Path, *args: str) -> str:
 
     result = subprocess.run(args, cwd=cwd, check=True, capture_output=True, text=True)
     return result.stdout.strip()
+
+
+def test_prepare_workspace_if_needed_surfaces_underlying_error(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A preparation failure names the underlying git error in the RuntimeError.
+
+    Regression test for sase-14m: the raised error and the run-log output must
+    both carry the underlying failure text instead of a bare
+    "Failed to prepare workspace".
+    """
+    underlying = (
+        "sase_hg_update failed for target origin/master: "
+        "git fetch origin: exit 128: remote hung up unexpectedly"
+    )
+    with (
+        patch(
+            "sase.axe.run_agent_runner_setup.prepare_workspace",
+            side_effect=WorkspacePreparationError(
+                underlying, step="checkout", workspace_dir="/tmp/workspace"
+            ),
+        ),
+        pytest.raises(RuntimeError) as exc_info,
+    ):
+        prepare_workspace_if_needed(
+            workspace_dir="/tmp/workspace",
+            workspace_num=7,
+            cl_name="feature",
+            update_target="main",
+            project_name="sase",
+            is_home_mode=False,
+            retry_handoff=None,
+        )
+
+    message = str(exc_info.value)
+    assert "Failed to prepare workspace /tmp/workspace" in message
+    assert "remote hung up unexpectedly" in message
+    captured = capsys.readouterr()
+    assert "remote hung up unexpectedly" in captured.err

@@ -22,6 +22,26 @@ class _WorkspaceBeadEvictionRefused(RuntimeError):
     """Raised when eviction would destroy unpublished sidecar commits."""
 
 
+class WorkspacePreparationError(RuntimeError):
+    """Raised when workspace preparation fails, carrying the underlying reason.
+
+    Attributes:
+        reason: The underlying git/update/guard failure text (command
+            stderr, exit detail, or guard refusal message).
+        step: Which preparation step failed (``clean``, ``checkout``,
+            ``sync``, ``sidecar-protection``, or ``agents-sync-guard``).
+        workspace_dir: The workspace that could not be prepared.
+    """
+
+    def __init__(self, reason: str, *, step: str = "", workspace_dir: str = "") -> None:
+        self.reason = reason
+        self.step = step
+        self.workspace_dir = workspace_dir
+        location = f" {workspace_dir}" if workspace_dir else ""
+        detail = f" during {step}" if step else ""
+        super().__init__(f"Failed to prepare workspace{location}{detail}: {reason}")
+
+
 # Minimum age before a leftover ``.git/index.lock`` is treated as abandoned.
 # Comfortably longer than any normal index operation, so we never race a lock
 # a live git process just created.
@@ -72,7 +92,7 @@ def prepare_workspace(
     update_target: str,
     backup_suffix: str = "ace",
     project_basename: str = "",
-) -> bool:
+) -> None:
     """Clean and update workspace before running agent or workflow.
 
     Args:
@@ -84,18 +104,22 @@ def prepare_workspace(
         project_basename: Project basename for resolving patch names to
             git branch names.
 
-    Returns:
-        True if successful, False otherwise.
+    Raises:
+        WorkspacePreparationError: If any step fails. The error's ``reason``
+            carries the underlying git/update failure text, and each failure
+            is also printed so the run log records the cause.
     """
     with _agents_sidecar_sync_guard(workspace_dir) as acquired:
         if not acquired:
-            print(
+            reason = (
                 "workspace preparation refused to clean the shared agents sidecar "
-                f"clone at {workspace_dir}: agents sync lock is busy",
-                file=sys.stderr,
+                f"clone at {workspace_dir}: agents sync lock is busy"
             )
-            return False
-        return _prepare_workspace_locked(
+            print(reason, file=sys.stderr)
+            raise WorkspacePreparationError(
+                reason, step="agents-sync-guard", workspace_dir=workspace_dir
+            )
+        _prepare_workspace_locked(
             workspace_dir,
             cl_name,
             update_target,
@@ -110,8 +134,13 @@ def _prepare_workspace_locked(
     update_target: str,
     backup_suffix: str,
     project_basename: str,
-) -> bool:
-    """Run the clean/checkout/sync pass that :func:`prepare_workspace` guards."""
+) -> None:
+    """Run the clean/checkout/sync pass that :func:`prepare_workspace` guards.
+
+    Raises:
+        WorkspacePreparationError: If any step fails, carrying the underlying
+            failure text in ``reason``.
+    """
 
     from sase.workflows.commit_utils import run_sase_hg_clean
 
@@ -123,14 +152,22 @@ def _prepare_workspace_locked(
     clear_stale_git_index_lock(workspace_dir)
 
     if not _protect_unpushed_sidecar_commits(workspace_dir):
-        return False
+        raise WorkspacePreparationError(
+            "sidecar repos hold unpublished commits that could not be published "
+            "or rescued before workspace cleanup (see diagnostics above)",
+            step="sidecar-protection",
+            workspace_dir=workspace_dir,
+        )
 
     # Clean workspace (saves any existing changes to a diff file)
     print("Cleaning workspace...")
     success, error = run_sase_hg_clean(workspace_dir, f"{cl_name}-{backup_suffix}")
     if not success:
-        print(f"sase_hg_clean failed: {error}", file=sys.stderr)
-        return False
+        reason = f"sase_hg_clean failed: {error or 'unknown error'}"
+        print(reason, file=sys.stderr)
+        raise WorkspacePreparationError(
+            reason, step="clean", workspace_dir=workspace_dir
+        )
 
     # Update workspace to target
     from sase.vcs_provider import VCS_DEFAULT_REVISION
@@ -146,8 +183,14 @@ def _prepare_workspace_locked(
     print(f"Updating workspace to {update_target}...")
     checkout_ok, checkout_err = provider.checkout(update_target, workspace_dir)
     if not checkout_ok:
-        print(f"sase_hg_update failed: {checkout_err}", file=sys.stderr)
-        return False
+        reason = (
+            f"sase_hg_update failed for target {update_target}: "
+            f"{checkout_err or 'unknown error'}"
+        )
+        print(reason, file=sys.stderr)
+        raise WorkspacePreparationError(
+            reason, step="checkout", workspace_dir=workspace_dir
+        )
 
     if is_default_parent:
         try:
@@ -155,11 +198,13 @@ def _prepare_workspace_locked(
         except NotImplementedError:
             sync_ok, sync_err = True, None
         if not sync_ok:
-            print(f"sync_workspace failed: {sync_err}", file=sys.stderr)
-            return False
+            reason = f"sync_workspace failed: {sync_err or 'unknown error'}"
+            print(reason, file=sys.stderr)
+            raise WorkspacePreparationError(
+                reason, step="sync", workspace_dir=workspace_dir
+            )
 
     print("Workspace ready")
-    return True
 
 
 def _agents_sidecar_clone_root(workspace_dir: str | Path) -> Path | None:

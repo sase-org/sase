@@ -99,10 +99,13 @@ def test_prepare_workspace_rescues_unpushed_bead_commits_before_sidecar_reset(
         lambda _cwd: provider,
     )
 
-    assert prepare_workspace(
-        str(local),
-        "sidecar",
-        VCS_DEFAULT_REVISION,
+    assert (
+        prepare_workspace(
+            str(local),
+            "sidecar",
+            VCS_DEFAULT_REVISION,
+        )
+        is None
     )
 
     assert sync_attempts == [local_beads]

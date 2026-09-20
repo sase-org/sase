@@ -8,6 +8,8 @@ import time
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
+import pytest
+
 from sase.ace.agent_tribes import REVIEW_AGENT_TRIBE
 from sase.axe.runner_artifacts import (
     all_steps_hidden,
@@ -27,6 +29,7 @@ from sase.axe.runner_signals import (
     was_killed,
 )
 from sase.axe.runner_workspace import (
+    WorkspacePreparationError,
     clear_stale_git_index_lock,
     prepare_workspace,
 )
@@ -423,19 +426,24 @@ def test_reset_killed_clears_timestamp() -> None:
 
 # Tests for prepare_workspace
 def test_prepare_workspace_clean_fails() -> None:
-    """Test prepare_workspace returns False when clean fails."""
-    with patch(
-        "sase.workflows.commit_utils.run_sase_hg_clean",
-        return_value=(False, "clean error"),
+    """Test prepare_workspace raises carrying the clean stderr."""
+    with (
+        patch(
+            "sase.workflows.commit_utils.run_sase_hg_clean",
+            return_value=(False, "clean error"),
+        ),
+        pytest.raises(WorkspacePreparationError) as exc_info,
     ):
-        result = prepare_workspace(
+        prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
         )
-        assert result is False
+    assert "clean error" in exc_info.value.reason
+    assert exc_info.value.step == "clean"
+    assert exc_info.value.workspace_dir == "/workspace"
 
 
 def test_prepare_workspace_update_fails() -> None:
-    """Test prepare_workspace returns False when sase_hg_update returns non-zero."""
+    """Test prepare_workspace raises carrying the checkout stderr."""
     mock_provider = MagicMock()
     mock_provider.checkout.return_value = (False, "sase_hg_update failed: update error")
     mock_provider.get_default_parent_revision.return_value = "p4head"
@@ -448,12 +456,15 @@ def test_prepare_workspace_update_fails() -> None:
             "sase.axe.runner_workspace_prepare.get_vcs_provider",
             return_value=mock_provider,
         ),
+        pytest.raises(WorkspacePreparationError) as exc_info,
     ):
-        result = prepare_workspace(
+        prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
         )
-        assert result is False
-        mock_provider.sync_workspace.assert_not_called()
+    assert "update error" in exc_info.value.reason
+    assert "p4head" in exc_info.value.reason
+    assert exc_info.value.step == "checkout"
+    mock_provider.sync_workspace.assert_not_called()
 
 
 def test_prepare_workspace_default_parent_syncs_after_checkout() -> None:
@@ -472,11 +483,10 @@ def test_prepare_workspace_default_parent_syncs_after_checkout() -> None:
             return_value=mock_provider,
         ),
     ):
-        result = prepare_workspace(
+        prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
         )
 
-    assert result is True
     mock_provider.get_default_parent_revision.assert_called_once_with("/workspace")
     mock_provider.checkout.assert_called_once_with("origin/master", "/workspace")
     mock_provider.sync_workspace.assert_called_once_with("/workspace")
@@ -488,7 +498,7 @@ def test_prepare_workspace_default_parent_syncs_after_checkout() -> None:
 
 
 def test_prepare_workspace_default_parent_sync_failure_fails() -> None:
-    """Test default-parent workspace prep fails when sync fails."""
+    """Test default-parent workspace prep raises carrying the sync stderr."""
     mock_provider = MagicMock()
     mock_provider.get_default_parent_revision.return_value = "origin/master"
     mock_provider.checkout.return_value = (True, None)
@@ -502,12 +512,14 @@ def test_prepare_workspace_default_parent_sync_failure_fails() -> None:
             "sase.axe.runner_workspace_prepare.get_vcs_provider",
             return_value=mock_provider,
         ),
+        pytest.raises(WorkspacePreparationError) as exc_info,
     ):
-        result = prepare_workspace(
+        prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
         )
 
-    assert result is False
+    assert "sync error" in exc_info.value.reason
+    assert exc_info.value.step == "sync"
     mock_provider.checkout.assert_called_once_with("origin/master", "/workspace")
     mock_provider.sync_workspace.assert_called_once_with("/workspace")
 
@@ -564,11 +576,10 @@ def test_prepare_workspace_clears_stale_lock_before_clean(tmp_path: Path) -> Non
             return_value=mock_provider,
         ),
     ):
-        result = prepare_workspace(
+        prepare_workspace(
             str(tmp_path), "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
         )
 
-    assert result is True
     assert not lock.exists()
 
 
@@ -588,11 +599,10 @@ def test_prepare_workspace_default_parent_sync_not_implemented_passes() -> None:
             return_value=mock_provider,
         ),
     ):
-        result = prepare_workspace(
+        prepare_workspace(
             "/workspace", "my_cl", VCS_DEFAULT_REVISION, backup_suffix="ace"
         )
 
-    assert result is True
     mock_provider.checkout.assert_called_once_with("p4head", "/workspace")
     mock_provider.sync_workspace.assert_called_once_with("/workspace")
 
@@ -611,10 +621,7 @@ def test_prepare_workspace_non_sentinel_passes_through() -> None:
             return_value=mock_provider,
         ),
     ):
-        result = prepare_workspace(
-            "/workspace", "my_cl", "my_branch", backup_suffix="ace"
-        )
-        assert result is True
+        prepare_workspace("/workspace", "my_cl", "my_branch", backup_suffix="ace")
         # get_default_parent_revision should NOT be called
         mock_provider.get_default_parent_revision.assert_not_called()
         mock_provider.checkout.assert_called_once_with("my_branch", "/workspace")

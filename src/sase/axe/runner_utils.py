@@ -27,6 +27,7 @@ from sase.axe.runner_signals import (
     was_killed,
 )
 from sase.axe.runner_workspace import (
+    WorkspacePreparationError,
     clear_stale_git_index_lock as _clear_stale_git_index_lock,
     git_index_lock_path,
     prepare_launch_workspace_repos,
@@ -34,6 +35,7 @@ from sase.axe.runner_workspace import (
 )
 
 __all__ = [
+    "WorkspacePreparationError",
     "all_steps_hidden",
     "build_no_proposal_error_summary",
     "clear_agent_meta_tribe",

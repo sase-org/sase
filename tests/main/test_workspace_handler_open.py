@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 import pytest
 
+from sase.axe.runner_workspace import WorkspacePreparationError
 from sase.linked_repos import LINKED_REPOS_JSON_ENV, opened_linked_repo_records
 from sase.main.workspace_handler import handle_workspace_command
 from sase.main.workspace_handler_context import ProjectContext
@@ -303,7 +304,14 @@ class TestOpen:
                 "sase.main.workspace_handler._resolve_checkout_path",
                 return_value=checkout,
             ),
-            patch("sase.axe.runner_workspace.prepare_workspace", return_value=False),
+            patch(
+                "sase.axe.runner_workspace.prepare_workspace",
+                side_effect=WorkspacePreparationError(
+                    "sase_hg_clean failed: injected clean failure",
+                    step="clean",
+                    workspace_dir=checkout,
+                ),
+            ),
             pytest.raises(SystemExit) as exc,
         ):
             handle_workspace_command(args)

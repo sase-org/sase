@@ -375,7 +375,10 @@ def prepare_opened_checkout(
             return None
 
         if preparation == "runner":
-            from sase.axe.runner_workspace import prepare_workspace
+            from sase.axe.runner_workspace import (
+                WorkspacePreparationError,
+                prepare_workspace,
+            )
             from sase.core.occupancy_guard import (
                 OccupancyCaller,
                 WorkspaceOccupiedError,
@@ -399,13 +402,16 @@ def prepare_opened_checkout(
                 return None
 
             clean_label = f"{ctx.project_name}-workspace-{workspace_num}"
-            if not prepare_workspace(
-                path,
-                clean_label,
-                VCS_DEFAULT_REVISION,
-                backup_suffix="workspace-open",
-                project_basename=ctx.project_name,
-            ):
+            try:
+                prepare_workspace(
+                    path,
+                    clean_label,
+                    VCS_DEFAULT_REVISION,
+                    backup_suffix="workspace-open",
+                    project_basename=ctx.project_name,
+                )
+            except WorkspacePreparationError as exc:
+                print(str(exc), file=sys.stderr)
                 return None
 
         if ctx.is_sibling or _is_configured_linked_repo(ctx.project_name):

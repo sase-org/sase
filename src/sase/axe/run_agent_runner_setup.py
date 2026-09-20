@@ -25,6 +25,7 @@ from sase.axe.run_agent_retry_spawn import (
     RetryHandoff,
 )
 from sase.axe.runner_workspace import (
+    WorkspacePreparationError,
     prepare_launch_workspace_repos,
     prepare_workspace,
 )
@@ -142,14 +143,19 @@ def prepare_workspace_if_needed(
     )
 
     print("=== Preparing Workspace ===")
-    if not prepare_workspace(
-        workspace_dir,
-        cl_name,
-        update_target,
-        backup_suffix="ace",
-        project_basename=project_name,
-    ):
-        raise RuntimeError("Failed to prepare workspace")
+    try:
+        prepare_workspace(
+            workspace_dir,
+            cl_name,
+            update_target,
+            backup_suffix="ace",
+            project_basename=project_name,
+        )
+    except WorkspacePreparationError as exc:
+        print(f"Workspace preparation failed: {exc.reason}", file=sys.stderr)
+        raise RuntimeError(
+            f"Failed to prepare workspace {workspace_dir}: {exc.reason}"
+        ) from exc
     fresh_sidecars = prepare_launch_workspace_repos(workspace_dir, workspace_num)
     print("===========================")
     print()
@@ -228,15 +234,22 @@ def prepare_linked_repo_workspaces_if_needed(
             artifacts_timestamp=artifacts_timestamp,
         )
         print(f"Preparing linked repo {name}: {workspace_dir}")
-        if not prepare_workspace(
-            workspace_dir,
-            cl_name,
-            VCS_DEFAULT_REVISION,
-            backup_suffix=f"linked-{name}",
-        ):
-            raise RuntimeError(
-                f"Failed to prepare linked repo {name!r} workspace: {workspace_dir}"
+        try:
+            prepare_workspace(
+                workspace_dir,
+                cl_name,
+                VCS_DEFAULT_REVISION,
+                backup_suffix=f"linked-{name}",
             )
+        except WorkspacePreparationError as exc:
+            print(
+                f"Linked repo {name!r} workspace preparation failed: {exc.reason}",
+                file=sys.stderr,
+            )
+            raise RuntimeError(
+                f"Failed to prepare linked repo {name!r} workspace: "
+                f"{workspace_dir}: {exc.reason}"
+            ) from exc
     from sase.linked_repos import apply_linked_repo_env
 
     apply_linked_repo_env(os.environ, resolution)

@@ -9,6 +9,7 @@ from sase.axe.run_agent_runner_setup import (
     prepare_linked_repo_workspaces_if_needed,
     refresh_linked_repos_for_workspace,
 )
+from sase.axe.runner_workspace import WorkspacePreparationError
 from sase.linked_repos import (
     LINKED_REPOS_JSON_ENV,
     LinkedRepoResolution,
@@ -493,7 +494,15 @@ def test_prepare_linked_repo_workspaces_failure_names_workspace(tmp_path: Path) 
             "sase.linked_repos.materialize_linked_repo_workspace",
             return_value="/repos/sase-core_7",
         ),
-        patch("sase.axe.run_agent_runner_setup.prepare_workspace", return_value=False),
+        patch(
+            "sase.axe.run_agent_runner_setup.prepare_workspace",
+            side_effect=WorkspacePreparationError(
+                "sase_hg_update failed for target origin/master: "
+                "git fetch origin: exit 128: remote hung up",
+                step="checkout",
+                workspace_dir="/repos/sase-core_7",
+            ),
+        ),
         pytest.raises(RuntimeError) as exc_info,
     ):
         prepare_linked_repo_workspaces_if_needed(
@@ -506,3 +515,4 @@ def test_prepare_linked_repo_workspaces_failure_names_workspace(tmp_path: Path) 
     assert "Failed to prepare linked repo 'core' workspace: /repos/sase-core_7" in str(
         exc_info.value
     )
+    assert "remote hung up" in str(exc_info.value)
