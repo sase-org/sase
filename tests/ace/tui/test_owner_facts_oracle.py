@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -303,3 +304,47 @@ def test_legacy_summary_without_presentation_projects_degraded_rows(
     by_name = _by_name(rows)
     assert by_name["tale-fam"].plan_action is None
     assert by_name["tale-fam--plan"].gate_id
+
+
+def _rendered(agent: Agent, now: Any) -> tuple[str, str]:
+    """Render one row and keep the fact-bearing text: status, chips, and stamp.
+
+    The project label, the machine/type tag, the row's display name, and live
+    elapsed durations are viewer- or fixture-specific and are asserted by the
+    per-dimension oracle above, so they are dropped from the visual comparison.
+    """
+    from sase.ace.tui.widgets._agent_list_render_agent import format_agent_option
+
+    left, suffix, _ = format_agent_option(agent, 0, is_selected=False, now=now)
+    match = re.search(r"\(([^)]*)\)((?: [^\w\s(]\S*)*)", left.plain)
+    status_and_chips = (match.group(1), match.group(2)) if match else None
+    stamp = re.match(r"[A-Z][a-z]{2} \d+ '\d+", suffix.plain)
+    return repr(status_and_chips), stamp.group(0) if stamp else "running"
+
+
+@pytest.mark.parametrize("compact", [False, True], ids=["current", "compact-index"])
+def test_owner_and_catalog_render_equal_rows_and_nested_shell_counts(
+    fixture: OwnerRosterFixture, compact: bool
+) -> None:
+    from datetime import datetime
+
+    owner = _owner_rows(fixture)
+    remote_rows = _remote_rows(fixture, compact=compact)
+    remote = _by_name(remote_rows)
+    now = datetime(2030, 1, 1)
+
+    mismatches = {
+        name: (_rendered(owner[name], now), _rendered(remote[name], now))
+        for name in _FACT_IDENTITIES
+        if name in owner
+        and name in remote
+        and _rendered(owner[name], now) != _rendered(remote[name], now)
+    }
+    assert mismatches == {}, f"rendered owner-vs-remote: {mismatches}"
+
+    def nested(rows: dict[str, Agent]) -> int:
+        return len(
+            [n for n in _FACT_IDENTITIES if n in rows and rows[n].parent_timestamp]
+        )
+
+    assert nested(remote) == nested(owner)

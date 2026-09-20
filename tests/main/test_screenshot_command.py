@@ -309,7 +309,8 @@ def test_screenshot_help_documents_type_and_interleaving() -> None:
     assert_metavar_option_documented(help_text, "-w", "--wait-for", "REGEX")
     assert "argv-ordered input script" in help_text
     assert "tmux send-keys -l" in help_text
-    assert '-w "17/17"' in help_text
+    assert "-p / -w INSERT --type machine:apollo" in help_text
+    assert "-p slash" not in help_text
 
 
 def test_contract_probe_prints_schema_json(capsys) -> None:

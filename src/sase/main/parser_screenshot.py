@@ -92,8 +92,8 @@ def register_screenshot_parser(subparsers: argparse._SubParsersAction) -> None:
             "Examples:\n"
             "  sase screenshot -o /tmp/shot.png\n"
             "  sase screenshot -p j -p j -w Ready -o /tmp/shot.png\n"
-            "  sase screenshot -p slash --type machine:apollo -p enter "
-            '-w "17/17" -o /tmp/shot.png\n'
+            "  sase screenshot -p / -w INSERT --type machine:apollo "
+            "-w machine:apollo -p enter -o /tmp/shot.png\n"
             "  sase screenshot --host apollo -o /tmp/remote.png\n"
             "  sase screenshot --keep -- -t axe\n"
             "  sase screenshot --window sase_ace_agents:sase_tmux_1 -o /tmp/again.png"
