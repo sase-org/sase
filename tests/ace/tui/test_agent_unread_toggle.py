@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
@@ -88,6 +89,75 @@ def test_toggle_agent_unread_again_marks_selected_row_read(
         [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
     )
     assert app.notification_count_refresh_calls == 1
+
+
+def test_u_toggle_to_read_drops_matching_settlement_row_from_cache(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
+    agent = make_agent(status="DONE")
+    app = UnreadJumpApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    app._manual_unread_agent_ids.add(agent.identity)
+    app._notification_snapshot_cache = SimpleNamespace(
+        notifications=[
+            SimpleNamespace(
+                id="n-settlement",
+                sender="monitor-settlement",
+                action=None,
+                action_data={
+                    "cl_name": agent.cl_name,
+                    "raw_suffix": agent.raw_suffix,
+                },
+                dismissed=False,
+            )
+        ]
+    )
+
+    app._toggle_agent_unread()
+
+    assert app._unread_completed_agent_ids == set()
+    assert app._manual_unread_agent_ids == set()
+    assert app._notification_snapshot_cache.notifications == []
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
+    )
+
+
+def test_bulk_read_toggle_drops_matching_settlement_rows_from_cache(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
+    agent = make_agent(status="DONE")
+    app = UnreadJumpApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    other_suffix = SimpleNamespace(
+        id="n-settlement-other",
+        sender="epic-launch",
+        action=None,
+        action_data={"cl_name": agent.cl_name, "raw_suffix": "other"},
+        dismissed=False,
+    )
+    app._notification_snapshot_cache = SimpleNamespace(
+        notifications=[
+            SimpleNamespace(
+                id="n-settlement",
+                sender="epic-launch",
+                action=None,
+                action_data={
+                    "cl_name": agent.cl_name,
+                    "raw_suffix": agent.raw_suffix,
+                },
+                dismissed=False,
+            ),
+            other_suffix,
+        ]
+    )
+
+    result = app._toggle_all_unread_done_agents_read()
+
+    assert result.outcome is BulkUnreadToggleOutcome.MARKED_READ
+    assert app._notification_snapshot_cache.notifications == [other_suffix]
 
 
 def test_toggle_agent_unread_refreshes_when_patch_fails() -> None:

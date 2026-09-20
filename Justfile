@@ -359,10 +359,12 @@ _lint-patch-stitch-terminology: _setup
 # sase-11y entries: platform/init symbols whose owning phase (sase-11y.5) is closed,
 # plus service facades the Services tab deliberately does not consume (the status
 # snapshot is its read model).
+# sase-14l.3 entry: host-ack predicate the unread-projection phase consumes next.
 _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol "sase-14l.3(agent_settlement_notification_matches_agent)" \
         --epic-symbol "sase-11y(CapturedServiceEnvironment)" \
         --epic-symbol "sase-11y(NativeInspection)" \
         --epic-symbol "sase-11y(NativeServiceDefinition)" \

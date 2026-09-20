@@ -774,7 +774,7 @@ def is_active_agent_refresh_notification(notification: Notification) -> bool:
     )
 
 
-def agent_completion_notification_matches_agent(
+def _agent_completion_notification_matches_agent(
     notification: Notification,
     *,
     cl_name: str,
@@ -788,6 +788,53 @@ def agent_completion_notification_matches_agent(
         return False
     notification_raw_suffix = notification.action_data.get("raw_suffix") or None
     return notification_raw_suffix is None or notification_raw_suffix == raw_suffix
+
+
+def agent_settlement_notification_matches_agent(
+    notification: Notification,
+    *,
+    cl_name: str,
+    raw_suffix: str | None,
+) -> bool:
+    """Return True when *notification* is a settlement row owned by the key.
+
+    Mirrors ``matches_agent_settlement_notification_for_agents`` in the Rust
+    core: the sender must be host-owned settlement (``epic-launch`` or
+    ``monitor-settlement``) and ``action_data`` must name a non-empty
+    ``cl_name`` and a non-empty ``raw_suffix`` that both equal the supplied
+    key. There is deliberately no ``cl_name``-only fallback: ``cl_name`` on
+    these rows is the project-wide patch name, so a fallback would let
+    acknowledging one agent dismiss every project-wide settlement row.
+    """
+    if notification.dismissed:
+        return False
+    if notification.sender not in _SETTLEMENT_NOTIFICATION_SENDERS:
+        return False
+    if not cl_name or not raw_suffix:
+        return False
+    notification_cl_name = notification.action_data.get("cl_name")
+    notification_raw_suffix = notification.action_data.get("raw_suffix")
+    if not notification_cl_name or not notification_raw_suffix:
+        return False
+    return notification_cl_name == cl_name and notification_raw_suffix == raw_suffix
+
+
+def agent_row_notification_matches_agent(
+    notification: Notification,
+    *,
+    cl_name: str,
+    raw_suffix: str | None,
+) -> bool:
+    """Return True when *notification* is acknowledged with the supplied row.
+
+    Single completion-or-settlement predicate for read-ack and dismissal
+    paths so the two rules stay in one place.
+    """
+    return _agent_completion_notification_matches_agent(
+        notification, cl_name=cl_name, raw_suffix=raw_suffix
+    ) or agent_settlement_notification_matches_agent(
+        notification, cl_name=cl_name, raw_suffix=raw_suffix
+    )
 
 
 def unread_notification_buckets(

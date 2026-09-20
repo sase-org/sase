@@ -36,11 +36,13 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
   `classify_commit_origin`
 - Notification JSONL store operations: `read_notifications_snapshot`,
   `append_notification`, `apply_notification_state_update`, and `rewrite_notifications`.
-  The store owns every temporal snooze semantic: deadlines are validated as
-  timezone-aware future instants and normalized to canonical UTC before any row changes
-  (a rejected bulk snooze stays atomic), the current-state read expires due and
-  malformed-legacy rows under the same exclusive lock it reads with, and
-  snapshots/outcomes report `expired_ids` plus the earliest remaining
+  The agent-keyed completion dismissal (`DismissAgentCompletionsMatchingAgents`) also
+  covers row-owned settlement rows (`epic-launch`/`monitor-settlement`) that name an
+  exact `(cl_name, raw_suffix)`. The store owns every temporal snooze semantic:
+  deadlines are validated as timezone-aware future instants and normalized to canonical
+  UTC before any row changes (a rejected bulk snooze stays atomic), the current-state
+  read expires due and malformed-legacy rows under the same exclusive lock it reads
+  with, and snapshots/outcomes report `expired_ids` plus the earliest remaining
   `next_snooze_deadline`. Expiry stamps one shared `resurfaced_at` per batch, marks rows
   unmuted and unread, skips dismissed rows, and leaves permanent mutes untouched.
   Callers must not reimplement expiry, ordering, or deadline arithmetic in Python — see

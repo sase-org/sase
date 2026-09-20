@@ -308,6 +308,42 @@ def test_acknowledge_agent_unread_filters_stale_cached_notification(
     assert app.notification_count_refresh_calls == 1
 
 
+def test_agent_row_selection_dismisses_matching_settlement_row_from_cache(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
+    agent = make_agent(status="DONE")
+    app = _SelectionApp([agent])
+    app._unread_completed_agent_ids.add(agent.identity)
+    matching = SimpleNamespace(
+        id="n-settlement",
+        sender="epic-launch",
+        action=None,
+        action_data={"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix},
+        dismissed=False,
+    )
+    other_suffix = SimpleNamespace(
+        id="n-settlement-other",
+        sender="epic-launch",
+        action=None,
+        action_data={"cl_name": agent.cl_name, "raw_suffix": "other"},
+        dismissed=False,
+    )
+    app._notification_snapshot_cache = SimpleNamespace(
+        notifications=[matching, other_suffix]
+    )
+
+    app.on_agent_list_selection_changed(
+        _SelectionEvent(control=AgentList(id="agent-list-panel"), index=0)
+    )
+
+    assert agent.identity not in app._unread_completed_agent_ids
+    notification_dismiss.assert_called_once_with(
+        [{"cl_name": agent.cl_name, "raw_suffix": agent.raw_suffix}]
+    )
+    assert app._notification_snapshot_cache.notifications == [other_suffix]
+
+
 def test_acknowledge_agent_unread_does_not_dismiss_manual_guard(
     notification_dismiss: Mock,
 ) -> None:

@@ -779,23 +779,32 @@ repeat-control variable `STOP` is omitted from Telegram completion summaries.
 The Agents tab also treats user-agent completions as unread work items. When a terminal
 agent is selected after it has been marked unread, or when the user jumps to it with the
 unread-agent shortcut, sase's TUI clears the row's unread marker and dismisses the
-matching completion notification. Plan approvals and user questions remain explicit
-response workflows and are not auto-read merely by selection.
+matching completion notification. A host-owned settlement row (`epic-launch` or
+`monitor-settlement`) that names that row's exact `(cl_name, raw_suffix)` is
+acknowledged with the row and dismissed alongside the completion notification. Plan
+approvals and user questions remain explicit response workflows and are not auto-read
+merely by selection.
 
 Unread state on the Agents tab is projected from the active user-agent completion
 notifications in the store rather than written as separate per-row state — when the
 underlying notification is dismissed (per-row selection, response modal, or any other
-path) the row's unread marker clears on the next refresh. Manually toggling a row unread
-with `U` overrides this projection locally so a deliberately re-flagged row is not
-immediately re-cleared. Plan approvals and user questions still require an explicit `y`
-/ `n` response and are never auto-dismissed by row navigation.
+path) the row's unread marker clears on the next refresh. A host-owned settlement
+notification that names an exact agent row's `(cl_name, raw_suffix)` is acknowledged
+with that row — read, dismissed, or marked — exactly like the row's completion
+notification. Manually toggling a row unread with `U` overrides this projection locally
+so a deliberately re-flagged row is not immediately re-cleared. Plan approvals and user
+questions still require an explicit `y` / `n` response and are never auto-dismissed by
+row navigation.
 
 A newly arrived completion notification also drives a targeted Agents-tab refresh:
 sase's TUI reloads only the matching agents' artifact directories rather than rebuilding
 the whole list. Host-owned settlement notifications from epic launches and monitor
 handoffs (senders `epic-launch` and `monitor-settlement`) refresh the agent family they
 name the same way, so a settled family updates without waiting for the next full
-refresh.
+refresh. When the named row is acknowledged, the settlement row is dismissed with it:
+the match requires both `cl_name` and `raw_suffix` to equal the row's key, since
+`cl_name` alone is the project-wide patch name shared by every agent and would clear
+unrelated settlement rows.
 
 See [`agent_images.md`](agent_images.md) for the full attachment contract and sase's TUI
 image preview notes.

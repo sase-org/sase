@@ -267,14 +267,14 @@ class AgentUnreadStateMixin:
 
         from dataclasses import is_dataclass, replace
 
-        from ._notification_utils import agent_completion_notification_matches_agent
+        from ._notification_utils import agent_row_notification_matches_agent
 
         agent_keys = self._notification_keys_for_agents(agents)
         filtered = []
         removed_ids: set[str] = set()
         for notification in notifications:
             if any(
-                agent_completion_notification_matches_agent(
+                agent_row_notification_matches_agent(
                     notification,
                     cl_name=cl_name,
                     raw_suffix=raw_suffix,
