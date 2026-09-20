@@ -2251,9 +2251,6 @@ llm_provider:
       default: { below_remaining_percent: 20 }
       weekly_all: always
       providers:
-        claude:
-          windows:
-            "weekly:claude-fable-5": always
         muse:
           windows:
             session: never
@@ -2272,19 +2269,20 @@ sase's TUI compact usage-window indicator has separate display policy under
 `llm_provider.usage_metrics.indicator`. Collection controls whether SASE probes and
 records provider usage; indicator policy only chooses which already-observed windows
 appear in the application header. The default shows every positively classified weekly
-all-model window (including Muse's weekly window), Claude's observed weekly
-`weekly:claude-fable-5` window at any capacity, and any other observed window whose
-remaining capacity is strictly below 20%. Muse's 5-hour `session` window is hidden from
-the header by default (`indicator.providers.muse.windows.session: never`) but remains in
-`sase usage list` and Providers · Usage. Use `always`, `never`, or
+all-model window (including Muse's weekly window) and any other observed window whose
+remaining capacity is strictly below 20%. Claude's observed weekly
+`weekly:claude-fable-5` window has no bundled entry, so the generic threshold governs it
+and the header shows it only when it runs low. Muse's 5-hour `session` window is hidden
+from the header by default (`indicator.providers.muse.windows.session: never`) but
+remains in `sase usage list` and Providers · Usage. Use `always`, `never`, or
 `{below_remaining_percent: N}` policies. Exact provider window keys are stable selectors
 and can be found in `sase usage list --json` at `windows[].key`; shortened labels in the
-header are not configuration selectors. Set the exact Fable key to `never` to hide it,
-or to `{below_remaining_percent: 20}` to restore the generic fallback threshold. Invalid
-display overrides are reported and ignored at that override while unrelated collection
-settings and valid provider/window policies keep working. Config changes are picked up
-by the normal sase's TUI usage refresh path even when no provider writes a new usage
-cache file.
+header are not configuration selectors. Set the exact Fable key to `always` to restore
+always-visible behavior, to `never` to hide it even when low, or to a threshold of its
+own. Invalid display overrides are reported and ignored at that override while unrelated
+collection settings and valid provider/window policies keep working. Config changes are
+picked up by the normal sase's TUI usage refresh path even when no provider writes a new
+usage cache file.
 
 Use `sase usage` or `sase usage list` to inspect the cache without provider I/O:
 

@@ -2072,9 +2072,6 @@ llm_provider:
         below_remaining_percent: 20
       weekly_all: always
       providers:
-        claude:
-          windows:
-            "weekly:claude-fable-5": always
         muse:
           windows:
             session: never
@@ -2083,18 +2080,18 @@ llm_provider:
         enabled: true
 ```
 
-| Field                                                                 | Type   | Default                                         | Description                                                                                                                                       |
-| --------------------------------------------------------------------- | ------ | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `llm_provider.usage_metrics.enabled`                                  | bool   | `true`                                          | Collect subscription usage. False stops probes, passive writes, scheduled requests, and attention; inspection can still explain the opt-out.      |
-| `llm_provider.usage_metrics.refresh_seconds`                          | number | `300`                                           | Background refresh cadence in seconds. Must be finite and at least `60`.                                                                          |
-| `llm_provider.usage_metrics.warn_percent`                             | number | `75`                                            | Percentage _used_ that classifies a window as low. Must satisfy `0 <= warn_percent < critical_percent <= 100`. UI copy uses percentage left.      |
-| `llm_provider.usage_metrics.critical_percent`                         | number | `90`                                            | Percentage _used_ that classifies a window as very low.                                                                                           |
-| `llm_provider.usage_metrics.indicator.enabled`                        | bool   | `true`                                          | Show sase's TUI header usage indicators. False hides display entries while collection and Providers · Usage remain active.                        |
-| `llm_provider.usage_metrics.indicator.default`                        | policy | `{below_remaining_percent: 20}`                 | Fallback display policy for windows that do not match a more specific display override.                                                           |
-| `llm_provider.usage_metrics.indicator.weekly_all`                     | policy | `always`                                        | Display policy for positively classified weekly all-model windows after exact-window and provider defaults.                                       |
-| `llm_provider.usage_metrics.indicator.providers.<name>.default`       | policy | inherit                                         | Optional display policy for all observed windows from one provider. This map is separate from the sibling collection `providers` map.             |
-| `llm_provider.usage_metrics.indicator.providers.<name>.windows.<key>` | policy | inherit; Fable `always`, Muse `session` `never` | Exact provider-reported window-key override. Find keys with `sase usage list -p <provider> --json` at `windows[].key`.                            |
-| `llm_provider.usage_metrics.providers.<name>.enabled`                 | bool   | inherit                                         | Optional per-provider collection override. Keys are registered provider names; the generic schema does not hard-code the initial three providers. |
+| Field                                                                 | Type   | Default                         | Description                                                                                                                                       |
+| --------------------------------------------------------------------- | ------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `llm_provider.usage_metrics.enabled`                                  | bool   | `true`                          | Collect subscription usage. False stops probes, passive writes, scheduled requests, and attention; inspection can still explain the opt-out.      |
+| `llm_provider.usage_metrics.refresh_seconds`                          | number | `300`                           | Background refresh cadence in seconds. Must be finite and at least `60`.                                                                          |
+| `llm_provider.usage_metrics.warn_percent`                             | number | `75`                            | Percentage _used_ that classifies a window as low. Must satisfy `0 <= warn_percent < critical_percent <= 100`. UI copy uses percentage left.      |
+| `llm_provider.usage_metrics.critical_percent`                         | number | `90`                            | Percentage _used_ that classifies a window as very low.                                                                                           |
+| `llm_provider.usage_metrics.indicator.enabled`                        | bool   | `true`                          | Show sase's TUI header usage indicators. False hides display entries while collection and Providers · Usage remain active.                        |
+| `llm_provider.usage_metrics.indicator.default`                        | policy | `{below_remaining_percent: 20}` | Fallback display policy for windows that do not match a more specific display override.                                                           |
+| `llm_provider.usage_metrics.indicator.weekly_all`                     | policy | `always`                        | Display policy for positively classified weekly all-model windows after exact-window and provider defaults.                                       |
+| `llm_provider.usage_metrics.indicator.providers.<name>.default`       | policy | inherit                         | Optional display policy for all observed windows from one provider. This map is separate from the sibling collection `providers` map.             |
+| `llm_provider.usage_metrics.indicator.providers.<name>.windows.<key>` | policy | inherit; Muse `session` `never` | Exact provider-reported window-key override. Find keys with `sase usage list -p <provider> --json` at `windows[].key`.                            |
+| `llm_provider.usage_metrics.providers.<name>.enabled`                 | bool   | inherit                         | Optional per-provider collection override. Keys are registered provider names; the generic schema does not hard-code the initial three providers. |
 
 An indicator policy is exactly one of:
 
@@ -2111,25 +2108,24 @@ Display policy precedence is exact window key, provider default, `weekly_all` fo
 positively classified weekly all-model window, then global `indicator.default`. Provider
 and window IDs are open-ended; unmatched future provider/window keys are inert.
 
-The bundled default adds one exact Claude display override and one exact Muse override:
+The bundled default adds one exact Muse override:
 
 ```yaml
 llm_provider:
   usage_metrics:
     indicator:
       providers:
-        claude:
-          windows:
-            "weekly:claude-fable-5": always
         muse:
           windows:
             session: never
 ```
 
-That observed weekly Fable window appears at any remaining percentage, including `100%`,
-while missing or collection-ineligible Fable windows are not synthesized. Set the same
-exact key to `never` to hide it, or to `{below_remaining_percent: 20}` to restore the
-general fallback threshold. Because config layers merge recursively, an empty user
+Claude's observed weekly Fable window has no bundled entry, so the global
+`indicator.default` threshold governs it and the header shows it only when its remaining
+capacity is strictly below 20%. Set the exact key `"weekly:claude-fable-5"` to `always`
+to restore the always-visible behavior, to `never` to hide it even when low, or to a
+`{below_remaining_percent: N}` of its own. Missing or collection-ineligible Fable
+windows are not synthesized. Because config layers merge recursively, an empty user
 `indicator.providers: {}` does not erase this bundled key, while an explicit value for
 the key does override it. Broader provider/global defaults have lower selection
 precedence than the exact window key.

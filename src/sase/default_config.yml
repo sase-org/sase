@@ -1555,22 +1555,25 @@ llm_provider:
         below_remaining_percent: 20
       weekly_all: always
       providers:
-        claude:
-          windows:
-            "weekly:claude-fable-5": always
         # Muse reports a 5-hour session window and a weekly window. Show only the
         # weekly one; the weekly window needs no entry because it classifies as
         # a weekly all-model window (weekly_all: always).
         muse:
           windows:
             session: never
+      # Claude's per-model weekly Fable window ships with no entry of its own, so
+      # the generic `default` threshold above governs it: the header stays quiet
+      # until Fable drops below 20% remaining. Add an exact key to change that.
       # providers:
       #   claude:
       #     windows:
-      #       "weekly:claude-fable-5": never
-      #       # Or restore the generic fallback:
+      #       # Pin it back to always-visible, at any remaining percentage:
+      #       "weekly:claude-fable-5": always
+      #       # Or hide it even when it runs low:
+      #       # "weekly:claude-fable-5": never
+      #       # Or give it its own threshold, independent of `default`:
       #       # "weekly:claude-fable-5":
-      #       #   below_remaining_percent: 20
+      #       #   below_remaining_percent: 35
       #   codex:
       #     windows:
       #       "codex:secondary":
