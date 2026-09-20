@@ -42,6 +42,7 @@ def check_bundle_invariants(bundle: ReproBundle) -> ReproInvariantReport:
     complete_history_visible: set[AgentIdentity] = set()
     saw_complete_history = False
     previous_selected: AgentIdentity | None = None
+    previous_visible: set[AgentIdentity] = set()
 
     for step in bundle.load_steps:
         for row in step.agent_rows:
@@ -61,6 +62,13 @@ def check_bundle_invariants(bundle: ReproBundle) -> ReproInvariantReport:
                 saw_complete_history=saw_complete_history,
             )
         )
+        failures.extend(
+            _check_incomplete_nonempty_to_empty(
+                step=step,
+                visible_set=visible_set,
+                previous_visible=previous_visible,
+            )
+        )
         failures.extend(_check_duplicate_roots(step, visible, known_rows))
         failures.extend(_check_children_have_visible_parents(step, visible, known_rows))
         failures.extend(
@@ -75,6 +83,7 @@ def check_bundle_invariants(bundle: ReproBundle) -> ReproInvariantReport:
             saw_complete_history = True
             complete_history_visible.update(visible_set - dismissed_set)
         previous_selected = step.app_state.selected_identity
+        previous_visible = visible_set
 
     failures.extend(_check_expected_visible(bundle))
     failures.extend(_check_stability(bundle))
@@ -133,6 +142,31 @@ def _check_post_complete_incomplete_shrink(
             message=(
                 "post-complete-history incomplete load hid historical rows: "
                 + ", ".join(_format_identity(identity) for identity in missing)
+            ),
+        )
+    ]
+
+
+def _check_incomplete_nonempty_to_empty(
+    *,
+    step: ReproLoadStep,
+    visible_set: set[AgentIdentity],
+    previous_visible: set[AgentIdentity],
+) -> list[ReproInvariantFailure]:
+    """Reject an incomplete load emptying the tab, even before any watermark.
+
+    Unlike ``post_complete_incomplete_shrink`` this needs no observed
+    complete-history snapshot: an incomplete (bounded/delta) load is never
+    proof that every visible row vanished.
+    """
+    if step.load_state.complete_history or visible_set or not previous_visible:
+        return []
+    return [
+        ReproInvariantFailure(
+            code="incomplete_nonempty_to_empty",
+            step_id=step.step_id,
+            message=(
+                f"incomplete load emptied {len(previous_visible)} visible rows (N -> 0)"
             ),
         )
     ]

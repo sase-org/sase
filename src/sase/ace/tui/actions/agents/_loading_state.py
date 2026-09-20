@@ -226,6 +226,10 @@ class AgentLoadingStateMixin:
     _agents_index_repair_notice_key: tuple[str | None, str | None] | None
     _agents_seen_complete_history: bool
     _agents_complete_history_query_key: AgentsHistoryQueryKey | None
+    # Committed-query key of the last applied load (the cached roster's query).
+    _agents_applied_query_key: AgentsHistoryQueryKey | None
+    # One revalidated load per run of ignored same-query bounded zeros.
+    _agents_empty_ignored_revalidated: bool
     # One-shot cached unwindowed Tier-1 read that completes the Agents
     # window prefix after first paint. Distinct from
     # ``_agents_seen_complete_history``, which is only set by a Tier-2 load.

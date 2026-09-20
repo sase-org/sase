@@ -309,13 +309,17 @@ def merge_incomplete_load_after_complete_history(
     is_artifact_delta = (
         load_state is not None and load_state.artifact_source == "artifact_delta"
     )
-    # A bounded viewport prefix that reports ``has_more`` is explicitly a
-    # subset of the visible universe: the loader never looked for the rows it
-    # left out, so applying it as a replacement claims rows vanished. Patch it
-    # over the cached list the same way an artifact delta is patched, with or
-    # without a complete-history watermark.
+    # A bounded viewport prefix is never proof that a row vanished, whatever
+    # ``has_more`` says: ``has_more`` is a pagination fact (matching candidates
+    # exceeded the budget), and a bounded zero necessarily reports it false.
+    # Patch every same-query bounded load over the cached list the same way an
+    # artifact delta is patched, with or without a complete-history watermark.
+    # A committed-query change is the one case where the cache is not the same
+    # universe, so it may be replaced.
     is_bounded_partial = (
-        load_state is not None and load_state.bounded_prefix and load_state.has_more
+        load_state is not None
+        and load_state.bounded_prefix
+        and snapshot.cache_query_matches
     )
     if (
         load_state is None

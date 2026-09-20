@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import time
 from dataclasses import replace
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from ...models.agent import AgentType
-from ...util.trace import tui_trace
+from ...util.trace import trace_event, tui_trace
 from ._loading_compute import (
     PreparedApplyBoundary,
     PreparedApplyData,
@@ -71,6 +71,18 @@ def _has_complete_history_for_load_query(
         # historical boolean directly without the keyed latch.
         return bool(getattr(app, "_agents_seen_complete_history", False))
     return complete_key == _history_query_key_for_load(app, load_state)
+
+
+def _cache_query_matches_load(
+    app: object,
+    load_state: AgentLoadState | None,
+) -> bool:
+    """Return whether the cached roster was applied under this load's query."""
+
+    applied_key = getattr(app, "_agents_applied_query_key", None)
+    if applied_key is None:
+        return True
+    return applied_key == _history_query_key_for_load(app, load_state)
 
 
 def _should_arm_full_history_reconcile(
@@ -248,6 +260,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             dismissed_proc_shells=frozenset(
                 getattr(self, "_dismissed_proc_shells", ()) or ()
             ),
+            cache_query_matches=_cache_query_matches_load(self, load_state),
         )
 
     def _select_finalize_plan(
@@ -290,6 +303,40 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 selected_identity=None,
                 load_state=load_state,
             ),
+        )
+
+    def _note_empty_incomplete_apply_ignored(
+        self,
+        load_state: AgentLoadState | None,
+    ) -> None:
+        """Trace a same-query bounded zero that the merge keeps out of the cache.
+
+        The bounded zero patches over the cache instead of replacing it; one
+        revalidated load then confirms whether the rows really are gone.
+        """
+        if load_state is None or load_state.returned_count != 0:
+            self._agents_empty_ignored_revalidated = False
+            return
+        if (
+            load_state.complete_history
+            or not load_state.bounded_prefix
+            or not getattr(self, "_agents_with_children", None)
+            or not _cache_query_matches_load(self, load_state)
+        ):
+            return
+        trace_event(
+            "agents.empty_incomplete_apply_ignored",
+            reason="empty_incomplete_apply_ignored",
+            cached=len(self._agents_with_children),
+            history_query_key=repr(_history_query_key_for_load(self, load_state)),
+            has_more=load_state.has_more,
+        )
+        if getattr(self, "_agents_empty_ignored_revalidated", False):
+            return
+        self._agents_empty_ignored_revalidated = True
+        cast("Any", self)._schedule_agents_async_refresh(
+            source="empty_incomplete_revalidate",
+            revalidate_index=True,
         )
 
     def _apply_loaded_agents_prepared(
@@ -399,6 +446,8 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                     fallback_reason="persistence_error",
                 )
 
+        self._note_empty_incomplete_apply_ignored(load_state)
+
         preserved_revived = self._preserve_revived_agents_for_incomplete_load(
             prep, load_state
         )
@@ -482,9 +531,12 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             from ..event_refresh._freshness import note_surface_refreshed
 
             note_surface_refreshed(self, "agents_full_history")
-        elif not history_complete_for_query:
+        elif not _cache_query_matches_load(self, load_state):
+            # Only a committed-query change disarms the latch; an incomplete
+            # load with a missing or unrelated key must not.
             self._agents_complete_history_query_key = None
             self._agents_seen_complete_history = False
+        self._agents_applied_query_key = history_query_key
         self._agent_load_state = load_state
         schema_rebuild_in_flight = bool(
             getattr(self, "_artifact_index_schema_rebuild_in_flight", False)
