@@ -183,12 +183,12 @@ provider = get_provider("claude")  # Explicit provider name
    their own priority. `agy` autodetects via the `agy` CLI name in the late-fallback
    slot. A provider that declares no priority never participates in autodetection:
    `muse` and `grok` deliberately omit one, because `muse` and `grok` are both generic
-   executable names and autodetect only checks `PATH` presence. Muse is reachable only
-   by explicit selection (see [Muse Code Integration](#muse-code-integration)). Grok
-   never participates in default-provider autodetection either. Model-alias routing is
+   executable names and autodetect only checks `PATH` presence. Model-alias routing is
    separate: the shipped `@xsmall`/`@small`/`@medium`/`@large`/`@xlarge` load-balanced
    pools can select Grok whenever a `grok` executable is available (see
-   [Grok Build Integration](#grok-build-integration)).
+   [Grok Build Integration](#grok-build-integration)), and the shipped
+   `@xsmall`/`@small`/`@medium` pools can select Muse's Contributor model whenever a
+   `muse` executable is available (see [Muse Code Integration](#muse-code-integration)).
 
 ## Commit Finalization
 
@@ -688,12 +688,16 @@ The `MuseProvider` invokes Meta's Muse Code CLI (`muse`).
 
 ### Selection
 
-Muse is **explicit-only**. It publishes `llm_autodetect_cli_name` but deliberately no
-`llm_autodetect_priority`, so it never appears in autodetect candidates: `muse` is a
+Muse is **never autodetected**. It publishes `llm_autodetect_cli_name` but deliberately
+no `llm_autodetect_priority`, so it never appears in autodetect candidates: `muse` is a
 generic executable name, and SASE's autodetect only checks whether a binary of that name
 is on `PATH`. Reach Muse with `llm_provider.provider: muse`, `%model:muse/<model>`, or
-by pointing `SASE_MUSE_PATH` at the binary. `provider_cli_available()` still uses the
-CLI name, so `sase doctor` and the `sase agent-cli` inventory see Muse normally.
+by pointing `SASE_MUSE_PATH` at the binary. Separately, the shipped
+`@xsmall`/`@small`/`@medium` load-balanced pools can select Muse whenever a `muse`
+executable is available, and for Muse that path lands on the Contributor model
+`muse-spark-1.3-contributor`, which trains on its inputs and outputs (see
+[Model Mapping](#model-mapping)). `provider_cli_available()` still uses the CLI name, so
+`sase doctor` and the `sase agent-cli` inventory see Muse normally.
 
 Muse's provider short name is `mus`, which enables `foo.mus` agent naming.
 
@@ -746,14 +750,27 @@ with no other provider and is genuinely useful for read-only research agents, bu
 | `muse-spark-1.2-contributor` | 1M      | $0.10 / $0.002 / $0.20     | Same capabilities as 1.2. **Meta uses its inputs and outputs to train and improve Meta's AI models.** Rate limited; select countries only. |
 | `muse-spark-1.1`             | 1M      | $1.25 / $0.15 / $4.25      | Agentic and multimodal (text, images, video, documents).                                                                                   |
 
-**Both tiers map to `muse-spark-1.3` on purpose.** `small` is what `@small` and
-`@xsmall` reach for automatically, so mapping it to the Contributor model would silently
-ship a user's proprietary source into Meta's training corpus. SASE does not make that
-decision on anyone's behalf. The Contributor model stays fully available — it is a known
-model name, it has the short aliases `spark13c` and `spark12c`, and either
+**Both tiers map to `muse-spark-1.3` on purpose.** A tier mapping is SASE's own default
+choice of model, and mapping it to the Contributor model would silently ship a user's
+proprietary source into Meta's training corpus. SASE does not make that decision on
+anyone's behalf through the tier map, and a test pins that.
+
+**The shipped size aliases are a separate route, and they do reach the Contributor
+model.** The shipped `@xsmall`, `@small`, and `@medium` pools each include
+`muse-spark-1.3-contributor` (at `medium`, `high`, and `xhigh` respectively; see
+[Implicit role aliases](#implicit-role-aliases)). Whenever a `muse` executable is
+available, an agent launched at one of those sizes can be routed to it automatically —
+with no `%model` directive and no config change — and Meta then trains on that agent's
+prompt, repository contents, and tool output. `@large` and `@xlarge` never include Muse.
+To opt out, override the pool with `llm_provider.model_aliases.builtin.<size>` using a
+target that omits the Muse member. `sase doctor -C llm.model_advisory` and the
+[model advisory](#model-advisories) surfaces make the trade visible.
+
+The Contributor models also remain reachable by name: each is a known model name, has
+the short aliases `spark13c` and `spark12c`, and either
 `%model:muse/muse-spark-1.3-contributor` or `%model:muse/muse-spark-1.2-contributor`
-works — but reaching one requires typing its name, and a
-[model advisory](#model-advisories) makes sure the trade is visible when you do.
+works. `muse-spark-1.2-contributor` is in no shipped pool, so it is only ever reached by
+typing its name.
 
 ### Muse Reasoning Effort
 
@@ -1437,13 +1454,13 @@ this section covers both. The current shipped size-alias defaults are generated 
 
 <!-- BEGIN GENERATED: model-alias-defaults -->
 
-| Alias     | Description                                                                          | Shipped default                                                                          |
-| --------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
-| `@xsmall` | Extra-small launch alias for lookup, formatting, and tiny edits with obvious checks. | `claude/claude-haiku-4-5@xhigh \| codex/gpt-5.6-luna@xhigh \| agy/gemini-3.8-flash-high` |
-| `@small`  | Small launch alias for straightforward task and phase work.                          | `claude/sonnet@high \| codex/gpt-5.6-terra@high \| grok/grok-4.6@low`                    |
-| `@medium` | Medium launch alias for ordinary implementation work.                                | `claude/sonnet@xhigh \| codex/gpt-5.6-terra@xhigh \| grok/grok-4.6@medium`               |
-| `@large`  | Large launch alias for planning-heavy work and default launches.                     | `claude/opus@high \| codex/gpt-5.6-sol@high \| grok/grok-4.6@high`                       |
-| `@xlarge` | Extra-large launch alias for maximum-effort work.                                    | `claude/opus@xhigh \| codex/gpt-5.6-sol@xhigh \| grok/grok-4.6@xhigh`                    |
+| Alias     | Description                                                                          | Shipped default                                                                                                                    |
+| --------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `@xsmall` | Extra-small launch alias for lookup, formatting, and tiny edits with obvious checks. | `claude/claude-haiku-4-5@xhigh \| codex/gpt-5.6-luna@xhigh \| agy/gemini-3.8-flash-high \| muse/muse-spark-1.3-contributor@medium` |
+| `@small`  | Small launch alias for straightforward task and phase work.                          | `claude/sonnet@high \| codex/gpt-5.6-terra@high \| grok/grok-4.6@low \| muse/muse-spark-1.3-contributor@high`                      |
+| `@medium` | Medium launch alias for ordinary implementation work.                                | `claude/sonnet@xhigh \| codex/gpt-5.6-terra@xhigh \| grok/grok-4.6@medium \| muse/muse-spark-1.3-contributor@xhigh`                |
+| `@large`  | Large launch alias for planning-heavy work and default launches.                     | `claude/opus@high \| codex/gpt-5.6-sol@high \| grok/grok-4.6@high`                                                                 |
+| `@xlarge` | Extra-large launch alias for maximum-effort work.                                    | `claude/opus@xhigh \| codex/gpt-5.6-sol@xhigh \| grok/grok-4.6@xhigh`                                                              |
 
 <!-- END GENERATED: model-alias-defaults -->
 
@@ -1633,9 +1650,13 @@ so no render site hardcodes a model id:
 
 The doctor check resolves the configured default and every configured model alias and
 warns — it never fails — when one routes SASE traffic to an advisory-flagged model.
-Opting in globally is the user's call; doing it without being told is not. For the same
+Opting in globally is the user's call; doing it without being told is not. For that
 reason, no bundled provider's tier map points at an advisory-flagged model, and a test
-asserts that so a future cost optimization cannot quietly reintroduce the problem.
+asserts that so a future cost optimization cannot quietly reintroduce the problem. The
+tier map is not the only automatic route, though: the shipped `@xsmall`, `@small`, and
+`@medium` size-alias pools include `muse-spark-1.3-contributor`, so on a stock install
+this check warns whenever one of those pools currently selects it. Override
+`llm_provider.model_aliases.builtin.<size>` to drop the member.
 
 The bundled advisories are Muse's `muse-spark-1.3-contributor` and
 `muse-spark-1.2-contributor` (see [Muse Code Integration](#muse-code-integration)).

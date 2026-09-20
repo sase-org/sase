@@ -5005,9 +5005,12 @@ disables it by default; `SASE_MUSE_SANDBOX=on` keeps the sandbox with
 
 Muse's `muse-spark-1.3-contributor` and `muse-spark-1.2-contributor` models carry a
 **model advisory**: Meta uses their inputs and outputs to train and improve Meta's AI
-models. SASE keeps them fully reachable by name but never routes a tier map or any
-built-in size alias to either automatically. The advisory renders in sase's TUI model
-picker, in `%model` completion detail, and in the resolved model label, and
+models. SASE keeps them fully reachable by name and never points a provider tier map at
+either. The shipped `@xsmall`, `@small`, and `@medium` size-alias pools do include
+`muse-spark-1.3-contributor`, so an agent launched at those sizes can be routed to it
+automatically whenever a `muse` executable is available; override
+`llm_provider.model_aliases.builtin.<size>` to opt out. The advisory renders in sase's
+TUI model picker, in `%model` completion detail, and in the resolved model label, and
 `sase doctor -C llm.model_advisory` warns when a configured default or model alias
 resolves to any advisory-flagged model. See
 [LLM Providers — Model advisories](llms.md#model-advisories).

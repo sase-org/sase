@@ -1,10 +1,11 @@
 """Meta Muse Code (`muse`) LLM provider implementation.
 
-Muse is opt-in: it is selected by ``llm_provider.provider: muse``,
+Muse is opt-in as a provider: it is selected by ``llm_provider.provider: muse``,
 ``%model:muse/<model>``, or ``SASE_MUSE_PATH``. It deliberately publishes no
 ``llm_autodetect_priority`` — ``muse`` is a generic executable name and SASE's
 autodetect only checks PATH presence, so a same-named binary must never win
-the default provider on its own.
+the default provider on its own. Model-alias routing is separate: the shipped
+``@xsmall``/``@small``/``@medium`` pools list ``muse-spark-1.3-contributor``.
 """
 
 from __future__ import annotations
@@ -34,11 +35,15 @@ from .types import InvokeResult, LLMInvocationOptions, ModelTier
 if TYPE_CHECKING:
     from .usage_limit_config import ProviderUsageLimitConfig
 
-# Both tiers map to the full-price model on purpose. ``small`` is what compact
-# size aliases can reach for automatically, and
-# Contributor models are trained on their inputs and outputs — SASE
-# must never route a user's proprietary source into Meta's training corpus
-# without being told to. The Contributor model stays fully reachable by name.
+# Both tiers map to the full-price model on purpose. Contributor models are
+# trained on their inputs and outputs, and a tier mapping is SASE's own default
+# choice of model, so it must never send a user's proprietary source into
+# Meta's training corpus on the user's behalf. The shipped @xsmall, @small, and
+# @medium alias pools do include ``muse-spark-1.3-contributor``, so an agent
+# launched at those sizes can reach it automatically when ``muse`` is on PATH;
+# that is a different route, a configured shipped default the user can drop by
+# overriding ``llm_provider.model_aliases.builtin.<size>``. The Contributor
+# model is also fully reachable by name.
 _TIER_TO_MODEL: dict[ModelTier, str] = {
     "large": "muse-spark-1.3",
     "small": "muse-spark-1.3",

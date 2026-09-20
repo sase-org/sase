@@ -82,6 +82,7 @@ def test_size_aliases_use_independent_rotations(
                 "claude/": ("claude/claude-haiku-4-5", "xhigh"),
                 "codex/": ("codex/gpt-5.6-luna", "xhigh"),
                 "agy/": ("agy/gemini-3.8-flash-high", None),
+                "muse/": ("muse/muse-spark-1.3-contributor", "medium"),
             },
         ),
         (
@@ -90,6 +91,7 @@ def test_size_aliases_use_independent_rotations(
                 "claude/": ("claude/sonnet", "high"),
                 "codex/": ("codex/gpt-5.6-terra", "high"),
                 "grok/": ("grok/grok-4.6", "low"),
+                "muse/": ("muse/muse-spark-1.3-contributor", "high"),
             },
         ),
         (
@@ -98,6 +100,7 @@ def test_size_aliases_use_independent_rotations(
                 "claude/": ("claude/sonnet", "xhigh"),
                 "codex/": ("codex/gpt-5.6-terra", "xhigh"),
                 "grok/": ("grok/grok-4.6", "medium"),
+                "muse/": ("muse/muse-spark-1.3-contributor", "xhigh"),
             },
         ),
         (
@@ -229,6 +232,45 @@ def test_shipped_size_aliases_follow_the_effort_ladder(
                 ]
                 assert effort == expected, (alias, member)
             seen[target] = effort
+
+
+def test_shipped_small_aliases_carry_the_muse_contributor_member(
+    real_model_alias_defaults: None,
+) -> None:
+    """`@medium` and below deliberately include Meta's Contributor-tier model.
+
+    This is a deliberate, user-requested opt-in to Meta's training terms: the
+    Contributor model trains on its inputs and outputs, and these pools can
+    select it automatically whenever a `muse` executable is available. The
+    tier mapping stays pinned to the paid model (see
+    `test_model_advisories.py`); this pins the alias-pool route so a later
+    cost or privacy cleanup cannot silently drop the member or re-rung it.
+    """
+    expected_effort = {
+        MEDIUM_MODEL_ALIAS_NAME: "xhigh",
+        SMALL_MODEL_ALIAS_NAME: "high",
+        XSMALL_MODEL_ALIAS_NAME: "medium",
+    }
+    for alias in (
+        XLARGE_MODEL_ALIAS_NAME,
+        LARGE_MODEL_ALIAS_NAME,
+        MEDIUM_MODEL_ALIAS_NAME,
+        SMALL_MODEL_ALIAS_NAME,
+        XSMALL_MODEL_ALIAS_NAME,
+    ):
+        selector = parse_model_alias_selector(implicit_alias_targets()[alias])
+        assert selector is not None
+        muse = [
+            member
+            for member in (*selector.members, *selector.fallback_members)
+            if member.startswith("muse/")
+        ]
+        if alias in expected_effort:
+            assert muse == [
+                f"muse/muse-spark-1.3-contributor@{expected_effort[alias]}"
+            ], alias
+        else:
+            assert muse == [], alias
 
 
 @pytest.mark.parametrize(

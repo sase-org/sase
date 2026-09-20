@@ -109,9 +109,12 @@ Canonical docs: <https://github.com/QwenLM/qwen-code>
 
 ## Muse Code
 
-Meta's Muse Code CLI (`muse`). Muse is **explicit-only**: SASE never auto-detects it,
-because `muse` is a generic executable name. Select it with
-`llm_provider.provider: muse`, `%model:muse/<model>`, or `SASE_MUSE_PATH`.
+Meta's Muse Code CLI (`muse`). SASE never auto-detects it, because `muse` is a generic
+executable name. Select it with `llm_provider.provider: muse`, `%model:muse/<model>`, or
+`SASE_MUSE_PATH`. Model-alias routing is separate: the shipped `@xsmall`, `@small`, and
+`@medium` pools include `muse-spark-1.3-contributor`, which trains on its inputs and
+outputs, so they can select it whenever a `muse` executable is available. See
+[Muse Code Integration](llms.md#muse-code-integration) for how to opt out.
 
 ### Install
 
