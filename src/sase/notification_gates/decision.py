@@ -313,10 +313,16 @@ def _touch_gate_shell_refresh_pulse(envelope: Mapping[str, Any], gate_id: str) -
         return
     try:
         from sase.gate_shell.store import find_gate_shell_by_gate_id
-        from sase.shells.settlement import touch_shell_refresh_pulse
+        from sase.shells.settlement import (
+            touch_agent_refresh_pulse,
+            touch_shell_refresh_pulse,
+        )
 
         record = find_gate_shell_by_gate_id(None, gate_id)
         if record is not None:
+            # The exact agent-dir pulse gives ACE a row delta; the project
+            # pulse stays for watchers that only see project-level changes.
+            touch_agent_refresh_pulse(getattr(record, "artifacts_dir", None))
             touch_shell_refresh_pulse(record.project_name)
     except Exception:
         log.warning(

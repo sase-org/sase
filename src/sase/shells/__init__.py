@@ -34,6 +34,7 @@ _MODULE_BY_EXPORT = {
     "project_name_from_artifacts_dir": "settlement",
     "settle_shell_claim_and_followup": "settlement",
     "stamp_shell_finished_at": "settlement",
+    "touch_agent_refresh_pulse": "settlement",
     "touch_shell_refresh_pulse": "settlement",
     "ShellStateConfig": "state",
     "is_real_shell_member": "state",

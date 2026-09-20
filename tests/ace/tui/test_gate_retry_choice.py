@@ -85,7 +85,7 @@ def test_partial_attempt_asks_instead_of_notifying(monkeypatch: Any) -> None:
     app.completions.append(_partial_completion())
     monkeypatch.setattr(
         "sase.ace.tui.actions.agents._notification_gate_execution"
-        "._describe_partial_attempt",
+        ".describe_partial_attempt",
         lambda _bundle_path: _partial(),
     )
 
@@ -103,7 +103,7 @@ def test_choosing_resume_resubmits_with_that_retry(monkeypatch: Any) -> None:
     app.completions.append(_partial_completion())
     monkeypatch.setattr(
         "sase.ace.tui.actions.agents._notification_gate_execution"
-        "._describe_partial_attempt",
+        ".describe_partial_attempt",
         lambda _bundle_path: _partial(),
     )
 
@@ -124,7 +124,7 @@ def test_declining_the_choice_leaves_the_gate_alone(monkeypatch: Any) -> None:
     app.completions.append(_partial_completion())
     monkeypatch.setattr(
         "sase.ace.tui.actions.agents._notification_gate_execution"
-        "._describe_partial_attempt",
+        ".describe_partial_attempt",
         lambda _bundle_path: _partial(),
     )
 

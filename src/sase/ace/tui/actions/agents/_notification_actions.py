@@ -12,6 +12,9 @@ from ._notification_handlers import (
     handle_view_error_report as handle_view_error_report,
     handle_view_report as handle_view_report,
 )
+from ._notification_gate_recovery import (
+    handle_gate_execution_failed as handle_gate_execution_failed,
+)
 from ._notification_modals import (
     handle_custom_gate as handle_custom_gate,
     handle_hitl as handle_hitl,
@@ -39,6 +42,7 @@ __all__ = [
     "find_agent_for_notification",
     "get_meta_patch_name",
     "get_meta_changespec_name",  # legacy compatibility alias
+    "handle_gate_execution_failed",
     "handle_hitl",
     "handle_custom_gate",
     "handle_jump_to_agent",

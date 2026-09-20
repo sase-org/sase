@@ -188,11 +188,37 @@ def _submit_durable_neutral_plan_response(
 
     def on_complete(completion: object) -> None:
         if not getattr(completion, "success", False):
-            app.notify(  # type: ignore[attr-defined]
-                getattr(completion, "message", "Plan command failed"),
-                severity="error",
-            )
-            _refresh_notifications(app)
+            payload = getattr(completion, "payload", None)
+
+            def report_failure() -> None:
+                app.notify(  # type: ignore[attr-defined]
+                    getattr(completion, "message", "Plan command failed"),
+                    severity="error",
+                )
+                _refresh_notifications(app)
+
+            if isinstance(payload, dict) and payload.get("code") == "partial_attempt":
+                from ._notification_gate_execution import (
+                    GateSubmission,
+                    offer_partial_attempt_retry,
+                )
+
+                offer_partial_attempt_retry(
+                    app,
+                    notification,
+                    GateSubmission(
+                        selected_option_ids,
+                        feedback=result.feedback,
+                        input_data=(
+                            None if per_option_inputs is not None else input_data
+                        ),
+                        option_inputs=per_option_inputs,
+                    ),
+                    bundle.root,
+                    on_unavailable=report_failure,
+                )
+                return
+            report_failure()
             return
         if agent is not None:
             if result.action == "reject" and result.feedback is None:

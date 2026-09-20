@@ -208,6 +208,21 @@ def touch_shell_refresh_pulse(project_name: str | None) -> None:
         pass
 
 
+def touch_agent_refresh_pulse(artifacts_dir: str | Path | None) -> None:
+    """Nudge artifact watchers with a pulse inside one exact agent directory."""
+    if not artifacts_dir:
+        return
+    directory = Path(artifacts_dir)
+    if not directory.is_dir():
+        return
+    try:
+        (directory / ".ace_refresh_pulse").write_text(
+            str(time.time()), encoding="utf-8"
+        )
+    except OSError:
+        pass
+
+
 def finalize_shell_workflow_state(artifacts_dir: str) -> None:
     """Rewrite a settled shell member's workflow state to terminal status."""
     state_path = Path(artifacts_dir) / "workflow_state.json"
@@ -249,5 +264,6 @@ __all__ = [
     "project_name_from_artifacts_dir",
     "settle_shell_claim_and_followup",
     "stamp_shell_finished_at",
+    "touch_agent_refresh_pulse",
     "touch_shell_refresh_pulse",
 ]

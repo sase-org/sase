@@ -112,6 +112,11 @@ def artifact_dir_from_known_marker_path(path: Path) -> Path | None:
         return None
     if path.name in _AGENTS_RELEVANT_ARTIFACT_MARKERS:
         return path.parent
+    if path.name == ".ace_refresh_pulse" and not artifact_path_is_project_refresh_pulse(
+        path
+    ):
+        # A pulse written inside one agent directory names its exact row.
+        return path.parent
     if _is_prompt_step_marker(path):
         return path.parent
     return None

@@ -242,10 +242,34 @@ class AgentNotificationPollingMixin:
         overlapping completion poll and count refresh share one direct-store
         parse instead of each doing its own.
         """
+        import asyncio
+
         from ...widgets import NotificationIndicator
 
         try:
+            previous_snapshot = getattr(self, "_notification_snapshot_cache", None)
+            previous_notifications = list(
+                getattr(previous_snapshot, "notifications", []) or []
+            )
             snapshot = await self._read_notification_snapshot_guarded()
+            if previous_notifications:
+                # The guarded read replaced the cache the completion poll uses
+                # as its "previous" list, so a gate answered elsewhere would
+                # vanish unobserved. Resolve disappearances here, off-thread.
+                (
+                    disappeared_dirs,
+                    needs_broad_fallback,
+                ) = await asyncio.to_thread(
+                    prepare_disappeared_plan_notification_refresh,
+                    self,
+                    previous_notifications,
+                    snapshot.notifications,
+                )
+                apply_disappeared_plan_notification_refresh(
+                    self,
+                    disappeared_dirs,
+                    needs_broad_fallback=needs_broad_fallback,
+                )
             unread_priority, unread_errors, unread_rest, _ = (
                 unread_notification_buckets(snapshot.notifications)
             )

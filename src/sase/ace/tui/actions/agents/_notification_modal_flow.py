@@ -148,6 +148,7 @@ class AgentNotificationModalMixin:
         from ._notification_actions import (
             REMOTE_ATTENTION_NOTIFICATION_ACTION,
             handle_custom_gate,
+            handle_gate_execution_failed,
             handle_hitl,
             handle_jump_to_agent,
             handle_jump_to_patch,
@@ -213,7 +214,7 @@ class AgentNotificationModalMixin:
             elif result.action == "ViewErrorReport":
                 handle_view_error_report(self, result)
             elif result.action == GATE_EXECUTION_FAILED_ACTION:
-                handle_view_error_report(self, result)
+                handle_gate_execution_failed(self, result)
             elif result.action == "ViewReport":
                 handle_view_report(self, result)
             elif result.action == "OpenLaunchControl":

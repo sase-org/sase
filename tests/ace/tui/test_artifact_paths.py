@@ -62,3 +62,17 @@ def test_unrelated_file_under_artifacts_does_not_affect_agents(tmp_path: Path) -
 
     assert artifact_path_affects_agents(path) is False
     assert artifact_dir_from_known_marker_path(path) is None
+
+
+def test_agent_directory_refresh_pulse_names_its_exact_row(tmp_path: Path) -> None:
+    agent_dir = (
+        tmp_path / "proj" / "artifacts" / "ace-run" / "202608" / "28" / "20260828120000"
+    )
+
+    assert artifact_dir_from_known_marker_path(agent_dir / ".ace_refresh_pulse") == (
+        agent_dir
+    )
+    legacy_dir = tmp_path / "proj" / "artifacts" / "workflow" / "20260828120000"
+    assert artifact_dir_from_known_marker_path(legacy_dir / ".ace_refresh_pulse") == (
+        legacy_dir
+    )

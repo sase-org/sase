@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from inspect import Parameter, getattr_static, signature
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
@@ -303,8 +303,13 @@ def _request_gate_decision_refresh(
     notification: Notification,
     agent: Agent | None = None,
     allow_broad_fallback: bool = True,
+    artifact_dirs: Sequence[Path] = (),
 ) -> None:
-    """Refresh ACE surfaces after a gate decision becomes durable."""
+    """Refresh ACE surfaces after a gate decision becomes durable.
+
+    ``artifact_dirs`` are exact planner/shell rows resolved off the event loop
+    by the receipt watcher; they route through the artifact-delta queue.
+    """
     schedule_snapshot = getattr(app, "_schedule_notification_snapshot_refresh", None)
     if callable(schedule_snapshot):
         schedule_snapshot()
@@ -312,6 +317,11 @@ def _request_gate_decision_refresh(
         refresh_count = getattr(app, "_refresh_notification_count", None)
         if callable(refresh_count):
             refresh_count()
+    if artifact_dirs:
+        schedule_delta = getattr(app, "_schedule_agent_artifact_delta_refresh", None)
+        if callable(schedule_delta):
+            schedule_delta(list(artifact_dirs), source="notification")
+            return
     request_notification_agents_refresh(
         app,
         agent=agent,
@@ -355,11 +365,18 @@ def schedule_gate_decision_receipt_refresh(
                     break
                 await asyncio.sleep(0.05)
             if receipt_seen:
+                exact_dirs = await asyncio.to_thread(
+                    _gate_decision_exact_artifact_dirs,
+                    app,
+                    notification,
+                    agent,
+                )
                 _request_gate_decision_refresh(
                     app,
                     notification=notification,
                     agent=agent,
                     allow_broad_fallback=False,
+                    artifact_dirs=exact_dirs,
                 )
         finally:
             active.discard(key)
@@ -372,6 +389,33 @@ def schedule_gate_decision_receipt_refresh(
     )
     if task is not None:
         active.add(key)
+
+
+def _gate_decision_exact_artifact_dirs(
+    app: Any,
+    notification: Notification,
+    agent: Agent | None,
+) -> tuple[Path, ...]:
+    """Resolve the planner and gate-shell artifact dirs a decision touches.
+
+    Reads the filesystem, so the receipt watcher calls it on a worker thread.
+    """
+    dirs: dict[str, Path] = {}
+    try:
+        planner = (
+            agent
+            if agent is not None
+            else _resolve_notification_agent(app, notification)
+        )
+        planner_dir = _agent_artifact_dir(planner) if planner is not None else None
+        if planner_dir is not None:
+            dirs[str(planner_dir)] = planner_dir
+        shell_dir, _needs_fallback = _accepted_gate_shell_artifact_dir(notification)
+        if shell_dir is not None:
+            dirs[str(shell_dir)] = shell_dir
+    except Exception:
+        return tuple(dirs.values())
+    return tuple(dirs.values())
 
 
 def _gate_decision_is_visible(bundle_path: Path) -> bool:

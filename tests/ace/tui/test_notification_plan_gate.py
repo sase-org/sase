@@ -541,3 +541,44 @@ def test_neutral_epic_submission_records_ace_origin(
     assert getattr(app.completion, "success", False) is True
     start_launch.assert_called_once()
     assert start_launch.call_args.kwargs["origin"] == "ace"
+
+
+def test_plan_gate_partial_attempt_asks_resume_or_restart(
+    gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.ace.tui.actions.agents._notification_gate_execution import (
+        _PartialAttempt,
+    )
+    from sase.ace.tui.modals.gate_retry_modal import GateRetryModal
+
+    plan = gate_home / "partial-tale.md"
+    plan.write_text(VALID_TALE_PLAN, encoding="utf-8")
+    create_gate(build_plan_approval_gate_spec(plan, "tui-partial-tale"))
+    [notification] = load_notifications()
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_gate_execution"
+        ".describe_partial_attempt",
+        lambda _bundle: _PartialAttempt("a1", ("approve",), ("commit",)),
+    )
+    app = _DurablePlanApp()
+    pushed: list[tuple[object, Any]] = []
+    app.push_screen = lambda screen, callback=None: pushed.append(  # type: ignore[attr-defined]
+        (screen, callback)
+    )
+
+    submit_neutral_plan_response(
+        app, notification, None, plan_approval_result_for_choice("tale")
+    )
+    [(_args, kwargs)] = app.submitted
+    kwargs["on_complete"](
+        SimpleNamespace(
+            success=False, message="incomplete", payload={"code": "partial_attempt"}
+        )
+    )
+
+    [(screen, callback)] = pushed
+    assert isinstance(screen, GateRetryModal)
+    assert app.notifications == []
+    callback("resume")
+    assert app.submitted[1][1]["request"]["retry"] == "resume"
+    assert app.submitted[1][1]["request"]["option_ids"] == ["approve", "commit"]

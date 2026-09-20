@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal, cast
@@ -66,18 +66,15 @@ def submit_gate_execution_task(
             and payload.get("code") == "partial_attempt"
             and submission.retry is None
         ):
-            partial = _describe_partial_attempt(bundle_path)
-            if partial is not None:
-                _ask_retry_choice(app, notification, submission, partial)
-                return
-        if success:
-            app.notify(str(getattr(completion, "message", "Gate answered")))  # type: ignore[attr-defined]
-        else:
-            app.notify(  # type: ignore[attr-defined]
-                str(getattr(completion, "message", "Gate execution failed")),
-                severity="error",
+            offer_partial_attempt_retry(
+                app,
+                notification,
+                submission,
+                bundle_path,
+                on_unavailable=lambda: _report_completion(app, completion),
             )
-        _refresh_notifications(app)
+            return
+        _report_completion(app, completion)
 
     task = submit(
         sase_argv(
@@ -131,7 +128,47 @@ def submit_gate_execution_task(
     return task is not None
 
 
-def _describe_partial_attempt(bundle_path: Path) -> _PartialAttempt | None:
+def _report_completion(app: object, completion: object) -> None:
+    if getattr(completion, "success", False):
+        app.notify(str(getattr(completion, "message", "Gate answered")))  # type: ignore[attr-defined]
+    else:
+        app.notify(  # type: ignore[attr-defined]
+            str(getattr(completion, "message", "Gate execution failed")),
+            severity="error",
+        )
+    _refresh_notifications(app)
+
+
+def offer_partial_attempt_retry(
+    app: object,
+    notification: Notification,
+    submission: GateSubmission,
+    bundle_path: Path,
+    *,
+    on_unavailable: Callable[[], None],
+) -> None:
+    """Ask resume-or-restart after a ``partial_attempt`` refusal.
+
+    The journal read happens off the event loop. ``on_unavailable`` runs when
+    no incomplete attempt can be described (nothing to choose between).
+    """
+    from ._notification_off_loop import run_off_loop
+
+    def on_done(partial: _PartialAttempt | None) -> None:
+        if partial is None:
+            on_unavailable()
+            return
+        _ask_retry_choice(app, notification, submission, partial)
+
+    run_off_loop(
+        app,
+        lambda: describe_partial_attempt(bundle_path),
+        on_done,
+        name=f"gate-partial-attempt:{notification.id}",
+    )
+
+
+def describe_partial_attempt(bundle_path: Path) -> _PartialAttempt | None:
     """Read which options a rejected resubmission already ran, for the retry choice."""
     from sase.notification_gates.journal import incomplete_attempt
 
@@ -181,12 +218,17 @@ def _ask_retry_choice(
 def _incomplete_attempt_message(partial: _PartialAttempt) -> str:
     """Describe an attempt the reviewer declined to finish."""
     return (
-        f"Gate attempt {partial.attempt_id} is still incomplete; "
-        "answer it again to resume or restart"
+        f"Gate attempt {partial.attempt_id} is still incomplete; open its "
+        "gate-failure notification or run `sase gate answer --resume` "
+        "(or `--restart`) to finish it"
     )
 
 
 def _refresh_notifications(app: object) -> None:
+    schedule_refresh = getattr(app, "_schedule_notification_snapshot_refresh", None)
+    if callable(schedule_refresh):
+        schedule_refresh()
+        return
     refresh = getattr(app, "_refresh_notification_count", None)
     if callable(refresh):
         refresh()
@@ -194,5 +236,6 @@ def _refresh_notifications(app: object) -> None:
 
 __all__ = [
     "GateSubmission",
+    "offer_partial_attempt_retry",
     "submit_gate_execution_task",
 ]

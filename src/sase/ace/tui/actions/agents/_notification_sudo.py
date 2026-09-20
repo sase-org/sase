@@ -327,8 +327,11 @@ def _sudo_executing_message(proc_id: str | None) -> str:
 
 
 def _refresh_after_sudo(app: object, notification: Notification) -> None:
+    schedule_refresh = getattr(app, "_schedule_notification_snapshot_refresh", None)
     refresh_count = getattr(app, "_refresh_notification_count", None)
-    if callable(refresh_count):
+    if callable(schedule_refresh):
+        schedule_refresh()
+    elif callable(refresh_count):
         refresh_count()
     request_notification_agents_refresh(app, notification=notification)
 

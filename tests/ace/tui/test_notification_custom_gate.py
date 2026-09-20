@@ -184,7 +184,7 @@ def test_notification_flow_dispatches_open_launch_control(
     assert app.notices == []
 
 
-def test_notification_flow_dispatches_gate_execution_failed_to_error_report(
+def test_notification_flow_dispatches_gate_execution_failed_to_recovery(
     gate_home: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -196,7 +196,7 @@ def test_notification_flow_dispatches_gate_execution_failed_to_error_report(
     app = _NotificationFlowApp(notification)
     dispatched: list[Any] = []
     monkeypatch.setattr(
-        "sase.ace.tui.actions.agents._notification_actions.handle_view_error_report",
+        "sase.ace.tui.actions.agents._notification_actions.handle_gate_execution_failed",
         lambda _app, selected: dispatched.append(selected),
     )
 

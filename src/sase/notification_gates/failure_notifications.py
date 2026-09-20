@@ -263,6 +263,14 @@ def _selected_option_ids(
     return ()
 
 
+def gate_failure_selected_option_ids(
+    bundle_path: Path,
+    failure: ExecutionFailureFacts | Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Return the option ids a failed gate attempt selected (reads the bundle)."""
+    return _selected_option_ids(bundle_path, failure)
+
+
 def _receipt_selected_option_ids(
     bundle_path: Path, acceptance_id: str
 ) -> tuple[str, ...]:
@@ -330,5 +338,6 @@ __all__ = [
     "dismiss_gate_execution_failed",
     "gate_failure_action_data",
     "gate_failure_requester_message",
+    "gate_failure_selected_option_ids",
     "publish_gate_execution_failed",
 ]
