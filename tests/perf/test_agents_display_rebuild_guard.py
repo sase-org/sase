@@ -270,3 +270,26 @@ def test_standing_query_sibling_row_remove_leaves_epic_untouched(
         if record.fallback_reason is not None
     }
     assert "active_search" not in fallback_reasons
+
+
+def test_empty_incomplete_apply_keeps_session_sticky_epic_widget(
+    monkeypatch: Any,
+) -> None:
+    """An emptied roster must not unmount a tribe already mounted this session."""
+    epic = _agent("epic-worker", tribe="epic", suffix="e1", status="RUNNING")
+    review = _agent("review-worker", tribe="review", suffix="r1", status="RUNNING")
+    app = _DisplayDiffApp([epic, review], monkeypatch)
+    app._agent_search_query = "NOT machine:apollo"
+    app._agent_display_last_search_query = "NOT machine:apollo"
+    app._remember_session_mounted_occupancy()
+    epic_widget = app._widgets[_widget_sel("epic")]
+    app._agents_refresh_trace_records.clear()
+
+    app._agents = []
+    app._refresh_agents_display_after_finalize(
+        previous_agents=[epic, review],
+        defer_detail=True,
+    )
+
+    assert app._widgets[_widget_sel("epic")] is epic_widget
+    assert epic_widget in app._container.children
