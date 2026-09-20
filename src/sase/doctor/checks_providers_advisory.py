@@ -101,12 +101,29 @@ def _resolved_routes() -> list[tuple[str, str, str]]:
     (including aliases reached by launch-default settings) and the default
     provider's own tier mapping, which is what ``model_tier`` resolves to when
     no alias or ``%model`` names a model explicitly.
+
+    Alias pools and fallback chains are expanded member by member: the
+    round-robin cursor decides which member a launch takes, so reporting only
+    the currently selected member would make the verdict depend on cursor
+    state. Every member (and last-resort candidate) is already resolved to
+    its provider/model on the view's ``selector_members``.
     """
     from sase.llm_provider import registry as llm_registry
-    from sase.llm_provider.alias_view import build_alias_views
+    from sase.llm_provider.alias_view import (
+        build_alias_views,
+        selector_member_provider_model_effort,
+    )
 
     routes: list[tuple[str, str, str]] = []
     for view in build_alias_views(overrides={}):
+        for member in view.selector_members:
+            if not member.valid:
+                continue
+            member_provider, member_model, _effort = (
+                selector_member_provider_model_effort(member)
+            )
+            if member_model:
+                routes.append((f"@{view.name}", member_provider or "", member_model))
         if view.model:
             routes.append((f"@{view.name}", view.provider or "", view.model))
 

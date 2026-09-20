@@ -8,6 +8,7 @@ import pytest
 
 from sase.doctor.checks_providers_advisory import check_llm_model_advisory
 from sase.llm_provider.alias_view import AliasView
+from sase.llm_provider.model_alias_resolution_types import ModelAliasSelectorMember
 
 _FLAGGED = ("muse-spark-1.3-contributor", "muse-spark-1.2-contributor")
 _ADVISORY = {
@@ -26,6 +27,44 @@ def _view(name: str, provider: str, model: str) -> AliasView:
         provider=provider,
         model=model,
         override=None,
+    )
+
+
+def _member(
+    value: str,
+    target: str,
+    provider: str | None,
+    *,
+    selected: bool = False,
+    last_resort: bool = False,
+) -> ModelAliasSelectorMember:
+    return ModelAliasSelectorMember(
+        value=value,
+        target=target,
+        effort=None,
+        provider=provider,
+        available=True,
+        selected=selected,
+        last_resort=last_resort,
+    )
+
+
+def _pool_view(
+    name: str,
+    provider: str,
+    model: str,
+    members: list[ModelAliasSelectorMember],
+) -> AliasView:
+    return AliasView(
+        name=name,
+        kind="role",
+        configured=True,
+        configured_value=" | ".join(member.value for member in members),
+        provider=provider,
+        model=model,
+        override=None,
+        selector_mode="round_robin",
+        selector_members=tuple(members),
     )
 
 
@@ -113,6 +152,62 @@ def test_warns_for_a_configured_alias_and_quotes_the_detail(
     assert finding["model"] == flagged
     assert finding["severity"] == "warn"
     assert check.next_steps
+
+
+@pytest.mark.parametrize("flagged", _FLAGGED)
+def test_warns_when_a_pool_member_is_flagged_but_not_selected(
+    routes, flagged: str
+) -> None:
+    """The verdict must not depend on the round-robin cursor position."""
+    routes(
+        [
+            _pool_view(
+                "medium",
+                "claude",
+                "sonnet",
+                members=[
+                    _member("claude/sonnet", "claude/sonnet", "claude", selected=True),
+                    _member(f"muse/{flagged}", f"muse/{flagged}", "muse"),
+                ],
+            )
+        ]
+    )
+
+    check = check_llm_model_advisory()
+
+    assert check.status == "WARN"
+    assert check.details == (
+        f"@medium -> muse/{flagged}: Meta trains on this model's inputs and outputs.",
+    )
+    finding = check.data["findings"][0]
+    assert finding["source"] == "@medium"
+    assert finding["model"] == flagged
+
+
+@pytest.mark.parametrize("flagged", _FLAGGED)
+def test_warns_when_a_last_resort_candidate_is_flagged(routes, flagged: str) -> None:
+    routes(
+        [
+            _pool_view(
+                "medium",
+                "claude",
+                "sonnet",
+                members=[
+                    _member("claude/sonnet", "claude/sonnet", "claude", selected=True),
+                    _member(
+                        f"muse/{flagged}", f"muse/{flagged}", "muse", last_resort=True
+                    ),
+                ],
+            )
+        ]
+    )
+
+    check = check_llm_model_advisory()
+
+    assert check.status == "WARN"
+    finding = check.data["findings"][0]
+    assert finding["source"] == "@medium"
+    assert finding["model"] == flagged
 
 
 @pytest.mark.parametrize("flagged", _FLAGGED)

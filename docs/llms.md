@@ -1655,7 +1655,8 @@ reason, no bundled provider's tier map points at an advisory-flagged model, and 
 asserts that so a future cost optimization cannot quietly reintroduce the problem. The
 tier map is not the only automatic route, though: the shipped `@xsmall`, `@small`, and
 `@medium` size-alias pools include `muse-spark-1.3-contributor`, so on a stock install
-this check warns whenever one of those pools currently selects it. Override
+this check warns whenever one of those pools includes it, whichever member the
+round-robin cursor currently selects. Override
 `llm_provider.model_aliases.builtin.<size>` to drop the member.
 
 The bundled advisories are Muse's `muse-spark-1.3-contributor` and
