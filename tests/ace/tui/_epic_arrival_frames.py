@@ -9,6 +9,11 @@ sibling) and drives each arrival through the real apply boundary
 Every completed Agents-display refresh appends one paint frame to
 ``app._agents_paint_log`` (``actions/agents/_paint_log.py``); the invariant
 checkers below assert over those frames rather than over aggregate counters.
+
+The last two windows are not arrivals: they move ``@default`` rows to another
+status bucket while ``@epic`` changes not at all, then while one ``@epic`` row
+only picks up a badge. These are the sibling-panel cases the panel-scoped
+rebuild gates exist for (sase-142.5).
 """
 
 from __future__ import annotations
@@ -42,6 +47,7 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     wait_for_startup,
 )
 
+DEFAULT_WIDGET_ID = "agent-list-panel"
 EPIC_WIDGET_ID = "agent-list-panel-epic"
 JOB_WIDGET_ID = "agent-list-panel-job"
 HOST_QUERY = "NOT machine:apollo"
@@ -57,6 +63,8 @@ ARRIVALS = (
     "starting_narrow_rendered",
     "starting",
     "starting_rendered_wide",
+    "sibling_status_move",
+    "sibling_move_beside_epic_patch",
 )
 
 #: Arrivals that add one ordinary non-clan row no wider than the existing ones.
@@ -89,6 +97,8 @@ class ArrivalRun:
     windows: dict[str, ArrivalWindow] = field(default_factory=dict)
     paint_calls: list[PaintCall] = field(default_factory=list)
     trace_frames: list[dict[str, Any]] = field(default_factory=list)
+    # The refresh trace records each window produced, in the order recorded.
+    records: dict[str, list[Any]] = field(default_factory=dict)
 
     def window_frames(self, label: str, *, with_previous: bool = False) -> list[Any]:
         window = self.windows[label]
@@ -183,6 +193,26 @@ def arrival_rosters(base: list[Agent]) -> list[tuple[str, list[Agent]]]:
     arrive(
         "starting_rendered_wide",
         [*current[:-1], dataclasses.replace(wide, status="RUNNING")],
+    )
+    # ``home-a`` finishes: a status-bucket move confined to ``@default``.
+    arrive(
+        "sibling_status_move",
+        [dataclasses.replace(current[0], status="DONE"), *current[1:]],
+    )
+    # ``home-b`` finishes too while one ``@epic`` row picks up a badge: the
+    # sibling's cosmetic change must be patched, not repainted with its panel.
+    arrive(
+        "sibling_move_beside_epic_patch",
+        [
+            current[0],
+            dataclasses.replace(current[1], status="DONE"),
+            *(
+                dataclasses.replace(agent, activity="reviewing")
+                if agent.cl_name == "epic-node-05"
+                else agent
+                for agent in current[2:]
+            ),
+        ],
     )
     return rosters
 
@@ -280,15 +310,19 @@ async def _record(run: ArrivalRun, monkeypatch: pytest.MonkeyPatch) -> None:
         assert app._agent_query_parse_error is None
         assert app._agent_search_query == HOST_QUERY
 
+        records: list[Any] = []
+        app._agents_refresh_trace_records = records
         origin = len(log)
         with _spy_on_agent_list_paints(run, log, origin):
             record_agents_paint_frame(app, kind="settled")  # the baseline frame
             for label, rows in arrival_rosters(roster):
                 start = len(log) - origin
+                first_record = len(records)
                 apply(rows)
                 await _settle(page, log)
                 record_agents_paint_frame(app, kind="settled")
                 run.windows[label] = ArrivalWindow(label, start, len(log) - origin)
+                run.records[label] = records[first_record:]
         run.frames = log[origin:]
 
 
@@ -337,6 +371,15 @@ def record_arrival_run(monkeypatch: pytest.MonkeyPatch, trace_path: Path) -> Arr
             if (record := json.loads(line)).get("event") == "agents.paint_frame"
         ]
     return run
+
+
+def panel_rebuild_attributions(run: ArrivalRun, label: str) -> list[tuple[Any, Any]]:
+    """The ``(panel widget id, reason)`` of each partial rebuild a window recorded."""
+    return [
+        (record.panel, record.fallback_reason)
+        for record in run.records[label]
+        if record.stage == "display_fallback" and record.panel is not None
+    ]
 
 
 # --- invariants over the paint log -------------------------------------------

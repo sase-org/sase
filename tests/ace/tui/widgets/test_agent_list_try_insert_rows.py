@@ -136,6 +136,44 @@ def test_insert_leaves_the_widget_as_a_rebuild_would(
     assert widget._insert_decline_reason is None
 
 
+def _family_base() -> list[Agent]:
+    """Plain rows around one workflow family (a parent row and one step)."""
+    parent = _agent("flow", 3, agent_type=AgentType.WORKFLOW, workflow="wf")
+    step = _agent(
+        "flow-step",
+        3,
+        second=10,
+        parent_timestamp=parent.raw_suffix,
+        parent_workflow="wf",
+    )
+    return [
+        _agent("node-00", 0),
+        _agent("node-01", 1),
+        parent,
+        step,
+        _agent("node-05", 5),
+    ]
+
+
+@pytest.mark.parametrize("mode", [STANDARD, BY_STATUS])
+@pytest.mark.parametrize("position", [0, 3, 5], ids=["front", "mid-family", "end"])
+def test_insert_beside_an_existing_workflow_family_is_a_rebuild(
+    monkeypatch: pytest.MonkeyPatch, mode: GroupingMode, position: int
+) -> None:
+    # The refresh no longer names a workflow-tree change for a family that an
+    # arrival merely shifts, so this is the contract that keeps that safe.
+    base = _family_base()
+    arrival = _agent("node-2b", 2, second=30)
+    new = [*base[:position], arrival, *base[position:]]
+    widget = _built(monkeypatch, base, mode=mode)
+    assert any("flow-step" in str(option.prompt) for option in widget.options)
+    selected = 1 if position == 0 else 0  # node-00, wherever the arrival landed
+
+    assert widget.try_insert_rows(new, selected, grouping_mode=mode)
+
+    _assert_matches_rebuild(monkeypatch, widget, new, current_idx=selected, mode=mode)
+
+
 def test_insert_refreshes_banner_chips_instead_of_letting_them_drift(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

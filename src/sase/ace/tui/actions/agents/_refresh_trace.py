@@ -105,6 +105,9 @@ class _AgentRefreshTraceRecord:
     display_cost: AgentRefreshDisplayCost | None = None
     fallback_reason: str | None = None
     full_history: bool | None = None
+    # Widget id of the one panel a partial rebuild is attributed to; ``None`` for
+    # a record that concerns the whole tab.
+    panel: str | None = None
 
 
 @dataclass
@@ -214,6 +217,7 @@ def record_agents_refresh_trace(
     display_cost: AgentRefreshDisplayCost | None = None,
     fallback_reason: str | None = None,
     full_history: bool | None = None,
+    panel: str | None = None,
     **fields: Any,
 ) -> _AgentRefreshTraceRecord:
     """Emit one structured trace point and optionally append it to ``app``."""
@@ -225,6 +229,7 @@ def record_agents_refresh_trace(
         display_cost=display_cost,
         fallback_reason=fallback_reason,
         full_history=full_history,
+        panel=panel,
     )
     record_fields = {
         key: value for key, value in asdict(record).items() if value is not None

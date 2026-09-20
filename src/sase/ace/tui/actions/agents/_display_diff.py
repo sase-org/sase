@@ -2,24 +2,35 @@
 
 from __future__ import annotations
 
-from collections.abc import Collection
+from collections import Counter
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 from ...models.agent import AgentType
-from ...models.agent_groups import GroupingMode, rendered_group_keys
+from ...models.agent_groups import (
+    GroupingMode,
+    rendered_group_keys,
+    status_grouping_signature,
+)
 from ...models.agent_panels import (
-    AgentPanelGroup,
     PanelKey,
     agent_is_rendered_in_agents_panel,
-    agents_for_panel,
     panel_key_per_agent,
 )
 
 if TYPE_CHECKING:
     from ...models import Agent
+    from ...models.agent_panel_index import AgentPanelIndex
 
 AgentIdentity = tuple[AgentType, str, str | None]
+
+#: The fallback reasons a whole-roster predicate attributes to a panel; each is
+#: also a member of ``AgentRefreshFallbackReason``.
+PanelRebuildReason = Literal[
+    "panel_membership_change",
+    "status_membership_change",
+    "workflow_tree_change",
+]
 
 
 @dataclass(frozen=True)
@@ -90,50 +101,6 @@ def build_agent_display_diff(
         added_indices=added_indices,
         moved_identities=moved_identities,
         duplicate_identity=duplicate_identity,
-    )
-
-
-def panel_keys_for_display(
-    agents: list[Agent],
-    *,
-    merge_tribe_panels: bool,
-    collapsed_panel_keys: Collection[PanelKey] = (),
-) -> tuple[PanelKey, ...]:
-    """Return the rendered panel-key collection for *agents*."""
-    return tuple(
-        AgentPanelGroup.from_agents(
-            agents,
-            merge_tribe_panels=merge_tribe_panels,
-            collapsed_panel_keys=collapsed_panel_keys,
-        ).panel_keys
-    )
-
-
-def grouping_tree_keys_for_display(
-    agents: list[Agent],
-    *,
-    mode: GroupingMode,
-    merge_tribe_panels: bool,
-    collapsed_panel_keys: Collection[PanelKey] = (),
-) -> tuple[tuple[PanelKey, tuple[tuple[str, ...], ...]], ...]:
-    """Return visible grouping-banner keys for each rendered Agents panel."""
-    return tuple(
-        (
-            key,
-            rendered_group_keys(
-                agents_for_panel(
-                    agents,
-                    key,
-                    merge_tribe_panels=merge_tribe_panels,
-                ),
-                mode,
-            ),
-        )
-        for key in panel_keys_for_display(
-            agents,
-            merge_tribe_panels=merge_tribe_panels,
-            collapsed_panel_keys=collapsed_panel_keys,
-        )
     )
 
 
@@ -264,49 +231,228 @@ def changed_same_position_panel_membership_keys(
     return keys
 
 
-def diff_touches_workflow_tree(
+@dataclass(frozen=True)
+class PanelRebuildScope:
+    """Panels an apply must rebuild whole, and the reason each one is named for.
+
+    ``reasons`` holds one ``(panel key, reason)`` pair per attribution, in a
+    stable order, so a partial rebuild stays as observable as a global one.
+    ``rebuilt_removals`` are the removed identities that lived in a rebuilt
+    panel: that panel is repainted from its new slice, so they need no
+    in-place row removal first.
+    """
+
+    reasons: tuple[tuple[PanelKey, PanelRebuildReason], ...] = ()
+    rebuilt_removals: frozenset[AgentIdentity] = frozenset()
+
+    @property
+    def keys(self) -> set[PanelKey]:
+        return {key for key, _reason in self.reasons}
+
+
+def _duplicate_identity_panel_keys(
     diff: _AgentDisplayDiff,
     previous_agents: list[Agent],
     next_agents: list[Agent],
-) -> bool:
-    """Return True when incremental rendering would risk stale tree rows."""
-    previous_by_id = {agent.identity: agent for agent in previous_agents}
-    next_by_id = {agent.identity: agent for agent in next_agents}
-    touched: set[AgentIdentity] = set(diff.removed_identities)
-    touched.update(diff.moved_identities)
-    touched.update(next_agents[idx].identity for idx in diff.added_indices)
+    *,
+    previous_index: AgentPanelIndex,
+    next_index: AgentPanelIndex,
+) -> set[PanelKey]:
+    """Panels holding any occurrence of an identity that repeats in a roster.
 
-    def is_workflow_shaped(agent: Agent | None) -> bool:
-        if agent is None:
-            return False
-        return (
-            agent.agent_type is AgentType.WORKFLOW
-            or agent.is_workflow_child
-            or agent.parent_timestamp is not None
-            or agent.parent_workflow is not None
+    The identity-keyed diff cannot say which copy moved, changed, or left, so
+    every panel that holds one, before or after, is unsafe to patch.
+    """
+    if not diff.duplicate_identity:
+        return set()
+    duplicated = {
+        identity
+        for roster in (previous_agents, next_agents)
+        for identity, count in Counter(agent.identity for agent in roster).items()
+        if count > 1
+    }
+    return {
+        key
+        for roster, index in (
+            (previous_agents, previous_index),
+            (next_agents, next_index),
         )
+        for agent, key in zip(roster, index.keys_per_agent, strict=True)
+        if agent.identity in duplicated
+    }
 
-    def structural_signature(agent: Agent) -> tuple[object, ...]:
-        return (
-            agent.status,
-            agent.hidden,
-            agent.is_workflow_child,
-            agent.raw_suffix,
-            agent.parent_timestamp,
-            agent.parent_workflow,
-        )
 
-    for idx in diff.changed_same_position:
-        previous = previous_agents[idx]
-        next_agent = next_agents[idx]
-        if structural_signature(previous) == structural_signature(next_agent):
+def _by_status_membership_panel_keys(
+    previous_agents: list[Agent],
+    next_agents: list[Agent],
+    *,
+    previous_index: AgentPanelIndex,
+    next_index: AgentPanelIndex,
+) -> set[PanelKey]:
+    """Panels whose ``BY_STATUS`` grouping structure would move rows.
+
+    A panel is named when a row it held or now holds changed status bucket or
+    launch anchor, or when the banner keys of its own slice differ. A new
+    bucket in one panel therefore no longer names its siblings.
+    """
+    next_position = {agent.identity: idx for idx, agent in enumerate(next_agents)}
+    keys: set[PanelKey] = set()
+    for previous_idx, previous in enumerate(previous_agents):
+        next_idx = next_position.get(previous.identity)
+        # A row that had no Agents-tab row yet (a STARTING agent that just
+        # became rendered) has nothing on screen to move: it is an arrival, and
+        # the banner-key comparison below catches a new bucket.
+        if next_idx is None or not agent_is_rendered_in_agents_panel(previous):
             continue
-        if is_workflow_shaped(previous) or is_workflow_shaped(next_agent):
-            touched.add(next_agent.identity)
-
-    for identity in touched:
-        if is_workflow_shaped(previous_by_id.get(identity)) or is_workflow_shaped(
-            next_by_id.get(identity)
+        if status_grouping_signature(previous) != status_grouping_signature(
+            next_agents[next_idx]
         ):
-            return True
-    return False
+            keys.add(previous_index.keys_per_agent[previous_idx])
+            keys.add(next_index.keys_per_agent[next_idx])
+
+    def banner_keys(index: AgentPanelIndex) -> dict[PanelKey, tuple[Any, ...]]:
+        return {
+            key: rendered_group_keys(slot.agents, GroupingMode.BY_STATUS)
+            for key, slot in index.panels.items()
+        }
+
+    previous_banners = banner_keys(previous_index)
+    next_banners = banner_keys(next_index)
+    keys.update(
+        key
+        for key in previous_banners.keys() | next_banners.keys()
+        if previous_banners.get(key) != next_banners.get(key)
+    )
+    return keys
+
+
+def _is_workflow_shaped(agent: Agent) -> bool:
+    return (
+        agent.agent_type is AgentType.WORKFLOW
+        or agent.is_workflow_child
+        or agent.parent_timestamp is not None
+        or agent.parent_workflow is not None
+    )
+
+
+def _workflow_structural_signature(agent: Agent) -> tuple[object, ...]:
+    return (
+        agent.status,
+        agent.hidden,
+        agent.is_workflow_child,
+        agent.raw_suffix,
+        agent.parent_timestamp,
+        agent.parent_workflow,
+    )
+
+
+def _workflow_tree_panel_keys(
+    previous_agents: list[Agent],
+    next_agents: list[Agent],
+    *,
+    previous_index: AgentPanelIndex,
+    next_index: AgentPanelIndex,
+) -> set[PanelKey]:
+    """Panels whose workflow tree changed between two rosters.
+
+    A panel's workflow tree is the ordered ``(identity, structural signature)``
+    of the workflow-shaped rows it holds, hidden ones included. An add, a
+    removal, a structural change, a reparent, or a reorder among workflow rows
+    changes it, and a row that moves panels changes both. A workflow row that
+    only sits at a different roster index because a row arrived in a *different*
+    panel changes nothing, and neither does a cosmetic field such as activity.
+    """
+
+    def trees(
+        agents: list[Agent], index: AgentPanelIndex
+    ) -> dict[PanelKey, tuple[tuple[AgentIdentity, tuple[object, ...]], ...]]:
+        rows: dict[PanelKey, list[tuple[AgentIdentity, tuple[object, ...]]]] = {}
+        for agent, key in zip(agents, index.keys_per_agent, strict=True):
+            if _is_workflow_shaped(agent):
+                rows.setdefault(key, []).append(
+                    (agent.identity, _workflow_structural_signature(agent))
+                )
+        return {key: tuple(panel_rows) for key, panel_rows in rows.items()}
+
+    previous_trees = trees(previous_agents, previous_index)
+    next_trees = trees(next_agents, next_index)
+    return {
+        key
+        for key in previous_trees.keys() | next_trees.keys()
+        if previous_trees.get(key) != next_trees.get(key)
+    }
+
+
+def panel_rebuild_scope(
+    diff: _AgentDisplayDiff,
+    previous_agents: list[Agent],
+    next_agents: list[Agent],
+    *,
+    previous_index: AgentPanelIndex,
+    next_index: AgentPanelIndex,
+    by_status: bool,
+) -> PanelRebuildScope:
+    """Attribute each whole-roster rebuild predicate to the panels it concerns.
+
+    The three predicates used to answer "rebuild everything". Each now names
+    the panel keys whose own slice it fires for, so the apply rebuilds those
+    panels and leaves every other one to the cheap patch path. A diff that
+    changes nothing short-circuits to an empty scope.
+    """
+    if not diff.has_changes:
+        return PanelRebuildScope()
+    attributions: tuple[tuple[PanelRebuildReason, set[PanelKey]], ...] = (
+        (
+            "panel_membership_change",
+            _duplicate_identity_panel_keys(
+                diff,
+                previous_agents,
+                next_agents,
+                previous_index=previous_index,
+                next_index=next_index,
+            ),
+        ),
+        (
+            "status_membership_change",
+            _by_status_membership_panel_keys(
+                previous_agents,
+                next_agents,
+                previous_index=previous_index,
+                next_index=next_index,
+            )
+            if by_status
+            else set(),
+        ),
+        (
+            "workflow_tree_change",
+            _workflow_tree_panel_keys(
+                previous_agents,
+                next_agents,
+                previous_index=previous_index,
+                next_index=next_index,
+            ),
+        ),
+    )
+    reasons = tuple(
+        (key, reason)
+        for reason, keys in attributions
+        for key in sorted(keys, key=_panel_key_order)
+    )
+    rebuilt = {key for key, _reason in reasons}
+    return PanelRebuildScope(
+        reasons=reasons,
+        rebuilt_removals=frozenset(
+            agent.identity
+            for agent, key in zip(
+                previous_agents, previous_index.keys_per_agent, strict=True
+            )
+            if key in rebuilt and agent.identity in diff.removed_identities
+        )
+        if rebuilt and diff.removed_identities
+        else frozenset(),
+    )
+
+
+def _panel_key_order(key: PanelKey) -> tuple[bool, str]:
+    """Sort key: the reserved ``@default`` panel first, then tribes by name."""
+    return (key is not None, key or "")

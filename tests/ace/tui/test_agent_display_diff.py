@@ -11,7 +11,9 @@ from ._agent_display_diff_helpers import (
     _DisplayDiffApp,
     _agent,
     _display_costs,
+    _rebuild_scope,
     _widget_sel,
+    _workflow_agent,
 )
 
 
@@ -357,3 +359,42 @@ def test_same_list_falls_back_when_previous_rows_were_not_rendered(
 
     assert app.full_rebuilds == 1
     assert "display_full_rebuild" in _display_costs(app)
+
+
+# --- whole-roster predicates attribute to the panels they concern ---
+
+
+def test_a_duplicated_identity_names_the_panels_holding_a_copy() -> None:
+    apple = _agent("apple-one", tribe="apple", suffix="a1")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
+    cherry = _agent("cherry-one", tribe="cherry", suffix="c1")
+
+    scope = _rebuild_scope(
+        [apple, banana, cherry],
+        [apple, replace(apple, tribe="banana"), banana, cherry],
+    )
+
+    assert scope.reasons == (
+        ("apple", "panel_membership_change"),
+        ("banana", "panel_membership_change"),
+    )
+
+
+def test_a_repeating_identity_in_both_rosters_still_names_only_its_panel() -> None:
+    apple = _agent("apple-one", tribe="apple", suffix="a1")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
+    changed = replace(banana, activity="busy")
+
+    scope = _rebuild_scope([apple, apple, banana], [apple, apple, changed])
+
+    assert scope.keys == {"apple"}
+
+
+def test_an_unchanged_roster_has_an_empty_scope() -> None:
+    apple = _agent("apple-one", tribe="apple", suffix="a1")
+    flow = _workflow_agent("flow", suffix="wf1", tribe="banana")
+
+    scope = _rebuild_scope([apple, flow], [apple, flow], by_status=True)
+
+    assert scope.reasons == ()
+    assert scope.rebuilt_removals == frozenset()

@@ -11,7 +11,9 @@ from ._agent_display_diff_helpers import (
     _DisplayDiffApp,
     _agent,
     _display_costs,
+    _panel_attributions,
     _widget_sel,
+    _workflow_agent,
 )
 
 
@@ -96,18 +98,25 @@ def test_a_starting_node_that_becomes_rendered_joins_without_a_full_rebuild(
     assert "display_full_rebuild" not in _display_costs(app)
 
 
-def test_a_rendered_row_changing_bucket_still_forces_a_full_rebuild(
+def test_a_rendered_row_changing_bucket_rebuilds_its_panel_without_inserting(
     monkeypatch: Any,
 ) -> None:
     running = _agent("apple-one", tribe="apple", suffix="a1")
     other = _agent("apple-two", tribe="apple", suffix="a2")
     app = _by_status_app([running, other], monkeypatch)
+    widget = app._widgets[_widget_sel("apple")]
+    repaints = widget.update_list_calls
 
     _apply(app, [running, other], [replace(running, status="DONE"), other])
 
-    assert app.full_rebuilds == 1
+    assert app.full_rebuilds == 0
+    assert widget.update_list_calls == repaints + 1
     assert "status_membership_change" in _fallbacks(app)
-    assert "display_full_rebuild" in _display_costs(app)
+    costs = _display_costs(app)
+    assert "display_panel_rebuild" in costs
+    assert "display_full_rebuild" not in costs
+    # The panel was named a rebuild up front, so no insert was even attempted.
+    assert "display_row_insert" not in costs
 
 
 def test_an_arrival_that_cannot_be_inserted_records_why_and_rebuilds_its_panel(
@@ -146,3 +155,46 @@ def test_only_the_incremental_apply_path_attempts_inserts(monkeypatch: Any) -> N
 
     assert widget.update_list_calls == repaints + 1
     assert "display_row_insert" not in _display_costs(app)
+
+
+def test_an_arrival_before_an_existing_workflow_family_is_still_inserted(
+    monkeypatch: Any,
+) -> None:
+    # The arrival shifts the family's roster index and its panel-local
+    # position, but the family itself is unchanged, so no tree change is named
+    # and the panel takes the in-place insert.
+    flow = _workflow_agent("flow", suffix="wf1", tribe="apple")
+    apple = _agent("apple-one", tribe="apple", suffix="a1")
+    arrival = _agent("apple-two", tribe="apple", suffix="a2")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
+    app = _by_status_app([apple, flow, banana], monkeypatch)
+    apple_widget = app._widgets[_widget_sel("apple")]
+    repaints = apple_widget.update_list_calls
+
+    _apply(app, [apple, flow, banana], [arrival, apple, flow, banana])
+
+    assert apple_widget.update_list_calls == repaints
+    assert _panel_attributions(app) == []
+    costs = _display_costs(app)
+    assert "display_row_insert" in costs
+    assert "display_full_rebuild" not in costs
+
+
+def test_a_family_shifted_by_an_arrival_in_another_panel_is_not_touched(
+    monkeypatch: Any,
+) -> None:
+    arrival = _agent("apple-two", tribe="apple", suffix="a2")
+    apple = _agent("apple-one", tribe="apple", suffix="a1")
+    flow = _workflow_agent("flow", suffix="wf1", tribe="banana")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
+    app = _by_status_app([apple, flow, banana], monkeypatch)
+    flow_widget = app._widgets[_widget_sel("banana")]
+    repaints = flow_widget.update_list_calls
+
+    # The arrival lands ahead of the family in the roster, shifting its global
+    # index; the family's own panel did not change at all.
+    _apply(app, [apple, flow, banana], [arrival, apple, flow, banana])
+
+    assert flow_widget.update_list_calls == repaints
+    assert _panel_attributions(app) == []
+    assert "display_full_rebuild" not in _display_costs(app)

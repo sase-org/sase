@@ -551,12 +551,15 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         affected_keys: set[PanelKey],
         *,
         inserted_keys: set[PanelKey] | None = None,
+        rebuild_only_keys: set[PanelKey] | None = None,
     ) -> bool:
         """Rebuild only rendered panels whose membership/content changed.
 
         When *inserted_keys* is given, an affected panel whose rows only gained
         plain nodes takes the in-place row insert instead of a rebuild, and its
-        key is added to *inserted_keys*.
+        key is added to *inserted_keys*. A panel in *rebuild_only_keys* is one a
+        caller already knows is structurally unsafe to insert into, so it skips
+        the attempt and is rebuilt.
         """
         if not affected_keys:
             return True
@@ -615,7 +618,8 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                 idx=idx,
                 key=key,
                 skip_content=key not in affected_keys,
-                row_insert=inserted_keys is not None,
+                row_insert=inserted_keys is not None
+                and key not in (rebuild_only_keys or ()),
                 **paint_ctx,
             )
             if inserted and inserted_keys is not None:

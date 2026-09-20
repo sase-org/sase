@@ -550,6 +550,24 @@ jq -r 'select(.event == "agents.paint_frame" and .kind != "settled")
 A soak that never creates a node shows no `display_row_insert` at all; that proves
 nothing about arrivals.
 
+Rebuild scope is decided per panel. When a roster change concerns only some panels (a
+duplicated identity, a `BY_STATUS` bucket change, or a change to a panel's workflow
+tree), the apply rebuilds those panels and patches the rest: `display_panel_rebuild` on
+an `incremental` frame, never `display_full_rebuild`. Each panel it names is one
+`agents.refresh_work` event with `stage: display_fallback`, the `fallback_reason`
+(`panel_membership_change`, `status_membership_change` or `workflow_tree_change`), and
+`panel`, that panel's widget id. Tally which panels a soak rebuilt, and why:
+
+```bash
+jq -r 'select(.event == "agents.refresh_work" and .stage == "display_fallback"
+              and .panel != null)
+       | [.panel, .fallback_reason] | @tsv' ~/.sase/perf/tui_trace.jsonl \
+   | sort | uniq -c | sort -rn
+```
+
+A `display_full_rebuild` therefore means the whole tab was rebuilt: a changed search
+query, an unsupported or stale grouping mode, or a fast path that refused the apply.
+
 To look at the same arrival by eye, capture the `@epic` panel before and after a node
 joins it with a live `sase screenshot`. This is a human check and stays out of the
 golden lane (live captures carry real timestamps and host state):

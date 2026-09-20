@@ -11,13 +11,16 @@ from textual.css.query import NoMatches
 from sase.ace.tui.actions.agents._display import AgentDisplayMixin
 from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 from sase.ace.tui.actions.agents._display_diff import (
+    PanelRebuildScope,
     build_agent_display_diff,
-    diff_touches_workflow_tree,
+    panel_rebuild_scope,
 )
+from sase.ace.tui.actions.agents._loading import DISMISSABLE_STATUSES
 from sase.ace.tui.actions.agents._refresh_trace import _AgentRefreshTraceRecord
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_group_fold import AgentGroupFoldRegistry
 from sase.ace.tui.models.agent_groups import GroupingMode
+from sase.ace.tui.models.agent_panel_index import build_agent_panel_index
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.widgets.agent_list import AgentList
@@ -233,6 +236,7 @@ def _workflow_agent(
     hidden: bool = False,
     parent_timestamp: str | None = None,
     parent_workflow: str | None = None,
+    tribe: str | None = None,
 ) -> Agent:
     return Agent(
         agent_type=agent_type,
@@ -247,6 +251,7 @@ def _workflow_agent(
         hidden=hidden,
         parent_timestamp=parent_timestamp,
         parent_workflow=parent_workflow,
+        tribe=tribe,
     )
 
 
@@ -254,13 +259,80 @@ def _widget_sel(key: str | None) -> str:
     return f"#{panel_widget_id_for_key(key)}"
 
 
+def _panel_id(key: str | None) -> str:
+    """The widget id a panel's trace records name (no ``#`` selector prefix)."""
+    return panel_widget_id_for_key(key)
+
+
+def _apply_roster(
+    app: _DisplayDiffApp, previous: list[Agent], current: list[Agent]
+) -> None:
+    """Publish *current* over *previous* through the finalize refresh path."""
+    app._agents = list(current)
+    app._refresh_agents_display_after_finalize(
+        previous_agents=list(previous), defer_detail=True
+    )
+
+
+def _panel_attributions(app: _DisplayDiffApp) -> list[tuple[str | None, str | None]]:
+    """The ``(panel, reason)`` of every per-panel rebuild the apply recorded."""
+    return [
+        (record.panel, record.fallback_reason)
+        for record in app._agents_refresh_trace_records
+        if record.stage == "display_fallback" and record.panel is not None
+    ]
+
+
+def _panel_rows(app: _DisplayDiffApp, key: str | None) -> list[tuple[Any, ...]]:
+    """Identities of the rows a panel widget currently holds."""
+    return [agent.identity for agent in app._widgets[_widget_sel(key)]._agents]
+
+
 def _display_costs(app: _DisplayDiffApp) -> list[str | None]:
     return [record.display_cost for record in app._agents_refresh_trace_records]
+
+
+def _rebuild_scope(
+    previous_agents: list[Agent],
+    next_agents: list[Agent],
+    *,
+    by_status: bool = False,
+    merge_tribe_panels: bool = False,
+) -> PanelRebuildScope:
+    """The panels the whole-roster predicates would rebuild for this change."""
+
+    def index(agents: list[Agent]) -> Any:
+        return build_agent_panel_index(
+            agents,
+            dismissable_statuses=DISMISSABLE_STATUSES,
+            merge_tribe_panels=merge_tribe_panels,
+        )
+
+    return panel_rebuild_scope(
+        build_agent_display_diff(previous_agents, next_agents),
+        previous_agents,
+        next_agents,
+        previous_index=index(previous_agents),
+        next_index=index(next_agents),
+        by_status=by_status,
+    )
+
+
+def _workflow_tree_keys(
+    previous_agents: list[Agent],
+    next_agents: list[Agent],
+    *,
+    merge_tribe_panels: bool = False,
+) -> set[str | None]:
+    """Panel keys whose workflow tree the change touches."""
+    scope = _rebuild_scope(
+        previous_agents, next_agents, merge_tribe_panels=merge_tribe_panels
+    )
+    return {key for key, reason in scope.reasons if reason == "workflow_tree_change"}
 
 
 def _touches_workflow_tree(
     previous_agents: list[Agent],
     next_agents: list[Agent],
 ) -> bool:
-    diff = build_agent_display_diff(previous_agents, next_agents)
-    return diff_touches_workflow_tree(diff, previous_agents, next_agents)
+    return bool(_workflow_tree_keys(previous_agents, next_agents))

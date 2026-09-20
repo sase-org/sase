@@ -13,7 +13,13 @@ from sase.ace.tui.models.agent_groups import GroupingMode
 from ._agent_display_diff_helpers import (
     _DisplayDiffApp,
     _agent,
+    _apply_roster,
     _display_costs,
+    _panel_attributions,
+    _panel_id,
+    _panel_rows,
+    _rebuild_scope,
+    _widget_sel,
 )
 
 
@@ -24,6 +30,7 @@ def _by_status_app(agents: list[Agent], monkeypatch: Any) -> _DisplayDiffApp:
     # Re-render so the widgets carry the BY_STATUS status-bucket tree (and the
     # per-row patch context the row-patch path reads).
     app._refresh_panel_widgets(jump_hints=None)
+    app._agents_refresh_trace_records.clear()
     return app
 
 
@@ -139,11 +146,12 @@ def test_by_status_finalize_bucket_move_uses_status_membership_fallback(
         defer_detail=True,
     )
 
-    assert app.full_rebuilds == 1
-    assert app._agents_refresh_trace_records[0].fallback_reason == (
-        "status_membership_change"
-    )
-    assert "display_full_rebuild" in _display_costs(app)
+    assert app.full_rebuilds == 0
+    assert _panel_attributions(app) == [
+        ("agent-list-panel", "status_membership_change")
+    ]
+    assert "display_panel_rebuild" in _display_costs(app)
+    assert "display_full_rebuild" not in _display_costs(app)
 
 
 def test_by_status_finalize_bucket_appearance_uses_status_membership_fallback(
@@ -160,11 +168,12 @@ def test_by_status_finalize_bucket_appearance_uses_status_membership_fallback(
         defer_detail=True,
     )
 
-    assert app.full_rebuilds == 1
-    assert app._agents_refresh_trace_records[0].fallback_reason == (
-        "status_membership_change"
-    )
-    assert "display_full_rebuild" in _display_costs(app)
+    assert app.full_rebuilds == 0
+    assert _panel_attributions(app) == [
+        ("agent-list-panel", "status_membership_change")
+    ]
+    assert "display_panel_rebuild" in _display_costs(app)
+    assert "display_full_rebuild" not in _display_costs(app)
 
 
 def test_by_status_finalize_subgroup_collapse_uses_status_membership_fallback(
@@ -181,11 +190,12 @@ def test_by_status_finalize_subgroup_collapse_uses_status_membership_fallback(
         defer_detail=True,
     )
 
-    assert app.full_rebuilds == 1
-    assert app._agents_refresh_trace_records[0].fallback_reason == (
-        "status_membership_change"
-    )
-    assert "display_full_rebuild" in _display_costs(app)
+    assert app.full_rebuilds == 0
+    assert _panel_attributions(app) == [
+        ("agent-list-panel", "status_membership_change")
+    ]
+    assert "display_panel_rebuild" in _display_costs(app)
+    assert "display_full_rebuild" not in _display_costs(app)
 
 
 def test_by_status_status_bucket_move_refuses_row_patch(monkeypatch: Any) -> None:
@@ -299,3 +309,184 @@ def test_stale_widget_grouping_mode_falls_back_to_full_rebuild(
         "stale_grouping_mode"
     )
     assert "display_full_rebuild" in _display_costs(app)
+
+
+# --- panel-scoped rebuilds: only the panel a change concerns is rebuilt ---
+
+
+def test_a_bucket_move_in_one_panel_leaves_a_sibling_with_no_change_alone(
+    monkeypatch: Any,
+) -> None:
+    apple = _agent("apple-one", tribe="apple", suffix="a1")
+    apple_two = _agent("apple-two", tribe="apple", suffix="a2")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
+    app = _by_status_app([apple, apple_two, banana], monkeypatch)
+    apple_widget = app._widgets[_widget_sel("apple")]
+    banana_widget = app._widgets[_widget_sel("banana")]
+    apple_repaints = apple_widget.update_list_calls
+    banana_repaints = banana_widget.update_list_calls
+    banana_rows = banana_widget.option_count
+
+    _apply_roster(
+        app,
+        [apple, apple_two, banana],
+        [replace(apple, status="DONE"), apple_two, banana],
+    )
+
+    assert app.full_rebuilds == 0
+    assert apple_widget.update_list_calls == apple_repaints + 1
+    assert banana_widget.update_list_calls == banana_repaints
+    assert banana_widget.option_count == banana_rows
+    assert _panel_attributions(app) == [
+        (_panel_id("apple"), "status_membership_change")
+    ]
+    costs = _display_costs(app)
+    assert "display_panel_rebuild" in costs
+    assert "display_full_rebuild" not in costs
+
+
+def test_a_bucket_move_beside_a_cosmetic_change_patches_the_sibling_in_place(
+    monkeypatch: Any,
+) -> None:
+    apple = _agent("apple-one", tribe="apple", suffix="a1")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
+    app = _by_status_app([apple, banana], monkeypatch)
+    banana_widget = app._widgets[_widget_sel("banana")]
+    banana_repaints = banana_widget.update_list_calls
+
+    _apply_roster(
+        app,
+        [apple, banana],
+        [replace(apple, status="DONE"), replace(banana, activity="still going")],
+    )
+
+    # Before scoping, the whole-roster rebuild repainted the sibling whose row
+    # only changed cosmetically; now that row is patched in place.
+    assert banana_widget.update_list_calls == banana_repaints
+    assert banana_widget._agents[0].activity == "still going"
+    costs = _display_costs(app)
+    assert "row_patch" in costs
+    assert "display_full_rebuild" not in costs
+    assert _panel_attributions(app) == [
+        (_panel_id("apple"), "status_membership_change")
+    ]
+
+
+def test_a_new_status_bucket_in_one_panel_does_not_name_its_siblings(
+    monkeypatch: Any,
+) -> None:
+    apple = _agent("apple-one", tribe="apple", suffix="a1")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
+    arrival = _agent("apple-two", tribe="apple", suffix="a2", status="DONE")
+    app = _by_status_app([apple, banana], monkeypatch)
+    banana_widget = app._widgets[_widget_sel("banana")]
+    banana_repaints = banana_widget.update_list_calls
+
+    _apply_roster(app, [apple, banana], [apple, arrival, banana])
+
+    assert banana_widget.update_list_calls == banana_repaints
+    assert _panel_rows(app, "apple") == [apple.identity, arrival.identity]
+    assert _panel_attributions(app) == [
+        (_panel_id("apple"), "status_membership_change")
+    ]
+    assert "display_full_rebuild" not in _display_costs(app)
+
+
+def test_a_bucket_move_in_each_of_two_panels_names_both(monkeypatch: Any) -> None:
+    apple = _agent("apple-one", tribe="apple", suffix="a1")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
+    cherry = _agent("cherry-one", tribe="cherry", suffix="c1")
+    app = _by_status_app([apple, banana, cherry], monkeypatch)
+    cherry_widget = app._widgets[_widget_sel("cherry")]
+    cherry_repaints = cherry_widget.update_list_calls
+
+    _apply_roster(
+        app,
+        [apple, banana, cherry],
+        [replace(apple, status="DONE"), replace(banana, status="FAILED"), cherry],
+    )
+
+    assert cherry_widget.update_list_calls == cherry_repaints
+    assert _panel_attributions(app) == [
+        (_panel_id("apple"), "status_membership_change"),
+        (_panel_id("banana"), "status_membership_change"),
+    ]
+
+
+def test_a_removal_that_drops_a_bucket_rebuilds_only_the_panel_that_lost_it(
+    monkeypatch: Any,
+) -> None:
+    running = _agent("apple-one", tribe="apple", suffix="a1")
+    done = _agent("apple-two", tribe="apple", suffix="a2", status="DONE")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
+    app = _by_status_app([running, done, banana], monkeypatch)
+    apple_widget = app._widgets[_widget_sel("apple")]
+    banana_widget = app._widgets[_widget_sel("banana")]
+    apple_repaints = apple_widget.update_list_calls
+    banana_repaints = banana_widget.update_list_calls
+
+    _apply_roster(app, [running, done, banana], [running, banana])
+
+    # The Done bucket's banner disappears, so the panel is rebuilt from its new
+    # slice rather than having its rows removed in place.
+    assert app.full_rebuilds == 0
+    assert apple_widget.update_list_calls == apple_repaints + 1
+    assert banana_widget.update_list_calls == banana_repaints
+    assert _panel_rows(app, "apple") == [running.identity]
+    assert _panel_attributions(app) == [
+        (_panel_id("apple"), "status_membership_change")
+    ]
+    assert "row_remove" not in _display_costs(app)
+
+
+def test_a_removal_that_keeps_every_bucket_still_removes_rows_in_place(
+    monkeypatch: Any,
+) -> None:
+    one = _agent("apple-one", tribe="apple", suffix="a1")
+    two = _agent("apple-two", tribe="apple", suffix="a2")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
+    app = _by_status_app([one, two, banana], monkeypatch)
+    apple_widget = app._widgets[_widget_sel("apple")]
+    repaints = apple_widget.update_list_calls
+
+    _apply_roster(app, [one, two, banana], [one, banana])
+
+    assert apple_widget.update_list_calls == repaints
+    assert _panel_rows(app, "apple") == [one.identity]
+    assert _panel_attributions(app) == []
+    assert "row_remove" in _display_costs(app)
+
+
+def test_by_status_attribution_is_skipped_for_other_grouping_modes() -> None:
+    apple = _agent("apple-one", tribe="apple", suffix="a1")
+
+    moved = _rebuild_scope([apple], [replace(apple, status="DONE")], by_status=False)
+    by_status = _rebuild_scope([apple], [replace(apple, status="DONE")], by_status=True)
+
+    assert moved.reasons == ()
+    assert by_status.reasons == (("apple", "status_membership_change"),)
+
+
+def test_a_starting_node_becoming_rendered_is_an_arrival_not_a_bucket_move() -> None:
+    apple = _agent("apple-one", tribe="apple", suffix="a1")
+    starting = _agent("apple-two", tribe="apple", suffix="a2", status="STARTING")
+
+    scope = _rebuild_scope(
+        [apple, starting], [apple, replace(starting, status="RUNNING")], by_status=True
+    )
+
+    assert scope.reasons == ()
+
+
+def test_removed_identities_in_a_rebuilt_panel_need_no_in_place_removal() -> None:
+    running = _agent("apple-one", tribe="apple", suffix="a1")
+    done = _agent("apple-two", tribe="apple", suffix="a2", status="DONE")
+    banana = _agent("banana-one", tribe="banana", suffix="b1")
+    banana_two = _agent("banana-two", tribe="banana", suffix="b2")
+
+    scope = _rebuild_scope(
+        [running, done, banana, banana_two], [running, banana], by_status=True
+    )
+
+    assert scope.keys == {"apple"}
+    assert scope.rebuilt_removals == {done.identity}

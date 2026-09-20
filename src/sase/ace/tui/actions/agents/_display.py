@@ -21,17 +21,15 @@ if TYPE_CHECKING:
     from ...models.agent_panels import AgentPanelGroup, PanelKey
     from ..navigation.jump_hints import BannerJumpTarget, PanelJumpTarget
 
-from ...models.agent_groups import GroupingMode, status_grouping_signature
-from ...models.agent_panels import agent_is_rendered_in_agents_panel
+from ...models.agent_groups import GroupingMode
 from ...util.debounce import DetailPanelDebouncer
 from ...util.trace import tui_trace
 from ._display_diff import (
+    PanelRebuildScope,
     affected_panel_keys,
     build_agent_display_diff,
     changed_same_position_panel_membership_keys,
-    diff_touches_workflow_tree,
-    grouping_tree_keys_for_display,
-    panel_keys_for_display,
+    panel_rebuild_scope,
     rendered_panel_key_by_identity,
 )
 from ._display_detail import DetailMixin
@@ -44,7 +42,6 @@ from ._display_helpers import (
 from ._display_panels import PanelsMixin
 from ._loading import DISMISSABLE_STATUSES
 from ._paint_log import record_agents_paint_frame
-from ._panel_fold_intent import effective_panel_collapses
 from ._refresh_trace import (
     AgentRefreshDisplayCost,
     AgentRefreshFallbackReason,
@@ -239,6 +236,21 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             count=count,
         )
 
+    def _record_display_panel_rebuild_fallback(
+        self,
+        reason: AgentRefreshFallbackReason,
+        key: PanelKey,
+    ) -> None:
+        """Name the one panel a whole-roster predicate sends to a rebuild."""
+        record_agents_refresh_trace(
+            self,
+            stage="display_fallback",
+            source=getattr(self, "_agents_refresh_active_source", "unknown"),
+            display_cost="display_panel_rebuild",
+            fallback_reason=reason,
+            panel=panel_widget_id_for_key(key),
+        )
+
     def _refresh_agents_display_after_finalize(
         self,
         *,
@@ -295,18 +307,14 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             return False
 
         diff = build_agent_display_diff(previous_agents, self._agents)
-        if diff.duplicate_identity:
-            self._record_display_full_rebuild_fallback("panel_membership_change")
-            return False
-        if (
-            grouping_mode is GroupingMode.BY_STATUS
-            and self._by_status_display_membership_changed(previous_agents)
-        ):
-            self._record_display_full_rebuild_fallback("status_membership_change")
-            return False
-        if diff_touches_workflow_tree(diff, previous_agents, self._agents):
-            self._record_display_full_rebuild_fallback("workflow_tree_change")
-            return False
+        scope = self._panel_rebuild_scope(
+            previous_agents,
+            diff,
+            grouping_mode=grouping_mode,
+            merge_tribe_panels=merge_tribe_panels,
+        )
+        for key, reason in scope.reasons:
+            self._record_display_panel_rebuild_fallback(reason, key)
 
         with tui_trace(
             "agents.refresh_display_incremental",
@@ -321,6 +329,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             completed = self._try_refresh_agents_display_incremental_impl(
                 previous_agents,
                 diff=diff,
+                scope=scope,
                 defer_detail=defer_detail,
                 merge_tribe_panels=merge_tribe_panels,
             )
@@ -328,37 +337,36 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             record_agents_paint_frame(self, kind="incremental")
         return completed
 
-    def _by_status_display_membership_changed(
+    def _panel_rebuild_scope(
         self,
         previous_agents: list[Agent],
-    ) -> bool:
-        """Return True when BY_STATUS grouping structure would move rows."""
-        previous_by_id = {agent.identity: agent for agent in previous_agents}
-        next_by_id = {agent.identity: agent for agent in self._agents}
-        for identity in previous_by_id.keys() & next_by_id.keys():
-            previous = previous_by_id[identity]
-            # A row that had no Agents-tab row yet (a STARTING agent that just
-            # became rendered) has nothing on screen to move: it is an arrival,
-            # and the banner-key comparison below catches a new bucket.
-            if not agent_is_rendered_in_agents_panel(previous):
-                continue
-            if status_grouping_signature(previous) != status_grouping_signature(
-                next_by_id[identity]
-            ):
-                return True
+        diff: Any,
+        *,
+        grouping_mode: GroupingMode,
+        merge_tribe_panels: bool,
+    ) -> PanelRebuildScope:
+        """Return the panels a roster change must rebuild rather than patch.
 
-        merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
-        collapsed_panel_keys = effective_panel_collapses(self)
-        return grouping_tree_keys_for_display(
+        A change that touches no panel structure leaves the scope empty and the
+        apply on the cheap patch path. Otherwise only the panels the change
+        concerns are named, so a sibling panel keeps its widget untouched.
+        """
+        if not diff.has_changes:
+            return PanelRebuildScope()
+        from ...models.agent_panel_index import build_agent_panel_index
+
+        previous_index = build_agent_panel_index(
             previous_agents,
-            mode=GroupingMode.BY_STATUS,
+            dismissable_statuses=DISMISSABLE_STATUSES,
             merge_tribe_panels=merge_tribe_panels,
-            collapsed_panel_keys=collapsed_panel_keys,
-        ) != grouping_tree_keys_for_display(
+        )
+        return panel_rebuild_scope(
+            diff,
+            previous_agents,
             self._agents,
-            mode=GroupingMode.BY_STATUS,
-            merge_tribe_panels=merge_tribe_panels,
-            collapsed_panel_keys=collapsed_panel_keys,
+            previous_index=previous_index,
+            next_index=self._agent_panel_index(),
+            by_status=grouping_mode is GroupingMode.BY_STATUS,
         )
 
     def _agent_display_widgets_match_grouping_mode(self) -> bool:
@@ -432,6 +440,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         previous_agents: list[Agent],
         *,
         diff: Any,
+        scope: PanelRebuildScope,
         defer_detail: bool,
         merge_tribe_panels: bool,
     ) -> bool:
@@ -463,7 +472,10 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             self._agents,
             merge_tribe_panels=merge_tribe_panels,
         )
-        panel_rebuild_keys: set[Any] = set()
+        # Panels a whole-roster predicate concerns are rebuilt whole: never
+        # patched row by row, and never given an in-place insert.
+        forced_rebuild_keys: set[Any] = scope.keys
+        panel_rebuild_keys: set[Any] = set(forced_rebuild_keys)
         panel_rebuild_keys.update(
             changed_same_position_panel_membership_keys(
                 diff,
@@ -475,9 +487,8 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         if diff.has_collection_changes:
             panel_rebuild_keys.update(affected_keys)
 
-        if diff.removed_identities and not self._try_remove_agent_rows(
-            set(diff.removed_identities)
-        ):
+        removed_in_place = set(diff.removed_identities) - scope.rebuilt_removals
+        if removed_in_place and not self._try_remove_agent_rows(removed_in_place):
             return False
 
         current_keys = rendered_panel_key_by_identity(
@@ -496,7 +507,9 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             # insert; the rest are rebuilt.
             inserted_keys: set[Any] = set()
             if not self._refresh_affected_panel_widgets(
-                panel_rebuild_keys, inserted_keys=inserted_keys
+                panel_rebuild_keys,
+                inserted_keys=inserted_keys,
+                rebuild_only_keys=forced_rebuild_keys,
             ):
                 self._record_display_full_rebuild_fallback(
                     "panel_membership_change",
