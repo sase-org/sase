@@ -66,6 +66,12 @@ def bead_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             title="Task-type catalog",
             runner=_check_task_types,
         ),
+        CheckSpec(
+            id="beads.touch_index",
+            group="beads",
+            title="Agent/bead touch index",
+            runner=lambda: _check_touch_index(context),
+        ),
     )
 
 
@@ -152,6 +158,120 @@ def _bead_pages_audit_inputs(
         return pages_root, resolve_origin_remote_url(primary_root)
     except Exception:  # noqa: BLE001 - a doctor check never breaks the report.
         return None, None
+
+
+def _check_touch_index(context: DoctorContext) -> DiagnosticCheck:
+    """Report agent/bead touch-index staleness and schema mismatch.
+
+    The index is a derived cache: a missing file is a cold cache that the
+    next bead mutation, sync, or housekeeping tick rebuilds, while a stale
+    or wrong-schema file means the metadata panel is reading old answers.
+    The status probe is stat-only, so this check never pays for a reduction.
+    """
+    from sase.core.bead_touch_index_facade import (
+        resolve_touch_index_project,
+        touch_index_path,
+        touch_index_status,
+    )
+
+    beads_dir = _find_existing_beads_dir(context)
+    if beads_dir is None:
+        return DiagnosticCheck(
+            id="beads.touch_index",
+            group="beads",
+            status="SKIP",
+            title="Agent/bead touch index",
+            summary="no bead store found for this checkout or project",
+            data={"project": context.project},
+        )
+    project = resolve_touch_index_project(project=context.project, cwd=context.cwd)
+    if not project:
+        return DiagnosticCheck(
+            id="beads.touch_index",
+            group="beads",
+            status="SKIP",
+            title="Agent/bead touch index",
+            summary="no SASE project found for this checkout",
+            data={"beads_dir": str(beads_dir)},
+        )
+    index_path = touch_index_path(project)
+    try:
+        status = touch_index_status(beads_dir, index_path)
+    except Exception as exc:  # noqa: BLE001 - a doctor check never breaks the report.
+        return DiagnosticCheck(
+            id="beads.touch_index",
+            group="beads",
+            status="ERROR",
+            title="Agent/bead touch index",
+            summary=f"touch-index status probe failed: {exc}",
+            data={"beads_dir": str(beads_dir), "index": str(index_path)},
+        )
+    data = {
+        "beads_dir": str(beads_dir),
+        "index": str(index_path),
+        "state": status.state,
+        "generation": status.generation,
+        "indexed_streams": status.indexed_streams,
+        "current_streams": status.current_streams,
+        "changed_streams": list(status.changed_streams[:_MAX_DETAIL_ROWS]),
+        "vanished_streams": list(status.vanished_streams[:_MAX_DETAIL_ROWS]),
+    }
+    if status.state == "fresh":
+        return DiagnosticCheck(
+            id="beads.touch_index",
+            group="beads",
+            status="OK",
+            title="Agent/bead touch index",
+            summary=(f"touch index fresh: {status.indexed_streams} stream(s) indexed"),
+            data=data,
+        )
+    if status.state == "missing":
+        return DiagnosticCheck(
+            id="beads.touch_index",
+            group="beads",
+            status="OK",
+            title="Agent/bead touch index",
+            summary=(
+                "touch index not built yet; the next bead mutation, sync, "
+                "or housekeeping tick builds it"
+            ),
+            data=data,
+        )
+    if status.state == "stale":
+        changed = len(status.changed_streams)
+        vanished = len(status.vanished_streams)
+        return DiagnosticCheck(
+            id="beads.touch_index",
+            group="beads",
+            status="WARN",
+            title="Agent/bead touch index",
+            summary=(
+                f"touch index stale: {changed} changed, {vanished} vanished "
+                f"stream(s) since {status.generation or 'the last refresh'}"
+            ),
+            details=tuple(f"changed: {name}" for name in status.changed_streams[:5])
+            + tuple(f"vanished: {name}" for name in status.vanished_streams[:5]),
+            next_steps=(
+                "Run any `sase bead` mutation or wait for the next "
+                "housekeeping tick to refresh the index.",
+            ),
+            data=data,
+        )
+    return DiagnosticCheck(
+        id="beads.touch_index",
+        group="beads",
+        status="WARN",
+        title="Agent/bead touch index",
+        summary=(
+            f"touch index {status.state}; the next refresh rebuilds it "
+            "from the event streams"
+        ),
+        next_steps=(
+            "Run any `sase bead` mutation or wait for the next "
+            "housekeeping tick to rebuild the index.",
+        ),
+        data=data,
+    )
 
 
 def _check_task_types() -> DiagnosticCheck:

@@ -336,6 +336,29 @@ def bead_store_mutation(
         verified = _require_published_bead_mutation(**verify_kwargs)
         if verified is not None:
             mutation.publication_outcome = verified
+    if committed:
+        _refresh_touch_index_after_mutation(mutation.project.beads_dir, cwd=cwd)
+
+
+def _refresh_touch_index_after_mutation(beads_dir: Path, cwd: Path | None) -> None:
+    """Refresh the agent/bead touch index after a mutation commits.
+
+    Best-effort and off the panel's hot path: a failure logs inside the
+    facade and is swallowed, so an agent's own edit can never break the
+    mutation that just committed. An unresolvable project is a quiet skip;
+    the lumberjack tick converges the store instead.
+    """
+    try:
+        from sase.core.bead_touch_index_facade import (
+            refresh_touch_index_best_effort,
+        )
+
+        refresh_touch_index_best_effort(beads_dir, cwd=cwd)
+    except Exception:
+        _logger.warning(
+            "Skipping bead touch-index refresh after mutation",
+            exc_info=True,
+        )
 
 
 def _routed_bead_context(

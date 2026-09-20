@@ -167,6 +167,29 @@ def refresh_bead_store(beads_dir: Path, *, lock_timeout: float | None = None) ->
         has_push_remote=_has_push_remote,
         is_in_tree_beads_dir=_is_in_tree_beads_dir,
     )
+    _refresh_touch_index_after_sync(beads_dir)
+
+
+def _refresh_touch_index_after_sync(beads_dir: Path) -> None:
+    """Refresh the agent/bead touch index after a sync pull converges.
+
+    Best-effort: other machines' streams are picked up on the next mutation
+    or lumberjack tick when this refresh logs and is swallowed.
+    """
+    import logging
+
+    try:
+        from sase.core.bead_touch_index_facade import (
+            refresh_touch_index_best_effort,
+            resolve_touch_index_project,
+        )
+
+        project = resolve_touch_index_project(beads_dir=beads_dir)
+        refresh_touch_index_best_effort(beads_dir, project=project)
+    except Exception:
+        logging.getLogger(__name__).warning(
+            "Skipping bead touch-index refresh after sync", exc_info=True
+        )
 
 
 def _is_in_tree_beads_dir(beads_dir: Path) -> bool:

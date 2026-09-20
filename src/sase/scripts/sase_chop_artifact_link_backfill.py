@@ -2,12 +2,14 @@
 """Retroactive artifact-link derivation, outbox drain, and repair sweep.
 
 An hourly housekeeping chop, since it may scan substantial local state. It
-owns four bounded jobs per enabled project, each reporting what it did:
+owns five bounded jobs per enabled project, each reporting what it did:
 
 1. the retroactive derivation sweep over documents that predate the epic;
 2. the read-outbox drain for agents that have since published;
 3. the cross-workspace ``reconcile_aggregate()`` sweep;
-4. the dangling-ref repair pass driven by git rename history.
+4. the dangling-ref repair pass driven by git rename history;
+5. the incremental agent/bead touch-index refresh, so a store that drifted
+   for any other reason converges off every interactive path.
 
 Job 1 is resumable: a per-project checkpoint of already-swept refs persists
 across ticks under a bounded per-tick time budget, so a long tail of
@@ -234,6 +236,8 @@ def _next_cursor_after(
 @dataclass
 class _Totals:
     projects: int = 0
+    touch_index_refreshed: int = 0
+    touch_index_reduced_streams: int = 0
     failed_projects: int = 0
     sweep_scanned: int = 0
     sweep_persisted: int = 0
@@ -286,6 +290,45 @@ def _publication_detail_line(detail: ArtifactLinkPublicationRetryDetail) -> str:
     return "; ".join(parts)
 
 
+def _refresh_touch_index_for_project(
+    project_key: str,
+    workspace_dir: str,
+    *,
+    totals: _Totals,
+    runtime: BuiltinChopRuntime,
+) -> None:
+    """Refresh one project's agent/bead touch index, best-effort.
+
+    The refresh is incremental and skips its write when nothing changed, so
+    the steady-state cost is one stat pass over the streams. Any failure is
+    a logged warning, never a failed project: the next mutation, sync, or
+    tick converges the store instead.
+    """
+    try:
+        from sase.bead.cli_location import find_beads_location
+        from sase.core.bead_touch_index_facade import (
+            refresh_touch_index_best_effort,
+        )
+
+        root, beads_dirname = find_beads_location(cwd=Path(workspace_dir))
+        beads_dir = root / beads_dirname
+        if not beads_dir.is_dir():
+            return
+        report = refresh_touch_index_best_effort(beads_dir, project=project_key)
+    except Exception as exc:  # noqa: BLE001 - one broken project cannot stall the rest.
+        totals.warnings.append(f"{project_key}: touch-index refresh failed: {exc}")
+        return
+    if report is None:
+        return
+    totals.touch_index_refreshed += 1
+    totals.touch_index_reduced_streams += len(report.reduced_streams)
+    if report.reduced_streams:
+        runtime.log.info(
+            f"[{_CHOP}] {project_key}: touch index re-reduced "
+            f"{len(report.reduced_streams)} stream(s)"
+        )
+
+
 def _run_project(
     project_key: str,
     workspace_dir: str,
@@ -300,6 +343,13 @@ def _run_project(
     started = time.monotonic()
     runtime.log.info(f"[{_CHOP}] {project_key}: starting")
     elapsed: dict[str, float] = {}
+
+    _log_project_stage(runtime, project_key, "touch_index")
+    touch_index_started = time.monotonic()
+    _refresh_touch_index_for_project(
+        project_key, workspace_dir, totals=totals, runtime=runtime
+    )
+    elapsed["touch_index"] = time.monotonic() - touch_index_started
 
     _log_project_stage(runtime, project_key, "publication_retry")
     publication_started = time.monotonic()
@@ -483,6 +533,8 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
     return runtime.emit_summary(
         {
             "projects": totals.projects,
+            "touch_index_refreshed": totals.touch_index_refreshed,
+            "touch_index_reduced_streams": totals.touch_index_reduced_streams,
             "failed_projects": totals.failed_projects,
             "sweep_scanned": totals.sweep_scanned,
             "sweep_persisted": totals.sweep_persisted,
