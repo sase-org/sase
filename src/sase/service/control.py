@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import fcntl
-import json
 import os
 import shutil
 import signal
@@ -18,7 +17,6 @@ from typing import Any
 
 from sase.ace.hooks.processes import is_process_running
 from sase.detach_scope import detach_scope
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.procs import ACTIVE_PROC_STATUSES, TERMINAL_PROC_STATUSES, read_procs
 from sase.service.config import ServiceConfigComposition, load_service_config
 from sase.service.paths import (
@@ -37,18 +35,10 @@ from sase.service.status import (
     read_service_status,
 )
 
-SERVICE_HOST_DISABLED_MESSAGE = (
-    "service_host beta flag is disabled; enable it for this invocation with "
-    "`sase -f service_host service ...`."
-)
 _HOST_STALE_SECONDS = 15.0
 _START_WAIT_SECONDS = 15.0
 _STOP_WAIT_SECONDS = 15.0
 _POLL_SECONDS = 0.1
-
-
-class ServiceHostDisabledError(RuntimeError):
-    """Raised when a beta-gated service command is used with the flag off."""
 
 
 @dataclass(frozen=True)
@@ -131,19 +121,6 @@ class ServiceHostLock:
         self.release()
 
 
-def _service_host_enabled() -> bool:
-    """Return the current process' beta-flag decision for the service host."""
-    return current_flags().enabled(FeatureFlag.service_host)
-
-
-def require_service_host_enabled(command: str) -> None:
-    """Fail with a concise opt-in diagnostic when the beta flag is disabled."""
-    if _service_host_enabled():
-        return
-    del command
-    raise ServiceHostDisabledError(SERVICE_HOST_DISABLED_MESSAGE)
-
-
 def _probe_service_host() -> _ServiceHostProbe:
     """Return lock, PID, and heartbeat observations for the host."""
     try:
@@ -221,7 +198,6 @@ def start_service_host(
         log_path = service_host_log_path()
         log_path.parent.mkdir(parents=True, exist_ok=True)
         env = dict(os.environ)
-        env["SASE_FEATURE_FLAGS"] = _feature_env_with_service_host(env)
         with log_path.open("ab") as log:
             subprocess.Popen(
                 command.argv,
@@ -422,18 +398,6 @@ def _sase_command() -> list[str]:
     return [sys.executable, "-m", "sase"]
 
 
-def _feature_env_with_service_host(env: dict[str, str]) -> str:
-    raw = env.get("SASE_FEATURE_FLAGS", "").strip()
-    try:
-        data = json.loads(raw) if raw else {}
-    except json.JSONDecodeError:
-        data = {}
-    if not isinstance(data, dict):
-        data = {}
-    data["service_host"] = True
-    return json.dumps(data, sort_keys=True)
-
-
 def _parse_timestamp(value: str | None) -> float | None:
     if not value:
         return None
@@ -479,14 +443,11 @@ def _installed_platform_unit() -> str | None:
 
 
 __all__ = [
-    "SERVICE_HOST_DISABLED_MESSAGE",
-    "ServiceHostDisabledError",
     "ServiceHostLock",
     "current_service_status",
     "latest_service_log_lines",
     "nudge_service_host",
     "persisted_or_current_status",
-    "require_service_host_enabled",
     "restart_service_host",
     "start_service_host",
     "stop_service_host",

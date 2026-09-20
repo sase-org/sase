@@ -12,13 +12,13 @@ def test_process_selection_axe() -> None:
     selection = ProcessSelection(
         process_type="axe",
         slot=None,
-        display_name="sase axe",
-        description="Stop the axe scheduler daemon",
+        display_name="sase service",
+        description="Stop the SASE service host",
     )
     assert selection.process_type == "axe"
     assert selection.slot is None
-    assert selection.display_name == "sase axe"
-    assert selection.description == "Stop the axe scheduler daemon"
+    assert selection.display_name == "sase service"
+    assert selection.description == "Stop the SASE service host"
 
 
 def test_process_selection_bgcmd() -> None:
@@ -40,13 +40,13 @@ def test_process_selection_start_axe() -> None:
     selection = ProcessSelection(
         process_type="start_axe",
         slot=None,
-        display_name="sase axe",
-        description="Start the axe scheduler daemon",
+        display_name="sase service",
+        description="Start the SASE service host",
     )
     assert selection.process_type == "start_axe"
     assert selection.slot is None
-    assert selection.display_name == "sase axe"
-    assert selection.description == "Start the axe scheduler daemon"
+    assert selection.display_name == "sase service"
+    assert selection.description == "Start the SASE service host"
 
 
 def test_process_selection_equality() -> None:
@@ -54,13 +54,13 @@ def test_process_selection_equality() -> None:
     sel1 = ProcessSelection(
         process_type="axe",
         slot=None,
-        display_name="sase axe",
+        display_name="sase service",
         description="desc",
     )
     sel2 = ProcessSelection(
         process_type="axe",
         slot=None,
-        display_name="sase axe",
+        display_name="sase service",
         description="desc",
     )
     assert sel1 == sel2
@@ -141,7 +141,17 @@ def test_process_select_modal_create_styled_label_start_axe() -> None:
     label = modal._create_styled_label(proc)
     label_str = str(label)
     assert "[START]" in label_str
-    assert "sase axe" in label_str
+    assert "sase service" in label_str
+    assert proc.description == "Start the SASE service host"
+
+
+def test_process_select_modal_running_offers_service_host_stop() -> None:
+    """The stop entry names the service host, not the legacy axe daemon."""
+    modal = ProcessSelectModal(axe_running=True, bgcmd_slots=[])
+    proc = modal._processes[0]
+    assert proc.process_type == "axe"
+    assert proc.display_name == "sase service"
+    assert proc.description == "Stop the SASE service host"
 
 
 def test_process_select_modal_create_styled_label_bgcmd() -> None:

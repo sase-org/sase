@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import dataclasses
-import types
 from datetime import datetime
 from functools import partial
 from pathlib import Path
@@ -29,11 +28,9 @@ from sase.axe.state import (
     read_lumberjack_log_tail,
     read_lumberjack_metrics,
     read_lumberjack_status,
-    read_metrics,
     read_output_log_tail,
 )
 from sase.core.time import get_timezone
-from sase.feature_flags import FeatureFlag, current_flags
 
 from ...bgcmd import (
     BackgroundCommandInfo,
@@ -172,7 +169,6 @@ class AxeCollectedData:
     tailed_chop_keys: frozenset[tuple[str, str]] = dataclasses.field(
         default_factory=frozenset
     )
-    service_host_enabled: bool = False
     service_status: ServiceStatusSnapshot | None = None
     service_log_tails: dict[str, str] = dataclasses.field(default_factory=dict)
     tailed_service_names: frozenset[str] = dataclasses.field(default_factory=frozenset)
@@ -189,13 +185,6 @@ def _invalid_config_status(
         else "invalid axe configuration"
     )
     return AxeStatusDegradation(message=f"axe config invalid: {diagnostic}")
-
-
-def get_axe_process_module() -> types.ModuleType:
-    """Return the axe process module."""
-    import importlib
-
-    return importlib.import_module("sase.axe.process")
 
 
 def collect_chop_snapshot(
@@ -352,47 +341,27 @@ def _collect_axe_status_data_impl(
     read_cache = cache if cache is not None else AxeStatusReadCache()
     read_cache.begin_tick()
 
-    service_host_enabled = _service_host_enabled()
     service_status: ServiceStatusSnapshot | None = None
     service_log_tails: dict[str, str] = {}
     tailed_service_names: frozenset[str] = frozenset()
-    if service_host_enabled:
+    try:
         from sase.service.control import persisted_or_current_status
 
-        try:
-            service_status = persisted_or_current_status()
-        except Exception as exc:
-            trace_event(
-                "axe.collect.service_status.unavailable",
-                error_type=type(exc).__name__,
-            )
+        service_status = persisted_or_current_status()
+    except Exception as exc:
+        trace_event(
+            "axe.collect.service_status.unavailable",
+            error_type=type(exc).__name__,
+        )
 
-    if service_host_enabled:
-        axe_running = service_status is not None and service_status.host.state in {
-            "running",
-            "starting",
-        }
-    else:
-        proc = get_axe_process_module()
-        axe_running = proc.is_axe_running()
+    axe_running = service_status is not None and service_status.host.state in {
+        "running",
+        "starting",
+    }
 
     axe_status: AxeStatus | None = None
     axe_metrics: AxeMetrics | None = None
     degraded_status: AxeStatusDegradation | None = None
-    if axe_running and not service_host_enabled:
-        try:
-            status_dict = proc.get_axe_status()
-        except axe_config.AxeConfigError as error:
-            status_dict = None
-            degraded_status = _invalid_config_status(error)
-        if status_dict:
-            try:
-                axe_fields = {f.name for f in dataclasses.fields(AxeStatus)}
-                filtered = {k: v for k, v in status_dict.items() if k in axe_fields}
-                axe_status = AxeStatus(**filtered)
-            except TypeError:
-                pass
-        axe_metrics = read_metrics()
 
     if service_status is not None and include_full_snapshots and tail_service_name:
         from sase.service.control import latest_service_log_lines
@@ -583,17 +552,8 @@ def _collect_axe_status_data_impl(
         degraded_status=degraded_status,
         include_full_snapshots=include_full_snapshots,
         tailed_chop_keys=tailed_chop_keys,
-        service_host_enabled=service_host_enabled,
         service_status=service_status,
         service_log_tails=service_log_tails,
         tailed_service_names=tailed_service_names,
         stats=stats,
     )
-
-
-def _service_host_enabled() -> bool:
-    """Return whether the service-host backed Services tab should be active."""
-    try:
-        return current_flags().enabled(FeatureFlag.service_host)
-    except Exception:
-        return False

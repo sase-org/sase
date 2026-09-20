@@ -11,10 +11,9 @@ def register_scheduler_parser(subparsers: argparse._SubParsersAction) -> None:
         "scheduler",
         help="Control the SASE scheduler",
         description=(
-            "Control the SASE scheduler. With the service_host beta flag enabled, "
-            "start, stop, restart, and status route through `sase service proc "
-            "scheduler`; with the flag disabled they preserve the legacy AXE "
-            "lifecycle behavior."
+            "Control the SASE scheduler. start, stop, restart, and status route "
+            "through the `scheduler` service proc on the SASE service host; run "
+            "execs the foreground orchestrator that the service host itself runs."
         ),
     )
     scheduler_parser.set_defaults(scheduler_subcommand="status")
@@ -30,14 +29,6 @@ def register_scheduler_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     _add_scheduler_overrides(restart_parser)
     _add_json_flag(restart_parser)
-    restart_parser.add_argument(
-        "-t",
-        "--verify-timeout",
-        type=float,
-        default=15.0,
-        metavar="SECONDS",
-        help="Legacy AXE heartbeat verification timeout (default: 15)",
-    )
 
     run_parser = scheduler_sub.add_parser(
         "run",
@@ -57,15 +48,9 @@ def register_scheduler_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     _add_json_flag(status_parser)
 
-    stop_parser = scheduler_sub.add_parser(
+    scheduler_sub.add_parser(
         "stop",
         help="Stop the scheduler",
-    )
-    stop_parser.add_argument(
-        "-f",
-        "--force",
-        action="store_true",
-        help="Legacy AXE force stop when the service host flag is disabled",
     )
 
 

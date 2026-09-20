@@ -72,7 +72,6 @@ def init_late_startup_state(
     self._axe_lumberjack_chop_names = {}
     self._axe_chop_snapshots = {}
     self._axe_lumberjack_snapshots = {}
-    self._service_host_enabled = False
     self._service_status = None
     self._service_log_tails = {}
     self._service_tailed_names = set()

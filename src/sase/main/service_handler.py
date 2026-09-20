@@ -15,11 +15,9 @@ from sase.procs import ProcSubmitError
 from sase.procs.oneshot import submit_oneshot
 from sase.service.config import ServiceConfigError, load_service_config
 from sase.service.control import (
-    ServiceHostDisabledError,
     current_service_status,
     latest_service_log_lines,
     persisted_or_current_status,
-    require_service_host_enabled,
     restart_service_host,
     start_service_host,
     stop_service_host,
@@ -49,11 +47,7 @@ def handle_service_command(args: argparse.Namespace) -> NoReturn:
     try:
         if getattr(args, "service_subcommand", None) == "run":
             load_service_environment(override_existing=True)
-        require_service_host_enabled("sase service")
         code = _handle_service_command(args)
-    except ServiceHostDisabledError as exc:
-        print(str(exc), file=sys.stderr)
-        code = 2
     except ServiceConfigError as exc:
         print(str(exc), file=sys.stderr)
         code = 2

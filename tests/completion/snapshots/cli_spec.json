@@ -23401,7 +23401,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "99f5d7cc49d0b4a1",
+            "description_digest": "7587ccaf150da56d",
             "hidden": false,
             "mutex_groups": [],
             "name": "restart",
@@ -23477,18 +23477,6 @@
                   "--json"
                 ],
                 "takes_value": false
-              },
-              {
-                "choices": null,
-                "dest": "verify_timeout",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-t",
-                  "--verify-timeout"
-                ],
-                "takes_value": true
               }
             ],
             "path": [
@@ -23693,7 +23681,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "eb5236678f190b7c",
+            "description_digest": "11b1080899061a05",
             "hidden": false,
             "mutex_groups": [],
             "name": "stop",
@@ -23707,18 +23695,6 @@
                 "strings": [
                   "-h",
                   "--help"
-                ],
-                "takes_value": false
-              },
-              {
-                "choices": null,
-                "dest": "force",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-f",
-                  "--force"
                 ],
                 "takes_value": false
               }

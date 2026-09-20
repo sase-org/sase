@@ -11,7 +11,6 @@ class _Host:
         self._axe_service_selection: str | None = None
         self._axe_chop_selection: tuple[str, str] | None = None
         self._axe_lumberjack_idx: int | None = None
-        self._service_host_enabled = True
         self.axe_running = False
         self.current_tab = "axe"
         self._bgcmd_slots: list[object] = []
@@ -25,12 +24,6 @@ class _Host:
 
     def _stop_service_host(self) -> None:
         self.calls.append("stop-host")
-
-    def _start_axe(self) -> None:
-        self.calls.append("start-axe")
-
-    def _stop_axe(self) -> None:
-        self.calls.append("stop-axe")
 
     def _confirm_kill_bgcmd(self, slot: object) -> None:
         self.calls.append(("kill-bgcmd", str(slot)))

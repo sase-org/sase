@@ -7,11 +7,6 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from textual.worker import Worker, WorkerState
 
-from sase.axe.process import (
-    restart_axe_daemon_result as _restart_axe_daemon_result,
-    start_axe_daemon_result as _start_axe_daemon_result,
-    stop_axe_daemon_result as _stop_axe_daemon_result,
-)
 from sase.axe.state import (
     AxeMetrics,
     AxeStatus,
@@ -107,16 +102,11 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
             refresh()
 
     def _toggle_host_or_axe_daemon(self) -> None:
-        """Start or stop the service host, or the legacy axe daemon."""
+        """Start or stop the service host."""
         if self.axe_running:
-            if getattr(self, "_service_host_enabled", False):
-                self._stop_service_host()
-            else:
-                self._stop_axe()
-        elif getattr(self, "_service_host_enabled", False):
-            self._start_service_host()
+            self._stop_service_host()
         else:
-            self._start_axe()
+            self._start_service_host()
 
     def _toggle_or_kill_axe_view(self) -> None:
         """Toggle a selected service proc, or kill bgcmd based on AXE view.
@@ -157,17 +147,11 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
             bgcmd_active = len(self._bgcmd_slots) > 0
 
             if not self.axe_running and not bgcmd_active:
-                # Nothing running - start axe/service host
-                if getattr(self, "_service_host_enabled", False):
-                    self._start_service_host()
-                else:
-                    self._start_axe()
+                # Nothing running - start the service host
+                self._start_service_host()
             elif self.axe_running and not bgcmd_active:
-                # Only axe/service host running - stop it
-                if getattr(self, "_service_host_enabled", False):
-                    self._stop_service_host()
-                else:
-                    self._stop_axe()
+                # Only the service host running - stop it
+                self._stop_service_host()
             else:
                 # Either only bgcmd or both running - show selector
                 self._show_process_selector()
@@ -258,35 +242,26 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
         self.push_screen(  # type: ignore[attr-defined]
             QuitOptionsModal(
                 running_task_count=self._count_running_tasks(),  # type: ignore[attr-defined]
-                service_host=getattr(self, "_service_host_enabled", False),
             ),
             callback=_on_choice,
         )
 
     async def _stop_axe_and_quit(self) -> None:
-        """Stop axe (or Scheduler when the service host is on), then quit."""
+        """Stop the Scheduler, then quit."""
         stop_watchdog = getattr(self, "_stop_tui_stall_watchdog", None)
         if callable(stop_watchdog):
             stop_watchdog()
 
         try:
-            if getattr(self, "_service_host_enabled", False):
-                from sase.service.actions import stop_service_proc
+            from sase.service.actions import stop_service_proc
 
-                # Stops Scheduler only; the service host is never stopped here.
-                await asyncio.to_thread(
-                    stop_service_proc,
-                    "scheduler",
-                    actor="tui",
-                    reason="ace quit",
-                )
-            else:
-                await asyncio.to_thread(
-                    _stop_axe_daemon_result,
-                    timeout=5.0,
-                    kill_timeout=2.0,
-                    desired_state_source="ace quit",
-                )
+            # Stops Scheduler only; the service host is never stopped here.
+            await asyncio.to_thread(
+                stop_service_proc,
+                "scheduler",
+                actor="tui",
+                reason="ace quit",
+            )
         except Exception:
             pass
         finally:
@@ -393,51 +368,6 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
                 self._axe_last_idx = idx
                 self._axe_last_item_key = key
         self._refresh_axe_display()
-
-    def _start_axe(self, *, source: str = "ace start") -> None:
-        """Start the axe daemon in a background worker thread."""
-        if self._axe_worker is not None:
-            return  # Start/stop already in progress
-        self._set_axe_starting(True)
-        self._axe_worker_operation = "start"
-
-        def _do_start() -> tuple[bool, str]:
-            result = _start_axe_daemon_result(desired_state_source=source)
-            if result.pid is not None:
-                return (True, f"Axe running (pid {result.pid})")
-            return (False, result.message or "Failed to start axe")
-
-        self._axe_worker = self.run_worker(_do_start, thread=True)  # type: ignore[attr-defined]
-
-    def _stop_axe(self, *, source: str = "ace stop") -> None:
-        """Stop the axe daemon in a background worker thread."""
-        if self._axe_worker is not None:
-            return  # Start/stop already in progress
-        self._set_axe_stopping(True)
-        self._axe_worker_operation = "stop"
-
-        def _do_stop() -> tuple[bool, str]:
-            result = _stop_axe_daemon_result(desired_state_source=source)
-            if result.terminated_anything:
-                return (True, result.summary())
-            return (False, result.summary())
-
-        self._axe_worker = self.run_worker(_do_stop, thread=True)  # type: ignore[attr-defined]
-
-    def _restart_axe_daemon(self, *, source: str = "ace restart") -> None:
-        """Restart axe daemon: stop then start in a background worker."""
-        if self._axe_worker is not None:
-            return
-        self._set_axe_restarting(True)
-        self._axe_worker_operation = "restart"
-
-        def _do_restart() -> tuple[bool, str]:
-            result = _restart_axe_daemon_result(desired_state_source=source)
-            if result.pid is not None:
-                return (True, f"Axe restarted (pid {result.pid})")
-            return (False, result.message or "Failed to restart axe")
-
-        self._axe_worker = self.run_worker(_do_restart, thread=True)  # type: ignore[attr-defined]
 
     def _selected_service_proc(self, name: str | None = None) -> Any | None:
         """Return the selected service proc status from the cached snapshot."""

@@ -394,12 +394,9 @@ def _console_script_names(command: str) -> tuple[str, ...]:
 def _service_host_owns_gateway() -> bool:
     """Return whether ``start`` should delegate to host-owned gateway service."""
     try:
-        from sase.feature_flags import FeatureFlag, current_flags
         from sase.service.config import load_service_config
         from sase.service.state import read_service_state
 
-        if not current_flags().enabled(FeatureFlag.service_host):
-            return False
         composition = load_service_config()
         state = read_service_state()
     except Exception:
@@ -419,7 +416,7 @@ def _delegate_gateway_start_to_service_host() -> int:
         from sase.service.state import clear_service_stop
     except Exception as exc:
         raise _MobileGatewayError(
-            "service host APIs are unavailable; disable service_host or upgrade SASE"
+            "service host APIs are unavailable; upgrade SASE"
         ) from exc
 
     clear_service_stop(_GATEWAY_SERVICE_PROC)

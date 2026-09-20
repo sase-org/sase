@@ -370,7 +370,7 @@ class _WriteHarness(AxeConfigActionsMixin):
         self._axe_pending_selection = None
         self.notifications: list[tuple[str, str]] = []
         self.refreshes = 0
-        self.restarts: list[str] = []
+        self.restarts: list[tuple[str, str]] = []
         self.commit_paths: list[str] = []
 
     def _selected_axe_config_key(self):  # type: ignore[no-untyped-def, override]
@@ -379,8 +379,8 @@ class _WriteHarness(AxeConfigActionsMixin):
     def _schedule_axe_async_refresh(self) -> None:
         self.refreshes += 1
 
-    def _restart_axe_daemon(self, *, source: str) -> None:
-        self.restarts.append(source)
+    def _run_service_proc_action(self, name: str, action: str) -> None:
+        self.restarts.append((name, action))
 
     def _schedule_axe_config_commit_offer(self, path: str) -> None:
         self.commit_paths.append(path)
@@ -410,7 +410,7 @@ def test_successful_write_restarts_only_when_verified_running() -> None:
     app._finish_axe_config_write(
         cast(Any, session), _editor_result(running=True, restart=True)
     )
-    assert app.restarts == ["ace AXE config edit"]
+    assert app.restarts == [("scheduler", "restart")]
     assert app._axe_config_restart_saved_path == "/tmp/sase.yml"
     assert app.refreshes == 1
     assert app.commit_paths == ["/tmp/sase.yml"]

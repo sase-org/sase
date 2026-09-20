@@ -482,9 +482,9 @@ class AxeBgCmdMixin:
                 return
 
             if selection.process_type == "start_axe":
-                self._start_axe()  # type: ignore[attr-defined]
+                self._start_service_host()  # type: ignore[attr-defined]
             elif selection.process_type == "axe":
-                self._stop_axe()  # type: ignore[attr-defined]
+                self._stop_service_host()  # type: ignore[attr-defined]
             else:
                 slot = selection.slot
                 info = None if slot is None else self._bgcmd_info(slot)

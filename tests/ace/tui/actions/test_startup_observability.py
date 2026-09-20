@@ -35,6 +35,7 @@ from sase.ace.tui.models.agent_loader import (
 from sase.ace.tui.util import trace
 from sase.core.agent_scan_wire import AgentArtifactScanWire
 from tests._agent_loader_helpers import _empty_artifact_snapshot
+from tests.ace.tui._axe_collector_helpers import patch_service_status
 
 
 def _records(path: Path) -> list[dict[str, Any]]:
@@ -193,13 +194,7 @@ def test_axe_collect_span_carries_file_opens(
     trace.set_startup_window(True)
 
     with (
-        patch(
-            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
-        ) as get_proc,
-        patch(
-            "sase.ace.tui.actions.axe_display._data.read_metrics",
-            return_value=None,
-        ),
+        patch_service_status(),
         patch(
             "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
             return_value="",
@@ -212,14 +207,7 @@ def test_axe_collect_span_carries_file_opens(
             "sase.axe.config.load_axe_config",
             return_value=type("Cfg", (), {"lumberjacks": {}})(),
         ),
-        patch(
-            "sase.ace.tui.actions.axe_display._data._service_host_enabled",
-            return_value=False,
-        ),
     ):
-        proc = get_proc.return_value
-        proc.is_axe_running.return_value = False
-        proc.get_axe_status.return_value = None
         collect_axe_status_data(include_full_snapshots=False)
 
     rows = _records(log)
@@ -238,7 +226,6 @@ class _AxeStartupHarness(AxeDisplayRefreshMixin):
         self._axe_first_load_done = False
         self.current_tab = current_tab
         self._startup_initial_tab = current_tab
-        self._service_host_enabled = False
         self._restart_axe = False
         self._auto_start_axe = False
         self.axe_running = False

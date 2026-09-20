@@ -59,7 +59,6 @@ class KeybindingBindingsMixin:
         service_running: bool = False,
         service_enabled: bool = True,
         service_available: bool = True,
-        service_host_enabled: bool = False,
         config_row_selected: bool = False,
         description_expanded: bool = True,
     ) -> list[tuple[str, str]]:
@@ -88,8 +87,7 @@ class KeybindingBindingsMixin:
             else:
                 label = "disabled"
         elif axe_current_view == "axe":
-            noun = "service host" if service_host_enabled else "axe"
-            label = f"stop {noun}" if self._axe_running else f"start {noun}"
+            label = "stop service host" if self._axe_running else "start service host"
         else:
             label = "kill"
         bindings.append((self._kd("kill_agent"), label))

@@ -6,7 +6,6 @@ import argparse
 from pathlib import Path
 import sys
 
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.main.init_plan import InitAction, InitPlan
 from sase.service.env import render_service_environment
 from sase.service.platform import (
@@ -20,13 +19,6 @@ from sase.service.state import read_service_state, set_service_marker
 
 def plan_init_service(args: argparse.Namespace) -> InitPlan:
     """Return a read-only plan for optional service-platform installation."""
-    if not current_flags().enabled(FeatureFlag.service_host):
-        return InitPlan(
-            command="service",
-            label="Service",
-            summary="service host platform unit is inactive while service_host is disabled",
-            actions=(),
-        )
     if _declined_for_bare_onboarding(args):
         return InitPlan(
             command="service",

@@ -48,7 +48,6 @@ class AxeInfoPanel(Static):
         self._service_total: int = 0
         self._service_proc: ServiceStatusProc | None = None
         self._loading: bool = False
-        self._host_chrome_enabled = False
         self._host: ServiceStatusHost | None = None
         self._host_start_hint = "!x"
 
@@ -56,11 +55,9 @@ class AxeInfoPanel(Static):
         self,
         host: "ServiceStatusHost | None",
         *,
-        enabled: bool,
         start_hint: str = "!x",
     ) -> None:
-        """Set the always-on service-host clause (``enabled=False`` hides it)."""
-        self._host_chrome_enabled = enabled
+        """Set the always-on service-host clause."""
         self._host = host
         self._host_start_hint = start_hint
         self._update_display()
@@ -208,8 +205,7 @@ class AxeInfoPanel(Static):
             self.update(text)
             return
 
-        if self._host_chrome_enabled:
-            self._append_host_chrome(text)
+        self._append_host_chrome(text)
 
         if self._service_mode:
             label = (

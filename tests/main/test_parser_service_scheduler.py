@@ -8,7 +8,6 @@ from typing import Any
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.main.parser import _DEFAULT_LIST_GROUP_DEST, create_parser
 from sase.main.service_handler import handle_service_command
 from sase.procs.service_meta import (
@@ -108,20 +107,18 @@ def test_scheduler_help_lists_sorted_subcommands() -> None:
     expected = {"restart", "run", "start", "status", "stop"}
 
     assert help_subcommand_rows(help_text, expected) == sorted(expected)
-    assert "legacy AXE lifecycle behavior" in flat_help(help_text)
+    flat = flat_help(help_text)
+    assert "`scheduler` service proc on the SASE service host" in flat
+    assert "legacy" not in flat
+    assert "beta flag" not in flat
 
 
-def test_service_flag_off_fails_with_opt_in_diagnostic(
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    args = parse_sase_args(["service", "status"])
+def test_scheduler_legacy_lifecycle_options_are_gone() -> None:
+    restart_help = flat_help(parser_for(("sase", "scheduler", "restart")).format_help())
+    stop_help = flat_help(parser_for(("sase", "scheduler", "stop")).format_help())
 
-    with override_flags(service_host=False):
-        with pytest.raises(SystemExit) as exit_info:
-            handle_service_command(args)
-
-    assert exit_info.value.code == 2
-    assert "service_host beta flag is disabled" in capsys.readouterr().err
+    assert "--verify-timeout" not in restart_help
+    assert "--force" not in stop_help
 
 
 def test_service_proc_run_submits_transient_oneshot_metadata(
@@ -160,9 +157,8 @@ def test_service_proc_run_submits_transient_oneshot_metadata(
         ]
     )
 
-    with override_flags(service_host=True):
-        with pytest.raises(SystemExit) as exit_info:
-            handle_service_command(args)
+    with pytest.raises(SystemExit) as exit_info:
+        handle_service_command(args)
 
     assert exit_info.value.code == 0
     request = captured["request"]
@@ -179,7 +175,7 @@ def test_service_proc_run_submits_transient_oneshot_metadata(
     assert capsys.readouterr().out == "svc123456789\n"
 
 
-def test_service_run_loads_captured_env_before_beta_flag_gate(
+def test_service_run_loads_captured_env_before_dispatch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     order: list[object] = []
@@ -188,22 +184,18 @@ def test_service_run_loads_captured_env_before_beta_flag_gate(
         order.append(("load", override_existing))
         return ()
 
-    def require(command: str) -> None:
-        order.append(("gate", command))
+    def dispatch(_args: object) -> int:
+        order.append("dispatch")
+        return 0
 
     monkeypatch.setattr("sase.main.service_handler.load_service_environment", load)
-    monkeypatch.setattr(
-        "sase.main.service_handler.require_service_host_enabled", require
-    )
-    monkeypatch.setattr(
-        "sase.main.service_handler._handle_service_command", lambda args: 0
-    )
+    monkeypatch.setattr("sase.main.service_handler._handle_service_command", dispatch)
 
     with pytest.raises(SystemExit) as exit_info:
         handle_service_command(parse_sase_args(["service", "run"]))
 
     assert exit_info.value.code == 0
-    assert order == [("load", True), ("gate", "sase service")]
+    assert order == [("load", True), "dispatch"]
 
 
 def test_service_status_does_not_override_interactive_environment(
@@ -213,10 +205,6 @@ def test_service_status_does_not_override_interactive_environment(
     monkeypatch.setattr(
         "sase.main.service_handler.load_service_environment",
         lambda **kwargs: called.append(kwargs),
-    )
-    monkeypatch.setattr(
-        "sase.main.service_handler.require_service_host_enabled",
-        lambda command: None,
     )
     monkeypatch.setattr(
         "sase.main.service_handler._handle_service_command", lambda args: 0
@@ -247,11 +235,8 @@ def test_service_uninstall_handler_threads_force(
         "sase.main.service_handler.apply_service_uninstall", fake_uninstall
     )
 
-    with override_flags(service_host=True):
-        with pytest.raises(SystemExit) as exit_info:
-            handle_service_command(
-                parse_sase_args(["service", "uninstall", "-f", "-y"])
-            )
+    with pytest.raises(SystemExit) as exit_info:
+        handle_service_command(parse_sase_args(["service", "uninstall", "-f", "-y"]))
 
     assert exit_info.value.code == 0
     assert captured["force"] is True

@@ -17,6 +17,7 @@ from tests.ace.tui._axe_collector_helpers import (
     lumberjack_config as _lj_cfg,
     make_run_entry as _make_run_entry,
     make_status as _make_status,
+    patch_service_status,
 )
 
 
@@ -45,10 +46,7 @@ def test_collector_classifies_against_runtime_interval() -> None:
         return _fast_overrun()
 
     with (
-        patch(
-            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
-        ) as get_proc,
-        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch_service_status(),
         patch(
             "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
             return_value="",
@@ -90,10 +88,6 @@ def test_collector_classifies_against_runtime_interval() -> None:
             "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
-        proc = get_proc.return_value
-        proc.is_axe_running.return_value = False
-        proc.get_axe_status.return_value = None
-
         data = collect_axe_status_data()
 
     snap = data.chop_snapshots[("hooks", "slow")]
@@ -132,10 +126,7 @@ def test_collector_falls_back_to_config_interval_without_runtime_status() -> Non
         )
 
     with (
-        patch(
-            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
-        ) as get_proc,
-        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch_service_status(),
         patch(
             "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
             return_value="",
@@ -177,10 +168,6 @@ def test_collector_falls_back_to_config_interval_without_runtime_status() -> Non
             "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
-        proc = get_proc.return_value
-        proc.is_axe_running.return_value = False
-        proc.get_axe_status.return_value = None
-
         data = collect_axe_status_data()
 
     snap = data.chop_snapshots[("hooks", "slow")]
@@ -215,10 +202,7 @@ def test_collector_does_not_classify_disabled_chop() -> None:
     run = _make_run_entry("hooks", "slow", "20260511T100100_000000")
 
     with (
-        patch(
-            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
-        ) as get_proc,
-        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch_service_status(),
         patch(
             "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
             return_value="",
@@ -256,10 +240,6 @@ def test_collector_does_not_classify_disabled_chop() -> None:
             "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
-        proc = get_proc.return_value
-        proc.is_axe_running.return_value = False
-        proc.get_axe_status.return_value = None
-
         data = collect_axe_status_data()
 
     snap = data.chop_snapshots[("hooks", "slow")]
@@ -277,10 +257,7 @@ def test_collector_degrades_when_overrun_binding_fails() -> None:
     run = _make_run_entry("hooks", "slow", "20260511T100100_000000")
 
     with (
-        patch(
-            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
-        ) as get_proc,
-        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch_service_status(),
         patch(
             "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
             return_value="",
@@ -322,10 +299,6 @@ def test_collector_degrades_when_overrun_binding_fails() -> None:
             "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
-        proc = get_proc.return_value
-        proc.is_axe_running.return_value = False
-        proc.get_axe_status.return_value = None
-
         data = collect_axe_status_data()
 
     snap = data.chop_snapshots[("hooks", "slow")]

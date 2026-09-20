@@ -81,7 +81,9 @@ def test_axe_info_panel_loading_clears() -> None:
     panel._countdown = 5
     panel._interval = 10
     plain = _collect_text(panel)
-    assert plain == "(auto-refresh in 5s)"
+    # The service-host clause always leads the panel; the countdown follows it.
+    assert plain.startswith("Services · host")
+    assert plain.endswith("(auto-refresh in 5s)")
     assert "…" not in plain
     assert "tab guide" not in plain
 

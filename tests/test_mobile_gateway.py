@@ -467,6 +467,82 @@ def test_run_mobile_gateway_start_foreground_lifecycle(
     assert "Pairing ID: pair_123" in out
 
 
+def _gateway_composition(
+    *, configured: bool = True, available: bool = True, enabled: bool = True
+) -> SimpleNamespace:
+    """Stand-in for the composed ``service.procs`` config with a ``gateway`` entry."""
+    entry = SimpleNamespace(name="gateway", available=available, enabled=enabled)
+    return SimpleNamespace(
+        get=lambda name: entry if configured and name == "gateway" else None
+    )
+
+
+def _gateway_state(**enablement: bool) -> SimpleNamespace:
+    """Stand-in for the service state with per-proc enablement overrides."""
+    return SimpleNamespace(
+        state=SimpleNamespace(
+            enablement={
+                name: SimpleNamespace(enabled=enabled)
+                for name, enabled in enablement.items()
+            }
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("composition", "state", "expected"),
+    [
+        pytest.param(_gateway_composition(), _gateway_state(), True, id="configured"),
+        pytest.param(
+            _gateway_composition(configured=False),
+            _gateway_state(),
+            False,
+            id="not-configured",
+        ),
+        pytest.param(
+            _gateway_composition(available=False),
+            _gateway_state(),
+            False,
+            id="unavailable",
+        ),
+        pytest.param(
+            _gateway_composition(enabled=False),
+            _gateway_state(),
+            False,
+            id="configured-disabled",
+        ),
+        pytest.param(
+            _gateway_composition(enabled=False),
+            _gateway_state(gateway=True),
+            True,
+            id="override-enables",
+        ),
+        pytest.param(
+            _gateway_composition(),
+            _gateway_state(gateway=False),
+            False,
+            id="override-disables",
+        ),
+    ],
+)
+def test_service_host_owns_gateway_follows_the_configured_entry(
+    composition: SimpleNamespace, state: SimpleNamespace, expected: bool
+) -> None:
+    with (
+        patch("sase.service.config.load_service_config", return_value=composition),
+        patch("sase.service.state.read_service_state", return_value=state),
+    ):
+        assert mobile_gateway._service_host_owns_gateway() is expected  # noqa: SLF001
+
+
+def test_service_host_owns_gateway_is_false_when_service_apis_fail() -> None:
+    with patch(
+        "sase.service.config.load_service_config",
+        side_effect=RuntimeError("older sase without service config"),
+    ):
+        assert mobile_gateway._service_host_owns_gateway() is False  # noqa: SLF001
+
+
 def test_run_mobile_gateway_start_delegates_to_service_host(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
@@ -477,9 +553,10 @@ def test_run_mobile_gateway_start_delegates_to_service_host(
 
     with (
         patch(
-            "sase.integrations.mobile_gateway._service_host_owns_gateway",
-            return_value=True,
+            "sase.service.config.load_service_config",
+            return_value=_gateway_composition(),
         ),
+        patch("sase.service.state.read_service_state", return_value=_gateway_state()),
         patch(
             "sase.service.state.clear_service_stop",
             side_effect=lambda name: calls.append(f"clear:{name}"),

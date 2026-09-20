@@ -84,8 +84,7 @@ class AxeLoaderState:
     # configured chops). Mirrors the per-attribute caches above for
     # callers that prefer a single object.
     _axe_lumberjack_snapshots: dict[str, LumberjackSnapshot]
-    # Service-host snapshot caches populated only while the beta flag is enabled.
-    _service_host_enabled: bool
+    # Service-host snapshot caches populated by the async collector.
     _service_status: ServiceStatusSnapshot | None
     _service_log_tails: dict[str, str]
     _service_tailed_names: set[str]

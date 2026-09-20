@@ -102,12 +102,12 @@ def test_keybinding_footer_axe_bindings() -> None:
     # Default: axe not running, on axe view
     bindings = footer._compute_axe_bindings("axe")
     assert len(bindings) == 1
-    assert bindings[0] == ("x", "start axe")
+    assert bindings[0] == ("x", "start service host")
 
     # Axe running, on axe view
     footer._axe_running = True
     bindings = footer._compute_axe_bindings("axe")
-    assert bindings[0] == ("x", "stop axe")
+    assert bindings[0] == ("x", "stop service host")
 
     # On bgcmd view
     bindings = footer._compute_axe_bindings(1)

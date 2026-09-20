@@ -8,7 +8,6 @@ from ._data import (
     LumberjackSnapshot,
     collect_axe_status_data,
     collect_chop_snapshot,
-    get_axe_process_module,
 )
 from ._read_cache import AxeCollectorStats, AxeStatusReadCache
 from ._render import AxeDisplayRenderMixin
@@ -29,5 +28,4 @@ __all__ = [
     "LumberjackSnapshot",
     "collect_axe_status_data",
     "collect_chop_snapshot",
-    "get_axe_process_module",
 ]

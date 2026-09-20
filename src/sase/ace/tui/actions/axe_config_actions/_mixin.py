@@ -332,7 +332,7 @@ class AxeConfigActionsMixin:
                 )  # type: ignore[attr-defined]
             else:
                 self._axe_config_restart_saved_path = path
-                self._restart_axe_daemon(source="ace AXE config edit")  # type: ignore[attr-defined]
+                self._run_service_proc_action("scheduler", "restart")  # type: ignore[attr-defined]
         elif outcome.axe_running:
             self.notify(
                 f"Config saved to {path}; running AXE keeps its previous config until restarted",

@@ -179,22 +179,20 @@ def test_chrome_running_with_unit_and_detached() -> None:
     host = SimpleNamespace(
         state="running", started_at=time.time() - 3 * 3600, platform_unit="systemd"
     )
-    panel.update_host_chrome(host, enabled=True)  # type: ignore[arg-type]
+    panel.update_host_chrome(host)  # type: ignore[arg-type]
     out = _panel_text(panel)
     assert "host" in out and "running" in out and "3h" in out and "systemd" in out
-    panel.update_host_chrome(_host(), enabled=True)
+    panel.update_host_chrome(_host())
     assert "detached" in _panel_text(panel)
 
 
-def test_chrome_stopped_and_flag_off_and_loading() -> None:
+def test_chrome_stopped_and_loading() -> None:
     panel = _Panel()
-    panel.update_host_chrome(SimpleNamespace(state="stopped"), enabled=True)  # type: ignore[arg-type]
+    panel.update_host_chrome(SimpleNamespace(state="stopped"))  # type: ignore[arg-type]
     assert "press !x to start" in _panel_text(panel)
-    panel.update_host_chrome(None, enabled=True)
+    panel.update_host_chrome(None)
     assert "stopped" in _panel_text(panel)
-    panel.update_host_chrome(None, enabled=False)
-    assert "host" not in _panel_text(panel)
-    panel.update_host_chrome(_host(), enabled=True)
+    panel.update_host_chrome(_host())
     panel._loading = True
     assert "host" not in _panel_text(panel)
 

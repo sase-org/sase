@@ -124,12 +124,11 @@ class AxeDisplayItemsMixin(AxeLoaderState):
 
         items: list[AxeItem] = []
 
-        # Top-level Services rows in service-host mode. The scheduler row
-        # owns the legacy routine/job tree underneath it so the internal
-        # AXE model stays intact while the visible hierarchy leads with
-        # actual service procs.
+        # Top-level Services rows. The scheduler row owns the legacy
+        # routine/job tree underneath it so the internal AXE model stays
+        # intact while the visible hierarchy leads with actual service procs.
         service_status = getattr(self, "_service_status", None)
-        if getattr(self, "_service_host_enabled", False) and service_status is not None:
+        if service_status is not None:
             for proc in service_status.procs:
                 items.append(ServiceProcItem(name=proc.name))
                 if proc.name == "scheduler":

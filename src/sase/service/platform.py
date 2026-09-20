@@ -19,7 +19,6 @@ from typing import Literal
 from sase.agent_clis.operations import collect_agent_cli_statuses
 from sase.core.paths import sase_home as _sase_home
 from sase.core.state_write_guard import pytest_context_detected
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.service.effective_env import effective_ssh_agent_warnings
 from sase.service.env import (
     ServiceEnvironmentError,
@@ -168,8 +167,6 @@ def service_init_plan(
     warnings: list[str] = list(capture.warnings)
     actions: list[str] = []
 
-    if not current_flags().enabled(FeatureFlag.service_host):
-        blockers.append("service_host beta flag is disabled")
     if not executable.available:
         blockers.extend(executable.diagnostics)
     if definition.platform == "unsupported":

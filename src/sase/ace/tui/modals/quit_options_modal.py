@@ -37,11 +37,8 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
         Binding("q", "cancel", "Cancel", show=False),
     ]
 
-    def __init__(
-        self, *, running_task_count: int = 0, service_host: bool = False
-    ) -> None:
+    def __init__(self, *, running_task_count: int = 0) -> None:
         super().__init__()
-        self._service_host = service_host
         self._running_task_count = max(0, running_task_count)
 
     def compose(self) -> ComposeResult:
@@ -114,7 +111,7 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
 
     @property
     def _stop_target(self) -> str:
-        return "Scheduler" if self._service_host else "axe"
+        return "Scheduler"
 
     @staticmethod
     def _render_choice(

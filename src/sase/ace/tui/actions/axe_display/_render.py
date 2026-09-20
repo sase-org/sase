@@ -99,7 +99,6 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             service_snapshot = getattr(self, "_service_status", None)
             axe_info.update_host_chrome(
                 None if service_snapshot is None else service_snapshot.host,
-                enabled=getattr(self, "_service_host_enabled", False),
             )
             if self._axe_current_view == "axe":
                 service_selection = self._axe_service_selection
@@ -309,7 +308,6 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                     service_running=service_running,
                     service_enabled=service_enabled,
                     service_available=service_available,
-                    service_host_enabled=getattr(self, "_service_host_enabled", False),
                     config_row_selected=(
                         0 <= self.current_idx < len(self._axe_items)
                         and isinstance(
@@ -382,7 +380,6 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             service_snapshot = getattr(self, "_service_status", None)
             axe_info.update_host_chrome(
                 None if service_snapshot is None else service_snapshot.host,
-                enabled=getattr(self, "_service_host_enabled", False),
             )
             if self._axe_current_view == "axe":
                 service_selection = self._axe_service_selection
@@ -462,15 +459,11 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
     def _push_service_health(self, footer: Any) -> None:
         """Push the cached service-health roll-up to the footer pill.
 
-        Flag off pushes ``None`` so the legacy AXE pill is untouched. A toast
-        fires only when health flips or the snapshot ``change_token`` moves
-        while unhealthy -- never on countdown ticks.
+        A toast fires only when health flips or the snapshot ``change_token``
+        moves while unhealthy -- never on countdown ticks.
         """
         from ..._service_health import derive_service_health
 
-        if not getattr(self, "_service_host_enabled", False):
-            footer.set_service_health(None)
-            return
         snapshot = getattr(self, "_service_status", None)
         health = derive_service_health(snapshot)
         footer.set_service_health(health)

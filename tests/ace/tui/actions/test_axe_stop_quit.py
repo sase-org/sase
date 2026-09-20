@@ -4,11 +4,9 @@ from typing import Any
 
 import pytest
 
-import sase.ace.tui.actions.axe as axe_actions
 from sase.ace.tui import AceExitAction
 from sase.ace.tui.actions.axe import AxeMixin
 from sase.ace.tui.modals import QuitOptionsModal
-from sase.axe.process import AxeStopResult
 
 
 class _StopQuitApp(AxeMixin):
@@ -62,6 +60,33 @@ class _StopQuitApp(AxeMixin):
 
 async def _run_stop_quit_worker(app: _StopQuitApp) -> None:
     await app._stop_axe_and_quit()
+
+
+def _patch_scheduler_stop(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    order: list[str] | None = None,
+    raises: bool = False,
+) -> list[tuple[str, dict[str, Any]]]:
+    """Record ``stop_service_proc`` calls; the service host itself must survive."""
+    import sase.service.actions as service_actions
+    import sase.service.control as service_control
+
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    def fake_stop(name: str, **kwargs: Any) -> None:
+        calls.append((name, kwargs))
+        if order is not None:
+            order.append("stop")
+        if raises:
+            raise RuntimeError("stop failed")
+
+    def host_stopped(*_args: Any, **_kwargs: Any) -> None:
+        raise AssertionError("the service host must not be stopped on quit")
+
+    monkeypatch.setattr(service_actions, "stop_service_proc", fake_stop)
+    monkeypatch.setattr(service_control, "stop_service_host", host_stopped)
+    return calls
 
 
 def _push_quit_panel(app: _StopQuitApp) -> Any:
@@ -131,29 +156,16 @@ def test_stop_axe_and_quit_action_routes_restart_options(
 
 
 @pytest.mark.asyncio
-async def test_stop_axe_and_quit_uses_robust_stop_when_status_is_stale(
+async def test_stop_axe_and_quit_stops_scheduler_even_when_status_is_stale(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls: list[dict[str, Any]] = []
     order: list[str] = []
-
-    def fake_stop(**kwargs: Any) -> AxeStopResult:
-        calls.append(kwargs)
-        order.append("stop")
-        return AxeStopResult()
-
-    monkeypatch.setattr(axe_actions, "_stop_axe_daemon_result", fake_stop)
+    calls = _patch_scheduler_stop(monkeypatch, order=order)
     app = _StopQuitApp(axe_running=False, order=order)
 
     await _run_stop_quit_worker(app)
 
-    assert calls == [
-        {
-            "timeout": 5.0,
-            "kill_timeout": 2.0,
-            "desired_state_source": "ace quit",
-        }
-    ]
+    assert calls == [("scheduler", {"actor": "tui", "reason": "ace quit"})]
     assert app.kill_task_calls == 0
     assert app.stall_watchdog_stops == 1
     assert app.did_quit is True
@@ -164,11 +176,7 @@ async def test_stop_axe_and_quit_uses_robust_stop_when_status_is_stale(
 async def test_stop_axe_and_quit_routes_through_controlled_exit(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(
-        axe_actions,
-        "_stop_axe_daemon_result",
-        lambda **_kwargs: AxeStopResult(),
-    )
+    _patch_scheduler_stop(monkeypatch)
     app = _StopQuitApp()
     controlled_exit_calls = 0
 
@@ -188,19 +196,12 @@ async def test_stop_axe_and_quit_routes_through_controlled_exit(
 async def test_stop_axe_and_quit_still_quits_when_stop_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls = 0
-
-    def fake_stop(**_kwargs: Any) -> AxeStopResult:
-        nonlocal calls
-        calls += 1
-        raise RuntimeError("stop failed")
-
-    monkeypatch.setattr(axe_actions, "_stop_axe_daemon_result", fake_stop)
+    calls = _patch_scheduler_stop(monkeypatch, raises=True)
     app = _StopQuitApp(axe_running=True)
 
     await _run_stop_quit_worker(app)
 
-    assert calls == 1
+    assert len(calls) == 1
     assert app.kill_task_calls == 0
     assert app.did_quit is True
 
@@ -209,19 +210,12 @@ async def test_stop_axe_and_quit_still_quits_when_stop_raises(
 async def test_stop_axe_and_quit_does_not_kill_tasks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls = 0
-
-    def fake_stop(**_kwargs: Any) -> AxeStopResult:
-        nonlocal calls
-        calls += 1
-        return AxeStopResult()
-
-    monkeypatch.setattr(axe_actions, "_stop_axe_daemon_result", fake_stop)
+    calls = _patch_scheduler_stop(monkeypatch)
     app = _StopQuitApp(kill_tasks_raises=True)
 
     await _run_stop_quit_worker(app)
 
-    assert calls == 1
+    assert len(calls) == 1
     assert app.kill_task_calls == 0
     assert app.did_quit is True
 
@@ -238,15 +232,13 @@ def test_restart_tui_sets_exit_action_and_quits(
     restart_axe: bool,
     expected_exit_action: AceExitAction,
 ) -> None:
-    def fail_stop_axe(**_kwargs: Any) -> AxeStopResult:
-        raise AssertionError("_restart_tui must not stop axe directly")
-
-    monkeypatch.setattr(axe_actions, "_stop_axe_daemon_result", fail_stop_axe)
+    stops = _patch_scheduler_stop(monkeypatch)
     order: list[str] = []
     app = _StopQuitApp(order=order)
 
     app._restart_tui(restart_axe=restart_axe)
 
+    assert stops == [], "_restart_tui must not stop the scheduler directly"
     assert app.exit_action == expected_exit_action
     assert app.kill_task_calls == 0
     assert app.stall_watchdog_stops == 1
@@ -324,31 +316,11 @@ def test_restart_tui_still_quits_when_restart_stash_raises() -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("raises", [False, True])
-async def test_stop_and_quit_with_service_host_stops_scheduler_only(
+async def test_stop_and_quit_stops_scheduler_only(
     monkeypatch: pytest.MonkeyPatch, raises: bool
 ) -> None:
-    import sase.service.actions as service_actions
-
-    calls: list[tuple[Any, ...]] = []
-
-    def fake_stop(name: str, **kwargs: Any) -> None:
-        calls.append((name, kwargs))
-        if raises:
-            raise RuntimeError("stop failed")
-
-    def legacy(**_kw: Any) -> AxeStopResult:
-        raise AssertionError("legacy axe stop must not run")
-
-    monkeypatch.setattr(service_actions, "stop_service_proc", fake_stop)
-    monkeypatch.setattr(axe_actions, "_stop_axe_daemon_result", legacy)
-    if hasattr(service_actions, "stop_service_host"):
-        monkeypatch.setattr(
-            service_actions,
-            "stop_service_host",
-            lambda *a, **k: (_ for _ in ()).throw(AssertionError("host stopped")),
-        )
+    calls = _patch_scheduler_stop(monkeypatch, raises=raises)
     app = _StopQuitApp()
-    app._service_host_enabled = True  # type: ignore[attr-defined]
 
     await _run_stop_quit_worker(app)
 
@@ -356,6 +328,5 @@ async def test_stop_and_quit_with_service_host_stops_scheduler_only(
     assert app.did_quit is True
 
 
-def test_quit_modal_copy_is_flag_aware() -> None:
-    assert QuitOptionsModal(service_host=True)._stop_target == "Scheduler"
-    assert QuitOptionsModal()._stop_target == "axe"
+def test_quit_modal_stops_the_scheduler() -> None:
+    assert QuitOptionsModal()._stop_target == "Scheduler"

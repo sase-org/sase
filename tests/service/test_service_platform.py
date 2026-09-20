@@ -1,7 +1,7 @@
 """Tests for native service-host platform planning and apply.
 
 Darwin host smoke checklist (the mac host is often offline; do not add a docs
-page for this). On a real macOS machine with ``service_host`` enabled:
+page for this). On a real macOS machine:
 
 - ``sase service init --check`` / ``--diff`` / ``--yes``
 - ``launchctl print gui/$UID/sh.sase.service``
@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import getpass
 import plistlib
-import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 from types import SimpleNamespace
@@ -21,7 +20,6 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.service.env import (
     CapturedServiceEnvironment,
     write_service_environment,
@@ -78,12 +76,11 @@ def test_linux_plan_detects_content_env_linger_and_legacy(
     monkeypatch.setattr("sase.service.platform.readiness_warnings", lambda _env: ())
     runner = _Runner()
 
-    with override_flags(service_host=True):
-        plan = service_init_plan(
-            runner=runner,
-            environ={"PATH": "/bin"},
-            executable_resolver=lambda: str(_exe(tmp_path)),
-        )
+    plan = service_init_plan(
+        runner=runner,
+        environ={"PATH": "/bin"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
 
     assert plan.status == "needs_attention"
     assert any("write" in action and ".service" in action for action in plan.actions)
@@ -129,12 +126,11 @@ def test_apply_service_init_writes_files_and_orders_manager_actions(
     monkeypatch.setattr("sase.service.platform.readiness_warnings", lambda _env: ())
     runner = _Runner()
 
-    with override_flags(service_host=True):
-        result = apply_service_init(
-            runner=runner,
-            environ={"PATH": "/bin", "SASE_FEATURE_FLAGS": '{"service_host": true}'},
-            executable_resolver=lambda: str(_exe(tmp_path)),
-        )
+    result = apply_service_init(
+        runner=runner,
+        environ={"PATH": "/bin"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
 
     assert result.ok is True
     assert (tmp_path / ".sase" / "service" / "env").exists()
@@ -273,12 +269,11 @@ def test_linux_unit_render_contract(
 ) -> None:
     _linux_home(tmp_path, monkeypatch)
     exe = _exe(tmp_path)
-    with override_flags(service_host=True):
-        plan = service_init_plan(
-            runner=_LinuxManager(),
-            environ={"PATH": "/bin", "OPENAI_API_KEY": "super-secret-token"},
-            executable_resolver=lambda: str(exe),
-        )
+    plan = service_init_plan(
+        runner=_LinuxManager(),
+        environ={"PATH": "/bin", "OPENAI_API_KEY": "super-secret-token"},
+        executable_resolver=lambda: str(exe),
+    )
     content = plan.definition.content
     assert "Type=exec" in content
     assert "Restart=on-failure" in content
@@ -301,12 +296,11 @@ def test_linux_linger_warning_never_elevates(
 ) -> None:
     _linux_home(tmp_path, monkeypatch)
     runner = _LinuxManager(linger="no")
-    with override_flags(service_host=True):
-        apply_service_init(
-            runner=runner,
-            environ={"PATH": "/bin"},
-            executable_resolver=lambda: str(_exe(tmp_path)),
-        )
+    apply_service_init(
+        runner=runner,
+        environ={"PATH": "/bin"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
     assert any(
         f"loginctl enable-linger {getpass.getuser()}" in warning
         for warning in service_init_plan(
@@ -331,23 +325,22 @@ def test_linux_legacy_units_detected_and_retired_before_enable(
         ),
         active=("sase-gateway.service",),
     )
-    with override_flags(service_host=True):
-        plan = service_init_plan(
-            runner=runner,
-            environ={"PATH": "/bin"},
-            executable_resolver=lambda: str(_exe(tmp_path)),
-        )
-        assert plan.inspection is not None
-        assert plan.inspection.legacy_owners == (
-            "sase-gateway.service",
-            "sase-axe-ensure.service",
-            "sase-axe-ensure.timer",
-        )
-        result = apply_service_init(
-            runner=runner,
-            environ={"PATH": "/bin"},
-            executable_resolver=lambda: str(_exe(tmp_path)),
-        )
+    plan = service_init_plan(
+        runner=runner,
+        environ={"PATH": "/bin"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
+    assert plan.inspection is not None
+    assert plan.inspection.legacy_owners == (
+        "sase-gateway.service",
+        "sase-axe-ensure.service",
+        "sase-axe-ensure.timer",
+    )
+    result = apply_service_init(
+        runner=runner,
+        environ={"PATH": "/bin"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
     assert result.ok is True
     disable_now = [
         call
@@ -376,24 +369,19 @@ def test_linux_second_apply_skips_enable_and_start_when_current(
     def resolve() -> str:
         return str(_exe(tmp_path))
 
-    with override_flags(service_host=True):
-        first = apply_service_init(
-            runner=runner,
-            environ={"PATH": "/bin"},
-            executable_resolver=resolve,
-        )
-        assert first.ok is True
-        enable_calls = runner.calls.count(
-            ("systemctl", "--user", "enable", "sase.service")
-        )
-        start_calls = runner.calls.count(
-            ("systemctl", "--user", "start", "sase.service")
-        )
-        second = apply_service_init(
-            runner=runner,
-            environ={"PATH": "/bin"},
-            executable_resolver=resolve,
-        )
+    first = apply_service_init(
+        runner=runner,
+        environ={"PATH": "/bin"},
+        executable_resolver=resolve,
+    )
+    assert first.ok is True
+    enable_calls = runner.calls.count(("systemctl", "--user", "enable", "sase.service"))
+    start_calls = runner.calls.count(("systemctl", "--user", "start", "sase.service"))
+    second = apply_service_init(
+        runner=runner,
+        environ={"PATH": "/bin"},
+        executable_resolver=resolve,
+    )
     assert second.ok is True
     assert (
         runner.calls.count(("systemctl", "--user", "enable", "sase.service"))
@@ -430,12 +418,11 @@ def test_init_plan_diff_redacts_env_secrets_on_both_sides(
             }
         ),
     )
-    with override_flags(service_host=True):
-        plan = service_init_plan(
-            runner=_LinuxManager(),
-            environ={"PATH": "/bin", "OPENAI_API_KEY": "super-secret-token"},
-            executable_resolver=lambda: str(_exe(tmp_path)),
-        )
+    plan = service_init_plan(
+        runner=_LinuxManager(),
+        environ={"PATH": "/bin", "OPENAI_API_KEY": "super-secret-token"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
     assert "super-secret-token" not in plan.diff
     assert "old-secret-token" not in plan.diff
     assert "gone-secret-token" not in plan.diff
@@ -456,19 +443,18 @@ def test_uninstall_preserves_state_and_force_removes_suffixed_identity(
     monkeypatch.setattr("sase.service.platform.platform.system", lambda: "Linux")
     monkeypatch.setattr("sase.service.platform.readiness_warnings", lambda _env: ())
     runner = _LinuxManager()
-    with override_flags(service_host=True):
-        blocked = apply_service_init(
-            runner=runner,
-            environ={"PATH": "/bin"},
-            executable_resolver=lambda: str(_exe(tmp_path)),
-        )
-        assert blocked.ok is False
-        installed = apply_service_init(
-            force=True,
-            runner=runner,
-            environ={"PATH": "/bin"},
-            executable_resolver=lambda: str(_exe(tmp_path)),
-        )
+    blocked = apply_service_init(
+        runner=runner,
+        environ={"PATH": "/bin"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
+    assert blocked.ok is False
+    installed = apply_service_init(
+        force=True,
+        runner=runner,
+        environ={"PATH": "/bin"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
     assert installed.ok is True
     assert installed.plan is not None
     unit_path = installed.plan.definition.definition_path
@@ -480,10 +466,9 @@ def test_uninstall_preserves_state_and_force_removes_suffixed_identity(
         detail="keep-me",
         sase_home=sase_home,
     )
-    with override_flags(service_host=True):
-        refused = apply_service_uninstall(runner=runner)
-        assert refused.ok is False
-        removed = apply_service_uninstall(force=True, runner=runner)
+    refused = apply_service_uninstall(runner=runner)
+    assert refused.ok is False
+    removed = apply_service_uninstall(force=True, runner=runner)
     assert removed.ok is True
     assert not unit_path.exists()
     snapshot = read_service_state(sase_home=sase_home)
@@ -499,12 +484,11 @@ def test_env_file_mode_is_0600_after_apply(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     sase_home = _linux_home(tmp_path, monkeypatch)
-    with override_flags(service_host=True):
-        apply_service_init(
-            runner=_LinuxManager(),
-            environ={"PATH": "/bin"},
-            executable_resolver=lambda: str(_exe(tmp_path)),
-        )
+    apply_service_init(
+        runner=_LinuxManager(),
+        environ={"PATH": "/bin"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
     env_path = sase_home / "service" / "env"
     assert (env_path.stat().st_mode & 0o777) == 0o600
 
@@ -519,7 +503,7 @@ def test_readiness_warnings_omit_secrets_and_compare_paths(
     binary.write_text("#!/bin/sh\n", encoding="utf-8")
     binary.chmod(0o755)
     monkeypatch.setenv("PATH", str(live_bin))
-    monkeypatch.setenv("SASE_FEATURE_FLAGS", '{"service_host": true}')
+    monkeypatch.setenv("SASE_FEATURE_FLAGS", '{"typed_launch_units": true}')
     monkeypatch.setattr(
         "sase.service.platform.collect_agent_cli_statuses",
         lambda **_k: (
@@ -588,12 +572,11 @@ def test_init_plan_reports_a_refused_capture_exactly_once(
 
     monkeypatch.setattr("sase.service.ssh_agent.probe_git_remote_auth", denied)
 
-    with override_flags(service_host=True):
-        plan = service_init_plan(
-            runner=_Runner(),
-            environ={"PATH": "/bin"},
-            executable_resolver=lambda: str(_exe(tmp_path)),
-        )
+    plan = service_init_plan(
+        runner=_Runner(),
+        environ={"PATH": "/bin"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
 
     refused = [w for w in plan.warnings if "refused by the git remote" in w]
     assert len(refused) == 1
@@ -660,30 +643,29 @@ class TestDarwinPlatform:
         _darwin_home(tmp_path, monkeypatch)
         runner = _DarwinManager(active=("sh.sase.gateway",))
         exe = _exe(tmp_path)
-        with override_flags(service_host=True):
-            plan = service_init_plan(
-                runner=runner,
-                environ={"PATH": "/bin"},
-                executable_resolver=lambda: str(exe),
-            )
-            payload = plistlib.loads(plan.definition.content.encode("utf-8"))
-            assert payload["RunAtLoad"] is True
-            assert payload["KeepAlive"] == {"SuccessfulExit": False}
-            assert payload["AbandonProcessGroup"] is True
-            assert payload["ThrottleInterval"] == 10
-            assert payload["ProgramArguments"] == [str(exe), "service", "run"]
-            assert payload["StandardOutPath"].endswith("host.stdout.log")
-            assert payload["StandardErrorPath"].endswith("host.stderr.log")
-            env = payload["EnvironmentVariables"]
-            assert set(env) <= {"SASE_SERVICE_ENV", "SASE_SERVICE_UNIT", "SASE_HOME"}
-            assert env["SASE_SERVICE_UNIT"] == "sh.sase.service"
-            assert plan.inspection is not None
-            assert plan.inspection.legacy_owners == ("sh.sase.gateway",)
-            result = apply_service_init(
-                runner=runner,
-                environ={"PATH": "/bin"},
-                executable_resolver=lambda: str(exe),
-            )
+        plan = service_init_plan(
+            runner=runner,
+            environ={"PATH": "/bin"},
+            executable_resolver=lambda: str(exe),
+        )
+        payload = plistlib.loads(plan.definition.content.encode("utf-8"))
+        assert payload["RunAtLoad"] is True
+        assert payload["KeepAlive"] == {"SuccessfulExit": False}
+        assert payload["AbandonProcessGroup"] is True
+        assert payload["ThrottleInterval"] == 10
+        assert payload["ProgramArguments"] == [str(exe), "service", "run"]
+        assert payload["StandardOutPath"].endswith("host.stdout.log")
+        assert payload["StandardErrorPath"].endswith("host.stderr.log")
+        env = payload["EnvironmentVariables"]
+        assert set(env) <= {"SASE_SERVICE_ENV", "SASE_SERVICE_UNIT", "SASE_HOME"}
+        assert env["SASE_SERVICE_UNIT"] == "sh.sase.service"
+        assert plan.inspection is not None
+        assert plan.inspection.legacy_owners == ("sh.sase.gateway",)
+        result = apply_service_init(
+            runner=runner,
+            environ={"PATH": "/bin"},
+            executable_resolver=lambda: str(exe),
+        )
         assert result.ok is True
         assert plan.definition.definition_path.exists()
         bootout = [
@@ -712,26 +694,25 @@ class TestDarwinPlatform:
     ) -> None:
         _darwin_home(tmp_path, monkeypatch)
         runner = _DarwinManager(user_disabled=("sh.sase.service",))
-        with override_flags(service_host=True):
-            plan = service_init_plan(
-                runner=runner,
-                environ={"PATH": "/bin"},
-                executable_resolver=lambda: str(_exe(tmp_path)),
-            )
-            assert plan.inspection is not None
-            assert plan.inspection.user_disabled is True
-            assert plan.inspection.active is False
-            assert not any(action.startswith("start ") for action in plan.actions)
-            first = apply_service_init(
-                runner=runner,
-                environ={"PATH": "/bin"},
-                executable_resolver=lambda: str(_exe(tmp_path)),
-            )
-            second = apply_service_init(
-                runner=runner,
-                environ={"PATH": "/bin"},
-                executable_resolver=lambda: str(_exe(tmp_path)),
-            )
+        plan = service_init_plan(
+            runner=runner,
+            environ={"PATH": "/bin"},
+            executable_resolver=lambda: str(_exe(tmp_path)),
+        )
+        assert plan.inspection is not None
+        assert plan.inspection.user_disabled is True
+        assert plan.inspection.active is False
+        assert not any(action.startswith("start ") for action in plan.actions)
+        first = apply_service_init(
+            runner=runner,
+            environ={"PATH": "/bin"},
+            executable_resolver=lambda: str(_exe(tmp_path)),
+        )
+        second = apply_service_init(
+            runner=runner,
+            environ={"PATH": "/bin"},
+            executable_resolver=lambda: str(_exe(tmp_path)),
+        )
         assert first.ok is True
         assert second.ok is True
         assert first.plan is not None
@@ -745,12 +726,11 @@ class TestDarwinPlatform:
     ) -> None:
         _darwin_home(tmp_path, monkeypatch)
         runner = _DarwinManager()
-        with override_flags(service_host=True):
-            plan = service_init_plan(
-                runner=runner,
-                environ={"PATH": "/bin"},
-                executable_resolver=lambda: str(_exe(tmp_path)),
-            )
+        plan = service_init_plan(
+            runner=runner,
+            environ={"PATH": "/bin"},
+            executable_resolver=lambda: str(_exe(tmp_path)),
+        )
         assert plan.inspection is not None
         assert plan.inspection.active is False
         assert plan.inspection.user_disabled is False
@@ -766,20 +746,19 @@ class TestDarwinPlatform:
         def resolve() -> str:
             return str(_exe(tmp_path))
 
-        with override_flags(service_host=True):
-            first = apply_service_init(
-                runner=runner,
-                environ={"PATH": "/bin"},
-                executable_resolver=resolve,
-            )
-            bootstrap_count = sum(
-                1 for call in runner.calls if call[:2] == ("launchctl", "bootstrap")
-            )
-            second = apply_service_init(
-                runner=runner,
-                environ={"PATH": "/bin"},
-                executable_resolver=resolve,
-            )
+        first = apply_service_init(
+            runner=runner,
+            environ={"PATH": "/bin"},
+            executable_resolver=resolve,
+        )
+        bootstrap_count = sum(
+            1 for call in runner.calls if call[:2] == ("launchctl", "bootstrap")
+        )
+        second = apply_service_init(
+            runner=runner,
+            environ={"PATH": "/bin"},
+            executable_resolver=resolve,
+        )
         assert first.ok is True
         assert second.ok is True
         assert (
@@ -798,20 +777,19 @@ class TestDarwinPlatform:
         def resolve() -> str:
             return str(_exe(tmp_path))
 
-        with override_flags(service_host=True):
-            installed = apply_service_init(
-                runner=runner,
-                environ={"PATH": "/bin"},
-                executable_resolver=resolve,
-            )
-            assert installed.plan is not None
-            plist = installed.plan.definition.definition_path
-            assert plist.exists()
-            start = control_installed_service("start", runner=runner)
-            assert start is not None
-            assert start.ok is True
-            assert any(call[:2] == ("launchctl", "bootstrap") for call in runner.calls)
-            removed = apply_service_uninstall(runner=runner)
+        installed = apply_service_init(
+            runner=runner,
+            environ={"PATH": "/bin"},
+            executable_resolver=resolve,
+        )
+        assert installed.plan is not None
+        plist = installed.plan.definition.definition_path
+        assert plist.exists()
+        start = control_installed_service("start", runner=runner)
+        assert start is not None
+        assert start.ok is True
+        assert any(call[:2] == ("launchctl", "bootstrap") for call in runner.calls)
+        removed = apply_service_uninstall(runner=runner)
         assert removed.ok is True
         assert not plist.exists()
 

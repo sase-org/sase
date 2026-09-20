@@ -86,7 +86,6 @@ class KeybindingModesMixin:
             service_running: bool = False,
             service_enabled: bool = True,
             service_available: bool = True,
-            service_host_enabled: bool = False,
             config_row_selected: bool = False,
             description_expanded: bool = True,
         ) -> list[tuple[str, str]]: ...
@@ -209,7 +208,6 @@ class KeybindingModesMixin:
         service_running: bool = False,
         service_enabled: bool = True,
         service_available: bool = True,
-        service_host_enabled: bool = False,
         config_row_selected: bool = False,
         description_expanded: bool = True,
     ) -> None:
@@ -225,7 +223,6 @@ class KeybindingModesMixin:
             service_running=service_running,
             service_enabled=service_enabled,
             service_available=service_available,
-            service_host_enabled=service_host_enabled,
             config_row_selected=config_row_selected,
             description_expanded=description_expanded,
         )

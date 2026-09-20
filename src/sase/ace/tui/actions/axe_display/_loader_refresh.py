@@ -136,7 +136,6 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
         self._axe_status = data.axe_status
         self._axe_metrics = data.axe_metrics
         self._axe_degraded_status = data.degraded_status
-        self._service_host_enabled = data.service_host_enabled
         self._service_status = data.service_status
 
         # Apply lumberjack names
@@ -707,19 +706,13 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             schedule = getattr(self, "_schedule_axe_async_refresh", None)
             if callable(schedule):
                 schedule()
-        if getattr(self, "_service_host_enabled", False):
-            if self._restart_axe and self.axe_running:  # type: ignore[attr-defined]
-                from sase.service.control import restart_service_host
-
-                await asyncio.to_thread(restart_service_host)
-                self._schedule_axe_async_refresh()
-            elif self._auto_start_axe and not self.axe_running:  # type: ignore[attr-defined]
-                from sase.service.control import start_service_host
-
-                await asyncio.to_thread(start_service_host)
-                self._schedule_axe_async_refresh()
-            return
         if self._restart_axe and self.axe_running:  # type: ignore[attr-defined]
-            self._restart_axe_daemon(source="ace startup restart")  # type: ignore[attr-defined]
+            from sase.service.control import restart_service_host
+
+            await asyncio.to_thread(restart_service_host)
+            self._schedule_axe_async_refresh()
         elif self._auto_start_axe and not self.axe_running:  # type: ignore[attr-defined]
-            self._start_axe(source="ace startup")  # type: ignore[attr-defined]
+            from sase.service.control import start_service_host
+
+            await asyncio.to_thread(start_service_host)
+            self._schedule_axe_async_refresh()

@@ -5225,11 +5225,6 @@
           "default": true,
           "deprecated": true
         },
-        "service_host": {
-          "type": "boolean",
-          "description": "Gate the per-machine SASE service host and scheduler ownership handover while the service platform phases land.",
-          "default": false
-        },
         "slim_agents_manifest": {
           "type": "boolean",
           "description": "Owner-manifest writes (fresh publish, digest repair, and manifest repair) omit each hood's per-hood files list, and reads use the dedicated larger manifest byte and hood-count caps with lenient old-reader skip for the omitted-files shape.",

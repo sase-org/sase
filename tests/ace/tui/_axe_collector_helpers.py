@@ -1,11 +1,23 @@
 """Shared object builders for axe collector tests."""
 
+from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
 
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.axe.config import ChopConfig, LumberjackConfig
 from sase.axe.chop_overrun import ChopOverrun
 from sase.axe.state import ChopRunEntry, LumberjackMetrics, LumberjackStatus
+
+
+def patch_service_status(host_state: str = "stopped") -> Any:
+    """Patch the collector's service snapshot; ``host.state`` drives ``axe_running``."""
+    snapshot = SimpleNamespace(
+        host=SimpleNamespace(state=host_state), procs=(), change_token=""
+    )
+    return patch(
+        "sase.service.control.persisted_or_current_status", return_value=snapshot
+    )
 
 
 class FakeAxeConfig:

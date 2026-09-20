@@ -21,6 +21,7 @@ from tests.ace.tui._axe_collector_helpers import (
     make_metrics as _make_metrics,
     make_run_entry as _make_run_entry,
     make_status as _make_status,
+    patch_service_status,
 )
 
 
@@ -37,10 +38,7 @@ def test_collector_degrades_invalid_axe_config_to_status() -> None:
     )
 
     with (
-        patch(
-            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
-        ) as get_proc,
-        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch_service_status("running"),
         patch(
             "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
             return_value="",
@@ -49,12 +47,8 @@ def test_collector_degrades_invalid_axe_config_to_status() -> None:
             "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots",
             return_value={},
         ),
-        patch("sase.axe.config.load_axe_config") as load_config,
+        patch("sase.axe.config.load_axe_config", side_effect=error) as load_config,
     ):
-        proc = get_proc.return_value
-        proc.is_axe_running.return_value = True
-        proc.get_axe_status.side_effect = error
-
         data = collect_axe_status_data()
 
     assert data.axe_running is True
@@ -64,7 +58,7 @@ def test_collector_degrades_invalid_axe_config_to_status() -> None:
     assert data.degraded_status.message == (
         "axe config invalid: [unknown_key] axe.extra: unsupported setting"
     )
-    load_config.assert_not_called()
+    load_config.assert_called_once_with()
 
 
 def test_collector_populates_all_cache_maps() -> None:
@@ -101,10 +95,7 @@ def test_collector_populates_all_cache_maps() -> None:
         return f"{run_id} output\n"
 
     with (
-        patch(
-            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
-        ) as get_proc,
-        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch_service_status(),
         patch(
             "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
             return_value="output\n",
@@ -146,10 +137,6 @@ def test_collector_populates_all_cache_maps() -> None:
             return_value="slot output\n",
         ),
     ):
-        proc = get_proc.return_value
-        proc.is_axe_running.return_value = False
-        proc.get_axe_status.return_value = None
-
         data = collect_axe_status_data()
 
     assert data.lumberjack_names == ["checks", "hooks"]
@@ -252,10 +239,7 @@ def test_collector_carries_running_run_through_snapshot() -> None:
         return "older output\n"
 
     with (
-        patch(
-            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
-        ) as get_proc,
-        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch_service_status(),
         patch(
             "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
             return_value="",
@@ -289,10 +273,6 @@ def test_collector_carries_running_run_through_snapshot() -> None:
             "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
-        proc = get_proc.return_value
-        proc.is_axe_running.return_value = False
-        proc.get_axe_status.return_value = None
-
         data = collect_axe_status_data()
 
     fast = data.chop_snapshots[("hooks", "fast")]
@@ -314,10 +294,7 @@ def test_collector_records_empty_history_for_missing_chops() -> None:
     config = _FakeAxeConfig({"hooks": _lj_cfg("hooks", ["only"])})
 
     with (
-        patch(
-            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
-        ) as get_proc,
-        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch_service_status(),
         patch(
             "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
             return_value="",
@@ -343,10 +320,6 @@ def test_collector_records_empty_history_for_missing_chops() -> None:
             "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
-        proc = get_proc.return_value
-        proc.is_axe_running.return_value = False
-        proc.get_axe_status.return_value = None
-
         data = collect_axe_status_data()
 
     assert data.chop_snapshots[("hooks", "only")].runs == []
@@ -357,10 +330,7 @@ def test_collector_summary_mode_skips_chop_history_and_log_tails() -> None:
     config = _FakeAxeConfig({"hooks": _lj_cfg("hooks", ["fast"])})
 
     with (
-        patch(
-            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
-        ) as get_proc,
-        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch_service_status(),
         patch(
             "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
             return_value="axe log\n",
@@ -394,10 +364,6 @@ def test_collector_summary_mode_skips_chop_history_and_log_tails() -> None:
             "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
-        proc = get_proc.return_value
-        proc.is_axe_running.return_value = False
-        proc.get_axe_status.return_value = None
-
         data = collect_axe_status_data(include_full_snapshots=False)
 
     assert data.include_full_snapshots is False
@@ -423,10 +389,7 @@ def test_collector_reuses_cached_run_json_across_ticks() -> None:
     cache = AxeStatusReadCache()
 
     with (
-        patch(
-            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
-        ) as get_proc,
-        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch_service_status(),
         patch(
             "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
             return_value="",
@@ -460,10 +423,6 @@ def test_collector_reuses_cached_run_json_across_ticks() -> None:
             "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
-        proc = get_proc.return_value
-        proc.is_axe_running.return_value = False
-        proc.get_axe_status.return_value = None
-
         first = collect_axe_status_data(cache=cache)
         second = collect_axe_status_data(cache=cache)
 
@@ -499,10 +458,7 @@ def test_collector_tails_only_requested_chop_run_logs() -> None:
         return f"{run_id} output\n"
 
     with (
-        patch(
-            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
-        ) as get_proc,
-        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch_service_status(),
         patch(
             "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
             return_value="",
@@ -536,10 +492,6 @@ def test_collector_tails_only_requested_chop_run_logs() -> None:
             "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
-        proc = get_proc.return_value
-        proc.is_axe_running.return_value = False
-        proc.get_axe_status.return_value = None
-
         data = collect_axe_status_data(
             tail_chop_keys=frozenset({("hooks", "fast")}),
         )
@@ -634,10 +586,7 @@ def test_header_only_collect_bounds_file_opens_on_large_chop_history() -> None:
         return _make_run_entry("hooks", chop, run_id)
 
     with (
-        patch(
-            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
-        ) as get_proc,
-        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch_service_status(),
         patch(
             "sase.ace.tui.actions.axe_display._data.read_output_log_tail",
             return_value="axe log\n",
@@ -671,10 +620,6 @@ def test_header_only_collect_bounds_file_opens_on_large_chop_history() -> None:
             "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
-        proc = get_proc.return_value
-        proc.is_axe_running.return_value = False
-        proc.get_axe_status.return_value = None
-
         data = collect_axe_status_data(include_full_snapshots=False)
 
     assert data.include_full_snapshots is False

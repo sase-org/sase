@@ -3,23 +3,11 @@
 from __future__ import annotations
 
 from sase.diagnostics import DiagnosticCheck
-from sase.feature_flags import FeatureFlag, current_flags
 from sase.service.platform import service_init_plan
 
 
 def check_service_platform() -> DiagnosticCheck:
     """Report native service-host installation readiness."""
-    if not current_flags().enabled(FeatureFlag.service_host):
-        return DiagnosticCheck(
-            id="service.platform",
-            group="service",
-            status="SKIP",
-            title="Service platform unit",
-            summary="service_host beta flag is disabled",
-            next_steps=(
-                "Enable `service_host` and rerun `sase doctor -C service.platform`.",
-            ),
-        )
     plan = service_init_plan(force=True)
     if plan.blockers:
         return DiagnosticCheck(

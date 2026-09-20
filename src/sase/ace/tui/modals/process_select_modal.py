@@ -61,8 +61,8 @@ class ProcessSelectModal(
                 ProcessSelection(
                     process_type="axe",
                     slot=None,
-                    display_name="sase axe",
-                    description="Stop the axe scheduler daemon",
+                    display_name="sase service",
+                    description="Stop the SASE service host",
                 )
             )
         else:
@@ -70,8 +70,8 @@ class ProcessSelectModal(
                 ProcessSelection(
                     process_type="start_axe",
                     slot=None,
-                    display_name="sase axe",
-                    description="Start the axe scheduler daemon",
+                    display_name="sase service",
+                    description="Start the SASE service host",
                 )
             )
 

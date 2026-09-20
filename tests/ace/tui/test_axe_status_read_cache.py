@@ -24,6 +24,7 @@ from tests.ace.tui._axe_collector_helpers import (
     lumberjack_config as _lj_cfg,
     make_metrics as _make_metrics,
     make_status as _make_status,
+    patch_service_status,
 )
 from tests.conftest import redirect_sase_home
 
@@ -50,10 +51,7 @@ def _collect(
 ) -> AxeCollectedData:
     config = _FakeAxeConfig({"hooks": _lj_cfg("hooks", ["fast", "slow"])})
     with (
-        patch(
-            "sase.ace.tui.actions.axe_display._data.get_axe_process_module"
-        ) as get_proc,
-        patch("sase.ace.tui.actions.axe_display._data.read_metrics", return_value=None),
+        patch_service_status(),
         patch("sase.axe.config.load_axe_config", return_value=config),
         patch(
             "sase.ace.tui.actions.axe_display._data.read_lumberjack_status",
@@ -67,9 +65,6 @@ def _collect(
             "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
-        proc = get_proc.return_value
-        proc.is_axe_running.return_value = False
-        proc.get_axe_status.return_value = None
         return collect_axe_status_data(
             cache=cache,
             tail_chop_keys=(

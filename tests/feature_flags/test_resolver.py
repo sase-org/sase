@@ -410,6 +410,7 @@ def test_env_beats_overrides_and_unknown_env_key_warns_only() -> None:
     assert decision.source_detail == SASE_FEATURE_FLAGS_ENV
     assert [diagnostic.code for diagnostic in snapshot.diagnostics] == ["unknown_key"]
     assert snapshot.diagnostics[0].source == "env"
+    assert snapshot.diagnostics[0].severity == "warning"
 
 
 @pytest.mark.parametrize("raw", ["not json", "[]", '{"demo_flag": 1}'])

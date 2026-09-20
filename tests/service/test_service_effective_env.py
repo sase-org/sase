@@ -21,7 +21,6 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.service.effective_env import (
     _effective_service_environment as effective_service_environment,
     effective_ssh_agent_warnings,
@@ -499,14 +498,13 @@ def test_plan_reports_empty_service_agent_despite_healthy_caller_shell(
     _install_unit(resolver, {"PATH": "/bin"})
     with _live_socket(tmp_path / "caller.sock") as caller:
         _fake_agents(monkeypatch, {str(caller): "ready", _MANAGER_SOCK: "empty"})
-        with override_flags(service_host=True):
-            plan = service_init_plan(
-                runner=_Manager(
-                    show_environment=f"PATH=/bin\nSSH_AUTH_SOCK={_MANAGER_SOCK}\n"
-                ),
-                environ={"PATH": "/bin", "SSH_AUTH_SOCK": str(caller)},
-                executable_resolver=resolver,
-            )
+        plan = service_init_plan(
+            runner=_Manager(
+                show_environment=f"PATH=/bin\nSSH_AUTH_SOCK={_MANAGER_SOCK}\n"
+            ),
+            environ={"PATH": "/bin", "SSH_AUTH_SOCK": str(caller)},
+            executable_resolver=resolver,
+        )
 
     # What init is about to capture is healthy; what the host would see is not.
     assert _agent_warnings(plan.warnings, "captured service environment") == []
@@ -524,12 +522,11 @@ def test_plan_reports_stale_persisted_agent_despite_healthy_caller_shell(
     _install_unit(resolver, {"PATH": "/bin", "SSH_AUTH_SOCK": stale})
     with _live_socket(tmp_path / "caller.sock") as caller:
         _fake_agents(monkeypatch, {str(caller): "ready", stale: "unreachable"})
-        with override_flags(service_host=True):
-            plan = service_init_plan(
-                runner=_Manager(show_environment=f"SSH_AUTH_SOCK={_MANAGER_SOCK}\n"),
-                environ={"PATH": "/bin", "SSH_AUTH_SOCK": str(caller)},
-                executable_resolver=resolver,
-            )
+        plan = service_init_plan(
+            runner=_Manager(show_environment=f"SSH_AUTH_SOCK={_MANAGER_SOCK}\n"),
+            environ={"PATH": "/bin", "SSH_AUTH_SOCK": str(caller)},
+            executable_resolver=resolver,
+        )
 
     failing = _agent_warnings(plan.warnings, "effective environment", "unreachable")
     assert len(failing) == 1
@@ -543,12 +540,11 @@ def test_plan_is_quiet_once_the_persisted_agent_matches_a_healthy_capture(
     with _live_socket(tmp_path / "caller.sock") as caller:
         _install_unit(resolver, {"PATH": "/bin", "SSH_AUTH_SOCK": str(caller)})
         _fake_agents(monkeypatch, {str(caller): "ready", _MANAGER_SOCK: "empty"})
-        with override_flags(service_host=True):
-            plan = service_init_plan(
-                runner=_Manager(show_environment=f"SSH_AUTH_SOCK={_MANAGER_SOCK}\n"),
-                environ={"PATH": "/bin", "SSH_AUTH_SOCK": str(caller)},
-                executable_resolver=resolver,
-            )
+        plan = service_init_plan(
+            runner=_Manager(show_environment=f"SSH_AUTH_SOCK={_MANAGER_SOCK}\n"),
+            environ={"PATH": "/bin", "SSH_AUTH_SOCK": str(caller)},
+            executable_resolver=resolver,
+        )
 
     assert _agent_warnings(plan.warnings, "git remote") == []
 
@@ -559,11 +555,10 @@ def test_plan_skips_effective_report_when_the_unit_is_not_installed(
     resolver = _linux_plan_env(tmp_path, monkeypatch)
     with _live_socket(tmp_path / "caller.sock") as caller:
         _fake_agents(monkeypatch, {str(caller): "ready", _MANAGER_SOCK: "empty"})
-        with override_flags(service_host=True):
-            plan = service_init_plan(
-                runner=_Manager(show_environment=f"SSH_AUTH_SOCK={_MANAGER_SOCK}\n"),
-                environ={"PATH": "/bin", "SSH_AUTH_SOCK": str(caller)},
-                executable_resolver=resolver,
-            )
+        plan = service_init_plan(
+            runner=_Manager(show_environment=f"SSH_AUTH_SOCK={_MANAGER_SOCK}\n"),
+            environ={"PATH": "/bin", "SSH_AUTH_SOCK": str(caller)},
+            executable_resolver=resolver,
+        )
 
     assert _agent_warnings(plan.warnings, "effective environment") == []

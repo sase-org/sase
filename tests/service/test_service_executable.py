@@ -9,7 +9,6 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.service.config import (
     ServiceConfigComposition,
     ServiceEnablementSource,
@@ -295,12 +294,11 @@ def _launcher_plan_warnings(
         ),
     )
     sase = _script(tmp_path, "sase")
-    with override_flags(service_host=True):
-        plan = service_init_plan(
-            runner=_Manager(),
-            environ={"PATH": str(captured_path)},
-            executable_resolver=lambda: str(sase),
-        )
+    plan = service_init_plan(
+        runner=_Manager(),
+        environ={"PATH": str(captured_path)},
+        executable_resolver=lambda: str(sase),
+    )
     return [warning for warning in plan.warnings if "cannot start" in warning]
 
 
