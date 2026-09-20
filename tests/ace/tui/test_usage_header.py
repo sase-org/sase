@@ -19,6 +19,9 @@ from tests._provider_usage_indicator_presentation_helpers import (
     _entry,
     _scope,
 )
+from tests.llm_provider.test_muse_usage_indicator_default import (
+    project_shipped_muse_weekly_only,
+)
 
 _USAGE_MODULE = "sase.ace.tui.widgets.provider_usage_indicator"
 _ROUTING_MODULE = "sase.ace.tui.widgets.provider_disables_indicator"
@@ -126,6 +129,32 @@ async def test_usage_header_centers_title_on_screen(
         if width >= 120:
             assert "🎭" in usage.render().plain
             assert "·" in usage.render().plain or "45%" in usage.render().plain
+
+
+@pytest.mark.parametrize("width", (60, 80, 140))
+async def test_shipped_muse_weekly_group_renders_in_header(
+    monkeypatch: pytest.MonkeyPatch,
+    width: int,
+) -> None:
+    entries = project_shipped_muse_weekly_only()
+    _patch_usage(monkeypatch, *entries)
+    async with AcePage(size=(width, 24)) as page:
+        await _settle(page)
+        header, _icon, title, usage = _header_widgets(page)
+
+        assert header.region.height == 1
+        assert (
+            usage.region.x + usage.region.width == header.region.x + header.region.width
+        )
+        content = title.content_region
+        header_center = header.region.x + header.region.width / 2
+        assert abs(content.x + content.width / 2 - header_center) <= 1
+        rendered = usage.render().plain
+        if width >= 80:
+            assert "♾️" in rendered
+            assert "97%" in rendered
+        # The suppressed 5-hour window (12% left) is never advertised.
+        assert "12%" not in rendered
 
 
 async def test_short_and_long_titles_and_subtitles_reflow_usage(

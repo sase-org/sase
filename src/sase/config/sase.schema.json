@@ -4051,6 +4051,11 @@
                       "windows": {
                         "weekly:claude-fable-5": "always"
                       }
+                    },
+                    "muse": {
+                      "windows": {
+                        "session": "never"
+                      }
                     }
                   }
                 }
