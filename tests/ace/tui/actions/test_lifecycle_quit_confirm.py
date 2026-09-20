@@ -50,6 +50,14 @@ class _FlushQuitApp(_QuitApp):
         self.scheduled.append(asyncio.create_task(callback()))
 
 
+def _monitor_task(proc_id: str, proc_type: str) -> ObservedProc:
+    from sase.ace.tui._proc_observer_models import MONITOR_PROC_ORIGIN
+
+    row = _task(proc_id, proc_type)
+    row.origin = MONITOR_PROC_ORIGIN
+    return row
+
+
 def _task(
     proc_id: str,
     proc_type: str,
@@ -91,7 +99,10 @@ def test_running_task_count_excludes_monitor_shells() -> None:
 
         def _effective_proc_projection(self) -> ProcProjection:
             return ProcProjection(
-                rows=(_task("session-1", "sync"), _task("monitor-1", "detached")),
+                rows=(
+                    _task("session-1", "sync"),
+                    _monitor_task("monitor-1", "detached"),
+                ),
                 active_count=2,
                 active_monitor_count=1,
                 session_id="session-mine",

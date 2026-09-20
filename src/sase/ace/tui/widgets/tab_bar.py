@@ -13,7 +13,7 @@ from ..tab_order import TAB_ORDER, TabName
 _TAB_COLORS: dict[TabName, str] = {
     "artifacts": "#00D7AF",
     "agents": "#87D7FF",
-    "axe": "#FF5F5F",
+    "axe": "#00D7AF",
 }
 
 _TAB_DISPLAY_NAMES: dict[TabName, str] = {

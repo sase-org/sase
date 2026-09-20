@@ -37,8 +37,11 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
         Binding("q", "cancel", "Cancel", show=False),
     ]
 
-    def __init__(self, *, running_task_count: int = 0) -> None:
+    def __init__(
+        self, *, running_task_count: int = 0, service_host: bool = False
+    ) -> None:
         super().__init__()
+        self._service_host = service_host
         self._running_task_count = max(0, running_task_count)
 
     def compose(self) -> ComposeResult:
@@ -59,8 +62,8 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
                     self._render_choice(
                         "1",
                         "s",
-                        "Quit & Stop axe",
-                        "Stop the axe daemon and exit.",
+                        f"Quit & Stop {self._stop_target}",
+                        f"Stop the {self._stop_target} and exit.",
                     ),
                     classes=(
                         "quit-options-row duration-choice-row "
@@ -104,10 +107,14 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
                     classes="quit-options-spacer duration-choice-spacer",
                 )
                 yield Static(
-                    "  [dim]1/s quit & stop axe · 2/r restart · "
+                    f"  [dim]1/s quit & stop {self._stop_target.lower()} · 2/r restart · "
                     "3/a restart + axe · esc cancel[/]",
                     classes="quit-options-row duration-choice-row",
                 )
+
+    @property
+    def _stop_target(self) -> str:
+        return "Scheduler" if self._service_host else "axe"
 
     @staticmethod
     def _render_choice(

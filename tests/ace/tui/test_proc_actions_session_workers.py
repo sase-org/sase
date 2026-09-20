@@ -484,7 +484,24 @@ def test_update_proc_indicator_splits_ace_and_monitor_counts() -> None:
     proc_indicator = _FakeIndicator()
     monitor_indicator = _FakeIndicator()
     host = _IndicatorHost(
-        ProcProjection(active_count=3, active_monitor_count=1),
+        ProcProjection(
+            rows=(
+                _durable_row(scope="a"),
+                _durable_row(scope="b"),
+                ObservedProc(
+                    proc_id="monitor-1",
+                    proc_type="detached",
+                    cl_name="sase",
+                    project_file="",
+                    status="running",
+                    message="running",
+                    started_at=local_now(),
+                    origin="monitor",
+                ),
+            ),
+            active_count=3,
+            active_monitor_count=1,
+        ),
         widgets={
             "#proc-indicator": proc_indicator,
             "#monitor-indicator": monitor_indicator,

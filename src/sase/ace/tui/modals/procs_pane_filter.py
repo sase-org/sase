@@ -133,6 +133,7 @@ class ProcsPaneFilterMixin(_MixinBase):
     def _commit_filter_query(self, query: str) -> None:
         self._filter_query = query
         self._session_state.query = query  # type: ignore[attr-defined]
+        self._session_state.query_initialized = True  # type: ignore[attr-defined]
         prior_identity, highlighted = self._restore_target()
         self._refresh_snapshot(
             highlight_index=highlighted, prior_identity=prior_identity

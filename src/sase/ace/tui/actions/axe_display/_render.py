@@ -7,7 +7,7 @@ and footer-state indicators from the in-memory caches populated by
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ...bgcmd import get_slot_info, is_slot_running
 from ...widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem, ServiceProcItem
@@ -97,6 +97,11 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             # Update info panel based on current view. All reads are from the
             # in-memory cache populated by the async collector; navigation must
             # never hit disk.
+            service_snapshot = getattr(self, "_service_status", None)
+            axe_info.update_host_chrome(
+                None if service_snapshot is None else service_snapshot.host,
+                enabled=getattr(self, "_service_host_enabled", False),
+            )
             if self._axe_current_view == "axe":
                 service_selection = self._axe_service_selection
                 chop_selection = self._axe_chop_selection
@@ -235,8 +240,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             footer.set_axe_running(self.axe_running)
             running_count, done_count = self._get_bgcmd_counts()
             footer.set_bgcmd_count(running_count, done_count)
-            service_running, service_total = self._get_service_proc_counts()
-            footer.set_service_proc_count(service_running, service_total)
+            self._push_service_health(footer)
             footer.set_runner_count(get_runner_count())
             if getattr(self, "_leader_mode_active", False):
                 footer.update_leader_bindings(current_tab="axe")
@@ -373,6 +377,11 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
 
         try:
             axe_info = self.query_one("#axe-info-panel", AxeInfoPanel)  # type: ignore[attr-defined]
+            service_snapshot = getattr(self, "_service_status", None)
+            axe_info.update_host_chrome(
+                None if service_snapshot is None else service_snapshot.host,
+                enabled=getattr(self, "_service_host_enabled", False),
+            )
             if self._axe_current_view == "axe":
                 service_selection = self._axe_service_selection
                 chop_selection = self._axe_chop_selection
@@ -444,19 +453,38 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
             footer.set_axe_running(self.axe_running)
             footer.set_bgcmd_count(running_count, done_count)
-            service_running, service_total = self._get_service_proc_counts()
-            footer.set_service_proc_count(service_running, service_total)
+            self._push_service_health(footer)
         except Exception:
             pass
 
-    def _get_service_proc_counts(self) -> tuple[int, int]:
-        """Return running/total counts for cached service procs."""
+    def _push_service_health(self, footer: Any) -> None:
+        """Push the cached service-health roll-up to the footer pill.
+
+        Flag off pushes ``None`` so the legacy AXE pill is untouched. A toast
+        fires only when health flips or the snapshot ``change_token`` moves
+        while unhealthy -- never on countdown ticks.
+        """
+        from ..._service_health import derive_service_health
+
+        if not getattr(self, "_service_host_enabled", False):
+            footer.set_service_health(None)
+            return
         snapshot = getattr(self, "_service_status", None)
-        if snapshot is None:
-            return (0, 0)
-        total = len(snapshot.procs)
-        running = sum(1 for proc in snapshot.procs if proc.state == "running")
-        return (running, total)
+        health = derive_service_health(snapshot)
+        footer.set_service_health(health)
+        token = None if snapshot is None else snapshot.change_token
+        signature = (health.healthy, health.summary, None if health.healthy else token)
+        if signature == getattr(self, "_service_health_notified", None):
+            return
+        previous = getattr(self, "_service_health_notified", None)
+        self._service_health_notified = signature
+        if not health.healthy and (previous is None or previous[2] != token):
+            try:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Services unhealthy: {health.summary}", severity="warning"
+                )
+            except Exception:
+                pass
 
     def _set_axe_starting(self, starting: bool) -> None:
         """Set axe starting state and update footer.

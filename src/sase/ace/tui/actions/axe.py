@@ -258,18 +258,29 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
         self.push_screen(  # type: ignore[attr-defined]
             QuitOptionsModal(
                 running_task_count=self._count_running_tasks(),  # type: ignore[attr-defined]
+                service_host=getattr(self, "_service_host_enabled", False),
             ),
             callback=_on_choice,
         )
 
     async def _stop_axe_and_quit(self) -> None:
-        """Stop axe with the robust daemon stop path, then quit."""
+        """Stop axe (or Scheduler when the service host is on), then quit."""
         stop_watchdog = getattr(self, "_stop_tui_stall_watchdog", None)
         if callable(stop_watchdog):
             stop_watchdog()
 
         try:
-            if not getattr(self, "_service_host_enabled", False):
+            if getattr(self, "_service_host_enabled", False):
+                from sase.service.actions import stop_service_proc
+
+                # Stops Scheduler only; the service host is never stopped here.
+                await asyncio.to_thread(
+                    stop_service_proc,
+                    "scheduler",
+                    actor="tui",
+                    reason="ace quit",
+                )
+            else:
                 await asyncio.to_thread(
                     _stop_axe_daemon_result,
                     timeout=5.0,

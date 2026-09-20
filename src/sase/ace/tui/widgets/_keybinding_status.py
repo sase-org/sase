@@ -11,8 +11,11 @@ from textual.widgets import Static
 if TYPE_CHECKING:
     from textual.timer import Timer
 
+    from .._service_health import ServiceHealth
+
 
 _AXE_LABEL_TEXT = " SVC "
+_SERVICE_TEAL = "#00D7AF"
 _AXE_LABEL_STYLE = "bold white on rgb(68,71,90)"
 _STARTUP_STOPWATCH_TIMEOUT_SECS = 30.0
 _STOPWATCH_GLYPH_FRAMES = ("◴", "◷", "◶", "◵")
@@ -56,8 +59,7 @@ class KeybindingStatusMixin:
         _axe_restarting: bool
         _bgcmd_running_count: int
         _bgcmd_done_count: int
-        _service_running_count: int
-        _service_total_count: int
+        _service_health: ServiceHealth | None
         _startup_stopwatch_active: bool
         _startup_start_time: float
         _startup_elapsed: float
@@ -139,10 +141,9 @@ class KeybindingStatusMixin:
         self._bgcmd_done_count = done_count
         self._update_status()
 
-    def set_service_proc_count(self, running_count: int, total_count: int) -> None:
-        """Update the managed service-proc counts."""
-        self._service_running_count = running_count
-        self._service_total_count = total_count
+    def set_service_health(self, health: ServiceHealth | None) -> None:
+        """Update the service-health pill; ``None`` restores the legacy AXE pill."""
+        self._service_health = health
         self._update_status()
 
     def _status_signature(self) -> tuple[Any, ...]:
@@ -163,8 +164,7 @@ class KeybindingStatusMixin:
             self._axe_running,
             self._bgcmd_running_count,
             self._bgcmd_done_count,
-            self._service_running_count,
-            self._service_total_count,
+            self._service_health,
         )
 
     def _update_status(self) -> None:
@@ -200,6 +200,15 @@ class KeybindingStatusMixin:
                 f"{self._startup_elapsed:.1f}s  ",
                 style=f"bold {fg} on {bg}",
             )
+        elif self._service_health is not None:
+            health = self._service_health
+            if health.healthy:
+                text.append(
+                    f" {health.running}/{health.desired} ",
+                    style=f"bold black on {_SERVICE_TEAL}",
+                )
+            else:
+                text.append(" ! ", style="bold white on red")
         elif self._axe_restarting:
             text.append(" RESTARTING ", style="bold black on rgb(0,191,255)")
         elif self._axe_starting:
@@ -212,13 +221,6 @@ class KeybindingStatusMixin:
             text.append(" STOPPED ", style="bold white on red")
 
         # Add bgcmd badges if there are any background commands.
-        if self._service_total_count > 0:
-            text.append(" ")
-            text.append(
-                f" [⚙{self._service_running_count}/{self._service_total_count}] ",
-                style="bold black on #00D7AF",
-            )
-
         if self._bgcmd_running_count > 0 or self._bgcmd_done_count > 0:
             text.append(" ")
             if self._bgcmd_running_count > 0:

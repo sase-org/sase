@@ -1,5 +1,6 @@
 """Axe info panel widget for sase's TUI."""
 
+import time
 from typing import TYPE_CHECKING, Any
 
 from rich.text import Text
@@ -7,7 +8,16 @@ from textual.widgets import Static
 
 if TYPE_CHECKING:
     from ..bgcmd import BackgroundCommandInfo
-    from sase.service.status import ServiceStatusProc
+    from sase.service.status import ServiceStatusHost, ServiceStatusProc
+
+
+def format_uptime(seconds: float) -> str:
+    """Format a duration as ``4d`` / ``3h`` / ``12m`` / ``45s`` (largest unit)."""
+    total = max(0, int(seconds))
+    for unit, size in (("d", 86400), ("h", 3600), ("m", 60)):
+        if total >= size:
+            return f"{total // size}{unit}"
+    return f"{total}s"
 
 
 class AxeInfoPanel(Static):
@@ -38,6 +48,37 @@ class AxeInfoPanel(Static):
         self._service_total: int = 0
         self._service_proc: ServiceStatusProc | None = None
         self._loading: bool = False
+        self._host_chrome_enabled = False
+        self._host: ServiceStatusHost | None = None
+        self._host_start_hint = "!x"
+
+    def update_host_chrome(
+        self,
+        host: "ServiceStatusHost | None",
+        *,
+        enabled: bool,
+        start_hint: str = "!x",
+    ) -> None:
+        """Set the always-on service-host clause (``enabled=False`` hides it)."""
+        self._host_chrome_enabled = enabled
+        self._host = host
+        self._host_start_hint = start_hint
+        self._update_display()
+
+    def _append_host_chrome(self, text: Text) -> None:
+        host = self._host
+        text.append("Services", style="bold #00D7AF")
+        text.append(" · host ", style="dim")
+        if host is not None and host.state == "running":
+            text.append("● running", style="bold green")
+            if host.started_at is not None:
+                uptime = format_uptime(time.time() - host.started_at)
+                text.append(f" {uptime}", style="dim")
+            text.append(f" · {host.platform_unit or 'detached'}", style="dim")
+        else:
+            text.append("○ stopped", style="bold red")
+            text.append(f" · press {self._host_start_hint} to start", style="dim")
+        text.append("  ", style="")
 
     def set_loading(self, loading: bool) -> None:
         """Show or hide the startup-loading ellipsis.
@@ -166,6 +207,9 @@ class AxeInfoPanel(Static):
             text.append("…", style="dim italic")
             self.update(text)
             return
+
+        if self._host_chrome_enabled:
+            self._append_host_chrome(text)
 
         if self._service_mode:
             label = (

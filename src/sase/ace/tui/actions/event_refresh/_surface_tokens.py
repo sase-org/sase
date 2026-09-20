@@ -92,6 +92,9 @@ class SurfaceTokenRoots:
     agent_index_path: Path | None = None
     runner_limit_override_path: Path | None = None
     agent_hold_store_path: Path | None = None
+    service_dir: Path | None = None
+    service_state_path: Path | None = None
+    service_status_path: Path | None = None
 
 
 def live_surface_token_roots(*, beads_dir: Path | None = None) -> SurfaceTokenRoots:
@@ -103,6 +106,11 @@ def live_surface_token_roots(*, beads_dir: Path | None = None) -> SurfaceTokenRo
     from sase.core.paths import sase_projects_dir
     from sase.notifications.store import notifications_file_path
     from sase.procs.paths import proc_store_path
+    from sase.service.paths import (
+        service_dir,
+        service_state_path,
+        service_status_path,
+    )
 
     return SurfaceTokenRoots(
         projects_root=sase_projects_dir(),
@@ -113,6 +121,9 @@ def live_surface_token_roots(*, beads_dir: Path | None = None) -> SurfaceTokenRo
         notifications_path=notifications_file_path(),
         procs_path=proc_store_path(),
         beads_dir=beads_dir,
+        service_dir=service_dir(),
+        service_state_path=service_state_path(),
+        service_status_path=service_status_path(),
     )
 
 
@@ -128,7 +139,14 @@ def probe_surface_tokens(
             runner_limit_override_path=resolved.runner_limit_override_path,
             agent_hold_store_path=resolved.agent_hold_store_path,
         ),
-        axe=_probe_axe_token(resolved.axe_root),
+        axe=_probe_axe_token(
+            resolved.axe_root,
+            service_paths=(
+                resolved.service_dir,
+                resolved.service_state_path,
+                resolved.service_status_path,
+            ),
+        ),
         notifications=_probe_notifications_token(resolved.notifications_path),
         patches=_probe_patches_token(
             resolved.projects_root,
@@ -172,14 +190,25 @@ def _probe_agents_token(
     return _token("agents", collected, ok=ok)
 
 
-def _probe_axe_token(axe_root: Path) -> SurfaceToken:
-    """Token axe/lumberjack membership plus bounded status files."""
+def _probe_axe_token(
+    axe_root: Path,
+    *,
+    service_paths: tuple[Path | None, ...] = (),
+) -> SurfaceToken:
+    """Token axe/lumberjack membership plus bounded status files.
+
+    Service host files (``status.json`` / ``state.json``) are stat-only; an
+    absent service directory is a stable, determinate token.
+    """
     collected, _axe_children, ok = _open_membership(axe_root)
     if _axe_children is None:
         return _token("axe", collected, ok=False)
     for name in _AXE_ROOT_FILES:
         ok = _extend_stat(collected, axe_root / name, ok=ok)
     ok = _extend_stat(collected, axe_root / "logs" / "output.log", ok=ok)
+    for service_path in service_paths:
+        if service_path is not None:
+            ok = _extend_stat(collected, service_path, ok=ok)
     lumberjacks_root = axe_root / "lumberjacks"
     lumberjack_parts, lumberjacks, lumberjacks_ok = _open_membership(lumberjacks_root)
     collected.extend(lumberjack_parts)

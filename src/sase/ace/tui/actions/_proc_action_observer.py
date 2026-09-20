@@ -6,6 +6,7 @@ from typing import Any
 
 from textual.worker import Worker
 
+from .._proc_observer_models import gear_eligible_count
 from ..proc_observer import (
     ObservedProc,
     ProcObserver,
@@ -133,9 +134,7 @@ class ProcObserverActionsMixin:
             indicator = self.query_one(  # type: ignore[attr-defined]
                 "#proc-indicator", ProcIndicator
             )
-            indicator.set_count(
-                projection.active_count - projection.active_monitor_count
-            )
+            indicator.set_count(gear_eligible_count(projection))
         except Exception:
             pass
         try:

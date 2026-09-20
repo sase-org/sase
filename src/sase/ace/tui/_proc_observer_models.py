@@ -103,6 +103,26 @@ def is_monitor_shell_row(row: ObservedProc) -> bool:
     return row.origin == MONITOR_PROC_ORIGIN
 
 
+def is_gear_eligible_row(row: ObservedProc) -> bool:
+    """Return whether an active row counts toward the blue proc gear.
+
+    Monitor shells and service-host-owned rows (wire ``service`` marker) have
+    their own surfaces; ownership is never inferred from ``session_id``.
+    """
+    return not is_monitor_shell_row(row) and row.service is None
+
+
+def gear_eligible_count(
+    projection: ProcProjection, *, all_sessions: bool = False
+) -> int:
+    """Count active rows that belong in the session proc gear."""
+    return sum(
+        1
+        for row in projection.active_rows(all_sessions=all_sessions)
+        if is_gear_eligible_row(row)
+    )
+
+
 def monitor_row_agent_name(row: ObservedProc) -> str | None:
     """Return a monitor row's member agent name, or ``None``.
 

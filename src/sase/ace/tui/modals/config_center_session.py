@@ -86,6 +86,8 @@ class ProcsSessionState:
     all_sessions: bool = False
     task: SelectionBookmark = field(default_factory=SelectionBookmark)
     query: str = field(default_factory=_default_procs_query)
+    # True once a query was committed (even ``""``); never reseed after that.
+    query_initialized: bool = False
 
 
 @dataclass

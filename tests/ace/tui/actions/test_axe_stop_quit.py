@@ -320,3 +320,42 @@ def test_restart_tui_still_quits_when_restart_stash_raises() -> None:
     assert app.did_quit is True
     assert app.order == ["watchdog", "stash", "quit"]
     assert app.notifications == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raises", [False, True])
+async def test_stop_and_quit_with_service_host_stops_scheduler_only(
+    monkeypatch: pytest.MonkeyPatch, raises: bool
+) -> None:
+    import sase.service.actions as service_actions
+
+    calls: list[tuple[Any, ...]] = []
+
+    def fake_stop(name: str, **kwargs: Any) -> None:
+        calls.append((name, kwargs))
+        if raises:
+            raise RuntimeError("stop failed")
+
+    def legacy(**_kw: Any) -> AxeStopResult:
+        raise AssertionError("legacy axe stop must not run")
+
+    monkeypatch.setattr(service_actions, "stop_service_proc", fake_stop)
+    monkeypatch.setattr(axe_actions, "_stop_axe_daemon_result", legacy)
+    if hasattr(service_actions, "stop_service_host"):
+        monkeypatch.setattr(
+            service_actions,
+            "stop_service_host",
+            lambda *a, **k: (_ for _ in ()).throw(AssertionError("host stopped")),
+        )
+    app = _StopQuitApp()
+    app._service_host_enabled = True  # type: ignore[attr-defined]
+
+    await _run_stop_quit_worker(app)
+
+    assert calls == [("scheduler", {"actor": "tui", "reason": "ace quit"})]
+    assert app.did_quit is True
+
+
+def test_quit_modal_copy_is_flag_aware() -> None:
+    assert QuitOptionsModal(service_host=True)._stop_target == "Scheduler"
+    assert QuitOptionsModal()._stop_target == "axe"

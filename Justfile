@@ -355,27 +355,27 @@ _lint-changelog: _setup
 _lint-patch-stitch-terminology: _setup
     {{ venv_bin }}/python tools/audit_patch_stitch_terminology --repo-root . --allow-missing-linked-repos
 
-# Check for unused Python definitions (private, extracted for per-stage wrapping)
+# Check for unused Python definitions (private, extracted for per-stage wrapping).
+# sase-11y entries: platform/init symbols whose owning phase (sase-11y.5) is closed,
+# plus service facades the Services tab deliberately does not consume (the status
+# snapshot is its read model).
 _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-11y.7(CapturedServiceEnvironment)" \
-        --epic-symbol "sase-11y.7(NativeInspection)" \
-        --epic-symbol "sase-11y.7(NativeServiceDefinition)" \
-        --epic-symbol "sase-11y.7(ServiceEnablement)" \
-        --epic-symbol "sase-11y.7(ServiceFieldProvenance)" \
-        --epic-symbol "sase-11y.7(ServicePlatformApplyResult)" \
-        --epic-symbol "sase-11y.7(build_native_definition)" \
-        --epic-symbol "sase-11y.7(clear_service_enablement)" \
-        --epic-symbol "sase-11y.7(compose_service_config)" \
-        --epic-symbol "sase-11y.7(inspect_native_service)" \
-        --epic-symbol "sase-11y.7(read_service_environment)" \
-        --epic-symbol "sase-11y.7(readiness_warnings)" \
-        --epic-symbol "sase-11y.7(resolve_service_enablement)" \
-        --epic-symbol "sase-11y.7(service_dir)" \
-        --epic-symbol "sase-11y.7(service_platform_supported)" \
-        --epic-symbol "sase-11y.7(service_state_path)" \
+        --epic-symbol "sase-11y(CapturedServiceEnvironment)" \
+        --epic-symbol "sase-11y(NativeInspection)" \
+        --epic-symbol "sase-11y(NativeServiceDefinition)" \
+        --epic-symbol "sase-11y(ServiceFieldProvenance)" \
+        --epic-symbol "sase-11y(ServicePlatformApplyResult)" \
+        --epic-symbol "sase-11y(build_native_definition)" \
+        --epic-symbol "sase-11y(clear_service_enablement)" \
+        --epic-symbol "sase-11y(compose_service_config)" \
+        --epic-symbol "sase-11y(inspect_native_service)" \
+        --epic-symbol "sase-11y(read_service_environment)" \
+        --epic-symbol "sase-11y(readiness_warnings)" \
+        --epic-symbol "sase-11y(resolve_service_enablement)" \
+        --epic-symbol "sase-11y(service_platform_supported)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

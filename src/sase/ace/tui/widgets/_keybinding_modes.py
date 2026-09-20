@@ -469,7 +469,12 @@ class KeybindingModesMixin:
 
         bindings = [
             (k("run_cmd"), "run cmd"),
-            (k("toggle_axe"), "start/stop axe"),
+            (
+                k("toggle_axe"),
+                "start/stop host"
+                if getattr(self, "_service_health", None) is not None
+                else "start/stop axe",
+            ),
         ]
         if "toggle_service_enablement" in keys:
             bindings.append((k("toggle_service_enablement"), "enable/disable service"))
