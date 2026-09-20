@@ -476,21 +476,26 @@ def _referenced_provider_ids() -> set[str]:
         get_default_model,
         get_epic_lander_model,
     )
+    from sase.llm_provider.model_alias_policy import implicit_alias_targets
     from sase.llm_provider.model_alias_resolution_types import (
         provider_for_resolved_target,
     )
 
+    # A provider that appears only in a shipped size-alias pool is still one
+    # SASE launches agents on, so scan the effective built-in aliases: the
+    # shipped defaults with the user's overrides replacing them by alias name.
+    builtin_targets = {**implicit_alias_targets(), **get_builtin_model_aliases()}
     targets: list[str] = [
         get_default_model(),
         get_epic_lander_model(),
         get_big_epic_lander_model(),
-        *get_builtin_model_aliases().values(),
+        *builtin_targets.values(),
         *get_custom_model_aliases().values(),
     ]
     names: set[str] = set()
     for target in targets:
         for part in str(target).replace("|", " ").split():
-            token = part.split("@", 1)[0].strip()
+            token = part.split("@", 1)[0].strip("() \t")
             if not token:
                 continue
             provider = provider_for_resolved_target(token)

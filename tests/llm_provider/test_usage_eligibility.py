@@ -15,6 +15,7 @@ import pytest
 
 from sase.llm_provider.usage.refresh import (
     _provider_cli_ready,
+    _referenced_provider_ids,
     eligible_usage_providers,
 )
 from tests.llm_provider._provider_config_helpers import mock_provider_config
@@ -306,3 +307,90 @@ class TestEligibleUsageProvidersExclusionRules:
         _enable_codex_collection(monkeypatch)
 
         assert eligible_usage_providers() == ("codex",)
+
+
+class TestReferencedProviderIdsBuiltinSizeAliases:
+    """The reference scan covers the effective built-in size-alias pools."""
+
+    @staticmethod
+    def _patch_aliases(
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        shipped: dict[str, str],
+        overrides: dict[str, str] | None = None,
+    ) -> None:
+        monkeypatch.setattr(
+            "sase.llm_provider.config.get_default_model", lambda: "@large"
+        )
+        monkeypatch.setattr(
+            "sase.llm_provider.config.get_epic_lander_model", lambda: "@large"
+        )
+        monkeypatch.setattr(
+            "sase.llm_provider.config.get_big_epic_lander_model", lambda: "@xlarge"
+        )
+        monkeypatch.setattr(
+            "sase.llm_provider.config.get_builtin_model_aliases",
+            lambda: dict(overrides or {}),
+        )
+        monkeypatch.setattr(
+            "sase.llm_provider.config.get_custom_model_aliases", lambda: {}
+        )
+        monkeypatch.setattr(
+            "sase.llm_provider.model_alias_policy.implicit_alias_targets",
+            lambda: shipped,
+        )
+
+    def test_provider_only_in_shipped_pool_is_referenced(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._patch_aliases(
+            monkeypatch,
+            shipped={"small": "claude/sonnet@high | muse/muse-spark@high"},
+        )
+
+        assert _referenced_provider_ids() == {"claude", "muse"}
+
+    def test_user_override_replaces_shipped_target_for_that_alias(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._patch_aliases(
+            monkeypatch,
+            shipped={
+                "small": "claude/sonnet@high | muse/muse-spark@high",
+                "medium": "codex/gpt@xhigh",
+            },
+            overrides={"small": "grok/grok-4.6@low"},
+        )
+
+        assert _referenced_provider_ids() == {"grok", "codex"}
+
+    def test_parenthesized_last_resort_target_contributes_every_provider(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        self._patch_aliases(
+            monkeypatch,
+            shipped={"large": "(claude/opus@high | codex/gpt@high) || grok/grok@high"},
+        )
+
+        assert _referenced_provider_ids() == {"claude", "codex", "grok"}
+
+    def test_muse_only_pool_makes_muse_background_eligible(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ) -> None:
+        self._patch_aliases(monkeypatch, shipped={"small": "muse/muse-spark@high"})
+        monkeypatch.setattr(
+            "sase.llm_provider.registry.registered_provider_names",
+            lambda: ["muse"],
+        )
+        monkeypatch.setattr(
+            "sase.llm_provider.registry.model_picker_hidden_provider_names",
+            lambda: frozenset(),
+        )
+        monkeypatch.setattr(
+            "sase.llm_provider.registry.get_llm_metadata_payload",
+            lambda: _payload({"muse": _codex_metadata(cli_name=None)}),
+        )
+        _isolate_path(monkeypatch, tmp_path)
+        mock_provider_config(monkeypatch, {"usage_metrics": {"enabled": True}})
+
+        assert eligible_usage_providers() == ("muse",)
