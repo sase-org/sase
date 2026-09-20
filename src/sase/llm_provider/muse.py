@@ -33,6 +33,7 @@ from .base import LLMProvider
 from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
+    from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
 
 # Both tiers map to the full-price model on purpose. Contributor models are
@@ -285,6 +286,18 @@ class MuseProvider(LLMProvider):
             "model_args": ["--model", "{model}"],
             "env": {_MUSE_NO_AUTO_UPDATE_ENV: "1"},
         }
+
+    @hookimpl
+    def llm_usage_capabilities(self) -> dict[str, object]:
+        return {"probe": True, "passive_events": False}
+
+    @hookimpl
+    def llm_usage_probe(self, context: UsageProbeContext) -> dict[str, object] | None:
+        from .usage.muse import collect_muse_usage
+
+        return collect_muse_usage(
+            context, executable=context.executable or _resolve_muse_executable()
+        )
 
     @hookimpl
     def llm_default_usage_limit_config(self) -> ProviderUsageLimitConfig:

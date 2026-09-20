@@ -2254,12 +2254,14 @@ llm_provider:
             "weekly:claude-fable-5": always
 ```
 
-Claude, Codex, and Grok currently ship collectors. Claude can also persist fenced
-rate-limit events from its normal stream; Codex and Grok are probe-only. Other provider
-plugins remain fully usable when they do not implement usage hooks. Per-provider
-collection can be disabled with
-`llm_provider.usage_metrics.providers.<name>.enabled: false`; routing-disabled providers
-still collect when otherwise eligible because their reset information remains useful.
+Claude, Codex, Grok, and Muse Code currently ship collectors. Claude can also persist
+fenced rate-limit events from its normal stream; Codex, Grok, and Muse are probe-only.
+Muse's probe is free: it reads the `muse serve` host's usage through an `echo`-provider
+session, so it makes no model call and spends no tokens. Other provider plugins remain
+fully usable when they do not implement usage hooks. Per-provider collection can be
+disabled with `llm_provider.usage_metrics.providers.<name>.enabled: false`;
+routing-disabled providers still collect when otherwise eligible because their reset
+information remains useful.
 
 sase's TUI compact usage-window indicator has separate display policy under
 `llm_provider.usage_metrics.indicator`. Collection controls whether SASE probes and

@@ -147,6 +147,24 @@ known updates" forever.
 SASE always launches agent runs with `MUSE_NO_AUTO_UPDATE=1` so Muse cannot swap its own
 binary mid-run; update it through `sase agent-cli` instead.
 
+### Subscription usage
+
+Muse collects [subscription usage](#subscription-usage) — its 5-hour session window and
+its weekly window — through a local probe against `muse serve` (Muse's MSP session
+host). The probe makes **no model call and spends no tokens**: it opens an ephemeral,
+shell-less host, starts a session on Muse's built-in `echo` provider, and reads the
+usage the host learns in response. It aborts without sending a turn if the host does not
+report an `echo` session with no model, so a future Muse that ignores the request can
+never cost a real model turn on a refresh tick.
+
+The probe runs on the normal background cadence
+(`llm_provider.usage_metrics.refresh_seconds`), costs about three seconds of wall clock
+per refresh, and follows the same eligibility rules as every other provider: Muse must
+be resolvable and either referenced by a model alias or explicitly enabled. The
+user-facing switch is `llm_provider.usage_metrics.providers.muse.enabled`. Inspect the
+result with `sase usage list -p muse`. A host that has not yet reported any usage — for
+example a logged-out one — is shown as no observation rather than as `0%` used.
+
 Canonical docs: <https://developer.meta.com/ai/resources/blog/build-with-muse-code/>
 
 ## Grok Build
