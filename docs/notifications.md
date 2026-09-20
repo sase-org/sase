@@ -1359,6 +1359,21 @@ Latency evidence from isolated probes on 2026-09-14:
   ms, and max 46.35 ms, while `response.json` stayed unwritten until the held command
   was released.
 
+Matched before/after evidence for the two refresh paths, from isolated fixtures on
+2026-09-20:
+
+- Acceptance receipt to Agents row data, over a 1,500-artifact synthetic archive: the
+  acceptance pulse now lands inside the answered agent's own directory, so it names an
+  exact row instead of falling through to a project-level pulse. The broad tier-1 load
+  that route used to force cost p50 74.8 ms, p95 123.4 ms, and max 185.6 ms; the exact
+  artifact-dir delta that replaces it costs p50 1.7 ms, p95 2.5 ms, and max 2.5 ms
+  across 25 runs — about 44x cheaper at the median.
+- Response publication to refresh-pulse visibility, across ten settlements holding a 150
+  ms follow-up-launch barrier: the pulse now fires at p50 97.7 ms, p95 130.3 ms, where
+  the old ordering would not have published it until p50 407.5 ms, p95 450.8 ms —
+  roughly 310 ms earlier at the median, and unbounded by however long the follow-up
+  launch actually takes.
+
 These measurements exercise local durability and notification behavior only. Live
 Telegram callback acknowledgement, message delivery, and keyboard edits remain bounded
 by Bot API round-trip time and rate limits; terminal keyboard cleanup is retried from
