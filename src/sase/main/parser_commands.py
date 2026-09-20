@@ -386,6 +386,41 @@ def register_notify_parser(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Only include unread notifications",
     )
+    rules_parser = notify_sub.add_parser(
+        "rules",
+        help="Show notification delivery rules and explain how a row is delivered",
+        description=(
+            "Show the merged `ace.notification_rules` in the order they are "
+            "consulted,\nwith the config layer each came from and the criteria "
+            "and behaviors it sets.\n\nRules only change how a new notification "
+            "is announced (a TUI toast and a\nsound); the notification is still "
+            "stored, unread, and listed."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase notify rules\n"
+            "  sase notify rules --explain 3f2a9c\n"
+            "  sase notify rules -j"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    rules_parser.add_argument(
+        "-e",
+        "--explain",
+        metavar="ID",
+        default=None,
+        help=(
+            "Explain one stored notification (id or unique prefix): its match "
+            "fields and, for toast and sound, which rule decides each or that "
+            "the default applies"
+        ),
+    )
+    rules_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        help="Emit machine-readable JSON instead of formatted text",
+    )
     show_parser = notify_sub.add_parser(
         "show",
         help="Show one notification by id",

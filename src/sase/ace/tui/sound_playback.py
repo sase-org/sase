@@ -47,6 +47,11 @@ def resolve_sound_player() -> tuple[str, ...] | None:
     return None
 
 
+def expand_sound_path(path: str | Path) -> Path:
+    """Expand ``$VAR`` and ``~`` in a configured sound path."""
+    return Path(os.path.expandvars(path)).expanduser()
+
+
 def play_sound_file(path: str | Path) -> bool:
     """Play ``path`` with the platform player, blocking until it finishes.
 
@@ -60,7 +65,7 @@ def play_sound_file(path: str | Path) -> bool:
         player = resolve_sound_player()
         if player is None:
             return False
-        sound_path = Path(os.path.expandvars(path)).expanduser()
+        sound_path = expand_sound_path(path)
         if not sound_path.is_file():
             return False
         result = subprocess.run(

@@ -14,6 +14,9 @@ from sase.doctor.checks_config_keymap_glossary import check_config_keymap_glossa
 from sase.doctor.checks_config_layers import check_config_layers
 from sase.doctor.checks_config_memory_webs import check_config_memory_webs
 from sase.doctor.checks_config_model_aliases import check_config_model_aliases
+from sase.doctor.checks_config_notification_rules import (
+    check_config_notification_rules,
+)
 from sase.doctor.checks_config_notification_tabs import (
     check_config_notification_tabs,
 )
@@ -120,6 +123,12 @@ def config_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
             runner=check_config_notification_tabs,
         ),
         CheckSpec(
+            id="config.notification_rules",
+            group="config",
+            title="Notification delivery rules",
+            runner=check_config_notification_rules,
+        ),
+        CheckSpec(
             id="config.model_xprompts",
             group="config",
             title="Model xprompt routing",
@@ -156,6 +165,7 @@ _check_config_model_aliases = check_config_model_aliases
 _check_config_keymap_actions = check_config_keymap_actions
 _check_config_keymap_glossary = check_config_keymap_glossary
 _check_config_notification_tabs = check_config_notification_tabs
+_check_config_notification_rules = check_config_notification_rules
 _check_config_repos = check_config_repos
 _check_config_artifact_refs = check_config_artifact_refs
 _check_config_file_hooks = check_config_file_hooks

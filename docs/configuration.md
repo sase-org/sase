@@ -813,6 +813,7 @@ ace:
 | `current_project`                   | dict         | see below | Top-bar `+<project>` chip and session seeds for project filters.                                                                                           |
 | `keymaps`                           | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
 | `notification_indicator_max_counts` | int          | `4`       | Per-tab counts shown in the top-bar notification indicator before the rest collapse into `+N`.                                                             |
+| `notification_rules`                | list         | `[]`      | Ordered rules for whether a notification toasts and what sound it plays; see [Delivery Rules](notifications.md#delivery-rules).                            |
 | `notification_tabs`                 | dict         | see below | Per-tab colors, icons, priorities, and grouping for notification tabs.                                                                                     |
 | `page_size`                         | int          | `100`     | Ctrl+J / Ctrl+K step and the default Artifacts `limit:` value. Must be at least 1. Launch Control alias history uses a fixed 10-run step instead.          |
 | `prompt_completion`                 | dict         | see below | Live soft-completion settings for sase's TUI prompt input.                                                                                                 |

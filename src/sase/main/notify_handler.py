@@ -38,13 +38,18 @@ def handle_notify_command(args: argparse.Namespace) -> NoReturn:
 
         handle_notify_list(args)
         sys.exit(0)
+    if subcommand == "rules":
+        from sase.notifications.cli_rules import handle_notify_rules
+
+        handle_notify_rules(args)
+        sys.exit(0)
     if subcommand == "show":
         from sase.notifications.cli_show import handle_notify_show
 
         handle_notify_show(args)
         sys.exit(0)
     print(
-        "Usage: sase notify {+1,apply-state,apply-state-many,create,list,show}",
+        "Usage: sase notify {+1,apply-state,apply-state-many,create,list,rules,show}",
         file=sys.stderr,
     )
     sys.exit(1)

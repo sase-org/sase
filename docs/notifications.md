@@ -383,6 +383,155 @@ notifications retain their arrival bell. Priority actions include `PlanApproval`
 Snooze expiry is an explicit reminder chosen by the user and remains audible for every
 notification class, including a snoozed tale or epic review.
 
+Every toast and arrival sound described here is the default. `ace.notification_rules`
+overrides either per notification; see [Delivery Rules](#delivery-rules).
+
+### Delivery Rules
+
+`ace.notification_rules` is an ordered list of rules that decide, per new notification,
+whether sase's TUI shows a toast and how the arrival is announced: the terminal bell, a
+sound file of your choosing, or silence. With no rules configured every notification
+toasts and rings the bell once per poll, exactly as described above.
+
+```yaml
+ace:
+  notification_rules:
+    - name: quiet-task-beads
+      description: Task-bead triage is too noisy to announce right now.
+      match:
+        tab: beads
+      toast: false
+      sound: none
+    - name: mac-chime
+      sound: /System/Library/Sounds/Glass.aiff
+```
+
+| Key           | Type    | Meaning                                                       |
+| ------------- | ------- | ------------------------------------------------------------- |
+| `name`        | string  | Label for `sase notify rules`, doctor output, and diagnostics |
+| `description` | string  | Free prose explaining why the rule exists                     |
+| `priority`    | integer | Evaluation weight, `-1000..1000`; higher is consulted earlier |
+| `match`       | mapping | Criteria. Omitted or `{}` matches every notification          |
+| `toast`       | boolean | Whether a TUI toast is shown                                  |
+| `sound`       | string  | `bell`, `none`, or the path of a sound file                   |
+
+Every key is optional, and an unknown key drops the whole rule rather than being
+ignored: a rule applies exactly as written or not at all. A rule with no `name` is
+reported as `rule[<index>]`, counting from `0` across the rules that survived. sase
+versions that predate delivery rules report `ace.notification_rules` as an unknown key
+in `sase config validate` and `sase doctor`.
+
+#### Matching
+
+Six criteria, each drawn from something visible on the notification row:
+
+| Criterion | Matched against                                                                                                                 |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `tab`     | The tab that owns the row (see [Tabs and Ordering](#tabs-and-ordering)): `beads`, `hitl`, `errors`, `general`, a tag, and so on |
+| `sender`  | The notification's sender                                                                                                       |
+| `action`  | The notification's action; an empty string for a row with no action                                                             |
+| `tags`    | Any one of the notification's tags                                                                                              |
+| `title`   | The first note, which the panel shows as the row headline                                                                       |
+| `note`    | Any line of the notification's notes                                                                                            |
+
+- Every value is a **case-insensitive glob**: `*`, `?`, `[abc]`, `[a-c]`, and `[!abc]`.
+  A value with no wildcard is therefore an exact, case-insensitive match. There is no
+  substring or fuzzy matching: `title: "Plan ready"` does not match
+  `Plan ready for review`, while `title: "Plan ready*"` does. Write `[*]` for a literal
+  `*`. A `[` with no closing `]` matches a literal `[`.
+- A criterion takes one string or a list of strings; a list is **any-of**.
+- Several criteria in one `match` are **all-of**.
+- `tab: gates` is an alias for `tab: hitl`, because the panel labels that tab `Gates`.
+  The muted and snoozed tabs are `__muted__` and `__snoozed__`.
+
+The tab a row matches is the tab the panel shows it under, because both come from the
+same core classification. `sase notify rules --explain` reports the tab of the row as it
+is stored now, so a muted or snoozed row reports `__muted__` or `__snoozed__`.
+
+#### Resolution
+
+Rules are consulted in descending `priority`, with ties broken by position in the merged
+list. For `toast` and for `sound` **independently**, the first matching rule that sets
+that field decides it. A field no matching rule sets keeps the default: toast shown,
+sound `bell`. A rule that sets only `toast` therefore never blocks a later rule from
+choosing the sound.
+
+The merged list follows config layering: rules from `~/.config/sase/sase.yml` come
+first, then rules from machine overlays such as `sase_<machine>.yml`, then project-local
+rules. A machine-wide `sound` rule in an overlay can sit under a narrower rule in
+`sase.yml` without re-stating it. Use `priority` only when a later layer must
+deliberately override an earlier one.
+
+Because the first match wins, no negation is needed. To silence everything except gates,
+say what gates do, then silence everything else:
+
+```yaml
+ace:
+  notification_rules:
+    - name: gates-announce
+      match:
+        tab: gates
+      toast: true
+      sound: bell
+    - name: silence-the-rest
+      toast: false
+      sound: none
+```
+
+A gate row matches `gates-announce`, which decides both fields before the second rule is
+consulted. Every other row falls through to `silence-the-rest`, whose empty `match`
+matches all notifications.
+
+#### Sounds
+
+`sound` is a single value with two reserved words, compared case-insensitively:
+
+| Value    | Announcement                                                           |
+| -------- | ---------------------------------------------------------------------- |
+| `bell`   | The terminal bell through tmux, three rings (the default)              |
+| `none`   | Silence                                                                |
+| anything | The path of a sound file, with `~` and `$VAR` expanded and then played |
+
+A file literally named `bell` or `none` is addressed as `./bell`. sase's TUI picks the
+first audio player found on `PATH`:
+
+| Platform | Players, in order                             |
+| -------- | --------------------------------------------- |
+| macOS    | `afplay`                                      |
+| Linux    | `paplay`, `aplay`, `ffplay -nodisp -autoexit` |
+
+A missing file, a missing player, a player that fails or hangs, or an unsupported
+platform never interrupts the poll: the announcement is simply silent. Playback runs on
+a worker thread, so it cannot stall the TUI.
+
+Each poll announces **at most one sound**. It is the resolved sound of the first new
+notification, in activity order, whose sound is not `none`; if every arriving row
+resolves to `none`, the tick is silent. A burst of five notifications is one chime, not
+five.
+
+#### What a rule does not change
+
+`toast: false` suppresses the toast, and `sound: none` the sound; nothing else changes.
+The notification is still stored, still unread, still counted in the top-bar indicator,
+and still listed in the panel under its tab. Rules never affect whether a notification
+is created, read, muted, or snoozed. Suppressed rows are also left out of grouped
+toasts: a batch of six with three suppressed produces three individual toasts rather
+than one group of six.
+
+#### Inspecting rules
+
+- `sase notify rules` prints the merged rules in the order they are consulted, with the
+  config layer each came from, its criteria, and the behaviors it sets. Entries that
+  were dropped as malformed are listed with the reason.
+- `sase notify rules --explain <id>` (`-e`) takes a stored notification ID or unique
+  prefix and prints the fields the rules match on, then for `toast` and `sound` the rule
+  that decided it or that the default applied. Add `-j/--json` to either form for
+  machine-readable output.
+- `sase doctor -C config.notification_rules` flags unknown keys, a `match` that is not a
+  mapping, a glob with an unclosed `[`, an empty criterion list, a `sound` file that
+  does not exist, a sound file with no audio player available on this platform, and a
+  rule that sets neither `toast` nor `sound`.
+
 ## Notification Types
 
 The following events generate notifications:
@@ -890,6 +1039,10 @@ sase notify create -s my_sender --tag review --tag handoff < notification.json
 sase notify +1 6f8a2 "same failure reproduced on macOS" -s ci_watch
 sase notify +1 -k ci/sase-main "failure reproduced again" -s ci_watch
 ```
+
+`sase notify rules` shows the configured [delivery rules](#delivery-rules) in the order
+they are consulted, and `sase notify rules -e ID` explains which rule decides the toast
+and the sound for one stored notification. It never changes notification state.
 
 Raw creation validates and preserves the optional single-glyph JSON `icon`, the optional
 `#RRGGBB` JSON `color` (see [Tab colors](#tab-colors)), and the JSON `silent` field. It

@@ -108,6 +108,19 @@ def test_play_expands_environment_variables(
     assert calls[0][-1] == str(tmp_path / "chime.wav")
 
 
+def test_expand_sound_path_expands_home_and_variables(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("SASE_TEST_SOUND_DIR", "sounds")
+
+    assert sound_playback.expand_sound_path("~/a.wav") == tmp_path / "a.wav"
+    assert sound_playback.expand_sound_path("$SASE_TEST_SOUND_DIR/a b.wav") == Path(
+        "sounds/a b.wav"
+    )
+    assert sound_playback.expand_sound_path(Path("./bell")) == Path("bell")
+
+
 def test_play_missing_file_does_not_launch_player(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
