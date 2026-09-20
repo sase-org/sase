@@ -11,9 +11,11 @@ in priority order:
 
 1. ``run.terminal.*`` carries the authoritative reply in ``payload.text``;
    ``payload.terminal`` is the outcome and ``payload.reason`` the detail.
-2. ``run.output.delta`` is ``ephemeral`` and repeats the same text the
-   terminal event later returns. It streams into ``live_reply.md`` for live
-   display only and is never appended to the returned content.
+2. ``run.output.delta`` is ``ephemeral`` and carries incremental fragments
+   that concatenate to the text the terminal event later returns; they can
+   split mid-word. The deltas of one run stream coalesce into a single
+   timestamped ``live_reply.md`` chunk for live display only and are never
+   appended to the returned content.
 3. A failed, rejected, or cancelled *task* is not a failed *run*. Muse emits
    ``task.lifecycle.rejected``/``cancelled`` on runs that exit ``0``, so
    task-level failures are recorded as diagnostics that only reach stderr
@@ -34,7 +36,7 @@ from typing import IO
 
 from ._muse_session_usage import read_muse_session_usage
 from ._subprocess_artifacts import (
-    append_stream_text,
+    append_stream_delta,
     initial_usage_totals,
     open_live_reply_file,
     open_live_reply_timestamps_file,
@@ -61,6 +63,11 @@ ENVELOPE_PAYLOAD_SCHEMA_VERSION_FIELD = "payload_schema_version"
 ENVELOPE_PAYLOAD_TYPE_FIELD = "payload_type"
 ENVELOPE_PAYLOAD_FIELD = "payload"
 
+# Identify the run stream a delta or terminal event belongs to.
+PAYLOAD_COMMAND_ID_FIELD = "command_id"
+PAYLOAD_RUN_STREAM_FIELD = "run_stream"
+PAYLOAD_RUN_STREAM_ID_FIELD = "id"
+
 SUPPORTED_SCHEMA_VERSION = 1
 SUPPORTED_PAYLOAD_SCHEMA_VERSION = 1
 
@@ -83,6 +90,9 @@ MUSE_USAGE_ERROR_NOTE = (
     "not a model or run failure. Check the SASE-built argv above."
 )
 
+# Stream key for events that carry neither ``command_id`` nor ``run_stream.id``.
+_UNKEYED_RUN_STREAM = "<unkeyed>"
+
 _MAX_SCHEMA_DIAGNOSTICS = 5
 _schema_diagnostic_counts: dict[tuple[str, str], int] = {}
 
@@ -95,7 +105,13 @@ class _MuseStreamState:
     live_reply_file: IO[str] | None = None
     timestamps_file: IO[str] | None = None
     terminal_texts: list[str] = field(default_factory=list)
-    streamed_texts: list[str] = field(default_factory=list)
+    # Delta fragments per run stream, in first-seen order. Salvage-only: they
+    # rebuild a reply when no terminal event arrives, and are never returned
+    # otherwise.
+    streamed_texts: dict[str, list[str]] = field(default_factory=dict)
+    # The run stream whose deltas own the open ``live_reply.md`` chunk, or
+    # ``None`` when no chunk is open.
+    open_stream_key: str | None = None
     diagnostics: list[str] = field(default_factory=list)
     # Captured from ``run.model.configured``: the model Muse actually
     # configured, which closes the gap where a run with no SASE-resolved model
@@ -131,6 +147,7 @@ def stream_and_parse_muse_json_output(
             suppress_output,
         )
     finally:
+        _close_delta_chunk(state)
         if state.live_reply_file:
             state.live_reply_file.close()
         if state.timestamps_file:
@@ -231,20 +248,53 @@ def _write_muse_run_metadata(state: _MuseStreamState, session_id: str | None) ->
 def _stream_output_delta(
     payload: Mapping[str, object], state: _MuseStreamState
 ) -> None:
-    """Stream an ephemeral output delta into the live-reply artifacts only."""
+    """Stream an ephemeral output delta into the live-reply artifacts only.
+
+    Deltas are fragments of one message, so every delta of a run stream lands
+    in a single ``live_reply.md`` chunk; only the first delta of a stream
+    opens a new timestamped one.
+    """
     text = payload.get("text")
     if not isinstance(text, str) or not text:
         return
-    # ``state.streamed_texts`` is display-only bookkeeping: it drives the
-    # blank-line separator in ``live_reply.md`` and is never returned as the
-    # reply, because the terminal event repeats the same text verbatim.
-    append_stream_text(
+    stream_key = _run_stream_key(payload)
+    new_chunk = state.open_stream_key != stream_key
+    if new_chunk:
+        _close_delta_chunk(state)
+        state.open_stream_key = stream_key
+    # ``state.streamed_texts`` is salvage-only bookkeeping: the terminal event
+    # carries the reply, so the deltas are never returned when it arrives.
+    state.streamed_texts.setdefault(stream_key, []).append(text)
+    append_stream_delta(
         text,
-        state.streamed_texts,
         state.suppress_output,
         state.live_reply_file,
         state.timestamps_file,
+        new_chunk=new_chunk,
     )
+
+
+def _run_stream_key(payload: Mapping[str, object]) -> str:
+    """Identify the run stream *payload* belongs to."""
+    command_id = payload.get(PAYLOAD_COMMAND_ID_FIELD)
+    if isinstance(command_id, str) and command_id:
+        return command_id
+    run_stream = payload.get(PAYLOAD_RUN_STREAM_FIELD)
+    if isinstance(run_stream, Mapping):
+        stream_id = run_stream.get(PAYLOAD_RUN_STREAM_ID_FIELD)
+        if isinstance(stream_id, str) and stream_id:
+            return stream_id
+    return _UNKEYED_RUN_STREAM
+
+
+def _close_delta_chunk(state: _MuseStreamState) -> None:
+    """End the open live-reply chunk so the next delta starts a fresh one."""
+    if state.open_stream_key is None:
+        return
+    state.open_stream_key = None
+    if not state.suppress_output:
+        # Deltas print without a newline; end the line the chunk left open.
+        print(flush=True)
 
 
 def _capture_run_terminal(
@@ -252,6 +302,9 @@ def _capture_run_terminal(
     state: _MuseStreamState,
 ) -> None:
     """Record the authoritative reply text and the run's terminal outcome."""
+    if state.open_stream_key == _run_stream_key(payload):
+        _close_delta_chunk(state)
+
     outcome = payload.get("terminal")
     if isinstance(outcome, str) and outcome and outcome != TERMINAL_OUTCOME_COMPLETED:
         reason = payload.get("reason")
@@ -283,12 +336,17 @@ def _resolve_muse_content(state: _MuseStreamState) -> str:
 
     # No terminal event arrived. Returning an empty success here would hide a
     # schema drift behind a blank reply, so record it and fall back to the
-    # streamed deltas rather than losing the answer.
+    # streamed deltas rather than losing the answer. Deltas concatenate within
+    # a run stream and are joined across streams, like the terminal texts.
     _record_schema_diagnostic(
         reason="muse_missing_run_terminal_event",
-        extra={"streamed_chunks": len(state.streamed_texts)},
+        extra={
+            "streamed_deltas": sum(
+                len(parts) for parts in state.streamed_texts.values()
+            )
+        },
     )
-    return "\n\n".join(state.streamed_texts)
+    return "\n\n".join("".join(parts) for parts in state.streamed_texts.values())
 
 
 def _note_unknown_schema_version(envelope: Mapping[str, object], line: str) -> None:

@@ -503,6 +503,161 @@ def test_muse_stream_streams_deltas_into_the_live_reply_artifact(
     assert json.loads(timestamps.splitlines()[0])["byte_offset"] == 0
 
 
+def _delta(text: str, command_id: str | None = "cmd-1") -> str:
+    payload: dict[str, object] = {"kind": "run_output_delta", "text": text}
+    if command_id is not None:
+        payload["command_id"] = command_id
+        payload["run_stream"] = {"id": command_id, "kind": "run"}
+    return _envelope("run.output.delta", payload, record_type="status")
+
+
+def _terminal(text: str, command_id: str | None = "cmd-1") -> str:
+    payload: dict[str, object] = {"terminal": "completed", "text": text}
+    if command_id is not None:
+        payload["command_id"] = command_id
+    return _envelope("run.terminal.completed", payload)
+
+
+def _read_timestamps(tmp_path: Path) -> list[dict[str, object]]:
+    return [
+        json.loads(line)
+        for line in (tmp_path / "live_reply_timestamps.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+
+
+def test_muse_stream_coalesces_deltas_into_one_live_reply_chunk(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A reply split mid-word and mid-inline-code stays one intact chunk."""
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    deltas = [
+        "It doesn",
+        "'t replace coding agents — it is `",
+        "sase` — Structured\n",
+        "Agentic Software Engineering.",
+    ]
+    reply = "".join(deltas)
+
+    content, _, return_code, _ = _run_fixture_stream(
+        "".join(_delta(text) for text in deltas) + _terminal(reply)
+    )
+
+    assert return_code == 0
+    assert content == reply
+    assert (tmp_path / "live_reply.md").read_text(encoding="utf-8") == reply
+    assert [entry["byte_offset"] for entry in _read_timestamps(tmp_path)] == [0]
+
+
+def test_muse_stream_opens_a_new_chunk_per_run_stream(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+
+    content, _, _, _ = _run_fixture_stream(
+        _delta("first ", "cmd-1")
+        + _delta("run", "cmd-1")
+        + _terminal("first run", "cmd-1")
+        + _delta("second ", "cmd-2")
+        + _delta("run", "cmd-2")
+        + _terminal("second run", "cmd-2")
+    )
+
+    assert content == "first run\n\nsecond run"
+    live_reply = (tmp_path / "live_reply.md").read_text(encoding="utf-8")
+    assert live_reply == "first run\n\nsecond run"
+    # The second chunk's offset points at the separator, as read_reply_chunks
+    # and the renderer's ``.strip()`` expect.
+    assert [entry["byte_offset"] for entry in _read_timestamps(tmp_path)] == [
+        0,
+        len("first run"),
+    ]
+
+
+def test_muse_stream_splits_unkeyed_run_streams_at_the_terminal_event(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without ids the terminal event is the only run boundary there is."""
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+
+    content, _, _, _ = _run_fixture_stream(
+        _delta("one ", None)
+        + _delta("part", None)
+        + _terminal("one part", None)
+        + _delta("two", None)
+        + _terminal("two", None)
+    )
+
+    assert content == "one part\n\ntwo"
+    live_reply = (tmp_path / "live_reply.md").read_text(encoding="utf-8")
+    assert live_reply == "one part\n\ntwo"
+    assert len(_read_timestamps(tmp_path)) == 2
+
+
+def test_muse_stream_salvages_concatenated_deltas_without_a_terminal_event(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+
+    content, _, return_code, _ = _run_fixture_stream(
+        _delta("It doesn") + _delta("'t break") + _delta(" words")
+    )
+
+    assert return_code == 0
+    assert content == "It doesn't break words"
+    diagnostics = [
+        json.loads(line)
+        for line in (tmp_path / "tool_calls_writer_errors.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.strip()
+    ]
+    missing = [
+        entry
+        for entry in diagnostics
+        if entry["reason"] == "muse_missing_run_terminal_event"
+    ]
+    assert len(missing) == 1
+    assert missing[0]["streamed_deltas"] == 3
+
+
+def test_muse_stream_salvage_joins_run_streams_with_a_blank_line(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+
+    content, _, _, _ = _run_fixture_stream(
+        _delta("al", "cmd-1")
+        + _delta("pha", "cmd-1")
+        + _delta("be", "cmd-2")
+        + _delta("ta", "cmd-2")
+    )
+
+    assert content == "alpha\n\nbeta"
+
+
+def test_muse_stream_prints_one_console_block_per_run_stream(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _run_fixture_stream(
+        _delta("It doesn", "cmd-1")
+        + _delta("'t split", "cmd-1")
+        + _terminal("It doesn't split", "cmd-1")
+        + _delta("next", "cmd-2")
+        + _terminal("next", "cmd-2"),
+        suppress_output=False,
+    )
+
+    assert capsys.readouterr().out == "It doesn't split\nnext\n"
+
+
 def test_muse_stream_keeps_task_failures_out_of_a_successful_run() -> None:
     payload = _envelope(
         "task.lifecycle.rejected",

@@ -772,10 +772,13 @@ and `payload`. SASE's parser rules, in priority order:
 1. **`run.terminal.completed` → `payload.text` is the authoritative reply.**
    `payload.terminal` is the outcome and `payload.reason` the detail; SASE parses those
    fields and never pattern-matches reply text.
-2. **`run.output.delta` is for live display only.** It is marked `ephemeral` and repeats
-   text the terminal event later carries in full. SASE streams it into `live_reply.md`
-   and the timestamps file but never appends it to the returned content, so replies do
-   not double.
+2. **`run.output.delta` is for live display only.** It is marked `ephemeral` and carries
+   incremental fragments, split mid-word and mid-inline-code, that concatenate to the
+   text the terminal event later carries in full. SASE coalesces the deltas of one run
+   stream (keyed by `command_id`, then `run_stream.id`) into a single timestamped
+   `live_reply.md` chunk, so the panel shows one divider and intact prose per run. The
+   deltas are never appended to the returned content, so replies do not double; they are
+   only used to rebuild the reply when no `run.terminal.*` event arrives.
 3. **A failed, rejected, or cancelled task is not a failed run.** Muse emits
    `task.lifecycle.rejected` (`reason: "skip_if_running"`) and
    `task.lifecycle.cancelled` (`reason: "main run completed"`) on runs that exit `0`.

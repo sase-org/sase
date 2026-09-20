@@ -130,6 +130,35 @@ def append_stream_text(
         print(text, flush=True)
 
 
+def append_stream_delta(
+    text: str,
+    suppress_output: bool,
+    live_reply_file: IO[str] | None,
+    timestamps_file: IO[str] | None,
+    *,
+    new_chunk: bool,
+) -> None:
+    """Append one incremental text delta to the live reply and console.
+
+    ``append_stream_text`` treats every call as a whole assistant message, so a
+    provider that streams token-level deltas of a single message would get one
+    timestamped, blank-line-separated chunk per token. Here the caller says
+    whether *text* opens a new chunk or continues the open one. Opening writes
+    a timestamp entry and, when the file already has content, the ``"\\n\\n"``
+    separator, in the same order as ``append_stream_text``. Continuing writes
+    the bare text so the deltas concatenate into one intact chunk.
+    """
+    if live_reply_file:
+        if new_chunk:
+            write_reply_timestamp(live_reply_file, timestamps_file)
+            if live_reply_file.tell() > 0:
+                live_reply_file.write("\n\n")
+        live_reply_file.write(text)
+        live_reply_file.flush()
+    if not suppress_output:
+        print(text, end="", flush=True)
+
+
 def initial_usage_totals() -> dict[str, int]:
     """Return the common SASE token usage counter shape."""
     return {
@@ -149,6 +178,7 @@ def int_usage(value: object) -> int:
     return 0
 
 
+_append_stream_delta = append_stream_delta
 _append_stream_text = append_stream_text
 _initial_usage_totals = initial_usage_totals
 _int_usage = int_usage
