@@ -212,41 +212,64 @@ home-scoped identity before applying it. Use `sase service uninstall` with the s
 preview, check, diff, force, and confirmation model to remove the managed unit.
 
 The captured environment includes the SSH agent handle (`SSH_AUTH_SOCK`, plus
-`SSH_AGENT_PID` when present) so host-owned git work against SSH remotes, such as plan
-archival from a Telegram approval, authenticates with the same agent as your shell. It
-is captured from the shell that runs `sase service init`, and only when it names a live
-socket. A login-session agent socket dies with that session, so re-run
-`sase service init --check` and restart the service after a reboot or a new login
-session. `--check` reports an empty or unreachable agent instead of leaving the failure
-to surface later as an opaque `Permission denied (publickey)`.
+`SSH_AGENT_PID` when present) whenever it names a live socket. That is a convenience,
+not a durable credential: an agent socket captured from a login shell
+(`/tmp/ssh-*/agent.*`) belongs to that session and dies with it. The host then silently
+falls back to whichever agent your platform manager gives every unit, and on Linux that
+is the systemd user manager's `SSH_AUTH_SOCK`, often a live but empty socket. Do not
+count on a captured login-shell socket to keep host-owned git work, such as plan
+archival from a Telegram approval, authenticated across a reboot or a new login session.
 
-An agent that is reachable but holds no identities is not captured either. Capturing
-nothing does not mean the service has no agent: the host then inherits whichever agent
-your platform manager gives every unit, and on Linux that is the systemd user manager's
-`SSH_AUTH_SOCK`, often a live but empty socket. `sase service status` (and
-`sase service init --check` for an installed unit) therefore also reports on the
-_effective_ environment: the captured file overlaid on what the manager hands the unit.
-A healthy agent in your own shell cannot mask an unhealthy one in the service.
+Readiness is decided by the git remote, not by what an agent holds.
+`sase service init --check`, `sase service status`, and plan approvals each ask the
+remote to authenticate (`ssh -o BatchMode=yes -T git@github.com`) using the environment
+in question, and only a `Permission denied (publickey)` answer warns. A host that
+authenticates by `IdentityFile` is healthy even though its agent is empty or absent, and
+a host that cannot reach the network is reported as unknown rather than as a credential
+failure. `sase service status` (and `sase service init --check` for an installed unit)
+reports on both the environment `init` is about to capture and the _effective_ one: the
+captured file overlaid on what the manager hands the unit. A working credential in your
+own shell cannot mask a refused one in the service.
 
-While that agent is unusable, host chops that write beads cannot fetch their operational
-workspace, so they fail with `Permission denied (publickey)`. The external issue mirror
-treats this as a credential failure: it reports `auth_error`, logs the git error, and
-backs off exponentially instead of failing on every scheduled tick. Beads are not
-mirrored until the credential is restored.
+A plan approval that archives the plan (the `commit` option) runs the same check before
+the decision is accepted. If the remote refuses the credential, the answer is refused
+with the remediation and the gate stays pending, instead of being accepted and then
+failing at `terminal_prepare`. An unknown answer never blocks an approval.
 
-The code cannot restore the credential, so this is yours to fix. In order of durability:
+While the credential is refused, host chops that write beads cannot fetch their
+operational workspace, so they fail with `Permission denied (publickey)`. The external
+issue mirror treats this as a credential failure: it reports `auth_error`, logs the git
+error, and backs off exponentially instead of failing on every scheduled tick. Beads are
+not mirrored until the credential is restored.
 
-1. **Dedicated passphrase-free key (preferred).** Generate an ed25519 key used only by
-   the service host, add it to the GitHub account, and point the `Host github.com` block
-   of `~/.ssh/config` at it with `IdentitiesOnly yes`. It is fully unattended, survives
-   reboots, and needs no agent.
-2. **Load your key into the persistent agent (interim).** Run
-   `SSH_AUTH_SOCK=<the reported socket> ssh-add <your private key>`, then restart the
-   service. This lasts until that agent restarts and needs your passphrase once per
-   boot.
-3. **Avoid: re-running `sase service init` from a login shell.** It captures that
-   session's agent socket, which dies with the session and silently breaks the service
-   again later.
+The code cannot restore the credential, so this is yours to fix. There are two supported
+ways to give the host an unattended credential:
+
+1. **Dedicated passphrase-less key via `IdentityFile` (preferred).** Generate an ed25519
+   key used only by the service host, add its public key to the GitHub account, and
+   point the `Host github.com` block of `~/.ssh/config` at it:
+
+   ```bash
+   ssh-keygen -t ed25519 -N "" -C "sase-service@$(hostname)" -f ~/.ssh/id_sase_service
+   ```
+
+   ```
+   IdentityFile ~/.ssh/id_sase_service
+   IdentitiesOnly yes
+   ```
+
+   It is fully unattended, survives reboots and logout, and needs no agent. Verify it
+   against the agent the service actually sees, which may be empty:
+   `SSH_AUTH_SOCK=<the reported socket> ssh -T git@github.com`. A key protected by a
+   passphrase cannot serve here, because nothing can type the passphrase.
+
+2. **Load a key into the systemd user agent (interim).** Run
+   `SSH_AUTH_SOCK=<the reported socket> ssh-add <your private key>`, using the socket
+   the service host inherits rather than your shell's. It survives logout when lingering
+   is enabled, but not a reboot, and needs your passphrase once per boot.
+
+After either, run `sase service init` and `sase service restart`, and confirm
+`sase service status` reports no SSH warning.
 
 Bare `sase init` offers this machine-scoped initializer at most once per batch. A
 decline is remembered for future broad onboarding runs on that machine, but it does not

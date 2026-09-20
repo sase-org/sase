@@ -143,6 +143,10 @@ def execute_gate_selection(
         has_tty=has_controlling_tty,
     )
     preflight_sudo_approval_inputs(envelope, adapter.kind, selected, option_inputs)
+    if not response_path.exists():
+        # A published response means terminal preparation already ran, so a
+        # resumed side-effects retry has no archive left to authenticate.
+        adapter.preflight_decision(selected_option_ids=[o.id for o in selected])
 
     # Durably accept the decision and dismiss its notification under a
     # short, separate lock before any option command, archive, or launch

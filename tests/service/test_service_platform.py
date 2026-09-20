@@ -558,114 +558,48 @@ def _stub_non_ssh_readiness(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-def _fake_ssh_add(tmp_path: Path) -> Path:
-    bin_dir = tmp_path / "agent-bin"
-    bin_dir.mkdir()
-    ssh_add = bin_dir / "ssh-add"
-    ssh_add.write_text("#!/bin/sh\n", encoding="utf-8")
-    ssh_add.chmod(0o755)
-    return bin_dir
-
-
-def test_readiness_warnings_warn_when_no_ssh_agent_is_captured(
+def test_readiness_warnings_leave_ssh_to_the_capture(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    """The capture owns the SSH report, so readiness must not ask the remote again."""
     _stub_non_ssh_readiness(monkeypatch)
-    with patch("sase.service.ssh_agent.subprocess.run") as run:
-        warnings = readiness_warnings({"PATH": "/nowhere"})
 
-    run.assert_not_called()
-    assert len(warnings) == 1
-    assert "no SSH agent" in warnings[0]
-    assert "Permission denied (publickey)" in warnings[0]
-    assert "sase service init" in warnings[0]
+    def fail(_env: dict[str, str]) -> str:
+        raise AssertionError("readiness_warnings must not probe the git remote")
 
+    monkeypatch.setattr("sase.service.ssh_agent.probe_git_remote_auth", fail)
 
-@pytest.mark.parametrize(
-    ("returncode", "expected"),
-    [(1, "holds no identities"), (2, "unreachable")],
-)
-def test_readiness_warnings_distinguish_empty_and_unreachable_ssh_agent(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    returncode: int,
-    expected: str,
-) -> None:
-    _stub_non_ssh_readiness(monkeypatch)
-    bin_dir = _fake_ssh_add(tmp_path)
-    sock = tmp_path / "agent.sock"
-    env = {"PATH": str(bin_dir), "SSH_AUTH_SOCK": str(sock), "OPENAI_API_KEY": "s3cret"}
-
-    with patch(
-        "sase.service.ssh_agent.subprocess.run",
-        return_value=SimpleNamespace(returncode=returncode),
-    ) as run:
-        warnings = readiness_warnings(env)
-
-    argv = run.call_args.args[0]
-    assert argv == [str(bin_dir / "ssh-add"), "-l"]
-    probe_kwargs = run.call_args.kwargs
-    assert probe_kwargs["env"]["SSH_AUTH_SOCK"] == str(sock)
-    assert "OPENAI_API_KEY" not in probe_kwargs["env"]
-    assert probe_kwargs["timeout"] == 2
-    assert len(warnings) == 1
-    assert expected in warnings[0]
-    assert str(sock) in warnings[0]
-    assert "s3cret" not in warnings[0]
+    assert readiness_warnings({"PATH": "/nowhere"}) == ()
 
 
-def test_readiness_warnings_stay_quiet_for_healthy_ssh_agent(
+def test_init_plan_reports_a_refused_capture_exactly_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    monkeypatch.setattr("sase.service.platform.platform.system", lambda: "Linux")
     _stub_non_ssh_readiness(monkeypatch)
-    bin_dir = _fake_ssh_add(tmp_path)
+    probed: list[dict[str, str]] = []
 
-    with patch(
-        "sase.service.ssh_agent.subprocess.run",
-        return_value=SimpleNamespace(returncode=0),
-    ):
-        warnings = readiness_warnings(
-            {"PATH": str(bin_dir), "SSH_AUTH_SOCK": str(tmp_path / "agent.sock")}
+    def denied(env: dict[str, str]) -> str:
+        probed.append(env)
+        return "denied"
+
+    monkeypatch.setattr("sase.service.ssh_agent.probe_git_remote_auth", denied)
+
+    with override_flags(service_host=True):
+        plan = service_init_plan(
+            runner=_Runner(),
+            environ={"PATH": "/bin"},
+            executable_resolver=lambda: str(_exe(tmp_path)),
         )
 
-    assert warnings == ()
-
-
-def test_readiness_warnings_skip_ssh_probe_when_ssh_add_is_unresolvable(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    _stub_non_ssh_readiness(monkeypatch)
-
-    with patch("sase.service.ssh_agent.subprocess.run") as run:
-        warnings = readiness_warnings(
-            {"PATH": str(tmp_path / "empty"), "SSH_AUTH_SOCK": "/tmp/agent.sock"}
-        )
-
-    run.assert_not_called()
-    assert warnings == ()
-
-
-@pytest.mark.parametrize(
-    "error",
-    [OSError("exec format error"), subprocess.TimeoutExpired("ssh-add", 2)],
-)
-def test_readiness_warnings_degrade_when_ssh_probe_raises(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    error: Exception,
-) -> None:
-    _stub_non_ssh_readiness(monkeypatch)
-    bin_dir = _fake_ssh_add(tmp_path)
-
-    with patch("sase.service.ssh_agent.subprocess.run", side_effect=error):
-        warnings = readiness_warnings(
-            {"PATH": str(bin_dir), "SSH_AUTH_SOCK": str(tmp_path / "agent.sock")}
-        )
-
-    assert len(warnings) == 1
-    assert warnings[0].startswith("SSH agent readiness could not be checked:")
+    refused = [w for w in plan.warnings if "refused by the git remote" in w]
+    assert len(refused) == 1
+    assert refused[0].startswith("captured service environment")
+    assert len(probed) == 1
+    assert plan.status == "needs_attention"
 
 
 def test_default_runner_refuses_under_pytest(

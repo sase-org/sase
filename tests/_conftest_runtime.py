@@ -83,6 +83,19 @@ def _isolate_runner_limit_override(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _isolate_git_remote_probe(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Keep the suite off the network: no test may run ``ssh -T git@github.com``.
+
+    Consumers resolve ``probe_git_remote_auth`` through its module at call time,
+    so this answers ``unknown`` (never a credential failure) for all of them. A
+    test of the probe itself imports the real function at module import time.
+    """
+    monkeypatch.setattr(
+        "sase.service.ssh_agent.probe_git_remote_auth", lambda _env: "unknown"
+    )
+
+
+@pytest.fixture(autouse=True)
 def _mock_system_clipboard(request: pytest.FixtureRequest):
     """Prevent tests from touching the real system clipboard / X11 display."""
     if request.node.get_closest_marker("real_clipboard"):

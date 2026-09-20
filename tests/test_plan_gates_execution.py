@@ -392,6 +392,170 @@ def test_commit_gate_archive_failure_leaves_gate_unanswered(gate_home: Path) -> 
     assert "archive boom" in errors[0].message
 
 
+def _git_remote_answers(monkeypatch: pytest.MonkeyPatch, answer: str) -> list[object]:
+    """Make the git remote answer ``answer``; return the environments it was asked about."""
+    asked: list[object] = []
+
+    def probe(env: object) -> str:
+        asked.append(env)
+        return answer
+
+    monkeypatch.setattr("sase.service.ssh_agent.probe_git_remote_auth", probe)
+    return asked
+
+
+def test_denied_git_credential_refuses_commit_before_acceptance(
+    gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "credential-denied.md", VALID_TALE_PLAN),
+            "credential-denied",
+        )
+    )
+    _git_remote_answers(monkeypatch, "denied")
+
+    with (
+        patch("sase.plan_approval_actions._archive_plan_for_approval") as archive,
+        pytest.raises(GateError) as exc_info,
+    ):
+        execute_gate_selection(gate.bundle_path, ["approve", "commit"])
+
+    assert exc_info.value.code == "git_credential_denied"
+    message = str(exc_info.value)
+    assert "Permission denied (publickey)" in message
+    assert "the gate remains pending" in message
+    assert "docs/init.md" in message
+    archive.assert_not_called()
+
+    # Refused before acceptance: no receipt, no response, no journal of a failed
+    # attempt, and the reviewer's notification is still there to answer.
+    from sase.notification_gates.decision import DECISION_RECEIPT_FILENAME
+
+    assert not (gate.bundle_path / DECISION_RECEIPT_FILENAME).exists()
+    assert not gate.response_path.exists()
+    assert [n.id for n in load_notifications()]
+
+    # Restoring the credential lets the very same gate be answered.
+    _git_remote_answers(monkeypatch, "ready")
+    with patch(
+        "sase.plan_approval_actions._archive_plan_for_approval",
+        return_value=str(gate_home / "saved.md"),
+    ) as archive:
+        execution = execute_gate_selection(gate.bundle_path, ["approve", "commit"])
+
+    archive.assert_called_once()
+    assert execution.response["selected_option_ids"] == ["approve", "commit"]
+
+
+@pytest.mark.parametrize("answer", ["ready", "unknown"])
+def test_git_credential_that_is_fine_or_unknowable_does_not_block_commit(
+    gate_home: Path, monkeypatch: pytest.MonkeyPatch, answer: str
+) -> None:
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, f"credential-{answer}.md", VALID_TALE_PLAN),
+            f"credential-{answer}",
+        )
+    )
+    asked = _git_remote_answers(monkeypatch, answer)
+
+    with patch(
+        "sase.plan_approval_actions._archive_plan_for_approval",
+        return_value=str(gate_home / f"saved-{answer}.md"),
+    ) as archive:
+        execution = execute_gate_selection(gate.bundle_path, ["commit"])
+
+    assert len(asked) == 1
+    archive.assert_called_once()
+    assert execution.response["selected_option_ids"] == ["commit"]
+
+
+@pytest.mark.parametrize("selected", [["approve"], ["reject"], ["feedback"]])
+def test_denied_git_credential_does_not_block_decisions_that_never_archive(
+    gate_home: Path, monkeypatch: pytest.MonkeyPatch, selected: list[str]
+) -> None:
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, f"no-archive-{selected[0]}.md", VALID_TALE_PLAN),
+            f"no-archive-{selected[0]}",
+        )
+    )
+    asked = _git_remote_answers(monkeypatch, "denied")
+
+    execution = execute_gate_selection(
+        gate.bundle_path,
+        selected,
+        {"feedback": "tighten it"} if selected == ["feedback"] else None,
+        feedback="tighten it" if selected == ["feedback"] else None,
+    )
+
+    assert asked == []
+    assert execution.response["selected_option_ids"] == selected
+
+
+def test_denied_git_credential_refuses_the_shared_plan_action_path(
+    gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "action-denied.md", VALID_TALE_PLAN),
+            "action-denied",
+        )
+    )
+    [notification] = load_notifications()
+    _git_remote_answers(monkeypatch, "denied")
+
+    with (
+        patch("sase.plan_approval_actions._archive_plan_for_approval") as archive,
+        pytest.raises(PlanApprovalActionError) as exc_info,
+    ):
+        execute_plan_approval_response(
+            plan_context_from_notification(notification), "commit"
+        )
+
+    assert exc_info.value.code == "git_credential_denied"
+    archive.assert_not_called()
+    assert [n.id for n in load_notifications()] == [notification.id]
+
+
+def test_git_credential_preflight_skips_a_published_response(
+    gate_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A resumed side-effects retry runs after archival; it needs no credential."""
+    gate = create_gate(
+        build_plan_approval_gate_spec(
+            write_plan(gate_home, "already-published.md", VALID_TALE_PLAN),
+            "already-published",
+        )
+    )
+    _git_remote_answers(monkeypatch, "ready")
+    with patch(
+        "sase.plan_approval_actions._archive_plan_for_approval",
+        return_value=str(gate_home / "saved-published.md"),
+    ):
+        execute_gate_selection(gate.bundle_path, ["commit"])
+    asked = _git_remote_answers(monkeypatch, "denied")
+
+    execution = execute_gate_selection(gate.bundle_path, ["commit"])
+
+    assert asked == []
+    assert execution.already_completed is True
+
+
+def test_epic_plan_approval_is_not_gated_on_the_git_credential(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.notification_gates.adapters import adapter_for_kind
+
+    asked = _git_remote_answers(monkeypatch, "denied")
+
+    adapter_for_kind("epic_plan").preflight_decision(selected_option_ids=["approve"])
+    adapter_for_kind("question").preflight_decision(selected_option_ids=["commit"])
+
+    assert asked == []
+
+
 @pytest.mark.parametrize(
     ("selected_option_ids", "expected_commit", "expected_run"),
     [

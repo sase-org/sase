@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Mapping
+import os
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -537,6 +538,33 @@ def apply_plan_post_terminal_side_effects(
 ) -> None:
     dismiss_notification_best_effort(notification.id)
     _mark_action_handled_best_effort(notification.id, source=source, action=choice)
+
+
+def preflight_plan_archive_credential(selected_option_ids: Sequence[str]) -> None:
+    """Refuse a host-archived plan approval whose git credential is rejected.
+
+    A tale approval that selects ``commit`` makes the host archive the plan over
+    an SSH remote. Discovering a rejected credential there fails the gate after
+    the decision was accepted; asking the remote first refuses the answer while
+    the gate is still pending. Only an explicit ``denied`` refuses: an offline
+    or otherwise unknowable remote (``unknown``) must not block an approval.
+    """
+    if "commit" not in selected_option_ids:
+        return
+    from sase.service.ssh_agent import probe_git_remote_auth
+
+    if probe_git_remote_auth(os.environ) != "denied":
+        return
+    raise PlanApprovalActionError(
+        "git_credential_denied",
+        "git_remote",
+        "the git remote rejected this host's SSH credential "
+        "(`Permission denied (publickey)`), so the approved plan cannot be "
+        "archived; the gate remains pending. Give the host an unattended "
+        "credential (a passphrase-less `IdentityFile` for `Host github.com`, or "
+        "a key loaded into the agent the service host inherits; see "
+        "docs/init.md), then answer again.",
+    )
 
 
 def _response_requires_host_plan_archive(

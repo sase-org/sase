@@ -75,6 +75,24 @@ class GateAdapter:
             )
         return _default_branch_selection(spec.primary_branch, by_id)
 
+    def preflight_decision(self, *, selected_option_ids: Sequence[str]) -> None:
+        """Refuse a decision the host already knows it cannot carry out.
+
+        Runs before the decision is accepted, so a refusal leaves the gate
+        pending instead of failing it after acceptance.
+        """
+        if self.kind != "plan":
+            return
+        from sase.plan_approval_actions import (
+            PlanApprovalActionError,
+            preflight_plan_archive_credential,
+        )
+
+        try:
+            preflight_plan_archive_credential(selected_option_ids)
+        except PlanApprovalActionError as exc:
+            raise GateError(exc.code, exc.target, str(exc)) from exc
+
     def apply_side_effects(
         self,
         *,

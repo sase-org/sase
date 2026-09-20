@@ -23,6 +23,7 @@ from tests._conftest_runtime import (
     _default_test_llm_cli,
     _freeze_model_alias_defaults,
     _isolate_default_llm_effort,
+    _isolate_git_remote_probe,
     _isolate_plugin_config,
     _isolate_runner_limit_override,
     _mock_system_clipboard,

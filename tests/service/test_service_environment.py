@@ -21,10 +21,18 @@ from sase.service.env import (
 )
 
 
-@pytest.fixture(autouse=True)
-def _ssh_agent_probe_reports_ready(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Keep capture hermetic: the real ``ssh-add`` must never run here."""
-    monkeypatch.setattr("sase.service.env.probe_ssh_agent", lambda _env: "ready")
+def _remote_answers(
+    monkeypatch: pytest.MonkeyPatch, answer: str
+) -> list[dict[str, str]]:
+    """Make the git remote answer ``answer``; return the environments it was asked about."""
+    asked: list[dict[str, str]] = []
+
+    def probe(env: dict[str, str]) -> str:
+        asked.append(dict(env))
+        return answer
+
+    monkeypatch.setattr("sase.service.ssh_agent.probe_git_remote_auth", probe)
+    return asked
 
 
 def test_service_environment_round_trips_non_shell_values(tmp_path) -> None:
@@ -151,6 +159,7 @@ def test_capture_service_environment_rejects_stale_ssh_agent_socket(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+    _remote_answers(monkeypatch, "denied")
     stale = tmp_path / "gone.sock"
 
     captured = capture_service_environment(
@@ -160,9 +169,10 @@ def test_capture_service_environment_rejects_stale_ssh_agent_socket(
 
     assert "SSH_AUTH_SOCK" not in captured.values
     assert "SSH_AGENT_PID" not in captured.values
-    assert len(captured.warnings) == 1
+    assert len(captured.warnings) == 2
     assert str(stale) in captured.warnings[0]
     assert "platform manager" in captured.warnings[0]
+    assert "refused by the git remote" in captured.warnings[1]
 
 
 def test_capture_service_environment_rejects_non_socket_ssh_agent_path(
@@ -170,6 +180,7 @@ def test_capture_service_environment_rejects_non_socket_ssh_agent_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+    _remote_answers(monkeypatch, "denied")
     regular_file = tmp_path / "agent.sock"
     regular_file.write_text("", encoding="utf-8")
 
@@ -182,63 +193,62 @@ def test_capture_service_environment_rejects_non_socket_ssh_agent_path(
     assert str(regular_file) in captured.warnings[0]
 
 
-@pytest.mark.parametrize(
-    ("state", "expected"),
-    [("empty", "holds no identities"), ("unreachable", "cannot be reached")],
-)
-def test_capture_service_environment_rejects_live_agent_that_cannot_authenticate(
+@pytest.mark.parametrize("answer", ["ready", "unknown"])
+def test_capture_service_environment_stays_quiet_about_a_stale_socket_that_is_harmless(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    state: str,
-    expected: str,
+    answer: str,
 ) -> None:
+    """A stale socket left in a tmux session must not warn a host that authenticates."""
     monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
-    monkeypatch.setattr("sase.service.env.probe_ssh_agent", lambda _env: state)
+    _remote_answers(monkeypatch, answer)
+
+    captured = capture_service_environment(
+        environ={"SSH_AUTH_SOCK": str(tmp_path / "gone.sock")},
+        metadata_payload={},
+    )
+
+    assert captured.values == {}
+    assert captured.warnings == ()
+
+
+@pytest.mark.parametrize("agent_state", ["empty", "unreachable"])
+def test_capture_service_environment_captures_a_live_agent_that_holds_nothing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    agent_state: str,
+) -> None:
+    """Agent contents do not decide readiness; ``IdentityFile`` can still work."""
+    monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+    monkeypatch.setattr(
+        "sase.service.ssh_agent._probe_ssh_agent", lambda _env: agent_state
+    )
+    _remote_answers(monkeypatch, "ready")
     with _live_socket(tmp_path / "agent.sock") as sock:
         captured = capture_service_environment(
             environ={"SSH_AUTH_SOCK": str(sock), "SSH_AGENT_PID": "4242"},
             metadata_payload={},
         )
 
-    assert "SSH_AUTH_SOCK" not in captured.values
-    assert "SSH_AGENT_PID" not in captured.values
-    assert len(captured.warnings) == 1
-    assert str(sock) in captured.warnings[0]
-    assert expected in captured.warnings[0]
-    # Capturing nothing means inheriting the platform manager's agent.
-    assert "platform manager" in captured.warnings[0]
+    assert captured.values == {"SSH_AUTH_SOCK": str(sock), "SSH_AGENT_PID": "4242"}
+    assert captured.warnings == ()
 
 
-def test_capture_warning_for_empty_agent_names_the_effective_failure(
+@pytest.mark.parametrize(
+    ("agent_state", "expected"),
+    [("empty", "holds no identities"), ("unreachable", "is unreachable")],
+)
+def test_capture_warning_for_a_refused_agent_still_captures_it_and_names_the_cause(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    agent_state: str,
+    expected: str,
 ) -> None:
     monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
-    monkeypatch.setattr("sase.service.env.probe_ssh_agent", lambda _env: "empty")
-    with _live_socket(tmp_path / "agent.sock") as sock:
-        captured = capture_service_environment(
-            environ={"SSH_AUTH_SOCK": str(sock)},
-            metadata_payload={},
-        )
-
-    assert "Permission denied (publickey)" in captured.warnings[0]
-    assert "may also be empty" in captured.warnings[0]
-
-
-@pytest.mark.parametrize("probe_result", ["missing", "raises"])
-def test_capture_service_environment_keeps_agent_when_probe_cannot_decide(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    probe_result: str,
-) -> None:
-    monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
-
-    def probe(_env: dict[str, str]) -> None:
-        if probe_result == "raises":
-            raise TimeoutError("ssh-add hung")
-        return None
-
-    monkeypatch.setattr("sase.service.env.probe_ssh_agent", probe)
+    monkeypatch.setattr(
+        "sase.service.ssh_agent._probe_ssh_agent", lambda _env: agent_state
+    )
+    _remote_answers(monkeypatch, "denied")
     with _live_socket(tmp_path / "agent.sock") as sock:
         captured = capture_service_environment(
             environ={"SSH_AUTH_SOCK": str(sock)},
@@ -246,13 +256,54 @@ def test_capture_service_environment_keeps_agent_when_probe_cannot_decide(
         )
 
     assert captured.values == {"SSH_AUTH_SOCK": str(sock)}
-    assert captured.warnings == ()
+    assert len(captured.warnings) == 1
+    assert str(sock) in captured.warnings[0]
+    assert expected in captured.warnings[0]
+    assert "Permission denied (publickey)" in captured.warnings[0]
 
 
-def test_capture_service_environment_warns_when_ssh_agent_absent(
+def test_capture_service_environment_asks_the_remote_about_what_it_captures(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+    asked = _remote_answers(monkeypatch, "ready")
+    with _live_socket(tmp_path / "agent.sock") as sock:
+        capture_service_environment(
+            environ={
+                "PATH": "/captured/bin",
+                "SSH_AUTH_SOCK": str(sock),
+                "OPENAI_API_KEY": "s3cret",
+            },
+            metadata_payload={},
+        )
+
+    assert asked == [{"PATH": "/captured/bin", "SSH_AUTH_SOCK": str(sock)}]
+
+
+@pytest.mark.parametrize("answer", ["ready", "unknown"])
+def test_capture_service_environment_with_no_agent_at_all_captures_cleanly(
+    monkeypatch: pytest.MonkeyPatch,
+    answer: str,
+) -> None:
+    """A host that authenticates by ``IdentityFile`` needs no agent and no warning."""
+    monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+    _remote_answers(monkeypatch, answer)
+
+    captured = capture_service_environment(
+        environ={"PATH": os.defpath},
+        metadata_payload={},
+    )
+
+    assert captured.values == {"PATH": os.defpath}
+    assert captured.warnings == ()
+
+
+def test_capture_service_environment_warns_when_no_agent_and_remote_refuses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+    _remote_answers(monkeypatch, "denied")
 
     captured = capture_service_environment(
         environ={"PATH": os.defpath},
@@ -263,12 +314,14 @@ def test_capture_service_environment_warns_when_ssh_agent_absent(
     assert len(captured.warnings) == 1
     assert "no SSH agent" in captured.warnings[0]
     assert "Permission denied (publickey)" in captured.warnings[0]
+    assert "docs/init.md" in captured.warnings[0]
 
 
 def test_capture_service_environment_ignores_agent_pid_without_usable_socket(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+    _remote_answers(monkeypatch, "denied")
 
     captured = capture_service_environment(
         environ={"SSH_AGENT_PID": "4242"},

@@ -15,7 +15,7 @@ from typing import Any
 from sase.core.paths import sase_home as _sase_home
 from sase.llm_provider import registry as llm_registry
 from sase.service.paths import service_env_path
-from sase.service.ssh_agent import probe_ssh_agent
+from sase.service.ssh_agent import ssh_agent_readiness_warnings
 
 _ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _REDACTED = "[captured]"
@@ -222,56 +222,41 @@ def _mobile_gateway_credential_env() -> str | None:
 def _capture_ssh_agent(
     environment: Mapping[str, str],
 ) -> tuple[dict[str, str], tuple[str, ...]]:
-    """Capture the SSH agent handle only when it names a usable agent.
+    """Capture the SSH agent handle when it names a live socket.
 
     A stale socket path is worse than none: the service host loads captured
     values over its inherited environment, so a dead path would replace a
-    possibly-working agent with a guaranteed-dead one. An agent that is
-    reachable but holds no identities is just as unusable, and capturing
-    nothing does not mean "no agent": the host then inherits whichever agent
-    the platform manager provides, which may itself be empty.
+    possibly-working agent with a guaranteed-dead one. What the agent holds is
+    not the question, because a host can authenticate by ``IdentityFile`` with
+    an empty agent or none at all. Whether the captured environment can
+    authenticate is asked of the git remote itself, and only a refusal warns.
     """
+    values: dict[str, str] = {}
     sock = environment.get(_SSH_AUTH_SOCK_ENV)
-    if not sock:
-        return {}, (
-            f"{_SSH_AUTH_SOCK_ENV} is not set in the environment being captured; "
-            "the service host will have no SSH agent and git operations against "
-            "SSH remotes will fail with `Permission denied (publickey)`",
-        )
-    try:
-        live = Path(sock).is_socket()
-    except OSError:
-        live = False
-    if not live:
-        return {}, (
-            f"{_SSH_AUTH_SOCK_ENV} points at {sock}, which is not a live socket; "
-            "not captured, so the service host will fall back to whatever agent "
-            "the platform manager provides",
-        )
-    try:
-        state = probe_ssh_agent(environment)
-    except Exception:
-        # Advisory only: an unrunnable probe must not stop the capture.
-        state = None
-    if state == "empty":
-        return {}, (
-            f"{_SSH_AUTH_SOCK_ENV} points at {sock}, an agent that holds no "
-            "identities; not captured, so the service host will use whichever "
-            "agent the platform manager provides, which may also be empty and "
-            "would leave git operations against SSH remotes failing with "
-            "`Permission denied (publickey)`; load a key with `ssh-add` first",
-        )
-    if state == "unreachable":
-        return {}, (
-            f"{_SSH_AUTH_SOCK_ENV} points at {sock}, an agent that cannot be "
-            "reached; not captured, so the service host will use whichever "
-            "agent the platform manager provides",
-        )
-    values = {_SSH_AUTH_SOCK_ENV: str(sock)}
-    # Systemd- and keyring-provided agents have no PID; that is not a problem.
-    if agent_pid := environment.get(_SSH_AGENT_PID_ENV):
-        values[_SSH_AGENT_PID_ENV] = str(agent_pid)
-    return values, ()
+    stale: str | None = None
+    if sock:
+        try:
+            live = Path(sock).is_socket()
+        except OSError:
+            live = False
+        if live:
+            values[_SSH_AUTH_SOCK_ENV] = str(sock)
+            # Systemd- and keyring-provided agents have no PID; that is fine.
+            if agent_pid := environment.get(_SSH_AGENT_PID_ENV):
+                values[_SSH_AGENT_PID_ENV] = str(agent_pid)
+        else:
+            stale = (
+                f"{_SSH_AUTH_SOCK_ENV} points at {sock}, which is not a live "
+                "socket; not captured, so the service host will fall back to "
+                "whatever agent the platform manager provides"
+            )
+    probe_env = dict(values)
+    if path := environment.get("PATH"):
+        probe_env["PATH"] = path
+    warnings = ssh_agent_readiness_warnings(probe_env)
+    if warnings and stale is not None:
+        warnings = [stale, *warnings]
+    return values, tuple(warnings)
 
 
 def _validate_env_name(name: str) -> None:
