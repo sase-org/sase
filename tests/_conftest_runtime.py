@@ -160,6 +160,16 @@ def _clear_notification_tab_style_caches_if_loaded() -> None:
     _clear_function_cache(getattr(module, "_indicator_max_counts_for_token", None))
 
 
+def _clear_notification_delivery_caches_if_loaded() -> None:
+    """Clear the token-cached delivery rules without importing them early."""
+    import sys
+
+    module = sys.modules.get("sase.notifications.delivery")
+    if module is None:
+        return
+    _clear_function_cache(getattr(module, "_delivery_rules_for_token", None))
+
+
 def _clear_notification_snapshot_cache_if_loaded() -> None:
     """Drop memoized notification snapshots without importing the facade early."""
     import sys
@@ -238,6 +248,7 @@ def _reset_derived_config_caches() -> None:
     reset_process_feature_flags()
     _stop_orphaned_proc_observers_if_loaded()
     _clear_notification_tab_style_caches_if_loaded()
+    _clear_notification_delivery_caches_if_loaded()
     _clear_notification_snapshot_cache_if_loaded()
     _drain_config_token_refresh()
     config_core.clear_config_cache()

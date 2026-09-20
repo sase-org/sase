@@ -43,6 +43,29 @@ class NotificationTabClassificationWire:
 
 
 @dataclass(frozen=True)
+class NotificationSoundWire:
+    """How an arrival is announced: ``bell``, ``none``, or a ``file`` at ``path``."""
+
+    kind: str
+    path: str | None = None
+
+
+@dataclass(frozen=True)
+class NotificationDeliveryWire:
+    """The resolved delivery of one notification, plus the rules that decided it.
+
+    ``toast_rule`` and ``sound_rule`` name the deciding rule (its ``name``, else
+    ``rule[<index>]``) and are ``None`` when the built-in default applied.
+    """
+
+    schema_version: int
+    toast: bool
+    sound: NotificationSoundWire
+    toast_rule: str | None = None
+    sound_rule: str | None = None
+
+
+@dataclass(frozen=True)
 class _NotificationStoreStatsWire:
     total_lines: int = 0
     blank_lines: int = 0
@@ -253,6 +276,43 @@ def notification_tab_classification_from_dict(
     )
 
 
+_NOTIFICATION_SOUND_KINDS = frozenset({"bell", "none", "file"})
+
+
+def _notification_sound_from_dict(data: dict[str, Any]) -> NotificationSoundWire:
+    kind = str(data["kind"])
+    if kind not in _NOTIFICATION_SOUND_KINDS:
+        raise ValueError(f"unknown notification sound kind: {kind!r}")
+    path = data.get("path")
+    return NotificationSoundWire(kind=kind, path=None if path is None else str(path))
+
+
+def notification_deliveries_from_list(
+    data: list[dict[str, Any]],
+) -> list[NotificationDeliveryWire]:
+    """Rehydrate the per-notification deliveries returned by Rust, in input order."""
+    deliveries: list[NotificationDeliveryWire] = []
+    for item in data:
+        schema = int(item["schema_version"])
+        if schema != NOTIFICATION_STORE_WIRE_SCHEMA_VERSION:
+            raise ValueError(
+                f"notification store wire schema mismatch: got {schema}, "
+                f"expected {NOTIFICATION_STORE_WIRE_SCHEMA_VERSION}"
+            )
+        toast_rule = item.get("toast_rule")
+        sound_rule = item.get("sound_rule")
+        deliveries.append(
+            NotificationDeliveryWire(
+                schema_version=schema,
+                toast=bool(item["toast"]),
+                sound=_notification_sound_from_dict(item["sound"]),
+                toast_rule=None if toast_rule is None else str(toast_rule),
+                sound_rule=None if sound_rule is None else str(sound_rule),
+            )
+        )
+    return deliveries
+
+
 def notification_snapshot_from_dict(
     data: dict[str, Any],
 ) -> NotificationStoreSnapshotWire:
@@ -368,8 +428,10 @@ def notification_upsert_outcome_from_dict(
 __all__ = [
     "NOTIFICATION_STORE_WIRE_SCHEMA_VERSION",
     "NotificationAgentKeyWire",
+    "NotificationDeliveryWire",
     "NotificationPlusOneOutcomeWire",
     "NotificationPlusOneRequestWire",
+    "NotificationSoundWire",
     "NotificationStateUpdateWire",
     "NotificationStoreSnapshotWire",
     "_NotificationStoreStatsWire",
@@ -378,6 +440,7 @@ __all__ = [
     "NotificationUpdateOutcomeWire",
     "NotificationUpsertOutcomeWire",
     "NotificationUpsertRequestWire",
+    "notification_deliveries_from_list",
     "notification_plus_one_outcome_from_dict",
     "notification_snapshot_from_dict",
     "notification_tab_classification_from_dict",

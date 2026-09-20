@@ -1788,6 +1788,131 @@
           "minimum": 1,
           "default": 4
         },
+        "notification_rules": {
+          "type": "array",
+          "description": "Ordered client-side notification delivery rules deciding, per notification, whether a TUI toast is shown and how the arrival is announced. Rules are consulted in descending priority, then list order; for toast and sound separately, the first matching rule that sets that field decides it, and a field no matching rule sets keeps the built-in default (toast shown, terminal bell). A rule changes announcement only, never whether a notification is stored, read, counted, or listed.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Label for this rule in sase notify rules, doctor output, and diagnostics"
+              },
+              "description": {
+                "type": "string",
+                "description": "Free prose explaining why this rule exists; never consulted when matching"
+              },
+              "priority": {
+                "type": "integer",
+                "description": "Evaluation weight; higher is consulted earlier, and equal priorities keep their merged-list order",
+                "minimum": -1000,
+                "maximum": 1000,
+                "default": 0
+              },
+              "match": {
+                "type": "object",
+                "description": "Criteria a notification must all satisfy; each is a case-insensitive glob (*, ?, [...]) or a list of globs where any one may match. Omitted or empty matches every notification.",
+                "additionalProperties": false,
+                "properties": {
+                  "tab": {
+                  "description": "The owning notification-panel tab key, such as \"beads\", \"errors\", \"general\", or a tag; \"gates\" is an alias for the Gates tab's \"hitl\" key",
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                },
+                  "sender": {
+                  "description": "The notification sender",
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                },
+                  "action": {
+                  "description": "The notification action, or an empty string for a notification with no action",
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                },
+                  "tags": {
+                  "description": "Any one of the notification tags",
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                },
+                  "title": {
+                  "description": "The notification headline, which is its first note",
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                },
+                  "note": {
+                  "description": "Any one line of the notification notes",
+                  "oneOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  ]
+                }
+                }
+              },
+              "toast": {
+                "type": "boolean",
+                "description": "Whether a TUI toast is shown for a matching notification; the notification itself is unaffected. Omit to leave the decision to later rules."
+              },
+              "sound": {
+                "type": "string",
+                "description": "How a matching arrival is announced: \"bell\" for the terminal bell, \"none\" for silence, or the path of a sound file (\"~\" and $VARs expanded; address a file literally named bell or none as ./bell). Omit to leave the decision to later rules."
+              }
+            }
+          },
+          "default": []
+        },
         "tool_calls": {
           "type": "object",
           "description": "Tool-call presentation settings for sase's TUI",

@@ -373,6 +373,19 @@ ace:
   # Maximum per-tab counts rendered in the top-bar indicator before the
   # remainder collapses into a single dim "+N" chip.
   notification_indicator_max_counts: 4
+  # Ordered client-side delivery rules: which arriving notifications show a TUI
+  # toast, and how each announces itself. A rule may set a name, a description,
+  # a priority, a match block, a toast boolean, and a sound. The match block
+  # takes tab (a notification-panel tab key such as "beads", "errors", or
+  # "gates"), sender, action, tags, title, and note criteria; each is a
+  # case-insensitive glob or a list of them (any-of), and all criteria must
+  # hold. An omitted match applies to every notification. Rules are consulted in
+  # descending priority, then list order, and for toast and sound separately the
+  # first matching rule that sets that field decides it; a field no rule sets
+  # keeps the built-in default (toast shown, terminal bell). A sound is "bell",
+  # "none", or the path of a sound file. A rule changes announcement only: the
+  # notification is still stored, unread, counted, and listed in its panel tab.
+  notification_rules: []
   tool_calls:
     slow_threshold_seconds: 20
   artifact_file_viewer:

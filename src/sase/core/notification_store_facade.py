@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import threading
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from sase.core.notification_store_wire import (
+    NotificationDeliveryWire,
     NotificationPlusOneOutcomeWire,
     NotificationPlusOneRequestWire,
     NotificationStateUpdateWire,
@@ -17,6 +19,7 @@ from sase.core.notification_store_wire import (
     NotificationUpdateOutcomeWire,
     NotificationUpsertOutcomeWire,
     NotificationUpsertRequestWire,
+    notification_deliveries_from_list,
     notification_plus_one_outcome_from_dict,
     notification_snapshot_from_dict,
     notification_store_wire_to_json_dict,
@@ -134,6 +137,30 @@ def classify_notification_tabs(
         notification_store_wire_to_json_dict(list(notifications))
     )
     return notification_tab_classification_from_dict(payload)
+
+
+def resolve_notification_deliveries(
+    rules: Sequence[dict[str, Any]],
+    notifications: Sequence[Notification],
+) -> list[NotificationDeliveryWire]:
+    """Resolve how each notification is delivered against ``rules``.
+
+    One call resolves the whole batch, in input order, so a poll tick pays one
+    FFI hop however many rows arrive. ``rules`` are ``ace.notification_rules``
+    entries already reduced to the core's wire shape; an entry the core rejects
+    (for example an unknown key) raises ``ValueError``.
+    """
+    binding = require_rust_binding("resolve_notification_deliveries")
+    payload: list[dict[str, Any]] = binding(
+        list(rules), notification_store_wire_to_json_dict(list(notifications))
+    )
+    deliveries = notification_deliveries_from_list(payload)
+    if len(deliveries) != len(notifications):
+        raise ValueError(
+            f"resolved {len(deliveries)} notification deliveries "
+            f"for {len(notifications)} notifications"
+        )
+    return deliveries
 
 
 def apply_notification_state_update(
@@ -350,6 +377,7 @@ def _jsonl_row_count(path: Path) -> int:
 
 
 __all__ = [
+    "NotificationDeliveryWire",
     "NotificationStateUpdateWire",
     "NotificationStoreSnapshotWire",
     "NotificationTabClassificationWire",
@@ -364,6 +392,7 @@ __all__ = [
     "invalidate_notification_snapshot_cache",
     "read_current_notifications_snapshot",
     "read_notifications_snapshot",
+    "resolve_notification_deliveries",
     "rewrite_notifications",
     "rewrite_notifications_counts",
     "upsert_notification",
