@@ -5,12 +5,12 @@ idle tab, which is how two soaks called the ``@epic`` flicker fixed while no row
 ever moved. These tests instead replay real arrivals through the apply boundary
 and assert over the paint frames of ``actions/agents/_paint_log.py``.
 
-Invariants the current tree violates land as
-``xfail(strict=True, reason="sase-13i @epic panel flicker: ...")``: the suite
-stays green, and the moment a fix lands the strict xfail turns red and forces
-the marker's removal. A marker still standing when the epic ends is a finding
-for the land agent to triage, not a marker to delete. See
-``_epic_arrival_frames.py`` for the scenario and the invariant checkers.
+Every invariant is a plain assertion. They first landed as
+``xfail(strict=True)`` markers on the invariants the tree then violated (the
+collapsed panel's grouping mode, the repaint of an unchanged apply, the column
+resize one pump cycle after the rows); the fixes removed the markers rather than
+relaxing any invariant. See ``_epic_arrival_frames.py`` for the scenario and the
+invariant checkers.
 """
 
 from __future__ import annotations
@@ -22,15 +22,27 @@ import pytest
 
 from tests.ace.tui import _epic_arrival_frames as frames
 
-_GAIN_ARRIVALS = ("clan_member", "second_clan", "starting_rendered_wide")
+_GAIN_ARRIVALS = (
+    "plain_member",
+    "clan_member",
+    "second_clan",
+    "starting_narrow_rendered",
+    "starting_rendered_wide",
+)
 
-_FLICKER = "sase-13i @epic panel flicker: "
-
-
-def _strict_xfail(reason: str) -> pytest.MarkDecorator:
-    return pytest.mark.xfail(
-        strict=True, raises=AssertionError, reason=_FLICKER + reason
-    )
+#: The costliest display cost each arrival's refreshes record, and the
+#: fallback reason that sent it there (``None`` when nothing fell back).
+#: ``None`` cost: nothing rendered changed, so no display work is recorded.
+_ARRIVAL_COSTS: dict[str, tuple[str | None, str | None]] = {
+    "noop": (None, None),
+    "plain_member": ("display_row_insert", None),
+    "clan_member": ("row_patch", None),  # the container row absorbs the member
+    "second_clan": ("display_panel_rebuild", "workflow_tree_change"),
+    "starting_narrow": (None, None),  # STARTING has no row yet
+    "starting_narrow_rendered": ("display_row_insert", None),
+    "starting": (None, None),
+    "starting_rendered_wide": ("display_panel_rebuild", "width_growth"),
+}
 
 
 _RECORDED: frames.ArrivalRun | None = None
@@ -87,10 +99,13 @@ def test_each_arrival_reaches_the_epic_panel_through_a_refresh(
 
     assert epic_rows == {
         "noop": 16,
-        "clan_member": 16,  # the clan container row absorbs its new member
-        "second_clan": 17,  # a second container row
-        "starting": 17,  # STARTING is not rendered
-        "starting_rendered_wide": 18,
+        "plain_member": 17,
+        "clan_member": 17,  # the clan container row absorbs its new member
+        "second_clan": 18,  # a second container row
+        "starting_narrow": 18,  # STARTING is not rendered
+        "starting_narrow_rendered": 19,
+        "starting": 19,
+        "starting_rendered_wide": 20,
     }
     for label in frames.ARRIVALS:
         refreshes = [
@@ -99,13 +114,29 @@ def test_each_arrival_reaches_the_epic_panel_through_a_refresh(
             if frame.kind in ("full_rebuild", "incremental")
         ]
         assert refreshes, f"{label}: no completed refresh was observed"
-        assert all(frame.display_cost for frame in refreshes)
     # Only a completed refresh owns display costs; width and settle frames do not.
     assert all(
         frame.display_cost is None and frame.fallback_reason is None
         for frame in run.frames
         if frame.kind in ("container_width", "settled")
     )
+
+
+@pytest.mark.parametrize("label", frames.ARRIVALS)
+def test_each_arrival_records_the_display_path_it_took(
+    run: frames.ArrivalRun, label: str
+) -> None:
+    refreshes = [
+        frame
+        for frame in run.window_frames(label)
+        if frame.kind in ("full_rebuild", "incremental")
+    ]
+    costs = [frame.display_cost for frame in refreshes if frame.display_cost]
+    fallbacks = [frame.fallback_reason for frame in refreshes if frame.fallback_reason]
+
+    expected_cost, expected_fallback = _ARRIVAL_COSTS[label]
+    assert (costs[0] if costs else None) == expected_cost
+    assert (fallbacks[0] if fallbacks else None) == expected_fallback
 
 
 def test_wide_arrival_is_the_width_negotiation_trigger(
@@ -172,54 +203,79 @@ def test_no_panel_paints_collapsed_against_the_apps_decision(
     assert frames.collapse_intent_violations(run.frames) == []
 
 
-# --- invariants the current tree violates -------------------------------------
+# --- invariants the tree used to violate --------------------------------------
 
 
-@pytest.mark.parametrize(
-    "label",
-    [
-        "clan_member",
-        "second_clan",
-        pytest.param(
-            "starting_rendered_wide",
-            marks=_strict_xfail(
-                "the wide row paints in the refresh frame and the column resizes "
-                "a pump cycle later (AgentList.WidthChanged)"
-            ),
-        ),
-    ],
-)
+@pytest.mark.parametrize("label", _GAIN_ARRIVALS)
 def test_an_arrival_is_one_visual_transition(
     run: frames.ArrivalRun, label: str
 ) -> None:
     assert frames.visual_transition_violations(_gain_frames(run, label)) == []
 
 
-@pytest.mark.parametrize(
-    "label",
-    [
-        pytest.param(
-            "noop",
-            marks=_strict_xfail(
-                "an apply that changes nothing still repaints the collapsed panel"
-            ),
-        ),
-        pytest.param(
-            "starting",
-            marks=_strict_xfail(
-                "an unrendered STARTING arrival still repaints the collapsed panel"
-            ),
-        ),
-    ],
-)
+@pytest.mark.parametrize("label", ["noop", "starting_narrow", "starting"])
 def test_an_apply_that_changes_no_rendered_row_repaints_nothing(
     run: frames.ArrivalRun, label: str
 ) -> None:
     assert frames.unchanged_apply_violations(run, label) == []
 
 
-@_strict_xfail("the collapsed panel keeps the default grouping mode")
 def test_no_panel_reports_a_grouping_mode_other_than_the_apps(
     run: frames.ArrivalRun,
 ) -> None:
     assert frames.grouping_mode_violations(run.frames) == []
+
+
+# --- an ordinary node joins in place ------------------------------------------
+
+
+@pytest.mark.parametrize("label", frames.PLAIN_ARRIVALS)
+def test_an_ordinary_arrival_inserts_its_row_without_repainting_any_panel(
+    run: frames.ArrivalRun, label: str
+) -> None:
+    before = run.frames[run.windows[label].start - 1]
+    after = run.frames[run.windows[label].end - 1]
+    epic_before = next(p for p in before.panels if p.widget_id == frames.EPIC_WIDGET_ID)
+    epic_after = next(p for p in after.panels if p.widget_id == frames.EPIC_WIDGET_ID)
+
+    assert run.calls_in(label) == []  # no update_list / render_collapsed anywhere
+    assert epic_after.option_count == epic_before.option_count + 1
+    assert epic_after.object_id == epic_before.object_id
+    # The selection was parked below the fold and stays on its own row.
+    assert epic_after.highlighted_identity == after.selected_identity
+    assert epic_after.highlighted == epic_before.highlighted + 1
+    # The narrow row does not move the column or any other panel's rows.
+    assert after.container_width == before.container_width
+    assert epic_after.requested_width == epic_before.requested_width
+    other_rows = {
+        p.widget_id: p.option_count
+        for p in after.panels
+        if p.widget_id != frames.EPIC_WIDGET_ID
+    }
+    assert other_rows == {
+        p.widget_id: p.option_count
+        for p in before.panels
+        if p.widget_id != frames.EPIC_WIDGET_ID
+    }
+
+
+def test_the_wide_arrival_resizes_the_column_in_the_frame_that_paints_its_row(
+    run: frames.ArrivalRun,
+) -> None:
+    window = run.windows["starting_rendered_wide"]
+    before = run.frames[window.start - 1]
+    refresh = next(
+        frame
+        for frame in run.window_frames("starting_rendered_wide")
+        if frame.display_cost == "display_panel_rebuild"
+    )
+    epic = next(p for p in refresh.panels if p.widget_id == frames.EPIC_WIDGET_ID)
+
+    assert epic.requested_width > max(p.requested_width for p in before.panels)
+    assert refresh.container_width > before.container_width
+    # No later width-only frame: the negotiated width was already final.
+    assert not [
+        frame
+        for frame in run.window_frames("starting_rendered_wide")
+        if frame.kind == "container_width"
+    ]

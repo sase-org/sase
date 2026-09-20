@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from ..navigation.jump_hints import BannerJumpTarget, PanelJumpTarget
 
 from ...models.agent_groups import GroupingMode, status_grouping_signature
+from ...models.agent_panels import agent_is_rendered_in_agents_panel
 from ...util.debounce import DetailPanelDebouncer
 from ...util.trace import tui_trace
 from ._display_diff import (
@@ -335,9 +336,15 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         previous_by_id = {agent.identity: agent for agent in previous_agents}
         next_by_id = {agent.identity: agent for agent in self._agents}
         for identity in previous_by_id.keys() & next_by_id.keys():
-            if status_grouping_signature(
-                previous_by_id[identity]
-            ) != status_grouping_signature(next_by_id[identity]):
+            previous = previous_by_id[identity]
+            # A row that had no Agents-tab row yet (a STARTING agent that just
+            # became rendered) has nothing on screen to move: it is an arrival,
+            # and the banner-key comparison below catches a new bucket.
+            if not agent_is_rendered_in_agents_panel(previous):
+                continue
+            if status_grouping_signature(previous) != status_grouping_signature(
+                next_by_id[identity]
+            ):
                 return True
 
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
@@ -485,16 +492,23 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
                 return False
 
         if panel_rebuild_keys:
-            if not self._refresh_affected_panel_widgets(panel_rebuild_keys):
+            # A panel whose rows only gained plain nodes takes an in-place row
+            # insert; the rest are rebuilt.
+            inserted_keys: set[Any] = set()
+            if not self._refresh_affected_panel_widgets(
+                panel_rebuild_keys, inserted_keys=inserted_keys
+            ):
                 self._record_display_full_rebuild_fallback(
                     "panel_membership_change",
                     count=len(panel_rebuild_keys),
                 )
                 return False
-            self._record_display_patch_trace(
-                display_cost="display_panel_rebuild",
-                count=len(panel_rebuild_keys),
-            )
+            rebuilt_keys = panel_rebuild_keys - inserted_keys
+            if rebuilt_keys:
+                self._record_display_patch_trace(
+                    display_cost="display_panel_rebuild",
+                    count=len(rebuilt_keys),
+                )
 
         self._reapply_panel_heights()
         self._refresh_panel_highlights()

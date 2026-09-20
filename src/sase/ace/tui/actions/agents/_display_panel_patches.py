@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, cast
 
 from sase.core.time import local_now
 
@@ -16,6 +16,7 @@ from ...models.agent_groups import (
 from ._display_helpers import TabName, panel_widget_id_for_key
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
 from ._refresh_trace import (
+    ALL_AGENT_REFRESH_FALLBACK_REASONS,
     AgentRefreshDisplayCost,
     AgentRefreshFallbackReason,
     record_agents_refresh_trace,
@@ -26,6 +27,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
     from ...models.agent_panels import AgentPanelGroup
+    from ...widgets import AgentList
 
 
 def _status_row_patch_is_safe(old_agent: Agent, new_agent: Agent) -> bool:
@@ -81,7 +83,7 @@ def _by_status_remove_preserves_group_tree(
 
 
 class PanelPatchMixin:
-    """Fast paths for in-place row removal and single-row refreshes."""
+    """Fast paths for in-place row insert/removal and single-row refreshes."""
 
     current_idx: int
     current_attempt_number: int | None
@@ -108,6 +110,41 @@ class PanelPatchMixin:
             fallback_reason=fallback_reason,
             count=count,
         )
+
+    def _try_insert_panel_rows(
+        self,
+        widget: AgentList,
+        panel_agents: list[Agent],
+        local_idx: int,
+        **update_kwargs: Any,
+    ) -> bool:
+        """Insert a panel's newly arrived rows in place instead of rebuilding it.
+
+        *update_kwargs* are the arguments the caller would pass to
+        ``widget.update_list``. Returns ``True`` when every new row landed and
+        the existing rows were left untouched; ``False`` sends the caller to
+        that rebuild. A refusal that names a gate is recorded as the fallback
+        reason, so an arrival that still rebuilds its panel stays observable.
+        """
+        rows_before = len(widget._agents)
+        if widget.try_insert_rows(panel_agents, local_idx, **update_kwargs):
+            self._record_display_patch_trace(
+                display_cost="display_row_insert",
+                count=len(widget._agents) - rows_before,
+            )
+            return True
+        reason = widget._insert_decline_reason
+        if reason is not None:
+            self._record_display_patch_trace(
+                display_cost="display_row_insert",
+                fallback_reason=(
+                    cast(AgentRefreshFallbackReason, reason)
+                    if reason in ALL_AGENT_REFRESH_FALLBACK_REASONS
+                    else "panel_membership_change"
+                ),
+                count=len(panel_agents) - rows_before,
+            )
+        return False
 
     def _try_remove_agent_rows(
         self,

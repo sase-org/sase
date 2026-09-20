@@ -8,7 +8,7 @@ from rich.text import Text
 from textual.binding import Binding
 from textual.message import Message
 from textual.widgets import OptionList
-from textual.widgets.option_list import Option
+from textual.widgets.option_list import DuplicateID, Option
 
 from ..agent_completion import WaitDependencyStatusCounts
 from ..models.agent import Agent, AgentType, AttemptRecord
@@ -23,6 +23,7 @@ from ._agent_list_build import (
     compute_tier_styles,
     patch_row,
     resolve_row,
+    try_insert_rows,
     try_remove_rows,
 )
 from ._agent_list_helpers import compute_fold_annotation
@@ -123,6 +124,14 @@ class AgentList(OptionList, inherit_bindings=False):
         # at full-rebuild time.
         self._row_render_ctx: dict[int, dict[str, Any]] = {}
         self._target_width: int = 0
+        # Widest ``left`` and ``suffix`` column of the emitted agent rows.
+        # ``_target_width`` is derived from them, so a row inserted in place
+        # only keeps every existing row's alignment when it fits under both.
+        self._max_left: int = 0
+        self._max_suffix: int = 0
+        # Why the last ``try_insert_rows`` declined (``None`` when it did not
+        # apply); the display layer reports it as the fallback reason.
+        self._insert_decline_reason: str | None = None
         self._content_requested_width: int = 0
         self._requested_width: int = 0
         self._panel_collapsed: bool = False
@@ -208,31 +217,9 @@ class AgentList(OptionList, inherit_bindings=False):
         # output (prior-attempt child rows aren't rendered).
         del current_attempt_number
         self._panel_paint_key = None
-        from ..models.agent_panels import agent_is_rendered_in_agents_panel
-
-        display_pairs = [
-            (idx, agent)
-            for idx, agent in enumerate(agents)
-            if agent_is_rendered_in_agents_panel(agent)
-        ]
-        if len(display_pairs) != len(agents):
-            local_index_map = {
-                source_idx: display_idx
-                for display_idx, (source_idx, _agent) in enumerate(display_pairs)
-            }
-            agents = [agent for _source_idx, agent in display_pairs]
-            current_idx = local_index_map.get(current_idx, -1)
-            if jump_hints:
-                jump_hints = {
-                    local_index_map[source_idx]: hint
-                    for source_idx, hint in jump_hints.items()
-                    if source_idx in local_index_map
-                }
-            if tribe_labels is not None:
-                tribe_labels = [
-                    tribe_labels[source_idx] if source_idx < len(tribe_labels) else None
-                    for source_idx, _agent in display_pairs
-                ]
+        agents, current_idx, jump_hints, tribe_labels = self._rendered_rows(
+            agents, current_idx, jump_hints, tribe_labels
+        )
         with tui_trace("widget.agent_list.update_list", count=len(agents)):
             build_list(
                 self,
@@ -253,6 +240,123 @@ class AgentList(OptionList, inherit_bindings=False):
                 fully_expanded_parents=fully_expanded_parents,
                 now=now,
             )
+
+    @staticmethod
+    def _rendered_rows(
+        agents: list[Agent],
+        current_idx: int,
+        jump_hints: dict[int, str] | None,
+        tribe_labels: list[str | None] | None,
+    ) -> tuple[list[Agent], int, dict[int, str] | None, list[str | None] | None]:
+        """Drop agents without an Agents-tab row and re-index the parallel inputs."""
+        from ..models.agent_panels import agent_is_rendered_in_agents_panel
+
+        display_pairs = [
+            (idx, agent)
+            for idx, agent in enumerate(agents)
+            if agent_is_rendered_in_agents_panel(agent)
+        ]
+        if len(display_pairs) == len(agents):
+            return agents, current_idx, jump_hints, tribe_labels
+        local_index_map = {
+            source_idx: display_idx
+            for display_idx, (source_idx, _agent) in enumerate(display_pairs)
+        }
+        if jump_hints:
+            jump_hints = {
+                local_index_map[source_idx]: hint
+                for source_idx, hint in jump_hints.items()
+                if source_idx in local_index_map
+            }
+        if tribe_labels is not None:
+            tribe_labels = [
+                tribe_labels[source_idx] if source_idx < len(tribe_labels) else None
+                for source_idx, _agent in display_pairs
+            ]
+        return (
+            [agent for _source_idx, agent in display_pairs],
+            local_index_map.get(current_idx, -1),
+            jump_hints,
+            tribe_labels,
+        )
+
+    def try_insert_rows(
+        self,
+        agents: list[Agent],
+        current_idx: int,
+        fold_counts: dict[str, tuple[int, int]] | None = None,
+        marked_agents: set[tuple[AgentType, str, str | None]] | None = None,
+        unread_agents: set[tuple[AgentType, str, str | None]] | None = None,
+        fold_restore_marked_keys: Collection[str] | None = None,
+        jump_hints: dict[int, str] | None = None,
+        banner_jump_hints: dict[tuple[str, ...], str] | None = None,
+        current_attempt_number: int | None = None,
+        fold_registry: GroupFoldView | None = None,
+        current_group_key: tuple[str, ...] | None = None,
+        grouping_mode: GroupingMode = GroupingMode.STANDARD,
+        tribe_labels: list[str | None] | None = None,
+        panel_tribe: str | None = None,
+        parents_with_visible_children: set[str] | None = None,
+        fully_expanded_parents: set[str] | None = None,
+        now: datetime | None = None,
+    ) -> bool:
+        """Insert newly arrived rows in place instead of rebuilding the list.
+
+        Takes the same arguments as :meth:`update_list` with ``agents`` being
+        the panel's full new list. Returns ``True`` when every new row landed
+        and the existing rows were left untouched; ``False`` (with the reason
+        in :attr:`_insert_decline_reason`) when the caller must fall back to
+        ``update_list``. See ``try_insert_rows`` in ``_agent_list_build`` for
+        the gates.
+        """
+        del current_attempt_number
+        agents, current_idx, jump_hints, tribe_labels = self._rendered_rows(
+            agents, current_idx, jump_hints, tribe_labels
+        )
+        with tui_trace("widget.agent_list.try_insert_rows", count=len(agents)):
+            return try_insert_rows(
+                self,
+                agents,
+                current_idx,
+                fold_counts=fold_counts,
+                marked_agents=marked_agents,
+                unread_agents=unread_agents,
+                fold_restore_marked_keys=fold_restore_marked_keys,
+                jump_hints=jump_hints,
+                banner_jump_hints=banner_jump_hints,
+                fold_registry=fold_registry,
+                current_group_key=current_group_key,
+                grouping_mode=grouping_mode,
+                tribe_labels=tribe_labels,
+                panel_tribe=panel_tribe,
+                parents_with_visible_children=parents_with_visible_children,
+                fully_expanded_parents=fully_expanded_parents,
+                now=now,
+            )
+
+    def install_options(self, options: list[Option]) -> None:
+        """Swap the whole option list in one step, keeping highlight and scroll.
+
+        Textual only appends (``add_options``) or removes (``remove_option_*``);
+        it has no insert. Removing and re-adding the tail would clamp the
+        highlight and scroll offset in between, and ``set_options`` resets both.
+        This mirrors the bookkeeping ``add_options`` does so the list can gain
+        rows mid-list atomically. Raises :class:`DuplicateID` before touching
+        anything when two options share an id.
+        """
+        ids = [option.id for option in options if option.id is not None]
+        if len(ids) != len(set(ids)):
+            raise DuplicateID("Options contain duplicated IDs")
+        self._options[:] = options
+        self._option_to_index = {option: idx for idx, option in enumerate(options)}
+        self._id_to_option = {
+            option.id: option for option in options if option.id is not None
+        }
+        self._mouse_hovering_over = None
+        self._clear_caches()
+        if self.is_mounted:
+            self.refresh(layout=self.styles.auto_dimensions)
+            self._update_lines()
 
     def render_collapsed(self, *, grouping_mode: GroupingMode) -> None:
         """Render this panel as a title-only border strip.
@@ -275,6 +379,8 @@ class AgentList(OptionList, inherit_bindings=False):
             self._row_by_agent_idx = {}
             self._banner_row_by_key = {}
             self._target_width = 0
+            self._max_left = 0
+            self._max_suffix = 0
             self._content_requested_width = 0
             self._panel_collapsed = True
             self._grouping_mode = grouping_mode

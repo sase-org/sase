@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 from textual.app import ComposeResult
@@ -47,6 +48,18 @@ MAX_LIST_WIDTH = CL_LIST_MAX_PANEL_WIDTH
 # Width bounds for the agent list panel.
 MIN_AGENT_LIST_WIDTH = 60
 MAX_AGENT_LIST_WIDTH = 130
+
+
+def agent_list_column_width(requested_widths: Iterable[int], *, fallback: int) -> int:
+    """Return the agent-list column width for the mounted panels' requests.
+
+    The widest panel decides. *fallback* only applies while no panel has
+    requested a width yet, so a stale message width can never hold the column
+    wider than the panels now need.
+    """
+    desired = max((width for width in requested_widths if width > 0), default=fallback)
+    return max(MIN_AGENT_LIST_WIDTH, min(MAX_AGENT_LIST_WIDTH, desired))
+
 
 # Width bounds for the AXE-tab sidebar (#bgcmd-list-container). The minimum
 # matches the historical default. The larger maximum lets long lumberjack,

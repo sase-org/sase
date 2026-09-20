@@ -308,8 +308,13 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         isolation_marked_keys: set[PanelKey],
         fold_restore_marked: dict[PanelKey, tuple[str, ...]],
         skip_content: bool,
-    ) -> None:
-        """Update chrome and, unless *skip_content*, rows for one panel."""
+        row_insert: bool = False,
+    ) -> bool:
+        """Update chrome and, unless *skip_content*, rows for one panel.
+
+        With *row_insert*, a panel whose rows only gained plain nodes takes an
+        in-place insert instead of ``update_list``. Returns ``True`` when it did.
+        """
         slot = panel_index.slice_for(key)
         panel_agents = slot.agents
         global_indices = slot.global_indices
@@ -403,6 +408,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
             panel_collapsed=panel_collapsed,
             paint_key=paint_key,
         )
+        inserted = False
         if panel_collapsed:
             widget.add_class("-collapsed-panel")
             if not content_unchanged:
@@ -410,28 +416,31 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         else:
             widget.remove_class("-collapsed-panel")
             if not content_unchanged:
-                widget.update_list(
-                    panel_agents,
-                    local_idx,
-                    fold_counts=fold_counts,
-                    marked_agents=marked,
-                    unread_agents=unread,
-                    fold_restore_marked_keys=marked_fold_keys,
-                    jump_hints=local_jump_hints,
-                    banner_jump_hints=local_banner_hints,
-                    current_attempt_number=(attempt_number if is_focused else None),
-                    fold_registry=panel_fold_registry(self, key),
-                    current_group_key=(
+                update_kwargs: dict[str, Any] = {
+                    "fold_counts": fold_counts,
+                    "marked_agents": marked,
+                    "unread_agents": unread,
+                    "fold_restore_marked_keys": marked_fold_keys,
+                    "jump_hints": local_jump_hints,
+                    "banner_jump_hints": local_banner_hints,
+                    "current_attempt_number": attempt_number if is_focused else None,
+                    "fold_registry": panel_fold_registry(self, key),
+                    "current_group_key": (
                         current_group_key
                         if is_focused and not selected_expanded
                         else None
                     ),
-                    grouping_mode=grouping_mode,
-                    tribe_labels=local_tribe_labels,
-                    panel_tribe=key if not merge_tribe_panels else None,
-                    parents_with_visible_children=visible_parent_keys,
-                    fully_expanded_parents=fully_expanded_parent_keys,
+                    "grouping_mode": grouping_mode,
+                    "tribe_labels": local_tribe_labels,
+                    "panel_tribe": key if not merge_tribe_panels else None,
+                    "parents_with_visible_children": visible_parent_keys,
+                    "fully_expanded_parents": fully_expanded_parent_keys,
+                }
+                inserted = row_insert and self._try_insert_panel_rows(  # type: ignore[attr-defined]
+                    widget, panel_agents, local_idx, **update_kwargs
                 )
+                if not inserted:
+                    widget.update_list(panel_agents, local_idx, **update_kwargs)
                 widget._panel_paint_key = paint_key
 
         if is_focused:
@@ -443,6 +452,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
             widget.clear_highlight()
         else:
             widget.remove_class("-whole-panel-focus")
+        return inserted
 
     def _panel_paint_context(
         self,
@@ -532,14 +542,22 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                 skip_content=False,
                 **{name: value for name, value in ctx.items() if name != "panel_keys"},
             )
+        self._settle_agent_list_container_width(container, ordered)
         self._apply_panel_heights(container, ordered)
         self._focus_focused_panel_widget()
 
     def _refresh_affected_panel_widgets(
         self,
         affected_keys: set[PanelKey],
+        *,
+        inserted_keys: set[PanelKey] | None = None,
     ) -> bool:
-        """Rebuild only rendered panels whose membership/content changed."""
+        """Rebuild only rendered panels whose membership/content changed.
+
+        When *inserted_keys* is given, an affected panel whose rows only gained
+        plain nodes takes the in-place row insert instead of a rebuild, and its
+        key is added to *inserted_keys*.
+        """
         if not affected_keys:
             return True
 
@@ -592,14 +610,18 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         for idx, (key, widget) in enumerate(
             zip(ctx["panel_keys"], ordered, strict=True)
         ):
-            self._paint_panel_widget(
+            inserted = self._paint_panel_widget(
                 widget,
                 idx=idx,
                 key=key,
                 skip_content=key not in affected_keys,
+                row_insert=inserted_keys is not None,
                 **paint_ctx,
             )
+            if inserted and inserted_keys is not None:
+                inserted_keys.add(key)
 
+        self._settle_agent_list_container_width(container, ordered)
         self._apply_panel_heights(container, ordered)
         self._focus_focused_panel_widget()
         return True

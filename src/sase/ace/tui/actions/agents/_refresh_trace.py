@@ -18,9 +18,9 @@ AgentRefreshDisplayCost = Literal[
     "display_panel_rebuild",
     "display_panel_insert",
     "display_panel_remove",
+    "display_row_insert",
     "row_patch",
     "row_remove",
-    "row_insert",
 ]
 
 AgentRefreshFallbackReason = Literal[
@@ -55,9 +55,9 @@ ALL_AGENT_REFRESH_DISPLAY_COSTS: frozenset[AgentRefreshDisplayCost] = frozenset(
         "display_panel_rebuild",
         "display_panel_insert",
         "display_panel_remove",
+        "display_row_insert",
         "row_patch",
         "row_remove",
-        "row_insert",
     }
 )
 

@@ -86,6 +86,12 @@ class PanelRefreshStateMixin:
         """Apply dynamic heights to the rendered panel widgets."""
         raise NotImplementedError
 
+    def _settle_agent_list_container_width(
+        self, container: object, widgets: list[AgentList]
+    ) -> None:
+        """Size the agent-list column to the painted panels' requested widths."""
+        raise NotImplementedError
+
     def _focus_focused_panel_widget(self) -> None:
         """Transfer Textual focus to the active panel widget."""
         raise NotImplementedError

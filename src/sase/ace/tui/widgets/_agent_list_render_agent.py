@@ -123,6 +123,11 @@ def _append_fleet_summary(text: Text, agent: Agent) -> None:
     text.append(brief, style="dim #87D7D7")
 
 
+def agent_option_id(index: int, agent: Agent) -> str:
+    """Return the OptionList id of *agent*'s row at panel-local position *index*."""
+    return f"{index}:{agent.agent_type.value}:{agent.cl_name}"
+
+
 def format_agent_option(
     agent: Agent,
     index: int,
@@ -313,8 +318,7 @@ def format_agent_option(
         runtime_with_file_change = runtime_suffix
 
     suffix = runtime_with_file_change
-    option_id = f"{index}:{agent.agent_type.value}:{agent.cl_name}"
-    return text, suffix, option_id
+    return text, suffix, agent_option_id(index, agent)
 
 
 def cached_format_agent_option(

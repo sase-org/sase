@@ -531,6 +531,25 @@ refresh frame that already widened a panel's `requested_width`, is the flicker i
 `tests/ace/tui/test_epic_panel_arrival_frames.py` asserts these invariants
 deterministically; the paint log lives in `actions/agents/_paint_log.py`.
 
+The arrival's `display_cost` says which path painted it. An ordinary node (no clan,
+family or workflow relation, no wider than the panel's existing rows, no new banner)
+records `display_row_insert`: the row is inserted in place and no `update_list` runs. A
+node that cannot be inserted still rebuilds only its own panel, recording
+`display_panel_rebuild` after a `display_row_insert` record whose `fallback_reason`
+names the gate that declined it (`width_growth`, `status_membership_change`,
+`workflow_tree_change`, `panel_membership_change`). A STARTING agent is not rendered, so
+the apply that first shows it is the arrival, not a status-bucket move. Tally the paths
+over a soak:
+
+```bash
+jq -r 'select(.event == "agents.paint_frame" and .kind != "settled")
+       | [.display_cost, .fallback_reason] | @tsv' ~/.sase/perf/tui_trace.jsonl \
+   | sort | uniq -c | sort -rn
+```
+
+A soak that never creates a node shows no `display_row_insert` at all; that proves
+nothing about arrivals.
+
 To look at the same arrival by eye, capture the `@epic` panel before and after a node
 joins it with a live `sase screenshot`. This is a human check and stays out of the
 golden lane (live captures carry real timestamps and host state):

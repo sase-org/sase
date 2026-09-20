@@ -274,10 +274,17 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         list_container.styles.width = width
 
     def on_agent_list_width_changed(self, event: AgentList.WidthChanged) -> None:
-        """Handle width change from the agent list widget."""
+        """Handle an out-of-band width change from the agent list widget.
+
+        Agents-tab refreshes settle the column themselves in the frame that
+        changed the rows (``_settle_agent_list_container_width``); this covers
+        title-only updates and any other request made outside a refresh. The
+        mounted panels' current requests decide the width, so the message's own
+        width (possibly stale by now) only matters before any panel has asked.
+        """
         from textual.css.query import NoMatches
 
-        from .._app_layout import MAX_AGENT_LIST_WIDTH, MIN_AGENT_LIST_WIDTH
+        from .._app_layout import agent_list_column_width
 
         try:
             agent_list_container = self.query_one("#agent-list-container")  # type: ignore[attr-defined]
@@ -286,15 +293,9 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         agent_lists = self.query("#agent-list-container AgentList").results(  # type: ignore[attr-defined]
             AgentList
         )
-        requested_widths = [
-            width
-            for widget in agent_lists
-            if (width := getattr(widget, "_requested_width", 0)) > 0
-        ]
-        desired_width = max([event.width, *requested_widths])
-        width = max(
-            MIN_AGENT_LIST_WIDTH,
-            min(MAX_AGENT_LIST_WIDTH, desired_width),
+        width = agent_list_column_width(
+            [getattr(widget, "_requested_width", 0) for widget in agent_lists],
+            fallback=event.width,
         )
         previous_width = agent_list_container.styles.width
         agent_list_container.styles.width = width

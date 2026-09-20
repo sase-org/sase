@@ -14,6 +14,7 @@ from ``_agent_list_rendering``:
 """
 
 from ._agent_list_render_agent import (
+    agent_option_id,
     cached_format_agent_option,
     format_agent_option,
 )
@@ -33,6 +34,7 @@ from ._agent_list_render_layout import assemble_padded_option
 __all__ = [
     "AgentRenderCache",
     "BannerMarkState",
+    "agent_option_id",
     "agent_render_key",
     "assemble_padded_option",
     "banner_render_key",

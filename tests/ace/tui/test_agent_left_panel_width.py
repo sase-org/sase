@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from rich.text import Text
+from sase.ace.tui.actions.agents._display_panel_layout import PanelLayoutMixin
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
 from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.app import _MAX_AGENT_LIST_WIDTH, _MIN_AGENT_LIST_WIDTH
@@ -141,3 +142,70 @@ def test_collapsing_widest_panel_drops_aggregated_width() -> None:
     app.on_agent_list_width_changed(AgentList.WidthChanged(28))
 
     assert app.container.styles.width == 78
+
+
+def test_stale_message_width_does_not_hold_the_column_wider_than_the_panels_need() -> (
+    None
+):
+    # The panel asked for 120, then a later refresh narrowed it to 70 before the
+    # first message was handled: only the panels' current requests count.
+    app = _FakeApp([_FakeAgentList(70)])
+
+    app.on_agent_list_width_changed(AgentList.WidthChanged(120))
+
+    assert app.container.styles.width == 70
+
+
+class _Settler(PanelLayoutMixin):
+    """Just the width-settling method of the panel layout mixin."""
+
+
+def _settle(*requested: int) -> _Container:
+    container = _Container()
+    _Settler()._settle_agent_list_container_width(
+        container,
+        [_FakeAgentList(width) for width in requested],  # type: ignore[list-item]
+    )
+    return container
+
+
+def test_refresh_settles_the_column_from_the_painted_panels_requests() -> None:
+    assert _settle(_MIN_AGENT_LIST_WIDTH, 104, 72).styles.width == 104
+    assert _settle(_MAX_AGENT_LIST_WIDTH + 25).styles.width == _MAX_AGENT_LIST_WIDTH
+    assert _settle(30).styles.width == _MIN_AGENT_LIST_WIDTH
+
+
+def test_refresh_settle_agrees_with_the_message_handler() -> None:
+    widgets = [_FakeAgentList(104), _FakeAgentList(72)]
+    settled = _Container()
+    _Settler()._settle_agent_list_container_width(settled, widgets)  # type: ignore[arg-type]
+    app = _FakeApp(list(widgets))
+
+    app.on_agent_list_width_changed(AgentList.WidthChanged(72))
+
+    assert app.container.styles.width == settled.styles.width == 104
+
+
+def test_a_collapsed_panels_title_only_request_never_drags_the_column_down() -> None:
+    expanded = _FakeAgentList(100)
+    collapsed = AgentList()
+    collapsed.border_title = "▸ @job · 2"
+    collapsed.render_collapsed(grouping_mode=GroupingMode.BY_STATUS)
+    container = _Container()
+
+    _Settler()._settle_agent_list_container_width(
+        container,
+        [expanded, collapsed],  # type: ignore[list-item]
+    )
+
+    assert collapsed._requested_width < _MIN_AGENT_LIST_WIDTH
+    assert container.styles.width == 100
+
+
+def test_refresh_settle_leaves_the_column_alone_before_any_panel_has_a_width() -> None:
+    assert _settle(0, 0).styles.width is None
+    assert _settle().styles.width is None
+
+
+def test_refresh_settle_tolerates_a_container_without_styles() -> None:
+    _Settler()._settle_agent_list_container_width(object(), [_FakeAgentList(90)])  # type: ignore[list-item]

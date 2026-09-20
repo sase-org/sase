@@ -50,11 +50,17 @@ TERMINAL_SIZE = (120, 30)
 #: Arrival windows in the order they are applied.
 ARRIVALS = (
     "noop",
+    "plain_member",
     "clan_member",
     "second_clan",
+    "starting_narrow",
+    "starting_narrow_rendered",
     "starting",
     "starting_rendered_wide",
 )
+
+#: Arrivals that add one ordinary non-clan row no wider than the existing ones.
+PLAIN_ARRIVALS = ("plain_member", "starting_narrow_rendered")
 
 
 @dataclass(frozen=True)
@@ -137,27 +143,48 @@ def initial_roster() -> list[Agent]:
 
 
 def arrival_rosters(base: list[Agent]) -> list[tuple[str, list[Agent]]]:
-    """The successive full rosters each arrival window applies."""
-    joined = [*base, _clan_member("epic-gemini", "epic-clan", 32, "gemini")]
-    second_clan = [
-        *joined,
-        _clan_member("epic-second-claude", "epic-clan-2", 33, "claude"),
-    ]
+    """The successive full rosters each arrival window applies.
+
+    Each roster builds on the previous one. A plain node lands among the
+    existing ``@epic`` rows (not at the end) so the arrival also shifts every
+    later global index, the way a newest-first loader list does.
+    """
+    rosters: list[tuple[str, list[Agent]]] = []
+    current = list(base)
+
+    def arrive(label: str, rows: list[Agent]) -> None:
+        current[:] = rows
+        rosters.append((label, list(rows)))
+
+    arrive("noop", current)
+    plain = _node("epic-node-14", "epic", 45)  # as wide as its siblings
+    arrive("plain_member", [*current[:2], plain, *current[2:]])
+    arrive(
+        "clan_member",
+        [*current, _clan_member("epic-gemini", "epic-clan", 32, "gemini")],
+    )
+    arrive(
+        "second_clan",
+        [*current, _clan_member("epic-second-claude", "epic-clan-2", 33, "claude")],
+    )
+    narrow = _node("epic-node-15", "epic", 46, status="STARTING")
+    arrive("starting_narrow", [*current, narrow])
+    arrive(
+        "starting_narrow_rendered",
+        [*current[:-1], dataclasses.replace(narrow, status="RUNNING")],
+    )
     wide = _node(
         "epic-a-very-long-arriving-node-name-wider-than-every-existing-row",
         "epic",
         50,
         status="STARTING",
     )
-    starting = [*second_clan, wide]
-    rendered = [*second_clan, dataclasses.replace(wide, status="RUNNING")]
-    return [
-        ("noop", list(base)),
-        ("clan_member", joined),
-        ("second_clan", second_clan),
-        ("starting", starting),
-        ("starting_rendered_wide", rendered),
-    ]
+    arrive("starting", [*current, wide])
+    arrive(
+        "starting_rendered_wide",
+        [*current[:-1], dataclasses.replace(wide, status="RUNNING")],
+    )
+    return rosters
 
 
 async def _settle(page: AcePage, log: list[Any], *, timeout: float = 30.0) -> None:

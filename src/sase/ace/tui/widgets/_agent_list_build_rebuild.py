@@ -6,37 +6,24 @@ from collections.abc import Collection
 from datetime import datetime
 from typing import Any
 
-from rich.text import Text
 from textual.widgets.option_list import Option
 
-from ..agent_completion import (
-    AgentWaitStatusMaps,
-    agent_wait_status_maps_for_app,
-    collect_agent_wait_status_maps,
-    has_unresolvable_wait_target,
-    wait_dependency_status_counts,
-    wait_dependencies_satisfied,
-)
-from ..models._agent_tree import agent_fold_key, agent_is_tree_child
 from ..models.agent import Agent, AgentType
-from ..models.agent_groups import GroupingMode, GroupRow, TreeEntry, build_agent_tree
-from ..models.agent_nodes import is_agents_tab_agent_node
-from ..models.agent_wait_beads import cached_wait_bead_status_snapshot
+from ..models.agent_groups import GroupingMode, TreeEntry, build_agent_tree
 from ..models.group_fold import GroupFoldView
-from ..models.tribe_display import named_tribe_identity_colors
 from ._agent_list_build_analysis import (
     compute_tier_styles,
-    compute_visible_parents,
     visible_agent_indices,
 )
-from ._agent_list_helpers import compute_fold_annotation
-from ._agent_list_rendering import (
-    BannerMarkState,
-    assemble_padded_option,
-    cached_format_agent_option,
-    cached_format_banner_option,
+from ._agent_list_build_rows import (
+    agent_row_context,
+    build_row_inputs,
+    emit_tree_rows,
+    format_agent_row,
+    requested_panel_width,
 )
-from ._agent_list_styling import _BANNER_ROW, _MIN_BANNER_WIDTH
+from ._agent_list_rendering import assemble_padded_option
+from ._agent_list_styling import _MIN_BANNER_WIDTH
 
 
 # ``widget`` is the :class:`AgentList` instance.  Importing the class
@@ -45,49 +32,6 @@ from ._agent_list_styling import _BANNER_ROW, _MIN_BANNER_WIDTH
 # from the imported alias when ``Self`` flows through subclass-bound
 # calls. ``Any`` keeps the helpers self-contained while the widget API
 # stays strongly typed in ``agent_list.py``.
-
-
-def _banner_mark_state(
-    group: GroupRow,
-    agents: list[Agent],
-    marked: set[tuple[AgentType, str, str | None]],
-) -> BannerMarkState:
-    """Classify top-level group members as unmarked, partially, or all marked."""
-    member_identities = [
-        agents[idx].identity
-        for idx in group.agent_indices
-        if 0 <= idx < len(agents) and not agent_is_tree_child(agents[idx])
-    ]
-    if not member_identities:
-        return "none"
-    marked_count = sum(1 for identity in member_identities if identity in marked)
-    if marked_count == 0:
-        return "none"
-    if marked_count == len(member_identities):
-        return "all"
-    return "partial"
-
-
-def _agent_wait_status_maps_for_build(
-    widget: Any,
-    agents: list[Agent],
-) -> AgentWaitStatusMaps:
-    """Return wait state from the app's full loaded snapshot when available."""
-    try:
-        app = getattr(widget, "app", None)
-    except Exception:
-        app = None
-    return agent_wait_status_maps_for_app(app) or collect_agent_wait_status_maps(agents)
-
-
-def _agent_row_chrome_mode(agents: list[Agent]) -> bool:
-    """Return whether machine chips are enabled for this list.
-
-    Chips turn on whenever any loaded row has a fleet origin, including
-    under ``BY_MACHINE`` group headers. Local rows and indented member
-    shells still render none; only rows with ``fleet_origin_alias`` do.
-    """
-    return any(getattr(agent, "fleet_origin_alias", None) for agent in agents)
 
 
 def build_list(
@@ -128,24 +72,26 @@ def build_list(
     widget._row_by_agent_idx = {}
     widget._banner_row_by_key = {}
 
-    marked = marked_agents or set()
-    unread = unread_agents or set()
-    restore_marked_keys = fold_restore_marked_keys or ()
-    widget._unread_agents = set(unread)
-    semantic_tribes = {tribe for agent in agents for tribe in agent.clan_tribes}
-    if tribe_labels is not None:
-        semantic_tribes.update(tribe for tribe in tribe_labels if tribe is not None)
-    tribe_colors = named_tribe_identity_colors(semantic_tribes)
-    widget._tribe_identity_colors = tribe_colors
-    if parents_with_visible_children is None or fully_expanded_parents is None:
-        local_visible_parents, local_fully_expanded = compute_visible_parents(agents)
-        if parents_with_visible_children is None:
-            parents_with_visible_children = local_visible_parents
-        if fully_expanded_parents is None:
-            fully_expanded_parents = local_fully_expanded
+    inputs = build_row_inputs(
+        widget,
+        agents,
+        current_idx,
+        marked_agents=marked_agents,
+        unread_agents=unread_agents,
+        fold_restore_marked_keys=fold_restore_marked_keys,
+        fold_counts=fold_counts,
+        jump_hints=jump_hints,
+        current_group_key=current_group_key,
+        tribe_labels=tribe_labels,
+        panel_tribe=panel_tribe,
+        parents_with_visible_children=parents_with_visible_children,
+        fully_expanded_parents=fully_expanded_parents,
+        now=now,
+    )
+    widget._unread_agents = set(inputs.unread)
+    widget._tribe_identity_colors = inputs.tribe_colors
 
     widget._grouping_mode = grouping_mode
-    show_machine_chip = _agent_row_chrome_mode(agents)
     tree: list[TreeEntry] = build_agent_tree(
         agents, fold_registry=fold_registry, mode=grouping_mode, now=now
     )
@@ -156,8 +102,6 @@ def build_list(
         tree, panel_uses_cs=panel_uses_cs, mode=grouping_mode
     )
     visible = visible_agent_indices(tree)
-    wait_status_maps = _agent_wait_status_maps_for_build(widget, agents)
-    status_buckets = wait_status_maps.buckets
 
     # Measure what you emit: format only the agent rows the tree will
     # actually paint. Collapsed-group members are skipped so they don't
@@ -170,185 +114,60 @@ def build_list(
     for i, agent in enumerate(agents):
         if i not in visible:
             continue
-        fold_key = agent_fold_key(agent)
-        is_expanded = bool(
-            fold_key is not None and fold_key in parents_with_visible_children
-        )
-        is_marked = agent.identity in marked
-        is_unread = agent.identity in unread and is_agents_tab_agent_node(agent)
-        restore_marked = bool(fold_key and fold_key in restore_marked_keys)
-        annotation = compute_fold_annotation(
-            agent,
-            fold_counts,
-            parents_with_visible_children,
-            fully_expanded_parents,
-        )
-        is_selected_agent = current_group_key is None and i == current_idx
-        hint = (jump_hints or {}).get(i)
-        tribe_label = (
-            tribe_labels[i]
-            if tribe_labels is not None and i < len(tribe_labels)
-            else None
-        )
+        ctx = agent_row_context(inputs, agent, i)
         tier_styles = agent_tier_styles.get(i, ())
-        wait_deps_done = wait_dependencies_satisfied(
-            agent,
-            status_buckets,
-            wait_status_maps.tribe_bindings,
-        )
-        wait_counts = wait_dependency_status_counts(
-            agent,
-            wait_status_maps,
-            cached_wait_bead_status_snapshot(agent),
-        )
-        has_unresolvable_wait = has_unresolvable_wait_target(
-            agent,
-            wait_status_maps.tribe_bindings,
-        )
-        left, suffix, option_id = cached_format_agent_option(
-            widget._agent_render_cache,
-            agent,
-            i,
-            is_selected=is_selected_agent,
-            fold_annotation=annotation,
-            is_expanded=is_expanded,
-            is_marked=is_marked,
-            fold_restore_marked=restore_marked,
-            is_unread=is_unread,
-            hint_char=hint,
-            tribe_label=tribe_label,
-            panel_tribe=panel_tribe,
-            tribe_colors=tribe_colors,
-            now=now,
-            tier_styles=tier_styles,
-            wait_deps_satisfied=wait_deps_done,
-            wait_dependency_counts=wait_counts,
-            has_unresolvable_wait_target=has_unresolvable_wait,
-            unread_agent_ids=unread,
-            show_machine_chip=show_machine_chip,
+        left, suffix, option_id = format_agent_row(
+            widget._agent_render_cache, inputs, agent, i, ctx, tier_styles
         )
         agent_parts[i] = (left, suffix, option_id)
-        widget._row_render_ctx[i] = {
-            "fold_annotation": annotation,
-            "is_expanded": is_expanded,
-            "is_marked": is_marked,
-            "fold_restore_marked": restore_marked,
-            "is_unread": is_unread,
-            "hint_char": hint,
-            "tribe_label": tribe_label,
-            "panel_tribe": panel_tribe,
-            "tribe_colors": tribe_colors,
-            "is_selected": is_selected_agent,
-            "wait_deps_satisfied": wait_deps_done,
-            "wait_dependency_counts": wait_counts,
-            "has_unresolvable_wait_target": has_unresolvable_wait,
-            "show_machine_chip": show_machine_chip,
-        }
+        widget._row_render_ctx[i] = ctx
         widget._row_tier_styles[i] = tier_styles
         max_left = max(max_left, left.cell_len)
         max_suffix = max(max_suffix, suffix.cell_len)
 
     gap = 2 if max_suffix > 0 else 0
     target_width = max(_MIN_BANNER_WIDTH, max_left + gap + max_suffix)
-    banner_width = target_width
     widget._target_width = target_width
+    widget._max_left = max_left
+    widget._max_suffix = max_suffix
 
     agent_options: dict[int, Option] = {
         i: assemble_padded_option(left, suffix, width=target_width, option_id=option_id)
         for i, (left, suffix, option_id) in agent_parts.items()
     }
-    max_emitted_width = target_width
 
     # Walk the grouping tree and collect Options in display order. Installing
     # them as one batch avoids Textual rebuilding its line cache per row.
-    emitted_options: list[Option] = []
-    highlighted_row: int | None = None
-    banner_seq = 0
-    spacer_seq = 0
-    seen_first_l0 = False
-    for entry in tree:
-        if entry.kind == "group" and entry.group is not None:
-            if entry.group.level == 0:
-                if seen_first_l0:
-                    spacer = Option(
-                        Text(""),
-                        id=f"spacer:{spacer_seq}",
-                        disabled=True,
-                    )
-                    spacer_seq += 1
-                    emitted_options.append(spacer)
-                    widget._row_entries.append((_BANNER_ROW, None))
-                seen_first_l0 = True
-            banner_selectable = entry.group.is_collapsed
-            tier_styles_for_banner = (
-                banner_tier_styles[banner_seq]
-                if banner_seq < len(banner_tier_styles)
-                else ()
-            )
-            banner_hint = (banner_jump_hints or {}).get(entry.group.group_key)
-            mark_state = (
-                _banner_mark_state(entry.group, agents, marked)
-                if banner_selectable
-                else "none"
-            )
-            banner_option = cached_format_banner_option(
-                widget._agent_render_cache,
-                entry.group,
-                widget._agents,
-                width=banner_width,
-                sequence=banner_seq,
-                selectable=banner_selectable,
-                mode=grouping_mode,
-                tier_styles=tier_styles_for_banner,
-                hint_char=banner_hint,
-                mark_state=mark_state,
-            )
-            prompt = banner_option.prompt
-            if isinstance(prompt, Text):
-                max_emitted_width = max(max_emitted_width, prompt.cell_len)
-            banner_seq += 1
-            row_index = len(widget._row_entries)
-            emitted_options.append(banner_option)
-            widget._row_entries.append((_BANNER_ROW, None))
-            if banner_selectable:
-                widget._banner_at_row[row_index] = entry.group
-                widget._banner_row_by_key[entry.group.group_key] = row_index
-                if (
-                    current_group_key is not None
-                    and entry.group.group_key == current_group_key
-                    and highlighted_row is None
-                ):
-                    highlighted_row = row_index
-            continue
+    rows = emit_tree_rows(
+        tree,
+        agents,
+        agent_options=agent_options,
+        cache=widget._agent_render_cache,
+        target_width=target_width,
+        banner_tier_styles=banner_tier_styles,
+        banner_jump_hints=banner_jump_hints,
+        grouping_mode=grouping_mode,
+        marked=inputs.marked,
+        current_idx=current_idx,
+        current_group_key=current_group_key,
+    )
+    widget._row_entries = rows.row_entries
+    widget._banner_at_row = rows.banner_at_row
+    widget._banner_row_by_key = rows.banner_row_by_key
+    widget._row_by_agent_attempt = rows.row_by_agent_attempt
+    widget._row_by_agent_idx = rows.row_by_agent_idx
 
-        if entry.agent_idx is None:
-            continue
-        i = entry.agent_idx
-        agent_option = agent_options.get(i)
-        if agent_option is None:
-            continue
-        emitted_options.append(agent_option)
-        is_selected_agent = current_group_key is None and i == current_idx
-        row_index = len(widget._row_entries)
-        if is_selected_agent:
-            highlighted_row = row_index
-        widget._row_entries.append((i, None))
-        widget._row_by_agent_attempt[(i, None)] = row_index
-        widget._row_by_agent_idx[i] = row_index
-
-    widget.add_options(emitted_options)
+    widget.add_options(rows.options)
 
     # Widest emitted row (visible agent column or banner) plus padding.
     # Banners are measured from the Option already built so this cannot
     # drift from the formatter.
-    _PADDING = 8
-    optimal_width = max_emitted_width + _PADDING
-    widget._content_requested_width = optimal_width
+    widget._content_requested_width = requested_panel_width(rows)
     widget._refresh_requested_width()
 
     try:
-        if highlighted_row is not None:
-            widget._set_highlighted_programmatically(highlighted_row)
+        if rows.highlighted_row is not None:
+            widget._set_highlighted_programmatically(rows.highlighted_row)
     finally:
         widget._programmatic_update = False
 

@@ -17,6 +17,27 @@ if TYPE_CHECKING:
 class PanelLayoutMixin(PanelRefreshStateMixin):
     """Dynamic panel sizing, highlight, and focus helpers."""
 
+    def _settle_agent_list_container_width(
+        self, container: object, widgets: list[AgentList]
+    ) -> None:
+        """Size the agent-list column to the painted panels, in the same frame.
+
+        ``AgentList`` publishes its requested width as a message that
+        ``on_agent_list_width_changed`` handles a pump cycle after the rows
+        painted, so a row wider than the column would repaint first and resize
+        the column (and the detail panel beside it) a frame later. Settling from
+        the widgets' already-updated requests, in the call stack that painted
+        them, makes rows and column one transition. The message handler stays
+        for width changes outside a refresh and lands on the same width here.
+        """
+        from ..._app_layout import agent_list_column_width
+
+        styles = getattr(container, "styles", None)
+        requested = [int(getattr(widget, "_requested_width", 0)) for widget in widgets]
+        if styles is None or not any(width > 0 for width in requested):
+            return
+        styles.width = agent_list_column_width(requested, fallback=0)
+
     def _apply_panel_heights(self, container: object, widgets: list[AgentList]) -> None:
         """Size each tribe panel based on its content."""
         if not widgets:

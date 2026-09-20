@@ -70,9 +70,9 @@ def test_refresh_trace_taxonomy_covers_phase_one_terms() -> None:
         "display_panel_rebuild",
         "display_panel_insert",
         "display_panel_remove",
+        "display_row_insert",
         "row_patch",
         "row_remove",
-        "row_insert",
     }
     assert ALL_AGENT_REFRESH_FALLBACK_REASONS >= {
         "missing_launch_result",
