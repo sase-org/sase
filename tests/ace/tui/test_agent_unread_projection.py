@@ -120,6 +120,145 @@ def test__active_completion_agent_keys_allows_missing_raw_suffix() -> None:
     assert keys == {("demo", None)}
 
 
+def _make_settlement_notification(
+    *,
+    sender: str = "epic-launch",
+    cl_name: str | None = "demo",
+    raw_suffix: str | None = "20260507090000",
+    dismissed: bool = False,
+) -> Notification:
+    return _make_notification(
+        sender=sender,
+        action=None,
+        cl_name=cl_name,
+        raw_suffix=raw_suffix,
+        dismissed=dismissed,
+    )
+
+
+def test_reconcile_marks_unread_for_active_settlement_row() -> None:
+    agent = make_agent(status="DONE")
+    app = _ProjectionApp([agent])
+
+    app._reconcile_unread_from_completion_notifications(
+        [
+            _make_settlement_notification(
+                cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
+            )
+        ]
+    )
+
+    assert agent.identity in app._unread_completed_agent_ids
+
+
+def test_reconcile_marks_unread_for_monitor_settlement_row() -> None:
+    agent = make_agent(status="DONE")
+    app = _ProjectionApp([agent])
+
+    app._reconcile_unread_from_completion_notifications(
+        [
+            _make_settlement_notification(
+                sender="monitor-settlement",
+                cl_name=agent.cl_name,
+                raw_suffix=agent.raw_suffix,
+            )
+        ]
+    )
+
+    assert agent.identity in app._unread_completed_agent_ids
+
+
+def test_reconcile_ignores_settlement_row_with_different_raw_suffix() -> None:
+    agent = make_agent(status="DONE", raw_suffix="20260507090000")
+    app = _ProjectionApp([agent])
+
+    app._reconcile_unread_from_completion_notifications(
+        [_make_settlement_notification(cl_name=agent.cl_name, raw_suffix="other")]
+    )
+
+    assert agent.identity not in app._unread_completed_agent_ids
+
+
+def test_reconcile_ignores_settlement_row_for_running_agent() -> None:
+    agent = make_agent(status="RUNNING")
+    app = _ProjectionApp([agent])
+
+    app._reconcile_unread_from_completion_notifications(
+        [
+            _make_settlement_notification(
+                cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
+            )
+        ]
+    )
+
+    assert agent.identity not in app._unread_completed_agent_ids
+
+
+def test_reconcile_clears_unread_when_settlement_row_dismissed() -> None:
+    agent = make_agent(status="DONE")
+    app = _ProjectionApp([agent])
+    app._reconcile_unread_from_completion_notifications(
+        [
+            _make_settlement_notification(
+                cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
+            )
+        ]
+    )
+    assert agent.identity in app._unread_completed_agent_ids
+
+    app._reconcile_unread_from_completion_notifications(
+        [
+            _make_settlement_notification(
+                cl_name=agent.cl_name,
+                raw_suffix=agent.raw_suffix,
+                dismissed=True,
+            )
+        ]
+    )
+
+    assert agent.identity not in app._unread_completed_agent_ids
+
+
+def test_reconcile_does_not_re_add_manual_unread_for_settlement_row() -> None:
+    agent = make_agent(status="DONE")
+    app = _ProjectionApp([agent])
+    app._manual_unread_agent_ids.add(agent.identity)
+
+    app._reconcile_unread_from_completion_notifications(
+        [
+            _make_settlement_notification(
+                cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
+            )
+        ]
+    )
+
+    assert agent.identity not in app._unread_completed_agent_ids
+
+
+def test_settlement_arriving_after_completion_read_reflags_row_unread() -> None:
+    agent = make_agent(status="DONE")
+    app = _ProjectionApp([agent])
+    app._reconcile_unread_from_completion_notifications(
+        [_make_notification(cl_name=agent.cl_name, raw_suffix=agent.raw_suffix)]
+    )
+    assert agent.identity in app._unread_completed_agent_ids
+
+    # Completion read: no active rows left.
+    app._reconcile_unread_from_completion_notifications([])
+    assert agent.identity not in app._unread_completed_agent_ids
+
+    # Settlement arrives after the completion was read.
+    app._reconcile_unread_from_completion_notifications(
+        [
+            _make_settlement_notification(
+                cl_name=agent.cl_name, raw_suffix=agent.raw_suffix
+            )
+        ]
+    )
+
+    assert agent.identity in app._unread_completed_agent_ids
+
+
 def test_reconcile_marks_unread_when_notification_active() -> None:
     agent = make_agent(status="DONE")
     app = _ProjectionApp([agent])

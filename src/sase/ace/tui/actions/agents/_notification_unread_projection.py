@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from ._notification_utils import (
-    active_completion_agent_keys,
+    active_row_owned_notification_keys,
     loaded_real_agent_roster as loaded_real_agent_roster,
 )
 from ...models.agent_nodes import (
@@ -154,7 +154,7 @@ class AgentNotificationUnreadMixin:
         """
         from ._core import is_unread_completed_status
 
-        active_keys = active_completion_agent_keys(notifications)
+        active_keys = active_row_owned_notification_keys(notifications)
 
         unread_ids = getattr(self, "_unread_completed_agent_ids", None)
         if unread_ids is None:

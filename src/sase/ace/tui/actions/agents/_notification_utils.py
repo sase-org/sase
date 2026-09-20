@@ -728,6 +728,30 @@ def active_completion_agent_keys(
     return keys
 
 
+def active_row_owned_notification_keys(
+    notifications: list[Notification],
+) -> set[tuple[str, str | None]]:
+    """Return ``(cl_name, raw_suffix)`` keys for active row-owned notifications.
+
+    Union of :func:`active_completion_agent_keys` and the exact keys of active
+    host-owned settlement rows (``epic-launch`` / ``monitor-settlement``). The
+    settlement half mirrors :func:`agent_settlement_notification_matches_agent`:
+    exact match only, no ``cl_name``-only fallback.
+    """
+    keys = active_completion_agent_keys(notifications)
+    for n in notifications:
+        if n.dismissed:
+            continue
+        if n.sender not in _SETTLEMENT_NOTIFICATION_SENDERS:
+            continue
+        cl_name = n.action_data.get("cl_name")
+        raw_suffix = n.action_data.get("raw_suffix")
+        if not cl_name or not raw_suffix:
+            continue
+        keys.add((cl_name, raw_suffix))
+    return keys
+
+
 def _is_active_agent_completion_notification(notification: Notification) -> bool:
     """Return True for active agent completion notifications."""
     if notification.sender != "user-agent":
