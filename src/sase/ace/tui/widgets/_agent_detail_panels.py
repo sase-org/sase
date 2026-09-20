@@ -6,6 +6,7 @@ from enum import Enum
 from typing import Final
 
 from rich.text import Text
+from textual import on
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
@@ -340,6 +341,10 @@ class AgentDetailPanelMixin(Static):
         self._file_content_capped = message.capped
         self._update_file_scroll_subtitle()
 
+    # Textual derives this message's handler name as
+    # ``on_llmcalls_visibility_changed``, so the naming convention alone never
+    # dispatches it; the decorator does.
+    @on(LLMCallsVisibilityChanged)
     def on_llm_calls_visibility_changed(
         self, message: LLMCallsVisibilityChanged
     ) -> None:

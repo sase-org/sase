@@ -126,6 +126,9 @@ class AgentList(OptionList, inherit_bindings=False):
         self._content_requested_width: int = 0
         self._requested_width: int = 0
         self._panel_collapsed: bool = False
+        # Inputs of the last panel-owner paint; ``None`` once anything else
+        # repaints the rows, so a stale snapshot can never match.
+        self._panel_paint_key: tuple[Any, ...] | None = None
         # Per-agent tier-guide gutter styles, captured during ``update_list``
         # so ``patch_agent_row`` can reproduce the same gutter on a single-
         # row re-render without rewalking the grouping tree.
@@ -204,6 +207,7 @@ class AgentList(OptionList, inherit_bindings=False):
         # the pinned-attempt detail state but no longer affects rebuild
         # output (prior-attempt child rows aren't rendered).
         del current_attempt_number
+        self._panel_paint_key = None
         from ..models.agent_panels import agent_is_rendered_in_agents_panel
 
         display_pairs = [
@@ -268,6 +272,7 @@ class AgentList(OptionList, inherit_bindings=False):
             self._target_width = 0
             self._content_requested_width = 0
             self._panel_collapsed = True
+            self._panel_paint_key = None
             self._refresh_requested_width()
         finally:
             self._programmatic_update = False

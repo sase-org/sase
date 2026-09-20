@@ -61,6 +61,34 @@ async def wait_for_svg_contains(
     )
 
 
+async def stabilize_toast_frame(page: AcePage) -> None:
+    """Settle the footer status chrome before a toast snapshot is captured.
+
+    ``#keybinding-status`` is auto-width and Textual caches a widget's content
+    width by container width alone. When the startup stopwatch ends after the
+    badge was measured, the compositor can keep the stopwatch-era region
+    (blank cells after the badge) in a frame that still converges, and an
+    app-level refresh does not clear that cache. Wait for the stopwatch, drop
+    the cached measurement, lay the status widget out again, and converge.
+    """
+    from textual.widgets import Static
+
+    from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
+
+    footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
+    await wait_for_state(
+        page,
+        lambda: not footer._startup_stopwatch_active,
+        description="startup stopwatch ended",
+    )
+    status = footer.query_one("#keybinding-status", Static)
+    status.clear_cached_dimensions()
+    status.refresh(layout=True)
+    page.app.refresh(layout=True)
+    await page.app.wait_for_refresh()
+    await wait_for_visual_idle(page)
+
+
 _VISUAL_DEBOUNCERS = (
     "_patch_detail_debouncer",
     "_agent_detail_debouncer",

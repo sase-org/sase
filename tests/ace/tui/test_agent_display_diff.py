@@ -37,6 +37,41 @@ def test_same_position_row_change_patches_without_panel_rebuild(
     assert app._agent_detail_debouncer.is_pending
 
 
+def test_full_refresh_repaints_panel_when_row_content_changes_under_same_identity(
+    monkeypatch: Any,
+) -> None:
+    old_agent = _agent("alpha", tribe="apple", suffix="a1", status="RUNNING")
+    new_agent = replace(old_agent, status="DONE")
+    assert new_agent.identity == old_agent.identity
+    app = _DisplayDiffApp([old_agent], monkeypatch)
+    widget = app._widgets[_widget_sel("apple")]
+
+    app._agents = [new_agent]
+    app._refresh_panel_widgets(jump_hints=None)
+
+    assert widget.update_list_calls == 2
+    assert widget._agents[0].status == "DONE"
+
+
+def test_full_refresh_repaints_panel_only_when_jump_hints_change(
+    monkeypatch: Any,
+) -> None:
+    agent = _agent("alpha", tribe="apple", suffix="a1", status="RUNNING")
+    app = _DisplayDiffApp([agent], monkeypatch)
+    widget = app._widgets[_widget_sel("apple")]
+
+    app._refresh_panel_widgets(jump_hints=None)
+    assert widget.update_list_calls == 1
+
+    app._refresh_panel_widgets(jump_hints={0: "a"})
+    assert widget.update_list_calls == 2
+    app._refresh_panel_widgets(jump_hints={0: "a"})
+    assert widget.update_list_calls == 2
+
+    app._refresh_panel_widgets(jump_hints=None)
+    assert widget.update_list_calls == 3
+
+
 def test_incremental_row_patch_batch_refreshes_info_panel_once(
     monkeypatch: Any,
 ) -> None:

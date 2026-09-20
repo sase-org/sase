@@ -8,6 +8,7 @@ import pytest
 from rich.text import Text
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 from sase.ace.tui.models.agent_groups import GroupingMode, build_agent_tree
 from sase.ace.tui.widgets.agent_list import AgentList
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
@@ -50,7 +51,7 @@ async def test_queued_clan_counts_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert page.app._agents[0].is_clan_container is True
-        panel = page.app.query_one("#agent-list-panel", AgentList)
+        panel = page.app.query_one(f"#{panel_widget_id_for_key('epic')}", AgentList)
         assert Text.from_markup(panel.border_title).plain == "▲ @epic · 2 [Q2]"
         list_rows = "\n".join(
             option.prompt.plain

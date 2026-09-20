@@ -140,6 +140,44 @@ async def test_agents_fresh_tab_stays_metadata_only_until_picker_layout(
         assert not detail.is_file_visible()
 
 
+async def test_agents_llm_calls_panel_message_enables_picker_layouts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(
+        monkeypatch,
+        agents=[_make_agent(status="DONE", llm_provider="codex")],
+    )
+
+    async with AcePage(initial_tab="agents") as page:
+        await wait_for_startup(page)
+        detail = page.app.query_one("#agent-detail-panel", AgentDetail)
+        llm_calls_panel = detail.query_one("#agent-llm-calls-panel")
+
+        await page.press("p")
+        await page.expect_modal("AgentViewModal")
+        await page.press("t")
+        await page.expect_no_modal()
+        assert detail.panel_mode is DetailPanelMode.LLM_CALLS
+        assert detail.detail_layout_mode is DetailLayoutMode.METADATA_ONLY
+        assert not detail.is_llm_calls_visible()
+
+        # The panel's own message must reach the detail widget through Textual
+        # dispatch, not a direct handler call.
+        llm_calls_panel.post_message(LLMCallsVisibilityChanged(has_llm_calls=True))
+        await page.wait_for(lambda _screen: detail._has_llm_calls_content)
+
+        await page.press("p")
+        await page.expect_modal("AgentViewModal")
+        await page.press("2")
+        await page.expect_no_modal()
+        assert detail.detail_layout_mode is DetailLayoutMode.SECONDARY_LARGER
+        assert detail.is_llm_calls_visible()
+
+        llm_calls_panel.post_message(LLMCallsVisibilityChanged(has_llm_calls=False))
+        await page.wait_for(lambda _screen: not detail._has_llm_calls_content)
+        assert not detail.is_llm_calls_visible()
+
+
 async def test_agents_pp_cycles_visible_file_layout_next(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

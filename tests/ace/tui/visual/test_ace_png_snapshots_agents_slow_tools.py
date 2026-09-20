@@ -18,6 +18,7 @@ from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.llm_calls import build_slow_tool_sources
 from sase.ace.tui.llm_calls import cache as tools_cache_module
+from sase.ace.tui.widgets import AgentDetail
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.prompt_panel import _agent_context_common
 from sase.ace.tui.widgets.prompt_panel import _agent_display_header
@@ -25,6 +26,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
     get_cached_detail_header_summary,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
+    choose_agent_metadata_view,
     pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -41,9 +43,11 @@ pytestmark = pytest.mark.visual
 
 _NOW = datetime(2026, 7, 28, 12, 10, tzinfo=UTC)
 _SLOW_TOOLS_VISUAL_IDLE_TIMEOUT = 60.0
+# The dot is its own SVG run when the indicator's dot and label are styled
+# differently (content present), and merges into the label run when they match.
 _LLM_CALLS_FOOTER_RE = re.compile(
     r'<text[^>]*clip-path="url\(#terminal-\d+-line-35\)">'
-    r"[●○]&#160;llm&#160;calls</text>"
+    r"[●○]?&#160;llm&#160;calls</text>"
 )
 _VISUAL_SLOW_TOOLS_DIR = Path("/tmp/sase-ace-visual-slow-tools")
 
@@ -313,12 +317,7 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
             description="slow-tool detail-header summary",
         )
         await wait_for_svg_contains(page, "SLOW TOOL CALLS")
-        await page.press("p")
-        await wait_for_svg_contains(page, "Agent view")
-        await page.press("0")
-        await page.expect_modal("AgentViewModal")
-        await page.press("escape")
-        await page.expect_no_modal()
+        await choose_agent_metadata_view(page)
         await wait_for_svg_contains(page, "SLOW TOOL CALLS")
         await _focus_slow_tool_section(page)
         await wait_for_state(
@@ -326,9 +325,10 @@ async def test_agents_slow_tool_calls_fold_levels_png_snapshots(
             lambda: _slow_tool_section_ready(panel),
             description="active slow-tool section",
         )
+        detail = page.query_one_widget("#agent-detail-panel", AgentDetail)
         await wait_for_state(
             page,
-            lambda: _rendered_llm_calls_footer(page),
+            lambda: detail._has_llm_calls_content and _rendered_llm_calls_footer(page),
             description="llm calls footer",
         )
         await _settle_slow_tool_snapshot(page, panel)

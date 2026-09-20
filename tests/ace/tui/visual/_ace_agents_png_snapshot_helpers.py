@@ -25,6 +25,22 @@ async def choose_agent_metadata_view(page: AcePage) -> None:
     await page.expect_modal("AgentViewModal")
     await page.press("[")
     await page.expect_no_modal()
+    # Choosing the layout that is already current changes nothing, so no
+    # surface refresh follows. A countdown tick during the modal would leave
+    # the header without its ``(p)`` hint until the next tick; refresh once
+    # after the modal is gone so the frame does not depend on that race.
+    page.app._update_agents_info_panel()
+    await wait_for_visual_idle(page)
+
+
+async def choose_agent_secondary_larger_layout(page: AcePage) -> None:
+    """Choose the visible Secondary-larger layout through the current picker."""
+    await page.press("p")
+    await page.expect_modal("AgentViewModal")
+    await page.pause()
+    await page.press("2")
+    await page.expect_no_modal()
+    await wait_for_visual_idle(page)
 
 
 async def reveal_agent_file_view(page: AcePage) -> None:
@@ -47,12 +63,7 @@ async def reveal_agent_file_larger_layout(page: AcePage) -> None:
         lambda: bool(detail._has_file_content),
         description="file content available",
     )
-    await page.press("p")
-    await page.expect_modal("AgentViewModal")
-    await page.pause()
-    await page.press("2")
-    await page.expect_no_modal()
-    await wait_for_visual_idle(page)
+    await choose_agent_secondary_larger_layout(page)
 
 
 def pin_agents_visual_now(monkeypatch: pytest.MonkeyPatch, now: datetime) -> None:

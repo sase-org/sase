@@ -23,10 +23,9 @@ from sase.ace.tui.widgets import AgentDetail
 from sase.ace.tui.widgets import llm_calls_panel as llm_calls_panel_module
 from sase.ace.tui.widgets._agent_detail_panels import DetailPanelMode
 from sase.ace.tui.widgets.keybinding_footer import KeybindingFooter
-from sase.ace.tui.widgets.llm_calls_panel import (
-    AgentLLMCallsPanel,
-    LLMCallsVisibilityChanged,
-    ToolDetailLevel,
+from sase.ace.tui.widgets.llm_calls_panel import AgentLLMCallsPanel, ToolDetailLevel
+from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
+    choose_agent_secondary_larger_layout,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -374,14 +373,15 @@ async def _open_llm_calls_panel(page: AcePage) -> AgentLLMCallsPanel:
         description="LLM Calls panel mode",
     )
     await _wait_for_llm_calls_loaded(page)
-    detail.on_llm_calls_visibility_changed(
-        LLMCallsVisibilityChanged(has_llm_calls=True)
+    # LLM Calls stays hidden under the metadata-only default until a visible
+    # secondary layout is chosen explicitly, which the picker only allows once
+    # the detail panel knows the LLM Calls content exists.
+    await wait_for_state(
+        page,
+        lambda: bool(detail._has_llm_calls_content),
+        description="llm calls content available",
     )
-    await page.press("p")
-    await page.expect_modal("AgentViewModal")
-    await page.pause()
-    await page.press("2")
-    await page.expect_no_modal()
+    await choose_agent_secondary_larger_layout(page)
     await wait_for_state(
         page,
         lambda: detail.is_llm_calls_visible(),

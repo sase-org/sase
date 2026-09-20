@@ -22,6 +22,7 @@ from sase.dev_update.models import RepoCommit, RepoCommitLog, RepoDiffStat
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
+    stabilize_toast_frame,
     wait_for_visual_idle,
 )
 from tests.ace.tui.visual.png_diff import AcePngSnapshotFixture
@@ -138,6 +139,7 @@ async def test_post_update_toast_png_snapshot(
         await page.wait_for(lambda _s: _toast_is_mounted(page))
         page.app.screen.set_focus(None)
         await wait_for_visual_idle(page)
+        await stabilize_toast_frame(page)
 
         ace_png_visual.assert_page_png(
             page,
@@ -184,6 +186,7 @@ async def test_post_update_toast_diffstat_png_snapshot(
         await page.wait_for(lambda _s: _toast_is_mounted(page))
         page.app.screen.set_focus(None)
         await wait_for_visual_idle(page)
+        await stabilize_toast_frame(page)
 
         ace_png_visual.assert_page_png(
             page,

@@ -45,6 +45,53 @@ def _panel_row_signature(
     return tuple(rows)
 
 
+def _panel_agents_match(current: list[Any], target: list[Any]) -> bool:
+    """Return whether *current* already holds *target*'s rows and row content."""
+    if len(current) != len(target):
+        return False
+    return all(
+        old is new or old == new for old, new in zip(current, target, strict=True)
+    )
+
+
+def _sorted_items(mapping: dict[Any, Any] | None) -> tuple[tuple[Any, Any], ...]:
+    return tuple(sorted(mapping.items())) if mapping else ()
+
+
+def _panel_paint_key(
+    *,
+    jump_hints: dict[int, str] | None,
+    banner_jump_hints: dict[tuple[str, ...], str] | None,
+    marked: set[Any],
+    unread: set[Any],
+    marked_fold_keys: Any,
+    fold_counts: dict[str, tuple[int, int]],
+    attempt_number: int | None,
+    current_group_key: tuple[str, ...] | None,
+    tribe_labels: list[str | None] | None,
+    panel_tribe: str | None,
+    visible_parent_keys: set[str],
+    fully_expanded_parent_keys: set[str],
+    fold_registry: Any,
+) -> tuple[Any, ...]:
+    """Snapshot every non-row input that changes how a panel's rows paint."""
+    return (
+        _sorted_items(jump_hints),
+        _sorted_items(banner_jump_hints),
+        frozenset(marked),
+        frozenset(unread),
+        tuple(marked_fold_keys),
+        _sorted_items(fold_counts),
+        attempt_number,
+        current_group_key,
+        None if tribe_labels is None else tuple(tribe_labels),
+        panel_tribe,
+        frozenset(visible_parent_keys),
+        frozenset(fully_expanded_parent_keys),
+        (id(fold_registry), getattr(fold_registry, "version", None)),
+    )
+
+
 class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
     """Mount, remove, and repaint AgentList panel widgets."""
 
@@ -205,8 +252,13 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         *,
         grouping_mode: GroupingMode,
         panel_collapsed: bool,
+        paint_key: tuple[Any, ...],
     ) -> bool:
-        """Return True when *widget* must not ``clear_options`` / ``update_list``."""
+        """Return True when *widget* must not ``clear_options`` / ``update_list``.
+
+        Row identities alone are not enough: a status change keeps every
+        identity, and jump hints, marks, and fold state repaint the same rows.
+        """
         if bool(getattr(widget, "_panel_collapsed", False)) != bool(panel_collapsed):
             return False
         if (
@@ -217,8 +269,14 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         if panel_collapsed:
             return True
         current = list(getattr(widget, "_agents", None) or [])
-        return _panel_row_signature(current, grouping_mode) == _panel_row_signature(
+        if _panel_row_signature(current, grouping_mode) != _panel_row_signature(
             panel_agents, grouping_mode
+        ):
+            return False
+        if not current:
+            return True
+        return _panel_agents_match(current, panel_agents) and (
+            getattr(widget, "_panel_paint_key", None) == paint_key
         )
 
     def _paint_panel_widget(
@@ -318,11 +376,29 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                 for gi in global_indices
             ]
 
+        paint_key = _panel_paint_key(
+            jump_hints=local_jump_hints,
+            banner_jump_hints=local_banner_hints,
+            marked=marked,
+            unread=unread,
+            marked_fold_keys=marked_fold_keys,
+            fold_counts=fold_counts,
+            attempt_number=attempt_number if is_focused else None,
+            current_group_key=(
+                current_group_key if is_focused and not selected_expanded else None
+            ),
+            tribe_labels=local_tribe_labels,
+            panel_tribe=key if not merge_tribe_panels else None,
+            visible_parent_keys=visible_parent_keys,
+            fully_expanded_parent_keys=fully_expanded_parent_keys,
+            fold_registry=panel_fold_registry(self, key),
+        )
         content_unchanged = skip_content or self._panel_content_is_unchanged(
             widget,
             panel_agents,
             grouping_mode=grouping_mode,
             panel_collapsed=panel_collapsed,
+            paint_key=paint_key,
         )
         if panel_collapsed:
             widget.add_class("-collapsed-panel")
@@ -353,6 +429,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
                     parents_with_visible_children=visible_parent_keys,
                     fully_expanded_parents=fully_expanded_parent_keys,
                 )
+                widget._panel_paint_key = paint_key
 
         if is_focused:
             widget.add_class("-focused-panel")
