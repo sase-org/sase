@@ -24,6 +24,7 @@ from sase.procs import (
 )
 from sase.procs.models import COMMAND_PROC_KIND
 from sase.procs.service_meta import (
+    SERVICE_HOST_ORIGIN,
     SERVICE_PROC_MODE_DAEMON,
     SERVICE_PROC_SOURCE_BUILTIN,
 )
@@ -82,6 +83,7 @@ class _ServiceHost:
         self._boot_id = current_boot_id()
         self._started_at = time.time()
         self._unit = os.environ.get("SASE_SERVICE_UNIT") or None
+        self._warned_service_marker_dropped = False
 
     def run(self) -> int:
         """Run the foreground host until SIGTERM, SIGINT, or KeyboardInterrupt."""
@@ -299,7 +301,12 @@ class _ServiceHost:
         env = _entry_env(entry, proc_dir)
         proc_id = new_proc_id()
         supervisor_id = f"service-host:{os.getpid()}:{proc_id}"
-        reserve_proc(
+        service_block = ProcServiceBlock(
+            name=entry.name,
+            mode=SERVICE_PROC_MODE_DAEMON,
+            source=entry.source or SERVICE_PROC_SOURCE_BUILTIN,
+        )
+        outcome = reserve_proc(
             ProcReserve(
                 proc_id=proc_id,
                 label=f"service:{entry.name}",
@@ -310,17 +317,14 @@ class _ServiceHost:
                 request_fingerprint=f"service:{entry.name}:{time.time_ns()}",
                 reserved_by=f"service-host:{os.getpid()}",
                 kind=COMMAND_PROC_KIND,
-                origin="service-host",
+                origin=SERVICE_HOST_ORIGIN,
                 tags=["service", f"service:{entry.name}"],
                 log_owner="service-host",
                 shell_kind="service",
-                service=ProcServiceBlock(
-                    name=entry.name,
-                    mode=SERVICE_PROC_MODE_DAEMON,
-                    source=entry.source or SERVICE_PROC_SOURCE_BUILTIN,
-                ),
+                service=service_block,
             )
         )
+        self._warn_if_service_marker_dropped(outcome.proc.service)
         try:
             process = subprocess.Popen(
                 list(argv),
@@ -377,6 +381,27 @@ class _ServiceHost:
         )
         self._restart_history[entry.name] = launch_history
         self._restart_counts[entry.name] = restarts
+
+    def _warn_if_service_marker_dropped(
+        self, recorded: ProcServiceBlock | None
+    ) -> None:
+        """Warn once per host process when the store dropped the service marker.
+
+        A ``sase_core_rs`` build that predates the service proc wire metadata
+        drops the additive ``service`` field without error. The launch still
+        proceeds (readers fall back to the row's origin), but the operator is
+        told why the marker is missing.
+        """
+        if recorded is not None or self._warned_service_marker_dropped:
+            return
+        self._warned_service_marker_dropped = True
+        print(
+            "sase service host: the proc store dropped the service marker from a "
+            "reserved row; the loaded sase_core_rs build likely predates the "
+            "service proc wire metadata. Rebuild or update sase-core and restart "
+            "the service host.",
+            file=sys.stderr,
+        )
 
     def _finish_spawn_failure(
         self,

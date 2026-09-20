@@ -25,13 +25,14 @@ from .models import ACTIVE_PROC_STATUSES, Proc
 from .request import ProcSubmitRequest
 from .runner import ProcSubmitError, submit_proc_request
 from .service_meta import (
+    SERVICE_ONESHOT_ORIGIN,
     SERVICE_PROC_MODE_ONESHOT,
     SERVICE_PROC_SOURCE_TRANSIENT,
     ProcServiceBlock,
 )
 from .store import read_procs
 
-ONESHOT_ORIGIN: Final = "service-proc"
+ONESHOT_ORIGIN: Final = SERVICE_ONESHOT_ORIGIN
 ONESHOT_SLOT_KEY_PREFIX: Final = "bgcmd-slot:"
 MAX_ONESHOT_SLOTS: Final = 9
 

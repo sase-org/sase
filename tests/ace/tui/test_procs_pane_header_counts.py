@@ -4,8 +4,16 @@ from __future__ import annotations
 
 import pytest
 
+from sase.ace.tui._proc_observer_models import gear_eligible_count
 from sase.ace.tui.proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE
 from sase.monitor_state import MONITOR_PROC_ORIGIN
+from sase.procs.service_meta import (
+    SERVICE_HOST_ORIGIN,
+    SERVICE_ONESHOT_ORIGIN,
+    SERVICE_PROC_MODE_DAEMON,
+    SERVICE_PROC_SOURCE_BUILTIN,
+    ProcServiceBlock,
+)
 
 from tests.ace.tui._procs_pane_helpers import (
     ProcInfo,
@@ -30,6 +38,20 @@ def _monitor_task(
     row = task(proc_id, label=label, status=status, age_seconds=age_seconds)
     row.origin = MONITOR_PROC_ORIGIN
     row.shell_name = "acme--mon"
+    return row
+
+
+def _service_task(
+    proc_id: str, *, origin: str, marked: bool, age_seconds: int
+) -> ProcInfo:
+    row = task(proc_id, label=proc_id, status="running", age_seconds=age_seconds)
+    row.origin = origin
+    if marked:
+        row.service = ProcServiceBlock(
+            name=proc_id,
+            mode=SERVICE_PROC_MODE_DAEMON,
+            source=SERVICE_PROC_SOURCE_BUILTIN,
+        )
     return row
 
 
@@ -124,4 +146,38 @@ async def test_header_counts_move_with_scope_toggle(
         assert pane._all_sessions is True
         assert pane._title_text().plain == (
             "Procs · all sessions   ⚙ 0  ⚙ 1   [1 running · 0 done]"
+        )
+
+
+async def test_header_blue_chip_matches_top_bar_gear_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_store_loader(monkeypatch, [])
+    plain = task("plain", label="sync", status="running", age_seconds=1)
+    monitor = _monitor_task("mon", label="just check", status="running", age_seconds=2)
+    marked_daemon = _service_task(
+        "gateway", origin=SERVICE_HOST_ORIGIN, marked=True, age_seconds=3
+    )
+    # A host running a stale sase_core_rs build writes rows without the block.
+    unmarked_daemon = _service_task(
+        "scheduler", origin=SERVICE_HOST_ORIGIN, marked=False, age_seconds=4
+    )
+    unmarked_oneshot = _service_task(
+        "bgcmd-1", origin=SERVICE_ONESHOT_ORIGIN, marked=False, age_seconds=5
+    )
+    done = task("done", label="sync done", status="success", age_seconds=10)
+
+    async with ProcsTestApp(
+        queue(plain, monitor, marked_daemon, unmarked_daemon, unmarked_oneshot, done)
+    ).run_test() as pilot:
+        _, pane = await open_procs_pane(pilot)
+        await pilot.pause()
+
+        gear_count = gear_eligible_count(pilot.app._effective_proc_projection())
+        assert gear_count == 1
+        title = pane._title_text()
+        # The blue chip is the top-bar gear count; the bracketed inventory
+        # still lists every active row, service rows included.
+        assert title.plain == (
+            f"Procs · this session   ⚙ {gear_count}  ⚙ 1   [5 running · 1 done]"
         )

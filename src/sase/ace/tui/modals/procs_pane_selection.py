@@ -22,6 +22,7 @@ from ..proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE, gear_chip
 from ..proc_observer import (
     ObservedProc,
     ProcProjection,
+    is_gear_eligible_row,
     is_monitor_shell_row,
     monitor_row_agent_name,
 )
@@ -469,7 +470,12 @@ class ProcsPaneSelectionMixin(_MixinBase):
         monitor_running = sum(
             1 for task in self._tasks if is_active(task) and is_monitor_shell_row(task)
         )
-        proc_running = running - monitor_running
+        # The blue chip claims to be the session proc count, so it counts exactly
+        # what the top-bar gear counts (no monitor shells, no service rows); the
+        # bracketed inventory below still covers every listed row.
+        proc_running = sum(
+            1 for task in self._tasks if is_active(task) and is_gear_eligible_row(task)
+        )
         done = len(self._tasks) - running
         scope = "all sessions" if self._all_sessions else "this session"
         text = Text(f"Procs · {scope}  ")

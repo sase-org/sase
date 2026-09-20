@@ -230,6 +230,19 @@ def test_gear_excludes_monitor_and_sessionless_service_rows() -> None:
     assert len(projection.active_rows()) == 3  # inventory unchanged
 
 
+def test_gear_excludes_service_rows_that_lost_the_service_block() -> None:
+    # A host running a sase_core_rs build that predates the ``service`` wire
+    # field writes rows with every host-owned marker except that one.
+    rows = (
+        _row("ordinary", session_id="s"),
+        _row("daemon", origin="service-host", service=None, session_id=None),
+        _row("oneshot", origin="service-proc", service=None, session_id=None),
+    )
+    projection = ProcProjection(rows=rows, active_count=3, session_id="s")
+    assert gear_eligible_count(projection) == 1
+    assert len(projection.active_rows()) == 3  # inventory unchanged
+
+
 # --- chip ------------------------------------------------------------------
 
 

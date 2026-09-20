@@ -15,7 +15,12 @@ from typing import Any
 from sase.monitor_state import MONITOR_PROC_ORIGIN
 from sase.ops import DurableOperationResult
 from sase.procs import ACTIVE_PROC_STATUSES
-from sase.procs.service_meta import ProcServiceBlock
+from sase.procs.service_meta import (
+    SERVICE_HOST_ORIGIN,
+    SERVICE_ONESHOT_ORIGIN,
+    SERVICE_PROC_MODE_DAEMON,
+    ProcServiceBlock,
+)
 from sase.project_display_names import humanize_cl_name
 
 from ._proc_observer_log import ObservedProcLog
@@ -103,13 +108,42 @@ def is_monitor_shell_row(row: ObservedProc) -> bool:
     return row.origin == MONITOR_PROC_ORIGIN
 
 
-def _is_gear_eligible_row(row: ObservedProc) -> bool:
+def is_service_row(row: ObservedProc) -> bool:
+    """Return whether a row is owned by the service host or is a oneshot.
+
+    The wire ``service`` block is authoritative, but it is an additive field: a
+    ``sase_core_rs`` build that predates it drops the block silently while the
+    host-written ``origin`` still round-trips. Falling back to the origin keeps
+    such rows (including ones already in the store) classified correctly.
+    """
+    return row.service is not None or row.origin in (
+        SERVICE_HOST_ORIGIN,
+        SERVICE_ONESHOT_ORIGIN,
+    )
+
+
+def is_service_daemon_row(row: ObservedProc) -> bool:
+    """Return whether a row is a service daemon that never terminates.
+
+    Without a ``service`` block the host origin still identifies a daemon: the
+    host reserves daemons and nothing else under it, and a transient oneshot is
+    never one. ``shell_kind == "service"`` is deliberately not a third signal;
+    it is redundant with the origin on every row the host writes.
+    """
+    if row.service is not None:
+        return row.service.mode == SERVICE_PROC_MODE_DAEMON
+    return row.origin == SERVICE_HOST_ORIGIN
+
+
+def is_gear_eligible_row(row: ObservedProc) -> bool:
     """Return whether an active row counts toward the blue proc gear.
 
-    Monitor shells and service-host-owned rows (wire ``service`` marker) have
-    their own surfaces; ownership is never inferred from ``session_id``.
+    Monitor shells and service rows have their own surfaces (see
+    :func:`is_service_row` for how a service row is recognized); ownership is
+    never inferred from ``session_id``. Callers still gate on the row being
+    active.
     """
-    return not is_monitor_shell_row(row) and row.service is None
+    return not is_monitor_shell_row(row) and not is_service_row(row)
 
 
 def gear_eligible_count(
@@ -119,7 +153,7 @@ def gear_eligible_count(
     return sum(
         1
         for row in projection.active_rows(all_sessions=all_sessions)
-        if _is_gear_eligible_row(row)
+        if is_gear_eligible_row(row)
     )
 
 
@@ -260,7 +294,10 @@ __all__ = [
     "ProcObserverSnapshot",
     "ProcProjection",
     "compose_proc_projection",
+    "is_gear_eligible_row",
     "is_monitor_shell_row",
+    "is_service_daemon_row",
+    "is_service_row",
     "monitor_row_agent_name",
     "proc_projection_for",
     "proc_status_is_active",

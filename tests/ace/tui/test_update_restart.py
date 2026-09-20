@@ -14,6 +14,15 @@ from sase.ace.tui.update_restart import (
 )
 from sase.monitor_state import MONITOR_PROC_ORIGIN
 from sase.procs import Proc
+from sase.procs.service_meta import (
+    SERVICE_HOST_ORIGIN,
+    SERVICE_ONESHOT_ORIGIN,
+    SERVICE_PROC_MODE_DAEMON,
+    SERVICE_PROC_MODE_ONESHOT,
+    SERVICE_PROC_SOURCE_BUILTIN,
+    SERVICE_PROC_SOURCE_TRANSIENT,
+    ProcServiceBlock,
+)
 from sase.ace.tui.proc_observer import (
     ObservedProc,
     ProcProjection,
@@ -94,6 +103,50 @@ def _ordinary_row(
             log_path=f"/tmp/{proc_id}.log",
             message="running",
         )
+    )
+
+
+def _service_row(
+    *,
+    proc_id: str = "service-gateway",
+    origin: str = SERVICE_HOST_ORIGIN,
+    service: ProcServiceBlock | None = None,
+) -> ObservedProc:
+    return store_proc_row(
+        Proc(
+            proc_id=proc_id,
+            label=proc_id,
+            kind="command",
+            status="running",
+            command=["sase", "service"],
+            cwd="/tmp",
+            origin=origin,
+            created_at="2026-09-20T12:00:00Z",
+            started_at="2026-09-20T12:00:00Z",
+            log_path=f"/tmp/{proc_id}.log",
+            message="running",
+            service=service,
+        )
+    )
+
+
+def _daemon_block(name: str = "gateway") -> ProcServiceBlock:
+    return ProcServiceBlock(
+        name=name,
+        mode=SERVICE_PROC_MODE_DAEMON,
+        source=SERVICE_PROC_SOURCE_BUILTIN,
+    )
+
+
+def _oneshot_row() -> ObservedProc:
+    return _service_row(
+        proc_id="bgcmd-1",
+        origin=SERVICE_ONESHOT_ORIGIN,
+        service=ProcServiceBlock(
+            name=None,
+            mode=SERVICE_PROC_MODE_ONESHOT,
+            source=SERVICE_PROC_SOURCE_TRANSIENT,
+        ),
     )
 
 
@@ -218,3 +271,52 @@ def test_restart_filter_preserves_projection_rows_and_counts() -> None:
     assert projection.active_rows() == [receiver, monitor]
     assert projection.active_count == 2
     assert projection.active_monitor_count == 1
+
+
+@pytest.mark.parametrize("marked", [True, False], ids=["with-block", "origin-only"])
+def test_restart_filter_ignores_service_daemons(marked: bool) -> None:
+    daemon = _service_row(service=_daemon_block() if marked else None)
+    ordinary = _ordinary_row()
+    app = _App(daemon, ordinary)
+
+    assert running_background_procs(app) == [ordinary]
+
+
+def test_restart_filter_keeps_transient_oneshots_as_blockers() -> None:
+    oneshot = _oneshot_row()
+    app = _App(_service_row(service=_daemon_block()), oneshot)
+
+    assert running_background_procs(app) == [oneshot]
+
+
+def test_oneshot_without_service_block_still_blocks_restart() -> None:
+    # Origin alone marks a row as service-owned, but only a daemon never ends.
+    oneshot = _service_row(proc_id="bgcmd-2", origin=SERVICE_ONESHOT_ORIGIN)
+
+    assert running_background_procs(_App(oneshot)) == [oneshot]
+
+
+@pytest.mark.parametrize("marked", [True, False], ids=["with-block", "origin-only"])
+def test_daemon_only_projection_restarts_immediately(
+    monkeypatch: pytest.MonkeyPatch, marked: bool
+) -> None:
+    app = _App(
+        _service_row(
+            proc_id="service-gateway", service=_daemon_block() if marked else None
+        ),
+        _service_row(
+            proc_id="service-scheduler",
+            service=_daemon_block("scheduler") if marked else None,
+        ),
+        _monitor_row(),
+    )
+    monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
+
+    restart_after_update_when_ready(app, "updated", deferred=False)
+
+    assert app.restart_calls == [True]
+    assert app.timers == []
+    assert not any("restart queued until" in message for message, _ in app.messages)
+    assert app.messages == [
+        ("updated — restarting ACE to load new code.", "information")
+    ]

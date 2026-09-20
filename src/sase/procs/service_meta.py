@@ -27,6 +27,12 @@ SERVICE_PROC_SOURCES: Final = frozenset(
 
 RESERVED_BUILTIN_SERVICE_PROCS: Final = ("gateway", "scheduler")
 
+# Proc ``origin`` values the service subsystem writes. They are host-written
+# and independent of the wire ``service`` block, so readers can still classify
+# a row when that additive field is missing.
+SERVICE_HOST_ORIGIN: Final = "service-host"
+SERVICE_ONESHOT_ORIGIN: Final = "service-proc"
+
 
 @dataclass(frozen=True)
 class ProcServiceBlock:
@@ -63,6 +69,8 @@ class ProcServiceBlock:
 
 __all__ = [
     "RESERVED_BUILTIN_SERVICE_PROCS",
+    "SERVICE_HOST_ORIGIN",
+    "SERVICE_ONESHOT_ORIGIN",
     "SERVICE_PROC_MODE_DAEMON",
     "SERVICE_PROC_MODE_ONESHOT",
     "SERVICE_PROC_MODES",

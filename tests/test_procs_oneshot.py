@@ -14,6 +14,7 @@ from sase.procs import ProcSubmitError, kill_proc, wait_for_proc
 from sase.procs.models import Proc
 from sase.procs.oneshot import (
     MAX_ONESHOT_SLOTS,
+    ONESHOT_ORIGIN,
     _OneshotSlotsExhaustedError,
     choose_oneshot_slot,
     _is_transient_oneshot,
@@ -26,7 +27,7 @@ from sase.procs.oneshot import (
     _proc_occupancy,
     submit_oneshot,
 )
-from sase.procs.service_meta import ProcServiceBlock
+from sase.procs.service_meta import SERVICE_ONESHOT_ORIGIN, ProcServiceBlock
 
 
 def _proc(
@@ -145,6 +146,10 @@ def _submit(**kwargs: Any) -> tuple[Any, Any]:
         )
     (request,), _ = submit.call_args
     return result, request
+
+
+def test_oneshot_origin_is_the_shared_service_constant() -> None:
+    assert ONESHOT_ORIGIN is SERVICE_ONESHOT_ORIGIN
 
 
 def test_submit_carries_the_oneshot_service_block_and_slot_key() -> None:

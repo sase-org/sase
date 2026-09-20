@@ -8,8 +8,14 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
-from sase.procs import read_procs
-from sase.procs.service_meta import SERVICE_PROC_MODE_DAEMON
+import pytest
+
+from sase.procs import read_procs, reserve_proc
+from sase.procs.service_meta import (
+    SERVICE_HOST_ORIGIN,
+    SERVICE_ONESHOT_ORIGIN,
+    SERVICE_PROC_MODE_DAEMON,
+)
 from sase.service.config import (
     ServiceConfigComposition,
     ServiceEnablementSource,
@@ -92,6 +98,77 @@ def test_service_host_launches_direct_child_and_settles_durable_row(
     ):
         time.sleep(0.05)  # sase-test-wait: background output pump flushes log
     assert "service child" in log_path.read_text(encoding="utf-8")
+
+
+def test_service_host_reserves_daemons_under_the_host_origin(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    host = _ServiceHost()
+
+    host._launch(_command_entry((sys.executable, "-c", "pass")), history=None)
+    host._children["demo"].process.wait(timeout=10)
+
+    (row,) = read_procs()
+    assert row.origin == SERVICE_HOST_ORIGIN == "service-host"
+    assert SERVICE_ONESHOT_ORIGIN == "service-proc"
+
+
+def test_service_host_warns_once_when_the_store_drops_the_service_marker(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+
+    def _reserve_without_marker(*args, **kwargs):
+        # Model a stale sase_core_rs build: the row is stored but the additive
+        # ``service`` field never makes the round trip.
+        outcome = reserve_proc(*args, **kwargs)
+        stripped = dataclasses.replace(outcome.proc, service=None)
+        return dataclasses.replace(outcome, proc=stripped)
+
+    monkeypatch.setattr("sase.service.host.reserve_proc", _reserve_without_marker)
+    host = _ServiceHost()
+    long_running = (sys.executable, "-c", "import time; time.sleep(30)")
+    first = dataclasses.replace(_command_entry(long_running), name="first")
+    second = dataclasses.replace(_command_entry(long_running), name="second")
+
+    try:
+        host._launch(first, history=None)
+        host._launch(second, history=None)
+
+        # The launch is never refused, and the supervisor claim still lands.
+        assert set(host._children) == {"first", "second"}
+        claimed = {row.proc_id: row.supervisor_id for row in read_procs()}
+        assert claimed == {
+            running.proc_id: running.supervisor_id
+            for running in host._children.values()
+        }
+    finally:
+        for running in host._children.values():
+            running.process.kill()
+            running.process.wait(timeout=10)
+
+    warning = capsys.readouterr().err
+    assert warning.count("dropped the service marker") == 1
+    assert "sase_core_rs" in warning
+    assert "sase-core" in warning
+
+
+def test_service_host_stays_quiet_when_the_service_marker_round_trips(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    host = _ServiceHost()
+
+    host._launch(_command_entry((sys.executable, "-c", "pass")), history=None)
+    host._children["demo"].process.wait(timeout=10)
+
+    assert "service marker" not in capsys.readouterr().err
 
 
 def test_gateway_builtin_resolves_direct_gateway_argv(monkeypatch) -> None:

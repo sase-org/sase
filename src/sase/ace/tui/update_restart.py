@@ -90,15 +90,21 @@ def restart_after_update_when_ready(
 def running_background_procs(app: Any) -> list[Any]:
     """Return observed active procs that must finish before ACE can restart.
 
-    Excludes monitor shells because they are host-level follow-up supervisors;
-    every other active proc is ordinary background work and should drain first.
+    Excludes monitor shells because they are host-level follow-up supervisors,
+    and service daemons because a daemon has no terminal state: waiting on one
+    can only expire. Every other active proc (including transient oneshot
+    ``!`` commands) is ordinary background work and should drain first.
     """
-    from sase.ace.tui.proc_observer import is_monitor_shell_row, proc_projection_for
+    from sase.ace.tui.proc_observer import (
+        is_monitor_shell_row,
+        is_service_daemon_row,
+        proc_projection_for,
+    )
 
     return [
         row
         for row in proc_projection_for(app).active_rows()
-        if not is_monitor_shell_row(row)
+        if not is_monitor_shell_row(row) and not is_service_daemon_row(row)
     ]
 
 
