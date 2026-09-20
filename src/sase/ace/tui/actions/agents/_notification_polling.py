@@ -10,9 +10,10 @@ from ._notification_plan_reconciliation import (
     prepare_plan_notification_reconciliation,
 )
 from ._notification_utils import (
-    is_active_agent_refresh_notification,
     apply_disappeared_plan_notification_refresh,
+    is_active_agent_refresh_notification,
     prepare_disappeared_plan_notification_refresh,
+    prepare_pending_gate_notification_refresh,
     unread_notification_buckets,
 )
 
@@ -25,12 +26,14 @@ def _prepare_notification_reconciliation(
     previous_notifications: list[Notification],
     current_notifications: list[Notification],
     actionable_notifications: list[Notification],
+    new_notifications: list[Notification],
 ) -> tuple[
     PreparedPlanNotificationReconciliation,
     tuple[Path, ...],
     bool,
+    tuple[Path, ...],
 ]:
-    """Prepare response and disappearance transitions on a worker thread."""
+    """Prepare response, disappearance, and pending-gate dirs on a worker thread."""
     prepared_plan_notifications = prepare_plan_notification_reconciliation(
         app,
         actionable_notifications,
@@ -40,7 +43,16 @@ def _prepare_notification_reconciliation(
         previous_notifications,
         current_notifications,
     )
-    return prepared_plan_notifications, artifact_dirs, needs_broad_fallback
+    pending_gate_dirs = prepare_pending_gate_notification_refresh(
+        app,
+        new_notifications,
+    )
+    return (
+        prepared_plan_notifications,
+        artifact_dirs,
+        needs_broad_fallback,
+        pending_gate_dirs,
+    )
 
 
 class AgentNotificationPollingMixin:
@@ -55,6 +67,7 @@ class AgentNotificationPollingMixin:
         self._notification_poll_running = True  # type: ignore[attr-defined]
         saw_new = False
         new_completions: list[Notification] = []
+        pending_gate_dirs: list[Path] = []
         try:
             while True:
                 self._notification_poll_pending = False  # type: ignore[attr-defined]
@@ -62,9 +75,15 @@ class AgentNotificationPollingMixin:
                 new_completions.extend(
                     getattr(self, "_once_new_completion_notifications", ())
                 )
+                pending_gate_dirs.extend(
+                    getattr(self, "_once_pending_gate_artifact_dirs", ())
+                )
                 if not getattr(self, "_notification_poll_pending", False):
                     self._last_new_completion_notifications = (  # type: ignore[attr-defined]
                         new_completions
+                    )
+                    self._last_pending_gate_artifact_dirs = (  # type: ignore[attr-defined]
+                        pending_gate_dirs
                     )
                     return saw_new
         finally:
@@ -130,12 +149,14 @@ class AgentNotificationPollingMixin:
             prepared_plan_notifications,
             disappeared_artifact_dirs,
             needs_broad_fallback,
+            pending_gate_dirs,
         ) = await asyncio.to_thread(
             _prepare_notification_reconciliation,
             self,
             previous_notifications,
             notifications,
             unread_active + unread_muted,
+            new_non_resurface_notifications,
         )
         delivered_activity_cursors.update(new_activity_cursors)
         # The guarded read (above) already cached this snapshot as soon as
@@ -202,6 +223,7 @@ class AgentNotificationPollingMixin:
             for notification in new_non_resurface_notifications
             if is_active_agent_refresh_notification(notification)
         ]
+        self._once_pending_gate_artifact_dirs = pending_gate_dirs  # type: ignore[attr-defined]
         return bool(new_non_resurface_notifications)
 
     def _refresh_notification_count(self: Any) -> None:

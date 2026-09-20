@@ -10,6 +10,7 @@ import yaml  # type: ignore[import-untyped]
 from textual.pilot import Pilot
 from textual.widgets import Static
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.actions.agent_workflow._prompt_bar_snippet_pane import (
     PromptBarSnippetPaneMixin,
 )
@@ -135,16 +136,18 @@ async def test_gt_new_snippet_loop_writes_publishes_expands_and_restores_cursor(
             original_cursor = origin.cursor_location
 
             await pilot.press("g", "t")
-            await pilot.pause(0.3)
-            assert isinstance(app.screen, SnippetNameModal)
+            await wait_for(pilot, lambda: isinstance(app.screen, SnippetNameModal))
 
             await pilot.press("t", "o", "d", "o")
-            await pilot.pause(0.3)
             modal = app.screen
             assert isinstance(modal, SnippetNameModal)
-            assert (
-                "Create ⇥ todo"
-                in modal.query_one("#snippet-name-verdict", Static).render().plain
+            await wait_for(
+                pilot,
+                lambda: (
+                    "Create ⇥ todo"
+                    in modal.query_one("#snippet-name-verdict", Static).render().plain
+                ),
+                timeout=8.0,
             )
             assert (
                 str(config)

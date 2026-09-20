@@ -15,6 +15,9 @@ if TYPE_CHECKING:
 
 TabName = Literal["artifacts", "agents", "axe"]
 _SETTLEMENT_NOTIFICATION_SENDERS = frozenset({"epic-launch", "monitor-settlement"})
+_PENDING_GATE_REFRESH_ACTIONS = frozenset(
+    {"PlanApproval", "EpicApproval", "UserQuestion"}
+)
 _FAMILY_ROOT_SUFFIX_KEYS = (
     "family_root_suffix",
     "family_root_raw_suffix",
@@ -255,6 +258,139 @@ def _notification_family_root_suffix(notification: Notification) -> str | None:
     return None
 
 
+def _pending_gate_notification_suffixes(notification: Notification) -> list[str]:
+    """Return gate-member, planner, and family-root suffixes in that order."""
+    ordered: list[str] = []
+    seen: set[str] = set()
+    for value in (
+        _notification_raw_suffix(notification),
+        _normalized_suffix(notification.action_data.get("agent_timestamp")),
+        _notification_family_root_suffix(notification),
+    ):
+        if value is None or value in seen:
+            continue
+        seen.add(value)
+        ordered.append(value)
+    return ordered
+
+
+def _pending_gate_notification_delta_dirs(
+    app: Any,
+    pending: Sequence[Notification],
+) -> list[Path]:
+    """Resolve exact family-chain dirs for active pending-review gate arrivals.
+
+    Touches disk (``is_dir`` and the unloaded-timestamp scan), so it runs only
+    from ``prepare_pending_gate_notification_refresh`` on the notification-poll
+    worker; ``request_notification_agents_refresh`` consumes that result rather
+    than re-resolving on the event loop. Does not call
+    ``find_gate_shell_by_gate_id``; the indexed legacy fallback lives in the
+    caller.
+    """
+    if not pending:
+        return []
+
+    artifact_dirs: list[Path] = []
+    seen: set[str] = set()
+    resolved_suffixes: set[str] = set()
+    unresolved_suffixes: set[str] = set()
+    roster = loaded_real_agent_roster(app)
+    agents_by_suffix: dict[str, Agent] = {}
+    for agent in roster:
+        suffix = _normalized_suffix(agent.raw_suffix)
+        if suffix and suffix not in agents_by_suffix:
+            agents_by_suffix[suffix] = agent
+
+    def add_artifact_dir(path: Path | None) -> bool:
+        if path is None:
+            return False
+        key = str(path)
+        if key in seen:
+            return False
+        seen.add(key)
+        artifact_dirs.append(path)
+        return True
+
+    def add_agent_artifact_dir(agent: Agent) -> bool:
+        return add_artifact_dir(_agent_artifact_dir(agent))
+
+    for notification in pending:
+        artifacts_dir = notification.action_data.get("artifacts_dir")
+        if isinstance(artifacts_dir, str) and artifacts_dir:
+            path = Path(artifacts_dir)
+            if path.is_dir():
+                add_artifact_dir(path)
+        suffixes = _pending_gate_notification_suffixes(notification)
+        unresolved_suffixes.update(suffixes)
+        raw_suffix = _notification_raw_suffix(notification)
+        if raw_suffix is None:
+            continue
+        resolved_suffixes.update(
+            _add_loaded_family_chain_artifact_dirs(
+                agents_by_suffix,
+                raw_suffix=raw_suffix,
+                root_suffix=_notification_family_root_suffix(notification),
+                add_agent_artifact_dir=add_agent_artifact_dir,
+            )
+        )
+
+    unresolved_suffixes.difference_update(resolved_suffixes)
+    if unresolved_suffixes:
+        from ...models.agent_loader import (
+            artifact_dirs_for_normalized_timestamps,
+            normalize_timestamps,
+        )
+
+        for extra in artifact_dirs_for_normalized_timestamps(
+            normalize_timestamps(unresolved_suffixes)
+        ):
+            add_artifact_dir(extra)
+    return artifact_dirs
+
+
+def prepare_pending_gate_notification_refresh(
+    app: Any,
+    notifications: Iterable[Notification],
+) -> tuple[Path, ...]:
+    """Resolve pending-review gate dirs on the notification-poll worker thread.
+
+    Stamped ``raw_suffix`` rows resolve from action_data and the roster. Legacy
+    in-flight notifications without the new keys fall back to the indexed
+    ``find_gate_shell_by_gate_id`` lookup.
+    """
+    pending = [
+        notification
+        for notification in notifications
+        if _is_active_pending_gate_refresh_notification(notification)
+    ]
+    if not pending:
+        return ()
+    artifact_dirs = _pending_gate_notification_delta_dirs(app, pending)
+    seen = {str(path) for path in artifact_dirs}
+    extras: list[Path] = []
+    for notification in pending:
+        if _notification_raw_suffix(notification) is not None:
+            continue
+        gate_id = str(notification.action_data.get("request_id") or "").strip()
+        if not gate_id:
+            continue
+        from sase.gate_shell.store import find_gate_shell_by_gate_id
+
+        record = find_gate_shell_by_gate_id(None, gate_id)
+        artifacts_dir = getattr(record, "artifacts_dir", None) if record else None
+        if not artifacts_dir:
+            continue
+        path = Path(str(artifacts_dir))
+        key = str(path)
+        if key in seen:
+            continue
+        seen.add(key)
+        extras.append(path)
+    if not extras:
+        return tuple(artifact_dirs)
+    return tuple(artifact_dirs + extras)
+
+
 def _normalized_suffix(value: object) -> str | None:
     if not isinstance(value, str) or not value.strip():
         return None
@@ -285,6 +421,17 @@ def request_notification_agents_refresh(
         if targets is None:
             targets = getattr(app, "_last_new_completion_notifications", None)
         artifact_dirs.extend(_completion_notification_delta_dirs(app, targets))
+        # Pending-gate dirs need disk and the indexed gate lookup, so the poll
+        # already resolved them on its worker thread; consume that result.
+        prepared = getattr(app, "_last_pending_gate_artifact_dirs", None)
+        if prepared:
+            seen_dirs = {str(path) for path in artifact_dirs}
+            for path in prepared:
+                key = str(path)
+                if key in seen_dirs:
+                    continue
+                seen_dirs.add(key)
+                artifact_dirs.append(path)
 
     if artifact_dirs:
         schedule_delta = getattr(app, "_schedule_agent_artifact_delta_refresh", None)
@@ -606,11 +753,25 @@ def _is_active_agent_settlement_notification(notification: Notification) -> bool
     return root_suffix is not None and root_suffix != raw_suffix
 
 
+def _is_active_pending_gate_refresh_notification(notification: Notification) -> bool:
+    """Return True for an active pending-review gate notification.
+
+    Sibling of the completion and settlement predicates. Plan/epic/question
+    arrivals need an exact family-chain refresh on the toast tick; they are
+    not settlement senders.
+    """
+    if notification.dismissed:
+        return False
+    return notification.action in _PENDING_GATE_REFRESH_ACTIONS
+
+
 def is_active_agent_refresh_notification(notification: Notification) -> bool:
     """Return True when a new notification can drive an exact Agents refresh."""
-    return _is_active_agent_completion_notification(
-        notification
-    ) or _is_active_agent_settlement_notification(notification)
+    return (
+        _is_active_agent_completion_notification(notification)
+        or _is_active_agent_settlement_notification(notification)
+        or _is_active_pending_gate_refresh_notification(notification)
+    )
 
 
 def agent_completion_notification_matches_agent(

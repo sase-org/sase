@@ -20,6 +20,7 @@ from sase.core.agent_scan_wire import AgentClanContextWire
 
 from tests._agents_tab_incomplete_merge_helpers import (
     _artifact_delta_load_state,
+    _gate_row,
     _gate_rows,
     _incomplete_tier1_snapshot,
     _merge_tier1_patch,
@@ -110,6 +111,27 @@ def test_artifact_delta_preserves_cached_clan_context() -> None:
     assert refreshed.clan_context.clan_tribe == "chop"
     container = project_clan_tree(prep.filtered_agents)[0]
     assert container.clan_tribes == ("chop",)
+
+
+def test_artifact_delta_pending_tale_child_remirrors_done_family_root() -> None:
+    """Inserting a pending TALE gate child remirrors a cached DONE family root."""
+    root, _cached_gate, _settled_gate, _coder = _settled_gate_merge_rows()
+    pending_gate = _gate_row(
+        agent_type=AgentType.WORKFLOW,
+        status="TALE",
+        gate_state="pending",
+        status_bucket="Stopped",
+    )
+
+    rows = _merge_tier1_patch(
+        [root],
+        [pending_gate],
+        load_state=_artifact_delta_load_state(),
+    )
+
+    root_row = next(agent for agent in rows if agent.raw_suffix == root.raw_suffix)
+    assert pending_gate in rows
+    assert root_row.status == "TALE"
 
 
 def test_artifact_delta_type_changed_gate_settlement_replaces_stale_pending_row() -> (

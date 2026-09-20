@@ -115,6 +115,7 @@ def create_gate_shell(
 
     if not creation.should_handoff:
         clear_gate_intent()
+    _pulse_after_gate_visible(creation.record.project_name)
     return creation
 
 
@@ -134,6 +135,12 @@ def _create_gate_shell_transaction(
     with log_file_lock(lock_path):
         replay = find_gate_shell_by_gate_id(project_name, spec.request_id)
         if replay is not None:
+            _stamp_pending_shell_on_spec(
+                spec,
+                member_artifacts_dir=replay.artifacts_dir,
+                member_timestamp=replay.timestamp
+                or os.path.basename(replay.artifacts_dir.rstrip("/")),
+            )
             gate_result = create_gate(spec)
             record = _record_with_gate_result(project_name, replay, gate_result)
             return GateShellCreation(
@@ -190,6 +197,11 @@ def _create_gate_shell_transaction(
             )
 
         try:
+            _stamp_pending_shell_on_spec(
+                spec,
+                member_artifacts_dir=artifacts_dir,
+                member_timestamp=member_timestamp,
+            )
             gate_result = create_gate(spec)
         except BaseException:
             record = _read_required_record(project_name, artifacts_dir)
@@ -237,6 +249,40 @@ def _create_gate_shell_transaction(
             claim_move=claim_move,
             cl_name=creator.cl_name,
         )
+
+
+def _stamp_pending_shell_on_spec(
+    spec: GateSpec,
+    *,
+    member_artifacts_dir: str,
+    member_timestamp: str,
+) -> None:
+    """Attach the pending shell member identity before the notification is published.
+
+    Settlement-style ``raw_suffix`` names the new gate member so ACE can load an
+    unloaded dir. Planner ``artifacts_dir`` / timestamps stay in place when the
+    producer already recorded them.
+    """
+    action_data = dict(spec.presentation.get("action_data") or {})
+    if member_timestamp:
+        action_data.setdefault("raw_suffix", member_timestamp)
+    if member_artifacts_dir and "artifacts_dir" not in action_data:
+        action_data["artifacts_dir"] = member_artifacts_dir
+    root = (
+        action_data.get("family_root_suffix")
+        or action_data.get("agent_root_timestamp")
+        or action_data.get("agent_timestamp")
+    )
+    if isinstance(root, str) and root.strip():
+        action_data.setdefault("family_root_suffix", root.strip())
+    spec.presentation["action_data"] = action_data
+
+
+def _pulse_after_gate_visible(project_name: str | None) -> None:
+    """Nudge artifact watchers after the gate member and notification exist."""
+    from sase.shells.settlement import touch_shell_refresh_pulse
+
+    touch_shell_refresh_pulse(project_name)
 
 
 def _spec_from_request(request: Mapping[str, Any] | GateSpec) -> GateSpec:
