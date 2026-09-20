@@ -670,3 +670,34 @@ def test_reapply_does_not_rebuild_option_lists() -> None:
     main = app._panel_widgets["agent-list-panel"]
     assert main.styles.height.unit is Unit.FRACTION
     assert main.styles.height.value == 3.0  # option_count 2 + 1
+
+
+def test_refresh_panel_widgets_span_reports_panel_widget_ids(
+    tmp_path: Any, monkeypatch: Any
+) -> None:
+    """Soaks assert tribe-stable widget identity from the trace, not by eye."""
+    import json
+
+    from sase.ace.tui.util import trace
+
+    log = tmp_path / "trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+    app = _FakeApp(
+        _two_tribe_assigned_panel_agents(), option_counts=[2, 2], container_height=30
+    )
+
+    app._refresh_panel_widgets(jump_hints=None)
+
+    trace._flush_trace_writes()
+    spans = [
+        json.loads(line)
+        for line in log.read_text().splitlines()
+        if line and json.loads(line).get("span") == "agents.refresh_panel_widgets"
+    ]
+    (span,) = spans
+    assert span["panels"] == 2
+    assert span["panel_widget_ids"] == [
+        panel_widget_id_for_key("apple"),
+        panel_widget_id_for_key("banana"),
+    ]

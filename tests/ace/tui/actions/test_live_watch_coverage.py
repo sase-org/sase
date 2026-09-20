@@ -114,6 +114,8 @@ def _apply(app: _ApplyHarness, agents: list[Agent]) -> None:
             unfiltered_agents=list(agents),
             visible_agents=list(agents),
             fold_counts={},
+            local_unfiltered_agents=list(agents),
+            local_visible_agents=list(agents),
         ),
         selection=PreparedApplySelectionInputs(
             on_agents_tab=False,

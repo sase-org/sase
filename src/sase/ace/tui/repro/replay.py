@@ -31,7 +31,7 @@ from .schema import (
     ReproLoadStep,
     ReproScreen,
 )
-from .serialize import serialize_agent_rows
+from .serialize import serialize_agent_rows, serialize_unfiltered_roster
 
 ReplayMergeMode = Literal["current", "legacy_replace"]
 
@@ -193,6 +193,10 @@ def _expand_visible_fixture_parents(app: AceApp, step: ReproLoadStep) -> None:
 
 def _capture_replay_step(page: AcePage, source: ReproLoadStep) -> ReproLoadStep:
     app = page.app
+    unfiltered_identities, fold_explained_identities = serialize_unfiltered_roster(
+        app._agents_with_children,
+        app._fold_manager,
+    )
     app_state = ReproAppState(
         visible_identities=[
             agent_to_repro_identity(agent)
@@ -213,6 +217,8 @@ def _capture_replay_step(page: AcePage, source: ReproLoadStep) -> ReproLoadStep:
         ],
         flattened_parent_timestamps=[],
         agents_seen_complete_history=bool(app._agents_seen_complete_history),
+        unfiltered_identities=unfiltered_identities,
+        fold_explained_identities=fold_explained_identities,
     )
     return replace(
         source,

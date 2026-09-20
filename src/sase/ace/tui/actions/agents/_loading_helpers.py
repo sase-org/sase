@@ -83,6 +83,13 @@ class _AgentDiskLoadResult:
     provider_snapshot: AgentsProviderSnapshot | None = None
 
 
+def roster_identities(
+    agents: Sequence[Agent],
+) -> tuple[tuple[AgentType, str, str | None], ...]:
+    """Return the ordered identity fingerprint of a published or planned roster."""
+    return tuple(agent.identity for agent in agents)
+
+
 def is_always_visible(agent: Agent) -> bool:
     """Check if agent should always be visible (dismissable or running).
 

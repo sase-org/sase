@@ -135,7 +135,7 @@ class AgentLoadingDiskDeltaMixin(AgentLoadingStateMixin):
             dismissed_bundle_snapshot=dismissed_bundle_snapshot,
         )
         content_index = await self._prepare_agent_content_search_index_async(
-            boundary.fold.unfiltered_agents
+            boundary.fold.local_unfiltered_agents
         )
         boundary = await asyncio.to_thread(
             attach_finalize_plan_to_boundary,

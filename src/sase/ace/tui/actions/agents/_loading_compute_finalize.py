@@ -22,6 +22,7 @@ from ._loading_compute_types import (
 )
 from ._loading_helpers import (
     build_question_answer_family_index,
+    roster_identities,
     should_clear_loaded_agent_status_override,
 )
 
@@ -337,8 +338,14 @@ def _compute_finalize_plan(
     from ...models.agent_groups import GroupingMode
     from ...util.trace import tui_trace
 
-    with tui_trace("agents.finalize_query_filter", agents=len(visible_agents)):
+    # ``agents_in`` is the filter's input and ``agents_out`` its output; a single
+    # ambiguous ``agents`` counter once let a soak misread the input as the
+    # published roster size.
+    with tui_trace(
+        "agents.finalize_query_filter", agents_in=len(visible_agents)
+    ) as extra:
         query_plan = _compute_query_plan(visible_agents, snapshot, content_index)
+        extra["agents_out"] = len(query_plan.filtered_agents)
     override_plan = _compute_status_override_plan(
         query_plan.filtered_agents,
         snapshot.agent_status_overrides,
@@ -364,4 +371,5 @@ def _compute_finalize_plan(
         selection=selection_plan,
         panel_group_keys=panel_group_keys,
         stale_token=stale_token,
+        input_row_identities=roster_identities(visible_agents),
     )

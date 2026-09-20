@@ -135,3 +135,92 @@ def test_redacted_capture_bundle_loads_against_schema(tmp_path: Path) -> None:
     assert "secret/customer/project" not in raw
     assert "customer-agent-name" not in raw
     check_bundle_invariants(bundle).assert_ok()
+
+
+def _child_agent(parent: Agent) -> Agent:
+    child = _agent("private_cl_child", "20260513120100")
+    child.agent_type = AgentType.WORKFLOW
+    child.parent_workflow = "wf"
+    child.parent_timestamp = parent.raw_suffix
+    return child
+
+
+def _record_projection(
+    app: _App, *, visible: list[Agent], unfiltered: list[Agent]
+) -> None:
+    app._agents = visible
+    app._agents_with_children = unfiltered
+    record_agents_tab_app_projection(app, load_state=_TIER1_STATE, source="apply")
+
+
+def test_capture_flags_a_published_roster_that_dropped_an_unfiltered_row() -> None:
+    """The finalize-plan defect: rows still held by the app vanish from the roster."""
+    app = _App()
+    ring = enable_agents_tab_repro_capture(app)
+    kept = _agent("private_cl", "20260513120000")
+    dropped = _agent("fleet_row", "apollo:fleet_row")
+
+    _record_projection(app, visible=[kept], unfiltered=[kept, dropped])
+
+    (step,) = ring.steps
+    assert len(step.app_state.unfiltered_identities) == 2
+    assert step.app_state.fold_explained_identities == []
+    report = check_bundle_invariants(ring.to_bundle(commit_safe=False))
+    assert "visible_roster_omits_unfiltered" in {f.code for f in report.failures}
+
+
+def test_capture_does_not_flag_rows_a_collapsed_fold_hides() -> None:
+    app = _App()
+    ring = enable_agents_tab_repro_capture(app)
+    parent = _agent("private_cl", "20260513120000")
+    parent.agent_type = AgentType.WORKFLOW
+    child = _child_agent(parent)
+
+    # Default fold state is collapsed, so the child is legitimately unpublished.
+    _record_projection(app, visible=[parent], unfiltered=[parent, child])
+
+    (step,) = ring.steps
+    assert len(step.app_state.unfiltered_identities) == 2
+    assert len(step.app_state.fold_explained_identities) == 1
+    check_bundle_invariants(ring.to_bundle(commit_safe=True)).assert_ok()
+
+
+def test_capture_redacts_unfiltered_roster_identities(tmp_path: Path) -> None:
+    app = _App()
+    enable_agents_tab_repro_capture(app)
+    agent = _agent("secret/customer/project", "20260513123000")
+
+    _record_projection(app, visible=[agent], unfiltered=[agent])
+    bundle_path = capture_agents_tab_repro_bundle(app, tmp_path, commit_safe=True)
+
+    assert "secret/customer/project" not in bundle_path.read_text(encoding="utf-8")
+    bundle = load_bundle(bundle_path)
+    assert len(bundle.load_steps[-1].app_state.unfiltered_identities) == 1
+
+
+def test_capture_flags_a_dropped_clan_container_but_not_its_folded_members() -> None:
+    """A collapsed clan hides its members; it must never hide the container."""
+    from tests._agents_tab_graph_isolation_helpers import clan_graph
+
+    graph = clan_graph()
+    container = next(agent for agent in graph if agent.is_clan_container)
+
+    healthy = _App()
+    healthy_ring = enable_agents_tab_repro_capture(healthy)
+    _record_projection(healthy, visible=[container], unfiltered=graph)
+    (healthy_step,) = healthy_ring.steps
+    assert len(healthy_step.app_state.fold_explained_identities) == 2
+    healthy_report = check_bundle_invariants(healthy_ring.to_bundle(commit_safe=True))
+    assert "visible_roster_omits_unfiltered" not in {
+        f.code for f in healthy_report.failures
+    }
+
+    broken = _App()
+    broken_ring = enable_agents_tab_repro_capture(broken)
+    _record_projection(broken, visible=[], unfiltered=graph)
+    report = check_bundle_invariants(broken_ring.to_bundle(commit_safe=False))
+    failures = [
+        f for f in report.failures if f.code == "visible_roster_omits_unfiltered"
+    ]
+    assert len(failures) == 1
+    assert "clan:epic-clan" in failures[0].message

@@ -4,13 +4,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .agent_factory import agent_has_repro_identity, agent_type_to_repro
-from .schema import ReproAgentRow
+from .agent_factory import (
+    agent_has_repro_identity,
+    agent_to_repro_identity,
+    agent_type_to_repro,
+)
+from .schema import AgentIdentity, ReproAgentRow
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
     from sase.ace.tui.models.agent import Agent
+    from sase.ace.tui.models.fold_state import FoldStateManager
 
 
 def serialize_agent_row(agent: Agent) -> ReproAgentRow:
@@ -52,3 +57,38 @@ def serialize_agent_rows(agents: Iterable[Agent]) -> list[ReproAgentRow]:
         for agent in agents
         if agent_has_repro_identity(agent)
     ]
+
+
+def serialize_unfiltered_roster(
+    agents: Iterable[Agent],
+    fold_manager: FoldStateManager | None,
+) -> tuple[list[AgentIdentity], list[AgentIdentity]]:
+    """Return the unfiltered roster's identities and the fold-explained subset.
+
+    The second list holds the rows a fold level legitimately keeps out of the
+    published roster: the rows the fold filter hides. A clan container is not
+    among them (the fold keeps it and hides only its members), so a published
+    roster missing the container of a collapsed clan is a defect the
+    roster-coverage invariant must see. Returns two empty lists when the fold
+    cannot be evaluated, which disables the invariant instead of letting it
+    guess.
+    """
+    from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
+
+    rows = list(agents)
+    if fold_manager is None:
+        return [], []
+    try:
+        fold_visible, _ = filter_agents_by_fold_state(rows, fold_manager)
+    except Exception:
+        return [], []
+    fold_visible_ids = {id(agent) for agent in fold_visible}
+    repro_rows = [agent for agent in rows if agent_has_repro_identity(agent)]
+    return (
+        [agent_to_repro_identity(agent) for agent in repro_rows],
+        [
+            agent_to_repro_identity(agent)
+            for agent in repro_rows
+            if id(agent) not in fold_visible_ids
+        ],
+    )

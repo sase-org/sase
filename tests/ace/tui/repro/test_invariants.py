@@ -186,3 +186,74 @@ def test_repeated_refresh_stability_mismatch_is_reported() -> None:
     bundle = _with_steps(bundle, {repeat_step.step_id: broken_repeat})
 
     assert "replay_refresh_not_stable" in _failure_codes(bundle)
+
+
+def _with_unfiltered_roster(
+    bundle: ReproBundle,
+    *,
+    extra: list[tuple[str, str, str | None]],
+    fold_explained: list[tuple[str, str, str | None]] | None = None,
+    query_active: bool = False,
+) -> ReproBundle:
+    """Give the last step an unfiltered roster with *extra* rows never published."""
+    step = bundle.load_steps[-1]
+    visible = list(step.app_state.visible_identities)
+    broken_step = replace(
+        step,
+        app_state=replace(
+            step.app_state,
+            unfiltered_identities=[*visible, *extra],  # type: ignore[list-item]
+            fold_explained_identities=list(fold_explained or []),  # type: ignore[arg-type]
+        ),
+        metadata={**step.metadata, "agent_search_query_active": query_active},
+    )
+    return _with_steps(bundle, {step.step_id: broken_step})
+
+
+_DROPPED_FLEET_ROW = ("run", "fleet-epic", "apollo:fleet-epic")
+
+
+def test_published_roster_omitting_an_unfiltered_row_is_reported() -> None:
+    bundle = _repair_expected_visible_projection(load_bundle(FIXTURE))
+
+    report = check_bundle_invariants(
+        _with_unfiltered_roster(bundle, extra=[_DROPPED_FLEET_ROW])
+    )
+
+    failures = [
+        failure
+        for failure in report.failures
+        if failure.code == "visible_roster_omits_unfiltered"
+    ]
+    assert len(failures) == 1
+    assert failures[0].step_id == bundle.load_steps[-1].step_id
+    assert "fleet-epic" in failures[0].message
+
+
+def test_unfiltered_row_hidden_by_a_fold_level_is_not_reported() -> None:
+    bundle = _repair_expected_visible_projection(load_bundle(FIXTURE))
+
+    broken = _with_unfiltered_roster(
+        bundle,
+        extra=[_DROPPED_FLEET_ROW],
+        fold_explained=[_DROPPED_FLEET_ROW],
+    )
+
+    assert "visible_roster_omits_unfiltered" not in _failure_codes(broken)
+
+
+def test_unfiltered_row_absent_under_an_active_query_is_not_reported() -> None:
+    bundle = _repair_expected_visible_projection(load_bundle(FIXTURE))
+
+    broken = _with_unfiltered_roster(
+        bundle, extra=[_DROPPED_FLEET_ROW], query_active=True
+    )
+
+    assert "visible_roster_omits_unfiltered" not in _failure_codes(broken)
+
+
+def test_bundle_without_an_unfiltered_roster_skips_the_coverage_check() -> None:
+    bundle = _repair_expected_visible_projection(load_bundle(FIXTURE))
+
+    assert all(not step.app_state.unfiltered_identities for step in bundle.load_steps)
+    assert "visible_roster_omits_unfiltered" not in _failure_codes(bundle)

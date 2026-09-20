@@ -29,7 +29,7 @@ from .schema import (
     SCHEMA_VERSION,
     identity_to_json,
 )
-from .serialize import serialize_agent_rows
+from .serialize import serialize_agent_rows, serialize_unfiltered_roster
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -399,6 +399,10 @@ def _serialize_load_state(load_state: AgentLoadState | None) -> ReproLoadState:
 
 
 def _build_app_state(app: Any) -> ReproAppState:
+    unfiltered_identities, fold_explained_identities = serialize_unfiltered_roster(
+        getattr(app, "_agents_with_children", []),
+        getattr(app, "_fold_manager", None),
+    )
     return ReproAppState(
         visible_identities=[
             _schema_identity(agent.identity) for agent in getattr(app, "_agents", [])
@@ -415,6 +419,8 @@ def _build_app_state(app: Any) -> ReproAppState:
         agents_seen_complete_history=bool(
             getattr(app, "_agents_seen_complete_history", False)
         ),
+        unfiltered_identities=unfiltered_identities,
+        fold_explained_identities=fold_explained_identities,
     )
 
 

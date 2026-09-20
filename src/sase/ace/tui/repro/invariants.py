@@ -63,6 +63,13 @@ def check_bundle_invariants(bundle: ReproBundle) -> ReproInvariantReport:
             )
         )
         failures.extend(
+            _check_visible_roster_covers_unfiltered(
+                step=step,
+                visible_set=visible_set,
+                dismissed_set=dismissed_set,
+            )
+        )
+        failures.extend(
             _check_incomplete_nonempty_to_empty(
                 step=step,
                 visible_set=visible_set,
@@ -141,6 +148,52 @@ def _check_post_complete_incomplete_shrink(
             step_id=step.step_id,
             message=(
                 "post-complete-history incomplete load hid historical rows: "
+                + ", ".join(_format_identity(identity) for identity in missing)
+            ),
+        )
+    ]
+
+
+def _check_visible_roster_covers_unfiltered(
+    *,
+    step: ReproLoadStep,
+    visible_set: set[AgentIdentity],
+    dismissed_set: set[AgentIdentity],
+) -> list[ReproInvariantFailure]:
+    """Reject a published roster that silently drops rows the app still holds.
+
+    Every identity in the same apply's unfiltered roster must be published
+    unless a fold level explains its absence. A committed query can hide any
+    row, and a bundle cannot re-evaluate it, so an active query disables the
+    check. This is the class of defect where a precomputed finalize plan built
+    over a narrower row set (before the fleet rows were projected in) replaced
+    the published roster: the dropped rows were still in ``_agents_with_children``
+    and no fold or query hid them.
+    """
+    state = step.app_state
+    if not state.unfiltered_identities:
+        return []
+    if step.metadata.get("agent_search_query_active"):
+        return []
+
+    explained = set(state.fold_explained_identities) | dismissed_set
+    missing = sorted(
+        {
+            identity
+            for identity in state.unfiltered_identities
+            if identity not in visible_set and identity not in explained
+        },
+        key=_identity_sort_key,
+    )
+    if not missing:
+        return []
+    return [
+        ReproInvariantFailure(
+            code="visible_roster_omits_unfiltered",
+            step_id=step.step_id,
+            message=(
+                "published roster omits rows present in the unfiltered roster "
+                "with no fold level or query to explain it: "
                 + ", ".join(_format_identity(identity) for identity in missing)
             ),
         )

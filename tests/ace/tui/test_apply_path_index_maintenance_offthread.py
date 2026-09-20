@@ -144,6 +144,8 @@ def test_apply_schedules_artifact_index_maintenance_offthread() -> None:
             unfiltered_agents=[],
             visible_agents=[],
             fold_counts={},
+            local_unfiltered_agents=[],
+            local_visible_agents=[],
         ),
         selection=PreparedApplySelectionInputs(
             on_agents_tab=False,
@@ -214,6 +216,8 @@ def test_apply_carries_live_hint_before_finalize_and_schedules_revalidation() ->
             unfiltered_agents=[fresh],
             visible_agents=[fresh],
             fold_counts={},
+            local_unfiltered_agents=[fresh],
+            local_visible_agents=[fresh],
         ),
         selection=PreparedApplySelectionInputs(
             on_agents_tab=False,
@@ -261,6 +265,8 @@ def test_apply_keeps_stale_capacity_display_and_schedules_offthread_refresh() ->
             unfiltered_agents=[fresh],
             visible_agents=[fresh],
             fold_counts={},
+            local_unfiltered_agents=[fresh],
+            local_visible_agents=[fresh],
         ),
         selection=PreparedApplySelectionInputs(
             on_agents_tab=False,
@@ -325,6 +331,8 @@ def test_apply_carry_over_tolerates_missing_prior_unfiltered_list() -> None:
             unfiltered_agents=[fresh],
             visible_agents=[fresh],
             fold_counts={},
+            local_unfiltered_agents=[fresh],
+            local_visible_agents=[fresh],
         ),
         selection=PreparedApplySelectionInputs(
             on_agents_tab=False,

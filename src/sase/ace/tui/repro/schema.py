@@ -336,6 +336,12 @@ class ReproAppState:
     flattened_parent_timestamps: list[str] = field(default_factory=list)
     agents_seen_complete_history: bool = False
     selection_fallback: ReproSelectionFallback | None = None
+    # The same apply's unfiltered roster (``_agents_with_children``) and the
+    # part of it a fold level legitimately keeps out of ``visible_identities``.
+    # Empty when the bundle predates them or the capture could not tell, which
+    # disables the roster-coverage invariant instead of guessing.
+    unfiltered_identities: list[AgentIdentity] = field(default_factory=list)
+    fold_explained_identities: list[AgentIdentity] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ReproAppState:
@@ -373,6 +379,14 @@ class ReproAppState:
                     _expect_mapping(raw_fallback, field_name="selection_fallback")
                 )
             ),
+            unfiltered_identities=_identities_from_json(
+                data.get("unfiltered_identities", []),
+                field_name="unfiltered_identities",
+            ),
+            fold_explained_identities=_identities_from_json(
+                data.get("fold_explained_identities", []),
+                field_name="fold_explained_identities",
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -395,6 +409,13 @@ class ReproAppState:
                 if self.selection_fallback is None
                 else self.selection_fallback.to_dict()
             ),
+            "unfiltered_identities": [
+                identity_to_json(identity) for identity in self.unfiltered_identities
+            ],
+            "fold_explained_identities": [
+                identity_to_json(identity)
+                for identity in self.fold_explained_identities
+            ],
         }
 
 

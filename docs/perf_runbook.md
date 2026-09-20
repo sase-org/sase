@@ -489,6 +489,19 @@ Spans nest cleanly: a single keypress that fires `agents.refresh_debounced` will
 one outer span plus inner `widget.agent_list.update_highlight` and
 `agents.refresh_panel_highlights` spans.
 
+Three agents-tab spans carry counters meant for soak assertions on tribe-panel
+stability:
+
+- `agents.finalize_query_filter` reports `agents_in` (the filter's input roster) and
+  `agents_out` (its output). The old single `agents` counter was the input, which is
+  easy to misread as the published roster size.
+- `agents.apply_loaded_agents_prepared` reports `finalize_plan` as `applied`,
+  `discarded`, or `absent`. A discard also carries `finalize_plan_discard_reason`
+  (`stale_token` or `roster_fingerprint`). A soak that never sees `applied` proves
+  nothing about the off-thread finalize path: every apply fell back to the inline one.
+- `agents.refresh_panel_widgets` reports `panel_widget_ids`, the tribe-stable widget ids
+  in mount order, so a tribe panel's continuous presence is assertable from the trace.
+
 sase's TUI deliberately keeps live-workspace pencil hints off the startup-critical
 agents loader. The first load classifies only cheap persisted `diff_path` badges. After
 that agents list has applied, `agents.live_hint_refresh` runs VCS probes for active,

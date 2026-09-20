@@ -110,6 +110,11 @@ class PreparedApplySnapshot:
     # False only when the cached roster was applied under a different committed
     # query than this load covers; bounded loads may not patch across that.
     cache_query_matches: bool = True
+    # Fleet rows (with unreconciled dispatch provisionals) the UI thread would
+    # project into the roster after this load. Captured on the UI thread
+    # because reconciling provisionals mutates app state; the boundary projects
+    # them so the finalize plan is computed over the roster that gets published.
+    fleet_rows: tuple[Agent, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -121,6 +126,12 @@ class PreparedFinalizePlan:
     selection: PreparedSelectionPlan
     panel_group_keys: dict[AgentPanelFoldScope, list[GroupKey]]
     stale_token: PreparedFinalizeStaleToken
+    # Identities of the rows the plan was computed over, in order. The stale
+    # token compares mutable UI state and cannot see a plan computed over a
+    # different roster than the one the UI thread publishes (for example a
+    # local-only roster before the fleet projection widened it), so the commit
+    # step compares this against the roster it is about to publish.
+    input_row_identities: tuple[tuple[AgentType, str, str | None], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -136,3 +147,7 @@ class PreparedApplyBoundary:
     capacity_generation: int = 0
     proc_generation: int = 0
     finalize: PreparedFinalizePlan | None = None
+    # The live fleet rows (by object) the boundary's rosters were projected
+    # from. The UI thread publishes the boundary's rows only while these are
+    # still the app's fleet rows; a fleet refresh in between replaces them.
+    fleet_source_rows: tuple[Agent, ...] = ()

@@ -132,18 +132,6 @@ class AgentFleetProjectionMixin:
         del mode
         self.current_agents_subtab = "focus"
 
-    def _project_agents_for_current_mode_after_load(
-        self,
-        local_unfiltered: list[Agent],
-        local_visible: list[Agent],
-    ) -> tuple[list[Agent], list[Agent]]:
-        self._agents_local_with_children = list(local_unfiltered)
-        self._agents_local_visible = list(local_visible)
-        return (
-            self._agents_source_for_current_mode(local_unfiltered),
-            self._agents_source_for_current_mode(local_visible),
-        )
-
     def _sync_agents_local_source_from_current(self) -> None:
         """Mirror local-only rows after existing in-memory mutations."""
         self._agents_local_with_children = self._local_agents_from_mixed(

@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
+from pathlib import Path
 from typing import Any
 
+from sase.ace.tui.actions.agents._fleet_dispatch_launches import (
+    AgentFleetDispatchLaunchMixin,
+)
+from sase.ace.tui.actions.agents._fleet_projection import AgentFleetProjectionMixin
 from sase.ace.tui.actions.agents._loading_compute import (
+    attach_finalize_plan_to_boundary,
     prepare_loaded_agents_worker_boundary,
 )
 from sase.ace.tui.models.agent_groups import GroupingMode
+from sase.ace.tui.util import trace
 
 from tests._agents_tab_graph_isolation_helpers import (
     clan_container,
@@ -17,6 +25,7 @@ from tests._agents_tab_graph_isolation_helpers import (
     row_prefix,
 )
 from tests._agents_tab_query_helpers import FakeAgentApp
+from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 from tests.ace.tui._agent_display_diff_helpers import (
     _DisplayDiffApp,
     _agent,
@@ -293,3 +302,162 @@ def test_empty_incomplete_apply_keeps_session_sticky_epic_widget(
 
     assert app._widgets[_widget_sel("epic")] is epic_widget
     assert epic_widget in app._container.children
+
+
+class _ApplyDisplayApp(
+    AgentFleetProjectionMixin,
+    AgentFleetDispatchLaunchMixin,
+    _DisplayDiffApp,
+    FakeAgentApp,
+):
+    """Display harness that can also drive a prepared disk apply end to end."""
+
+    def __init__(self, agents: list[Any], monkeypatch: Any) -> None:
+        FakeAgentApp.__init__(self)
+        _DisplayDiffApp.__init__(self, agents, monkeypatch)
+        self._agents_fleet_rows: list[Any] = []
+        self._agents_dispatch_provisional_rows: dict[str, Any] = {}
+        self._agents_local_with_children: list[Any] = []
+        self._agents_local_visible: list[Any] = []
+
+
+def test_plan_apply_with_fleet_epic_rows_keeps_epic_widget_and_panel_count(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    """A full apply that uses its finalize plan must not blank the fleet's tribe.
+
+    The plan used to be computed over the local-only roster and installed after
+    the fleet projection widened it, so an apply that survived its stale token
+    republished one panel and remounted ``@epic`` on the next fleet refresh.
+    """
+    log = tmp_path / "trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+    local = _agent("local-worker", tribe="tale", suffix="20260920090000")
+    fleet = _agent("fleet-epic", tribe="epic", suffix="apollo:fleet-epic")
+    fleet.fleet_origin_alias = "apollo"
+    app = _ApplyDisplayApp([local, fleet], monkeypatch)
+    app._agents_fleet_rows = [fleet]
+    app._agents_with_children = [local, fleet]
+    app._agents_local_with_children = [local]
+    app._agents_local_visible = [local]
+    epic_widget = app._widgets[_widget_sel("epic")]
+    app._agents_refresh_trace_records.clear()
+    assert app._panel_group.panel_keys == ["epic", "tale"]
+
+    snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=True,
+        selected_identity=local.identity,
+        load_state=None,
+    )
+    boundary = prepare_loaded_agents_worker_boundary(
+        [local], [], set(), False, snapshot
+    )
+    boundary = attach_finalize_plan_to_boundary(boundary, snapshot, content_index=None)
+    app._apply_loaded_agents_prepared(
+        boundary.prep,
+        on_agents_tab=True,
+        selected_identity=local.identity,
+        load_state=None,
+        persist_dismissed_changes=False,
+        incomplete_merge_already_applied=True,
+        precomputed_boundary=boundary,
+        precomputed_fold_levels=snapshot.fold_levels,
+    )
+
+    trace._flush_trace_writes()
+    spans = [json.loads(line) for line in log.read_text().splitlines() if line]
+    (apply_span,) = [
+        span
+        for span in spans
+        if span.get("span") == "agents.apply_loaded_agents_prepared"
+    ]
+    # Without this the guard would pass vacuously through the inline path.
+    assert apply_span["finalize_plan"] == "applied"
+    panel_spans = [
+        span for span in spans if span.get("span") == "agents.refresh_panel_widgets"
+    ]
+    assert panel_spans
+    for span in panel_spans:
+        assert span["panels"] == 2
+        assert span["panel_widget_ids"] == [
+            panel_widget_id_for_key("epic"),
+            panel_widget_id_for_key("tale"),
+        ]
+    assert app._panel_group.panel_keys == ["epic", "tale"]
+    assert app._widgets[_widget_sel("epic")] is epic_widget
+    assert epic_widget in app._container.children
+    assert app.full_rebuilds == 0
+    assert "display_full_rebuild" not in _display_costs(app)
+    assert "display_panel_remove" not in _display_costs(app)
+
+
+def test_apply_with_collapsed_epic_clan_keeps_epic_widget_and_panel_count(
+    monkeypatch: Any,
+    tmp_path: Path,
+) -> None:
+    """A tribe panel made of collapsed clan containers survives every apply.
+
+    The live regression behind the ``2 -> 1 -> 2`` panel dips: the apply folded
+    the roster and then projected it, and the clan projection rebuilds a
+    container only from the member rows it still sees, so a collapsed clan's
+    container (and the whole ``@epic`` panel) vanished until the next fleet
+    refresh rebuilt the roster.
+    """
+    log = tmp_path / "trace.jsonl"
+    monkeypatch.setenv("SASE_TUI_TRACE", "1")
+    monkeypatch.setenv("SASE_TUI_TRACE_PATH", str(log))
+    graph = clan_graph()
+    container = clan_container(graph)
+    members = [agent for agent in graph if not agent.is_clan_container]
+    fleet = _agent("fleet-review", tribe="review", suffix="apollo:fleet-review")
+    fleet.fleet_origin_alias = "apollo"
+    app = _ApplyDisplayApp([container, fleet], monkeypatch)
+    app._agents_fleet_rows = [fleet]
+    app._agents_with_children = [*graph, fleet]
+    app._agents_local_with_children = list(graph)
+    epic_widget = app._widgets[_widget_sel("epic")]
+    app._agents_refresh_trace_records.clear()
+    assert app._panel_group.panel_keys == ["epic", "review"]
+
+    snapshot = app._make_prepared_apply_snapshot(
+        on_agents_tab=True,
+        selected_identity=container.identity,
+        load_state=None,
+    )
+    boundary = prepare_loaded_agents_worker_boundary(
+        members, [], set(), False, snapshot
+    )
+    boundary = attach_finalize_plan_to_boundary(boundary, snapshot, content_index=None)
+    app._apply_loaded_agents_prepared(
+        boundary.prep,
+        on_agents_tab=True,
+        selected_identity=container.identity,
+        load_state=None,
+        persist_dismissed_changes=False,
+        incomplete_merge_already_applied=True,
+        precomputed_boundary=boundary,
+        precomputed_fold_levels=snapshot.fold_levels,
+    )
+
+    trace._flush_trace_writes()
+    spans = [json.loads(line) for line in log.read_text().splitlines() if line]
+    (apply_span,) = [
+        span
+        for span in spans
+        if span.get("span") == "agents.apply_loaded_agents_prepared"
+    ]
+    assert apply_span["finalize_plan"] == "applied"
+    panel_spans = [
+        span for span in spans if span.get("span") == "agents.refresh_panel_widgets"
+    ]
+    assert panel_spans
+    for span in panel_spans:
+        assert span["panels"] == 2
+        assert panel_widget_id_for_key("epic") in span["panel_widget_ids"]
+    assert clan_container(app._agents).identity == container.identity
+    assert app._widgets[_widget_sel("epic")] is epic_widget
+    assert epic_widget in app._container.children
+    assert app.full_rebuilds == 0
+    assert "display_panel_remove" not in _display_costs(app)

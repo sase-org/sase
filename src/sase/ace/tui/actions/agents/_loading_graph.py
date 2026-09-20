@@ -32,8 +32,10 @@ def own_prepared_apply_snapshot(
 ) -> tuple[PreparedApplySnapshot, dict[int, Agent]]:
     """Return a snapshot whose cached row graphs are worker-owned copies.
 
-    Uses one memo across the visible and capacity rosters so a row that
-    appears in both stays a single object in the detached graph.
+    Uses one memo across the visible, capacity, and fleet rosters so a row that
+    appears in several stays a single object in the detached graph. The worker
+    projects the fleet rows into the roster, and that projection writes tree
+    links onto them, so they must not alias the live fleet rows.
     """
     memo: dict[int, Agent] = {}
     owned = replace(
@@ -46,6 +48,7 @@ def own_prepared_apply_snapshot(
             snapshot.capacity_agents_with_children,
             memo,
         ),
+        fleet_rows=tuple(copy_agent_graph(snapshot.fleet_rows, memo)),
     )
     return owned, memo
 

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 import sqlite3
+from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
@@ -72,6 +73,7 @@ __all__ = [
     "own_prepared_apply_snapshot",
     "prepare_loaded_agents_apply_boundary",
     "prepare_loaded_agents_worker_boundary",
+    "project_and_fold_rosters",
     "rebase_prepared_apply_boundary_on_proc_projection",
 ]
 
@@ -85,11 +87,54 @@ _LOADER_CLEANUP_CONTENTION_TIMEOUT_SECONDS = 0.25
 
 @dataclass(frozen=True)
 class PreparedFoldFiltering:
-    """Fold-filter output plus the unfiltered payload the UI must preserve."""
+    """Fold-filter output plus the unfiltered payload the UI must preserve.
+
+    ``unfiltered_agents`` / ``visible_agents`` are the rosters the UI thread
+    publishes: the local rows widened by the fleet projection, then fold
+    filtered (see :func:`project_and_fold_rosters`). ``local_unfiltered_agents``
+    is the roster before that projection and ``local_visible_agents`` the
+    published rows that are not fleet rows; the UI thread needs them for its
+    ``_agents_local_*`` mirrors, runner capacity, and content-search index.
+    """
 
     unfiltered_agents: list[Agent]
     visible_agents: list[Agent]
     fold_counts: dict[str, tuple[int, int]]
+    local_unfiltered_agents: list[Agent]
+    local_visible_agents: list[Agent]
+
+
+def project_and_fold_rosters(
+    local_unfiltered: list[Agent],
+    fleet_rows: Sequence[Agent],
+    fold_levels: dict[str, FoldLevel] | None,
+) -> tuple[list[Agent], list[Agent], dict[str, tuple[int, int]]]:
+    """Return the published ``(unfiltered, visible, fold_counts)`` rosters.
+
+    Projects *fleet_rows* into the local roster and only then fold filters the
+    result, which is how fleet refresh reprojection and the query refilter
+    derive it. The order matters: the clan-tree projection rebuilds a clan
+    container only from the member rows it still sees, so projecting a roster
+    that was already fold filtered silently drops the container of every
+    collapsed clan (and with it a tribe panel made of clan containers).
+
+    Pure and worker-safe. The dispatch-provisional reconciliation that produced
+    *fleet_rows* is not: callers capture that result on the UI thread.
+    """
+    from ...models._agent_tree import project_mixed_agent_tree
+    from ...util.trace import tui_trace
+
+    unfiltered = project_mixed_agent_tree(local_unfiltered, list(fleet_rows))
+    if fold_levels is None:
+        return unfiltered, list(unfiltered), {}
+    with tui_trace("agents.fold_filtering", count=len(unfiltered)):
+        visible, fold_counts = _filter_agents_by_fold_snapshot(unfiltered, fold_levels)
+    return unfiltered, visible, fold_counts
+
+
+def _local_rows(agents: list[Agent]) -> list[Agent]:
+    """Return the rows of *agents* that are not fleet rows."""
+    return [agent for agent in agents if not agent.fleet_origin_alias]
 
 
 def compute_loader_cleanup(
@@ -205,19 +250,26 @@ def rebase_prepared_apply_boundary_on_proc_projection(
         )
     if proc_shells:
         prep.has_always_visible = True
+    local_unfiltered = merge_proc_shell_agents(
+        boundary.fold.local_unfiltered_agents, proc_shells
+    )
+    unfiltered_agents, visible_agents, fold_counts = project_and_fold_rosters(
+        local_unfiltered,
+        snapshot.fleet_rows,
+        snapshot.fold_levels,
+    )
     return replace(
         boundary,
-        fold=replace(
-            boundary.fold,
-            unfiltered_agents=merge_proc_shell_agents(
-                boundary.fold.unfiltered_agents, proc_shells
-            ),
-            visible_agents=merge_proc_shell_agents(
-                boundary.fold.visible_agents, proc_shells
-            ),
+        fold=PreparedFoldFiltering(
+            unfiltered_agents=unfiltered_agents,
+            visible_agents=visible_agents,
+            fold_counts=fold_counts,
+            local_unfiltered_agents=local_unfiltered,
+            local_visible_agents=_local_rows(visible_agents),
         ),
         proc_generation=snapshot.proc_generation,
         finalize=None,
+        fleet_source_rows=snapshot.fleet_rows,
     )
 
 
@@ -237,6 +289,7 @@ def prepare_loaded_agents_apply_boundary(
     """
     from ...util.trace import tui_trace
 
+    fleet_source_rows = snapshot.fleet_rows
     if not graphs_owned:
         snapshot, memo = own_prepared_apply_snapshot(snapshot)
         prep = adopt_prepared_apply_data(prep, memo)
@@ -287,15 +340,15 @@ def prepare_loaded_agents_apply_boundary(
         active_holds=active_holds,
     )
 
-    unfiltered_agents = list(prep.filtered_agents)
-    if snapshot.fold_levels is None:
-        visible_agents = list(unfiltered_agents)
-        fold_counts: dict[str, tuple[int, int]] = {}
-    else:
-        with tui_trace("agents.fold_filtering", count=len(unfiltered_agents)):
-            visible_agents, fold_counts = _filter_agents_by_fold_snapshot(
-                unfiltered_agents, snapshot.fold_levels
-            )
+    # Slot annotation above stays local-only. The fleet rows are projected in
+    # before folding so the finalize plan is computed over the roster the UI
+    # thread publishes, and so that roster matches what reprojection derives.
+    local_unfiltered = list(prep.filtered_agents)
+    unfiltered_agents, visible_agents, fold_counts = project_and_fold_rosters(
+        local_unfiltered,
+        snapshot.fleet_rows,
+        snapshot.fold_levels,
+    )
 
     return PreparedApplyBoundary(
         prep=prep,
@@ -303,11 +356,14 @@ def prepare_loaded_agents_apply_boundary(
             unfiltered_agents=unfiltered_agents,
             visible_agents=visible_agents,
             fold_counts=fold_counts,
+            local_unfiltered_agents=local_unfiltered,
+            local_visible_agents=_local_rows(visible_agents),
         ),
         selection=snapshot.selection,
         runner_capacity=runner_capacity,
         capacity_generation=snapshot.capacity_generation,
         proc_generation=snapshot.proc_generation,
+        fleet_source_rows=fleet_source_rows,
     )
 
 
@@ -494,6 +550,7 @@ def prepare_loaded_agents_worker_boundary(
 
     from ...models._agent_graph import adopt_agents
 
+    fleet_source_rows = snapshot.fleet_rows
     snapshot, memo = own_prepared_apply_snapshot(snapshot)
     all_agents = adopt_agents(all_agents, memo)
     dismissed_from_loader = adopt_agents(dismissed_from_loader, memo)
@@ -506,10 +563,11 @@ def prepare_loaded_agents_worker_boundary(
         dismissed_bundle_snapshot=dismissed_bundle_snapshot,
         graphs_owned=True,
     )
-    return prepare_loaded_agents_apply_boundary(
+    boundary = prepare_loaded_agents_apply_boundary(
         prep,
         snapshot,
         merge_incomplete=False,
         effective_runner_limit=get_max_running_agents(),
         graphs_owned=True,
     )
+    return replace(boundary, fleet_source_rows=fleet_source_rows)

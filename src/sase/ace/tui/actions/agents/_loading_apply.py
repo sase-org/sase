@@ -17,11 +17,12 @@ from ._loading_compute import (
     make_finalize_stale_token,
     merge_incomplete_load_after_complete_history,
     prepare_loaded_agents_apply_boundary,
+    project_and_fold_rosters,
     rebase_prepared_apply_boundary_on_proc_projection,
 )
 from ._dismiss_memory import trim_dismissed_agent_objects
 from ._loading_diff_badges import carry_over_diff_badges
-from ._loading_helpers import is_always_visible
+from ._loading_helpers import is_always_visible, roster_identities
 from ._loading_live_hints import carry_over_live_hints
 from ._loading_state import AgentLoadingStateMixin
 from ._live_watch_coverage import rearm_live_agent_watch_coverage
@@ -32,6 +33,19 @@ if TYPE_CHECKING:
     from ...models.agent_loader import AgentLoadState
     from ...models.agent_live_query_engine import AgentsHistoryQueryKey
     from ...models.fold_state import FoldLevel
+
+
+def _note_finalize_plan_outcome(
+    trace_extra: dict[str, Any] | None,
+    outcome: str,
+    discard_reason: str | None = None,
+) -> None:
+    """Record whether the worker finalize plan was ``applied`` on the apply span."""
+    if trace_extra is None:
+        return
+    trace_extra["finalize_plan"] = outcome
+    if discard_reason is not None:
+        trace_extra["finalize_plan_discard_reason"] = discard_reason
 
 
 def _agent_index_repair_notice(load_state: AgentLoadState | None) -> str | None:
@@ -261,7 +275,22 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 getattr(self, "_dismissed_proc_shells", ()) or ()
             ),
             cache_query_matches=_cache_query_matches_load(self, load_state),
+            fleet_rows=self._fleet_rows_for_prepared_snapshot(),
         )
+
+    def _fleet_rows_for_prepared_snapshot(self) -> tuple[Agent, ...]:
+        """Return the fleet rows a load's roster is widened with when published.
+
+        Runs on the UI thread because reconciling dispatch provisionals mutates
+        ``_agents_dispatch_provisional_rows``.
+        """
+        fleet_rows = list(getattr(self, "_agents_fleet_rows", ()) or ())
+        with_provisionals = getattr(
+            self, "_fleet_rows_with_dispatch_provisionals", None
+        )
+        if callable(with_provisionals):
+            fleet_rows = list(with_provisionals(fleet_rows))
+        return tuple(fleet_rows)
 
     def _select_finalize_plan(
         self,
@@ -269,16 +298,36 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         *,
         on_agents_tab: bool,
         selected_identity: tuple[AgentType, str, str | None] | None,
+        roster_moved: bool = False,
+        trace_extra: dict[str, Any] | None = None,
     ) -> PreparedFinalizePlan | None:
-        """Return the worker plan if its stale token still matches UI state.
+        """Return the worker plan if it still describes what is being published.
 
         The plan is discarded — and the finalize pipeline recomputes the
         query filter, status overrides, selection math, and group keys on
-        the UI thread — whenever any captured input (selection, fold
-        snapshot, query, status-override set, grouping mode, or hide
-        flag) has drifted since the worker ran.
+        the UI thread — when either:
+
+        * any captured input (selection, fold snapshot, query,
+          status-override set, grouping mode, or hide flag) has drifted since
+          the worker ran (``stale_token``); or
+        * the rows the plan was computed over are not the roster about to be
+          published (``roster_fingerprint``). The token cannot see this: it
+          compares mutable UI state, and a plan over a different row set
+          (for example a local-only roster before the fleet projection
+          widened it) would otherwise silently replace ``self._agents``.
+
+        Call after ``self._agents`` holds the roster being published.
+        *roster_moved* says that roster was re-derived because the fleet rows
+        changed after the plan's rows were projected, which the identity
+        fingerprint alone cannot see (same identities, newer row content).
+        *trace_extra*, when given, receives ``finalize_plan`` and, on a
+        discard, ``finalize_plan_discard_reason``.
         """
         if precomputed is None:
+            _note_finalize_plan_outcome(trace_extra, "absent")
+            return None
+        if roster_moved:
+            _note_finalize_plan_outcome(trace_extra, "discarded", "roster_fingerprint")
             return None
         current_snapshot = self._make_prepared_apply_snapshot(
             on_agents_tab=on_agents_tab,
@@ -286,9 +335,14 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             load_state=getattr(self, "_agent_load_state", None),
         )
         current_token = make_finalize_stale_token(current_snapshot)
-        if current_token == precomputed.stale_token:
-            return precomputed
-        return None
+        if current_token != precomputed.stale_token:
+            _note_finalize_plan_outcome(trace_extra, "discarded", "stale_token")
+            return None
+        if precomputed.input_row_identities != roster_identities(self._agents):
+            _note_finalize_plan_outcome(trace_extra, "discarded", "roster_fingerprint")
+            return None
+        _note_finalize_plan_outcome(trace_extra, "applied")
+        return precomputed
 
     def _merge_incomplete_load_after_complete_history(
         self,
@@ -385,6 +439,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
                 precomputed_boundary=precomputed_boundary,
                 precomputed_fold_levels=precomputed_fold_levels,
                 effective_runner_limit=effective_runner_limit,
+                trace_extra=extra,
             )
             extra["proc_generation"] = int(getattr(self, "_proc_generation", 0))
             extra["proc_shell_count"] = sum(
@@ -406,6 +461,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         precomputed_boundary: PreparedApplyBoundary | None = None,
         precomputed_fold_levels: dict[str, FoldLevel] | None = None,
         effective_runner_limit: float | None = None,
+        trace_extra: dict[str, Any] | None = None,
     ) -> None:
         """Implementation for the traced prepared-apply UI continuation."""
         first_agents_load = not self._agents_first_load_done
@@ -589,23 +645,35 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             self._agent_runner_capacity = boundary.runner_capacity
             self._agents_capacity_applied_generation = roster_capacity_generation
         self._agents_capacity_with_children = list(
-            boundary.prep.capacity_agents or boundary.fold.unfiltered_agents
+            boundary.prep.capacity_agents or boundary.fold.local_unfiltered_agents
         )
         unfiltered_agents = boundary.fold.unfiltered_agents
         visible_agents = boundary.fold.visible_agents
-        project_current_mode = getattr(
-            self,
-            "_project_agents_for_current_mode_after_load",
-            None,
-        )
-        if callable(project_current_mode):
-            unfiltered_agents, visible_agents = project_current_mode(
-                list(unfiltered_agents),
-                list(visible_agents),
+        fold_counts = boundary.fold.fold_counts
+        # The boundary was projected from the fleet rows its snapshot captured.
+        # Publish its rows (the ones the finalize plan was computed over) while
+        # those are still the app's fleet rows; a fleet refresh in between
+        # replaces them, and the live roster is derived again the same way.
+        live_fleet_rows = self._fleet_rows_for_prepared_snapshot()
+        roster_moved = len(live_fleet_rows) != len(boundary.fleet_source_rows) or any(
+            live is not source
+            for live, source in zip(
+                live_fleet_rows, boundary.fleet_source_rows, strict=False
             )
-        else:
-            self._agents_local_with_children = list(unfiltered_agents)  # type: ignore[attr-defined]
-            self._agents_local_visible = list(visible_agents)  # type: ignore[attr-defined]
+        )
+        if roster_moved:
+            snapshot_fold = getattr(
+                getattr(self, "_fold_manager", None), "snapshot", None
+            )
+            unfiltered_agents, visible_agents, fold_counts = project_and_fold_rosters(
+                boundary.fold.local_unfiltered_agents,
+                live_fleet_rows,
+                snapshot_fold() if callable(snapshot_fold) else None,
+            )
+        self._agents_local_with_children = list(  # type: ignore[attr-defined]
+            boundary.fold.local_unfiltered_agents
+        )
+        self._agents_local_visible = list(boundary.fold.local_visible_agents)  # type: ignore[attr-defined]
         self._agents_with_children = unfiltered_agents
         rearm_live_agent_watch_coverage(self)
         self._agents = visible_agents
@@ -625,12 +693,14 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             [*previous_agents_with_children, *previous_agents],
             [*self._agents_with_children, *self._agents],
         )
-        self._fold_counts = boundary.fold.fold_counts
+        self._fold_counts = fold_counts
 
         finalize_plan = self._select_finalize_plan(
             boundary.finalize,
             on_agents_tab=on_agents_tab,
             selected_identity=selected_identity,
+            roster_moved=roster_moved,
+            trace_extra=trace_extra,
         )
         if first_agents_load:
             debouncer = getattr(self, "_agent_detail_debouncer", None)

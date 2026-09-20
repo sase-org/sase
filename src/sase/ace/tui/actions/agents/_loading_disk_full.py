@@ -318,7 +318,7 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
             )
         prep = boundary.prep
         content_index = await self._prepare_agent_content_search_index_async(
-            boundary.fold.unfiltered_agents
+            boundary.fold.local_unfiltered_agents
         )
         with tui_trace(
             "agents.finalize_plan",

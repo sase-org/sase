@@ -114,6 +114,9 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
             "agents.refresh_panel_widgets",
             agents=len(self._agents),
             panels=len(self._panel_group.panel_keys),
+            panel_widget_ids=[
+                panel_widget_id_for_key(key) for key in self._panel_group.panel_keys
+            ],
         ):
             self._refresh_panel_widgets_impl(
                 jump_hints=jump_hints,

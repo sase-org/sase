@@ -96,6 +96,13 @@ def _redact_app_state(state: ReproAppState, ctx: RedactionContext) -> ReproAppSt
             _redact_identity(identity, ctx) for identity in state.dismissed_identities
         ],
         selection_fallback=_redact_selection_fallback(state.selection_fallback, ctx),
+        unfiltered_identities=[
+            _redact_identity(identity, ctx) for identity in state.unfiltered_identities
+        ],
+        fold_explained_identities=[
+            _redact_identity(identity, ctx)
+            for identity in state.fold_explained_identities
+        ],
     )
 
 
