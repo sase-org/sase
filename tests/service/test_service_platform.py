@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import getpass
 import plistlib
+import subprocess
 from collections.abc import Sequence
 from pathlib import Path
 from types import SimpleNamespace
@@ -544,6 +545,127 @@ def test_readiness_warnings_omit_secrets_and_compare_paths(
     assert "interactive PATH" in joined
     assert "mobile gateway" in joined
     assert "SASE_FEATURE_FLAGS differ" in joined
+
+
+def _stub_non_ssh_readiness(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
+    monkeypatch.setattr(
+        "sase.service.platform.collect_agent_cli_statuses", lambda **_k: ()
+    )
+    monkeypatch.setattr(
+        "sase.integrations.mobile_gateway.load_mobile_gateway_config",
+        lambda: SimpleNamespace(command=()),
+    )
+
+
+def _fake_ssh_add(tmp_path: Path) -> Path:
+    bin_dir = tmp_path / "agent-bin"
+    bin_dir.mkdir()
+    ssh_add = bin_dir / "ssh-add"
+    ssh_add.write_text("#!/bin/sh\n", encoding="utf-8")
+    ssh_add.chmod(0o755)
+    return bin_dir
+
+
+def test_readiness_warnings_warn_when_no_ssh_agent_is_captured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_non_ssh_readiness(monkeypatch)
+    with patch("sase.service.ssh_agent.subprocess.run") as run:
+        warnings = readiness_warnings({"PATH": "/nowhere"})
+
+    run.assert_not_called()
+    assert len(warnings) == 1
+    assert "no SSH agent" in warnings[0]
+    assert "Permission denied (publickey)" in warnings[0]
+    assert "sase service init" in warnings[0]
+
+
+@pytest.mark.parametrize(
+    ("returncode", "expected"),
+    [(1, "holds no identities"), (2, "unreachable")],
+)
+def test_readiness_warnings_distinguish_empty_and_unreachable_ssh_agent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    returncode: int,
+    expected: str,
+) -> None:
+    _stub_non_ssh_readiness(monkeypatch)
+    bin_dir = _fake_ssh_add(tmp_path)
+    sock = tmp_path / "agent.sock"
+    env = {"PATH": str(bin_dir), "SSH_AUTH_SOCK": str(sock), "OPENAI_API_KEY": "s3cret"}
+
+    with patch(
+        "sase.service.ssh_agent.subprocess.run",
+        return_value=SimpleNamespace(returncode=returncode),
+    ) as run:
+        warnings = readiness_warnings(env)
+
+    argv = run.call_args.args[0]
+    assert argv == [str(bin_dir / "ssh-add"), "-l"]
+    probe_kwargs = run.call_args.kwargs
+    assert probe_kwargs["env"]["SSH_AUTH_SOCK"] == str(sock)
+    assert "OPENAI_API_KEY" not in probe_kwargs["env"]
+    assert probe_kwargs["timeout"] == 2
+    assert len(warnings) == 1
+    assert expected in warnings[0]
+    assert str(sock) in warnings[0]
+    assert "s3cret" not in warnings[0]
+
+
+def test_readiness_warnings_stay_quiet_for_healthy_ssh_agent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_non_ssh_readiness(monkeypatch)
+    bin_dir = _fake_ssh_add(tmp_path)
+
+    with patch(
+        "sase.service.ssh_agent.subprocess.run",
+        return_value=SimpleNamespace(returncode=0),
+    ):
+        warnings = readiness_warnings(
+            {"PATH": str(bin_dir), "SSH_AUTH_SOCK": str(tmp_path / "agent.sock")}
+        )
+
+    assert warnings == ()
+
+
+def test_readiness_warnings_skip_ssh_probe_when_ssh_add_is_unresolvable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_non_ssh_readiness(monkeypatch)
+
+    with patch("sase.service.ssh_agent.subprocess.run") as run:
+        warnings = readiness_warnings(
+            {"PATH": str(tmp_path / "empty"), "SSH_AUTH_SOCK": "/tmp/agent.sock"}
+        )
+
+    run.assert_not_called()
+    assert warnings == ()
+
+
+@pytest.mark.parametrize(
+    "error",
+    [OSError("exec format error"), subprocess.TimeoutExpired("ssh-add", 2)],
+)
+def test_readiness_warnings_degrade_when_ssh_probe_raises(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    error: Exception,
+) -> None:
+    _stub_non_ssh_readiness(monkeypatch)
+    bin_dir = _fake_ssh_add(tmp_path)
+
+    with patch("sase.service.ssh_agent.subprocess.run", side_effect=error):
+        warnings = readiness_warnings(
+            {"PATH": str(bin_dir), "SSH_AUTH_SOCK": str(tmp_path / "agent.sock")}
+        )
+
+    assert len(warnings) == 1
+    assert warnings[0].startswith("SSH agent readiness could not be checked:")
 
 
 def test_default_runner_refuses_under_pytest(

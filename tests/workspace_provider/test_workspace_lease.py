@@ -588,6 +588,88 @@ class TestPrepareFromRemote:
         with pytest.raises(OperationalLeaseError, match="preparation"):
             _prepare_from_primary_remote(checkout)
 
+    def _fake_git(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        *,
+        fetch_stderr: str = "",
+        checkout_stderr: str = "",
+    ) -> None:
+        import subprocess
+
+        def fake_run_git(
+            args: list[str], checkout: Path
+        ) -> subprocess.CompletedProcess[str]:
+            del checkout
+            failing = {"fetch": fetch_stderr, "checkout": checkout_stderr}
+            if args[0] in failing and failing[args[0]]:
+                return subprocess.CompletedProcess(
+                    args, 128, stdout="", stderr=failing[args[0]] + "\n"
+                )
+            if args[0] == "remote":
+                return subprocess.CompletedProcess(
+                    args, 0, stdout="origin\n", stderr=""
+                )
+            if args[0] == "rev-parse":
+                return subprocess.CompletedProcess(
+                    args, 0, stdout="origin/main\n", stderr=""
+                )
+            return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+
+        monkeypatch.setattr("sase.workspace_provider._lease_git._run_git", fake_run_git)
+
+    _PUBLICKEY_DENIAL = (
+        "git@ssh.github.com: Permission denied (publickey).\n"
+        "fatal: Could not read from remote repository."
+    )
+
+    def test_fetch_publickey_denial_gains_ssh_agent_remediation(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        (tmp_path / ".git").mkdir()
+        self._fake_git(monkeypatch, fetch_stderr=self._PUBLICKEY_DENIAL)
+
+        with pytest.raises(OperationalLeaseError, match="preparation") as exc_info:
+            _prepare_from_primary_remote(tmp_path)
+
+        message = str(exc_info.value)
+        assert self._PUBLICKEY_DENIAL in message
+        assert "SSH_AUTH_SOCK" in message
+        assert "sase service init" in message
+
+    def test_checkout_publickey_denial_gains_ssh_agent_remediation(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        (tmp_path / ".git").mkdir()
+        self._fake_git(monkeypatch, checkout_stderr=self._PUBLICKEY_DENIAL)
+
+        with pytest.raises(OperationalLeaseError, match="preparation") as exc_info:
+            _prepare_from_primary_remote(tmp_path)
+
+        message = str(exc_info.value)
+        assert self._PUBLICKEY_DENIAL in message
+        assert "SSH_AUTH_SOCK" in message
+
+    def test_unrelated_fetch_failure_gains_no_remediation(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        (tmp_path / ".git").mkdir()
+        self._fake_git(monkeypatch, fetch_stderr="fatal: couldn't find remote ref main")
+
+        with pytest.raises(OperationalLeaseError, match="preparation") as exc_info:
+            _prepare_from_primary_remote(tmp_path)
+
+        message = str(exc_info.value)
+        assert "couldn't find remote ref main" in message
+        assert "SSH_AUTH_SOCK" not in message
+        assert "sase service init" not in message
+
     def test_prepare_fast_forwards_to_origin_head(self, tmp_path: Path) -> None:
         import subprocess
 

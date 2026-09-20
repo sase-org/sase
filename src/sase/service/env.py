@@ -18,6 +18,8 @@ from sase.service.paths import service_env_path
 
 _ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _REDACTED = "[captured]"
+_SSH_AUTH_SOCK_ENV = "SSH_AUTH_SOCK"
+_SSH_AGENT_PID_ENV = "SSH_AGENT_PID"
 
 
 @dataclass(frozen=True)
@@ -54,9 +56,11 @@ def capture_service_environment(
         value = environment.get(name)
         if value is not None:
             values[name] = str(value)
+    agent_values, agent_warnings = _capture_ssh_agent(environment)
+    values.update(agent_values)
     if force_sase_home is not None:
         values["SASE_HOME"] = str(force_sase_home.expanduser())
-    return CapturedServiceEnvironment(values=values)
+    return CapturedServiceEnvironment(values=values, warnings=agent_warnings)
 
 
 def write_service_environment(
@@ -212,6 +216,39 @@ def _mobile_gateway_credential_env() -> str | None:
         return None
     value = str(value or "").strip()
     return value or None
+
+
+def _capture_ssh_agent(
+    environment: Mapping[str, str],
+) -> tuple[dict[str, str], tuple[str, ...]]:
+    """Capture the SSH agent handle only when it names a live socket.
+
+    A stale socket path is worse than none: the service host loads captured
+    values over its inherited environment, so a dead path would replace a
+    possibly-working agent with a guaranteed-dead one.
+    """
+    sock = environment.get(_SSH_AUTH_SOCK_ENV)
+    if not sock:
+        return {}, (
+            f"{_SSH_AUTH_SOCK_ENV} is not set in the environment being captured; "
+            "the service host will have no SSH agent and git operations against "
+            "SSH remotes will fail with `Permission denied (publickey)`",
+        )
+    try:
+        live = Path(sock).is_socket()
+    except OSError:
+        live = False
+    if not live:
+        return {}, (
+            f"{_SSH_AUTH_SOCK_ENV} points at {sock}, which is not a live socket; "
+            "not captured, so the service host will fall back to whatever agent "
+            "the platform manager provides",
+        )
+    values = {_SSH_AUTH_SOCK_ENV: str(sock)}
+    # Systemd- and keyring-provided agents have no PID; that is not a problem.
+    if agent_pid := environment.get(_SSH_AGENT_PID_ENV):
+        values[_SSH_AGENT_PID_ENV] = str(agent_pid)
+    return values, ()
 
 
 def _validate_env_name(name: str) -> None:

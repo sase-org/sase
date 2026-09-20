@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import os
+import socket
+from collections.abc import Generator
+from contextlib import contextmanager
+from pathlib import Path
 
 import pytest
 
@@ -78,6 +82,128 @@ def test_capture_service_environment_uses_provider_and_gateway_declared_names(
         "SASE_CODEX_PATH": "/tools/codex",
     }
     assert captured.redacted_values["OPENAI_API_KEY"] == "[captured]"
+
+
+@contextmanager
+def _live_socket(path: Path) -> Generator[Path, None, None]:
+    # AF_UNIX addresses cap at ~108 bytes and pytest tmp paths can exceed that,
+    # so bind by a relative name from the socket's directory.
+    server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    cwd = os.getcwd()
+    try:
+        os.chdir(path.parent)
+        try:
+            server.bind(path.name)
+        finally:
+            os.chdir(cwd)
+        yield path
+    finally:
+        server.close()
+
+
+def test_capture_service_environment_captures_live_ssh_agent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+    with _live_socket(tmp_path / "agent.sock") as sock:
+        captured = capture_service_environment(
+            environ={
+                "PATH": os.defpath,
+                "SSH_AUTH_SOCK": str(sock),
+                "SSH_AGENT_PID": "4242",
+            },
+            metadata_payload={},
+        )
+
+    assert captured.values == {
+        "PATH": os.defpath,
+        "SSH_AGENT_PID": "4242",
+        "SSH_AUTH_SOCK": str(sock),
+    }
+    assert captured.warnings == ()
+    assert captured.redacted_values["SSH_AUTH_SOCK"] == "[captured]"
+
+
+def test_capture_service_environment_captures_agent_without_pid_silently(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+    with _live_socket(tmp_path / "agent.sock") as sock:
+        captured = capture_service_environment(
+            environ={"SSH_AUTH_SOCK": str(sock)},
+            metadata_payload={},
+        )
+
+    assert captured.values == {"SSH_AUTH_SOCK": str(sock)}
+    assert captured.warnings == ()
+
+
+def test_capture_service_environment_rejects_stale_ssh_agent_socket(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+    stale = tmp_path / "gone.sock"
+
+    captured = capture_service_environment(
+        environ={"SSH_AUTH_SOCK": str(stale), "SSH_AGENT_PID": "4242"},
+        metadata_payload={},
+    )
+
+    assert "SSH_AUTH_SOCK" not in captured.values
+    assert "SSH_AGENT_PID" not in captured.values
+    assert len(captured.warnings) == 1
+    assert str(stale) in captured.warnings[0]
+    assert "platform manager" in captured.warnings[0]
+
+
+def test_capture_service_environment_rejects_non_socket_ssh_agent_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+    regular_file = tmp_path / "agent.sock"
+    regular_file.write_text("", encoding="utf-8")
+
+    captured = capture_service_environment(
+        environ={"SSH_AUTH_SOCK": str(regular_file)},
+        metadata_payload={},
+    )
+
+    assert "SSH_AUTH_SOCK" not in captured.values
+    assert str(regular_file) in captured.warnings[0]
+
+
+def test_capture_service_environment_warns_when_ssh_agent_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+
+    captured = capture_service_environment(
+        environ={"PATH": os.defpath},
+        metadata_payload={},
+    )
+
+    assert captured.values == {"PATH": os.defpath}
+    assert len(captured.warnings) == 1
+    assert "no SSH agent" in captured.warnings[0]
+    assert "Permission denied (publickey)" in captured.warnings[0]
+
+
+def test_capture_service_environment_ignores_agent_pid_without_usable_socket(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+
+    captured = capture_service_environment(
+        environ={"SSH_AGENT_PID": "4242"},
+        metadata_payload={},
+    )
+
+    assert captured.values == {}
+    assert len(captured.warnings) == 1
 
 
 def test_load_service_environment_override_existing_only_when_requested(

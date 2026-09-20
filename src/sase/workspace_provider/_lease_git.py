@@ -20,7 +20,7 @@ def prepare_from_primary_remote(checkout: Path) -> None:
         fetch = _run_git(["fetch", "--quiet", "origin"], checkout)
         if fetch.returncode != 0:
             detail = fetch.stderr.strip() or fetch.stdout.strip() or "git fetch failed"
-            raise OperationalLeaseError("preparation", detail)
+            raise OperationalLeaseError("preparation", _with_ssh_agent_hint(detail))
     upstream = _configured_upstream(checkout)
     if upstream is None:
         return
@@ -35,7 +35,26 @@ def prepare_from_primary_remote(checkout: Path) -> None:
             or checkout_result.stdout.strip()
             or f"git checkout {upstream} failed"
         )
-        raise OperationalLeaseError("preparation", detail)
+        raise OperationalLeaseError("preparation", _with_ssh_agent_hint(detail))
+
+
+def _with_ssh_agent_hint(detail: str) -> str:
+    """Append a remediation sentence when git failed on SSH public-key auth.
+
+    The raw git text is preserved verbatim; the sentence only points at the
+    usual culprit so nobody goes hunting for a revoked deploy key.
+    """
+    lowered = detail.lower()
+    if "permission denied (publickey)" in lowered or (
+        "could not read from remote repository" in lowered and "publickey" in lowered
+    ):
+        return (
+            f"{detail}\n"
+            "This is usually a missing or empty SSH agent in the calling process "
+            "(check SSH_AUTH_SOCK); when the caller is the service host, re-run "
+            "`sase service init` from a shell whose agent holds the key."
+        )
+    return detail
 
 
 def _configured_upstream(checkout: Path) -> str | None:

@@ -211,6 +211,15 @@ unit identity and therefore requires `--force`; the command prints the resulting
 home-scoped identity before applying it. Use `sase service uninstall` with the same
 preview, check, diff, force, and confirmation model to remove the managed unit.
 
+The captured environment includes the SSH agent handle (`SSH_AUTH_SOCK`, plus
+`SSH_AGENT_PID` when present) so host-owned git work against SSH remotes, such as plan
+archival from a Telegram approval, authenticates with the same agent as your shell. It
+is captured from the shell that runs `sase service init`, and only when it names a live
+socket. A login-session agent socket dies with that session, so re-run
+`sase service init --check` and restart the service after a reboot or a new login
+session. `--check` reports an empty or unreachable agent instead of leaving the failure
+to surface later as an opaque `Permission denied (publickey)`.
+
 Bare `sase init` offers this machine-scoped initializer at most once per batch. A
 decline is remembered for future broad onboarding runs on that machine, but it does not
 disable the service feature or suppress an explicit `sase service init`.

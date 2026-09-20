@@ -34,6 +34,7 @@ from sase.service.paths import (
     service_host_stderr_path,
     service_host_stdout_path,
 )
+from sase.service.ssh_agent import ssh_agent_readiness_warnings
 from sase.service.state import clear_service_marker, set_service_marker
 
 PlatformKind = Literal["linux", "darwin", "unsupported"]
@@ -574,6 +575,7 @@ def readiness_warnings(env: Mapping[str, str]) -> tuple[str, ...]:
             warnings.append(
                 "configured mobile gateway executable is not available to the captured service PATH"
             )
+    warnings.extend(ssh_agent_readiness_warnings(env))
     interactive_flags = os.environ.get("SASE_FEATURE_FLAGS")
     captured_flags = env.get("SASE_FEATURE_FLAGS")
     if interactive_flags and interactive_flags != captured_flags:
