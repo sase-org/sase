@@ -68,12 +68,20 @@ def claim_deferred_workspace(
     vcs_wf_type = os.environ.get("SASE_AGENT_VCS_WORKFLOW_TYPE")
     prefix = None
     ws_get_dir = None
+    primary_workspace_dir: str | None = None
     if vcs_wf_type:
         from sase.workspace_provider import get_pre_allocated_env_prefix
         from sase.workspace_provider import get_workspace_directory as _ws_get_dir
+        from sase.workspace_provider.utils import parse_workspace_dir
 
         prefix = get_pre_allocated_env_prefix(vcs_wf_type)
         ws_get_dir = _ws_get_dir
+        primary_workspace_dir = parse_workspace_dir(project_file)
+        if not primary_workspace_dir:
+            raise RuntimeError(
+                f"VCS deferred workspace for workflow type {vcs_wf_type!r} "
+                f"requires WORKSPACE_DIR in ProjectSpec {project_file!r}"
+            )
 
     max_attempts = workspace_allocation_attempt_limit()
     target_workspace_num = _deferred_target_workspace_num()
@@ -89,6 +97,7 @@ def claim_deferred_workspace(
             target_workspace_dir=target_workspace_dir,
             vcs_wf_type=vcs_wf_type,
             ws_get_dir=ws_get_dir,
+            primary_workspace_dir=primary_workspace_dir,
         )
         if not workspace_dir or workspace_num == 0:
             print(
@@ -110,6 +119,7 @@ def claim_deferred_workspace(
             max_attempts=max_attempts,
             vcs_wf_type=vcs_wf_type,
             ws_get_dir=ws_get_dir,
+            primary_workspace_dir=primary_workspace_dir,
         )
         if not workspace_dir or workspace_num == 0:
             print(
@@ -180,6 +190,7 @@ def _claim_next_deferred_workspace(
     max_attempts: int,
     vcs_wf_type: str | None,
     ws_get_dir: Callable[[str, int, str, str], str] | None,
+    primary_workspace_dir: str | None,
 ) -> tuple[int, str, BaseException | None]:
     """Atomically allocate, then materialize; release the slot if materialize fails."""
     from sase.running_field import claim_next_axe_workspace, release_workspace
@@ -201,6 +212,7 @@ def _claim_next_deferred_workspace(
                 project_name=project_name,
                 vcs_wf_type=vcs_wf_type,
                 ws_get_dir=ws_get_dir,
+                primary_workspace_dir=primary_workspace_dir,
                 target_workspace_num=None,
                 target_workspace_dir=None,
             )
@@ -229,6 +241,7 @@ def _claim_pinned_deferred_workspace(
     target_workspace_dir: str | None,
     vcs_wf_type: str | None,
     ws_get_dir: Callable[[str, int, str, str], str] | None,
+    primary_workspace_dir: str | None,
 ) -> tuple[int, str, str | None]:
     """Claim a family-attach pin once. Occupied checkouts fail with the occupant named."""
     from sase.running_field import claim_workspace, release_workspace
@@ -264,6 +277,7 @@ def _claim_pinned_deferred_workspace(
             project_name=project_name,
             vcs_wf_type=vcs_wf_type,
             ws_get_dir=ws_get_dir,
+            primary_workspace_dir=primary_workspace_dir,
             target_workspace_num=target_workspace_num,
             target_workspace_dir=target_workspace_dir,
         )
@@ -290,6 +304,7 @@ def _resolve_deferred_workspace_dir(
     project_name: str,
     vcs_wf_type: str | None,
     ws_get_dir: Callable[[str, int, str, str], str] | None,
+    primary_workspace_dir: str | None,
     target_workspace_num: int | None,
     target_workspace_dir: str | None,
 ) -> str:
@@ -300,11 +315,15 @@ def _resolve_deferred_workspace_dir(
             raise RuntimeError(
                 f"VCS workflow type {vcs_wf_type!r} has no workspace directory resolver"
             )
+        if not primary_workspace_dir:
+            raise RuntimeError(
+                f"VCS workflow type {vcs_wf_type!r} has no primary workspace directory"
+            )
         return ws_get_dir(
             vcs_wf_type,
             workspace_num,
             project_name,
-            os.getcwd(),
+            primary_workspace_dir,
         )
     if target_workspace_num and target_workspace_dir:
         return target_workspace_dir
