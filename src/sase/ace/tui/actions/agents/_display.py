@@ -42,11 +42,13 @@ from ._display_helpers import (
 )
 from ._display_panels import PanelsMixin
 from ._loading import DISMISSABLE_STATUSES
+from ._paint_log import record_agents_paint_frame
 from ._panel_fold_intent import effective_panel_collapses
 from ._refresh_trace import (
     AgentRefreshDisplayCost,
     AgentRefreshFallbackReason,
     record_agents_refresh_trace,
+    take_display_outcome,
 )
 from ._neighbors import AgentNeighborMixin
 
@@ -217,6 +219,9 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             self._refresh_agents_display_impl(
                 list_changed=list_changed, defer_detail=defer_detail
             )
+        record_agents_paint_frame(
+            self, kind="full_rebuild" if list_changed else "highlight"
+        )
 
     def _record_display_full_rebuild_fallback(
         self,
@@ -240,6 +245,8 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         defer_detail: bool = False,
     ) -> None:
         """Refresh finalized agent display, using a narrow diff when safe."""
+        # Costs noted before this refresh started belong to no frame.
+        take_display_outcome(self)
         current_search_query = getattr(self, "_agent_search_query", "") or ""
         if previous_agents is not None and self._try_refresh_agents_display_incremental(
             previous_agents,
@@ -310,12 +317,15 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
             moved=len(diff.moved_identities),
             defer_detail=bool(defer_detail),
         ):
-            return self._try_refresh_agents_display_incremental_impl(
+            completed = self._try_refresh_agents_display_incremental_impl(
                 previous_agents,
                 diff=diff,
                 defer_detail=defer_detail,
                 merge_tribe_panels=merge_tribe_panels,
             )
+        if completed:
+            record_agents_paint_frame(self, kind="incremental")
+        return completed
 
     def _by_status_display_membership_changed(
         self,

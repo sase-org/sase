@@ -6,6 +6,7 @@ from textual import events
 
 from ..widgets import AgentList, BgCmdList, PatchList, TabBar
 from .agents._display_helpers import panel_widget_id_for_key
+from .agents._paint_log import record_agents_paint_frame
 from .agents._panel_fold_intent import panel_is_collapsed
 from ._event_base import EventHandlersBase
 
@@ -295,7 +296,10 @@ class EventWidgetHandlersMixin(EventHandlersBase):
             MIN_AGENT_LIST_WIDTH,
             min(MAX_AGENT_LIST_WIDTH, desired_width),
         )
+        previous_width = agent_list_container.styles.width
         agent_list_container.styles.width = width
+        if agent_list_container.styles.width != previous_width:
+            record_agents_paint_frame(self, kind="container_width")
 
     def on_resize(self, _event: events.Resize) -> None:
         """Re-apply per-panel heights when geometry changes.

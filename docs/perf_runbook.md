@@ -502,6 +502,55 @@ stability:
 - `agents.refresh_panel_widgets` reports `panel_widget_ids`, the tribe-stable widget ids
   in mount order, so a tribe panel's continuous presence is assertable from the trace.
 
+### Agents-tab paint frames (`agents.paint_frame`)
+
+Counters such as the ones above pass on an idle tab, so they cannot show what a panel
+_looks like_ while a node joins it. With `SASE_TUI_TRACE=1` every completed Agents
+display refresh (and every out-of-band change of the agent-list column width) also emits
+one `agents.paint_frame` event: `kind` (`full_rebuild`, `incremental`, `highlight`,
+`container_width`), the refresh's `source` / `display_cost` / `fallback_reason`, the
+app's `app_grouping_mode`, the `selected_identity`, `#agent-list-container`'s negotiated
+`container_width` (its `styles.width`) beside the laid-out `container_layout_width`, and
+a `panels` list. Each panel entry carries `widget_id`, `object_id` (the widget's Python
+`id()`, so a remount is visible), `option_count`, `collapsed`, `collapse_intent`,
+`grouping_mode`, `requested_width`, `height`, `highlighted`, `highlighted_identity`,
+`scroll_y` and `viewport_height`. `seq` orders the frames.
+
+```bash
+# One row per frame: what changed on screen between consecutive refreshes.
+jq -c 'select(.event == "agents.paint_frame")
+       | {seq, kind, source, display_cost, fallback_reason, container_width,
+          panels: [.panels[] | [.widget_id, .option_count, .requested_width, .height]]}' \
+   ~/.sase/perf/tui_trace.jsonl
+```
+
+A node joining `@epic` should produce exactly one frame whose `panels` or
+`container_width` differ from the previous one. A `full_rebuild` frame carrying
+`fallback_reason: stale_grouping_mode`, or a `container_width` frame right after a
+refresh frame that already widened a panel's `requested_width`, is the flicker itself.
+`tests/ace/tui/test_epic_panel_arrival_frames.py` asserts these invariants
+deterministically; the paint log lives in `actions/agents/_paint_log.py`.
+
+To look at the same arrival by eye, capture the `@epic` panel before and after a node
+joins it with a live `sase screenshot`. This is a human check and stays out of the
+golden lane (live captures carry real timestamps and host state):
+
+```bash
+# Before: capture a fresh TUI on the Agents tab and keep its tmux window.
+sase screenshot --keep -o /tmp/epic_before.png -w "@epic" -- -t agents
+# Copy the printed sase_tmux_target=..., launch a cheap agent that lands in the epic
+# tribe (a prompt tagged `#tribe:epic`), wait for its row to appear, then:
+sase screenshot --window <sase_tmux_target> -o /tmp/epic_after.png
+```
+
+The tmux-launched TUI that `sase screenshot` starts gets `SASE_TUI_TRACE=1` injected
+automatically, so its frame events land in `~/.sase/perf/tui_trace.jsonl` to compare.
+
+Compare the two PNGs for the panel border, scroll position, highlighted row and column
+width, and confirm the same arrival in the `agents.paint_frame` events above. Do not
+copy either PNG under `tests/ace/tui/visual/snapshots/png/`; goldens are maintained only
+by `just fix-tui-screenshots`.
+
 sase's TUI deliberately keeps live-workspace pencil hints off the startup-critical
 agents loader. The first load classifies only cheap persisted `diff_path` badges. After
 that agents list has applied, `agents.live_hint_refresh` runs VCS probes for active,

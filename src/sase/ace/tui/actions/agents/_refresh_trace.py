@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
-from ...util.trace import trace_event
+from ...util.trace import is_enabled, trace_event
 
 AgentRefreshDataCost = Literal[
     "tier2_full_history",
@@ -82,6 +82,15 @@ ALL_AGENT_REFRESH_FALLBACK_REASONS: frozenset[AgentRefreshFallbackReason] = froz
 )
 
 
+# ``AgentRefreshDisplayCost`` is declared most-expensive first.
+_DISPLAY_COST_ORDER: tuple[AgentRefreshDisplayCost, ...] = get_args(
+    AgentRefreshDisplayCost
+)
+
+_PAINT_LOG_ATTR = "_agents_paint_log"
+_PENDING_OUTCOME_ATTR = "_agents_pending_display_outcome"
+
+
 @dataclass(frozen=True)
 class _AgentRefreshTraceRecord:
     """One structured trace point for Agents refresh work.
@@ -96,6 +105,60 @@ class _AgentRefreshTraceRecord:
     display_cost: AgentRefreshDisplayCost | None = None
     fallback_reason: str | None = None
     full_history: bool | None = None
+
+
+@dataclass
+class _PendingDisplayOutcome:
+    """Costliest display cost and first fallback since the last paint frame.
+
+    Constant-size on purpose: runtime ticks record ``row_patch`` costs while no
+    frame is being taken, so anything that grew per record would leak.
+    """
+
+    cost: AgentRefreshDisplayCost | None = None
+    fallback_reason: str | None = None
+
+
+def paint_log_collector(app: object) -> list[Any] | None:
+    """Return the list ``app`` collects paint frames into (tests), if any."""
+
+    collector = getattr(app, _PAINT_LOG_ATTR, None)
+    return collector if isinstance(collector, list) else None
+
+
+def paint_log_active(app: object) -> bool:
+    """Return whether paint frames are collected (test list or trace flag)."""
+
+    return paint_log_collector(app) is not None or is_enabled()
+
+
+def _note_display_outcome(
+    app: object,
+    display_cost: AgentRefreshDisplayCost,
+    fallback_reason: str | None,
+) -> None:
+    pending = getattr(app, _PENDING_OUTCOME_ATTR, None)
+    if pending is None:
+        pending = _PendingDisplayOutcome()
+        setattr(app, _PENDING_OUTCOME_ATTR, pending)
+    if pending.cost is None or _DISPLAY_COST_ORDER.index(
+        display_cost
+    ) < _DISPLAY_COST_ORDER.index(pending.cost):
+        pending.cost = display_cost
+    if pending.fallback_reason is None:
+        pending.fallback_reason = fallback_reason
+
+
+def take_display_outcome(
+    app: object,
+) -> tuple[AgentRefreshDisplayCost | None, str | None]:
+    """Return and clear the costliest display cost and first fallback reason."""
+
+    pending = getattr(app, _PENDING_OUTCOME_ATTR, None)
+    if pending is None:
+        return None, None
+    setattr(app, _PENDING_OUTCOME_ATTR, None)
+    return pending.cost, pending.fallback_reason
 
 
 def normalize_refresh_source(source: str | None) -> str:
@@ -172,4 +235,6 @@ def record_agents_refresh_trace(
     collector = getattr(app, "_agents_refresh_trace_records", None)
     if isinstance(collector, list):
         collector.append(record)
+    if display_cost is not None and paint_log_active(app):
+        _note_display_outcome(app, display_cost, fallback_reason)
     return record
