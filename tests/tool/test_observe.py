@@ -40,6 +40,7 @@ def _home(
     monkeypatch.setenv("SASE_PROJECT", project)
     monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
     monkeypatch.delenv("SASE_MONITOR_ID", raising=False)
+    monkeypatch.delenv("SASE_MONITOR_ARTIFACTS_DIR", raising=False)
     monkeypatch.delenv("SASE_PROC_ID", raising=False)
     monkeypatch.delenv("SASE_TOOL_RUN_ID", raising=False)
     monkeypatch.setenv("GIT_CEILING_DIRECTORIES", str(tmp_path))
@@ -240,6 +241,46 @@ def test_missing_input_is_explicitly_incomplete(
         "missing input" in item for item in fingerprint["completeness"]["missing"]
     )
     assert fingerprints_mutated(fingerprint, fingerprint) is None
+
+
+def test_failing_probe_is_incomplete_evidence_not_a_version(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    root = _git_init(tmp_path / "proj")
+    (root / "sase").mkdir()
+    (root / "sase" / "sase.yml").write_text(
+        yaml.dump(
+            {
+                "tools": {
+                    "probe": {
+                        "argv": ["true"],
+                        "description": "probe",
+                        "fingerprint": {
+                            "toolchain": {
+                                "good": [sys.executable, "--version"],
+                                "broken": [
+                                    sys.executable,
+                                    "-c",
+                                    "import sys; print('Traceback: no module'); sys.exit(1)",
+                                ],
+                            },
+                        },
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    _home(monkeypatch, tmp_path)
+    monkeypatch.chdir(root)
+    clear_config_cache()
+    fingerprint = observe_fingerprint(resolve_run_argv(["probe"]))
+    toolchain = fingerprint["toolchain"]
+    assert "incomplete" not in toolchain["good"]
+    assert toolchain["broken"]["exit_code"] == 1
+    assert toolchain["broken"]["incomplete"] == "toolchain probe broken exited 1"
+    assert fingerprint["completeness"]["complete"] is False
+    assert "toolchain probe broken exited 1" in fingerprint["completeness"]["missing"]
 
 
 def test_probe_timeout_is_explicit(

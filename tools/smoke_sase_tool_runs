@@ -1,929 +1,210 @@
 #!/usr/bin/env python3
-"""Black-box ToolRun harness for catalog, foreground run, and query contracts."""
+"""Black-box ToolRun harness: drive the real ``sase`` CLI and inspect the real store.
+
+Every case runs the executable under test against an isolated ``SASE_HOME``, a private
+``HOME`` (so the caller's user config and plugin overlays cannot leak in), a temporary
+git project and a known fixture catalog. Facts come from versioned queries
+(``tool runs -j``, ``tool show -j``, ``tool list -j``); nothing substitutes a fake store
+or a mocked ``Popen``. The expensive SASE catalog is never executed.
+
+Default mode runs every hermetic case and labels the live cases (real monitor and proc
+supervisors, cold-start overhead timing) ``not-run``; ``--live`` runs them too.
+
+  tools/smoke_sase_tool_runs --sase .venv/bin/sase -j     # workspace binary
+  tools/smoke_sase_tool_runs -j                           # `sase` from PATH
+  tools/smoke_sase_tool_runs --live --keep                # live cases, keep fixtures
+
+``--keep`` leaves the temp directory in place; its path is printed in the report
+(``kept``). Inspect it with ``SASE_HOME=<kept>/sase-home HOME=<kept>/user-home sase
+tool runs -a``; each ``world-*`` directory holds one case's own store and user config.
+"""
 
 from __future__ import annotations
 
 import argparse
 import json
-import os
 import shutil
-import signal
-import subprocess
 import sys
-import tempfile
-import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
 
-PHASE_PENDING = "phase-pending"
-_ROOT = Path(__file__).resolve().parent.parent
-_RUN_SILENT = _ROOT / "tools" / "run_silent"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import _smoke_tool_runs_cases_basic as basic  # noqa: E402
+import _smoke_tool_runs_cases_evidence as evidence  # noqa: E402
+import _smoke_tool_runs_cases_owners as owners  # noqa: E402
+from _smoke_tool_runs_lib import FAIL, NOT_RUN, PASS, Harness, case  # noqa: E402
 
 
-def _phase_pending(case_id: str, reason: str) -> dict[str, Any]:
-    return {
-        "id": case_id,
-        "status": PHASE_PENDING,
-        "reason": reason,
-    }
+Group = tuple[tuple[str, ...], Callable[[Harness], Any]]
 
-
-def _run_sase(
-    sase: str,
-    args: Sequence[str],
-    env: dict[str, str],
-    *,
-    cwd: Path | None = None,
-) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [sase, *args],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=str(cwd) if cwd is not None else None,
-    )
-
-
-def _kill_tree(proc: subprocess.Popen[str]) -> None:
-    if proc.poll() is not None:
-        return
-    try:
-        os.killpg(proc.pid, signal.SIGKILL)
-    except Exception:  # noqa: BLE001 - harness cleanup must not raise.
-        try:
-            proc.kill()
-        except OSError:
-            pass
-    try:
-        proc.wait(timeout=2)
-    except Exception:  # noqa: BLE001
-        pass
-
-
-def _foreground_cases(
-    *, sase: str, env: dict[str, str], tmp: Path
-) -> list[dict[str, Any]]:
-    cases: list[dict[str, Any]] = []
-    children: list[subprocess.Popen[str]] = []
-    try:
-        cases.append(_case_exact_execution(sase, env))
-        cases.append(_case_literal_argv(sase, env))
-        cases.append(_case_signals(sase, env, children))
-        cases.append(_case_lost(sase, env, tmp, children))
-        cases.append(_case_fail_open(sase, env, tmp))
-        cases.append(_case_compact_quiet(sase, env))
-        cases.append(_case_enclosing_owner(sase, env))
-        cases.append(_case_handshake(sase, env, tmp))
-        cases.append(_case_timeline(sase, env))
-        cases.append(_case_evidence(sase, env, tmp))
-        cases.append(_case_samples(sase, env, tmp))
-        cases.append(_case_concurrent(sase, env))
-    finally:
-        for proc in children:
-            _kill_tree(proc)
-    return cases
-
-
-def _case_exact_execution(sase: str, env: dict[str, str]) -> dict[str, Any]:
-    proc = _run_sase(
-        sase,
-        ["tool", "run", "--", "sh", "-c", "printf out; printf err >&2; exit 3"],
-        env,
-    )
-    run_id = _run_id_from_stderr(proc.stderr)
-    shown = (
-        json.loads(_run_sase(sase, ["tool", "show", run_id, "-j"], env).stdout)
-        if run_id
-        else {}
-    )
-    run = shown.get("run") or {}
-    ok = (
-        proc.returncode == 3
-        and proc.stdout == "out"
-        and "err" in proc.stderr
-        and run.get("state") == "failed"
-        and run.get("exit_code") == 3
-        and (run.get("logs") or {}).get("stdout_path")
-    )
-    return {
-        "id": "dod-2-exact-execution",
-        "status": "pass" if ok else "fail",
-        "run_id": run_id,
-        "observed": {
-            "exit": proc.returncode,
-            "stdout": proc.stdout,
-            "stderr_tail": proc.stderr[-400:],
-            "state": run.get("state"),
-            "exit_code": run.get("exit_code"),
-        },
-    }
-
-
-def _case_literal_argv(sase: str, env: dict[str, str]) -> dict[str, Any]:
-    proc = _run_sase(
-        sase,
-        [
-            "tool",
-            "run",
-            "--",
-            sys.executable,
-            "-c",
-            "import sys; sys.stdout.write(repr(sys.argv[1:]))",
-            "a b",
-            "--",
-            "-n",
-        ],
-        env,
-    )
-    ok = proc.returncode == 0 and proc.stdout == "['a b', '--', '-n']"
-    return {
-        "id": "dod-2-literal-argv",
-        "status": "pass" if ok else "fail",
-        "observed": {"exit": proc.returncode, "stdout": proc.stdout},
-    }
-
-
-def _case_signals(
-    sase: str, env: dict[str, str], children: list[subprocess.Popen[str]]
-) -> dict[str, Any]:
-    term = subprocess.Popen(
-        [sase, "tool", "run", "--", "sleep", "30"],
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
-    children.append(term)
-    term_ok = _signal_child(sase, env, term, signal.SIGTERM, 143, "signaled")
-    interrupt = subprocess.Popen(
-        [sase, "tool", "run", "--", "sleep", "30"],
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
-    children.append(interrupt)
-    int_ok = _signal_child(sase, env, interrupt, signal.SIGINT, 130, "interrupted")
-    return {
-        "id": "dod-3-signals",
-        "status": "pass" if term_ok and int_ok else "fail",
-        "observed": {"sigterm": term_ok, "sigint": int_ok},
-    }
-
-
-def _signal_child(
-    sase: str,
-    env: dict[str, str],
-    proc: subprocess.Popen[str],
-    signum: int,
-    expected_exit: int,
-    expected_state: str,
-) -> bool:
-    if not _wait_for_running(sase, env, wrapper_pid=proc.pid):
-        _kill_tree(proc)
-        return False
-    try:
-        os.kill(proc.pid, signum)
-    except OSError:
-        _kill_tree(proc)
-        return False
-    try:
-        code = proc.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        _kill_tree(proc)
-        return False
-    listed = _run_sase(sase, ["tool", "runs", "-j", "-n", "5"], env)
-    try:
-        payload = json.loads(listed.stdout)
-    except json.JSONDecodeError:
-        return False
-    run = next(
+GROUPS: tuple[Group, ...] = (
+    (("core-ledger-round-trip",), basic.core_round_trip),
+    (("dod-1-catalog-sase", "dod-1-catalog-fixture", "dod-1-malformed"), basic.catalog),
+    (
+        ("dod-2-exact-execution", "dod-2-literal-argv", "dod-2-launch-errors"),
+        basic.exact_execution,
+    ),
+    (("dod-3-signals",), basic.signals),
+    (("dod-4-lost",), basic.lost),
+    (("dod-4-liveness",), basic.liveness),
+    (
+        ("dod-5-fail-open", "dod-5-lock", "dod-5-mid-write", "dod-5-log-failure"),
+        basic.fail_open,
+    ),
+    (("dod-5-running-before-spawn",), basic.handshake),
+    (
         (
-            item
-            for item in payload.get("runs") or ()
-            if item.get("wrapper_pid") == proc.pid
+            "dod-6-timeline",
+            "dod-6-evidence",
+            "dod-6-path-independence",
+            "dod-6-incomplete-evidence",
         ),
-        (payload.get("runs") or [{}])[0],
-    )
-    if code == -signum:
-        code = 128 + signum
-    return code == expected_exit and run.get("state") == expected_state
+        evidence.timeline_and_evidence,
+    ),
+    (("dod-6-typical",), evidence.typical_cohorts),
+    (("dod-6-samples",), evidence.samples),
+    (
+        ("dod-7-agent-output", "dod-7-modes", "dod-7-owner-precedence"),
+        evidence.agent_output,
+    ),
+    (("dod-7-truncation",), evidence.truncation),
+    (("dod-8-enclosing-owner",), owners.enclosing_owner),
+    (("dod-8-nested",), owners.nested_runs),
+    (("dod-8-live-monitor",), owners.live_monitor),
+    (("dod-8-live-proc",), owners.live_proc),
+    (("dod-9-disk-list", "dod-9-retention"), owners.disk_retention),
+    (("dod-9-aggregate-cap",), owners.aggregate_cap),
+    (("dod-10-concurrent",), evidence.concurrency),
+    (("dod-10-torn-replay",), evidence.torn_replay),
+    (("dod-13-overhead",), owners.overhead),
+)
 
 
-def _case_lost(
-    sase: str,
-    env: dict[str, str],
-    tmp: Path,
-    children: list[subprocess.Popen[str]],
-) -> dict[str, Any]:
-    pid_file = tmp / "lost-child.pid"
-    script = tmp / "lost-child.py"
-    script.write_text(
-        "import os, time\n"
-        f"open({str(pid_file)!r}, 'w').write(str(os.getpid()))\n"
-        "time.sleep(60)\n",
-        encoding="utf-8",
-    )
-    proc = subprocess.Popen(
-        [sase, "tool", "run", "--", sys.executable, str(script)],
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        start_new_session=True,
-    )
-    children.append(proc)
-    child_pid = None
-    try:
-        if not _wait_for_running(sase, env):
-            return {
-                "id": "dod-4-lost",
-                "status": "fail",
-                "observed": "running row never appeared",
+def dod_summary(cases: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    by_dod: dict[str, list[dict[str, Any]]] = {}
+    for item in cases:
+        for dod in item.get("dod") or ():
+            by_dod.setdefault(dod, []).append(item)
+    out = []
+    for dod in sorted(by_dod, key=lambda value: int(value.split("-")[1])):
+        statuses = {item["status"] for item in by_dod[dod]}
+        status = FAIL if FAIL in statuses else NOT_RUN if NOT_RUN in statuses else PASS
+        out.append(
+            {
+                "id": dod,
+                "status": status,
+                "case_ids": [item["id"] for item in by_dod[dod]],
             }
-        deadline = time.monotonic() + 5
-        while time.monotonic() < deadline and not pid_file.exists():
-            time.sleep(0.05)
-        child_pid = int(pid_file.read_text(encoding="utf-8"))
-        os.kill(proc.pid, signal.SIGKILL)
-        proc.wait(timeout=5)
-        listed = _run_sase(sase, ["tool", "runs", "-j", "-n", "5"], env)
-        payload = json.loads(listed.stdout)
-        run = (payload.get("runs") or [{}])[0]
-        ok = (
-            run.get("state") == "lost"
-            and run.get("lost_reason") == "runner exited without settling"
-            and run.get("duration_ms") is None
-            and run.get("exit_code") is None
         )
-        return {
-            "id": "dod-4-lost",
-            "status": "pass" if ok else "fail",
-            "run_id": run.get("run_id"),
-            "observed": {
-                "state": run.get("state"),
-                "lost_reason": run.get("lost_reason"),
-                "duration_ms": run.get("duration_ms"),
-                "exit_code": run.get("exit_code"),
-            },
-        }
-    except Exception as exc:  # noqa: BLE001
-        return {"id": "dod-4-lost", "status": "fail", "observed": str(exc)}
-    finally:
-        if child_pid is not None:
-            try:
-                os.kill(child_pid, signal.SIGKILL)
-            except OSError:
-                pass
+    return out
 
 
-def _case_fail_open(sase: str, env: dict[str, str], tmp: Path) -> dict[str, Any]:
-    blocked = tmp / "blocked-home"
-    blocked.mkdir()
-    (blocked / "tools").write_text("not-a-directory", encoding="utf-8")
-    blocked_env = env.copy()
-    blocked_env["SASE_HOME"] = str(blocked)
-    proc = _run_sase(sase, ["tool", "run", "--", "printf", "hi"], blocked_env)
-    ok = (
-        proc.returncode == 0
-        and proc.stdout == "hi"
-        and "run not recorded" in proc.stderr
-        and "sase tool run " not in proc.stderr
-    )
-    return {
-        "id": "dod-5-fail-open",
-        "status": "pass" if ok else "fail",
-        "observed": {
-            "exit": proc.returncode,
-            "stdout": proc.stdout,
-            "stderr_tail": proc.stderr[-400:],
-        },
-    }
+def _selected(ids: tuple[str, ...], only: Sequence[str] | None) -> bool:
+    return only is None or any(item in only for item in ids)
 
 
-def _case_compact_quiet(sase: str, env: dict[str, str]) -> dict[str, Any]:
-    proc = _run_sase(
-        sase,
-        [
-            "tool",
-            "run",
-            "-q",
-            "-T",
-            "5",
-            "--",
-            "sh",
-            "-c",
-            "printf '1\\n2\\n3\\n4\\n5\\n6\\n'; exit 1",
-        ],
-        env,
-    )
-    ok = (
-        proc.returncode == 1
-        and proc.stdout == ""
-        and "2" in proc.stderr
-        and "6" in proc.stderr
-        and "sase tool show " in proc.stderr
-        and " -l" in proc.stderr
-    )
-    return {
-        "id": "dod-7-agent-output",
-        "status": "pass" if ok else "fail",
-        "observed": {
-            "exit": proc.returncode,
-            "stdout": proc.stdout,
-            "stderr_tail": proc.stderr[-400:],
-        },
-    }
-
-
-def _case_enclosing_owner(sase: str, env: dict[str, str]) -> dict[str, Any]:
-    owned = env.copy()
-    owned["SASE_MONITOR_ID"] = "mon-fixture"
-    proc = _run_sase(sase, ["tool", "run", "--", "printf", "out"], owned)
-    shown_id = _run_id_from_stderr(proc.stderr)
-    shown = (
-        json.loads(_run_sase(sase, ["tool", "show", shown_id, "-j"], owned).stdout)
-        if shown_id
-        else {}
-    )
-    run = shown.get("run") or {}
-    logs = run.get("logs") or {}
-    quiet = _run_sase(sase, ["tool", "run", "-q", "--", "printf", "x"], owned)
-    ok = (
-        proc.returncode == 0
-        and proc.stdout == "out"
-        and run.get("owner_kind") == "monitor"
-        and not logs.get("stdout_path")
-        and logs.get("events_path")
-        and quiet.returncode == 2
-        and "quiet" in quiet.stderr
-    )
-    return {
-        "id": "dod-8-enclosing-owner",
-        "status": "pass" if ok else "fail",
-        "run_id": shown_id,
-        "observed": {
-            "owner_kind": run.get("owner_kind"),
-            "stdout_path": logs.get("stdout_path"),
-            "quiet_exit": quiet.returncode,
-        },
-    }
-
-
-def _case_handshake(sase: str, env: dict[str, str], tmp: Path) -> dict[str, Any]:
-    marker = tmp / "handshake-state"
-    script = tmp / "handshake.py"
-    script.write_text(
-        "import os, sqlite3\n"
-        "from pathlib import Path\n"
-        "run_id = os.environ['SASE_TOOL_RUN_ID']\n"
-        "store = Path(os.environ['SASE_HOME']) / 'tools' / 'runs.sqlite'\n"
-        "row = sqlite3.connect(store).execute(\n"
-        "    'select state from runs where run_id = ?', (run_id,)\n"
-        ").fetchone()\n"
-        f"Path({str(marker)!r}).write_text(row[0] if row else 'missing')\n",
-        encoding="utf-8",
-    )
-    proc = _run_sase(sase, ["tool", "run", "--", sys.executable, str(script)], env)
-    state = marker.read_text(encoding="utf-8") if marker.exists() else "absent"
-    ok = proc.returncode == 0 and state == "running"
-    return {
-        "id": "dod-5-running-before-spawn",
-        "status": "pass" if ok else "fail",
-        "observed": {"exit": proc.returncode, "state": state},
-    }
-
-
-def _case_timeline(sase: str, env: dict[str, str]) -> dict[str, Any]:
-    run_silent = str(_RUN_SILENT)
-    pipeline = (
-        f"{json.dumps(run_silent)} alpha true && "
-        f"{json.dumps(run_silent)} alpha true && "
-        f"{json.dumps(run_silent)} beta sh -c 'exit 3'"
-    )
-    proc = _run_sase(sase, ["tool", "run", "--", "bash", "-lc", pipeline], env)
-    run_id = _run_id_from_stderr(proc.stderr)
-    shown = (
-        json.loads(_run_sase(sase, ["tool", "show", run_id, "-j"], env).stdout)
-        if run_id
-        else {}
-    )
-    stages = shown.get("stages") or []
-    names = [stage.get("description") for stage in stages]
-    ids = [stage.get("stage_id") for stage in stages]
-    human = _run_sase(sase, ["tool", "show", run_id], env) if run_id else None
-    unattributed = shown.get("unattributed_ms")
-    ok = (
-        proc.returncode == 3
-        and names == ["alpha", "alpha", "beta"]
-        and len(set(ids)) == 3
-        and type(unattributed) is int
-        and unattributed >= 0
-        and human is not None
-        and human.returncode == 0
-        and "UNATTRIB" in human.stdout
-        and "alpha" in human.stdout
-        and stages[0].get("incomplete") is False
-        and stages[2].get("exit_code") == 3
-    )
-    return {
-        "id": "dod-6-timeline",
-        "status": "pass" if ok else "fail",
-        "run_id": run_id,
-        "observed": {
-            "exit": proc.returncode,
-            "names": names,
-            "unattributed_ms": unattributed,
-            "stage_count": len(stages),
-        },
-    }
-
-
-def _case_evidence(sase: str, env: dict[str, str], tmp: Path) -> dict[str, Any]:
-    root = tmp / "evidence-project"
-    root.mkdir()
-    subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-    subprocess.run(["git", "config", "user.email", "t@t.example"], cwd=root, check=True)
-    subprocess.run(["git", "config", "user.name", "t"], cwd=root, check=True)
-    (root / "README").write_text("hello\n", encoding="utf-8")
-    subprocess.run(["git", "add", "README"], cwd=root, check=True)
-    subprocess.run(["git", "commit", "-qm", "init"], cwd=root, check=True)
-    (root / "dirty.txt").write_text("n\n", encoding="utf-8")
-    proc = _run_sase(
-        sase,
-        ["tool", "run", "--", "sh", "-c", "printf x >> dirty.txt"],
-        env,
-        cwd=root,
-    )
-    run_id = _run_id_from_stderr(proc.stderr)
-    shown = (
-        json.loads(_run_sase(sase, ["tool", "show", run_id, "-j"], env).stdout)
-        if run_id
-        else {}
-    )
-    run = shown.get("run") or {}
-    before = run.get("fingerprint_before") or {}
-    after = run.get("fingerprint_after") or {}
-    samples = shown.get("samples") or []
-    dirty_after = [
-        path
-        for repo in after.get("repos") or ()
-        for path in (item.get("path") for item in repo.get("dirty_paths") or ())
-    ]
-    ok = (
-        proc.returncode == 0
-        and before.get("schema_version") == 1
-        and after.get("schema_version") == 1
-        and run.get("mutated_input") is True
-        and "dirty.txt" in dirty_after
-        and samples
-        and run.get("evidence_completeness", {}).get("complete") is True
-    )
-    return {
-        "id": "dod-6-evidence",
-        "status": "pass" if ok else "fail",
-        "run_id": run_id,
-        "observed": {
-            "mutated_input": run.get("mutated_input"),
-            "dirty_after": dirty_after,
-            "sample_count": len(samples),
-            "complete": (run.get("evidence_completeness") or {}).get("complete"),
-        },
-    }
-
-
-def _case_samples(sase: str, env: dict[str, str], tmp: Path) -> dict[str, Any]:
-    proc = _run_sase(sase, ["tool", "run", "--", "sleep", "21"], env, cwd=tmp)
-    run_id = _run_id_from_stderr(proc.stderr)
-    shown = (
-        json.loads(_run_sase(sase, ["tool", "show", run_id, "-j"], env).stdout)
-        if run_id
-        else {}
-    )
-    samples = shown.get("samples") or []
-    elapsed = [sample.get("elapsed_ms") for sample in samples]
-    psi_ok = True
-    for sample in samples:
-        if sample.get("psi_cpu_some") is None:
-            continue
-        if sample.get("psi_cpu_some") == 0 and "PSI unavailable" in (
-            sample.get("availability") or ()
-        ):
-            psi_ok = False
-    ok = (
-        proc.returncode == 0
-        and len(samples) >= 3
-        and elapsed
-        and elapsed[0] is not None
-        and elapsed[-1] is not None
-        and elapsed[-1] >= 15000
-        and psi_ok
-    )
-    return {
-        "id": "dod-6-samples",
-        "status": "pass" if ok else "fail",
-        "run_id": run_id,
-        "observed": {
-            "sample_count": len(samples),
-            "elapsed_ms": elapsed,
-            "availability": (samples[0].get("availability") if samples else None),
-        },
-    }
-
-
-def _case_concurrent(sase: str, env: dict[str, str]) -> dict[str, Any]:
-    import threading
-
-    results: list[subprocess.CompletedProcess[str]] = []
-
-    def worker(tag: str) -> None:
-        results.append(
-            _run_sase(sase, ["tool", "run", "--", "sh", "-c", f"printf {tag}"], env)
-        )
-
-    threads = [
-        threading.Thread(target=worker, args=("a",)),
-        threading.Thread(target=worker, args=("b",)),
-    ]
-    for thread in threads:
-        thread.start()
-    for thread in threads:
-        thread.join()
-    listed = json.loads(_run_sase(sase, ["tool", "runs", "-j", "-n", "10"], env).stdout)
-    event_paths = {
-        (run.get("logs") or {}).get("events_path")
-        for run in listed.get("runs") or ()
-        if (run.get("logs") or {}).get("events_path")
-    }
-    ok = (
-        len(results) == 2
-        and all(item.returncode == 0 for item in results)
-        and len(event_paths) >= 2
-    )
-    return {
-        "id": "dod-10-concurrent",
-        "status": "pass" if ok else "fail",
-        "observed": {
-            "exits": [item.returncode for item in results],
-            "event_files": len(event_paths),
-        },
-    }
-
-
-def _wait_for_running(
-    sase: str,
-    env: dict[str, str],
-    timeout: float = 20.0,
+def run_harness(
     *,
-    wrapper_pid: int | None = None,
-) -> bool:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        listed = _run_sase(
-            sase, ["tool", "runs", "-j", "-s", "running", "-n", "5"], env
-        )
-        try:
-            payload = json.loads(listed.stdout)
-        except json.JSONDecodeError:
-            time.sleep(0.05)
-            continue
-        for run in payload.get("runs") or ():
-            if wrapper_pid is None or run.get("wrapper_pid") == wrapper_pid:
-                return True
-        time.sleep(0.05)
-    return False
+    sase: str,
+    live: bool,
+    keep: bool,
+    only: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    """Run the harness. ``only`` restricts the run to the named case ids."""
 
-
-def _run_id_from_stderr(stderr: str) -> str:
-    for line in stderr.splitlines():
-        if line.startswith("sase tool run "):
-            return line.split()[-1]
-    return ""
-
-
-def run_harness(*, sase: str, live: bool, keep: bool) -> dict[str, Any]:
-    tmp = Path(tempfile.mkdtemp(prefix="sase-tool-runs-harness-"))
-    home = tmp / "sase-home"
-    home.mkdir()
-    env = os.environ.copy()
-    env["SASE_HOME"] = str(home)
-    env["GIT_CEILING_DIRECTORIES"] = str(tmp)
-    for key in (
-        "SASE_AGENT_NAME",
-        "SASE_MONITOR_ID",
-        "SASE_PROC_ID",
-        "SASE_TOOL_RUN_EVENTS",
-        "SASE_TOOL_RUN_ID",
-    ):
-        env.pop(key, None)
+    h = Harness.create(sase=sase, live=live, keep=keep)
     cases: list[dict[str, Any]] = []
-
     try:
-        import sase_core_rs
-
-        from sase.core.tool_run import (
-            tool_run_append_event,
-            tool_run_begin,
-            tool_run_canonicalize_fingerprint,
-            tool_run_finish,
-            tool_run_list,
-            tool_run_normalize_definition,
-            tool_run_reconcile,
-            tool_run_show,
-            tool_run_store_stats,
-            tool_run_summary,
-            tool_run_unknown_evidence,
-            tool_run_wire_schema_version,
-        )
-
-        store_path = str(home / "tools" / "runs.sqlite")
-        if tool_run_wire_schema_version() != 1:
-            raise RuntimeError("unexpected tool_run schema version")
-        if tool_run_unknown_evidence("not observed")["completeness"]["complete"]:
-            raise RuntimeError("unknown evidence must stay incomplete")
-        definition = {
+        loaded = _loaded_modules(h)
+        for ids, group in GROUPS:
+            if not _selected(ids, only):
+                continue
+            try:
+                produced = group(h)
+            except Exception as exc:  # noqa: BLE001 - one broken case must not hide the rest.
+                produced = [case(ids[0], False, error=f"{type(exc).__name__}: {exc}")]
+            cases.extend(produced if isinstance(produced, list) else [produced])
+        if only is not None:
+            cases = [item for item in cases if item["id"] in only]
+        failed = [item for item in cases if item["status"] == FAIL]
+        report: dict[str, Any] = {
             "schema_version": 1,
-            "name": "check",
-            "argv": ["just", "check"],
-            "description": "check",
-            "stages": "run_silent",
-            "inputs": ["Justfile"],
-            "env": [],
-            "args": "deny",
-            "fingerprint": {"repos": [], "toolchain": {}},
+            "sase": sase,
+            "loaded_modules": loaded,
+            "live": live,
+            "cases": cases,
+            "dod": dod_summary(cases),
+            "failed": len(failed),
+            "not_run": sum(1 for item in cases if item["status"] == NOT_RUN),
+            "runs": h.run_log,
+            "snapshots": h.snapshots,
         }
-        digest = tool_run_normalize_definition(definition)["digest"]
-        tool_run_canonicalize_fingerprint(
-            {
-                "schema_version": 1,
-                "completeness": {
-                    "complete": False,
-                    "missing": ["evidence not yet observed"],
-                },
-            }
-        )
-        started = tool_run_begin(
-            {
-                "schema_version": 1,
-                "tool_name": "check",
-                "definition": definition,
-                "display_argv": ["just", "check"],
-                "project": "sase",
-                "now_ts": 10,
-                "commit_running": True,
-            },
-            store_path=store_path,
-        )
-        run_id = started["run"]["run_id"]
-        finished = tool_run_finish(
-            {
-                "schema_version": 1,
-                "run_id": run_id,
-                "state": "succeeded",
-                "exit_code": 0,
-                "duration_ms": 9,
-                "now_ts": 19,
-            },
-            store_path=store_path,
-        )
-        listed = tool_run_list(
-            {"schema_version": 1, "limit": 10}, store_path=store_path
-        )
-        shown = tool_run_show(run_id, store_path=store_path)
-        stats = tool_run_store_stats(store_path=store_path)
-        summary = tool_run_summary(
-            {
-                "schema_version": 1,
-                "project": "sase",
-                "tool_name": "check",
-                "definition_digest": digest,
-                "now_ts": 19,
-            },
-            store_path=store_path,
-        )
-        tool_run_append_event(
-            {
-                "schema_version": 1,
-                "event": {
-                    "schema_version": 1,
-                    "event_id": "evt-sample-1",
-                    "run_id": run_id,
-                    "attempt": 1,
-                    "kind": "sample",
-                    "created_ts": 15,
-                    "sample": {
-                        "schema_version": 1,
-                        "sample_id": "smp-1",
-                        "run_id": run_id,
-                        "attempt": 1,
-                        "observed_ts": 15,
-                        "availability": ["loadavg unavailable"],
-                    },
-                },
-            },
-            store_path=store_path,
-        )
-        reconciled = tool_run_reconcile(
-            {"schema_version": 1, "facts": [], "now_ts": 19},
-            store_path=store_path,
-        )
-        core_ok = (
-            started["run"]["state"] == "running"
-            and finished["run"]["state"] == "succeeded"
-            and listed["runs"]
-            and shown["run"]["run_id"] == run_id
-            and stats["run_count"] == 1
-            and summary.get("last", {}).get("run_id") == run_id
-            and reconciled.get("persisted") is True
-            and int(sase_core_rs.tool_run_wire_schema_version()) == 1
-        )
-        cases.append(
-            {
-                "id": "core-ledger-round-trip",
-                "status": "pass" if core_ok else "fail",
-                "run_id": run_id,
-                "observed": {
-                    "begin_state": started["run"]["state"],
-                    "finish_state": finished["run"]["state"],
-                    "run_count": stats["run_count"],
-                },
-            }
-        )
-    except Exception as error:  # noqa: BLE001 - harness reports the failure.
-        cases.append(
-            {
-                "id": "core-ledger-round-trip",
-                "status": "fail",
-                "observed": str(error),
-            }
-        )
+        overhead = next((c for c in cases if c["id"] == "dod-13-overhead"), None)
+        if overhead is not None and overhead["status"] != NOT_RUN:
+            report["overhead"] = overhead["observed"]
+        if keep:
+            report["kept"] = str(h.tmp)
+        return report
+    finally:
+        h.cleanup()
 
-    help_proc = _run_sase(sase, ["tool", "-h"], env)
-    help_ok = help_proc.returncode == 0 and "{list,run,runs,show}" in help_proc.stdout
-    list_json = _run_sase(sase, ["tool", "list", "-j"], env)
-    catalog_payload: dict[str, Any] = {}
-    if list_json.returncode == 0:
-        try:
-            catalog_payload = json.loads(list_json.stdout)
-        except json.JSONDecodeError:
-            catalog_payload = {}
-    names = [tool.get("name") for tool in catalog_payload.get("tools") or ()]
-    typical_empty = all(
-        tool.get("typical_duration_ms") is None and tool.get("last") is None
-        for tool in catalog_payload.get("tools") or ()
-    )
-    catalog_ok = (
-        help_ok
-        and catalog_payload.get("schema_version") == 1
-        and names == ["check", "check-full", "install", "test", "test-visual"]
-        and typical_empty
-    )
 
-    fixture_root = tmp / "fixture-project"
-    (fixture_root / "sase").mkdir(parents=True)
-    (fixture_root / "sase" / "sase.yml").write_text(
-        "tools:\n  ping:\n    argv: [echo, pong]\n    description: fixture\n",
-        encoding="utf-8",
-    )
-    fixture_proc = subprocess.run(
-        [sase, "tool", "list", "-j"],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=fixture_root,
-    )
-    fixture_payload: dict[str, Any] = {}
-    if fixture_proc.returncode == 0:
-        try:
-            fixture_payload = json.loads(fixture_proc.stdout)
-        except json.JSONDecodeError:
-            fixture_payload = {}
-    fixture_ok = (
-        fixture_proc.returncode == 0
-        and [tool.get("name") for tool in fixture_payload.get("tools") or ()]
-        == ["ping"]
-        and (fixture_payload.get("tools") or [{}])[0].get("last") is None
-    )
-
-    bad_root = tmp / "malformed-project"
-    (bad_root / "sase").mkdir(parents=True)
-    (bad_root / "sase" / "sase.yml").write_text(
-        "tools:\n  ping:\n    argv: [echo, pong]\n    shell: true\n",
-        encoding="utf-8",
-    )
-    bad_proc = subprocess.run(
-        [sase, "tool", "list", "-j"],
-        check=False,
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=bad_root,
-    )
-    malformed_ok = bad_proc.returncode == 2 and "ping" in (
-        bad_proc.stderr + bad_proc.stdout
-    )
-
-    if catalog_ok and fixture_ok and malformed_ok:
-        cases.append(
-            {
-                "id": "dod-1-catalog",
-                "status": "pass",
-                "observed": {
-                    "names": names,
-                    "schema_version": catalog_payload.get("schema_version"),
-                    "fixture_names": [
-                        tool.get("name") for tool in fixture_payload.get("tools") or ()
-                    ],
-                    "malformed_exit": bad_proc.returncode,
-                },
-            }
-        )
-    else:
-        cases.append(
-            {
-                "id": "dod-1-catalog",
-                "status": "fail",
-                "observed": {
-                    "help_ok": help_ok,
-                    "list_exit": list_json.returncode,
-                    "list_err": list_json.stderr[-400:],
-                    "names": names,
-                    "fixture_exit": fixture_proc.returncode,
-                    "malformed_exit": bad_proc.returncode,
-                    "malformed_err": (bad_proc.stderr + bad_proc.stdout)[-400:],
-                },
-            }
-        )
-    cases.extend(_foreground_cases(sase=sase, env=env, tmp=tmp))
-    if live:
-        cases.append(
-            _phase_pending(
-                "live-owner",
-                "live monitor/proc owner cases belong to later phases",
-            )
-        )
-    else:
-        cases.append(
-            {
-                "id": "live-not-run",
-                "status": PHASE_PENDING,
-                "reason": "live cases not requested; pass --live to label them",
-            }
-        )
-
-    failed = [case for case in cases if case.get("status") == "fail"]
-    report = {
-        "schema_version": 1,
-        "sase": sase,
-        "home": str(home),
-        "cases": cases,
-        "failed": len(failed),
-        "phase_pending": sum(
-            1 for case in cases if case.get("status") == PHASE_PENDING
-        ),
-    }
-    if keep:
-        report["kept"] = str(tmp)
-    elif tmp.exists():
-        shutil.rmtree(tmp, ignore_errors=True)
-    return report
+def _loaded_modules(h: Harness) -> dict[str, Any]:
+    try:
+        return h.helper("identity")
+    except Exception as exc:  # noqa: BLE001 - reported, not fatal.
+        return {"error": str(exc), "python": h.python}
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "-j", "--json", action="store_true", help="print the full JSON report"
+    )
+    parser.add_argument(
+        "-k",
+        "--keep",
+        action="store_true",
+        help="keep the temp fixtures for inspection",
+    )
+    parser.add_argument(
+        "-l",
+        "--live",
+        action="store_true",
+        help="also run live cases (real monitor and proc owners, cold-start overhead)",
+    )
     parser.add_argument(
         "-s",
         "--sase",
         default="sase",
         help="sase executable to inspect (default: PATH lookup)",
     )
-    parser.add_argument("-l", "--live", action="store_true")
-    parser.add_argument("-k", "--keep", action="store_true")
-    parser.add_argument("-j", "--json", action="store_true")
     args = parser.parse_args(argv)
-    sase = args.sase
-    sase_path = Path(sase)
-    if sase != "sase":
-        if not sase_path.exists():
-            print(
-                f"[tool-runs-harness] sase executable not found: {sase}",
-                file=sys.stderr,
-            )
-            return 2
-        sase = str(sase_path.resolve())
-    report = run_harness(sase=sase, live=args.live, keep=args.keep)
+    sase = shutil.which(args.sase) or args.sase
+    if not Path(sase).exists():
+        print(
+            f"[tool-runs-harness] sase executable not found: {args.sase}",
+            file=sys.stderr,
+        )
+        return 2
+    report = run_harness(
+        sase=str(Path(sase).absolute()), live=args.live, keep=args.keep
+    )
     if args.json:
         print(json.dumps(report, indent=2, sort_keys=True))
     else:
-        for case in report["cases"]:
-            print(f"{case['id']}: {case['status']}")
-        print(f"failed={report['failed']} phase-pending={report['phase_pending']}")
+        for item in report["cases"]:
+            print(f"{item['id']}: {item['status']}")
+        for item in report["dod"]:
+            print(f"{item['id']}: {item['status']}")
+        print(f"failed={report['failed']} not-run={report['not_run']}")
+        if report.get("kept"):
+            print(f"kept={report['kept']}")
     return 1 if report["failed"] else 0
 
 

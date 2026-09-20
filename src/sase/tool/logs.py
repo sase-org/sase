@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Callable
+import json
 import os
 from pathlib import Path
 import stat
@@ -18,6 +19,12 @@ from sase.config.tools import (
 from sase.core.tool_run import tools_dir
 
 
+_TRUNCATION_PREFIX = "retained output truncated"
+# The events file already carries per-run metadata that shares the retained
+# logs' lifetime; a settlement-time ``output`` record keeps the dropped-byte fact
+# durable without a new core field or a second per-run file.
+OUTPUT_RECORD_KIND = "output"
+_OUTPUT_RECORD_READ_BYTES = 16 * 1024 * 1024
 _TAIL_LINE_CAP = 4000
 _IN_MEMORY_TAIL_BYTES = 1024 * 1024
 
@@ -126,6 +133,79 @@ class BoundedLogSink:
             self._line_buf.clear()
 
 
+def truncation_diagnostics(
+    stdout_sink: BoundedLogSink | None,
+    stderr_sink: BoundedLogSink | None,
+    budget: RunLogBudget,
+) -> list[str]:
+    """Return one explicit dropped-byte fact when a retained log lost output."""
+
+    sinks = (("stdout", stdout_sink), ("stderr", stderr_sink))
+    dropped = [
+        f"{label} dropped {sink.dropped} bytes"
+        for label, sink in sinks
+        if sink is not None and sink.dropped > 0
+    ]
+    if not dropped:
+        return []
+    write_failed = any(sink is not None and sink.failed for _, sink in sinks)
+    reason = (
+        "after a log write failure"
+        if write_failed
+        else f"run_log_max_bytes={budget.max_bytes}"
+    )
+    return [f"{_TRUNCATION_PREFIX}: {', '.join(dropped)} ({reason})"]
+
+
+def record_truncation(
+    events_path: Path | None, run_id: str, messages: list[str]
+) -> bool:
+    """Append one durable dropped-byte record to the run's events file."""
+
+    if events_path is None or not messages:
+        return False
+    record = {
+        "schema_version": 1,
+        "kind": OUTPUT_RECORD_KIND,
+        "run_id": run_id,
+        "event_id": f"{run_id}:output",
+        "messages": messages,
+    }
+    try:
+        with events_path.open("ab") as handle:
+            handle.write(json.dumps(record, sort_keys=True).encode("utf-8") + b"\n")
+    except OSError:
+        return False
+    return True
+
+
+def read_truncation_messages(events_path: object, run_id: str) -> list[str]:
+    """Return the recorded dropped-byte messages for *run_id*, if any."""
+
+    if not events_path:
+        return []
+    try:
+        with Path(str(events_path)).open("rb") as handle:
+            data = handle.read(_OUTPUT_RECORD_READ_BYTES)
+    except OSError:
+        return []
+    messages: list[str] = []
+    for raw in data.splitlines():
+        if OUTPUT_RECORD_KIND.encode() not in raw:
+            continue
+        try:
+            record = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if (
+            isinstance(record, dict)
+            and record.get("kind") == OUTPUT_RECORD_KIND
+            and record.get("run_id") == run_id
+        ):
+            messages = [str(item) for item in record.get("messages") or ()]
+    return messages
+
+
 def log_policy() -> dict[str, int]:
     """Return ToolRun log caps, falling back to defaults if policy is invalid."""
 
@@ -197,10 +277,14 @@ def _mkdir_private(path: Path, mode: int) -> None:
 
 
 __all__ = [
+    "OUTPUT_RECORD_KIND",
     "BoundedLogSink",
     "LogSinkError",
     "RunLogBudget",
     "log_policy",
     "prepare_run_paths",
+    "read_truncation_messages",
+    "record_truncation",
     "replay_retained_bytes",
+    "truncation_diagnostics",
 ]

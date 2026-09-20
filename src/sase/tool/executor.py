@@ -15,7 +15,7 @@ import threading
 import time
 from typing import Any, BinaryIO, TextIO
 
-from sase.config.tools import load_project_tool_catalog
+from sase.config.tools import tool_project_identity
 from sase.core.process_identity import process_identity_token
 from sase.core.tool_run import tool_run_begin, tool_run_finish
 from sase.supervision.logs import pump_output
@@ -32,6 +32,8 @@ from sase.tool.logs import (
     RunLogBudget,
     log_policy,
     prepare_run_paths,
+    record_truncation,
+    truncation_diagnostics,
 )
 from sase.tool.observe import fingerprints_mutated, inc_tool_metric, observe_fingerprint
 from sase.tool.ownership import (
@@ -328,6 +330,9 @@ def _execute_resolved(
         for line in ingestor.flush():
             _write_display(sys.stderr, f"{line}\n".encode())
         ingest_diagnostics = list(ingestor.diagnostics)
+    truncation = truncation_diagnostics(stdout_sink, stderr_sink, budget)
+    if recorded:
+        record_truncation(events_path, run_id, truncation)
     if log_failed and recorded:
         _warn_once(_WARN_INCOMPLETE)
 
@@ -361,6 +366,7 @@ def _execute_resolved(
             stdout_sink=stdout_sink,
             stderr_sink=stderr_sink,
             stages=list(ingestor.stages.values()) if ingestor is not None else (),
+            truncation=truncation,
         )
     return exit_code
 
@@ -590,6 +596,7 @@ def _write_footer(
     stdout_sink: BoundedLogSink | None,
     stderr_sink: BoundedLogSink | None,
     stages: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
+    truncation: list[str] | None = None,
 ) -> None:
     dropped = 0
     if stdout_sink is not None:
@@ -615,6 +622,8 @@ def _write_footer(
                 _write_display(sys.stderr, tail.encode("utf-8", "replace"))
                 if not tail.endswith("\n"):
                     _write_display(sys.stderr, b"\n")
+        for line in truncation or ():
+            _write_display(sys.stderr, f"{line}\n".encode())
         if durable_id:
             _write_display(
                 sys.stderr,
@@ -683,8 +692,8 @@ def _duration_ms(started: float) -> int:
 
 def _project_identity() -> str:
     try:
-        return load_project_tool_catalog().project
-    except Exception:  # noqa: BLE001 - attribution still works without catalog.
+        return tool_project_identity()
+    except Exception:  # noqa: BLE001 - attribution still works without a registry hit.
         return (
             os.environ.get("SASE_PROJECT")
             or os.environ.get("SASE_PROJECT_NAME")

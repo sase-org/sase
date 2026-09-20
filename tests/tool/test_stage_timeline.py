@@ -33,6 +33,7 @@ def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     monkeypatch.setenv("SASE_HOME", str(home))
     monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
     monkeypatch.delenv("SASE_MONITOR_ID", raising=False)
+    monkeypatch.delenv("SASE_MONITOR_ARTIFACTS_DIR", raising=False)
     monkeypatch.delenv("SASE_PROC_ID", raising=False)
     monkeypatch.delenv("SASE_TOOL_RUN_ID", raising=False)
     monkeypatch.chdir(tmp_path)

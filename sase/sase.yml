@@ -159,11 +159,11 @@ tools:
     args: deny
     fingerprint:
       toolchain:
-        python: [python, --version]
+        python: [.venv/bin/python, --version]
         just: [just, --version]
         sase-core-rs:
           [
-            python,
+            .venv/bin/python,
             -c,
             "from importlib.metadata import version; print(version('sase-core-rs'))",
           ]
@@ -182,11 +182,11 @@ tools:
     args: deny
     fingerprint:
       toolchain:
-        python: [python, --version]
+        python: [.venv/bin/python, --version]
         just: [just, --version]
         sase-core-rs:
           [
-            python,
+            .venv/bin/python,
             -c,
             "from importlib.metadata import version; print(version('sase-core-rs'))",
           ]
@@ -202,7 +202,7 @@ tools:
     args: deny
     fingerprint:
       toolchain:
-        python: [python, --version]
+        python: [.venv/bin/python, --version]
         just: [just, --version]
   test:
     argv: [just, test]
@@ -217,7 +217,7 @@ tools:
     args: allow
     fingerprint:
       toolchain:
-        python: [python, --version]
+        python: [.venv/bin/python, --version]
         just: [just, --version]
   test-visual:
     argv: [just, test-visual]
@@ -229,5 +229,5 @@ tools:
     args: deny
     fingerprint:
       toolchain:
-        python: [python, --version]
+        python: [.venv/bin/python, --version]
         just: [just, --version]

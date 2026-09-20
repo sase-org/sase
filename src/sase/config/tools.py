@@ -63,8 +63,13 @@ class ToolCatalog:
     diagnostics: tuple[str, ...]
 
 
-def _tool_catalog_project_identity() -> str:
-    """Return the stable project identity used for LAST/TYPICAL queries."""
+def tool_project_identity() -> str:
+    """Return the stable project identity used for LAST/TYPICAL queries.
+
+    Cheap by design: unlike :func:`load_project_tool_catalog` it reads no config
+    layers, so a foreground run can resolve it once per process without paying
+    for plugin discovery.
+    """
     env = (
         os.environ.get("SASE_PROJECT") or os.environ.get("SASE_PROJECT_NAME") or ""
     ).strip()
@@ -93,7 +98,7 @@ def load_project_tool_catalog() -> ToolCatalog:
     """
     diagnostics = list(_non_project_tools_diagnostics())
     local_path = get_local_config_path()
-    project = _tool_catalog_project_identity()
+    project = tool_project_identity()
     if local_path is None:
         return ToolCatalog(
             project=project,
@@ -249,4 +254,5 @@ __all__ = [
     "ToolRunsConfigError",
     "get_tool_runs_config",
     "load_project_tool_catalog",
+    "tool_project_identity",
 ]

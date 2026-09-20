@@ -20,6 +20,7 @@ def _home(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
     monkeypatch.setenv("SASE_HOME", str(home))
     monkeypatch.delenv("SASE_AGENT_NAME", raising=False)
     monkeypatch.delenv("SASE_MONITOR_ID", raising=False)
+    monkeypatch.delenv("SASE_MONITOR_ARTIFACTS_DIR", raising=False)
     monkeypatch.delenv("SASE_PROC_ID", raising=False)
     monkeypatch.delenv("SASE_TOOL_RUN_ID", raising=False)
     monkeypatch.chdir(tmp_path)
@@ -285,3 +286,66 @@ def test_named_tool_runs_at_project_root(
     captured = capsys.readouterr()
     assert code == 0
     assert captured.out.strip() == str(tmp_path)
+
+
+def test_settled_monitor_id_is_stale_and_neither_owns_nor_records_output(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.tool.ownership import resolve_ownership
+
+    _home(monkeypatch, tmp_path)
+    artifacts = tmp_path / "monitor-artifacts"
+    artifacts.mkdir()
+    monkeypatch.setenv("SASE_MONITOR_ID", "epic-launch-monitor")
+    monkeypatch.setenv("SASE_MONITOR_ARTIFACTS_DIR", str(artifacts))
+
+    running = resolve_ownership(quiet=False)
+    assert (running.owner_kind, running.owner_id) == ("monitor", "epic-launch-monitor")
+    assert running.owns_output is False
+
+    (artifacts / "done.json").write_text("{}", encoding="utf-8")
+    settled = resolve_ownership(quiet=True)
+    assert (settled.owner_kind, settled.owner_id) == (None, None)
+    assert settled.owns_output is True
+
+    monkeypatch.setenv("SASE_AGENT_NAME", "phase-agent")
+    assert _run("--", "sh", "-c", "printf out; exit 4") == 4
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "failed/4" in captured.err
+    run = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]
+    assert run.get("owner_kind") is None
+    assert Path(run["logs"]["stdout_path"]).read_bytes() == b"out"
+
+
+def test_settled_proc_id_is_stale_but_unknown_or_running_procs_still_own(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from types import SimpleNamespace
+
+    from sase.tool import ownership
+
+    _home(monkeypatch, tmp_path)
+    monkeypatch.setenv("SASE_PROC_ID", "proc-1")
+    statuses: dict[str, str | None] = {"proc-1": "success"}
+    monkeypatch.setattr(
+        "sase.procs.store.get_proc",
+        lambda proc_id: (
+            SimpleNamespace(status=statuses[proc_id]) if statuses.get(proc_id) else None
+        ),
+    )
+    assert ownership.resolve_ownership(quiet=False).owner_kind is None
+
+    statuses["proc-1"] = "running"
+    assert ownership.resolve_ownership(quiet=False).owner_kind == "proc"
+
+    statuses["proc-1"] = None  # not in the store: unknown liveness is not proof
+    assert ownership.resolve_ownership(quiet=False).owner_kind == "proc"
+
+    def boom(proc_id: str) -> None:
+        raise RuntimeError("store unreadable")
+
+    monkeypatch.setattr("sase.procs.store.get_proc", boom)
+    assert ownership.resolve_ownership(quiet=False).owner_kind == "proc"

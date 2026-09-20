@@ -132,25 +132,21 @@ def append_jsonl_record(path: pathlib.Path, record: dict[str, Any]) -> bool:
     if len(encoded) > MAX_LINE_BYTES:
         return False
     path.parent.mkdir(parents=True, exist_ok=True)
-    lock_path = path.with_name(path.name + ".lock")
     try:
-        with lock_path.open("a+b") as lock_stream:
-            if not _acquire_lock(lock_stream):
+        # Lock the events file itself: a sibling lock file would sit outside the
+        # ToolRun store's retention accounting and outlive the run's other files.
+        with path.open("ab") as stream:
+            if not _acquire_lock(stream):
                 return False
             try:
-                try:
-                    existing = path.stat().st_size
-                except FileNotFoundError:
-                    existing = 0
-                if existing + len(encoded) > MAX_FILE_BYTES:
+                if os.fstat(stream.fileno()).st_size + len(encoded) > MAX_FILE_BYTES:
                     return False
-                with path.open("ab") as stream:
-                    stream.write(encoded)
-                    stream.flush()
-                    os.fsync(stream.fileno())
+                stream.write(encoded)
+                stream.flush()
+                os.fsync(stream.fileno())
             finally:
                 try:
-                    fcntl.flock(lock_stream.fileno(), fcntl.LOCK_UN)
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
                 except OSError:
                     pass
         try:

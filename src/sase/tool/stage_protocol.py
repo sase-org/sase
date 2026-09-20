@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.tool_run import tool_run_append_event
-from sase.tool.logs import log_policy
+from sase.tool.logs import OUTPUT_RECORD_KIND, log_policy
 from sase.tool.render import EMPTY, format_duration_ms
 
 
@@ -129,6 +129,8 @@ class StageIngestor:
         return records
 
     def _ingest_record(self, record: dict[str, Any]) -> str | None:
+        if record.get("kind") == OUTPUT_RECORD_KIND:
+            return None
         run_id = str(record.get("run_id") or "")
         if run_id != self.run_id:
             self._note(f"ignored cross-run event for {run_id or 'missing-run'}")
@@ -201,7 +203,7 @@ def _parse_event_line(raw: bytes) -> tuple[dict[str, Any] | None, str | None]:
     if int(payload.get("schema_version") or 0) != SCHEMA_VERSION:
         return None, "events.jsonl schema_version is not 1"
     kind = str(payload.get("kind") or "")
-    if kind not in {KIND_STARTED, KIND_FINISHED}:
+    if kind not in {KIND_STARTED, KIND_FINISHED, OUTPUT_RECORD_KIND}:
         return None, f"unknown events.jsonl kind {kind!r}"
     return payload, None
 

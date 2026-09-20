@@ -90,3 +90,39 @@ def test_tool_run_reap_apply_deletes_confined_files(
     assert step.reclaimed_bytes == 12
     assert step.exit_code == 1
     assert step.owner_error is not None
+
+
+def test_tool_run_reap_preview_reports_protected_bytes_over_the_target(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap_tool_run.tool_run_wire_schema_version",
+        lambda: 1,
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap_tool_run.tool_run_store_stats",
+        lambda store_path=None: {"exists": True, "run_count": 2},
+    )
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_reap_tool_run.tool_run_retention_preview",
+        lambda request, store_path=None: {
+            "schema_version": 1,
+            "dry_run": True,
+            "summary_rows": 0,
+            "detail_rows": 0,
+            "file_candidates": [],
+            "protected_unsettled": 1,
+            "retained_bytes": 900,
+            "protected_bytes": 900,
+            "over_target_bytes": 400,
+            "diagnostics": [],
+        },
+    )
+    step = tool_run_reap_step(apply=False)
+    assert "400 protected byte(s) remain over the log_max_bytes=" in step.summary
+    assert step.details["retained_bytes"] == 900
+    assert step.details["protected_bytes"] == 900
+    assert step.details["over_target_bytes"] == 400
+    assert step.reclaimed_bytes == 0

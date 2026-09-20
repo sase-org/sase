@@ -5,17 +5,19 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import partial
 import json
+import os
 from pathlib import Path
 import sys
+import time
 from typing import Any, TextIO, cast
 
 from rich.console import Console
 from rich.table import Table
 
-from sase.config.tools import ToolCatalogError, load_project_tool_catalog
+from sase.config.tools import DEFAULT_TOOL_RUNS_DETAIL_DAYS, tool_project_identity
 from sase.core.tool_run import tool_run_list, tool_run_show
 from sase.tool.liveness import reconcile_unsettled_tool_runs
-from sase.tool.logs import replay_retained_bytes
+from sase.tool.logs import log_policy, read_truncation_messages, replay_retained_bytes
 from sase.tool.render import (
     EMPTY,
     format_argv,
@@ -127,12 +129,21 @@ def handle_show(request: ToolShowCliRequest) -> int:
     if request.logs:
         return _replay_logs(run)
     attach_timeline(envelope)
+    envelope["output_truncation"] = _output_truncation(run)
+    envelope["detail_retention"] = _detail_retention(run)
     if request.json:
         print(json.dumps(envelope, indent=2, sort_keys=True))
         return 0
     _print_show(envelope)
     for diagnostic in envelope.get("diagnostics") or ():
         print(str(diagnostic), file=sys.stderr)
+    retention = envelope["detail_retention"]
+    if retention["detail_may_be_pruned"]:
+        print(
+            f"sase: stage and sample detail older than {retention['detail_days']} "
+            "days is pruned by retention; it may be absent here",
+            file=sys.stderr,
+        )
     return 0
 
 
@@ -141,13 +152,15 @@ def _replay_logs(run: dict[str, Any]) -> int:
     stdout_path = logs.get("stdout_path")
     stderr_path = logs.get("stderr_path")
     if stdout_path or stderr_path:
-        return _replay_tool_files(stdout_path, stderr_path)
+        return _replay_tool_files(stdout_path, stderr_path, run)
     return _replay_owner_logs(run)
 
 
-def _replay_tool_files(stdout_path: object, stderr_path: object) -> int:
+def _replay_tool_files(
+    stdout_path: object, stderr_path: object, run: dict[str, Any]
+) -> int:
     missing: list[str] = []
-    truncated: list[str] = []
+    truncated = _output_truncation(run)
     for label, raw in (("stdout", stdout_path), ("stderr", stderr_path)):
         if not raw:
             continue
@@ -162,6 +175,21 @@ def _replay_tool_files(stdout_path: object, stderr_path: object) -> int:
     for message in (*truncated, *missing):
         print(f"sase: {message}", file=sys.stderr)
     return 0
+
+
+def _detail_retention(run: dict[str, Any]) -> dict[str, Any]:
+    """State the detail horizon; a run older than it may have lost its detail."""
+
+    days = int(log_policy().get("detail_days") or DEFAULT_TOOL_RUNS_DETAIL_DAYS)
+    settled = run.get("settled_ts")
+    old = type(settled) is int and time.time() - settled > days * 86400
+    return {"detail_days": days, "detail_may_be_pruned": bool(old)}
+
+
+def _output_truncation(run: dict[str, Any]) -> list[str]:
+    return read_truncation_messages(
+        _logs_map(run).get("events_path"), str(run.get("run_id") or "")
+    )
 
 
 def _replay_owner_logs(run: dict[str, Any]) -> int:
@@ -411,18 +439,13 @@ def _validate_state(state: str | None) -> str | None:
 
 def _project_identity() -> str:
     try:
-        return load_project_tool_catalog().project
-    except ToolCatalogError:
-        pass
-    except Exception:  # noqa: BLE001 - listing still works without a catalog.
-        pass
-    import os
-
-    return (
-        os.environ.get("SASE_PROJECT")
-        or os.environ.get("SASE_PROJECT_NAME")
-        or "unknown"
-    ).strip() or "unknown"
+        return tool_project_identity()
+    except Exception:  # noqa: BLE001 - listing still works without a registry hit.
+        return (
+            os.environ.get("SASE_PROJECT")
+            or os.environ.get("SASE_PROJECT_NAME")
+            or "unknown"
+        ).strip() or "unknown"
 
 
 def _write_bytes(stream: TextIO, data: bytes) -> None:

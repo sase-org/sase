@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import os
+from pathlib import Path
 
 from sase.core.tool_run import tool_run_show
 
 
 _MONITOR_ENV = "SASE_MONITOR_ID"
+_MONITOR_ARTIFACTS_ENV = "SASE_MONITOR_ARTIFACTS_DIR"
 _PROC_ENV = "SASE_PROC_ID"
 _PARENT_ENV = "SASE_TOOL_RUN_ID"
 
@@ -35,6 +37,13 @@ def resolve_ownership(*, quiet: bool) -> ToolRunOwnership:
 
     monitor_id = (os.environ.get(_MONITOR_ENV) or "").strip() or None
     proc_id = (os.environ.get(_PROC_ENV) or "").strip() or None
+    # Agents launched by a monitored command (an epic launch) inherit that monitor's
+    # id long after it settled. A settled owner captures nothing, so it must neither
+    # own the output nor be recorded as the owner.
+    if monitor_id and _monitor_has_settled():
+        monitor_id = None
+    if proc_id and _proc_has_settled(proc_id):
+        proc_id = None
     parent_id = (os.environ.get(_PARENT_ENV) or "").strip() or None
     if parent_id and not _parent_exists(parent_id):
         parent_id = None
@@ -85,6 +94,31 @@ def compact_requested(*, quiet: bool, verbose: bool, owns_output: bool) -> bool:
     if quiet:
         return True
     return bool((os.environ.get("SASE_AGENT_NAME") or "").strip())
+
+
+def _monitor_has_settled() -> bool:
+    """True only on proof: the monitor's artifacts dir carries its terminal marker."""
+
+    root = (os.environ.get(_MONITOR_ARTIFACTS_ENV) or "").strip()
+    if not root:
+        return False
+    try:
+        return (Path(root) / "done.json").is_file()
+    except OSError:
+        return False
+
+
+def _proc_has_settled(proc_id: str) -> bool:
+    """True only when the proc store reports a terminal status; unknown is not proof."""
+
+    try:
+        from sase.procs.models import TERMINAL_PROC_STATUSES
+        from sase.procs.store import get_proc
+
+        proc = get_proc(proc_id)
+    except Exception:  # noqa: BLE001 - unknown liveness never changes ownership.
+        return False
+    return proc is not None and proc.status in TERMINAL_PROC_STATUSES
 
 
 def _parent_exists(run_id: str) -> bool:

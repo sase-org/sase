@@ -59,6 +59,7 @@ def tool_run_reap_step(*, apply: bool) -> DiskReapStep:
     summary_rows = int(report.get("summary_rows") or 0)
     detail_rows = int(report.get("detail_rows") or 0)
     protected = int(report.get("protected_unsettled") or 0)
+    over_target = int(report.get("over_target_bytes") or 0)
     if apply:
         summary = (
             f"removed {summary_rows} summary row(s), {detail_rows} detail row(s), "
@@ -68,6 +69,11 @@ def tool_run_reap_step(*, apply: bool) -> DiskReapStep:
         summary = (
             f"would remove {summary_rows} summary row(s), {detail_rows} detail row(s), "
             f"{len(file_candidates)} file(s); protected unsettled={protected}"
+        )
+    if over_target:
+        summary += (
+            f"; {over_target} protected byte(s) remain over the "
+            f"log_max_bytes={policy['log_max_bytes']} target"
         )
     return DiskReapStep(
         owner="tool_run_retention",
@@ -86,6 +92,9 @@ def tool_run_reap_step(*, apply: bool) -> DiskReapStep:
             "detail_rows": detail_rows,
             "file_candidates": file_candidates,
             "protected_unsettled": protected,
+            "retained_bytes": int(report.get("retained_bytes") or 0),
+            "protected_bytes": int(report.get("protected_bytes") or 0),
+            "over_target_bytes": over_target,
             "removed_files": removed,
             "diagnostics": list(report.get("diagnostics") or ()),
         },

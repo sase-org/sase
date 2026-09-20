@@ -12,6 +12,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 import hashlib
 import json
+import ast
 import os
 from pathlib import Path
 import re
@@ -19,14 +20,12 @@ import subprocess
 import time
 from typing import Any
 
-from sase.config.tools import ToolCatalogError, load_project_tool_catalog
+from sase.config.tools import tool_project_identity
 from sase.content_layout import discover_project_root
 from sase.core.tool_run import (
     tool_run_canonicalize_fingerprint,
     tool_run_unknown_evidence,
 )
-from sase.llm_provider.commit_finalizer_git_paths import normalize_status_path
-from sase.llm_provider.commit_finalizer_git_status import dirty_path_fingerprints
 from sase.telemetry.metrics import TOOL_RUN_RECORDING_ERRORS
 from sase.tool.argv import ResolvedToolArgv
 
@@ -198,32 +197,25 @@ def _observe_one_repo(identity: str, repo: Path, missing: list[str]) -> dict[str
     head = _git_text(repo, ["rev-parse", "HEAD"], budget)
     index_tree = _git_text(repo, ["write-tree"], budget)
     dirty: list[dict[str, Any]] = []
+    # One bounded `git status`; content is hashed in-process by _observe_dirty_path so
+    # observation never shells out per path or imports the provider stack (~0.3 s).
     fingerprints: dict[str, tuple[str, str | None]] = {}
-    status_error = False
-    if not budget.expired():
-        try:
-            fingerprints = dirty_path_fingerprints(str(repo))
-        except Exception:  # noqa: BLE001 - git status failures are incompleteness.
-            fingerprints = {}
-            status_error = True
-    if not fingerprints:
-        status = _git_text(
-            repo,
-            ["status", "--porcelain=v1", "--untracked-files=all"],
-            budget,
-        )
-        if status is None:
-            if budget.expired():
-                budget.note("repository observation timed out")
-            elif (repo / ".git" / "index.lock").exists():
-                budget.note("git lock")
-            elif status_error:
-                budget.note("repository observation failed")
-        for raw_line in (status or "").splitlines():
-            if len(raw_line.rstrip()) < 4:
-                continue
-            xy, path_text = raw_line[:2], raw_line[3:]
-            fingerprints[normalize_status_path(path_text)] = (xy, None)
+    status = _git_text(
+        repo,
+        ["status", "--porcelain=v1", "--untracked-files=all"],
+        budget,
+        strip=False,
+    )
+    if status is None:
+        if budget.expired():
+            budget.note("repository observation timed out")
+        elif (repo / ".git" / "index.lock").exists():
+            budget.note("git lock")
+    for raw_line in (status or "").splitlines():
+        if len(raw_line.rstrip()) < 4:
+            continue
+        xy, path_text = raw_line[:2], raw_line[3:]
+        fingerprints[_status_destination(path_text)] = (xy, None)
     for rel, (xy, content_hash) in sorted(fingerprints.items()):
         if budget.expired():
             budget.note("repository observation timed out")
@@ -252,6 +244,20 @@ def _observe_one_repo(identity: str, repo: Path, missing: list[str]) -> dict[str
         "dirty_paths": dirty,
         "incomplete": incomplete,
     }
+
+
+def _status_destination(path_text: str) -> str:
+    """The destination path of one porcelain status entry, unquoted."""
+
+    target = path_text.split(" -> ", 1)[-1].strip()
+    if len(target) >= 2 and target[0] == target[-1] == '"':
+        try:
+            value = ast.literal_eval(target)
+        except (SyntaxError, ValueError):
+            return target[1:-1]
+        if isinstance(value, str):
+            return value
+    return target
 
 
 def _observe_dirty_path(
@@ -402,11 +408,13 @@ def _observe_toolchain(
             missing.append("probe timeout")
             probes[name] = {"argv": tokens, "incomplete": "probe timeout"}
             continue
-        probes[name] = _run_probe(tokens, remaining, missing)
+        probes[name] = _run_probe(name, tokens, remaining, missing)
     return probes, missing
 
 
-def _run_probe(argv: list[str], timeout: float, missing: list[str]) -> dict[str, Any]:
+def _run_probe(
+    name: str, argv: list[str], timeout: float, missing: list[str]
+) -> dict[str, Any]:
     try:
         proc = subprocess.run(
             argv,
@@ -426,11 +434,18 @@ def _run_probe(argv: list[str], timeout: float, missing: list[str]) -> dict[str,
         return {"argv": argv, "incomplete": reason}
     blob = (proc.stdout or b"") + (proc.stderr or b"")
     output = blob[:_PROBE_OUTPUT_BYTES].decode("utf-8", "replace")
-    return {
+    probe: dict[str, Any] = {
         "argv": argv,
         "output": output,
         "exit_code": int(proc.returncode),
     }
+    if proc.returncode != 0:
+        # A failing probe's output is an error message, not a version: it must not
+        # stand in as a complete toolchain component.
+        reason = f"toolchain probe {name} exited {proc.returncode}"
+        probe["incomplete"] = reason
+        missing.append(reason)
+    return probe
 
 
 def _hash_path(path: Path, budget: _Budget) -> tuple[str | None, str | None]:
@@ -500,7 +515,11 @@ def _status_label(xy: str) -> str:
     return stripped or "modified"
 
 
-def _git_text(repo: Path, args: Sequence[str], budget: _Budget) -> str | None:
+def _git_text(
+    repo: Path, args: Sequence[str], budget: _Budget, *, strip: bool = True
+) -> str | None:
+    """Bounded git stdout; ``strip=False`` keeps porcelain's significant columns."""
+
     timeout = budget.remaining()
     if timeout <= 0:
         budget.note("repository observation timed out")
@@ -523,7 +542,7 @@ def _git_text(repo: Path, args: Sequence[str], budget: _Budget) -> str | None:
         if "index.lock" in detail or "unable to create" in detail.lower():
             budget.note("git lock")
         return None
-    return proc.stdout.strip()
+    return proc.stdout.strip() if strip else proc.stdout
 
 
 def _git_root(start: Path) -> Path | None:
@@ -626,16 +645,13 @@ def _canonical_digest(value: object) -> str:
 
 def _project_identity() -> str:
     try:
-        return load_project_tool_catalog().project
-    except ToolCatalogError:
-        pass
-    except Exception:  # noqa: BLE001
-        pass
-    return (
-        os.environ.get("SASE_PROJECT")
-        or os.environ.get("SASE_PROJECT_NAME")
-        or "unknown"
-    ).strip() or "unknown"
+        return tool_project_identity()
+    except Exception:  # noqa: BLE001 - observation still works without a registry hit.
+        return (
+            os.environ.get("SASE_PROJECT")
+            or os.environ.get("SASE_PROJECT_NAME")
+            or "unknown"
+        ).strip() or "unknown"
 
 
 __all__ = [
