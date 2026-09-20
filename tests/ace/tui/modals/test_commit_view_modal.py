@@ -524,7 +524,10 @@ async def test_commit_view_modal_toggles_plan_and_restores_cached_diff(
         await _wait_for_plan(pilot, modal)
 
         assert _rendered_text(modal._build_title()).startswith("PLAN")
-        assert str(plan_path.resolve()) in _rendered_text(modal._build_title())
+        # The title ellipsizes long paths past the 120-column width, so pin
+        # the exact plan path on the loaded document instead of rendered text.
+        assert modal._plan_document is not None
+        assert modal._plan_document.path == str(plan_path.resolve())
         assert "p commit" in modal._build_footer()
         assert "Attached plan" in _rendered_text(modal._build_content())
         assert scroll.scroll_y == 0

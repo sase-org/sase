@@ -71,7 +71,10 @@ async def test_completed_agent_zoom_loads_seeded_file_list_without_refresh(
         rendered = await _wait_for_file_content(pilot, panel, "first file body")
 
         assert panel._full_content == "first file body\n"
-        assert str(first_path) in rendered
+        # Full tmp paths wrap past the 120-column render width, so pin the
+        # exact slot path and only require the basename in rendered text.
+        assert panel.get_current_file_path() == str(first_path)
+        assert first_path.name in rendered
 
 
 async def test_zoom_next_file_shows_next_seeded_file(tmp_path: Any) -> None:
@@ -109,7 +112,8 @@ async def test_zoom_next_file_shows_next_seeded_file(tmp_path: Any) -> None:
 
         assert panel.current_file_index == 1
         assert panel._full_content == "second file body\n"
-        assert str(second_path) in rendered
+        assert panel.get_current_file_path() == str(second_path)
+        assert second_path.name in rendered
 
 
 async def test_zoom_prev_file_shows_previous_seeded_file(tmp_path: Any) -> None:
@@ -130,7 +134,8 @@ async def test_zoom_prev_file_shows_previous_seeded_file(tmp_path: Any) -> None:
 
         assert panel.current_file_index == 0
         assert panel._full_content == "first file body\n"
-        assert paths[0] in rendered
+        assert panel.get_current_file_path() == paths[0]
+        assert Path(paths[0]).name in rendered
 
 
 async def test_zoom_prev_file_wraps_first_to_last(tmp_path: Any) -> None:
@@ -151,7 +156,8 @@ async def test_zoom_prev_file_wraps_first_to_last(tmp_path: Any) -> None:
 
         assert panel.current_file_index == 2
         assert panel._full_content == "third file body\n"
-        assert paths[2] in rendered
+        assert panel.get_current_file_path() == paths[2]
+        assert Path(paths[2]).name in rendered
 
 
 async def test_zoom_next_file_wraps_last_to_first(tmp_path: Any) -> None:
@@ -172,7 +178,8 @@ async def test_zoom_next_file_wraps_last_to_first(tmp_path: Any) -> None:
 
         assert panel.current_file_index == 0
         assert panel._full_content == "first file body\n"
-        assert paths[0] in rendered
+        assert panel.get_current_file_path() == paths[0]
+        assert Path(paths[0]).name in rendered
 
 
 async def test_zoom_seeded_file_list_freezes_across_terminal_refresh(
@@ -242,7 +249,8 @@ async def test_zoom_next_file_wrap_survives_refresh_tick(tmp_path: Any) -> None:
         rendered = await _wait_for_file_content(pilot, panel, "first file body")
 
         assert panel.current_file_index == 0
-        assert paths[0] in rendered
+        assert panel.get_current_file_path() == paths[0]
+        assert Path(paths[0]).name in rendered
 
 
 async def test_zoom_file_rail_lists_files_and_tracks_active(
@@ -317,7 +325,8 @@ async def test_zoom_next_file_reveals_file_panel_from_metadata(
         assert modal._target == ZoomPanelTarget.FILE
         assert ZoomPanelTarget.FILE in modal._available_targets()
         assert panel._full_content == "first file body\n"
-        assert str(first_path) in rendered
+        assert panel.get_current_file_path() == str(first_path)
+        assert first_path.name in rendered
 
 
 async def test_zoom_prev_file_reveals_file_panel_from_metadata(
@@ -344,7 +353,8 @@ async def test_zoom_prev_file_reveals_file_panel_from_metadata(
         assert modal._target == ZoomPanelTarget.FILE
         assert ZoomPanelTarget.FILE in modal._available_targets()
         assert panel._full_content == "first file body\n"
-        assert str(first_path) in rendered
+        assert panel.get_current_file_path() == str(first_path)
+        assert first_path.name in rendered
 
 
 async def test_zoom_revealed_file_panel_pages_after_first_press(
@@ -375,7 +385,8 @@ async def test_zoom_revealed_file_panel_pages_after_first_press(
         assert modal._target == ZoomPanelTarget.FILE
         assert panel.current_file_index == 0
         assert panel._full_content == "first file body\n"
-        assert str(first_path) in first_rendered
+        assert panel.get_current_file_path() == str(first_path)
+        assert first_path.name in first_rendered
 
         await pilot.press("ctrl+n")
         second_rendered = await _wait_for_file_content(
@@ -386,7 +397,8 @@ async def test_zoom_revealed_file_panel_pages_after_first_press(
 
         assert panel.current_file_index == 1
         assert panel._full_content == "second file body\n"
-        assert str(second_path) in second_rendered
+        assert panel.get_current_file_path() == str(second_path)
+        assert second_path.name in second_rendered
 
 
 async def test_zoom_revealed_file_panel_reverse_pages_after_first_press(
@@ -419,7 +431,8 @@ async def test_zoom_revealed_file_panel_reverse_pages_after_first_press(
         assert modal._target == ZoomPanelTarget.FILE
         assert panel.current_file_index == 0
         assert panel._full_content == "first file body\n"
-        assert str(first_path) in first_rendered
+        assert panel.get_current_file_path() == str(first_path)
+        assert first_path.name in first_rendered
 
         # Second press reverse-pages, wrapping from the first file to the last.
         await pilot.press("ctrl+p")
@@ -431,7 +444,8 @@ async def test_zoom_revealed_file_panel_reverse_pages_after_first_press(
 
         assert panel.current_file_index == 1
         assert panel._full_content == "second file body\n"
-        assert str(second_path) in second_rendered
+        assert panel.get_current_file_path() == str(second_path)
+        assert second_path.name in second_rendered
 
 
 async def test_zoom_ctrl_p_returns_to_metadata_after_reveal_single_file(
