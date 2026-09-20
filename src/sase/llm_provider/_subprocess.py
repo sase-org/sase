@@ -46,6 +46,7 @@ _stream_and_parse_messages_json_output = _claude._stream_and_parse_messages_json
 _strip_ansi = strip_ansi
 _write_codex_thinking = _codex._write_codex_thinking
 _write_usage_artifact = write_usage_artifact
+start_completion_watchdog = _plain.start_completion_watchdog
 start_interrupt_monitor = _plain.start_interrupt_monitor
 stream_and_parse_codex_json_output = _codex.stream_and_parse_codex_json_output
 stream_and_parse_json_output = _claude.stream_and_parse_json_output
@@ -86,6 +87,7 @@ __all__ = [
     "_write_usage_artifact",
     "os",
     "select",
+    "start_completion_watchdog",
     "start_interrupt_monitor",
     "stream_and_parse_codex_json_output",
     "stream_and_parse_json_output",

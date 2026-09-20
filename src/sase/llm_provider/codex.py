@@ -18,6 +18,7 @@ from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
 from ._subprocess import (
     CODEX_TURN_INTEGRITY_ERROR_PREFIX,
+    start_completion_watchdog,
     start_interrupt_monitor,
     stream_and_parse_codex_json_output,
 )
@@ -540,6 +541,7 @@ class CodexProvider(LLMProvider):
                     self, "_pending_interrupt_message", msg
                 ),
             )
+            start_completion_watchdog(process, runtime="codex")
 
             return stream_and_parse_codex_json_output(
                 process, suppress_output=suppress_output

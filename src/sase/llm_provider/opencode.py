@@ -14,7 +14,11 @@ from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
 
 from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
-from ._subprocess import start_interrupt_monitor, stream_and_parse_opencode_json_output
+from ._subprocess import (
+    start_completion_watchdog,
+    start_interrupt_monitor,
+    stream_and_parse_opencode_json_output,
+)
 from .base import LLMProvider
 from .types import InvokeResult, LLMInvocationOptions, ModelTier
 
@@ -334,6 +338,7 @@ class OpenCodeProvider(LLMProvider):
             process,
             on_interrupt=lambda msg: setattr(self, "_pending_interrupt_message", msg),
         )
+        start_completion_watchdog(process, runtime="opencode")
 
         return stream_and_parse_opencode_json_output(
             process, suppress_output=suppress_output

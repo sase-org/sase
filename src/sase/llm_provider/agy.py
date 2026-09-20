@@ -25,7 +25,11 @@ from sase.output import provider_timer
 
 from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
-from ._subprocess import start_interrupt_monitor, stream_process_output
+from ._subprocess import (
+    start_completion_watchdog,
+    start_interrupt_monitor,
+    stream_process_output,
+)
 from ._subprocess_agy import (
     AgyTurnProgress,
     analyze_agy_turn_progress,
@@ -635,6 +639,7 @@ class AgyProvider(LLMProvider):
             process,
             on_interrupt=lambda msg: setattr(self, "_pending_interrupt_message", msg),
         )
+        start_completion_watchdog(process, runtime="agy")
 
         return stream_process_output(
             process, suppress_output=suppress_output, clean_ansi=True

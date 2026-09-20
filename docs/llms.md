@@ -2964,6 +2964,35 @@ Muse records the model it actually configured and its session id in
 When `suppress_output=True`, lines are still captured but not printed to the console.
 This is used for background invocations where the caller only needs the final result.
 
+### Provider Teardown Watchdog
+
+A provider CLI can finish its turn, have its final declaration accepted, and then never
+exit, often because a background process leaked from its tool sandbox keeps a pipe open.
+Every provider that starts the interrupt monitor also starts a completion watchdog
+(`start_completion_watchdog` in `_subprocess_plain.py`). It is a no-op without
+`SASE_ARTIFACTS_DIR`.
+
+Once `<SASE_ARTIFACTS_DIR>/final_submission.json` is written by a declaration accepted
+_after_ the provider started, the watchdog waits a grace period. If the provider is
+still alive when it expires, the watchdog terminates it (SIGTERM, then SIGKILL) and
+reaps its leaked descendants. Descendants are found by walking `ppid` from a snapshot
+taken _before_ the provider is signalled, so a leaked process in its own session or
+process group is still reached. Registered live agents, monitors, and procs, the current
+process, and its ancestors are never signalled, and neither is anything they spawned. If
+the live registry cannot be read, no descendant is signalled at all.
+
+The stall is recorded in `<SASE_ARTIFACTS_DIR>/provider_teardown_stall.json` (provider,
+pid, acceptance time, grace, seconds waited, and the argv of each reaped descendant) and
+as a `[sase] ...` line on stderr. The turn is not reported as failed:
+`stream_json_lines` and `stream_process_output` return the streamed reply with return
+code `0`.
+
+| Variable                               | Default | Effect                                          |
+| -------------------------------------- | ------- | ----------------------------------------------- |
+| `SASE_PROVIDER_TEARDOWN_GRACE_SECONDS` | `120`   | Grace period after acceptance; `0` disables it. |
+
+A provider that wedges _before_ submitting its declaration is not covered.
+
 ## Postprocessing
 
 After a provider returns (or raises an error), the orchestration layer runs
