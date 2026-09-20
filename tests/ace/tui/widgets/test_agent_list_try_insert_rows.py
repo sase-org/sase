@@ -17,7 +17,7 @@ from rich.text import Text
 from textual.widgets.option_list import DuplicateID, Option
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.ace.tui.models.agent_groups import GroupingMode
+from sase.ace.tui.models.agent_groups import GroupingMode, rendered_group_keys
 from sase.ace.tui.models.group_fold import GroupFoldRegistry
 from sase.ace.tui.widgets.agent_list import AgentList
 
@@ -364,6 +364,78 @@ def test_clan_and_workflow_rows_are_declined(
     arrival = _agent("node-zz", 30, **fields)
 
     _declines(monkeypatch, [*_base(), arrival], "workflow_tree_change")
+
+
+def _arriving_workflow_family() -> list[Agent]:
+    """A loader-faithful workflow family arriving whole (sase-142.5.2).
+
+    The parent carries the agent's name; each step carries its workflow
+    block's step name (generic across families: ``git``, ``gh``), the
+    ``WORKFLOW`` type, and the parent linkage the snapshot loader writes.
+    Structural descendants inherit the parent's grouping anchor, so the
+    whole family lands under the parent's name root.
+    """
+    parent = _agent("home", 30, agent_type=AgentType.WORKFLOW, workflow="wf-home")
+    steps = [
+        Agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name=step_name,
+            project_file="/repo/proj.sase",
+            status="RUNNING",
+            start_time=datetime(2026, 4, 25, 12, 30, 10 + i),
+            raw_suffix=parent.raw_suffix,
+            parent_workflow="wf-home",
+            parent_timestamp=parent.raw_suffix,
+            step_name=step_name,
+            step_type="agent",
+            workflow="wf-home",
+        )
+        for i, step_name in enumerate(("git", "gh", "run"))
+    ]
+    return [parent, *steps]
+
+
+@pytest.mark.parametrize("mode", [STANDARD, BY_STATUS])
+def test_an_arriving_workflow_family_adds_its_own_banner_and_declines(
+    monkeypatch: pytest.MonkeyPatch, mode: GroupingMode
+) -> None:
+    # sase-142.5.2: a family that arrives whole is not separable from the
+    # tree mutation the insert gate is written against. Its fresh name root
+    # crosses the banner threshold by itself, so the arrival adds exactly
+    # one name-root subgroup banner — and the in-place insert never mounts
+    # new banner rows.
+    base = _base()
+    new = [*base, *_arriving_workflow_family()]
+
+    before = rendered_group_keys(base, mode)
+    after = rendered_group_keys(new, mode)
+    delta = set(after) - set(before)
+    assert len(delta) == 1
+    assert delta.pop()[-1] == "home"
+
+    _declines(monkeypatch, new, "workflow_tree_change", base=base, mode=mode)
+
+
+@pytest.mark.parametrize("mode", [STANDARD, BY_STATUS])
+def test_the_family_banner_blocks_the_insert_below_the_type_gate(
+    monkeypatch: pytest.MonkeyPatch, mode: GroupingMode
+) -> None:
+    # sase-142.5.2: even with the plain-leaf type gate held open, the same
+    # arrival still declines — the banner-topology check underneath refuses
+    # the new banner row. Removing the type gate alone would not reach the
+    # insert.
+    import sase.ace.tui.widgets._agent_list_build_patching as patching
+
+    monkeypatch.setattr(patching, "_is_plain_leaf_row", lambda _agent: True)
+    base = _base()
+
+    _declines(
+        monkeypatch,
+        [*base, *_arriving_workflow_family()],
+        "status_membership_change",
+        base=base,
+        mode=mode,
+    )
 
 
 def test_an_existing_agent_that_changed_is_declined(
