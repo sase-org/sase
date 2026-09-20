@@ -72,7 +72,7 @@ def test_literal_argv_preserves_spaces_and_dashes(
     _home(monkeypatch, tmp_path)
     code = _run(
         "--",
-        "python",
+        sys.executable,
         "-c",
         "import sys; sys.stdout.write(repr(sys.argv[1:]))",
         "a b",
