@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from sase.ace.testing import AcePage
 from sase.ace.tui import AceApp
+from sase.ace.tui.actions.agents._display_helpers import panel_widget_id_for_key
 from sase.ace.tui.actions.agents._kill_action import AgentKillMixin
 from sase.ace.tui.actions.agents._marking import AgentMarkingMixin
 from sase.ace.tui.actions.agents._selection import AgentSelectionMixin
@@ -16,6 +17,7 @@ from sase.ace.tui.models._agent_tree import project_clan_tree
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_panel_index import build_agent_panel_index
 from sase.ace.tui.models.agent_tribe_summary import CollapsedAgentPanelFocus
+from sase.ace.tui.widgets import AgentList
 from sase.ace.tui.models.agent_panels import AgentPanelGroup
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -340,11 +342,63 @@ async def test_confirming_last_panel_member_preserves_neighbors_and_valid_focus(
             home.identity,
             keep.identity,
         }
-        # Occupancy no longer includes @alpha. Session-sticky widgets may keep
-        # the fold intent so a remount does not re-apply initially_expanded.
+        # Dismissal is explicit proof @alpha is empty, so its session-sticky
+        # widget retires and unmounts with it instead of lingering as a strip.
+        alpha_widget_id = panel_widget_id_for_key("alpha")
+        await page.wait_for(
+            lambda _screen: (
+                alpha_widget_id
+                not in {widget.id for widget in page.app.query(AgentList)}
+            )
+        )
+        assert "alpha" not in page.app._session_mounted_panel_key_set()
         assert page.app._panel_group.focused_key in {None, "keep"}
         selected = page.app._get_selected_agent()
         assert selected is not None
         assert selected.identity in {home.identity, keep.identity}
 
     assert len(persistence_submissions) == 1
+
+
+async def test_dismissing_focused_last_node_unmounts_its_tribe_panel(
+    monkeypatch: Any,
+) -> None:
+    """The single-row ``x`` fast path must not leave an emptied title strip."""
+    home = _agent("home", "home", tribe=None, status="DONE", pid=None)
+    research = _agent("research", "research", tribe="research", status="DONE", pid=None)
+    patch_startup_loaders(monkeypatch, agents=[home, research])
+    monkeypatch.setattr(
+        AceApp,
+        "_submit_bulk_kill_persistence_proc",
+        lambda _self, *_args, **_kwargs: None,
+    )
+
+    async with AcePage(query='"demo"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        research_widget_id = panel_widget_id_for_key("research")
+        await page.wait_for(
+            lambda _screen: (
+                research_widget_id
+                in {widget.id for widget in page.app.query(AgentList)}
+            )
+        )
+        await page.press("J")
+        assert page.app._panel_group.focused_key == "research"
+
+        await page.press("x")
+        await page.wait_for(
+            lambda _screen: (
+                research.identity not in {agent.identity for agent in page.app._agents}
+            )
+        )
+        await page.wait_for(
+            lambda _screen: (
+                research_widget_id
+                not in {widget.id for widget in page.app.query(AgentList)}
+            )
+        )
+
+        assert "research" not in page.app._session_mounted_panel_key_set()
+        assert page.app._panel_group.panel_keys == [None]

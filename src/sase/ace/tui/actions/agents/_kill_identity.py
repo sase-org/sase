@@ -172,6 +172,13 @@ class AgentKillIdentityMixin:
         for identity in identities:
             self._agent_status_overrides.pop(identity, None)
 
+        # An explicit kill is proof the rows are gone, so a tribe panel that
+        # just lost its last node stops being session-sticky.
+        panels_retired = bool(
+            hasattr(self, "_retire_session_mounted_identities")
+            and self._retire_session_mounted_identities(identities)  # type: ignore[attr-defined]
+        )
+
         # Try the incremental row-removal fast path before mutating
         # ``self._agents`` -- the panel widgets read identities off their
         # cached agent slices, which only match while the app-level list
@@ -216,14 +223,11 @@ class AgentKillIdentityMixin:
         if not refresh or self.current_tab != "agents":  # type: ignore[attr-defined]
             return
 
-        if fast_path:
-            self._refresh_agents_display(  # type: ignore[attr-defined]
-                list_changed=False, defer_detail=True
-            )
-        else:
-            self._refresh_agents_display(  # type: ignore[attr-defined]
-                list_changed=True, defer_detail=True
-            )
+        # A retired tribe panel needs the panel-resyncing refresh so its widget
+        # unmounts now rather than at the next auto-refresh.
+        self._refresh_agents_display(  # type: ignore[attr-defined]
+            list_changed=not fast_path or panels_retired, defer_detail=True
+        )
 
     def _clamp_agent_selection(self) -> None:
         """Clamp current_idx after an in-memory agent-list mutation.

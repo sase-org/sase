@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from typing import TYPE_CHECKING
 
 from ...models.agent_groups import GroupingMode
@@ -38,6 +39,12 @@ class PanelRefreshStateMixin:
 
     def _occupancy_keys_with_rows(self) -> set[PanelKey]:
         """Return occupancy keys that currently have rendered rows."""
+        raise NotImplementedError
+
+    def _retire_session_mounted_identities(
+        self, identities: Collection[tuple[AgentType, str, str | None]]
+    ) -> set[PanelKey]:
+        """Retire session-sticky keys whose last identity was explicitly removed."""
         raise NotImplementedError
 
     def _sorted_widget_panel_keys(

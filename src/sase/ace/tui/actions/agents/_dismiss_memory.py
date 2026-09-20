@@ -123,6 +123,13 @@ class AgentDismissMemoryMixin:
 
         self._clear_revived_agent_suffixes(removed)
 
+        # An explicit dismissal is proof the rows are gone, so a tribe panel
+        # that just lost its last node stops being session-sticky.
+        panels_retired = bool(
+            hasattr(self, "_retire_session_mounted_identities")
+            and self._retire_session_mounted_identities(removed_identities)  # type: ignore[attr-defined]
+        )
+
         # Try the incremental row-removal fast path before mutating
         # ``_agents`` / ``_agents_with_children`` so panel widgets can
         # still locate the dismissed identities in their cached slices.
@@ -153,7 +160,9 @@ class AgentDismissMemoryMixin:
 
         if fast_path:
             self._apply_dismissal_in_memory_fast_finish(
-                removed_identities, prior_pos=prior_pos
+                removed_identities,
+                prior_pos=prior_pos,
+                panels_retired=panels_retired,
             )
             return
 
@@ -164,8 +173,13 @@ class AgentDismissMemoryMixin:
         removed_identities: set[tuple[AgentType, str, str | None]],
         *,
         prior_pos: int | None,
+        panels_retired: bool = False,
     ) -> None:
-        """Finish a fast-path dismissal."""
+        """Finish a fast-path dismissal.
+
+        A retired tribe panel needs the panel-resyncing refresh so its widget
+        unmounts on the keypress; otherwise the cheap highlight refresh is enough.
+        """
         self._agents = [a for a in self._agents if a.identity not in removed_identities]
         if hasattr(self, "_invalidate_agent_panel_cache"):
             self._invalidate_agent_panel_cache()  # type: ignore[attr-defined]
@@ -173,7 +187,7 @@ class AgentDismissMemoryMixin:
             self._restore_focus_after_removal(prior_pos)  # type: ignore[attr-defined]
         if self.current_tab == "agents":
             self._refresh_agents_display(  # type: ignore[attr-defined]
-                list_changed=False, defer_detail=True
+                list_changed=panels_retired, defer_detail=True
             )
 
     def _save_agent_bundle(self, agent: Agent) -> None:

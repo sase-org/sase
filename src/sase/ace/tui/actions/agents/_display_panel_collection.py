@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Collection
 from typing import TYPE_CHECKING
 
 from ._display_helpers import panel_widget_id_for_key
@@ -28,14 +29,16 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         """Return the committed Agents query that owns session-sticky panels."""
         return getattr(self, "_agent_search_query", "") or ""
 
-    def _session_mounted_panel_key_set(self) -> set[PanelKey]:
-        """Return mounted-this-session keys, clearing them on query change."""
+    def _session_mounted_identity_map(
+        self,
+    ) -> dict[PanelKey, set[tuple[AgentType, str, str | None]]]:
+        """Return the identities that mounted each key, cleared on query change."""
         query = self._session_sticky_query_value()
         last = getattr(self, "_session_sticky_query", None)
-        mounted = getattr(self, "_session_mounted_panel_keys", None)
+        mounted = getattr(self, "_session_mounted_panel_identities", None)
         if mounted is None:
-            mounted = set()
-            self._session_mounted_panel_keys = mounted  # type: ignore[attr-defined]
+            mounted = {}
+            self._session_mounted_panel_identities = mounted  # type: ignore[attr-defined]
         if last is None:
             self._session_sticky_query = query  # type: ignore[attr-defined]
         elif last != query:
@@ -43,20 +46,46 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             self._session_sticky_query = query  # type: ignore[attr-defined]
         return mounted
 
+    def _session_mounted_panel_key_set(self) -> set[PanelKey]:
+        """Return a snapshot of mounted-this-session keys."""
+        return set(self._session_mounted_identity_map())
+
     def _remember_session_mounted_occupancy(self) -> None:
-        """Record tribe keys that currently have rendered occupancy."""
+        """Record the identities behind each key that has rendered occupancy."""
         from ...models.agent_panels import (
             agent_is_rendered_in_agents_panel,
             normalize_panel_key,
             panel_key_per_agent,
         )
 
-        mounted = self._session_mounted_panel_key_set()
+        mounted = self._session_mounted_identity_map()
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
         keys = panel_key_per_agent(self._agents, merge_tribe_panels=merge_tribe_panels)
         for agent, key in zip(self._agents, keys, strict=True):
             if agent_is_rendered_in_agents_panel(agent):
-                mounted.add(normalize_panel_key(key))
+                mounted.setdefault(normalize_panel_key(key), set()).add(agent.identity)
+
+    def _retire_session_mounted_identities(
+        self, identities: Collection[tuple[AgentType, str, str | None]]
+    ) -> set[PanelKey]:
+        """Drop explicitly removed identities and retire keys left with none.
+
+        Only user-driven removals (dismiss, kill, proc-shell dismiss) call this.
+        A tribe's agents merely being absent from the roster never retires its
+        key: an incomplete or bounded load is not proof that a row is gone.
+        Returns the keys that were retired.
+        """
+        mounted = self._session_mounted_identity_map()
+        retired: set[PanelKey] = set()
+        for key in list(mounted):
+            remaining = mounted[key]
+            if remaining.isdisjoint(identities):
+                continue
+            remaining.difference_update(identities)
+            if not remaining:
+                del mounted[key]
+                retired.add(key)
+        return retired
 
     def _widget_panel_keys(
         self,

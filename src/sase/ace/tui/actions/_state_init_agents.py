@@ -296,8 +296,11 @@ def init_agent_state(self: Any) -> None:
     self._collapsed_panel_keys = set()
     self._expanded_panel_keys = set()
     # Tribe widgets mounted this session, reused when occupancy hits zero
-    # under the same committed query. Never pre-mounts unseen tribes.
-    self._session_mounted_panel_keys = set()
+    # under the same committed query. Never pre-mounts unseen tribes. Each key
+    # maps to the agent identities that mounted it: a key retires only when
+    # explicit user removals (dismiss, kill, proc-shell dismiss) drop its last
+    # identity, never because the roster merely stopped reporting the tribe.
+    self._session_mounted_panel_identities = {}
     self._session_sticky_query = ""
     # ``H`` remembers one pre-isolation split-panel layout in memory. The
     # record is intentionally session-local and never enters fold-state

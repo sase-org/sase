@@ -70,6 +70,10 @@ class ProcShellDismissMixin:
         capture = getattr(self, "_capture_focused_visible_pos", None)
         prior_pos = capture() if callable(capture) else None
         removed = {agent.identity for agent in targets}
+        # An explicit dismissal is proof the rows are gone, so a tribe panel
+        # that just lost its last node stops being session-sticky.
+        retire = getattr(self, "_retire_session_mounted_identities", None)
+        panels_retired = bool(callable(retire) and retire(removed))
         try_remove = getattr(self, "_try_remove_agent_rows", None)
         fast_path = callable(try_remove) and try_remove(removed)
         self._agents_with_children = [
@@ -80,7 +84,7 @@ class ProcShellDismissMixin:
         if fast_path:
             finish = getattr(self, "_apply_dismissal_in_memory_fast_finish", None)
             if callable(finish):
-                finish(removed, prior_pos=prior_pos)
+                finish(removed, prior_pos=prior_pos, panels_retired=panels_retired)
             else:
                 self._agents = [
                     agent for agent in self._agents if agent.identity not in removed

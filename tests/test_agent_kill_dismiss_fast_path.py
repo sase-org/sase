@@ -414,3 +414,120 @@ def test_dismiss_workflow_parent_with_children_falls_back(
     # Workflow parent gate trips -> fast path bails -> refilter runs.
     assert app.refilter_count == 1
     assert app.refresh_calls == []
+
+
+# ---------------------------------------------------------------------------
+# Session-sticky panel retirement
+# ---------------------------------------------------------------------------
+
+
+def _record_retirements(app: Any, retired: set[str | None]) -> list[set[Any]]:
+    """Give *app* a sticky-store hook that reports *retired* keys."""
+    calls: list[set[Any]] = []
+
+    def _retire(identities: set[Any]) -> set[str | None]:
+        calls.append(set(identities))
+        return retired
+
+    app._retire_session_mounted_identities = _retire
+    return calls
+
+
+def test_dismiss_retiring_a_panel_requests_panel_resync(monkeypatch: Any) -> None:
+    """Dismissing a tribe's last node must unmount its panel on the keypress."""
+    panel = _wire_agent_list(monkeypatch)
+    leaf = _agent(raw_suffix="d1", status="DONE", pid=None)
+    keep = _agent(raw_suffix="d2", status="DONE", pid=None)
+    panel.update_list([leaf, keep], current_idx=0)
+    app = _build_dismiss_app(panel)
+    app._agents = [leaf, keep]
+    app._agents_with_children = [leaf, keep]
+    retire_calls = _record_retirements(app, {"research"})
+
+    app._apply_dismissal_in_memory([leaf])
+
+    assert retire_calls == [{leaf.identity}]
+    assert app.refilter_count == 0
+    assert app.refresh_calls == [(True, True)]
+
+
+def test_dismiss_keeping_its_panel_stays_on_cheap_refresh(monkeypatch: Any) -> None:
+    panel = _wire_agent_list(monkeypatch)
+    leaf = _agent(raw_suffix="d1", status="DONE", pid=None)
+    keep = _agent(raw_suffix="d2", status="DONE", pid=None)
+    panel.update_list([leaf, keep], current_idx=0)
+    app = _build_dismiss_app(panel)
+    app._agents = [leaf, keep]
+    app._agents_with_children = [leaf, keep]
+    retire_calls = _record_retirements(app, set())
+
+    app._apply_dismissal_in_memory([leaf])
+
+    assert retire_calls == [{leaf.identity}]
+    assert app.refresh_calls == [(False, True)]
+
+
+def test_dismiss_retirement_covers_workflow_children() -> None:
+    """The retired identity set includes members expanded from a dismissed root."""
+    parent = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="wf_parent",
+        project_file="/repo/proj.sase",
+        status="DONE",
+        start_time=datetime(2026, 4, 25, 12, 0, 0),
+        workflow="wf",
+        raw_suffix="wfp1",
+    )
+    child = Agent(
+        agent_type=AgentType.WORKFLOW,
+        cl_name="step_one",
+        project_file=parent.project_file,
+        status="DONE",
+        start_time=datetime(2026, 4, 25, 12, 1, 0),
+        raw_suffix="wfc1",
+        parent_timestamp=parent.raw_suffix,
+        parent_workflow=parent.workflow,
+    )
+    app = _build_dismiss_app(None)
+    app._agents = [parent, child]
+    app._agents_with_children = [parent, child]
+    retire_calls = _record_retirements(app, {None})
+
+    app._apply_dismissal_in_memory([parent])
+
+    assert retire_calls == [{parent.identity, child.identity}]
+    # The retirement is registered before the (non-fast-path) full refilter.
+    assert app.refilter_count == 1
+
+
+def test_kill_retiring_a_panel_requests_panel_resync(monkeypatch: Any) -> None:
+    """Killing a tribe's last node must unmount its panel on the keypress."""
+    panel = _wire_agent_list(monkeypatch)
+    a, b = _agent(raw_suffix="r1"), _agent(raw_suffix="r2")
+    panel.update_list([a, b], current_idx=0)
+    app = _build_kill_app(panel)
+    app._agents = [a, b]
+    app._agents_with_children = [a, b]
+    retire_calls = _record_retirements(app, {"research"})
+
+    with patch("sase.ace.tui.actions.agents._killing.os.killpg"):
+        app._do_kill_agent(a)
+
+    assert retire_calls == [{a.identity}]
+    assert app.refresh_calls == [(True, True)]
+
+
+def test_kill_keeping_its_panel_stays_on_cheap_refresh(monkeypatch: Any) -> None:
+    panel = _wire_agent_list(monkeypatch)
+    a, b = _agent(raw_suffix="r1"), _agent(raw_suffix="r2")
+    panel.update_list([a, b], current_idx=0)
+    app = _build_kill_app(panel)
+    app._agents = [a, b]
+    app._agents_with_children = [a, b]
+    retire_calls = _record_retirements(app, set())
+
+    with patch("sase.ace.tui.actions.agents._killing.os.killpg"):
+        app._do_kill_agent(a)
+
+    assert retire_calls == [{a.identity}]
+    assert app.refresh_calls == [(False, True)]

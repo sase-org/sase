@@ -264,3 +264,48 @@ def test_marked_bulk_kill_skips_active_proc_shell() -> None:
     assert running in app._agents
     assert app.pushed == []
     assert app._notifications == [("Skipping 1 running proc shell", "warning")]
+
+
+class _ProcShellPanelApp(_BulkDismissApp):
+    """Bulk-dismiss app whose fast path succeeds and reports sticky retirement."""
+
+    def __init__(self, agents: list[Agent], *, retired: set[str | None]) -> None:
+        super().__init__(agents)
+        self._retired = retired
+        self.retire_calls: list[set[tuple[AgentType, str, str | None]]] = []
+        self.refresh_calls: list[tuple[bool, bool]] = []
+
+    def _retire_session_mounted_identities(
+        self, identities: set[tuple[AgentType, str, str | None]]
+    ) -> set[str | None]:
+        self.retire_calls.append(set(identities))
+        return self._retired
+
+    def _try_remove_agent_rows(self, removed_identities: set[Any]) -> bool:
+        return True
+
+    def _refresh_agents_display(
+        self, *, list_changed: bool = False, defer_detail: bool = False
+    ) -> None:
+        self.refresh_calls.append((list_changed, defer_detail))
+
+
+def test_dismissing_last_proc_shell_of_a_panel_resyncs_panel_widgets() -> None:
+    shell = _proc_shell()
+    app = _ProcShellPanelApp([shell], retired={None})
+
+    app._dismiss_proc_shell_rows([shell])
+
+    assert app.retire_calls == [{shell.identity}]
+    assert app.refresh_calls == [(True, True)]
+    assert app._agents == []
+
+
+def test_dismissing_a_proc_shell_that_keeps_its_panel_stays_on_fast_path() -> None:
+    shell = _proc_shell()
+    app = _ProcShellPanelApp([shell], retired=set())
+
+    app._dismiss_proc_shell_rows([shell])
+
+    assert app.retire_calls == [{shell.identity}]
+    assert app.refresh_calls == [(False, True)]
