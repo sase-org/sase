@@ -1274,23 +1274,68 @@ write-once `decision_receipt.json` under an acceptance lock. The receipt binds t
 request hash, selected option IDs, typed input identities, feedback identity, submitting
 surface, acceptance time, and execution owner. An identical duplicate selection replays
 the accepted decision; a conflicting selection fails before any command runs.
-Cancellation is refused after acceptance, even if the selected command is still blocked
-or a detached proc must be resumed later.
+Cancellation is refused while the execution owner is alive. A conflicting answer while
+the owner is live fails promptly with `gate_decision_conflict`; it never replaces the
+receipt of a running attempt.
 
 `decision_receipt.json` is the local signal for immediate notification dismissal and
 targeted sase's TUI refresh. `response.json` remains the terminal execution record
-written only after the command set, archive, and successor launch work has completed.
-Approval labels therefore mean the human decision is durable; they do not imply that a
-commit, archive, or next agent has already finished unless the terminal response says
-so.
+written only after the command set and archive work have completed.
+
+#### Approved versus committed status
+
+The decision status and the execution status are separate:
+
+- `TALE APPROVED` and `EPIC APPROVED` (and the reject and feedback labels) derive from
+  the acceptance receipt on every load path. They mean the human decision is durable,
+  not that anything has finished, and they never free a worker's resources.
+- `PLAN COMMITTED` and other execution-dependent labels appear only after the archive
+  succeeds. If the archive fails, the label is rolled back.
+- A durably recorded failure outcome shows as a distinct failed status that the approved
+  label cannot hide.
+- `response.json`, the shell's terminal state, and the refresh pulse are published
+  before post-terminal epic launch preparation, so sase's TUI does not wait on the
+  follow-up launch.
+
+#### Failure outcomes and recovery
+
+Every failure after acceptance (an option command, terminal preparation or archive, a
+side effect after `response.json`, or a `GateError` raised after acceptance) writes one
+redacted `attempt_failed` journal event. It carries the attempt id, the failed stage
+(`command`, `terminal_prepare`, `side_effects`, or `follow_up`), an error code and
+message, and a timestamp, never raw input values, and it references the existing
+`errors/*.json` record. `attempt_completed` is journaled only after terminal preparation
+succeeds.
+
+A failure publishes one deduped `GateExecutionFailed` notification per gate and attempt.
+Failures in the `command` and `terminal_prepare` stages offer resume, restart, and
+cancel; later stages offer resume only. A later successful attempt dismisses it.
+`poll_gate` and waiting requesters receive the failure result instead of a pending or
+`already_answered` state. The recovery actions work in sase's TUI even after the
+original review notification was dismissed, and `partial_attempt` plan gates reuse the
+gate retry modal.
+
+- `resume` skips completed option commands and retries only archive and terminal
+  preparation.
+- `restart` re-runs the selected commands.
+- `cancel` settles the gate without a follow-up.
+
+A recorded failed outcome, or an execution owner that is provably dead, makes the
+receipt supersedable, so a different answer or a cancel is accepted.
+
+#### Old in-flight bundles
+
+Bundles accepted before receipts existed have no `decision_receipt.json`. They keep
+working: labels come from `agent_meta.json` and `response.json` as before, and they
+finish through the historical `response.json` path.
 
 An accepted decision whose execution has not finished is protected from cleanup.
 `sase gate cancel` leaves that shell as it is, the `gate_shell_reclaim` housekeeping job
 never settles it as lost or timed out, and `sase gate show` reports it in an
-**Acceptance** block. A receipt whose attempt failed partway is superseded by the next
-submission instead of blocking it. sase's TUI submits gate decisions, including plan and
-epic approvals, as a tracked `sase gate answer` proc, so an accepted decision keeps
-running after the modal closes.
+**Acceptance** block. A receipt whose attempt failed partway, or whose owner died, is
+superseded by the next submission instead of blocking it. sase's TUI submits gate
+decisions, including plan and epic approvals, as a tracked `sase gate answer` proc, so
+an accepted decision keeps running after the modal closes.
 
 Rollout keeps existing bundles readable. Upgrade `sase-core` first so every surface has
 the indexed shell lookup and acceptance policy. Then upgrade the SASE Python package,
@@ -1299,7 +1344,10 @@ receiver submits answers through the same supervised proc path. In-flight legacy
 still fall back to their historical `response.json` path. Telegram receiver adoption
 requires no config edit: the first enabled job tick re-arms the persistent receiver,
 `--once` remains the diagnostic direct poll path, disabled or credential-less receivers
-self-terminate, and a running receiver can be stopped with `sase proc kill`.
+self-terminate. To stop the receiver, disable Telegram or remove its credentials: the
+job tick re-arms it, and it survives `sase axe stop` and TUI updates. Until `sase-11w`
+lands, a package upgrade requires manually retiring the running receiver so one running
+current code starts.
 
 Latency evidence from isolated probes on 2026-09-14:
 
