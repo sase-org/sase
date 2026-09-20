@@ -30,6 +30,7 @@ def status_from_summary(
     *,
     lifecycle_token: object = None,
     liveness_token: object = None,
+    owner_resolved: bool = False,
 ) -> str:
     # A correlated, still-pending attention entry is the most specific
     # signal available: it distinguishes a question from a gate the way a
@@ -80,7 +81,13 @@ def status_from_summary(
         "canceled": "STOPPED",
         "starting": "STARTING",
     }
-    if normalized not in status_map and bool(summary.get("needs_attention")):
+    # An owner-resolved status is already the owner's display status (QUESTION,
+    # ANSWERED, TALE, ...), so an unmapped value is not a coarse unknown.
+    if (
+        normalized not in status_map
+        and not owner_resolved
+        and bool(summary.get("needs_attention"))
+    ):
         return "WAITING INPUT"
     resolved = status_map.get(normalized, value.strip())
     # Owner-resolved liveness overrides a stale RUNNING/STARTING claim: the

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone, UTC
 from pathlib import Path
 import json
 import os
@@ -21,6 +22,9 @@ class OwnerRosterFixture:
 
     home: Path
     observations: dict[str, str]
+    # Injected owner-side observations equivalent to the files on disk.
+    answered_agents: tuple[str, ...] = ()
+    plan_tiers: dict[str, str] | None = None
 
 
 def write_owner_roster_fixture(root: Path) -> OwnerRosterFixture:
@@ -91,10 +95,12 @@ def write_owner_roster_fixture(root: Path) -> OwnerRosterFixture:
         finished_at=(now - timedelta(minutes=38)).timestamp(),
         parent=done_root_ts,
     )
+    _write_fact_families(artifacts, root, now=now, pid=pid, ts=ts)
     _write_dead(artifacts / dismissed_ts, "dismissed-old")
     _write_dead(artifacts / recycled_ts, "recycled")
     _write_alive(artifacts / fresh_ts, "fresh-launch", pid=pid)
 
+    _sync_stopped_at(artifacts)
     index = home / "agent_artifact_index.sqlite"
     rebuild_agent_artifact_index(index, projects)
     replace_agent_artifact_index_dismissed_agents(
@@ -120,8 +126,14 @@ def write_owner_roster_fixture(root: Path) -> OwnerRosterFixture:
         "dismissed-old": "alive",
         "recycled": "identity_mismatch",
         "fresh-launch": "alive",
+        **FACT_FAMILY_OBSERVATIONS,
     }
-    return OwnerRosterFixture(home=home, observations=observations)
+    return OwnerRosterFixture(
+        home=home,
+        observations=observations,
+        answered_agents=("answering",),
+        plan_tiers={"review-plan": "tale"},
+    )
 
 
 def _write_project(project: Path, *, pid: int, timestamp: str) -> None:
@@ -166,7 +178,12 @@ def _write_alive(
     pid: int,
 ) -> None:
     artifact.mkdir(parents=True, exist_ok=True)
-    meta: dict[str, object] = {"name": name}
+    meta: dict[str, object] = {
+        "name": name,
+        "run_started_at": datetime.now(UTC).isoformat(),
+    }
+    if "--" in name:
+        meta["role_suffix"] = _role_suffix(name)
     if family:
         meta["agent_family"] = family
     if role:
@@ -190,8 +207,8 @@ def _write_plan_shell(artifact: Path, name: str, *, family: str) -> None:
             "name": name,
             "agent_family": family,
             "agent_family_role": "gate",
-            "gate_id": "plan-gate",
-            "gate_state": "pending",
+            "role_suffix": _role_suffix(name),
+            **_gate_meta("plan-gate", "pending", "PLAN REVIEW"),
         },
     )
     _write_json(artifact / "running.json", {"pid": 0})
@@ -208,8 +225,11 @@ def _write_monitor(
             "name": name,
             "agent_family": family,
             "agent_family_role": "monitor",
+            "role_suffix": _role_suffix(name),
             "monitor_id": "mon-1",
             "monitor_state": "completed",
+            "monitor_label": "watch build",
+            "monitor_command": "just check",
         },
     )
     _write_json(
@@ -233,8 +253,8 @@ def _write_gate(
             "name": name,
             "agent_family": family,
             "agent_family_role": "gate",
-            "gate_id": name,
-            "gate_state": "pending" if pending else "completed",
+            "role_suffix": _role_suffix(name),
+            **_gate_meta(name, "pending" if pending else "completed", "REVIEW"),
         },
     )
     if pending:
@@ -259,6 +279,8 @@ def _write_proc(artifact: Path, name: str, *, family: str) -> None:
         {
             "name": name,
             "agent_family": family,
+            "agent_family_role": "proc",
+            "role_suffix": _role_suffix(name),
             "proc_id": "proc-1",
         },
     )
@@ -293,3 +315,228 @@ def _write_done(
             "finished_at": finished_at,
         },
     )
+
+
+FACT_FAMILY_OBSERVATIONS = {
+    "tale-fam": "dead",
+    "tale-fam--plan": "dead",
+    "tale-fam--code": "dead",
+    "epic-fam": "dead",
+    "epic-fam--plan": "dead",
+    "epic-fam--epic": "dead",
+    "active-fam": "alive",
+    "active-fam--plan": "dead",
+    "active-fam--code": "alive",
+    "wait-fam": "alive",
+    "review-plan": "alive",
+    "answering": "alive",
+    "asker": "dead",
+    "asker--ask": "dead",
+    "asker--code": "dead",
+}
+
+
+def _stamp_iso(stamp: str) -> str:
+    """Directory stamp as an aware ISO time (the catalog reads stamps as UTC)."""
+    return datetime.strptime(stamp, "%Y%m%d%H%M%S").replace(tzinfo=UTC).isoformat()
+
+
+def _role_suffix(name: str) -> str:
+    return "--" + name.rsplit("--", 1)[1]
+
+
+def _sync_stopped_at(artifacts: Path) -> None:
+    """Persist ``stopped_at`` beside every ``done.json`` like a real runner."""
+    for done_path in artifacts.glob("*/done.json"):
+        meta_path = done_path.parent / "agent_meta.json"
+        if not meta_path.exists():
+            continue
+        finished_at = json.loads(done_path.read_text(encoding="utf-8"))["finished_at"]
+        meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        meta["stopped_at"] = datetime.fromtimestamp(finished_at, tz=UTC).isoformat()
+        _write_json(meta_path, meta)
+
+
+def _gate_meta(gate_id: str, state: str, label: str) -> dict[str, object]:
+    """Persisted flat ``gate_*`` keys; the scanner folds them into ``family_shell``."""
+    return {
+        "gate_id": gate_id,
+        "gate_kind": "approval",
+        "gate_state": state,
+        "gate_label": label,
+        "gate_accent": "blue",
+        "gate_start_status": label if state == "pending" else None,
+        "gate_stop_status": None if state == "pending" else "DONE",
+    }
+
+
+def _iso(now: datetime, minutes: int) -> str:
+    return (now - timedelta(minutes=minutes)).astimezone().isoformat()
+
+
+def _write_fact_families(
+    artifacts: Path,
+    root: Path,
+    *,
+    now: datetime,
+    pid: int,
+    ts: Callable[[int], str],
+) -> None:
+    """Plan-chain, active, waiting, pending-review, and answered families."""
+    stamp = ts
+
+    def member(
+        ts_value: str,
+        name: str,
+        *,
+        family: str,
+        role: str,
+        parent: str,
+        done: bool = True,
+        alive: bool = False,
+        extra: dict[str, object] | None = None,
+    ) -> None:
+        artifact = artifacts / ts_value
+        artifact.mkdir(parents=True, exist_ok=True)
+        meta: dict[str, object] = {
+            "name": name,
+            "agent_family": family,
+            "agent_family_role": role,
+            "role_suffix": "--" + name.rsplit("--", 1)[1],
+            "parent_timestamp": parent,
+            "run_started_at": _stamp_iso(ts_value),
+        }
+        meta.update(extra or {})
+        _write_json(artifact / "agent_meta.json", meta)
+        if done:
+            _write_json(
+                artifact / "done.json",
+                {
+                    "outcome": "completed",
+                    "name": name,
+                    "finished_at": (now - timedelta(minutes=30)).timestamp(),
+                },
+            )
+        if alive:
+            _write_json(artifact / "running.json", {"pid": pid})
+            _write_workflow_state(artifact, name, pid=pid, status="running")
+
+    def family_root(
+        ts_value: str,
+        name: str,
+        *,
+        action: str,
+        done: bool,
+        alive: bool = False,
+    ) -> None:
+        artifact = artifacts / ts_value
+        artifact.mkdir(parents=True, exist_ok=True)
+        _write_json(
+            artifact / "agent_meta.json",
+            {
+                "name": name,
+                "agent_family": name,
+                "agent_family_role": "root",
+                "plan": True,
+                "plan_chain_root": True,
+                "plan_approved": True,
+                "plan_action": action,
+                "plan_submitted_at": [_iso(now, 60)],
+                "tribe": "@plans",
+            },
+        )
+        if done:
+            _write_json(
+                artifact / "done.json",
+                {
+                    "outcome": "completed",
+                    "name": name,
+                    "finished_at": (now - timedelta(minutes=31)).timestamp(),
+                },
+            )
+        if alive:
+            _write_json(artifact / "running.json", {"pid": pid})
+            _write_workflow_state(artifact, name, pid=pid, status="running")
+
+    def plan_shell(ts_value: str, name: str, *, family: str, parent: str) -> None:
+        member(
+            ts_value,
+            name,
+            family=family,
+            role="gate",
+            parent=parent,
+            extra=_gate_meta(f"{family}-gate", "completed", "PLAN"),
+        )
+
+    # 0n: tale plan chain, settled.
+    t_root, t_plan, t_code = stamp(90), stamp(89), stamp(88)
+    family_root(t_root, "tale-fam", action="tale", done=True)
+    plan_shell(t_plan, "tale-fam--plan", family="tale-fam", parent=t_root)
+    member(t_code, "tale-fam--code", family="tale-fam", role="code", parent=t_root)
+    # 0k: epic plan chain, settled.
+    e_root, e_plan, e_epic = stamp(87), stamp(86), stamp(85)
+    family_root(e_root, "epic-fam", action="epic", done=True)
+    plan_shell(e_plan, "epic-fam--plan", family="epic-fam", parent=e_root)
+    member(e_epic, "epic-fam--epic", family="epic-fam", role="epic", parent=e_root)
+    # Active family whose coder is still running.
+    a_root, a_plan, a_code = stamp(84), stamp(83), stamp(82)
+    family_root(a_root, "active-fam", action="tale", done=False, alive=True)
+    plan_shell(a_plan, "active-fam--plan", family="active-fam", parent=a_root)
+    member(
+        a_code,
+        "active-fam--code",
+        family="active-fam",
+        role="code",
+        parent=a_root,
+        done=False,
+        alive=True,
+    )
+    # Waiting family root.
+    w_root = artifacts / stamp(81)
+    _write_alive(w_root, "wait-fam", family="wait-fam", role="root", pid=pid)
+    _write_json(w_root / "waiting.json", {"waiting_for": ["tale-fam"]})
+    # Pending review: submitted, unapproved plan with a tier file.
+    review = artifacts / stamp(80)
+    plan_file = root / "review_plan.md"
+    plan_file.write_text("---\ntier: tale\n---\n# Review\n", encoding="utf-8")
+    _write_alive(review, "review-plan", pid=pid)
+    _write_json(
+        review / "agent_meta.json",
+        {
+            "name": "review-plan",
+            "plan": True,
+            "plan_path": str(plan_file),
+            "plan_submitted_at": [_iso(now, 5)],
+        },
+    )
+    # Answered question: marker plus sibling response file.
+    answering = artifacts / stamp(79)
+    _write_alive(answering, "answering", pid=pid)
+    session = answering / "question_session"
+    session.mkdir()
+    _write_json(session / "question_request.json", {})
+    _write_json(session / "question_response.json", {})
+    _write_json(
+        answering / "pending_question.json",
+        {"request_path": str(session / "question_request.json")},
+    )
+    # Answered continuation: the asker child handed off to a later child.
+    s_root, s_ask, s_code = stamp(78), stamp(77), stamp(76)
+    family_root(s_root, "asker", action="tale", done=True)
+    ask_session = artifacts / s_ask / "question_session"
+    member(
+        s_ask,
+        "asker--ask",
+        family="asker",
+        role="plan",
+        parent=s_root,
+        extra={
+            "questions_submitted_at": [_iso(now, 50)],
+            "question_request_path": str(ask_session / "question_request.json"),
+            "question_response_path": str(ask_session / "question_response.json"),
+        },
+    )
+    ask_session.mkdir(parents=True, exist_ok=True)
+    _write_json(ask_session / "question_request.json", {})
+    _write_json(ask_session / "question_response.json", {})
+    member(s_code, "asker--code", family="asker", role="code", parent=s_root)

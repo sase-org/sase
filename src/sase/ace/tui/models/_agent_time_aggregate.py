@@ -110,6 +110,7 @@ def _aggregate_runtime(
             max(child.questions_times)
             if child.questions_times
             and child.question_response_path is None
+            and not child.question_answered
             and (
                 child.runner_slot_yielded
                 or child.status in {"QUESTION", "WAITING INPUT"}

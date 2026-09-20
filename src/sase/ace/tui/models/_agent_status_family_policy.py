@@ -24,6 +24,14 @@ APPROVED_PLANNER_ACTIONS = frozenset({"approve", "tale"})
 PLANNER_FAMILY_ROLES = frozenset({"plan", "feedback"})
 
 
+def _question_answered(agent: Agent) -> bool:
+    """Whether the agent's question has a persisted response.
+
+    Local rows carry the response path; remote rows carry only the derived flag.
+    """
+    return bool(agent.question_response_path) or agent.question_answered
+
+
 def done_handoff_status(parent: Agent, child: Agent) -> str:
     if (
         parent.plan_action == "tale"
@@ -67,7 +75,7 @@ def is_completed_plan_handoff_child(agent: Agent) -> bool:
     role = agent_family_role(agent)
     if role == "code":
         return True
-    if role == "feedback" and agent.question_response_path:
+    if role == "feedback" and _question_answered(agent):
         return True
     return False
 
@@ -122,7 +130,7 @@ def is_answered_continuation_asker(
         return False
     if not agent.parent_timestamp or not agent.is_family_member_child:
         return False
-    if not agent.questions_times or not agent.question_response_path:
+    if not agent.questions_times or not _question_answered(agent):
         return False
     return has_later_family_continuation(agent, children_by_parent)
 
@@ -145,7 +153,7 @@ def is_answered_root_asker_step(
         return False
     if not is_main_workflow_agent_step(agent):
         return False
-    if not agent.questions_times or not agent.question_response_path:
+    if not agent.questions_times or not _question_answered(agent):
         return False
     parent = parent_by_suffix.get(agent.parent_timestamp)
     if parent is None or not parent.is_family_root_entry:

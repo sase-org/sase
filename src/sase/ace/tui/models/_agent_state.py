@@ -531,6 +531,8 @@ class AgentState:
     # Latest question request/response metadata recorded by the question flow.
     question_request_path: str | None = None
     question_response_path: str | None = None
+    # Remote rows ship the derived answered signal instead of the response path.
+    question_answered: bool = False
     question_session_id: str | None = None
     # When retry attempts started (one per retry/fallback)
     retry_times: list[datetime] = field(default_factory=list)

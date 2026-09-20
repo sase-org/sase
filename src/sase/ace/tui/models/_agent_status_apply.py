@@ -187,6 +187,8 @@ def apply_status_overrides(
                     parent.question_request_path = agent.question_request_path
                 if agent.question_response_path:
                     parent.question_response_path = agent.question_response_path
+                if agent.question_answered:
+                    parent.question_answered = True
                 if agent.question_session_id:
                     parent.question_session_id = agent.question_session_id
 

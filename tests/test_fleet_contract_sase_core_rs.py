@@ -61,7 +61,7 @@ FLEET_BINDINGS = {
 def test_fleet_contract_bindings_are_reachable_through_strict_loader() -> None:
     for name in sorted(FLEET_BINDINGS):
         assert callable(require_rust_binding(name))
-    assert _binding("fleet_contract_schema_version")() == 4
+    assert _binding("fleet_contract_schema_version")() == 5
 
 
 def test_installation_identity_bindings_persist_and_fence_changes(
