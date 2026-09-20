@@ -502,7 +502,10 @@ first audio player found on `PATH`:
 
 A missing file, a missing player, a player that fails or hangs, or an unsupported
 platform never interrupts the poll: the announcement is simply silent. Playback runs on
-a worker thread, so it cannot stall the TUI.
+a worker thread, so it cannot stall the TUI. A sound file also plays detached from the
+poll that triggered it — a long chime never holds up the notification tick or the agent
+refresh behind it — and only one file plays at a time, so notifications arriving faster
+than the file is long cannot stack up players.
 
 Each poll announces **at most one sound**. It is the resolved sound of the first new
 notification, in activity order, whose sound is not `none`; if every arriving row

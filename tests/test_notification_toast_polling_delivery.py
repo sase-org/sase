@@ -38,9 +38,21 @@ def _toast_texts(app: _FakeApp) -> list[str]:
     return [_plain(call.args[0]) for call in app.notify.call_args_list]
 
 
+async def _drain_sound_playback(app: _FakeApp) -> None:
+    """Wait out the detached sound-file task the tick deliberately does not await."""
+    playback = getattr(app, "_notification_sound_playback", None)
+    if playback is not None and not playback.done():
+        await playback
+
+
 def _poll(app: _FakeApp, notifications: list[Any]) -> bool:
+    async def _run() -> bool:
+        saw_new = await app._poll_agent_completions()
+        await _drain_sound_playback(app)
+        return saw_new
+
     with _patch_snapshot(notifications):
-        return asyncio.run(app._poll_agent_completions())
+        return asyncio.run(_run())
 
 
 class TestNoRulesKeepsCurrentBehavior:
@@ -250,6 +262,72 @@ class TestSoundResolution:
         assert saw_new is True
         play.assert_called_once()
         assert app.notify.call_count == 1
+
+
+class TestSoundFilePlaybackIsDetached:
+    """A chime must not hold up the tick the way the three-beep bell could."""
+
+    _RULES = [{"name": "mbp-chime", "sound": "/sounds/long.aiff"}]
+
+    def test_tick_returns_before_a_long_sound_file_finishes(self) -> None:
+        app = _FakeApp()
+        release = threading.Event()
+        finished = threading.Event()
+        in_flight_when_tick_returned: list[bool] = []
+
+        def _blocking_play(path: str) -> bool:
+            # Only the tick's caller releases this, so an awaited playback
+            # would sit here until the timeout instead of returning.
+            assert release.wait(timeout=5.0), f"the tick waited out {path}"
+            finished.set()
+            return True
+
+        async def _run() -> None:
+            await app._poll_agent_completions()
+            in_flight_when_tick_returned.append(not finished.is_set())
+            release.set()
+            await _drain_sound_playback(app)
+
+        with (
+            _use_delivery_rules(self._RULES),
+            patch(_PLAY, _blocking_play),
+            _patch_snapshot([_make(notes=["q?"])]),
+        ):
+            asyncio.run(_run())
+
+        assert in_flight_when_tick_returned == [True]
+        assert finished.is_set(), "the detached playback never ran"
+
+    def test_a_second_tick_does_not_stack_a_second_player(self) -> None:
+        app = _FakeApp()
+        release = threading.Event()
+        plays: list[str] = []
+
+        def _slow_play(path: str) -> bool:
+            plays.append(path)
+            assert release.wait(timeout=5.0)
+            return True
+
+        async def _run() -> None:
+            with _patch_snapshot([_make(notes=["first"])]):
+                await app._poll_agent_completions()
+            with _patch_snapshot([_make(notes=["first"]), _make(notes=["second"])]):
+                await app._poll_agent_completions()
+            release.set()
+            await _drain_sound_playback(app)
+
+        with _use_delivery_rules(self._RULES), patch(_PLAY, _slow_play):
+            asyncio.run(_run())
+
+        assert plays == ["/sounds/long.aiff"]
+
+    def test_a_finished_playback_lets_the_next_tick_chime_again(self) -> None:
+        app = _FakeApp()
+        with _use_delivery_rules(self._RULES), patch(_PLAY) as play:
+            _poll(app, [_make(notes=["first"])])
+            _poll(app, [_make(notes=["first"]), _make(notes=["second"])])
+
+        assert play.call_count == 2
 
 
 class TestResolutionRunsOffTheEventLoop:

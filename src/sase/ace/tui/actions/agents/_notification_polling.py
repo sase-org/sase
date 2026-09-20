@@ -75,6 +75,12 @@ def _tick_sound(
     return None
 
 
+def _consume_sound_playback(playback: Any) -> None:
+    """Read a detached playback's outcome so asyncio never logs it as unhandled."""
+    if not playback.cancelled():
+        playback.exception()
+
+
 def _prepare_notification_reconciliation(
     app: Any,
     previous_notifications: list[Notification],
@@ -403,6 +409,12 @@ class AgentNotificationPollingMixin:
         ``play_sound_file``; ``none`` announces nothing. Keeps `_ring_tmux_bell`
         as the sync leaf so fake apps and tests can patch a single method
         without juggling threads.
+
+        The bell is three short beeps and stays awaited, but a sound file runs
+        as long as the file does, so it plays on a detached task: neither this
+        tick nor the Agents refresh behind it waits out a chime. Only one
+        playback runs at a time, so ticks arriving faster than a long file
+        cannot stack up players.
         """
         import asyncio
 
@@ -411,7 +423,14 @@ class AgentNotificationPollingMixin:
         if sound.kind == SOUND_FILE and sound.path:
             from ...sound_playback import play_sound_file
 
-            await asyncio.to_thread(play_sound_file, sound.path)
+            in_flight = getattr(self, "_notification_sound_playback", None)
+            if in_flight is not None and not in_flight.done():
+                return
+            playback = asyncio.ensure_future(
+                asyncio.to_thread(play_sound_file, sound.path)
+            )
+            playback.add_done_callback(_consume_sound_playback)
+            self._notification_sound_playback = playback  # type: ignore[attr-defined]
         elif sound.kind == SOUND_BELL:
             await asyncio.to_thread(self._ring_tmux_bell)
 
