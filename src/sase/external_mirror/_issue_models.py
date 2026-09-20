@@ -38,6 +38,8 @@ class MirrorReport:
     reopened_refs: tuple[str, ...] = ()
     #: Non-empty reason when the pass was degraded (backoff, auth failure, ...).
     degraded: str = ""
+    #: The underlying failure text for degradations a bare reason cannot explain.
+    degraded_detail: str = ""
 
 
 @dataclass(frozen=True)

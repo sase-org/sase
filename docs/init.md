@@ -220,6 +220,34 @@ socket. A login-session agent socket dies with that session, so re-run
 session. `--check` reports an empty or unreachable agent instead of leaving the failure
 to surface later as an opaque `Permission denied (publickey)`.
 
+An agent that is reachable but holds no identities is not captured either. Capturing
+nothing does not mean the service has no agent: the host then inherits whichever agent
+your platform manager gives every unit, and on Linux that is the systemd user manager's
+`SSH_AUTH_SOCK`, often a live but empty socket. `sase service status` (and
+`sase service init --check` for an installed unit) therefore also reports on the
+_effective_ environment: the captured file overlaid on what the manager hands the unit.
+A healthy agent in your own shell cannot mask an unhealthy one in the service.
+
+While that agent is unusable, host chops that write beads cannot fetch their operational
+workspace, so they fail with `Permission denied (publickey)`. The external issue mirror
+treats this as a credential failure: it reports `auth_error`, logs the git error, and
+backs off exponentially instead of failing on every scheduled tick. Beads are not
+mirrored until the credential is restored.
+
+The code cannot restore the credential, so this is yours to fix. In order of durability:
+
+1. **Dedicated passphrase-free key (preferred).** Generate an ed25519 key used only by
+   the service host, add it to the GitHub account, and point the `Host github.com` block
+   of `~/.ssh/config` at it with `IdentitiesOnly yes`. It is fully unattended, survives
+   reboots, and needs no agent.
+2. **Load your key into the persistent agent (interim).** Run
+   `SSH_AUTH_SOCK=<the reported socket> ssh-add <your private key>`, then restart the
+   service. This lasts until that agent restarts and needs your passphrase once per
+   boot.
+3. **Avoid: re-running `sase service init` from a login shell.** It captures that
+   session's agent socket, which dies with the session and silently breaks the service
+   again later.
+
 Bare `sase init` offers this machine-scoped initializer at most once per batch. A
 decline is remembered for future broad onboarding runs on that machine, but it does not
 disable the service feature or suppress an explicit `sase service init`.

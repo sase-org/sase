@@ -372,7 +372,6 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-11y(clear_service_enablement)" \
         --epic-symbol "sase-11y(compose_service_config)" \
         --epic-symbol "sase-11y(inspect_native_service)" \
-        --epic-symbol "sase-11y(read_service_environment)" \
         --epic-symbol "sase-11y(readiness_warnings)" \
         --epic-symbol "sase-11y(resolve_service_enablement)" \
         --epic-symbol "sase-11y(service_platform_supported)" \

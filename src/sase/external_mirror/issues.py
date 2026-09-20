@@ -39,6 +39,7 @@ from sase.bead.store_locator import canonical_beads_dir_for_project
 from sase.bug_links import normalize_external_ref
 from sase.core import bead_read_facade
 from sase.vcs_provider import IssueWire, get_vcs_provider, supports_issue_listing
+from sase.workspace_provider.lease import OperationalLeaseError
 
 from ._issue_apply import apply_issue_mirror
 from ._issue_models import (
@@ -232,15 +233,36 @@ def run_issue_mirror_for_project(
             reopened_refs=reopened_refs,
         )
 
-    outcome = _apply_issue_mirror_for_source(
-        source=source,
-        project_key=project_key,
-        workspace_dir=workspace_dir,
-        planning_beads_dir=beads_dir,
-        create_candidates=create_candidates,
-        transition_candidates=transition_candidates,
-        budget=budget,
-    )
+    try:
+        outcome = _apply_issue_mirror_for_source(
+            source=source,
+            project_key=project_key,
+            workspace_dir=workspace_dir,
+            planning_beads_dir=beads_dir,
+            create_candidates=create_candidates,
+            transition_candidates=transition_candidates,
+            budget=budget,
+        )
+    except OperationalLeaseError as error:
+        # A lease failure is not a tracker outcome, so it is deliberately not
+        # recorded as a tracker probe. It only earns the same exponential
+        # backoff a provider listing failure does, so a dead credential costs
+        # a couple of attempts instead of one traceback per scheduled tick.
+        failures, next_attempt_at = next_backoff(state.failures, now=current_time)
+        state.failures = failures
+        state.next_attempt_at = next_attempt_at
+        write_mirror_state(state_path, state)
+        return MirrorReport(
+            project=project_key,
+            display_name=display_name,
+            issues_seen=len(issues),
+            unmirrored=unmirrored,
+            provider_calls=1,
+            degraded="auth_error"
+            if error.is_credential_failure
+            else "lease_unavailable",
+            degraded_detail=str(error),
+        )
 
     if outcome.deferred == 0:
         covered_after = set(covered) | set(outcome.created_refs)

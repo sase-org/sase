@@ -5,7 +5,12 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from sase.workspace_provider._lease_model import OperationalLeaseError
+from sase.core.retryability_facade import classify_failure_retryability
+from sase.core.retryability_wire import RETRY_OPERATION_GIT
+from sase.workspace_provider._lease_model import (
+    OperationalLeaseError,
+    is_credential_verdict,
+)
 from sase.workspace_provider.utils import get_default_branch, non_interactive_git_env
 
 
@@ -20,7 +25,7 @@ def prepare_from_primary_remote(checkout: Path) -> None:
         fetch = _run_git(["fetch", "--quiet", "origin"], checkout)
         if fetch.returncode != 0:
             detail = fetch.stderr.strip() or fetch.stdout.strip() or "git fetch failed"
-            raise OperationalLeaseError("preparation", _with_ssh_agent_hint(detail))
+            raise _preparation_error(detail, fetch.returncode)
     upstream = _configured_upstream(checkout)
     if upstream is None:
         return
@@ -35,26 +40,38 @@ def prepare_from_primary_remote(checkout: Path) -> None:
             or checkout_result.stdout.strip()
             or f"git checkout {upstream} failed"
         )
-        raise OperationalLeaseError("preparation", _with_ssh_agent_hint(detail))
+        raise _preparation_error(detail, checkout_result.returncode)
+
+
+def _preparation_error(detail: str, returncode: int) -> OperationalLeaseError:
+    """Build the preparation failure for a git command that exited non-zero.
+
+    The shared classifier decides whether the failure is a credential problem;
+    that verdict rides on the error so callers can branch without re-parsing
+    the message.
+    """
+    verdict = classify_failure_retryability(
+        RETRY_OPERATION_GIT,
+        exit_status=returncode,
+        stderr=detail,
+    )
+    if is_credential_verdict(verdict):
+        detail = _with_ssh_agent_hint(detail)
+    return OperationalLeaseError("preparation", detail, retryability=verdict)
 
 
 def _with_ssh_agent_hint(detail: str) -> str:
-    """Append a remediation sentence when git failed on SSH public-key auth.
+    """Append the remediation sentence for a git credential failure.
 
     The raw git text is preserved verbatim; the sentence only points at the
     usual culprit so nobody goes hunting for a revoked deploy key.
     """
-    lowered = detail.lower()
-    if "permission denied (publickey)" in lowered or (
-        "could not read from remote repository" in lowered and "publickey" in lowered
-    ):
-        return (
-            f"{detail}\n"
-            "This is usually a missing or empty SSH agent in the calling process "
-            "(check SSH_AUTH_SOCK); when the caller is the service host, re-run "
-            "`sase service init` from a shell whose agent holds the key."
-        )
-    return detail
+    return (
+        f"{detail}\n"
+        "This is usually a missing or empty SSH agent in the calling process "
+        "(check SSH_AUTH_SOCK); when the caller is the service host, re-run "
+        "`sase service init` from a shell whose agent holds the key."
+    )
 
 
 def _configured_upstream(checkout: Path) -> str | None:

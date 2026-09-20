@@ -15,6 +15,7 @@ from typing import Any
 from sase.core.paths import sase_home as _sase_home
 from sase.llm_provider import registry as llm_registry
 from sase.service.paths import service_env_path
+from sase.service.ssh_agent import probe_ssh_agent
 
 _ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _REDACTED = "[captured]"
@@ -221,11 +222,14 @@ def _mobile_gateway_credential_env() -> str | None:
 def _capture_ssh_agent(
     environment: Mapping[str, str],
 ) -> tuple[dict[str, str], tuple[str, ...]]:
-    """Capture the SSH agent handle only when it names a live socket.
+    """Capture the SSH agent handle only when it names a usable agent.
 
     A stale socket path is worse than none: the service host loads captured
     values over its inherited environment, so a dead path would replace a
-    possibly-working agent with a guaranteed-dead one.
+    possibly-working agent with a guaranteed-dead one. An agent that is
+    reachable but holds no identities is just as unusable, and capturing
+    nothing does not mean "no agent": the host then inherits whichever agent
+    the platform manager provides, which may itself be empty.
     """
     sock = environment.get(_SSH_AUTH_SOCK_ENV)
     if not sock:
@@ -243,6 +247,25 @@ def _capture_ssh_agent(
             f"{_SSH_AUTH_SOCK_ENV} points at {sock}, which is not a live socket; "
             "not captured, so the service host will fall back to whatever agent "
             "the platform manager provides",
+        )
+    try:
+        state = probe_ssh_agent(environment)
+    except Exception:
+        # Advisory only: an unrunnable probe must not stop the capture.
+        state = None
+    if state == "empty":
+        return {}, (
+            f"{_SSH_AUTH_SOCK_ENV} points at {sock}, an agent that holds no "
+            "identities; not captured, so the service host will use whichever "
+            "agent the platform manager provides, which may also be empty and "
+            "would leave git operations against SSH remotes failing with "
+            "`Permission denied (publickey)`; load a key with `ssh-add` first",
+        )
+    if state == "unreachable":
+        return {}, (
+            f"{_SSH_AUTH_SOCK_ENV} points at {sock}, an agent that cannot be "
+            "reached; not captured, so the service host will use whichever "
+            "agent the platform manager provides",
         )
     values = {_SSH_AUTH_SOCK_ENV: str(sock)}
     # Systemd- and keyring-provided agents have no PID; that is not a problem.

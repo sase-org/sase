@@ -245,3 +245,66 @@ def test_mirror_chop_no_changes_reports_no_op(
 
     assert result["status"] == "no_op"
     assert result["reason"] == "no_changes"
+
+
+def _install_failing_lease(
+    monkeypatch: pytest.MonkeyPatch, beads_dir: Path, error: Exception
+) -> None:
+    from tests.test_bead.claims_test_helpers import install_writable_bead_store
+
+    install_writable_bead_store(monkeypatch, beads_dir, error=error)
+
+
+def test_mirror_chop_reports_credential_lease_failure_as_check_error(
+    bead_store: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.core.retryability_facade import classify_failure_retryability
+    from sase.core.retryability_wire import RETRY_OPERATION_GIT
+    from sase.workspace_provider.lease import OperationalLeaseError
+
+    denial = "git@ssh.github.com: Permission denied (publickey)."
+    verdict = classify_failure_retryability(
+        RETRY_OPERATION_GIT, exit_status=128, stderr=denial
+    )
+    _install_provider(monkeypatch, _provider(FakeIssueProvider([_issue(1)])))
+    _install_failing_lease(
+        monkeypatch,
+        bead_store,
+        OperationalLeaseError("preparation", denial, retryability=verdict),
+    )
+
+    result = _run_chop(
+        tmp_path,
+        target={"name": "sase", "project": "sase", "workspace_dir": "/repo"},
+    )
+
+    assert result["status"] == "check_error"
+    assert result["reason"] == "auth_error"
+    # The traceback is gone, so the cause has to survive in the chop's log.
+    assert "Permission denied (publickey)" in capsys.readouterr().err
+
+
+def test_mirror_chop_reports_unavailable_lease_as_quiet_no_op(
+    bead_store: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    from sase.workspace_provider.lease import OperationalLeaseError
+
+    _install_provider(monkeypatch, _provider(FakeIssueProvider([_issue(1)])))
+    _install_failing_lease(
+        monkeypatch,
+        bead_store,
+        OperationalLeaseError("allocation", "all axe workspaces are already claimed"),
+    )
+
+    result = _run_chop(
+        tmp_path,
+        target={"name": "sase", "project": "sase", "workspace_dir": "/repo"},
+    )
+
+    assert result["status"] == "no_op"
+    assert result["reason"] == "lease_unavailable"

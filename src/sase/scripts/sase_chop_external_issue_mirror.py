@@ -16,8 +16,10 @@ from sase.external_mirror.issues import (
 )
 
 #: Degradations that are surfaced as actionable failures, matching the
-#: doctor-visible auth/rate-limit categories. Every other degradation
-#: (backoff, unsupported provider, no canonical store) stays a quiet no_op.
+#: doctor-visible auth/rate-limit categories. ``auth_error`` also covers a
+#: credential failure preparing the write-stage workspace lease. Every other
+#: degradation (backoff, unsupported provider, no canonical store, an
+#: unavailable lease) stays a quiet no_op.
 _CHECK_ERROR_REASONS = frozenset({"auth_error", "rate_limited"})
 
 
@@ -76,6 +78,16 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
 
     if report.degraded:
         reason = report.degraded
+        if report.degraded_detail:
+            log = (
+                runtime.log.error
+                if report.degraded in _CHECK_ERROR_REASONS
+                else runtime.log.warning
+            )
+            log(
+                f"external_issue_mirror[{project_key.strip()}] degraded "
+                f"({reason}): {report.degraded_detail}"
+            )
     elif runtime.context.dry_run:
         reason = "dry_run"
     elif not (

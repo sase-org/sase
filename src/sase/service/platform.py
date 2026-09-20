@@ -20,6 +20,7 @@ from sase.agent_clis.operations import collect_agent_cli_statuses
 from sase.core.paths import sase_home as _sase_home
 from sase.core.state_write_guard import pytest_context_detected
 from sase.feature_flags import FeatureFlag, current_flags
+from sase.service.effective_env import effective_ssh_agent_warnings
 from sase.service.env import (
     ServiceEnvironmentError,
     capture_service_environment,
@@ -199,6 +200,17 @@ def service_init_plan(
             f"user linger is disabled; run `loginctl enable-linger {user}` so the service can survive logout"
         )
     warnings.extend(readiness_warnings(desired_env))
+    if inspection.definition_exists:
+        # The capture above answers "what will init write"; this answers "what
+        # would the installed host see", which a healthy caller shell cannot mask.
+        warnings.extend(
+            effective_ssh_agent_warnings(
+                platform_kind=definition.platform,
+                env_path=definition.env_path,
+                desired_env=desired_env,
+                runner=_default_runner if runner is None else runner,
+            )
+        )
 
     diff = _combined_diff(
         definition.definition_path,

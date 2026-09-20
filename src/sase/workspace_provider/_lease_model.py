@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.core.retryability_wire import RetryabilityVerdictWire
 from sase.workspace_provider.ownership import (
     MACHINE_OWNED_MIN_WORKSPACE,
     OperationContext,
@@ -36,12 +37,20 @@ _LEASE_FAILURE_KINDS = frozenset(
     }
 )
 
+# The Rust classifier prefixes ``RetryabilityVerdictWire.reason`` with a stable
+# category token ("authentication: authentication or authorization failed").
+_AUTHENTICATION_REASON_CATEGORY = "authentication"
+
 
 class OperationalLeaseError(RuntimeError):
     """Resumable failure of one operational-lease step.
 
     The message names the failed operation and never authorizes using the
     user's primary checkout.
+
+    ``retryability`` carries the shared classifier's verdict when the failure
+    came from a classified git command, so callers can branch on the failure
+    class without re-parsing the rendered message.
     """
 
     def __init__(
@@ -51,6 +60,7 @@ class OperationalLeaseError(RuntimeError):
         *,
         step: str | None = None,
         resumable: bool = True,
+        retryability: RetryabilityVerdictWire | None = None,
     ) -> None:
         kind = step if step in _LEASE_FAILURE_KINDS else operation
         if kind not in _LEASE_FAILURE_KINDS:
@@ -68,9 +78,25 @@ class OperationalLeaseError(RuntimeError):
         self.detail = detail
         self.step = kind
         self.resumable = resumable
+        self.retryability = retryability
+
+    @property
+    def is_credential_failure(self) -> bool:
+        """Whether the classifier attributed this failure to missing credentials."""
+
+        return is_credential_verdict(self.retryability)
 
 
 _OperationalLeaseError = OperationalLeaseError
+
+
+def is_credential_verdict(verdict: RetryabilityVerdictWire | None) -> bool:
+    """Return whether *verdict* classifies a failure as an authentication failure."""
+
+    if verdict is None:
+        return False
+    category = verdict.reason.split(":", 1)[0].strip()
+    return category == _AUTHENTICATION_REASON_CATEGORY
 
 
 def is_operational_lease_contention_error(exc: BaseException) -> bool:
@@ -230,6 +256,7 @@ __all__ = [
     "ResetReplayError",
     "ResetReplayResult",
     "authorize_operational_lease_workspace",
+    "is_credential_verdict",
     "is_operational_lease_contention_error",
     "is_operational_lease_policy",
 ]
