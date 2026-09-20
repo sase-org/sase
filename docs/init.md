@@ -271,6 +271,15 @@ ways to give the host an unattended credential:
 After either, run `sase service init` and `sase service restart`, and confirm
 `sase service status` reports no SSH warning.
 
+`sase service init` also warns when an enabled `command:` entry in `service.procs` names
+an executable that the host would fail to spawn. A bare first element is looked up on
+the captured `PATH`, then next to the interpreter running SASE; the warning appears only
+when both miss, and names the executable and the directory searched. The usual cause is
+a plugin's console script under `uv tool install --with`, which does not link plugin
+scripts onto `PATH`. Install the plugin into the same environment as `sase`, or give the
+entry an absolute path. Without the warning the host would only report the failure after
+its restart budget was spent, as a `crash_loop` proc in `sase service status`.
+
 Bare `sase init` offers this machine-scoped initializer at most once per batch. A
 decline is remembered for future broad onboarding runs on that machine, but it does not
 disable the service feature or suppress an explicit `sase service init`.

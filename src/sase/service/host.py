@@ -36,8 +36,8 @@ from sase.service.host_models import PendingRestart as _PendingRestart
 from sase.service.host_models import RunningProc as _RunningProc
 from sase.service.host_reporting import write_current_host_status
 from sase.service.host_support import (
-    entry_argv as _entry_argv,
     entry_env as _entry_env,
+    entry_launch as _entry_launch,
     entry_signature as _entry_signature,
     handover_scheduler,
     package_version as _package_version,
@@ -283,10 +283,11 @@ class _ServiceHost:
             return
 
         try:
-            argv = _entry_argv(entry)
+            launch = _entry_launch(entry)
         except Exception as exc:  # noqa: BLE001 - reconcile must keep running.
             self._record_spawn_failure(entry, str(exc))
             return
+        argv = launch.argv
         if not argv:
             self._record_spawn_failure(entry, "service entry has no command")
             return
@@ -330,7 +331,11 @@ class _ServiceHost:
                 start_new_session=True,
             )
         except OSError as exc:
-            self._finish_spawn_failure(proc_id, supervisor_id, entry, str(exc))
+            error = str(exc)
+            if launch.diagnostic is not None:
+                # Keep the OS text intact and say why the name did not resolve.
+                error = f"{error}; {launch.diagnostic}"
+            self._finish_spawn_failure(proc_id, supervisor_id, entry, error)
             return
 
         pgid = _process_group(process.pid)

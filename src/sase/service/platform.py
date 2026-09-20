@@ -29,7 +29,11 @@ from sase.service.env import (
     render_service_environment,
     write_service_environment,
 )
-from sase.service.executable import StableExecutable, resolve_stable_sase_executable
+from sase.service.executable import (
+    StableExecutable,
+    resolve_stable_sase_executable,
+    service_launcher_warnings,
+)
 from sase.service.paths import (
     service_env_path,
     service_host_stderr_path,
@@ -199,6 +203,7 @@ def service_init_plan(
             f"user linger is disabled; run `loginctl enable-linger {user}` so the service can survive logout"
         )
     warnings.extend(readiness_warnings(desired_env))
+    warnings.extend(service_launcher_warnings(desired_env))
     if inspection.definition_exists:
         # The capture above answers "what will init write"; this answers "what
         # would the installed host see", which a healthy caller shell cannot mask.

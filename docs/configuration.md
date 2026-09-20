@@ -3976,6 +3976,15 @@ must use the entry's own reserved name. A custom entry instead supplies exactly 
 | `service.procs.<name>.after`              | name array                         | `[]`         | Start ordering only. Unknown names warn and are dropped; a cycle makes every entry in it unavailable.                        |
 | `service.procs.<name>.log_max_bytes`      | integer, at least `4096`           | `2097152`    | Maximum retained bytes in the rotated proc output log.                                                                       |
 
+A bare `command` array's first element (for example `sase_job_tg_inbound`) is looked up
+on `PATH` first and then in the bin directory of the interpreter running the host. The
+second lookup is what makes a plugin's console scripts work under
+`uv tool install --with`, which links only the primary package's entry points onto
+`PATH`. A `PATH` hit always wins, an element that contains a path separator is used as
+written, and the remaining arguments are never changed. The string (shell) form gets no
+such fallback, because the shell resolves the name; prefer the array form for plugin
+scripts. `sase service init` warns when an enabled entry's executable resolves nowhere.
+
 `sase service proc enable/disable` writes machine-local effective enablement without
 editing YAML. `start/stop` changes only the current boot: stop records a marker that is
 cleared on the next host boot, while restart clears it after a bounded stop. Use

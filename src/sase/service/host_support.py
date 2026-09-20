@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import os
 import shutil
@@ -12,6 +13,7 @@ from pathlib import Path
 from typing import BinaryIO
 
 from sase.service.config import ServiceProcConfig
+from sase.service.executable import ResolvedLauncherArgv, resolve_launcher_argv
 from sase.service.paths import service_proc_dir
 from sase.service.status import ServiceProcReportedStatus
 from sase.supervision import pump_output
@@ -19,21 +21,37 @@ from sase.supervision import pump_output
 STATUS_REPORT_MAX_BYTES = 32 * 1024
 
 
-def entry_argv(entry: ServiceProcConfig) -> tuple[str, ...]:
+def entry_launch(entry: ServiceProcConfig) -> ResolvedLauncherArgv:
+    """Return the spawn argv for ``entry`` and why its executable may not resolve.
+
+    Builtin launchers and the ``/bin/sh -lc`` string form are returned as-is:
+    the former already resolve their own executables and the latter is a shell
+    line whose inner names the shell resolves.
+    """
     launcher = entry.launcher
     if launcher is None:
-        return ()
+        return ResolvedLauncherArgv(())
     if launcher.kind == "builtin":
         if launcher.builtin == "scheduler":
-            return (*sase_command(), "scheduler", "run")
+            return ResolvedLauncherArgv((*sase_command(), "scheduler", "run"))
         if launcher.builtin == "gateway":
-            return gateway_builtin_argv()
-        return ()
+            return ResolvedLauncherArgv(gateway_builtin_argv())
+        return ResolvedLauncherArgv(())
+    # Popen resolves a bare name against the child's env, so honor a PATH the
+    # entry overrides; otherwise this is the host's own PATH.
+    which_fn = functools.partial(
+        shutil.which,
+        path=os.path.expandvars(str(entry.env["PATH"]))
+        if "PATH" in entry.env
+        else None,
+    )
     if launcher.argv:
-        return tuple(launcher.argv)
+        return resolve_launcher_argv(tuple(launcher.argv), which_fn=which_fn)
     if isinstance(launcher.command, str):
-        return ("/bin/sh", "-lc", launcher.command)
-    return tuple(str(part) for part in launcher.command or ())
+        return ResolvedLauncherArgv(("/bin/sh", "-lc", launcher.command))
+    return resolve_launcher_argv(
+        tuple(str(part) for part in launcher.command or ()), which_fn=which_fn
+    )
 
 
 def gateway_builtin_argv() -> tuple[str, ...]:
