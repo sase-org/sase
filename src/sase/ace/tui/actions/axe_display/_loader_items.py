@@ -2,12 +2,6 @@
 
 from __future__ import annotations
 
-from ...bgcmd import (
-    get_active_slots,
-    get_slot_info,
-    is_slot_running,
-    mark_slot_finished,
-)
 from ...widgets.bgcmd_list import (
     AxeItem,
     BgCmdItem,
@@ -65,25 +59,12 @@ class AxeDisplayItemsMixin(AxeLoaderState):
             self._axe_lumberjack_idx = None
 
     def _load_bgcmd_state(self) -> None:
-        """Load background command state from disk (running + done commands)."""
-        active_slots = get_active_slots()
-        self._bgcmd_slots = []
+        """Reload background command state (oneshot rows) off the event loop.
 
-        for slot in active_slots:
-            info = get_slot_info(slot)
-            if info is not None:
-                # Check if command just finished and mark it
-                if not is_slot_running(slot) and info.finished_at is None:
-                    mark_slot_finished(slot)
-                    info = get_slot_info(slot)  # Reload to get updated info
-                if info is not None:
-                    self._bgcmd_slots.append((slot, info))
-
-        # Update footer with bgcmd count
-        self._update_bgcmd_count()
-
-        # Rebuild axe items list
-        self._build_axe_items()
+        The oneshot rows live in the proc store, so this schedules the
+        coalesced async AXE refresh instead of reading them inline.
+        """
+        self._schedule_axe_async_refresh()  # type: ignore[attr-defined]
 
     def _update_bgcmd_count(self) -> None:
         """Update the keybinding footer with bgcmd running/done counts."""
@@ -104,8 +85,8 @@ class AxeDisplayItemsMixin(AxeLoaderState):
         """
         running_count = 0
         done_count = 0
-        for slot, _ in self._bgcmd_slots:
-            if is_slot_running(slot):
+        for _slot, info in self._bgcmd_slots:
+            if info.running:
                 running_count += 1
             else:
                 done_count += 1

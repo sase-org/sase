@@ -5060,6 +5060,12 @@
           "default": true,
           "deprecated": true
         },
+        "bgcmd_legacy_slots": {
+          "type": "boolean",
+          "description": "Keep legacy ~/.sase/axe/bgcmd slot directories readable in the Services tab oneshot section.",
+          "default": true,
+          "deprecated": true
+        },
         "monitor_continuation_records": {
           "type": "boolean",
           "description": "New monitor starts persist versioned continuation records, frozen outcome policy, checkpoints, and durable delivery/adoption state for production continuation routing.",

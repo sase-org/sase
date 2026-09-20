@@ -145,6 +145,8 @@ def probe_surface_tokens(
                 resolved.service_dir,
                 resolved.service_state_path,
                 resolved.service_status_path,
+                # Background commands are oneshot rows in the proc store.
+                resolved.procs_path,
             ),
         ),
         notifications=_probe_notifications_token(resolved.notifications_path),
@@ -197,7 +199,8 @@ def _probe_axe_token(
 ) -> SurfaceToken:
     """Token axe/lumberjack membership plus bounded status files.
 
-    Service host files (``status.json`` / ``state.json``) are stat-only; an
+    Service host files (``status.json`` / ``state.json``) and the proc store
+    (which holds the oneshot rows behind ``!`` commands) are stat-only; an
     absent service directory is a stable, determinate token.
     """
     collected, _axe_children, ok = _open_membership(axe_root)

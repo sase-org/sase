@@ -90,6 +90,9 @@ class _Fake(AxeDisplayMixin):
         self._axe_cmds_hidden = False
         self._axe_current_view: Any = "axe"
         self._bgcmd_slots: list[Any] = []
+        self._bgcmd_pending_slots: dict[int, float] = {}
+        self._bgcmd_dismissed: set[str] = set()
+        self._bgcmd_focus_slot: int | None = None
         self._axe_lumberjack_names = ["hooks"]
         self._axe_lumberjack_idx = 0
         self._axe_items = [

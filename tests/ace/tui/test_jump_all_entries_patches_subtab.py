@@ -22,6 +22,7 @@ class _FakeApp(NavigationModalMixin):
         self.patches: list[Any] = []
         self._agents: list[Any] = []
         self._axe_items: list[Any] = []
+        self._bgcmd_slots: list[Any] = []
         self._jump_all_last_position: JumpAllResult | None = None
         self._on_dismiss: Any = None
         self._save_current_tab_position_calls = 0

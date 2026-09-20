@@ -1,5 +1,7 @@
 """Shared object builders for axe collector tests."""
 
+from typing import Any
+
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.axe.config import ChopConfig, LumberjackConfig
 from sase.axe.chop_overrun import ChopOverrun
@@ -30,14 +32,16 @@ def make_metrics() -> LumberjackMetrics:
     )
 
 
-def make_bgcmd_info() -> BackgroundCommandInfo:
-    return BackgroundCommandInfo(
-        command="sleep 1",
-        project="proj",
-        workspace_num=1,
-        workspace_dir="/tmp/ws",
-        started_at="2026-04-23T00:00:00",
-    )
+def make_bgcmd_info(**overrides: Any) -> BackgroundCommandInfo:
+    fields: dict[str, Any] = {
+        "command": "sleep 1",
+        "project": "proj",
+        "workspace_num": 1,
+        "workspace_dir": "/tmp/ws",
+        "started_at": "2026-04-23T00:00:00",
+    }
+    fields.update(overrides)
+    return BackgroundCommandInfo(**fields)
 
 
 def lumberjack_config(

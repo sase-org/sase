@@ -53,6 +53,7 @@ class NavigationModalMixin(NavigationMixinBase):
                 agents=self._agents,
                 axe_items=self._axe_items,
                 last_position=self._jump_all_last_position,
+                bgcmd_slots=self._bgcmd_slots,
             ),
             _on_dismiss,
         )

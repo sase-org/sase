@@ -262,6 +262,60 @@ def test_bgcmd_status_section_uses_display_project() -> None:
     assert "gh_acme__widgets" not in plain
 
 
+def _bgcmd_header(**fields: object) -> str:
+    section = axe_dashboard._AxeStatusSection.__new__(axe_dashboard._AxeStatusSection)
+    section.__init__()  # type: ignore[misc]
+    captured: list[Text] = []
+    section.update = lambda content: captured.append(content)  # type: ignore[assignment,arg-type]
+    base: dict[str, object] = {
+        "command": "make lint",
+        "project": "proj",
+        "workspace_num": 1,
+        "workspace_dir": "/path",
+        "started_at": "2025-01-01T12:00:00",
+        "proc_id": "proc-1",
+    }
+    info = BackgroundCommandInfo(**{**base, **fields})  # type: ignore[arg-type]
+    section.update_bgcmd_display(info=info, is_running=info.running)
+    return captured[-1].plain
+
+
+def test_bgcmd_status_names_the_recorded_exit_code_of_a_finished_oneshot() -> None:
+    plain = _bgcmd_header(
+        status="success", exit_code=0, finished_at="2025-01-01T12:00:09"
+    )
+    assert plain.startswith("[DONE · exit 0]")
+    assert "PID:" not in plain, "a finished durable oneshot has no live pid"
+
+    failed = _bgcmd_header(
+        status="error", exit_code=2, finished_at="2025-01-01T12:00:09"
+    )
+    assert failed.startswith("[FAILED · exit 2]")
+
+    killed = _bgcmd_header(
+        status="killed", exit_code=-15, finished_at="2025-01-01T12:00:09"
+    )
+    assert killed.startswith("[KILLED]")
+
+
+def test_bgcmd_status_keeps_pid_for_running_and_legacy_rows() -> None:
+    running = _bgcmd_header(status="running", pid=4242)
+    assert running.startswith("[RUNNING]")
+    assert "PID: 4242" in running
+
+    legacy = _bgcmd_header(proc_id=None, status="done", pid=99)
+    assert legacy.startswith("[DONE]")
+    assert "exit" not in legacy
+    assert "PID: 99" in legacy
+
+
+def test_bgcmd_status_omits_project_and_workspace_for_a_projectless_oneshot() -> None:
+    plain = _bgcmd_header(status="running", project="", workspace_num=0)
+    assert "Project:" not in plain
+    assert "WS:" not in plain
+    assert "Cmd: make lint" in plain
+
+
 def test_chop_status_header_colors_names_with_sidebar_taxonomy() -> None:
     """The chop status header colors the lumberjack and chop names with the
     sidebar gold/copper hues so the header echoes the sidebar tree."""

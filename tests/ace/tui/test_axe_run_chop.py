@@ -24,6 +24,8 @@ from sase.axe.chop_runner import (
 )
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
 
+from tests.ace.tui._axe_collector_helpers import make_bgcmd_info
+
 
 class _FakeChopApp(AxeChopRunMixin, AxeBgCmdMixin, BaseActionsMixin):
     """Minimal fake exercising the manual chop-run dispatch and async path."""
@@ -116,8 +118,8 @@ def test_action_run_workflow_axe_done_bgcmd_does_not_launch_chop() -> None:
 
     app._rerun_bgcmd = _rerun  # type: ignore[assignment, method-assign]
 
-    with patch("sase.ace.tui.bgcmd.is_slot_running", return_value=False):
-        BaseActionsMixin.action_run_workflow(app)
+    app._bgcmd_slots = [(4, make_bgcmd_info(status="success", exit_code=0))]
+    BaseActionsMixin.action_run_workflow(app)
 
     assert rerun_calls == [4]
     assert app.launched_chops == []

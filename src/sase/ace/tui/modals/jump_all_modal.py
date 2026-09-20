@@ -7,6 +7,7 @@ switches to the target tab, focuses that entry, and dismisses the modal.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -25,13 +26,13 @@ from ..actions.navigation.jump_hints import (
     match_jump_hint,
     normalize_jump_key,
 )
-from ..bgcmd import get_slot_info
 from ..models._agent_tree import agent_tree_title
 from ..models.agent_status import STOPPED_COLOR, STOPPED_STATUS
 from ..widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem
 
 if TYPE_CHECKING:
     from ...patch import Patch
+    from ..bgcmd import BackgroundCommandInfo
     from ..models import Agent
     from ..widgets.bgcmd_list import AxeItem
 
@@ -115,6 +116,7 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         agents: list[Agent] | None = None,
         axe_items: list[AxeItem] | None = None,
         last_position: JumpAllResult | None = None,
+        bgcmd_slots: Sequence[tuple[int, BackgroundCommandInfo]] | None = None,
         **legacy_kwargs: Any,
     ) -> None:
         super().__init__()
@@ -133,6 +135,7 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         self._entry_to_hint: dict[_Entry, str] = {}
         self._pending_hint_prefix = ""
         self._last_position = last_position
+        self._bgcmd_infos = dict(bgcmd_slots or ())
         self._build_entries(
             patches or [],
             agents or [],
@@ -203,7 +206,7 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
                     _Entry("axe", i, label, "", "", name_style=axe_color, indent=1)
                 )
             elif isinstance(item, BgCmdItem):
-                info = get_slot_info(item.slot)
+                info = self._bgcmd_infos.get(item.slot)
                 if info is not None:
                     label = f"bgcmd #{item.slot}: {info.command}"
                 else:

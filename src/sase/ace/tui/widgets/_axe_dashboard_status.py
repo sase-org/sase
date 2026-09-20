@@ -34,6 +34,13 @@ def _format_epoch_runtime(started_at: float) -> str:
     return _format_runtime(parsed.isoformat())
 
 
+def _exit_badge(label: str, exit_code: int | None) -> str:
+    """Return a ``[DONE]``-style badge that names a recorded exit code."""
+    if exit_code is None:
+        return f"[{label}]"
+    return f"[{label} · exit {exit_code}]"
+
+
 class AxeStatusSection(Static):
     """Compact status bar showing runtime, cycles, and runners."""
 
@@ -369,16 +376,22 @@ class AxeStatusSection(Static):
             # Status indicator
             if self._bgcmd_running:
                 text.append("[RUNNING]", style="bold green")
+            elif info.status == "killed":
+                text.append("[KILLED]", style="bold #D78787")
+            elif info.status == "error" or info.exit_code not in (None, 0):
+                text.append(_exit_badge("FAILED", info.exit_code), style="bold red")
             else:
-                text.append("[DONE]", style="bold #FFD700")  # Gold/yellow
+                # Gold/yellow; a durable oneshot also names its recorded exit code.
+                text.append(_exit_badge("DONE", info.exit_code), style="bold #FFD700")
 
-            # PID
-            text.append("  │  ", style="dim")
-            text.append("PID: ", style="bold #87D7FF")
-            if info.pid:
-                text.append(f"{info.pid}", style="#FF87D7 bold")
-            else:
-                text.append("...", style="#FF87D7 bold")
+            # PID (a finished durable oneshot has no live pid to show)
+            if self._bgcmd_running or info.pid:
+                text.append("  │  ", style="dim")
+                text.append("PID: ", style="bold #87D7FF")
+                if info.pid:
+                    text.append(f"{info.pid}", style="#FF87D7 bold")
+                else:
+                    text.append("...", style="#FF87D7 bold")
 
             # Command
             text.append("  │  ", style="dim")
@@ -388,15 +401,15 @@ class AxeStatusSection(Static):
                 cmd_display = cmd_display[:37] + "..."
             text.append(cmd_display, style="#FF87D7")
 
-            # Project
-            text.append("  │  ", style="dim")
-            text.append("Project: ", style="bold #87D7FF")
-            text.append(info.display_project, style="#00D7AF")
+            # Project and workspace (absent for a project-less oneshot)
+            if info.project:
+                text.append("  │  ", style="dim")
+                text.append("Project: ", style="bold #87D7FF")
+                text.append(info.display_project, style="#00D7AF")
 
-            # Workspace
-            text.append("  │  ", style="dim")
-            text.append("WS: ", style="bold #87D7FF")
-            text.append(f"{info.workspace_num}", style="#00D7AF")
+                text.append("  │  ", style="dim")
+                text.append("WS: ", style="bold #87D7FF")
+                text.append(f"{info.workspace_num}", style="#00D7AF")
 
             # Runtime - use finished_at for done commands
             text.append("  │  ", style="dim")

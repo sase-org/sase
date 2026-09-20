@@ -5,6 +5,7 @@ and their chops, with user/background commands grouped visually below.
 """
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Literal
 
 from rich.text import Text
@@ -12,7 +13,9 @@ from textual.message import Message
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from ..bgcmd import BackgroundCommandInfo, is_slot_running
+from sase.core.time import get_timezone, local_now
+
+from ..bgcmd import BackgroundCommandInfo
 from ._axe_dashboard_render import overrun_chip as _overrun_chip
 
 if TYPE_CHECKING:
@@ -66,7 +69,7 @@ AxeItem = ServiceProcItem | LumberjackItem | ChopItem | BgCmdItem
 #
 # - Lumberjacks: gold accent + bold name (top-level).
 # - Chops:      dimmer copper/amber, subordinate to the parent lumberjack.
-# - Bgcmds:     teal/cyan badge, clearly distinct from the AXE palette.
+# - Oneshots:   muted slate/teal, visibly quieter than daemon service nodes.
 
 _LJ_ACCENT_STYLE = "bold #FFD700"
 _LJ_NAME_STYLE = "#FFD700"
@@ -76,11 +79,18 @@ _CHOP_TREE_STYLE = "dim #FFD700"
 _CHOP_NAME_STYLE = "#D7AF87"
 _CHOP_NAME_SELECTED_STYLE = "bold #FFD700"
 
-_BGCMD_BADGE_STYLE = "bold #5FD7FF"
-_BGCMD_NAME_RUN_STYLE = "#5FD7FF"
-_BGCMD_NAME_RUN_SELECTED_STYLE = "bold #5FD7FF"
-_BGCMD_NAME_DONE_STYLE = "#87AFAF"
-_BGCMD_NAME_DONE_SELECTED_STYLE = "bold #87AFAF"
+_ONESHOT_BADGE_STYLE = "#5F8787"
+_ONESHOT_NAME_RUN_STYLE = "#87AFAF"
+_ONESHOT_NAME_RUN_SELECTED_STYLE = "bold #87D7D7"
+_ONESHOT_NAME_DONE_STYLE = "dim #87AFAF"
+_ONESHOT_NAME_DONE_SELECTED_STYLE = "bold #87AFAF"
+_ONESHOT_RUN_GLYPH = ("▷", "#5FAFD7")
+_ONESHOT_OK_GLYPH = ("✓", "#87AF87")
+_ONESHOT_FAIL_GLYPH = ("✗", "#D78787")
+_ONESHOT_RUN_CHIP_STYLE = "#5FAFAF"
+_ONESHOT_OK_CHIP_STYLE = "dim #87AF87"
+_ONESHOT_FAIL_CHIP_STYLE = "#D78787"
+_ONESHOT_DONE_CHIP_STYLE = "dim"
 
 _SERVICE_ACCENT_STYLE = "bold #00D7AF"
 _SERVICE_NAME_STYLE = "#00D7AF"
@@ -89,7 +99,7 @@ _SERVICE_DISABLED_STYLE = "dim #87AFAF"
 _SERVICE_WARN_STYLE = "bold #FFAF5F"
 
 _DIVIDER_STYLE = "dim #5FD7FF"
-_DIVIDER_LABEL = "── commands ──"
+_DIVIDER_LABEL = "── oneshots ──"
 
 
 class BgCmdList(OptionList):
@@ -228,7 +238,7 @@ class BgCmdList(OptionList):
                     if bgcmd_running is not None:
                         running = bgcmd_running.get(slot, False)
                     else:
-                        running = is_slot_running(slot)
+                        running = info is not None and info.running
                     is_first_bgcmd = show_bgcmd_divider and not bgcmd_seen
                     bgcmd_seen = True
                     option = self._format_bgcmd_option(
@@ -418,13 +428,15 @@ class BgCmdList(OptionList):
         hint_char: str | None = None,
         show_divider: bool = False,
     ) -> Option:
-        """Format a background command option for display.
+        """Format a oneshot row: ``▷ #1 command  running · 1m``.
 
-        When ``show_divider`` is True a one-line dim separator label is
-        prepended above the row so the user/background commands group is
-        visually separated from the lumberjack tree above. The divider
-        line participates in the option's height but does not contribute
-        to the requested sidebar width.
+        The glyph carries the state (``▷`` running, ``✓`` exit 0, ``✗``
+        failed or killed) and a trailing chip carries the recorded exit code
+        and age. When ``show_divider`` is True a one-line dim separator label
+        is prepended above the row so the oneshots section is visually
+        separated from the service/scheduler tree above. The divider line
+        participates in the option's height but does not contribute to the
+        requested sidebar width.
         """
         text = Text(no_wrap=True, overflow="ellipsis")
         if show_divider:
@@ -433,31 +445,30 @@ class BgCmdList(OptionList):
         if hint_char is not None:
             text.append(f"[{hint_char}] ", style="bold #FFFF00")
 
-        # Slot badge: a clearly-labelled "#N" prefix in the bgcmd hue so
-        # user/background commands cannot be mistaken for AXE-managed
-        # lumberjack or chop rows.
-        text.append(f"#{slot} ", style=_BGCMD_BADGE_STYLE)
-
-        # Status indicator: running (*) vs done (✓)
-        text.append("[", style="dim")
-        if is_running:
-            text.append("*", style="bold #00D7AF")
-        else:
-            text.append("✓", style="bold #FFD700")
-        text.append("] ", style="dim")
+        glyph, glyph_style = _oneshot_glyph(info, is_running)
+        text.append(f"{glyph} ", style=glyph_style)
+        text.append(f"#{slot} ", style=_ONESHOT_BADGE_STYLE)
 
         cmd_display = info.command if info else f"slot {slot}"
         if is_running:
             label_style = (
-                _BGCMD_NAME_RUN_SELECTED_STYLE if is_selected else _BGCMD_NAME_RUN_STYLE
+                _ONESHOT_NAME_RUN_SELECTED_STYLE
+                if is_selected
+                else _ONESHOT_NAME_RUN_STYLE
             )
         else:
             label_style = (
-                _BGCMD_NAME_DONE_SELECTED_STYLE
+                _ONESHOT_NAME_DONE_SELECTED_STYLE
                 if is_selected
-                else _BGCMD_NAME_DONE_STYLE
+                else _ONESHOT_NAME_DONE_STYLE
             )
         text.append(cmd_display, style=label_style)
+
+        chip = _oneshot_chip(info, is_running)
+        if chip is not None:
+            chip_label, chip_style = chip
+            text.append("  ")
+            text.append(chip_label, style=chip_style)
 
         return Option(text, id=str(slot))
 
@@ -591,6 +602,76 @@ def _service_proc_chip(proc: Any) -> tuple[str, str] | None:
         style = "bold red" if state in {"failed", "error"} else "dim"
         return (state, style)
     return None
+
+
+def _oneshot_failed(info: BackgroundCommandInfo | None) -> bool:
+    if info is None:
+        return False
+    if info.status in {"error", "killed"}:
+        return True
+    return info.exit_code not in (None, 0)
+
+
+def _oneshot_glyph(
+    info: BackgroundCommandInfo | None, is_running: bool
+) -> tuple[str, str]:
+    """Return the state glyph and its style for a oneshot row."""
+    if is_running:
+        return _ONESHOT_RUN_GLYPH
+    if _oneshot_failed(info):
+        return _ONESHOT_FAIL_GLYPH
+    return _ONESHOT_OK_GLYPH
+
+
+def _oneshot_age(start: str | None, *, now: datetime | None = None) -> str | None:
+    """Return a compact ``1m``-style age for an ISO timestamp, or ``None``.
+
+    Compared in the configured timezone; *now* is a naive configured-timezone
+    reference (default :func:`~sase.core.time.local_now`).
+    """
+    if not start:
+        return None
+    try:
+        moment = datetime.fromisoformat(start)
+    except ValueError:
+        return None
+    if moment.tzinfo is not None:
+        moment = moment.astimezone(get_timezone()).replace(tzinfo=None)
+    seconds = int(((now or local_now()) - moment).total_seconds())
+    if seconds < 0:
+        seconds = 0
+    if seconds < 60:
+        return f"{seconds}s"
+    if seconds < 3600:
+        return f"{seconds // 60}m"
+    if seconds < 86400:
+        return f"{seconds // 3600}h"
+    return f"{seconds // 86400}d"
+
+
+def _oneshot_chip(
+    info: BackgroundCommandInfo | None, is_running: bool
+) -> tuple[str, str] | None:
+    """Return the trailing status chip: run time or recorded exit + age."""
+    if info is None:
+        return None
+    if is_running:
+        age = _oneshot_age(info.started_at)
+        label = "running" if age is None else f"running · {age}"
+        return (label, _ONESHOT_RUN_CHIP_STYLE)
+    if info.status == "killed":
+        label, style = "killed", _ONESHOT_FAIL_CHIP_STYLE
+    elif info.exit_code is not None:
+        label = f"exit {info.exit_code}"
+        style = (
+            _ONESHOT_OK_CHIP_STYLE if info.exit_code == 0 else _ONESHOT_FAIL_CHIP_STYLE
+        )
+    elif info.status == "error":
+        label, style = "error", _ONESHOT_FAIL_CHIP_STYLE
+    else:
+        label, style = "done", _ONESHOT_DONE_CHIP_STYLE
+    age = _oneshot_age(info.finished_at)
+    return (label if age is None else f"{label} · {age} ago", style)
 
 
 def _last_line_cell_len(text: Text) -> int:

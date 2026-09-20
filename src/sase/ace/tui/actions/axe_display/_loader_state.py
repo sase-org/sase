@@ -59,6 +59,9 @@ class AxeLoaderState:
     # Set when a service-proc row is selected in service-host mode.
     _axe_service_selection: str | None
     _bgcmd_slots: list[tuple[int, BackgroundCommandInfo]]
+    _bgcmd_pending_slots: dict[int, float]
+    _bgcmd_dismissed: set[str]
+    _bgcmd_focus_slot: int | None
     _axe_lumberjack_names: list[str]
     _axe_lumberjack_idx: int | None
     _axe_items: list[AxeItem]

@@ -46,8 +46,8 @@ def test_collector_degrades_invalid_axe_config_to_status() -> None:
             return_value="",
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_active_slots",
-            return_value=[],
+            "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots",
+            return_value={},
         ),
         patch("sase.axe.config.load_axe_config") as load_config,
     ):
@@ -138,19 +138,11 @@ def test_collector_populates_all_cache_maps() -> None:
             side_effect=_fake_read_run_log,
         ) as run_log_reader,
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_active_slots",
-            return_value=[1],
+            "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots",
+            return_value={1: bgcmd_info},
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_slot_info",
-            return_value=bgcmd_info,
-        ),
-        patch(
-            "sase.ace.tui.actions.axe_display._data.is_slot_running",
-            return_value=True,
-        ),
-        patch(
-            "sase.ace.tui.actions.axe_display._data.read_slot_output_tail",
+            "sase.ace.tui.actions.axe_display._data.read_info_output_tail",
             return_value="slot output\n",
         ),
     ):
@@ -294,7 +286,7 @@ def test_collector_carries_running_run_through_snapshot() -> None:
             side_effect=_fake_read_run_log,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+            "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
         proc = get_proc.return_value
@@ -348,7 +340,7 @@ def test_collector_records_empty_history_for_missing_chops() -> None:
             return_value=[],
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+            "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
         proc = get_proc.return_value
@@ -399,7 +391,7 @@ def test_collector_summary_mode_skips_chop_history_and_log_tails() -> None:
             return_value="run output\n",
         ) as run_log_reader,
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+            "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
         proc = get_proc.return_value
@@ -465,7 +457,7 @@ def test_collector_reuses_cached_run_json_across_ticks() -> None:
             return_value="run output\n",
         ) as run_log_reader,
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+            "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
         proc = get_proc.return_value
@@ -541,7 +533,7 @@ def test_collector_tails_only_requested_chop_run_logs() -> None:
             side_effect=_fake_read_run_log,
         ) as run_log_reader,
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+            "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
         proc = get_proc.return_value
@@ -676,7 +668,7 @@ def test_header_only_collect_bounds_file_opens_on_large_chop_history() -> None:
             return_value="run output\n",
         ) as run_log_reader,
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+            "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
         proc = get_proc.return_value

@@ -153,15 +153,31 @@ def test_process_select_modal_create_styled_label_bgcmd() -> None:
         workspace_dir="/path",
         started_at="2025-01-01T12:00:00",
     )
-    # Mock is_slot_running to return True (simulate running process)
-    with patch(
-        "sase.ace.tui.modals.process_select_modal.is_slot_running", return_value=True
-    ):
-        modal = ProcessSelectModal(axe_running=True, bgcmd_slots=[(2, info)])
-        proc = modal._processes[1]  # Index 1, since index 0 is now axe
-        label = modal._create_styled_label(proc)
-        label_str = str(label)
-        assert "[STOP]" in label_str
+    assert info.running is True
+    modal = ProcessSelectModal(axe_running=True, bgcmd_slots=[(2, info)])
+    proc = modal._processes[1]  # Index 1, since index 0 is now axe
+    assert proc.process_type == "bgcmd"
+    label = modal._create_styled_label(proc)
+    label_str = str(label)
+    assert "[STOP]" in label_str
+
+
+def test_process_select_modal_finished_bgcmd_offers_dismiss() -> None:
+    """A finished oneshot is dismissed, not stopped, and keeps its label."""
+    info = BackgroundCommandInfo(
+        command="make test",
+        project="myproject",
+        workspace_num=1,
+        workspace_dir="/path",
+        started_at="2025-01-01T12:00:00",
+        proc_id="proc-1",
+        status="success",
+        exit_code=0,
+    )
+    modal = ProcessSelectModal(axe_running=False, bgcmd_slots=[(4, info)])
+    proc = next(p for p in modal._processes if p.slot == 4)
+    assert proc.process_type == "dismiss_bgcmd"
+    assert "[DISMISS]" in str(modal._create_styled_label(proc))
 
 
 def test_process_select_modal_create_options() -> None:

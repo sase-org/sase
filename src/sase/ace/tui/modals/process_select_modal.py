@@ -14,7 +14,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Label, OptionList
 from textual.widgets.option_list import Option
 
-from ..bgcmd import BackgroundCommandInfo, is_slot_running
+from ..bgcmd import BackgroundCommandInfo
 from .base import OptionListNavigationMixin
 
 
@@ -82,7 +82,7 @@ class ProcessSelectModal(
             if len(cmd_display) > 40:
                 cmd_display = cmd_display[:37] + "..."
 
-            running = is_slot_running(slot)
+            running = info.running
             self._processes.append(
                 ProcessSelection(
                     process_type="bgcmd" if running else "dismiss_bgcmd",

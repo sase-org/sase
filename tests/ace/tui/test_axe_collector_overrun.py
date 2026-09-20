@@ -87,7 +87,7 @@ def test_collector_classifies_against_runtime_interval() -> None:
             side_effect=_classify,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+            "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
         proc = get_proc.return_value
@@ -174,7 +174,7 @@ def test_collector_falls_back_to_config_interval_without_runtime_status() -> Non
             side_effect=_classify,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+            "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
         proc = get_proc.return_value
@@ -253,7 +253,7 @@ def test_collector_does_not_classify_disabled_chop() -> None:
             side_effect=AssertionError("disabled chops should not be classified"),
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+            "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
         proc = get_proc.return_value
@@ -319,7 +319,7 @@ def test_collector_degrades_when_overrun_binding_fails() -> None:
             side_effect=RuntimeError("binding unavailable"),
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+            "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
         proc = get_proc.return_value

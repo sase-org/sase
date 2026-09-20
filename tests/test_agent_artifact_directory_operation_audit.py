@@ -11,10 +11,10 @@ from tests._agent_artifact_marker_audit_helpers import (
 )
 
 _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
-    "src/sase/ace/tui/bgcmd.py:clear_slot": DirOpReview(
+    "src/sase/ace/tui/bgcmd.py:dismiss_background_command": DirOpReview(
         exemption=(
-            "bgcmd slot directory under sase's TUI workspace, not a tracked "
-            "agent artifact directory."
+            "Retired bgcmd slot directory under sase's TUI workspace, not a "
+            "tracked agent artifact directory."
         ),
     ),
     "src/sase/agents/cli_artifacts_layout.py:_handle_migrate": DirOpReview(

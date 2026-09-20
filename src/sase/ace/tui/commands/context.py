@@ -200,13 +200,8 @@ def _selected_axe_slot_states(app: AceApp, item) -> tuple[bool, bool]:  # type: 
             break
     if info is None:
         return (False, False)
-    try:
-        from sase.ace.tui.bgcmd import is_slot_running
-
-        running = bool(is_slot_running(slot))
-    except Exception:
-        running = False
-    # "Done" = there is a slot record but the process is no longer
+    running = bool(getattr(info, "running", False))
+    # "Done" = there is a slot record but the command is no longer
     # running (i.e. it finished).
     return (not running, running)
 

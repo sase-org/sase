@@ -11,12 +11,8 @@ from typing import Any, NoReturn
 from rich.console import Console
 from rich.table import Table
 
-from sase.procs import ProcSubmitError, ProcSubmitRequest, submit_proc_request
-from sase.procs.service_meta import (
-    SERVICE_PROC_MODE_ONESHOT,
-    SERVICE_PROC_SOURCE_TRANSIENT,
-    ProcServiceBlock,
-)
+from sase.procs import ProcSubmitError
+from sase.procs.oneshot import submit_oneshot
 from sase.service.config import ServiceConfigError, load_service_config
 from sase.service.control import (
     ServiceHostDisabledError,
@@ -328,20 +324,12 @@ def _handle_proc_run(args: argparse.Namespace) -> int:
     cwd = Path(getattr(args, "cwd", None) or Path.cwd()).expanduser()
     label = getattr(args, "label", None) or " ".join(command)
     try:
-        proc = submit_proc_request(
-            ProcSubmitRequest(
-                argv=command,
-                label=label,
-                cwd=cwd,
-                origin="service-proc",
-                project=getattr(args, "project", None),
-                workspace_num=getattr(args, "workspace", None),
-                service=ProcServiceBlock(
-                    name=None,
-                    mode=SERVICE_PROC_MODE_ONESHOT,
-                    source=SERVICE_PROC_SOURCE_TRANSIENT,
-                ),
-            )
+        proc = submit_oneshot(
+            command,
+            label=label,
+            cwd=cwd,
+            project=getattr(args, "project", None),
+            workspace_num=getattr(args, "workspace", None),
         )
     except ProcSubmitError as exc:
         print(f"sase service proc run: {exc}", file=sys.stderr)

@@ -243,8 +243,11 @@ remains visible as unavailable rather than preventing unrelated entries from run
 
 `sase service proc run -- COMMAND...` submits a transient oneshot through the durable
 proc service. It does not add the command to daemon desired state and the host never
-replays it after restart. `-c/--cwd`, `-l/--label`, `-p/--project`, and `-w/--workspace`
-add attribution; `-j` emits the created proc record.
+replays it after restart. It runs outside the service host's process tree, records its
+exit code, and appears in the Services tab's oneshots section under a `#1`–`#9` index;
+at most nine can be running at once, and finished ones never count. The TUI's `!!`
+background commands use this same path. `-c/--cwd`, `-l/--label`, `-p/--project`, and
+`-w/--workspace` add attribution; `-j` emits the created proc record.
 
 Install or inspect the native user unit with `sase service init`. Without `--yes` it
 prints a plan; `--check` is read-only and exits non-zero on drift, `--diff` includes the

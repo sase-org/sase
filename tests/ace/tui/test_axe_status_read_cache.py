@@ -64,7 +64,7 @@ def _collect(
             return_value=_make_metrics(),
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_active_slots", return_value=[]
+            "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots", return_value={}
         ),
     ):
         proc = get_proc.return_value

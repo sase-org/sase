@@ -26,6 +26,7 @@ class FeatureFlag(StrEnum):
     axe_routine_job_contract = "axe_routine_job_contract"
     agents_unified_query = "agents_unified_query"
     agent_sudo_requests = "agent_sudo_requests"
+    bgcmd_legacy_slots = "bgcmd_legacy_slots"
     monitor_continuation_records = "monitor_continuation_records"
     provider_drain = "provider_drain"
     queue_capacity_budget = "queue_capacity_budget"
@@ -82,6 +83,15 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "skill guard, and SSH relay phases land."
         ),
         bead="sase-111",
+    ),
+    FeatureFlag.bgcmd_legacy_slots: FeatureFlagDefinition(
+        key=FeatureFlag.bgcmd_legacy_slots,
+        kind="sunset",
+        description=(
+            "Keep legacy ~/.sase/axe/bgcmd slot directories readable in the "
+            "Services tab oneshot section."
+        ),
+        bead="sase-13w",
     ),
     FeatureFlag.monitor_continuation_records: FeatureFlagDefinition(
         key=FeatureFlag.monitor_continuation_records,

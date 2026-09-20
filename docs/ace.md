@@ -1103,6 +1103,14 @@ filter the history or enter a new command, move with `Ctrl+N` / `Ctrl+P` or the 
 keys, press `Enter` to run it, and `Esc` to cancel. `,!` skips the project and uses the
 current PR's project.
 
+A background command is a **oneshot service proc**: a durable proc-store row with a
+recorded exit code, a store-owned log, and a stable `#1`–`#9` index, shown in the
+Services tab's `── oneshots ──` section. It runs outside the TUI and the service host,
+so quitting or restarting either does not kill it, and a rerun (`r`) works after a TUI
+restart. At most nine oneshots can be _running_ at once; finished commands never block a
+new one (the oldest finished index is reused once all nine are taken).
+`sase service proc run` submits through the same path.
+
 ### Hook History Modal
 
 Type `.` into the `F` edit-hooks input to open the hook history modal, which lists
@@ -2798,8 +2806,9 @@ The visible tab is **Services**. With the default-off `service_host` beta flag e
 its top-level rows are the effective machine service procs assembled from built-in,
 plugin, user, and machine-overlay configuration. The built-in `scheduler` row expands to
 the familiar routine/job tree, while other service procs show their lifecycle,
-enablement provenance, restart state, and bounded output. Background commands remain a
-separate section. Project-local `sase.yml` service entries are intentionally ignored.
+enablement provenance, restart state, and bounded output. Background commands (oneshot
+service procs) form a separate `── oneshots ──` section below them. Project-local
+`sase.yml` service entries are intentionally ignored.
 
 On a selected top-level service proc, `x` starts or stops it, `r` restarts it, and `!e`
 enables or disables it on this machine. Those actions are no-ops when no service proc is
@@ -2825,9 +2834,13 @@ The Axe sidebar renders three row types so the operational tree reads at a glanc
   a per-run status icon (`✓` success, `!` failure/timeout, `?` missing script, `●`
   running, `*` agent-launched, `·` no runs), and the job name in a dim-gold child hue.
   Disabled jobs remain visible with a quiet `disabled` chip but cannot be run manually.
-- **Background command** rows (run via `!!`) live below the routine tree, separated by a
-  dim divider line when both groups are present, and use a distinct command/slot badge
-  so they cannot be mistaken for scheduled AXE work.
+- **Oneshot** rows (background commands run via `!!`) live below the routine tree under
+  a dim `── oneshots ──` divider when both groups are present. Each row leads with a
+  state glyph (`▷` running, `✓` exit 0, `✗` failed or killed), a muted `#N` index, and
+  the command, and ends with a chip carrying the recorded exit code and age (for example
+  `exit 0 · 4m ago`), so they cannot be mistaken for scheduled AXE work. Commands
+  started before oneshots existed remain readable from their old slot directories (no
+  exit code) while the `bgcmd_legacy_slots` sunset flag is on.
 
 ### Description Panel
 

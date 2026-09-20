@@ -23,17 +23,22 @@ def axe_bgcmd_data() -> AxeCollectedData:
         project="visual_project",
         workspace_num=1,
         workspace_dir="/workspace/sase_1",
-        started_at="2026-05-09T10:00:00",
+        started_at="2026-07-06T11:58:00",
         pid=12345,
+        proc_id="proc-a",
+        status="running",
     )
     info_b = BackgroundCommandInfo(
         command="just check",
         project="visual_project",
         workspace_num=2,
         workspace_dir="/workspace/sase_2",
-        started_at="2026-05-09T10:05:00",
+        started_at="2026-07-06T11:50:00",
         pid=None,
-        finished_at="2026-05-09T10:09:00",
+        finished_at="2026-07-06T11:56:00",
+        proc_id="proc-b",
+        status="success",
+        exit_code=0,
     )
     slots = [(1, info_a), (2, info_b)]
     details = {
@@ -135,8 +140,10 @@ def axe_lumberjack_tree_data() -> AxeCollectedData:
         project="visual_project",
         workspace_num=1,
         workspace_dir="/workspace/sase_1",
-        started_at="2026-05-09T10:05:00",
+        started_at="2026-07-06T11:57:00",
         pid=12345,
+        proc_id="proc-tree",
+        status="running",
     )
     return axe_collected_data(
         lumberjack_names=["hooks", "checks"],
@@ -247,8 +254,10 @@ def axe_long_label_data() -> AxeCollectedData:
         project="visual_project",
         workspace_num=1,
         workspace_dir="/workspace/sase_1",
-        started_at="2026-05-09T10:05:00",
+        started_at="2026-07-06T11:59:00",
         pid=12345,
+        proc_id="proc-long",
+        status="running",
     )
     return axe_collected_data(
         lumberjack_names=[lumberjack_name],

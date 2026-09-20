@@ -15,6 +15,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.ace.tui.actions.axe_display import (
     AxeDisplayMixin,
     BgCmdSnapshot,
@@ -54,6 +55,9 @@ class FakeAxeApp(AxeDisplayMixin):
         self._axe_cmds_hidden = False
         self._axe_current_view = "axe"
         self._bgcmd_slots = []
+        self._bgcmd_pending_slots = {}
+        self._bgcmd_dismissed = set()
+        self._bgcmd_focus_slot = None
         self._axe_lumberjack_names = ["hooks"]
         self._axe_lumberjack_idx = 0
         self._axe_items = [
@@ -151,17 +155,26 @@ async def test_targeted_refresh_updates_selected_bgcmd_slot() -> None:
     app = FakeAxeApp()
     app.current_idx = 1  # BgCmdItem(slot=1)
 
+    info = BackgroundCommandInfo(
+        command="sleep 1",
+        project="proj",
+        workspace_num=1,
+        workspace_dir="/tmp/ws",
+        started_at="2026-04-23T00:00:00",
+        proc_id="proc-1",
+        status="running",
+    )
+    app._bgcmd_slots = [
+        (1, BackgroundCommandInfo(**{**info.__dict__, "status": "pending"}))
+    ]
+
     with (
         patch(
             "sase.ace.tui.actions.axe_display._loader_refresh.get_slot_info",
-            return_value=None,
+            return_value=info,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.is_slot_running",
-            return_value=True,
-        ),
-        patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_slot_output_tail",
+            "sase.ace.tui.actions.axe_display._loader_refresh.read_info_output_tail",
             return_value="refreshed\n",
         ),
     ):
@@ -170,7 +183,41 @@ async def test_targeted_refresh_updates_selected_bgcmd_slot() -> None:
     snap = app._axe_bgcmd_details[1]
     assert snap.running is True
     assert snap.output_tail == "refreshed\n"
+    # The cached slot list picks up the fresh row (e.g. a recorded exit code).
+    assert app._bgcmd_slots == [(1, info)]
     assert app._refreshed == 1
+
+
+@pytest.mark.asyncio
+async def test_targeted_refresh_skips_dismissed_bgcmd_slot() -> None:
+    """A slot whose dismissal is still being persisted is not resurrected."""
+    app = FakeAxeApp()
+    app.current_idx = 1  # BgCmdItem(slot=1)
+    info = BackgroundCommandInfo(
+        command="sleep 1",
+        project="proj",
+        workspace_num=1,
+        workspace_dir="/tmp/ws",
+        started_at="2026-04-23T00:00:00",
+        proc_id="proc-1",
+        status="success",
+    )
+    app._bgcmd_dismissed = {"proc-1"}
+    before = dict(app._axe_bgcmd_details)
+
+    with (
+        patch(
+            "sase.ace.tui.actions.axe_display._loader_refresh.get_slot_info",
+            return_value=info,
+        ),
+        patch(
+            "sase.ace.tui.actions.axe_display._loader_refresh.read_info_output_tail",
+            return_value="x\n",
+        ),
+    ):
+        await app._refresh_selected_axe_item_async()
+
+    assert app._axe_bgcmd_details == before
 
 
 @pytest.mark.asyncio

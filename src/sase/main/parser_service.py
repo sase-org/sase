@@ -160,8 +160,12 @@ def _add_service_proc_parser(service_sub: argparse._SubParsersAction) -> None:
         description=(
             "Submit a transient oneshot service proc through the durable proc "
             "service. It is not named, is not added to daemon desired state, and "
-            "the service host never replays it after restart. Everything after "
-            "`--` is the command to run."
+            "the service host never replays it after restart. It runs outside "
+            "the service host's process tree, records its exit code, and shows "
+            "in the Services tab's oneshots section under a #1-#9 index (at "
+            "most nine can be running at once; finished ones never count). "
+            "The TUI's `!!` background commands use this same path. Everything "
+            "after `--` is the command to run."
         ),
     )
     run_parser.add_argument(

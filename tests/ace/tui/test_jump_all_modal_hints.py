@@ -184,7 +184,7 @@ async def test_jump_all_modal_ctrl_u_scrolls_up_without_dismissing() -> None:
         assert result == "pending"
 
 
-def test_jump_all_modal_bgcmd_entry_includes_command(tmp_path: Path) -> None:
+def test_jump_all_modal_bgcmd_entry_includes_command() -> None:
     info = BackgroundCommandInfo(
         command="rabbit test -c opt",
         project="myproject",
@@ -192,30 +192,24 @@ def test_jump_all_modal_bgcmd_entry_includes_command(tmp_path: Path) -> None:
         workspace_dir="/tmp/ws1",
         started_at="2026-01-01T12:00:00",
     )
-    slot_dir = tmp_path / "2"
-    slot_dir.mkdir(parents=True)
-    (slot_dir / "info.json").write_text(json.dumps(asdict(info)))
 
-    with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", tmp_path):
-        modal = JumpAllModal(
-            patches=[],
-            agents=[],
-            axe_items=[BgCmdItem(slot=2)],
-        )
+    modal = JumpAllModal(
+        patches=[],
+        agents=[],
+        axe_items=[BgCmdItem(slot=2)],
+        bgcmd_slots=[(2, info)],
+    )
 
     assert len(modal._entries) == 1
     assert modal._entries[0].name == "bgcmd #2: rabbit test -c opt"
 
 
-def test_jump_all_modal_bgcmd_entry_falls_back_without_info(
-    tmp_path: Path,
-) -> None:
-    with patch("sase.ace.tui.bgcmd.BGCMD_STATE_DIR", tmp_path):
-        modal = JumpAllModal(
-            patches=[],
-            agents=[],
-            axe_items=[BgCmdItem(slot=3)],
-        )
+def test_jump_all_modal_bgcmd_entry_falls_back_without_info() -> None:
+    modal = JumpAllModal(
+        patches=[],
+        agents=[],
+        axe_items=[BgCmdItem(slot=3)],
+    )
 
     assert len(modal._entries) == 1
     assert modal._entries[0].name == "bgcmd #3"

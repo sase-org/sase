@@ -1403,8 +1403,9 @@ views:
   suppressed until the run finalizes. Active `running` and `launched` runs continue
   following the output tail, while selecting a terminal run leaves the RESULT card at
   the top of the scroll region.
-- **Background command output** — the existing live output stream for the focused `!!`
-  row.
+- **Background command output** — the live output stream of the focused `!!` oneshot row
+  (its durable proc log), with the recorded exit code in the status line once it
+  finishes.
 
 A job whose run blocked its routine's tick for at least the routine's `interval` is
 marked **overrun** — amber `⚠` with a `2.4×`-style ratio of blocking time to interval.

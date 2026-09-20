@@ -52,6 +52,12 @@ def init_late_startup_state(
     self._axe_chop_selection = None
     self._axe_service_selection = None
     self._bgcmd_slots = []
+    # ``#n`` indices reserved by launches still in flight (slot -> monotonic
+    # deadline), dismissals not yet persisted (identities), and the slot the
+    # next Services refresh should focus once its oneshot row lands.
+    self._bgcmd_pending_slots = {}
+    self._bgcmd_dismissed = set()
+    self._bgcmd_focus_slot = None
 
     # Axe navigation caches: populated by the async collector so that
     # Ctrl+N / Ctrl+P render without touching disk. Empty until the

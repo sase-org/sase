@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from ...bgcmd import get_slot_info, is_slot_running
 from ...widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem, ServiceProcItem
 from ._loaders import AxeDisplayLoadersMixin
 
@@ -216,9 +215,9 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                     )
             else:
                 # Showing a bgcmd view — paint from cache when available. On a
-                # cold miss we fall back to the quick non-I/O reads (info +
-                # running) so the header still renders; the Logs tab shows an
-                # empty string until the async collector lands.
+                # cold miss we fall back to the cached slot list (no I/O) so
+                # the header still renders; the Logs tab shows an empty string
+                # until the async collector lands.
                 slot = self._axe_current_view
                 bg_snap = self._axe_bgcmd_details.get(slot)
                 if bg_snap is not None:
@@ -226,8 +225,8 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                     running = bg_snap.running
                     output = bg_snap.output_tail
                 else:
-                    info = get_slot_info(slot)
-                    running = is_slot_running(slot)
+                    info = dict(self._bgcmd_slots).get(slot)
+                    running = info is not None and info.running
                     output = ""
 
                 axe_info.update_bgcmd_status(slot, info, running)
@@ -264,7 +263,10 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                         if sel_snapshot is not None:
                             selected_slot_done = not sel_snapshot.running
                         else:
-                            selected_slot_done = not is_slot_running(sel_item.slot)
+                            sel_info = dict(self._bgcmd_slots).get(sel_item.slot)
+                            selected_slot_done = (
+                                sel_info is None or not sel_info.running
+                            )
                 chop_run_total = 0
                 chop_selected = self._axe_chop_selection is not None
                 service_selected = self._axe_service_selection is not None
@@ -433,8 +435,8 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                     info = snapshot.info
                     running = snapshot.running
                 else:
-                    info = get_slot_info(slot)
-                    running = is_slot_running(slot)
+                    info = dict(self._bgcmd_slots).get(slot)
+                    running = info is not None and info.running
                 axe_info.update_bgcmd_status(slot, info, running)
             axe_info.update_countdown(self._countdown_remaining, self.refresh_interval)
 

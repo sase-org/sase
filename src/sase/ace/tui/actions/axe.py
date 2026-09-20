@@ -356,7 +356,20 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
                     severity="warning",
                 )
             case BgCmdItem(slot=slot):
-                clear_slot_output(slot)
+                info = dict(self._bgcmd_slots).get(slot)
+                if info is None:
+                    return
+                if getattr(self, "_axe_bgcmd_details", None):
+                    snap = self._axe_bgcmd_details.get(slot)
+                    if snap is not None:
+                        snap.output_tail = ""
+                self.run_worker(  # type: ignore[attr-defined]
+                    lambda: clear_slot_output(slot, info),
+                    thread=True,
+                    exclusive=False,
+                    exit_on_error=False,
+                    group="bgcmd-clear-output",
+                )
                 self._refresh_axe_display()
                 self.notify("Output cleared")  # type: ignore[attr-defined]
 

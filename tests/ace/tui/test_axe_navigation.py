@@ -57,6 +57,9 @@ class FakeAxeApp(AxeDisplayMixin):
         self._axe_cmds_hidden = False
         self._axe_current_view = "axe"
         self._bgcmd_slots = []
+        self._bgcmd_pending_slots = {}
+        self._bgcmd_dismissed = set()
+        self._bgcmd_focus_slot = None
         self._axe_lumberjack_names = ["hooks", "checks"]
         self._axe_lumberjack_idx = 0
         self._axe_items = [
@@ -253,17 +256,15 @@ def test_navigation_does_not_read_from_disk() -> None:
             _boom,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_slot_output_tail",
+            "sase.ace.tui.actions.axe_display._loader_refresh.read_info_output_tail",
             _boom,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._render.get_slot_info",
+            "sase.ace.tui.actions.axe_display._loader_refresh.get_slot_info",
             side_effect=_boom,
         ),
-        patch(
-            "sase.ace.tui.actions.axe_display._render.is_slot_running",
-            side_effect=_boom,
-        ),
+        patch("sase.ace.tui.bgcmd.read_bgcmd_slots", side_effect=_boom),
+        patch("sase.ace.tui.bgcmd.read_slot_output_tail", side_effect=_boom),
         # Chop run-history readers must never fire on navigation either.
         patch("sase.ace.tui.actions.axe_display._data.read_chop_run_index", _boom),
         patch("sase.ace.tui.actions.axe_display._data.read_chop_run", _boom),

@@ -205,8 +205,8 @@ def test_axe_collect_span_carries_file_opens(
             return_value="",
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._data.get_active_slots",
-            return_value=[],
+            "sase.ace.tui.actions.axe_display._data.read_bgcmd_slots",
+            return_value={},
         ),
         patch(
             "sase.axe.config.load_axe_config",

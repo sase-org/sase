@@ -198,10 +198,9 @@ def test_extract_context_axe_tab_done_bgcmd_marks_done() -> None:
         tab="axe",
         axe_items=[item],
         current_idx=0,
-        bgcmd_slots=[(2, SimpleNamespace())],
+        bgcmd_slots=[(2, SimpleNamespace(running=False))],
     )
-    with patch("sase.ace.tui.bgcmd.is_slot_running", return_value=False):
-        ctx = extract_command_context(app)  # type: ignore[arg-type]
+    ctx = extract_command_context(app)  # type: ignore[arg-type]
     assert ctx.selected_axe_slot_done is True
     assert ctx.selected_axe_slot_running is False
 
@@ -212,10 +211,9 @@ def test_extract_context_axe_tab_running_bgcmd_marks_running() -> None:
         tab="axe",
         axe_items=[item],
         current_idx=0,
-        bgcmd_slots=[(3, SimpleNamespace())],
+        bgcmd_slots=[(3, SimpleNamespace(running=True))],
     )
-    with patch("sase.ace.tui.bgcmd.is_slot_running", return_value=True):
-        ctx = extract_command_context(app)  # type: ignore[arg-type]
+    ctx = extract_command_context(app)  # type: ignore[arg-type]
     assert ctx.selected_axe_slot_done is False
     assert ctx.selected_axe_slot_running is True
 

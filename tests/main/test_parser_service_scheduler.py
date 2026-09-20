@@ -138,7 +138,10 @@ def test_service_proc_run_submits_transient_oneshot_metadata(
         captured["request"] = request
         return _Proc()
 
-    monkeypatch.setattr("sase.main.service_handler.submit_proc_request", fake_submit)
+    # ``proc run`` and the TUI's ``!`` share ``submit_oneshot``, which picks the
+    # ``#n`` index from the store and then submits the detached proc request.
+    monkeypatch.setattr("sase.procs.oneshot.submit_proc_request", fake_submit)
+    monkeypatch.setattr("sase.procs.oneshot._choose_store_slot", lambda: 4)
     args = parse_sase_args(
         [
             "service",
@@ -171,6 +174,8 @@ def test_service_proc_run_submits_transient_oneshot_metadata(
     assert request.service.name is None
     assert request.service.mode == SERVICE_PROC_MODE_ONESHOT
     assert request.service.source == SERVICE_PROC_SOURCE_TRANSIENT
+    assert list(request.concurrency_keys) == ["bgcmd-slot:4"]
+    assert list(request.argv) == ["true"]
     assert capsys.readouterr().out == "svc123456789\n"
 
 

@@ -37,11 +37,8 @@ from sase.feature_flags import FeatureFlag, current_flags
 
 from ...bgcmd import (
     BackgroundCommandInfo,
-    get_active_slots,
-    get_slot_info,
-    is_slot_running,
-    mark_slot_finished,
-    read_slot_output_tail,
+    read_bgcmd_slots,
+    read_info_output_tail,
 )
 from ...util.trace import trace_event, tui_trace
 from ._read_cache import AxeCollectorStats, AxeStatusReadCache
@@ -544,28 +541,21 @@ def _collect_axe_status_data_impl(
             else frozenset(tail_chop_keys)
         )
 
-    # Load bgcmd state
-    active_slots = get_active_slots()
-    bgcmd_slots: list[tuple[int, BackgroundCommandInfo]] = []
-    bgcmd_details: dict[int, BgCmdSnapshot] = {}
-    for slot in active_slots:
-        info = get_slot_info(slot)
-        if info is not None:
-            running = is_slot_running(slot)
-            if not running and info.finished_at is None:
-                mark_slot_finished(slot)
-                info = get_slot_info(slot)
-            if info is not None:
-                bgcmd_slots.append((slot, info))
-                bgcmd_details[slot] = BgCmdSnapshot(
-                    info=info,
-                    running=running,
-                    output_tail=(
-                        read_slot_output_tail(slot, 500)
-                        if include_full_snapshots
-                        else ""
-                    ),
-                )
+    # Load bgcmd state: oneshot rows from the proc store (plus legacy slot
+    # directories while ``bgcmd_legacy_slots`` is on), one store read total.
+    bgcmd_slots: list[tuple[int, BackgroundCommandInfo]] = sorted(
+        read_bgcmd_slots().items()
+    )
+    bgcmd_details: dict[int, BgCmdSnapshot] = {
+        slot: BgCmdSnapshot(
+            info=info,
+            running=info.running,
+            output_tail=(
+                read_info_output_tail(slot, info, 500) if include_full_snapshots else ""
+            ),
+        )
+        for slot, info in bgcmd_slots
+    }
 
     stats = read_cache.snapshot_stats()
     trace_event(
