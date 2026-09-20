@@ -238,7 +238,7 @@ def test_remote_clone_waits_for_host_clone_permit(
 
     monkeypatch.setenv("SASE_SDD_REMOTE_CLONE_CONCURRENCY", "1")
     monkeypatch.setattr(
-        "sase.sdd._store_clone_admission.remote_clone_lock_dir",
+        "sase.sdd._store_clone_admission._remote_clone_lock_dir",
         lambda: lock_dir,
     )
     monkeypatch.setattr("sase.sdd._commit.run_sdd_git", successful_clone)
@@ -279,7 +279,7 @@ def test_remote_clone_permit_wait_respects_deadline(
 
     monkeypatch.setenv("SASE_SDD_REMOTE_CLONE_CONCURRENCY", "1")
     monkeypatch.setattr(
-        "sase.sdd._store_clone_admission.remote_clone_lock_dir",
+        "sase.sdd._store_clone_admission._remote_clone_lock_dir",
         lambda: lock_dir,
     )
     monkeypatch.setattr(
@@ -317,7 +317,7 @@ def test_local_clone_bypasses_host_remote_clone_permit(
         )
 
     monkeypatch.setattr(
-        "sase.sdd._store_clone_admission.remote_clone_lock_dir",
+        "sase.sdd._store_clone_admission._remote_clone_lock_dir",
         lambda: pytest.fail("local clone tried to enter remote clone pool"),
     )
     monkeypatch.setattr("sase.sdd._commit.run_sdd_git", successful_clone)
@@ -565,7 +565,7 @@ def test_sidecar_clone_timeout_retries_without_reference_and_cleans_partial(
         )
 
     monkeypatch.setattr(
-        "sase.sdd._store_clone_remote.matching_clone_reference",
+        "sase.sdd._store_clone_remote._matching_clone_reference",
         lambda _reference_repo, _remote_url: reference,
     )
     monkeypatch.setattr("sase.sdd._commit.run_sdd_git", timeout_then_success)
@@ -655,7 +655,7 @@ def test_sidecar_clone_passes_attempt_telemetry_to_git_runner(
         )
 
     monkeypatch.setattr(
-        "sase.sdd._store_clone_remote.matching_clone_reference",
+        "sase.sdd._store_clone_remote._matching_clone_reference",
         lambda _reference_repo, _remote_url: reference,
     )
     monkeypatch.setattr("sase.sdd._commit.run_sdd_git", fail_then_success)
@@ -755,7 +755,7 @@ def test_sidecar_clone_timeout_reference_fallback_then_retry_schedule_is_bounded
         raise SddGitCommandTimeout("injected timeout")
 
     monkeypatch.setattr(
-        "sase.sdd._store_clone_remote.matching_clone_reference",
+        "sase.sdd._store_clone_remote._matching_clone_reference",
         lambda _reference_repo, _remote_url: reference,
     )
     monkeypatch.setattr("sase.sdd._commit.run_sdd_git", timeout_clone)
@@ -830,7 +830,7 @@ def test_sidecar_clone_checkout_failure_retries_without_reference(
         )
 
     monkeypatch.setattr(
-        "sase.sdd._store_clone_remote.matching_clone_reference",
+        "sase.sdd._store_clone_remote._matching_clone_reference",
         lambda _reference_repo, _remote_url: reference,
     )
     monkeypatch.setattr("sase.sdd._commit.run_sdd_git", checkout_failure_then_success)
@@ -880,7 +880,7 @@ def test_sidecar_clone_reference_fallback_is_capped(
         )
 
     monkeypatch.setattr(
-        "sase.sdd._store_clone_remote.matching_clone_reference",
+        "sase.sdd._store_clone_remote._matching_clone_reference",
         lambda _reference_repo, _remote_url: reference,
     )
     monkeypatch.setattr("sase.sdd._commit.run_sdd_git", always_fail)

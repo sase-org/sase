@@ -48,7 +48,7 @@ def remote_clone_admission(
 ) -> Iterator[None]:
     permit: _RemoteClonePermit | None = None
     if parse_hosted_git_remote(remote_url) is not None:
-        permit = acquire_remote_clone_permit(
+        permit = _acquire_remote_clone_permit(
             remote_url,
             workspace_sdd,
             deadline=deadline,
@@ -60,7 +60,7 @@ def remote_clone_admission(
             permit.close()
 
 
-def configured_remote_clone_concurrency() -> int:
+def _configured_remote_clone_concurrency() -> int:
     """Return the host-wide remote clone concurrency bound."""
 
     raw = os.environ.get(ENV_REMOTE_CLONE_CONCURRENCY)
@@ -73,7 +73,7 @@ def configured_remote_clone_concurrency() -> int:
     return value if value > 0 else DEFAULT_REMOTE_CLONE_CONCURRENCY
 
 
-def remote_clone_lock_dir() -> Path | None:
+def _remote_clone_lock_dir() -> Path | None:
     try:
         from sase.core.paths import get_sase_managed_tmpdir
 
@@ -87,20 +87,20 @@ def remote_clone_lock_dir() -> Path | None:
         return None
 
 
-def acquire_remote_clone_permit(
+def _acquire_remote_clone_permit(
     remote_url: str,
     workspace_sdd: Path,
     *,
     deadline: float | None,
 ) -> _RemoteClonePermit | None:
-    lock_dir = remote_clone_lock_dir()
+    lock_dir = _remote_clone_lock_dir()
     if lock_dir is None:
         return None
 
-    limit = configured_remote_clone_concurrency()
+    limit = _configured_remote_clone_concurrency()
     while True:
         for index in range(limit):
-            permit = try_remote_clone_permit(lock_dir / f"slot-{index}.lock")
+            permit = _try_remote_clone_permit(lock_dir / f"slot-{index}.lock")
             if permit is not None:
                 return permit
 
@@ -113,7 +113,7 @@ def acquire_remote_clone_permit(
         time.sleep(_REMOTE_CLONE_ADMISSION_POLL_SECONDS)
 
 
-def try_remote_clone_permit(path: Path) -> _RemoteClonePermit | None:
+def _try_remote_clone_permit(path: Path) -> _RemoteClonePermit | None:
     fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)

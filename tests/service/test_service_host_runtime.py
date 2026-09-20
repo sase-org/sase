@@ -316,7 +316,7 @@ def test_entry_argv_leaves_shell_string_form_alone(
 
 def test_entry_argv_leaves_builtin_scheduler_unresolved(monkeypatch) -> None:
     monkeypatch.setattr(
-        "sase.service.host_support.sase_command", lambda: ("/opt/bin/sase",)
+        "sase.service.host_support._sase_command", lambda: ("/opt/bin/sase",)
     )
     entry = _service_entry(
         name="scheduler",

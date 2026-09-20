@@ -58,13 +58,13 @@ def clone_sdd_store_to_path(
 
     clone_env = os.environ.copy()
     clone_env["GIT_TERMINAL_PROMPT"] = "0"
-    reference = matching_clone_reference(reference_repo, remote_url)
-    clone_args = remote_clone_args(remote_url, workspace_sdd, reference=reference)
+    reference = _matching_clone_reference(reference_repo, remote_url)
+    clone_args = _remote_clone_args(remote_url, workspace_sdd, reference=reference)
     retries_without_reference = 0
     max_attempts = len(_REMOTE_CLONE_RETRY_DELAYS) + 1
     base_timeout = network_git_timeout()
     for attempt in range(max_attempts):
-        attempt_telemetry = clone_attempt_telemetry(
+        attempt_telemetry = _clone_attempt_telemetry(
             telemetry_sdd,
             remote_url=remote_url,
             attempt=attempt,
@@ -72,7 +72,7 @@ def clone_sdd_store_to_path(
             reference=reference,
             clone_path=workspace_sdd,
         )
-        timeout = clone_attempt_timeout(base_timeout, attempt, deadline)
+        timeout = _clone_attempt_timeout(base_timeout, attempt, deadline)
         if timeout <= 0.0:
             return handle_failed_sdd_clone(
                 telemetry_sdd,
@@ -112,7 +112,7 @@ def clone_sdd_store_to_path(
                 cleanup_path=workspace_sdd,
             )
         except SddGitCommandTimeout as exc:
-            if can_retry_without_reference(
+            if _can_retry_without_reference(
                 reference, retries_without_reference, attempt
             ):
                 remove_partial_sdd_clone(workspace_sdd)
@@ -125,7 +125,7 @@ def clone_sdd_store_to_path(
                     reference,
                 )
                 reference = None
-                clone_args = remote_clone_args(
+                clone_args = _remote_clone_args(
                     remote_url, workspace_sdd, reference=None
                 )
                 continue
@@ -173,7 +173,7 @@ def clone_sdd_store_to_path(
             return True
 
         detail = (result.stderr or result.stdout or "").strip()
-        if can_retry_without_reference(reference, retries_without_reference, attempt):
+        if _can_retry_without_reference(reference, retries_without_reference, attempt):
             remove_partial_sdd_clone(workspace_sdd)
             retries_without_reference += 1
             _logger.warning(
@@ -185,7 +185,7 @@ def clone_sdd_store_to_path(
                 detail or f"git clone exited {result.returncode}",
             )
             reference = None
-            clone_args = remote_clone_args(remote_url, workspace_sdd, reference=None)
+            clone_args = _remote_clone_args(remote_url, workspace_sdd, reference=None)
             continue
         transient = is_transient_remote_clone_failure(detail)
         if not transient or attempt >= len(_REMOTE_CLONE_RETRY_DELAYS):
@@ -221,7 +221,7 @@ def clone_sdd_store_to_path(
     raise AssertionError("remote clone retry loop did not return")
 
 
-def remote_clone_args(
+def _remote_clone_args(
     remote_url: str, workspace_sdd: Path, *, reference: Path | None
 ) -> list[str]:
     clone_args = ["clone"]
@@ -231,7 +231,7 @@ def remote_clone_args(
     return clone_args
 
 
-def clone_attempt_telemetry(
+def _clone_attempt_telemetry(
     workspace_sdd: Path,
     *,
     remote_url: str,
@@ -254,7 +254,7 @@ def clone_attempt_telemetry(
     return telemetry
 
 
-def matching_clone_reference(
+def _matching_clone_reference(
     reference_repo: Path | None, remote_url: str
 ) -> Path | None:
     """Return a valid matching object reference without trusting its refs."""
@@ -274,14 +274,14 @@ def is_transient_remote_clone_failure(detail: str) -> bool:
     return is_retryable_git_clone_failure(detail)
 
 
-def clone_attempt_timeout(
+def _clone_attempt_timeout(
     base_timeout: float, attempt: int, deadline: float | None
 ) -> float:
     timeout = max(0.0, base_timeout) * (1.0 + attempt * _REMOTE_CLONE_TIMEOUT_GROWTH)
     return deadline_timeout(timeout, deadline)
 
 
-def can_retry_without_reference(
+def _can_retry_without_reference(
     reference: Path | None, retries_without_reference: int, attempt: int
 ) -> bool:
     return (

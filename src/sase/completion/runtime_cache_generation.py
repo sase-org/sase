@@ -81,7 +81,7 @@ def commit_generation(
             raise
     except Exception as exc:
         remove_tree(staging)
-        if coherent(directory, shell):
+        if _coherent(directory, shell):
             remove_tree(backup)
         if isinstance(exc, CompletionCacheError):
             raise
@@ -127,7 +127,7 @@ def _stage(
         owner=owner,
         now=now,
     )
-    if not coherent(staging, shell):
+    if not _coherent(staging, shell):
         raise CompletionCacheError("staged completion generation is not coherent")
     data = json.loads((staging / "manifest.json").read_text(encoding="utf-8"))
     if Path(str(data.get("grammar_path"))) != grammar.resolve(strict=False):
@@ -164,7 +164,7 @@ def current_manifest(grammar: Path, shell: str, key: str, fingerprint: str) -> b
             data.get("grammar_path") is None
             or Path(str(data["grammar_path"])) == grammar.resolve(strict=False)
         )
-        and coherent(grammar.parent, shell)
+        and _coherent(grammar.parent, shell)
     )
 
 
@@ -218,9 +218,9 @@ def recover_interrupted_publish(directory: Path, shell: str) -> None:
         if child.name.startswith(_STAGE_PREFIX):
             remove_tree(child)
     backup = directory / _BACKUP_NAME
-    if coherent(directory, shell):
+    if _coherent(directory, shell):
         remove_tree(backup)
-    elif backup.is_dir() and coherent(backup, shell):
+    elif backup.is_dir() and _coherent(backup, shell):
         _restore(backup, directory)
         remove_tree(backup)
     else:
@@ -228,7 +228,7 @@ def recover_interrupted_publish(directory: Path, shell: str) -> None:
         _remove_generation_files(directory, shell)
 
 
-def coherent(directory: Path, shell: str) -> bool:
+def _coherent(directory: Path, shell: str) -> bool:
     grammar = directory / grammar_filename(shell)
     try:
         data = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
@@ -248,7 +248,7 @@ def coherent(directory: Path, shell: str) -> bool:
 
 def _backup(directory: Path, backup: Path, shell: str) -> bool:
     remove_tree(backup)
-    if not coherent(directory, shell):
+    if not _coherent(directory, shell):
         return False
     backup.mkdir(parents=True)
     for path in _generation_paths(directory, shell):

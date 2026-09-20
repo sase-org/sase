@@ -33,8 +33,8 @@ def capacity_record_from_agent(
     clan_containers: dict[tuple[str | None, str | None], Agent] | None = None,
 ) -> dict[str, Any]:
     artifacts_dir = capacity_artifact_dir(agent)
-    parsed = parsed_artifact_path(agent, parsed_artifact_paths)
-    membership = tui_hold_membership_tribes(agent, clan_containers or {})
+    parsed = _parsed_artifact_path(agent, parsed_artifact_paths)
+    membership = _tui_hold_membership_tribes(agent, clan_containers or {})
     from sase.core.agent_hold_identity import primary_hold_tribe
 
     container = (clan_containers or {}).get(
@@ -48,8 +48,8 @@ def capacity_record_from_agent(
     return {
         "artifact_dir": artifacts_dir,
         "project_name": project_name(agent, parsed),
-        "workflow_dir_name": workflow_dir_name(agent, parsed),
-        "timestamp": capacity_timestamp(agent),
+        "workflow_dir_name": _workflow_dir_name(agent, parsed),
+        "timestamp": _capacity_timestamp(agent),
         "agent_name": agent.agent_name,
         "workflow": agent.workflow,
         "clan": agent.agent_clan,
@@ -57,22 +57,22 @@ def capacity_record_from_agent(
             membership, preferred=(agent.tribe, effective_clan)
         ),
         "tribes": list(membership),
-        "created_at": candidate_created_at_from_timestamp(capacity_timestamp(agent)),
+        "created_at": candidate_created_at_from_timestamp(_capacity_timestamp(agent)),
         "has_agent_meta": not (agent.is_clan_container or agent.is_proc_shell),
         "has_done_marker": agent.stop_time is not None
         or agent.status in {"DONE", "FAILED", "FAILED (RETRIED)"},
-        "appears_as_agent": appears_as_agent(agent),
-        "live": capacity_record_is_live(agent),
+        "appears_as_agent": _appears_as_agent(agent),
+        "live": _capacity_record_is_live(agent),
         "pending_question": agent.runner_slot_yielded,
         "pid": agent.pid,
-        "run_started_at": capacity_run_started_at(agent),
+        "run_started_at": _capacity_run_started_at(agent),
         "parent_timestamp": agent.parent_timestamp,
-        "agent_family": capacity_agent_family(agent),
+        "agent_family": _capacity_agent_family(agent),
         "agent_family_role": agent.agent_family_role,
         "agent_family_parallel": agent.agent_family_parallel,
-        "family_shell_kind": family_shell_kind(agent),
-        "family_shell_id": family_shell_id(agent),
-        "family_shell_state": family_shell_state(agent),
+        "family_shell_kind": _family_shell_kind(agent),
+        "family_shell_id": _family_shell_id(agent),
+        "family_shell_state": _family_shell_state(agent),
         "queue_weight": None
         if agent.queue_weight_invalid
         else finite_float(agent.queue_weight),
@@ -94,7 +94,7 @@ def capacity_record_from_agent(
     }
 
 
-def tui_hold_membership_tribes(
+def _tui_hold_membership_tribes(
     agent: Agent,
     clan_containers: dict[tuple[str | None, str | None], Agent],
 ) -> tuple[str, ...]:
@@ -117,7 +117,7 @@ def capacity_artifact_dir(agent: Agent) -> str:
     return f"memory://{agent_type.value}/{cl_name}/{suffix}"
 
 
-def parsed_artifact_path(
+def _parsed_artifact_path(
     agent: Agent, parsed_artifact_paths: dict[str, Any]
 ) -> Any | None:
     """Parse *agent*'s real artifact dir at most once per caching pass."""
@@ -149,7 +149,7 @@ def project_name(agent: Agent, parsed: Any | None) -> str:
     return ""
 
 
-def workflow_dir_name(agent: Agent, parsed: Any | None) -> str:
+def _workflow_dir_name(agent: Agent, parsed: Any | None) -> str:
     if parsed is not None:
         return parsed.workflow_dir_name
     if agent.artifacts_dir:
@@ -161,7 +161,7 @@ def workflow_dir_name(agent: Agent, parsed: Any | None) -> str:
     return "ace-run" if is_ace_run_root(agent) or agent.is_child_row else ""
 
 
-def capacity_timestamp(agent: Agent) -> str:
+def _capacity_timestamp(agent: Agent) -> str:
     if agent.raw_suffix:
         return agent.raw_suffix
     if agent.artifacts_dir:
@@ -169,17 +169,17 @@ def capacity_timestamp(agent: Agent) -> str:
     return agent.cl_name
 
 
-def appears_as_agent(agent: Agent) -> bool:
+def _appears_as_agent(agent: Agent) -> bool:
     return not (agent.is_clan_container or agent.is_proc_shell) and (
         agent.appears_as_agent or is_ace_run_root(agent) or agent.is_child_row
     )
 
 
-def capacity_record_is_live(agent: Agent) -> bool:
+def _capacity_record_is_live(agent: Agent) -> bool:
     return bool(agent.runner_is_live or agent.pid is not None)
 
 
-def capacity_run_started_at(agent: Agent) -> str | None:
+def _capacity_run_started_at(agent: Agent) -> str | None:
     if agent.run_start_time is not None:
         return agent.run_start_time.isoformat()
     if agent.pid is not None and agent_lane_bucket_counts_as_running(agent):
@@ -187,7 +187,7 @@ def capacity_run_started_at(agent: Agent) -> str | None:
     return None
 
 
-def capacity_agent_family(agent: Agent) -> str | None:
+def _capacity_agent_family(agent: Agent) -> str | None:
     if agent.agent_family:
         return agent.agent_family
     return (
@@ -197,19 +197,19 @@ def capacity_agent_family(agent: Agent) -> str | None:
     )
 
 
-def family_shell_kind(agent: Agent) -> str | None:
+def _family_shell_kind(agent: Agent) -> str | None:
     if agent.is_gate:
         return "gate"
     return "monitor" if agent.is_monitor else None
 
 
-def family_shell_id(agent: Agent) -> str | None:
+def _family_shell_id(agent: Agent) -> str | None:
     if agent.is_gate:
         return agent.gate_id
     return agent.monitor_id if agent.is_monitor else None
 
 
-def family_shell_state(agent: Agent) -> str | None:
+def _family_shell_state(agent: Agent) -> str | None:
     if agent.is_gate:
         return agent.gate_state
     return agent.monitor_state if agent.is_monitor else None
@@ -309,13 +309,13 @@ def is_ace_run_root(agent: Agent) -> bool:
     return workflow == "ace-run" or workflow.startswith("ace(run)")
 
 
-def participates_in_runner_slots(agent: Agent) -> bool:
+def _participates_in_runner_slots(agent: Agent) -> bool:
     return is_ace_run_root(agent) or agent.is_family_member_child
 
 
 def is_live_slot_waiter(agent: Agent) -> bool:
     return (
-        participates_in_runner_slots(agent)
+        _participates_in_runner_slots(agent)
         and agent.pid is not None
         and bool(agent.slot_requested_at)
         and agent.status in PRE_RUN_WAIT_STATUSES

@@ -35,7 +35,7 @@ def write_current_host_status(
     """Write a snapshot from a host's current private runtime records."""
     composition = load_service_config() if config is None else config
     state_snapshot = read_service_state() if state is None else state
-    write_host_status(
+    _write_host_status(
         composition,
         state_snapshot,
         boot_id=host._boot_id,  # type: ignore[attr-defined]
@@ -48,7 +48,7 @@ def write_current_host_status(
     )
 
 
-def write_host_status(
+def _write_host_status(
     composition: ServiceConfigComposition,
     state_snapshot: ServiceStateSnapshot,
     *,
@@ -61,7 +61,7 @@ def write_host_status(
     restart_decisions: Mapping[str, ServiceRestartDecision],
 ) -> None:
     observations = [
-        observation(name, running, last_exits, restart_decisions)
+        _observation(name, running, last_exits, restart_decisions)
         for name, running in children.items()
     ]
     for name, pending in pending_restarts.items():
@@ -97,7 +97,7 @@ def write_host_status(
     write_service_status(snapshot)
 
 
-def observation(
+def _observation(
     name: str,
     running: RunningProc,
     last_exits: Mapping[str, ServiceProcLastExit],

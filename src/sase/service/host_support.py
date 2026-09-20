@@ -33,9 +33,9 @@ def entry_launch(entry: ServiceProcConfig) -> ResolvedLauncherArgv:
         return ResolvedLauncherArgv(())
     if launcher.kind == "builtin":
         if launcher.builtin == "scheduler":
-            return ResolvedLauncherArgv((*sase_command(), "scheduler", "run"))
+            return ResolvedLauncherArgv((*_sase_command(), "scheduler", "run"))
         if launcher.builtin == "gateway":
-            return ResolvedLauncherArgv(gateway_builtin_argv())
+            return ResolvedLauncherArgv(_gateway_builtin_argv())
         return ResolvedLauncherArgv(())
     # Popen resolves a bare name against the child's env, so honor a PATH the
     # entry overrides; otherwise this is the host's own PATH.
@@ -54,7 +54,7 @@ def entry_launch(entry: ServiceProcConfig) -> ResolvedLauncherArgv:
     )
 
 
-def gateway_builtin_argv() -> tuple[str, ...]:
+def _gateway_builtin_argv() -> tuple[str, ...]:
     from sase.integrations.mobile_gateway import prepare_mobile_gateway_service_launch
 
     return tuple(prepare_mobile_gateway_service_launch().argv)
@@ -160,7 +160,7 @@ def process_group(pid: int) -> int | None:
         return None
 
 
-def sase_command() -> tuple[str, ...]:
+def _sase_command() -> tuple[str, ...]:
     invoked = Path(sys.argv[0])
     if invoked.name == "sase" and invoked.exists():
         return (str(invoked),)
