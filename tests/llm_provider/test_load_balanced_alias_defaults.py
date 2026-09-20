@@ -18,6 +18,7 @@ from sase.llm_provider.model_alias_policy import (
     XSMALL_MODEL_ALIAS_NAME,
     implicit_alias_targets,
 )
+from sase.xprompt.effort import EFFORT_LEVELS_ORDERED
 from tests._model_alias_defaults_fixture import frozen_selector_member
 from tests.llm_provider._provider_config_helpers import mock_provider_config
 
@@ -78,24 +79,24 @@ def test_size_aliases_use_independent_rotations(
         (
             "@xsmall",
             {
-                "claude/": ("claude/claude-haiku-4-5", None),
-                "codex/": ("codex/gpt-5.6-luna", "low"),
-                "grok/": ("grok/grok-4.6", "low"),
+                "claude/": ("claude/claude-haiku-4-5", "xhigh"),
+                "codex/": ("codex/gpt-5.6-luna", "xhigh"),
+                "agy/": ("agy/gemini-3.8-flash-high", None),
             },
         ),
         (
             "@small",
             {
-                "claude/": ("claude/sonnet", "low"),
-                "codex/": ("codex/gpt-5.6-terra", "low"),
+                "claude/": ("claude/sonnet", "high"),
+                "codex/": ("codex/gpt-5.6-terra", "high"),
                 "grok/": ("grok/grok-4.6", "low"),
             },
         ),
         (
             "@medium",
             {
-                "claude/": ("claude/sonnet", "medium"),
-                "codex/": ("codex/gpt-5.6-terra", "medium"),
+                "claude/": ("claude/sonnet", "xhigh"),
+                "codex/": ("codex/gpt-5.6-terra", "xhigh"),
                 "grok/": ("grok/grok-4.6", "medium"),
             },
         ),
@@ -163,24 +164,71 @@ def test_shipped_large_round_robins_claude_codex_grok(
     assert selected == ["claude/opus", "codex/gpt-5.6-sol", "grok/grok-4.6"]
 
 
-@pytest.mark.parametrize(
-    "alias",
-    [
+def test_shipped_xlarge_round_robins_claude_codex_grok(
+    monkeypatch: pytest.MonkeyPatch,
+    real_model_alias_defaults: None,
+) -> None:
+    selector = parse_model_alias_selector(
+        implicit_alias_targets()[XLARGE_MODEL_ALIAS_NAME]
+    )
+    assert selector is not None
+    assert selector.members == (
+        "claude/opus@xhigh",
+        "codex/gpt-5.6-sol@xhigh",
+        "grok/grok-4.6@xhigh",
+    )
+    assert selector.fallback_members == ()
+
+
+def test_only_shipped_xsmall_has_antigravity_member(
+    real_model_alias_defaults: None,
+) -> None:
+    for alias in (
         XSMALL_MODEL_ALIAS_NAME,
         SMALL_MODEL_ALIAS_NAME,
         MEDIUM_MODEL_ALIAS_NAME,
         LARGE_MODEL_ALIAS_NAME,
         XLARGE_MODEL_ALIAS_NAME,
-    ],
-)
-def test_shipped_size_aliases_have_no_antigravity_member(
+    ):
+        selector = parse_model_alias_selector(implicit_alias_targets()[alias])
+        assert selector is not None
+        agy = [
+            member
+            for member in (*selector.members, *selector.fallback_members)
+            if member.startswith("agy/")
+        ]
+        expected = (
+            ["agy/gemini-3.8-flash-high"] if alias == XSMALL_MODEL_ALIAS_NAME else []
+        )
+        assert agy == expected
+
+
+def test_shipped_size_aliases_follow_the_effort_ladder(
     real_model_alias_defaults: None,
-    alias: str,
 ) -> None:
-    selector = parse_model_alias_selector(implicit_alias_targets()[alias])
-    assert selector is not None
-    members = (*selector.members, *selector.fallback_members)
-    assert not any(member.startswith("agy/") for member in members)
+    seen: dict[str, str] = {}
+    for alias in (
+        XLARGE_MODEL_ALIAS_NAME,
+        LARGE_MODEL_ALIAS_NAME,
+        MEDIUM_MODEL_ALIAS_NAME,
+        SMALL_MODEL_ALIAS_NAME,
+        XSMALL_MODEL_ALIAS_NAME,
+    ):
+        selector = parse_model_alias_selector(implicit_alias_targets()[alias])
+        assert selector is not None
+        for member in (*selector.members, *selector.fallback_members):
+            target, _, effort = member.partition("@")
+            if target.startswith("agy/"):
+                assert effort == ""
+                continue
+            if target not in seen:
+                assert effort == "xhigh", (alias, member)
+            else:
+                expected = EFFORT_LEVELS_ORDERED[
+                    EFFORT_LEVELS_ORDERED.index(seen[target]) - 1
+                ]
+                assert effort == expected, (alias, member)
+            seen[target] = effort
 
 
 @pytest.mark.parametrize(

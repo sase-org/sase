@@ -1434,13 +1434,13 @@ this section covers both. The current shipped size-alias defaults are generated 
 
 <!-- BEGIN GENERATED: model-alias-defaults -->
 
-| Alias     | Description                                                                          | Shipped default                                                              |
-| --------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| `@xsmall` | Extra-small launch alias for lookup, formatting, and tiny edits with obvious checks. | `claude/claude-haiku-4-5 \| codex/gpt-5.6-luna@low \| grok/grok-4.6@low`     |
-| `@small`  | Small launch alias for straightforward task and phase work.                          | `claude/sonnet@low \| codex/gpt-5.6-terra@low \| grok/grok-4.6@low`          |
-| `@medium` | Medium launch alias for ordinary implementation work.                                | `claude/sonnet@medium \| codex/gpt-5.6-terra@medium \| grok/grok-4.6@medium` |
-| `@large`  | Large launch alias for planning-heavy work and default launches.                     | `claude/opus@high \| codex/gpt-5.6-sol@high \| grok/grok-4.6@high`           |
-| `@xlarge` | Extra-large launch alias for maximum-effort work.                                    | `claude/opus@xhigh \| codex/gpt-5.6-sol@xhigh \| grok/grok-4.6@xhigh`        |
+| Alias     | Description                                                                          | Shipped default                                                                          |
+| --------- | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `@xsmall` | Extra-small launch alias for lookup, formatting, and tiny edits with obvious checks. | `claude/claude-haiku-4-5@xhigh \| codex/gpt-5.6-luna@xhigh \| agy/gemini-3.8-flash-high` |
+| `@small`  | Small launch alias for straightforward task and phase work.                          | `claude/sonnet@high \| codex/gpt-5.6-terra@high \| grok/grok-4.6@low`                    |
+| `@medium` | Medium launch alias for ordinary implementation work.                                | `claude/sonnet@xhigh \| codex/gpt-5.6-terra@xhigh \| grok/grok-4.6@medium`               |
+| `@large`  | Large launch alias for planning-heavy work and default launches.                     | `claude/opus@high \| codex/gpt-5.6-sol@high \| grok/grok-4.6@high`                       |
+| `@xlarge` | Extra-large launch alias for maximum-effort work.                                    | `claude/opus@xhigh \| codex/gpt-5.6-sol@xhigh \| grok/grok-4.6@xhigh`                    |
 
 <!-- END GENERATED: model-alias-defaults -->
 

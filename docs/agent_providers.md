@@ -154,7 +154,7 @@ the executable name collides with `grok-dev` (a stale community CLI that also us
 provider explicitly with `llm_provider.provider: grok` or `%model:grok/grok-4.6`; use
 `SASE_GROK_PATH` when you also need to choose the executable. Model-alias routing is
 separate: whenever a `grok` executable is available, the shipped
-`@xsmall`/`@small`/`@medium`/`@large`/`@xlarge` load-balanced pools can select it.
+`@small`/`@medium`/`@large`/`@xlarge` round-robin pools can select it.
 
 Routing availability checks only whether the executable exists; it does not verify that
 the binary is Grok Build. Run `sase doctor` before launching. Its bounded

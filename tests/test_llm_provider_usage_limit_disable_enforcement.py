@@ -18,7 +18,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from sase.llm_provider.model_alias_policy import XSMALL_MODEL_ALIAS_NAME
+from sase.llm_provider.model_alias_policy import SMALL_MODEL_ALIAS_NAME
 from sase.llm_provider.provider_disable import (
     disable_provider,
     get_active_provider_disable,
@@ -269,7 +269,7 @@ class TestHandlePossibleUsageLimit:
         assert result is None
         assert get_active_provider_disable("fakey") is None
 
-    def test_grok_captured_failure_disables_xsmall_pool_member(
+    def test_grok_captured_failure_disables_small_pool_member(
         self,
         monkeypatch: pytest.MonkeyPatch,
         registered_providers: None,
@@ -282,7 +282,7 @@ class TestHandlePossibleUsageLimit:
         )
 
         monkeypatch.setattr(registry, "_provider_cli_available", lambda _provider: True)
-        details = model_alias_selector_details(XSMALL_MODEL_ALIAS_NAME)
+        details = model_alias_selector_details(SMALL_MODEL_ALIAS_NAME)
         assert details is not None
         grok_member = next(
             member for member in details.members if member.provider == "grok"
@@ -301,7 +301,7 @@ class TestHandlePossibleUsageLimit:
         assert disable.source == "usage_limit"
         assert resolved_target_is_available(grok_target) is False
 
-        details = model_alias_selector_details(XSMALL_MODEL_ALIAS_NAME)
+        details = model_alias_selector_details(SMALL_MODEL_ALIAS_NAME)
         assert details is not None
         grok_member = next(
             member for member in details.members if member.target == grok_target

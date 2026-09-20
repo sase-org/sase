@@ -61,10 +61,14 @@ costs, and the condition that would reopen it.
 12. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`)
     - SASE does not build memory retrieval or linking machinery ahead of a corpus that
       demonstrably needs it.
-13. **The Rust Core Is Required** (`rust-core-required`)
+13. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`)
+    - Built-in size aliases run a model at xhigh on its first appearance from @xlarge
+      down and one rung lower on each reappearance; every alias should span more than
+      one provider.
+14. **The Rust Core Is Required** (`rust-core-required`)
     - Shared backend behavior lives in sase-core with no Python fallback and no env-var
       backend switch.
-14. **Verification Is Two-Speed** (`two-speed-verification`)
+15. **Verification Is Two-Speed** (`two-speed-verification`)
     - _[superseded by `check-full-is-explicit`]_ just check is the agent default and
       just check-full gates landing, because host capacity is the constraint, not test
       speed.

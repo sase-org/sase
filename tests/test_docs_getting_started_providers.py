@@ -15,8 +15,8 @@ def test_getting_started_muse_grok_wording_separates_provider_selection() -> Non
 
     assert "never auto-detects `muse` or `grok` from PATH" in text
     assert (
-        "Grok Build can still be reached automatically through the shipped `@xsmall`, "
-        "`@small`, `@medium`, `@large`, and `@xlarge` pools"
+        "Grok Build can still be reached automatically through the shipped `@small`, "
+        "`@medium`, `@large`, and `@xlarge` pools"
     ) in text
     assert "last `@xlarge` fallback" not in text
     assert "explicit-only and never auto-detected" not in text
