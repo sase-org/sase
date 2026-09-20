@@ -149,8 +149,9 @@ def test_epic_gate_capacity_reaches_weighted_admission(
 
     assert phase.wait_runners == 3
     assert land.wait_runners == 3
-    assert land.queue_weight == 2.0
-    assert land.queue_weight_explicit is True
+    assert land.queue_weight is None
+    assert land.queue_weight_explicit is False
+    assert phase.queue_weight is None
     assert phase.queue_weight_explicit is False
 
     light_occupied = [
@@ -187,7 +188,7 @@ def test_epic_gate_capacity_reaches_weighted_admission(
     assert not land_parked
 
     heavy = artifact(
-        tmp_path, "heavy", 200, queue_weight=2.0, queue_weight_explicit=True
+        tmp_path, "heavy", 200, queue_weight=4.0, queue_weight_explicit=True
     )
     blocked, parked = _try_admit(
         tmp_path,
@@ -202,7 +203,7 @@ def test_epic_gate_capacity_reaches_weighted_admission(
     assert parked
 
 
-def test_omitted_capacity_preserves_land_weight_and_global_budget(
+def test_omitted_capacity_uses_default_weight_and_global_budget(
     gate_home: Path, tmp_path: Path
 ) -> None:
     translated_capacity, argv, launch_capacity = _gate_capacity(
@@ -225,8 +226,10 @@ def test_omitted_capacity_preserves_land_weight_and_global_budget(
 
     assert phase.wait_runners is None
     assert land.wait_runners is None
-    assert land.queue_weight == 2.0
-    assert land.queue_weight_explicit is True
+    assert land.queue_weight is None
+    assert land.queue_weight_explicit is False
+    assert phase.queue_weight is None
+    assert phase.queue_weight_explicit is False
 
     occupied = [
         artifact(
@@ -246,8 +249,8 @@ def test_omitted_capacity_preserves_land_weight_and_global_budget(
         queue_weight_explicit=land.queue_weight_explicit,
         global_limit=2,
     )
-    assert land_ok is None
-    assert land_parked
+    assert land_ok == "started"
+    assert not land_parked
 
     phase_ok, phase_parked = _try_admit(
         tmp_path,
@@ -260,3 +263,25 @@ def test_omitted_capacity_preserves_land_weight_and_global_budget(
     )
     assert phase_ok == "started"
     assert not phase_parked
+
+    full = [
+        artifact(
+            tmp_path,
+            f"full{index}",
+            110 + index,
+            queue_weight=0.5,
+            queue_weight_explicit=True,
+        )
+        for index in range(3)
+    ]
+    land_full_ok, land_full_parked = _try_admit(
+        tmp_path,
+        full,
+        name="land-full",
+        capacity=land.wait_runners,
+        queue_weight=land.queue_weight or 1.0,
+        queue_weight_explicit=land.queue_weight_explicit,
+        global_limit=2,
+    )
+    assert land_full_ok is None
+    assert land_full_parked
