@@ -34,12 +34,16 @@ sase monitor start \
   --timeout 45m \
   --model '@small' \
   --next 'Fix anything just check reported, then reply to the user.' \
-  -- just check
+  -- sase tool run check
 ```
+
+`sase tool run check` runs the same `just check` and also records a ToolRun (compact
+output for agents; the follow-up can read it with `sase tool show RUN`). If `sase tool`
+is unavailable, use the raw `just check` and note `sase update` as the remedy.
 
 When the current prompt, the user, or the assigned bead explicitly names
 `just check-full` (typically to repair a CI failure), use the same `verify` profile and
-`TESTING` / `TESTED` pair — never run it inline.
+`TESTING` / `TESTED` pair with `-- sase tool run check-full` — never run it inline.
 
 ## Status Labels
 

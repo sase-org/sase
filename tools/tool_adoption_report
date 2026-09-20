@@ -1,0 +1,246 @@
+#!/usr/bin/env python3
+"""Read-only report: how often heavy `just check` runs go through `sase tool run`.
+
+Reads normalized ``tool_calls.jsonl`` files under the SASE projects directory,
+pairs ToolUse/ToolResult rows within each file by ``tool_use_id`` (never across
+files), and classifies catalog commands as wrapped (``sase tool run``) or raw.
+Nothing is executed or written. Heavy means a duration of at least 20 seconds.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import re
+import shlex
+import sys
+from collections import Counter
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from typing import Any
+
+_HEAVY_MS = 20_000
+_MAX_MS = 6 * 3600 * 1000
+_CATALOG = ("check", "check-full")
+_SHELLS = {"sh", "bash", "zsh", "dash"}
+_SAFE_SINKS = {"tail", "head", "cat", "tee"}
+_REDIRECT = re.compile(r"^\d*>&?\d*$|^&>")
+_OPERATORS = ("&&", "||", ";", "\n")
+
+
+def _parse_ts(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+
+
+def _command_argv(summary: dict[str, Any]) -> list[str] | None:
+    command = summary.get("command")
+    if isinstance(command, list) and all(isinstance(c, str) for c in command):
+        return list(command)
+    if isinstance(command, str) and command.strip():
+        try:
+            return shlex.split(command, posix=True)
+        except ValueError:
+            return None
+    return None
+
+
+def _unwrap_shell(argv: list[str]) -> str | None:
+    """Return the script of ``<shell> -[l]c SCRIPT``, else None."""
+    if not argv or Path(argv[0]).name not in _SHELLS:
+        return None
+    for index, token in enumerate(argv[1:-1], start=1):
+        if re.fullmatch(r"-[a-z]*c[a-z]*", token):
+            return argv[index + 1]
+    return None
+
+
+def _classify_tokens(tokens: list[str]) -> str | None:
+    """Classify one simple command: wrapped/raw/None (not a catalog command)."""
+    tokens = [t for t in tokens if not _REDIRECT.match(t)]
+    if tokens[:3] == ["sase", "tool", "run"]:
+        rest: list[str] = []
+        skip = False
+        for token in tokens[3:]:
+            if skip:
+                skip = False
+            elif token in ("-T", "--tail-lines"):
+                skip = True
+            elif not token.startswith("-"):
+                rest.append(token)
+        return "wrapped" if rest and rest[0] in _CATALOG else None
+    if len(tokens) == 2 and tokens[0] == "just" and tokens[1] in _CATALOG:
+        return "raw"
+    return None
+
+
+def classify(summary: dict[str, Any]) -> str:
+    """Return wrapped, raw, ambiguous, or other for one Bash-like call."""
+    argv = _command_argv(summary)
+    if argv is None:
+        return "other"
+    script = _unwrap_shell(argv)
+    if script is not None:
+        try:
+            argv = shlex.split(script, posix=True)
+        except ValueError:
+            return "ambiguous" if "just check" in script else "other"
+        text = script
+    else:
+        text = " ".join(argv)
+    if any(op in text for op in _OPERATORS):
+        return "ambiguous" if re.search(r"just check|tool run check", text) else "other"
+    if "|" in argv:
+        head, *sinks = _split_pipe(argv)
+        if all(s and s[0] in _SAFE_SINKS for s in sinks):
+            argv = head
+        else:
+            return "ambiguous" if re.search(r"just check|tool run check", text) else "other"
+    return _classify_tokens(argv) or "other"
+
+
+def _split_pipe(argv: list[str]) -> list[list[str]]:
+    parts: list[list[str]] = [[]]
+    for token in argv:
+        if token == "|":
+            parts.append([])
+        else:
+            parts[-1].append(token)
+    return parts
+
+
+def _read_records(path: Path) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    try:
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            for line in handle:
+                try:
+                    row = json.loads(line)
+                except ValueError:
+                    continue
+                if isinstance(row, dict):
+                    records.append(row)
+    except OSError:
+        pass
+    return records
+
+
+def _pair_file(records: list[dict[str, Any]], stats: Counter[str]) -> list[tuple[str, int]]:
+    """Return (classification, duration_ms) for catalog-relevant calls."""
+    uses: dict[str, dict[str, Any]] = {}
+    results: dict[str, dict[str, Any]] = {}
+    out: list[tuple[str, int]] = []
+    for row in records:
+        if row.get("tool_name") not in (None, "Bash", "shell", "exec_command"):
+            continue
+        ident = row.get("tool_use_id")
+        event = row.get("event")
+        if event == "ToolResult" and isinstance(ident, str):
+            results[ident] = row
+        elif isinstance(ident, str) and event == "ToolUse":
+            uses[ident] = row
+        elif row.get("duration_ms") is not None and isinstance(row.get("tool_input_summary"), dict):
+            uses[ident or f"row{len(uses)}"] = row
+            results.setdefault(ident or f"row{len(uses) - 1}", row)
+    for ident, use in uses.items():
+        kind = classify(use.get("tool_input_summary") or {})
+        if kind == "other":
+            continue
+        result = results.get(ident)
+        if result is None:
+            stats["unpaired"] += 1
+            continue
+        duration = result.get("duration_ms")
+        if not isinstance(duration, int) or duration <= 0:
+            start, end = _parse_ts(use.get("recorded_at")), _parse_ts(result.get("recorded_at"))
+            if start is None or end is None:
+                stats["unpaired"] += 1
+                continue
+            duration = int((end - start).total_seconds() * 1000)
+        if duration < 0:
+            stats["negative"] += 1
+            continue
+        if duration > _MAX_MS:
+            stats["over_six_hours"] += 1
+            continue
+        if "truncated" in json.dumps(result.get("tool_response_summary", {}))[:400].lower():
+            stats["truncated_output"] += 1
+        out.append((kind, duration))
+    return out
+
+
+def build_report(root: Path, days: int) -> dict[str, Any]:
+    cutoff = datetime.now(UTC) - timedelta(days=days)
+    stats: Counter[str] = Counter()
+    count: Counter[str] = Counter()
+    wall: Counter[str] = Counter()
+    files = 0
+    for path in root.glob("*/artifacts/**/tool_calls.jsonl"):
+        try:
+            if datetime.fromtimestamp(path.stat().st_mtime, UTC) < cutoff:
+                continue
+        except OSError:
+            continue
+        files += 1
+        for kind, duration in _pair_file(_read_records(path), stats):
+            if duration < _HEAVY_MS:
+                stats["light_excluded"] += 1
+                continue
+            count[kind] += 1
+            wall[kind] += duration
+    classifiable = wall["wrapped"] + wall["raw"]
+    classifiable_n = count["wrapped"] + count["raw"]
+    return {
+        "schema_version": 1,
+        "window_days": days,
+        "files_read": files,
+        "heavy_threshold_seconds": _HEAVY_MS // 1000,
+        "counts": {k: count[k] for k in ("wrapped", "raw", "ambiguous")},
+        "wall_ms": {k: wall[k] for k in ("wrapped", "raw", "ambiguous")},
+        "wall_share_wrapped": wall["wrapped"] / classifiable if classifiable else None,
+        "count_share_wrapped": count["wrapped"] / classifiable_n if classifiable_n else None,
+        "denominator": {"classifiable_heavy_wall_ms": classifiable, "classifiable_heavy_calls": classifiable_n},
+        "exclusions": {
+            k: stats[k]
+            for k in ("unpaired", "negative", "over_six_hours", "truncated_output", "light_excluded")
+        },
+        "coverage": (
+            "Agent LLM tool-call records only; ToolRun ledger counts and recording "
+            "errors are separate signals. Ambiguous pipelines/multicommands are "
+            "excluded from the share. Outer monitor-start calls are not child runtime."
+        ),
+    }
+
+
+def _fmt_share(value: float | None) -> str:
+    return "n/a (no classifiable heavy calls)" if value is None else f"{value:.1%}"
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("-d", "--days", type=int, default=7, help="Look-back window (default: 7)")
+    parser.add_argument("-j", "--json", action="store_true", help="Emit JSON")
+    parser.add_argument("-r", "--root", type=Path, default=Path.home() / ".sase" / "projects", help="Projects directory")
+    args = parser.parse_args(argv)
+    if args.days < 1:
+        parser.error("--days must be >= 1")
+    report = build_report(args.root, args.days)
+    if args.json:
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return 0
+    print(f"ToolRun adoption, last {args.days} day(s), {report['files_read']} file(s)")
+    print(f"  heavy (>={report['heavy_threshold_seconds']}s) calls: {report['counts']}")
+    print(f"  wrapped wall share: {_fmt_share(report['wall_share_wrapped'])}")
+    print(f"  wrapped count share: {_fmt_share(report['count_share_wrapped'])}")
+    print(f"  exclusions: {report['exclusions']}")
+    print(f"  note: {report['coverage']}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

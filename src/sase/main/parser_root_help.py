@@ -81,6 +81,10 @@ _COMPACT_ROOT_COMMANDS: tuple[CompactRootCommand, ...] = (
         "Dispatch a commit, proposal, or PR; show the stitch timeline.",
     ),
     CompactRootCommand(
+        "tool",
+        "Run and inspect project named tools with a recorded ToolRun history.",
+    ),
+    CompactRootCommand(
         "usage",
         "Inspect and refresh cached LLM subscription-usage observations.",
     ),

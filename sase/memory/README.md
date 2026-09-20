@@ -124,7 +124,7 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Kind: memory web descriptor
 - Description: No description set.
 - Lines: 32
-- Approx. tokens: 373
+- Approx. tokens: 379
 
 ### `sase/memory/task_types.md`
 
@@ -158,8 +158,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: If you changed any file tracked by git in the sase repo (excluding file
   changes in the separate repos contained in the sase/repos/ directory), you MUST read
   this note before you finish your turn.
-- Lines: 103
-- Approx. tokens: 1441
+- Lines: 116
+- Approx. tokens: 1662
 
 ### `sase/memory/sase_artifacts.md`
 
@@ -252,8 +252,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 12
 - Web descriptor notes: 3
-- Total lines: 1293
-- Total approx. tokens: 16928
+- Total lines: 1306
+- Total approx. tokens: 17155
 
 ## Commands
 

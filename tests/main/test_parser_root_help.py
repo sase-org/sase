@@ -59,6 +59,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
         "project",
         "screenshot",
         "stitch",
+        "tool",
         "tui",
         "usage",
         "workspace",
@@ -152,7 +153,7 @@ def test_root_compact_help_omits_representative_secondary_commands(
     help_text = parse_and_capture_help(["--help"], capsys)
     common_commands = compact_common_commands(help_text)
 
-    assert {"artifact", "mobile", "telemetry", "questions", "var", "tool"}.isdisjoint(
+    assert {"artifact", "mobile", "telemetry", "questions", "var"}.isdisjoint(
         common_commands
     )
 

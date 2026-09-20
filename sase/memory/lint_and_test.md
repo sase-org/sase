@@ -56,6 +56,19 @@ turn, so run it **only** through your `/sase_monitor` skill, never inline, using
 monitor the same way whenever it is taking a long time.
 [[decisions/check-full-is-explicit]] is the rule.
 
+## Run Verification Through `sase tool run`
+
+Prefer `sase tool run check` (and `sase tool run check-full` where that command is
+explicitly requested) to raw `just check`: it runs the same declared argv and records a
+[[glossary:tool-run]] with stage timings and evidence. Direct agent runs default to
+compact output; `-q` forces it, `-T N` keeps N failure lines (default 200), `-v`
+streams, and `sase tool show RUN -l` replays the full retained output. Inside a verify
+monitor, wrap the command: `-- sase tool run check-full`. Prepared-completion `-f`
+monitors still use the raw `just check` / `just check-full` command, whose exact-command
+contract is separate. If `sase tool` is unavailable (stale install), run the raw `just`
+command and record `sase update` as the remedy; never bypass binding validation or
+re-run a child whose result is uncertain. See [[glossary:tool-catalog]].
+
 Before handing `just check` or `just check-full` to a verify monitor, run `just fix`
 inline first (or at minimum `just fmt`); it takes seconds and prevents common avoidable
 formatting and keep-sorted monitor failures.

@@ -25,8 +25,8 @@ Reference (ref); Core Memory (core memory); Current Project; Feature Flag; Flag 
 (background task); Proc Shell; Reference Memory (reference memory); Required Plugin
 (required plugin); Routine (Lumberjack); Sase Agent (agent); Sase Gate (gate); Sase
 Monitor (monitor); Sase Node (node); Sase Project; Sase Repo; Sase Shell (shell); Sase
-Workspace (workspace); Stitch; Strand Keyword; Task Type (task type); Usage Window
-(usage-window); Xprompt; Xprompt Memory (memory file, sase memory); Xprompt Part;
-Xprompt Swarm; Xprompt Workflow
+Workspace (workspace); Stitch; Strand Keyword; Task Type (task type); Tool Catalog; Tool
+Run; Usage Window (usage-window); Xprompt; Xprompt Memory (memory file, sase memory);
+Xprompt Part; Xprompt Swarm; Xprompt Workflow
 
 <!-- /sase:strands -->

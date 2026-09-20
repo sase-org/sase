@@ -37,6 +37,7 @@ nav:
       - Agent Families: agent_families.md
       - Agent Hood Synchronization: agents_sidecar.md
       - Monitors: monitors.md
+      - Named Tools: tool.md
       - Workspaces: workspace.md
       - Mentors: mentors.md
   - The Nitty Gritty:

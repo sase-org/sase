@@ -335,6 +335,10 @@ smoke-tool-runs: _setup
     {{ venv_bin }}/python tools/smoke_sase_core_rs_tool_runs
     {{ venv_bin }}/python tools/smoke_sase_tool_runs --sase {{ venv_bin }}/sase
 
+# Report how often heavy `just check` runs are wrapped in `sase tool run`
+tool-adoption *args:
+    {{ venv_bin }}/python tools/tool_adoption_report {{ args }}
+
 # Validate scripts/tools directory structure (private, extracted for per-stage wrapping)
 _lint-pyscripts: _setup
     {{ venv_bin }}/python tools/pyscripts-260801
