@@ -12,15 +12,13 @@ from textual.message import Message
 from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
-from sase.service.status import ServiceEnablement
-
 from ..bgcmd import BackgroundCommandInfo, is_slot_running
 from ._axe_dashboard_render import overrun_chip as _overrun_chip
 
 if TYPE_CHECKING:
     from ..actions.axe_display._data import ChopSnapshot
     from sase.axe.state import LumberjackStatus
-    from sase.service.status import ServiceStatusProc
+    from sase.service.status import ServiceEnablement, ServiceStatusProc
 
 # Item type: "axe" or slot number (1-9)
 ItemType = Literal["axe"] | int
@@ -556,7 +554,7 @@ def _service_proc_marker(proc: Any) -> tuple[str, str]:
 _SERVICE_CHIP_MAX_WIDTH = 32
 
 
-def service_enablement_chip(enablement: ServiceEnablement) -> str | None:
+def _service_enablement_chip(enablement: "ServiceEnablement") -> str | None:
     """Return inline provenance text for a disabled proc, or ``None`` if enabled.
 
     The Rust-derived ``summary`` already reads ``disabled here`` for a local
@@ -564,7 +562,7 @@ def service_enablement_chip(enablement: ServiceEnablement) -> str | None:
     """
     if enablement.enabled:
         return None
-    text = enablement.summary or "disabled"
+    text = getattr(enablement, "summary", "") or "disabled"
     if len(text) > _SERVICE_CHIP_MAX_WIDTH:
         text = text[: _SERVICE_CHIP_MAX_WIDTH - 1] + "…"
     return text
@@ -579,12 +577,10 @@ def _service_proc_chip(proc: Any) -> tuple[str, str] | None:
             text = text[: _SERVICE_CHIP_MAX_WIDTH - 1] + "…"
         return (text, _SERVICE_WARN_STYLE)
     enablement = getattr(proc, "enablement", None)
-    if isinstance(enablement, ServiceEnablement):
-        disabled_text = service_enablement_chip(enablement)
+    if enablement is not None and not getattr(enablement, "enabled", True):
+        disabled_text = _service_enablement_chip(enablement)
         if disabled_text is not None:
             return (disabled_text, _SERVICE_DISABLED_STYLE)
-    elif enablement is not None and not getattr(enablement, "enabled", True):
-        return ("disabled", _SERVICE_DISABLED_STYLE)
     state = getattr(proc, "state", "")
     if state == "running":
         restarts = int(getattr(proc, "restarts", 0) or 0)

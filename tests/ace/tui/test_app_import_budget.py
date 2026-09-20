@@ -35,6 +35,8 @@ def _measure_tui_app_import() -> dict[str, Any]:
                         name for name in (
                             "sase.agent.multi_prompt",
                             "sase.agent.multi_prompt_launcher",
+                            "sase.service.status",
+                            "sase.service.control",
                         )
                         if name in sys.modules
                     ],

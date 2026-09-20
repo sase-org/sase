@@ -103,7 +103,7 @@ def is_monitor_shell_row(row: ObservedProc) -> bool:
     return row.origin == MONITOR_PROC_ORIGIN
 
 
-def is_gear_eligible_row(row: ObservedProc) -> bool:
+def _is_gear_eligible_row(row: ObservedProc) -> bool:
     """Return whether an active row counts toward the blue proc gear.
 
     Monitor shells and service-host-owned rows (wire ``service`` marker) have
@@ -119,7 +119,7 @@ def gear_eligible_count(
     return sum(
         1
         for row in projection.active_rows(all_sessions=all_sessions)
-        if is_gear_eligible_row(row)
+        if _is_gear_eligible_row(row)
     )
 
 

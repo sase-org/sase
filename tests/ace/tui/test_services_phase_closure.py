@@ -21,8 +21,8 @@ from sase.ace.tui.actions.event_refresh._surface_tokens import (
 from sase.ace.tui.widgets import KeybindingFooter
 from sase.ace.tui.widgets.axe_info_panel import AxeInfoPanel, format_uptime
 from sase.ace.tui.widgets.bgcmd_list import (
+    _service_enablement_chip,
     _service_proc_chip,
-    service_enablement_chip,
 )
 from sase.service.status import ServiceEnablement
 from sase.core.time import local_now
@@ -234,11 +234,11 @@ def test_gear_excludes_monitor_and_sessionless_service_rows() -> None:
 
 
 def test_enablement_chip_variants() -> None:
-    assert service_enablement_chip(_enablement()) is None
-    assert service_enablement_chip(_enablement(False, "disabled here")) == (
+    assert _service_enablement_chip(_enablement()) is None
+    assert _service_enablement_chip(_enablement(False, "disabled here")) == (
         "disabled here"
     )
-    layer = service_enablement_chip(_enablement(False, "disabled by " + "x" * 80))
+    layer = _service_enablement_chip(_enablement(False, "disabled by " + "x" * 80))
     assert layer is not None and layer.endswith("…") and len(layer) <= 32
 
 

@@ -7,7 +7,7 @@ import types
 from datetime import datetime
 from functools import partial
 from pathlib import Path
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from sase.axe import config as axe_config
 from sase.axe.chop_overrun import ChopOverrun, classify_chop_overrun
@@ -34,9 +34,6 @@ from sase.axe.state import (
 )
 from sase.core.time import get_timezone
 from sase.feature_flags import FeatureFlag, current_flags
-from sase.service.control import latest_service_log_lines, persisted_or_current_status
-from sase.service.paths import service_proc_output_log_path
-from sase.service.status import ServiceStatusSnapshot
 
 from ...bgcmd import (
     BackgroundCommandInfo,
@@ -48,6 +45,9 @@ from ...bgcmd import (
 )
 from ...util.trace import trace_event, tui_trace
 from ._read_cache import AxeCollectorStats, AxeStatusReadCache
+
+if TYPE_CHECKING:
+    from sase.service.status import ServiceStatusSnapshot
 
 # Type alias for tab names
 TabName = Literal["artifacts", "agents", "axe"]
@@ -360,6 +360,8 @@ def _collect_axe_status_data_impl(
     service_log_tails: dict[str, str] = {}
     tailed_service_names: frozenset[str] = frozenset()
     if service_host_enabled:
+        from sase.service.control import persisted_or_current_status
+
         try:
             service_status = persisted_or_current_status()
         except Exception as exc:
@@ -396,6 +398,9 @@ def _collect_axe_status_data_impl(
         axe_metrics = read_metrics()
 
     if service_status is not None and include_full_snapshots and tail_service_name:
+        from sase.service.control import latest_service_log_lines
+        from sase.service.paths import service_proc_output_log_path
+
         proc_status = next(
             (proc for proc in service_status.procs if proc.name == tail_service_name),
             None,
