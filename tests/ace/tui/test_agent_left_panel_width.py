@@ -6,6 +6,7 @@ from typing import Any
 
 from rich.text import Text
 from sase.ace.tui.actions.event_handlers import EventHandlersMixin
+from sase.ace.tui.models.agent_groups import GroupingMode
 from sase.ace.tui.app import _MAX_AGENT_LIST_WIDTH, _MIN_AGENT_LIST_WIDTH
 from sase.ace.tui.widgets.agent_list import AgentList
 
@@ -88,7 +89,7 @@ def test_collapsed_agent_list_requests_only_title_width() -> None:
     title.stylize("bold red", 2, 11)
     widget.border_title = title
 
-    widget.render_collapsed()
+    widget.render_collapsed(grouping_mode=GroupingMode.STANDARD)
 
     assert widget._panel_collapsed is True
     assert widget.option_count == 0
@@ -101,15 +102,15 @@ def test_collapsed_agent_list_width_tracks_transient_jump_hint() -> None:
     hinted_title = Text("[x] ▸ @finished · 12 [D12]")
 
     widget.border_title = normal_title
-    widget.render_collapsed()
+    widget.render_collapsed(grouping_mode=GroupingMode.STANDARD)
     normal_width = widget._requested_width
 
     widget.border_title = hinted_title
-    widget.render_collapsed()
+    widget.render_collapsed(grouping_mode=GroupingMode.STANDARD)
     assert widget._requested_width == normal_width + 4
 
     widget.border_title = normal_title
-    widget.render_collapsed()
+    widget.render_collapsed(grouping_mode=GroupingMode.STANDARD)
     assert widget._requested_width == normal_width
 
 
@@ -121,7 +122,7 @@ def test_collapsed_agent_list_title_only_refresh_tracks_two_character_hint_width
     hinted_title = Text("[00] ▸ @oak · 1 [R1]")
 
     widget.border_title = normal_title
-    widget.render_collapsed()
+    widget.render_collapsed(grouping_mode=GroupingMode.STANDARD)
     normal_width = widget._requested_width
 
     widget.update_border_title(hinted_title)

@@ -213,7 +213,7 @@ class PanelPatchMixin:
         if target_identities and target_identities <= removed_identities:
             # Last visible rows of this tribe: keep the tribe-stable widget
             # as a title strip instead of rebuilding siblings.
-            target_widget.render_collapsed()
+            target_widget.render_collapsed(grouping_mode=grouping_mode)
             self._record_display_patch_trace(
                 display_cost="row_remove",
                 count=len(removed_identities),

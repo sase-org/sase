@@ -254,8 +254,13 @@ class AgentList(OptionList, inherit_bindings=False):
                 now=now,
             )
 
-    def render_collapsed(self) -> None:
-        """Render this panel as a title-only border strip."""
+    def render_collapsed(self, *, grouping_mode: GroupingMode) -> None:
+        """Render this panel as a title-only border strip.
+
+        A collapsed panel holds no rows or banners, so it records the grouping
+        mode it painted under; otherwise it would keep the ``STANDARD`` default
+        and make the app-wide grouping-mode guard force a full rebuild.
+        """
         self._programmatic_update = True
         try:
             self.clear_options()
@@ -272,6 +277,7 @@ class AgentList(OptionList, inherit_bindings=False):
             self._target_width = 0
             self._content_requested_width = 0
             self._panel_collapsed = True
+            self._grouping_mode = grouping_mode
             self._panel_paint_key = None
             self._refresh_requested_width()
         finally:

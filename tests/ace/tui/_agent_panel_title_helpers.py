@@ -43,7 +43,7 @@ class _ListWidget:
     def remove(self) -> None:
         return
 
-    def render_collapsed(self) -> None:
+    def render_collapsed(self, *, grouping_mode: Any = None) -> None:
         self._panel_collapsed = True
 
     def clear_highlight(self) -> None:

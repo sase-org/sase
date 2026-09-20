@@ -67,10 +67,11 @@ class _ListWidget:
         if grouping_mode is not None:
             self._grouping_mode = grouping_mode
 
-    def render_collapsed(self) -> None:
+    def render_collapsed(self, *, grouping_mode: Any) -> None:
         self.render_collapsed_calls += 1
         self.option_count = 0
         self._panel_collapsed = True
+        self._grouping_mode = grouping_mode
 
     def update_highlight(self, *_args: Any, **_kwargs: Any) -> None:
         return

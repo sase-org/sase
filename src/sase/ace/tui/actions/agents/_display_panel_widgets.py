@@ -406,7 +406,7 @@ class PanelWidgetRefreshMixin(PanelRefreshStateMixin):
         if panel_collapsed:
             widget.add_class("-collapsed-panel")
             if not content_unchanged:
-                widget.render_collapsed()
+                widget.render_collapsed(grouping_mode=grouping_mode)
         else:
             widget.remove_class("-collapsed-panel")
             if not content_unchanged:
