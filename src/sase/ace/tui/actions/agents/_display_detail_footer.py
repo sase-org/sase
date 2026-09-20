@@ -53,6 +53,13 @@ class AgentFooterDisplayMixin:
             if callable(noun_resolver) and callable(container_resolver):
                 noun = noun_resolver(container_resolver())
             footer_widget.update_member_jump_bindings(pending_digit, noun=noun)
+        elif getattr(self, "_entry_jump_mode_active", False):
+            # Async footer-only refreshes (artifact-file discovery) must not
+            # clobber the JUMP footer while hints are live.
+            has_back = getattr(self, "_entry_jump_footer_has_back", None)
+            footer_widget.update_jump_bindings(
+                has_back=bool(has_back()) if callable(has_back) else False
+            )
         elif getattr(self, "_panel_fold_hint_mode_active", False):
             footer_widget.update_fold_hint_bindings(
                 collapse_only=(

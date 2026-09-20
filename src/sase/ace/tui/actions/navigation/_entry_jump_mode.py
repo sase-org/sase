@@ -238,22 +238,24 @@ class EntryJumpModeMixin(EntryJumpAgentHistoryMixin):
         else:
             self._refresh_current_tab()  # type: ignore[attr-defined]
 
+    def _entry_jump_footer_has_back(self) -> bool:
+        """Return whether the jump footer should offer ``'`` as *back*."""
+        artifacts_has_back = getattr(self, "_artifacts_jump_has_back", None)
+        if (
+            callable(artifacts_has_back)
+            and getattr(self, "_artifacts_jump_mode_subtab", None) is not None
+        ):
+            return bool(artifacts_has_back())
+        if self.current_tab == "agents":
+            return bool(self._entry_jump_agents_anchor_stack)
+        return self._entry_jump_index_stack_has_current_tab_history()
+
     def _update_jump_footer(self) -> None:
         """Update the footer to show jump mode bindings."""
         from ...widgets import KeybindingFooter
 
         try:
             footer = self.query_one("#keybinding-footer", KeybindingFooter)  # type: ignore[attr-defined]
-            artifacts_has_back = getattr(self, "_artifacts_jump_has_back", None)
-            if (
-                callable(artifacts_has_back)
-                and getattr(self, "_artifacts_jump_mode_subtab", None) is not None
-            ):
-                has_back = artifacts_has_back()
-            elif self.current_tab == "agents":
-                has_back = bool(self._entry_jump_agents_anchor_stack)
-            else:
-                has_back = self._entry_jump_index_stack_has_current_tab_history()
-            footer.update_jump_bindings(has_back=has_back)
+            footer.update_jump_bindings(has_back=self._entry_jump_footer_has_back())
         except Exception:
             pass
