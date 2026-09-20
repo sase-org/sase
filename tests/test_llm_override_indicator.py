@@ -47,6 +47,20 @@ def _snapshot(
     )
 
 
+@pytest.fixture(autouse=True)
+def _bare_directive_label(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the pill subject to the bare model name, independent of plugins.
+
+    The real formatter consults installed provider plugins' model metadata;
+    tests that care about a specific spelling re-patch it themselves.
+    """
+    monkeypatch.setattr(
+        indicator_module,
+        "format_model_directive_label",
+        lambda provider=None, model=None: model or "",
+    )
+
+
 class _FakeWorker:
     """Duck-typed stand-in for ``textual.worker.Worker`` in unit tests."""
 
@@ -122,7 +136,7 @@ def test_inactive_renders_default_model(monkeypatch: pytest.MonkeyPatch) -> None
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " CODEX(gpt-5.6-sol) "
+    assert text.plain == " gpt-5.6-sol "
     assert "cyan" in str(text.style)
 
 
@@ -178,7 +192,7 @@ def test_expired_override_renders_default_model(
 
     text = LLMOverrideIndicator._build_content(_override(expires_at=99.0), now=100.0)
 
-    assert text.plain == " CLAUDE(sonnet) "
+    assert text.plain == " sonnet "
 
 
 def test_expired_state_file_is_cleaned_up(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -205,7 +219,7 @@ def test_expired_state_file_is_cleaned_up(monkeypatch: pytest.MonkeyPatch) -> No
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " CLAUDE(sonnet) "
+    assert text.plain == " sonnet "
     assert not path.exists()
 
 
@@ -231,7 +245,7 @@ def test_long_default_label_renders_fully(
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " VERYLONGPROVIDER(extremely-long-model-name) "
+    assert text.plain == " extremely-long-model-name "
 
 
 def test_default_resolution_failure_renders_fallback(
@@ -366,7 +380,7 @@ async def test_async_default_resolution_updates_cached_state(
     assert cached == ("claude", "sonnet")
     rendered = indicator._build_initial_content()
     assert isinstance(rendered, Text)
-    assert rendered.plain == " CLAUDE(sonnet) "
+    assert rendered.plain == " sonnet "
 
 
 async def test_click_opens_models_panel(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -441,13 +455,21 @@ def test_refresh_keeps_stale_default_while_rearming(
     """A token-triggered re-arm must not flash the pill to a placeholder."""
     indicator, scheduled = _prepare_indicator(monkeypatch, token=("token-b",))
     indicator._cached_default = ("claude", "opus")
+    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+        provider="claude",
+        model="opus",
+        referenced_alias=None,
+        selector_mode=None,
+        member_count=0,
+        directive_label="opus",
+    )
     indicator._cached_default_token = ("token-a",)
 
     indicator.refresh()
 
     assert scheduled
     assert indicator._cached_default == ("claude", "opus")
-    assert indicator._build_cached_default_content().plain == " CLAUDE(opus) "
+    assert indicator._build_cached_default_content().plain == " opus "
 
 
 def test_refresh_never_calls_resolver_synchronously(
@@ -572,7 +594,7 @@ def test_calm_default_renders_configured_effort(
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " CODEX(o3)@high "
+    assert text.plain == " o3@high "
     assert "cyan" in str(text.style)
 
 
@@ -588,7 +610,7 @@ def test_alias_borne_effort_wins_over_configured_default(
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " CODEX(o3)@medium "
+    assert text.plain == " o3@medium "
 
 
 def test_temporary_effort_override_wins_over_configured_and_loses_to_alias(
@@ -615,7 +637,7 @@ def test_temporary_effort_override_wins_over_configured_and_loses_to_alias(
     )
 
     text = LLMOverrideIndicator._build_content()
-    assert text.plain == " CODEX(o3)@low "
+    assert text.plain == " o3@low "
 
     monkeypatch.setattr(
         indicator_module,
@@ -623,7 +645,7 @@ def test_temporary_effort_override_wins_over_configured_and_loses_to_alias(
         lambda *a, **k: _snapshot(provider="codex", model="o3", effort="medium"),
     )
     text = LLMOverrideIndicator._build_content()
-    assert text.plain == " CODEX(o3)@medium "
+    assert text.plain == " o3@medium "
 
 
 def test_configured_none_renders_none_suffix(
@@ -638,7 +660,7 @@ def test_configured_none_renders_none_suffix(
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " CODEX(o3)@none "
+    assert text.plain == " o3@none "
 
 
 def test_tooltip_includes_effort_and_round_robin_keeps_suffix() -> None:
@@ -673,9 +695,138 @@ def test_cached_default_content_appends_effort() -> None:
         selector_mode=None,
         member_count=0,
         effort="high",
+        directive_label="o3",
     )
 
     text = indicator._build_cached_default_content()
 
-    assert text.plain == " CODEX(o3)@high "
+    assert text.plain == " o3@high "
     assert "cyan" in str(text.style)
+
+
+def test_pill_uses_bare_directive_label_while_tooltip_keeps_provider_form() -> None:
+    indicator = LLMOverrideIndicator()
+    indicator._cached_default = ("claude", "opus")
+    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+        provider="claude",
+        model="opus",
+        referenced_alias=None,
+        selector_mode=None,
+        member_count=0,
+        effort="high",
+        directive_label="opus",
+    )
+
+    assert indicator._build_cached_default_content().plain == " opus@high "
+    assert indicator._build_tooltip(None).startswith(
+        "Launch default: CLAUDE(opus) @ high\n"
+    )
+
+
+def test_pill_renders_explicit_directive_label_verbatim() -> None:
+    indicator = LLMOverrideIndicator()
+    indicator._cached_default = ("codex", "o3")
+    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+        provider="codex",
+        model="o3",
+        referenced_alias=None,
+        selector_mode=None,
+        member_count=0,
+        effort="high",
+        directive_label="codex/o3",
+    )
+
+    assert indicator._build_cached_default_content().plain == " codex/o3@high "
+    assert indicator._build_tooltip(None).startswith(
+        "Launch default: CODEX(o3) @ high\n"
+    )
+
+
+@pytest.mark.parametrize("snapshot_present", [True, False])
+def test_cached_default_without_directive_label_falls_back_to_provider_label(
+    snapshot_present: bool,
+) -> None:
+    indicator = LLMOverrideIndicator()
+    indicator._cached_default = ("claude", "opus")
+    if snapshot_present:
+        indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+            provider="claude",
+            model="opus",
+            referenced_alias=None,
+            selector_mode=None,
+            member_count=0,
+            directive_label=None,
+        )
+
+    assert indicator._build_cached_default_content().plain == " CLAUDE(opus) "
+
+
+def test_render_paths_never_call_directive_formatter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The formatter probes plugin metadata, so it must stay off the UI thread."""
+
+    def fail(*args: object, **kwargs: object) -> str:
+        raise AssertionError("directive formatter must not run on the UI thread")
+
+    monkeypatch.setattr(indicator_module, "format_model_directive_label", fail)
+    indicator, _scheduled = _prepare_indicator(monkeypatch, token=("token-a",))
+    indicator._cached_default = ("claude", "opus")
+    indicator._cached_default_token = ("token-a",)
+    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+        provider="claude",
+        model="opus",
+        referenced_alias=None,
+        selector_mode=None,
+        member_count=0,
+        directive_label="opus",
+    )
+
+    indicator.refresh()
+
+    assert indicator._build_initial_content().plain == " opus "
+    assert indicator._build_cached_default_content().plain == " opus "
+
+
+def test_worker_task_computes_directive_label_off_thread(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[object, object]] = []
+
+    def fake_label(provider: str | None = None, model: str | None = None) -> str:
+        calls.append((provider, model))
+        return f"{provider}/{model}"
+
+    monkeypatch.setattr(
+        indicator_module,
+        "build_launch_model_setting_snapshot",
+        lambda *a, **k: _snapshot(provider="codex", model="o3"),
+    )
+    monkeypatch.setattr(indicator_module, "format_model_directive_label", fake_label)
+    indicator, scheduled = _prepare_indicator(monkeypatch, token=("token-b",))
+    indicator._cached_default_token = ("token-a",)
+
+    indicator.refresh()
+    assert calls == []
+    (task,) = scheduled
+    snapshot = task()  # type: ignore[operator]
+
+    assert isinstance(snapshot, indicator_module._LaunchDefaultSnapshot)
+    assert snapshot.directive_label == "codex/o3"
+    assert calls == [("codex", "o3")]
+
+
+def test_default_content_formatter_failure_renders_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail(*args: object, **kwargs: object) -> str:
+        raise RuntimeError("formatter exploded")
+
+    monkeypatch.setattr(
+        indicator_module,
+        "build_launch_model_setting_snapshot",
+        lambda *a, **k: _snapshot(provider="codex", model="o3"),
+    )
+    monkeypatch.setattr(indicator_module, "format_model_directive_label", fail)
+
+    assert LLMOverrideIndicator._build_content().plain == " unavailable "

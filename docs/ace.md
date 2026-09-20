@@ -4078,18 +4078,24 @@ use a recessive tone; `∞` means until cleared. Hover either pill for full targ
 expiry details, or click it to open Launch Control.
 
 When no override is active, the same top-bar pill instead names the current launch
-default — `PROVIDER(model)[@<effort>]`, in a calmer dim-cyan tone — and stays live for
-the whole sase's TUI session. The optional `@<effort>` suffix is the launch-effective
-default a no-`%model` / no-`%effort` prompt will actually receive (alias-borne effort, a
-temporary default-effort override, or `llm_provider.default_effort`); it is omitted when
-that value is unset. If `llm_provider.default_model` (directly or through a referenced
-alias, such as the shipped `@large`) is a load-balanced `|` pool, the pill follows the
-pool's round-robin cursor as it advances: a launch consumes one member, and within a few
+default — the smallest `%model` value that would pin this exact target (a bare model
+name such as `grok-4.6` when the model unambiguously names its provider, otherwise the
+explicit `codex/o3` form) plus the optional `[@<effort>]` suffix, in a calmer dim-cyan
+tone — and stays live for the whole sase's TUI session. A model alias is never used as
+the pill's subject, since an alias may be a rotating pool rather than one concrete
+model. The optional `@<effort>` suffix is the launch-effective default a no-`%model` /
+no-`%effort` prompt will actually receive (alias-borne effort, a temporary
+default-effort override, or `llm_provider.default_effort`); it is omitted when that
+value is unset. If `llm_provider.default_model` (directly or through a referenced alias,
+such as the shipped `@large`) is a load-balanced `|` pool, the pill follows the pool's
+round-robin cursor as it advances: a launch consumes one member, and within a few
 seconds the pill flips to name whichever member runs next. It never resolves on the UI
 thread and never advances the cursor itself — it only reflects state that a real launch
 already changed. Hover the pill for a
 `<alias> rotates across N models; PROVIDER(model)[@<effort>] is next` line whenever the
-default routes through such a pool.
+default routes through such a pool. The tooltip deliberately keeps the
+provider-qualified `PROVIDER(model)` form: the pill is the width-constrained surface and
+stays compact, so hovering is how you see which provider the launch default resolves to.
 
 Overrides do not displace explicit launch intent: explicit prompt directives
 (`%model:codex/o3`, `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit

@@ -342,6 +342,13 @@ def patch_startup_loaders(
         "build_launch_model_setting_snapshot",
         _fake_build_launch_model_setting_snapshot,
     )
+    # Pinned to the value the real formatter yields for an unmapped model so the
+    # goldens do not depend on which provider plugins the capturing host has.
+    monkeypatch.setattr(
+        llm_override_indicator,
+        "format_model_directive_label",
+        lambda *_args, **_kwargs: "codex/visual-snapshot-model",
+    )
     monkeypatch.setattr(
         update_toast,
         "get_cached_update_status",

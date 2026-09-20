@@ -11,6 +11,7 @@ from textual.worker import Worker, WorkerState
 
 from sase.llm_provider.config import resolve_effective_effort
 from sase.llm_provider.launch_default_peek import peek_launch_default_change_token
+from sase.llm_provider.model_directive_label import format_model_directive_label
 from sase.llm_provider.model_launch_settings import (
     DEFAULT_MODEL_FIELD,
     build_launch_model_setting_snapshot,
@@ -56,6 +57,7 @@ class _LaunchDefaultSnapshot:
     selector_mode: str | None
     member_count: int
     effort: str | None = None
+    directive_label: str | None = None
 
 
 class LLMOverrideIndicator(Static):
@@ -166,6 +168,9 @@ class LLMOverrideIndicator(Static):
                 selector_mode=snapshot.selector_mode,
                 member_count=len(snapshot.selector_members),
                 effort=level,
+                directive_label=format_model_directive_label(
+                    snapshot.provider, snapshot.model
+                ),
             )
 
         self.run_worker(
@@ -199,10 +204,12 @@ class LLMOverrideIndicator(Static):
     def _build_cached_default_content(self) -> Text:
         """Render the default-model line using already-resolved values."""
         if self._cached_default is not None:
-            effort = (
-                None if self._cached_snapshot is None else self._cached_snapshot.effort
-            )
-            label = _format_default_label(*self._cached_default, effort)
+            snapshot = self._cached_snapshot
+            effort = None if snapshot is None else snapshot.effort
+            subject = None if snapshot is None else snapshot.directive_label
+            if not subject:
+                subject = format_provider_model_label(*self._cached_default)
+            label = _format_default_label(subject, effort)
             return Text(f" {label} ", style=_DEFAULT_STYLE)
         if self._cached_default_failed:
             return Text(_UNAVAILABLE_TEXT, style=_DEFAULT_STYLE)
@@ -302,19 +309,23 @@ class LLMOverrideIndicator(Static):
                 PromptDirectives(),
                 snapshot.effort,
             )
+            subject = format_model_directive_label(snapshot.provider, snapshot.model)
         except Exception:
             return Text(_UNAVAILABLE_TEXT, style=_DEFAULT_STYLE)
 
-        label = _format_default_label(snapshot.provider, snapshot.model, level)
+        label = _format_default_label(subject, level)
         return Text(f" {label} ", style=_DEFAULT_STYLE)
 
 
-def _format_default_label(provider: str, model: str, effort: str | None) -> str:
-    """Render the compact calm-default pill subject, with optional ``@effort``."""
-    label = format_provider_model_label(provider, model)
+def _format_default_label(subject: str, effort: str | None) -> str:
+    """Render the compact calm-default pill, with optional ``@effort``.
+
+    ``subject`` is the shortest ``%model`` spelling of the launch default; the
+    tooltip keeps the provider-qualified ``PROVIDER(model)`` form.
+    """
     if effort:
-        return f"{label}@{effort}"
-    return label
+        return f"{subject}@{effort}"
+    return subject
 
 
 def _format_default_tooltip_label(provider: str, model: str, effort: str | None) -> str:
