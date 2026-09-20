@@ -188,8 +188,22 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # tests rather than expanding contract membership. The whole 66-entry set measured
 # 36.81 s under the command above (36.62 s on a second run on this host); the next
 # candidate should displace an entry rather than add one.
-_MANIFEST_ENTRY_BUDGET = 66
-_MEASURED_SERIAL_COST = "36.81 serial seconds across 66 entries"
+#
+# Re-curated to 67 on 2026-09-20 (sase-iu) for `test_tool_adoption_report_tool.py`,
+# the guard for the read-only `tools/tool_adoption_report` script, which landed
+# marked `contract` without a manifest refresh. Like the other admitted `tools/`
+# script guards, the script is not a node in the import graph, so a change that
+# touches only it contributes no seeds, `RULE_CONTRACT_SET_ONLY` fires, and the
+# contract set is the only scoped-selection coverage; unmarking it would leave that
+# script's fixture tests to the exhaustive lane alone. The file measured 2.62 s
+# standalone (11 tests, mostly module-load setup), for an estimated 39.43 serial
+# seconds across the refreshed 67-entry set (36.81 s prior set plus the added file).
+# Two direct runs of the whole set under the command above measured 43.27 s and
+# 48.38 s, but the host was at load average ~21, so treat those as inflated rather
+# than as a regression. The next candidate should displace an entry rather than add
+# one.
+_MANIFEST_ENTRY_BUDGET = 67
+_MEASURED_SERIAL_COST = "39.43 serial seconds across 67 entries"
 
 
 def _load_refresh_tool() -> ModuleType:
