@@ -232,29 +232,6 @@ def _plural(count: int, singular: str) -> str:
     return singular if count == 1 else f"{singular}s"
 
 
-def restart_axe(
-    attempts: int,
-    *,
-    start: Callable[[], int | None],
-    is_running: Callable[[], bool],
-    sleep: Callable[[float], None],
-    log: Callable[[str], None],
-) -> bool:
-    for attempt in range(1, attempts + 1):
-        log(f"starting axe (attempt {attempt}/{attempts})")
-        try:
-            pid = start()
-        except Exception as exc:
-            log(f"start axe attempt failed: {type(exc).__name__}: {exc}")
-            pid = None
-        if pid is not None and is_running():
-            log(f"axe restart succeeded: pid {pid}")
-            return True
-        sleep(min(attempt, 5))
-    log("axe restart failed after all attempts")
-    return False
-
-
 def write_completion_record(
     status_path: Path,
     *,

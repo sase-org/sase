@@ -101,21 +101,21 @@ def clear_lock_holder_pid() -> None:
 
 def is_lifecycle_lock_held() -> bool:
     """Return True when another process currently holds the lifecycle lock."""
-    lock = AxeLifecycleLock.acquire(blocking=False)
+    lock = _AxeLifecycleLock.acquire(blocking=False)
     if lock is None:
         return True
     lock.release()
     return False
 
 
-class AxeLifecycleLock:
+class _AxeLifecycleLock:
     """Exclusive flock held by the live axe orchestrator."""
 
     def __init__(self, fd: int) -> None:
         self._fd: int | None = fd
 
     @classmethod
-    def acquire(cls, *, blocking: bool) -> AxeLifecycleLock | None:
+    def acquire(cls, *, blocking: bool) -> _AxeLifecycleLock | None:
         """Acquire the lifecycle lock.
 
         Returns None when ``blocking`` is false and another process owns the
@@ -139,8 +139,8 @@ class AxeLifecycleLock:
         return cls(fd)
 
     @classmethod
-    def from_inherited_env(cls) -> AxeLifecycleLock | None:
-        """Adopt a lock fd passed by ``start_axe_daemon``."""
+    def from_inherited_env(cls) -> _AxeLifecycleLock | None:
+        """Adopt a lock fd inherited from the parent process."""
         value = os.environ.pop(AXE_LOCK_FD_ENV, None)
         if value is None:
             return None
@@ -199,7 +199,7 @@ class AxeLifecycleLock:
         os.close(self._fd)
         self._fd = None
 
-    def __enter__(self) -> AxeLifecycleLock:
+    def __enter__(self) -> _AxeLifecycleLock:
         return self
 
     def __exit__(
@@ -211,9 +211,9 @@ class AxeLifecycleLock:
         self.release()
 
 
-def acquire_axe_lifetime_lock() -> AxeLifecycleLock | None:
+def acquire_axe_lifetime_lock() -> _AxeLifecycleLock | None:
     """Acquire or adopt the orchestrator's lifetime lock."""
-    inherited = AxeLifecycleLock.from_inherited_env()
+    inherited = _AxeLifecycleLock.from_inherited_env()
     if inherited is not None:
         return inherited
-    return AxeLifecycleLock.acquire(blocking=False)
+    return _AxeLifecycleLock.acquire(blocking=False)

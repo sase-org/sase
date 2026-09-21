@@ -223,32 +223,6 @@ def _nonnegative_int(value: object) -> int:
     return value if isinstance(value, int) and value >= 0 else 0
 
 
-def notify_axe_lock_recovered(
-    terminated_pid: int,
-    started_pid: int | None,
-) -> str:
-    """Send an audit notification after recovering a wedged lifecycle lock."""
-    notification_id = str(uuid4())
-    notes = [
-        "Axe recovered a wedged lifecycle lock",
-        f"Terminated stale lock holder pid {terminated_pid}.",
-    ]
-    if started_pid is not None:
-        notes.append(f"Started orchestrator pid {started_pid}.")
-    else:
-        notes.append("The follow-up orchestrator start did not succeed.")
-    n = Notification(
-        id=notification_id,
-        timestamp=datetime.now(get_timezone()).isoformat(),
-        sender="axe",
-        icon="🪓",
-        notes=notes,
-        tags=normalize_notification_tags(["axe", "healed", "lock-recovery"]),
-    )
-    append_notification(n)
-    return notification_id
-
-
 def _format_duration(seconds: float) -> str:
     rounded = max(0, int(seconds))
     if rounded < 60:

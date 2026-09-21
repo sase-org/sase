@@ -415,8 +415,10 @@ The worker sequence is:
 2. Run `sase update --json` with `chat_install.timeout_seconds`.
 3. Parse the update JSON best-effort for a completion message such as
    `Already up to date.` or a package summary.
-4. If axe is not running afterward, start it, retrying up to
-   `chat_install.restart_attempts`.
+4. If the scheduler is not running afterward, request its `scheduler` service proc start
+   through the service host (starting the host itself when it is down) and poll its proc
+   state up to `chat_install.restart_attempts` times. `sase update` already restarts a
+   running scheduler, so this step only starts one that is not running.
 5. Write the completion record for polling clients.
 
 `start_chat_install_worker()` returns `ChatInstallLaunchResult` with one of these launch

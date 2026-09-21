@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.axe.desired_state import read_desired_state
-from sase.axe.lock import AxeLifecycleLock
+from sase.axe.lock import _AxeLifecycleLock
 from sase.axe.lifecycle_journal import read_recent_lifecycle_events
 from sase.axe._process_probe import cleanup_pid_files, probe_orchestrator
 from sase.axe._process_stop import _send_signal
@@ -236,7 +236,7 @@ def test_stop_cleanup_preserves_pid_published_by_concurrent_restart(
             side_effect=[running_probe, restarted_probe],
         ),
         patch(
-            "sase.axe._process_stop.terminate_process",
+            "sase.axe._process_stop._terminate_process",
             side_effect=stop_old_process,
         ),
         patch("sase.axe._process_probe.is_process_running", return_value=True),
@@ -335,7 +335,7 @@ def test_stop_axe_daemon_targets_inherited_lock_daemon(
     temp_state_dir: Path,
 ) -> None:
     del temp_state_dir
-    lock = AxeLifecycleLock.acquire(blocking=False)
+    lock = _AxeLifecycleLock.acquire(blocking=False)
     assert lock is not None
     handed_off = False
     proc: subprocess.Popen[str] | None = None

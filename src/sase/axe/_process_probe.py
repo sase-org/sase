@@ -35,20 +35,6 @@ def get_axe_pid() -> int | None:
     return probe_orchestrator().running_pid
 
 
-def get_pid_from_pid_files() -> int | None:
-    """Return a live PID from PID files without consulting the lifecycle lock."""
-    orchestrator_pid = _read_pid_path(orchestrator_pid_file())
-
-    from .state import read_pid_file
-
-    legacy_pid = read_pid_file()
-    if orchestrator_pid is not None and is_process_running(orchestrator_pid):
-        return orchestrator_pid
-    if legacy_pid is not None and is_process_running(legacy_pid):
-        return legacy_pid
-    return None
-
-
 def probe_orchestrator(*, cleanup: bool = True) -> AxeOrchestratorProbe:
     """Probe axe orchestrator liveness from lock and PID-file state."""
     lock_held = is_lifecycle_lock_held()

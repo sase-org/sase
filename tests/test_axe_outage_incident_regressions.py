@@ -11,12 +11,8 @@ from unittest.mock import patch
 import pytest
 
 import sase.axe.state as axe_state
-from sase.axe.config import AxeConfig
 from sase.axe._process_guard import AXE_LIFECYCLE_TEST_OVERRIDE_ENV
-from sase.axe.process import (
-    start_axe_daemon_result,
-    stop_axe_daemon_result,
-)
+from sase.axe.process import stop_axe_daemon_result
 from sase.axe.run_agent_wait import wait_for_dependencies
 
 from tests._agent_names_fixtures import make_agent
@@ -33,7 +29,7 @@ class TestLeakedOrchestratorIncidentRegression:
         self,
         tmp_path: Path,
     ) -> None:
-        """Status and guarded start use the post-import test-home redirect."""
+        """Status uses the post-import test-home redirect."""
         preimport_sase_home = tmp_path / "preimport-home" / ".sase"
         redirected_sase_home = tmp_path / "redirected-home" / ".sase"
         script = dedent(
@@ -55,8 +51,7 @@ class TestLeakedOrchestratorIncidentRegression:
 
             import sase.axe.lock as axe_lock
             import sase.axe.state as axe_state
-            from sase.axe.config import AxeConfig
-            from sase.axe.process import get_axe_status, start_axe_daemon_result
+            from sase.axe.process import get_axe_status
 
             def snapshot(root):
                 return {
@@ -71,12 +66,10 @@ class TestLeakedOrchestratorIncidentRegression:
             os.environ.pop("SASE_AXE_ALLOW_LIFECYCLE_IN_TESTS", None)
 
             status = get_axe_status()
-            started = start_axe_daemon_result(AxeConfig())
             payload = {
                 "axe_state_dir": str(axe_state.axe_state_dir()),
                 "lifecycle_lock": str(axe_lock._axe_lifecycle_lock_path()),
                 "status_is_none": status is None,
-                "start_status": started.status,
                 "outside_unchanged": snapshot(preimport_home) == before,
                 "redirected_files": sorted(
                     str(path.relative_to(redirected_home))
@@ -107,7 +100,6 @@ class TestLeakedOrchestratorIncidentRegression:
             "axe_state_dir": str(redirected_axe),
             "lifecycle_lock": str(redirected_axe / "orchestrator.lock"),
             "status_is_none": True,
-            "start_status": "blocked_in_tests",
             "outside_unchanged": True,
             "redirected_files": ["axe/orchestrator.lock"],
         }
@@ -116,7 +108,7 @@ class TestLeakedOrchestratorIncidentRegression:
         self,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        """Every public lifecycle transition is blocked before process work."""
+        """The public stop transition is blocked before process work."""
         monkeypatch.setenv("PYTEST_CURRENT_TEST", "incident regression")
         monkeypatch.delenv(AXE_LIFECYCLE_TEST_OVERRIDE_ENV, raising=False)
         state_dir = axe_state.axe_state_dir()
@@ -126,10 +118,8 @@ class TestLeakedOrchestratorIncidentRegression:
             patch("subprocess.Popen") as popen,
             patch("subprocess.run") as run,
         ):
-            started = start_axe_daemon_result(AxeConfig())
             stopped = stop_axe_daemon_result()
 
-        assert started.status == "blocked_in_tests"
         assert stopped.blocked_in_tests is True
         popen.assert_not_called()
         run.assert_not_called()

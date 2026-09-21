@@ -51,7 +51,6 @@ _LAZY_EXPORTS = {
     "get_axe_status": ("sase.axe.process", "get_axe_status"),
     "get_lumberjack_names": ("sase.axe.process", "get_lumberjack_names"),
     "is_axe_running": ("sase.axe.process", "is_axe_running"),
-    "start_axe_daemon": ("sase.axe.process", "start_axe_daemon"),
     "stop_axe_daemon": ("sase.axe.process", "stop_axe_daemon"),
     # Chop scripts
     "CHOP_OVERRUN_WIRE_SCHEMA_VERSION": (
@@ -154,7 +153,6 @@ __all__ = [
     "get_axe_status",
     "get_lumberjack_names",
     "is_axe_running",
-    "start_axe_daemon",
     "stop_axe_daemon",
     # Chop scripts
     "CHOP_OVERRUN_WIRE_SCHEMA_VERSION",
@@ -246,7 +244,6 @@ if TYPE_CHECKING:
         get_axe_status,
         get_lumberjack_names,
         is_axe_running,
-        start_axe_daemon,
         stop_axe_daemon,
     )
     from sase.axe.runner_pool import RunnerPool, SharedRunnerPool

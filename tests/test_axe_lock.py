@@ -11,7 +11,11 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.axe.lock import AxeLifecycleLock, clear_lock_holder_pid, read_lock_holder_pid
+from sase.axe.lock import (
+    _AxeLifecycleLock,
+    clear_lock_holder_pid,
+    read_lock_holder_pid,
+)
 
 
 @pytest.fixture
@@ -23,14 +27,14 @@ def temp_state_dir(tmp_path: Path) -> Iterator[Path]:
 
 
 def test_lifecycle_lock_is_exclusive(temp_state_dir: Path) -> None:
-    first = AxeLifecycleLock.acquire(blocking=False)
+    first = _AxeLifecycleLock.acquire(blocking=False)
     assert first is not None
     try:
-        assert AxeLifecycleLock.acquire(blocking=False) is None
+        assert _AxeLifecycleLock.acquire(blocking=False) is None
     finally:
         first.release()
 
-    second = AxeLifecycleLock.acquire(blocking=False)
+    second = _AxeLifecycleLock.acquire(blocking=False)
     assert second is not None
     second.release()
 
@@ -39,13 +43,13 @@ def test_stale_lock_file_does_not_block_acquisition(temp_state_dir: Path) -> Non
     path = temp_state_dir / "orchestrator.lock"
     path.write_text("stale")
 
-    lock = AxeLifecycleLock.acquire(blocking=False)
+    lock = _AxeLifecycleLock.acquire(blocking=False)
     assert lock is not None
     lock.release()
 
 
 def test_lifecycle_lock_records_holder_pid(temp_state_dir: Path) -> None:
-    lock = AxeLifecycleLock.acquire(blocking=False)
+    lock = _AxeLifecycleLock.acquire(blocking=False)
     assert lock is not None
     try:
         lock.write_holder_pid()
@@ -105,7 +109,7 @@ def test_lifecycle_lock_handoff_reports_recorded_child_pid(
     temp_state_dir: Path,
 ) -> None:
     del temp_state_dir
-    lock = AxeLifecycleLock.acquire(blocking=False)
+    lock = _AxeLifecycleLock.acquire(blocking=False)
     assert lock is not None
     handed_off = False
     proc: subprocess.Popen[str] | None = None

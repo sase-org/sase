@@ -4216,10 +4216,10 @@ chat_install:
   restart_attempts: 3
 ```
 
-| Field                           | Type | Default | Description                                                                |
-| ------------------------------- | ---- | ------- | -------------------------------------------------------------------------- |
-| `chat_install.timeout_seconds`  | int  | `900`   | Maximum runtime for `sase update --json` before returning exit code `124`. |
-| `chat_install.restart_attempts` | int  | `3`     | Number of axe start attempts when axe is not running after the update.     |
+| Field                           | Type | Default | Description                                                                                                                     |
+| ------------------------------- | ---- | ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `chat_install.timeout_seconds`  | int  | `900`   | Maximum runtime for `sase update --json` before returning exit code `124`.                                                      |
+| `chat_install.restart_attempts` | int  | `3`     | Number of scheduler readiness polls after requesting its service proc start when the scheduler is not running after the update. |
 
 Only one chat update worker may run at a time; a lock under
 `~/.sase/chat_install/install.lock` rejects concurrent starts. Worker output is written

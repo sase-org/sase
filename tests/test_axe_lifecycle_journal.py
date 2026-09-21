@@ -19,7 +19,6 @@ from sase.axe.lifecycle_journal import (
 )
 from sase.axe.maintenance import start_maintenance
 from sase.axe.orchestrator import Orchestrator
-from sase.axe._process_start import AXE_START_SOURCE_ENV
 
 
 @pytest.fixture
@@ -86,7 +85,7 @@ def test_orchestrator_records_actual_start_source_after_pid_publication(
     axe_state_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv(AXE_START_SOURCE_ENV, "ace startup")
+    monkeypatch.setenv("SASE_AXE_START_SOURCE", "ace startup")
     stale_marker = axe_state_dir / "maintenance.json"
     stale_marker.parent.mkdir(parents=True, exist_ok=True)
     stale_marker.write_text(

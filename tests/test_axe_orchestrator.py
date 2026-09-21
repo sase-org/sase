@@ -399,9 +399,9 @@ def test_run_writes_pid_and_releases_lifetime_lock(
         max_age_seconds=axe_config.lumberjack_log_temp_max_age_seconds,
     )
     assert not (temp_state_dir / "orchestrator.pid").exists()
-    from sase.axe.lock import AxeLifecycleLock
+    from sase.axe.lock import _AxeLifecycleLock
 
-    lock = AxeLifecycleLock.acquire(blocking=False)
+    lock = _AxeLifecycleLock.acquire(blocking=False)
     assert lock is not None
     lock.release()
 

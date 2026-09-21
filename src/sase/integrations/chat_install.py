@@ -11,10 +11,11 @@ import time
 import uuid
 from pathlib import Path
 
-from sase.axe.process import is_axe_running, start_axe_daemon
 from sase.config.core import load_merged_config
 from sase.core.paths import sase_subdir
 from sase.core.time import local_now
+from sase.service.actions import start_service_proc
+from sase.service.control import persisted_or_current_status, start_service_host
 
 from ._chat_install_cli import main as _cli_main
 from ._chat_install_config import (
@@ -38,7 +39,6 @@ from ._chat_install_worker import (
     UpdateCommandResult,
     log_block as _log_block_impl,
     log_message as _log_message_impl,
-    restart_axe as _restart_axe_impl,
     run_update_command as _run_update_command_impl,
     write_completion_record as _write_completion_record_impl,
 )
@@ -190,20 +190,22 @@ def _run_worker(
             exit_code = result.exit_code
             message = result.message
 
-            restart_succeeded = _ensure_axe_running(config.restart_attempts)
+            restart_succeeded = _ensure_scheduler_running(config.restart_attempts)
             if not restart_succeeded:
                 exit_code = 5
-                message = "Update failed with exit code 5; axe restart failed."
+                message = "Update failed with exit code 5; scheduler restart failed."
             return exit_code
         except Exception as exc:
             _log(f"worker failed: {type(exc).__name__}: {exc}")
             exit_code = 1
             message = "Update failed with exit code 1."
             if restart_succeeded is None:
-                restart_succeeded = _ensure_axe_running(config.restart_attempts)
+                restart_succeeded = _ensure_scheduler_running(config.restart_attempts)
                 if not restart_succeeded:
                     exit_code = 5
-                    message = "Update failed with exit code 5; axe restart failed."
+                    message = (
+                        "Update failed with exit code 5; scheduler restart failed."
+                    )
             return exit_code
     finally:
         if lock_fd is not None:
@@ -361,24 +363,73 @@ def _run_update_command(config: _ChatInstallConfig) -> UpdateCommandResult:
     )
 
 
-def _ensure_axe_running(attempts: int) -> bool:
+_SCHEDULER_POLL_INTERVAL_SECONDS = 2.0
+
+
+def _snapshot_scheduler_running(snapshot: object) -> bool:
     try:
-        if is_axe_running():
-            _log("axe is already running")
+        procs = snapshot.procs  # type: ignore[attr-defined]
+    except AttributeError:
+        return False
+    for proc in procs or ():
+        if getattr(proc, "name", None) == "scheduler":
+            return getattr(proc, "state", None) in {"running", "starting"}
+    return False
+
+
+def _scheduler_proc_running() -> bool:
+    try:
+        snapshot = persisted_or_current_status()
+    except Exception as exc:
+        _log(f"could not check scheduler status: {type(exc).__name__}: {exc}")
+        return False
+    return _snapshot_scheduler_running(snapshot)
+
+
+def _ensure_scheduler_running(attempts: int) -> bool:
+    try:
+        if _scheduler_proc_running():
+            _log("scheduler is already running")
             return True
     except Exception as exc:
-        _log(f"could not check axe status: {type(exc).__name__}: {exc}")
-    return _restart_axe(attempts)
+        _log(f"could not check scheduler status: {type(exc).__name__}: {exc}")
+    return _start_scheduler_via_service_host(attempts)
 
 
-def _restart_axe(attempts: int) -> bool:
-    return _restart_axe_impl(
-        attempts,
-        start=start_axe_daemon,
-        is_running=is_axe_running,
-        sleep=time.sleep,
-        log=_log,
-    )
+def _start_scheduler_via_service_host(attempts: int) -> bool:
+    try:
+        outcome = start_service_proc(
+            "scheduler",
+            actor="chat-install",
+            reason="chat-install post-update recovery",
+        )
+        _log(f"starting scheduler: {outcome.message}")
+    except Exception as exc:
+        _log(f"start scheduler request failed: {type(exc).__name__}: {exc}")
+        return False
+
+    try:
+        snapshot = persisted_or_current_status()
+        host_state = getattr(getattr(snapshot, "host", None), "state", None)
+    except Exception as exc:
+        _log(f"could not check service host status: {type(exc).__name__}: {exc}")
+        host_state = None
+    if host_state not in {"running", "starting"}:
+        try:
+            host_result = start_service_host()
+            _log(f"service host start: {host_result.message}")
+        except Exception as exc:
+            _log(f"start service host failed: {type(exc).__name__}: {exc}")
+
+    budget = max(1, attempts)
+    for attempt in range(1, budget + 1):
+        if _scheduler_proc_running():
+            _log("scheduler restart succeeded")
+            return True
+        if attempt < budget:
+            time.sleep(_SCHEDULER_POLL_INTERVAL_SECONDS)
+    _log("scheduler restart failed after all attempts")
+    return False
 
 
 def _utc_now() -> str:

@@ -1,30 +1,6 @@
 """Shared result types for axe process lifecycle helpers."""
 
 from dataclasses import dataclass
-from typing import Literal
-
-
-StartStatus = Literal[
-    "started",
-    "already_running",
-    "failed",
-    "blocked",
-    "blocked_in_tests",
-]
-
-
-@dataclass(frozen=True)
-class AxeStartResult:
-    """Result of an axe daemon start request."""
-
-    status: StartStatus
-    pid: int | None = None
-    message: str = ""
-    recovered_lock_holder_pid: int | None = None
-
-    @property
-    def succeeded(self) -> bool:
-        return self.status in {"started", "already_running"} and self.pid is not None
 
 
 @dataclass(frozen=True)

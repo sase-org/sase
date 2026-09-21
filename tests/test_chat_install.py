@@ -22,6 +22,15 @@ from sase.integrations.chat_install import (
 )
 
 
+def _scheduler_snapshot(
+    *, scheduler_state: str = "running", host_state: str = "running"
+) -> SimpleNamespace:
+    return SimpleNamespace(
+        procs=[SimpleNamespace(name="scheduler", state=scheduler_state)],
+        host=SimpleNamespace(state=host_state),
+    )
+
+
 def test__load_chat_install_config_defaults() -> None:
     with patch("sase.integrations.chat_install.load_merged_config", return_value={}):
         assert _load_chat_install_config() == _ChatInstallConfig()
@@ -298,8 +307,11 @@ def test_run_worker_runs_sase_update_json_and_uses_payload_message(
             return_value=_ChatInstallConfig(timeout_seconds=12, restart_attempts=1),
         ),
         patch("sase.integrations.chat_install.subprocess.run", side_effect=run),
-        patch("sase.integrations.chat_install.start_axe_daemon") as start,
-        patch("sase.integrations.chat_install.is_axe_running", return_value=True),
+        patch(
+            "sase.integrations.chat_install.persisted_or_current_status",
+            return_value=_scheduler_snapshot(),
+        ),
+        patch("sase.integrations.chat_install.start_service_proc") as start_proc,
     ):
         assert (
             _run_worker(
@@ -316,7 +328,7 @@ def test_run_worker_runs_sase_update_json_and_uses_payload_message(
         "capture_output": True,
         "timeout": 12,
     }
-    start.assert_not_called()
+    start_proc.assert_not_called()
     record = json.loads(status_path.read_text())
     assert record["job_id"] == "job-1"
     assert record["status"] == "success"
@@ -381,7 +393,10 @@ def test_run_worker_summarizes_dev_update_core_package(
                 returncode=0, stdout=json.dumps(payload), stderr=""
             ),
         ),
-        patch("sase.integrations.chat_install.is_axe_running", return_value=True),
+        patch(
+            "sase.integrations.chat_install.persisted_or_current_status",
+            return_value=_scheduler_snapshot(),
+        ),
     ):
         assert _run_worker(job_id="job-core", status_path=status_path) == 0
 
@@ -412,7 +427,10 @@ def test_run_worker_reports_already_up_to_date(tmp_path: Path) -> None:
                 returncode=0, stdout=json.dumps(payload), stderr=""
             ),
         ),
-        patch("sase.integrations.chat_install.is_axe_running", return_value=True),
+        patch(
+            "sase.integrations.chat_install.persisted_or_current_status",
+            return_value=_scheduler_snapshot(),
+        ),
     ):
         assert _run_worker(job_id="job-2", status_path=status_path) == 0
 
@@ -438,7 +456,10 @@ def test_run_worker_surfaces_update_json_error(tmp_path: Path) -> None:
                 returncode=1, stdout=json.dumps(payload), stderr=""
             ),
         ),
-        patch("sase.integrations.chat_install.is_axe_running", return_value=True),
+        patch(
+            "sase.integrations.chat_install.persisted_or_current_status",
+            return_value=_scheduler_snapshot(),
+        ),
     ):
         assert _run_worker(job_id="job-3", status_path=status_path) == 1
 
@@ -464,7 +485,10 @@ def test_run_worker_falls_back_when_update_json_is_malformed(
             "sase.integrations.chat_install.subprocess.run",
             return_value=SimpleNamespace(returncode=0, stdout="not json", stderr=""),
         ),
-        patch("sase.integrations.chat_install.is_axe_running", return_value=True),
+        patch(
+            "sase.integrations.chat_install.persisted_or_current_status",
+            return_value=_scheduler_snapshot(),
+        ),
     ):
         assert _run_worker(job_id="job-4", status_path=status_path) == 0
 
@@ -486,7 +510,10 @@ def test_run_worker_maps_update_timeout_to_124(tmp_path: Path) -> None:
                 cmd=["sase", "update"], timeout=12, output="partial", stderr="err"
             ),
         ),
-        patch("sase.integrations.chat_install.is_axe_running", return_value=True),
+        patch(
+            "sase.integrations.chat_install.persisted_or_current_status",
+            return_value=_scheduler_snapshot(),
+        ),
     ):
         assert _run_worker(job_id="job-5", status_path=status_path) == 124
 
@@ -496,39 +523,7 @@ def test_run_worker_maps_update_timeout_to_124(tmp_path: Path) -> None:
     assert record["message"] == "Update failed with exit code 124."
 
 
-def test_run_worker_starts_axe_when_down_after_update(tmp_path: Path) -> None:
-    status_path = tmp_path / "completion.json"
-    payload = {"schema_version": 2, "dry_run": False, "changed": False}
-
-    with (
-        patch(
-            "sase.integrations.chat_install._load_chat_install_config",
-            return_value=_ChatInstallConfig(restart_attempts=2),
-        ),
-        patch(
-            "sase.integrations.chat_install.subprocess.run",
-            return_value=SimpleNamespace(
-                returncode=0, stdout=json.dumps(payload), stderr=""
-            ),
-        ),
-        patch(
-            "sase.integrations.chat_install.start_axe_daemon", return_value=999
-        ) as start,
-        patch(
-            "sase.integrations.chat_install.is_axe_running",
-            side_effect=[False, True],
-        ),
-        patch("sase.integrations.chat_install.time.sleep"),
-    ):
-        assert _run_worker(job_id="job-6", status_path=status_path) == 0
-
-    assert start.call_count == 1
-    record = json.loads(status_path.read_text())
-    assert record["restart_succeeded"] is True
-    assert record["message"] == "Already up to date."
-
-
-def test_run_worker_marks_axe_start_failure_as_exit_code_5(
+def test_run_worker_starts_scheduler_when_down_after_update(
     tmp_path: Path,
 ) -> None:
     status_path = tmp_path / "completion.json"
@@ -545,8 +540,105 @@ def test_run_worker_marks_axe_start_failure_as_exit_code_5(
                 returncode=0, stdout=json.dumps(payload), stderr=""
             ),
         ),
-        patch("sase.integrations.chat_install.start_axe_daemon", return_value=None),
-        patch("sase.integrations.chat_install.is_axe_running", return_value=False),
+        patch(
+            "sase.integrations.chat_install.persisted_or_current_status",
+            side_effect=[
+                _scheduler_snapshot(scheduler_state="stopped"),
+                _scheduler_snapshot(scheduler_state="stopped"),
+                _scheduler_snapshot(scheduler_state="running"),
+            ],
+        ),
+        patch(
+            "sase.integrations.chat_install.start_service_proc",
+            return_value=SimpleNamespace(message="requested service proc start"),
+        ) as start_proc,
+        patch("sase.integrations.chat_install.start_service_host") as start_host,
+        patch("sase.integrations.chat_install.time.sleep"),
+    ):
+        assert _run_worker(job_id="job-6", status_path=status_path) == 0
+
+    assert start_proc.call_count == 1
+    _, kwargs = start_proc.call_args
+    assert start_proc.call_args[0] == ("scheduler",)
+    assert kwargs["actor"] == "chat-install"
+    start_host.assert_not_called()
+    record = json.loads(status_path.read_text())
+    assert record["restart_succeeded"] is True
+    assert record["message"] == "Already up to date."
+
+
+def test_run_worker_starts_service_host_when_down_after_update(
+    tmp_path: Path,
+) -> None:
+    status_path = tmp_path / "completion.json"
+    payload = {"schema_version": 2, "dry_run": False, "changed": False}
+
+    with (
+        patch(
+            "sase.integrations.chat_install._load_chat_install_config",
+            return_value=_ChatInstallConfig(restart_attempts=2),
+        ),
+        patch(
+            "sase.integrations.chat_install.subprocess.run",
+            return_value=SimpleNamespace(
+                returncode=0, stdout=json.dumps(payload), stderr=""
+            ),
+        ),
+        patch(
+            "sase.integrations.chat_install.persisted_or_current_status",
+            side_effect=[
+                _scheduler_snapshot(scheduler_state="stopped", host_state="stopped"),
+                _scheduler_snapshot(scheduler_state="stopped", host_state="stopped"),
+                _scheduler_snapshot(scheduler_state="running"),
+            ],
+        ),
+        patch(
+            "sase.integrations.chat_install.start_service_proc",
+            return_value=SimpleNamespace(message="requested service proc start"),
+        ) as start_proc,
+        patch(
+            "sase.integrations.chat_install.start_service_host",
+            return_value=SimpleNamespace(message="service host started"),
+        ) as start_host,
+        patch("sase.integrations.chat_install.time.sleep"),
+    ):
+        assert _run_worker(job_id="job-6b", status_path=status_path) == 0
+
+    assert start_proc.call_count == 1
+    assert start_host.call_count == 1
+    record = json.loads(status_path.read_text())
+    assert record["restart_succeeded"] is True
+
+
+def test_run_worker_marks_scheduler_start_failure_as_exit_code_5(
+    tmp_path: Path,
+) -> None:
+    status_path = tmp_path / "completion.json"
+    payload = {"schema_version": 2, "dry_run": False, "changed": False}
+
+    with (
+        patch(
+            "sase.integrations.chat_install._load_chat_install_config",
+            return_value=_ChatInstallConfig(restart_attempts=2),
+        ),
+        patch(
+            "sase.integrations.chat_install.subprocess.run",
+            return_value=SimpleNamespace(
+                returncode=0, stdout=json.dumps(payload), stderr=""
+            ),
+        ),
+        patch(
+            "sase.integrations.chat_install.persisted_or_current_status",
+            return_value=_scheduler_snapshot(scheduler_state="stopped"),
+        ),
+        patch(
+            "sase.integrations.chat_install.start_service_proc",
+            return_value=SimpleNamespace(message="requested service proc start"),
+        ),
+        patch(
+            "sase.integrations.chat_install.start_service_host",
+            return_value=SimpleNamespace(message="service host started"),
+        ),
         patch("sase.integrations.chat_install.time.sleep"),
     ):
         assert _run_worker(job_id="job-7", status_path=status_path) == 5
@@ -555,7 +647,9 @@ def test_run_worker_marks_axe_start_failure_as_exit_code_5(
     assert record["status"] == "failed"
     assert record["exit_code"] == 5
     assert record["restart_succeeded"] is False
-    assert record["message"] == "Update failed with exit code 5; axe restart failed."
+    assert record["message"] == (
+        "Update failed with exit code 5; scheduler restart failed."
+    )
 
 
 def test_run_worker_ignores_unrelated_inherited_lock_fd(
@@ -579,7 +673,10 @@ def test_run_worker_ignores_unrelated_inherited_lock_fd(
                     returncode=0, stdout=json.dumps(payload), stderr=""
                 ),
             ),
-            patch("sase.integrations.chat_install.is_axe_running", return_value=True),
+            patch(
+                "sase.integrations.chat_install.persisted_or_current_status",
+                return_value=_scheduler_snapshot(),
+            ),
         ):
             assert _run_worker() == 0
 
