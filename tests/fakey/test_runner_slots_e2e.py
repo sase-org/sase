@@ -251,6 +251,14 @@ def test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit(
             "%wait(priority=...) syntax"
         )
 
+    # Plan against an empty provider-disable state instead of the developer's
+    # real ~/.sase: a genuine codex/claude disable would otherwise drop swarm
+    # researchers and turn these counts into phantom failures. This stays
+    # separate from the fakey harness home created further below.
+    plan_home = tmp_path / "plan-home"
+    plan_home.mkdir()
+    monkeypatch.setenv("SASE_HOME", str(plan_home))
+
     default_plan = plan_typed_launch_units(
         expand_prompt_for_typed_launch("#research_swarm:: weighted queue acceptance"),
         selected_project="sase",
@@ -308,6 +316,57 @@ def test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit(
         selected_project="sase",
     )
     assert len(capacity_plan.units) == 4
+
+    # Provider-gating coverage for the installed swarm. The installed plugin
+    # only grows these inputs once it ships the provider-gated segments, so
+    # assert the gating only when the installed swarm supports it, the same
+    # way the retired-syntax guard above stays green on older installs.
+    if "provider_enabled" in research_swarm.content:
+        from sase.llm_provider.provider_disable import disable_provider
+
+        def _assert_swarm_shape(plan, researcher_count: int) -> None:
+            assert len(plan.units) == researcher_count + 1
+            assert [
+                (unit.payload.queue_weight, unit.payload.queue_weight_explicit)
+                for unit in plan.units
+            ] == [(0.25, True)] * (researcher_count + 1)
+            assert [
+                [wait.logical_id for wait in unit.waits] for unit in plan.units
+            ] == [[]] * researcher_count + [
+                [f"unit-{index}" for index in range(1, researcher_count + 1)]
+            ]
+
+        for extra_kwargs, researcher_count in [
+            ("grok=true", 3),
+            ("muse=true", 3),
+            ("grok=true, muse=true", 4),
+            ("codex=false", 1),
+        ]:
+            _assert_swarm_shape(
+                plan_typed_launch_units(
+                    expand_prompt_for_typed_launch(
+                        "#research_swarm(prompt='weighted queue acceptance', "
+                        f"{extra_kwargs})"
+                    ),
+                    selected_project="sase",
+                ),
+                researcher_count,
+            )
+
+        # A written-in codex disable drops the codex researcher even though
+        # its boolean input stays true; every surviving unit keeps weight
+        # 0.25.
+        disable_provider("codex", 900.0, source="test")
+        _assert_swarm_shape(
+            plan_typed_launch_units(
+                expand_prompt_for_typed_launch(
+                    "#research_swarm(prompt='weighted queue acceptance')"
+                ),
+                selected_project="sase",
+            ),
+            1,
+        )
+
     harness = _RunnerSlotFakeyHarness(tmp_path, monkeypatch, cap=1)
     agents = [
         harness.create_agent(
