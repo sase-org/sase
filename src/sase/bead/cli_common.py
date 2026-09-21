@@ -1,16 +1,37 @@
-"""Shared helpers for bead CLI handlers."""
+"""Shared helpers for bead CLI handlers.
+
+Store access (``init_beads``, ``get_project``, ``get_read_view``) and the
+single-mutation lane (``auto_commit_bead_store``, ``bead_store_mutation``) live
+here; the remaining helpers live in focused modules and are re-exported to keep
+the historical ``sase.bead.cli_common`` import surface intact:
+
+- ``cli_common_publication`` — publication errors and push verification
+- ``cli_common_routing`` — operation-context routing for CLI targets
+- ``cli_common_paths`` — workspace/plan-path mapping
+- ``cli_common_presentation`` — single-line row presentation
+
+Patch the module that defines a helper (``cli_common_publication``,
+``cli_common_paths``, ...), not this facade.
+"""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-import json
 import logging
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+from sase.bead.cli_common_paths import normalize_workspace_path, storage_plan_path
+from sase.bead.cli_common_presentation import created_cell, status_icon
+from sase.bead.cli_common_publication import (
+    BeadPublicationError,
+    emit_routed_bead_publication_failure,
+    ensure_bead_mutation_published,
+    routed_bead_context_requires_publication,
+)
+from sase.bead.cli_common_routing import resolve_bead_operation_context
 from sase.bead.cli_location import (
     BeadsLocation,
     bead_store_exists,
@@ -18,7 +39,6 @@ from sase.bead.cli_location import (
     resolve_beads_location,
     resolved_beads_location_is_usable,
 )
-from sase.bead.model import Issue, Status
 from sase.bead.project import (
     BEADS_DIRNAME,
     BEADS_DIRNAME_NON_VC,
@@ -34,19 +54,29 @@ if TYPE_CHECKING:
 # Backward-compatible alias for tests and downstream imports of the old module.
 _BeadsLocation = BeadsLocation
 
-
-class BeadPublicationError(RuntimeError):
-    """Raised when a committed bead mutation could not be published.
-
-    The mutation exists in the local store only, so its command must fail
-    loudly rather than report a success nobody else can observe. ``diagnostic``
-    carries the full operator-facing report that was written to stderr, for
-    callers that record the failure somewhere other than a terminal.
-    """
-
-    def __init__(self, message: str, *, diagnostic: str | None = None) -> None:
-        super().__init__(message)
-        self.diagnostic = diagnostic or message
+__all__ = [
+    "BeadPublicationError",
+    "BeadsLocation",
+    "_BeadsLocation",
+    "_push_committed_bead_store",
+    "auto_commit_bead_store",
+    "bead_store_exists",
+    "bead_store_mutation",
+    "created_cell",
+    "emit_routed_bead_publication_failure",
+    "ensure_bead_mutation_published",
+    "find_beads_location",
+    "get_project",
+    "get_read_view",
+    "init_beads",
+    "normalize_workspace_path",
+    "resolve_bead_operation_context",
+    "resolve_beads_location",
+    "resolved_beads_location_is_usable",
+    "routed_bead_context_requires_publication",
+    "status_icon",
+    "storage_plan_path",
+]
 
 
 @dataclass
@@ -139,46 +169,6 @@ def get_read_view(*, bead_context: BeadOperationContext | None = None) -> BeadPr
     if location is not None and location.read_only:
         return BeadProject(location.root, beads_dirname=location.beads_dirname)
     return get_project()
-
-
-def resolve_bead_operation_context(
-    targets: Sequence[str],
-    *,
-    for_write: bool = False,
-    materialize: bool = False,
-    require_single_store: bool = True,
-    exit_on_error: bool = True,
-) -> BeadOperationContext:
-    """Resolve CLI bead targets or report a normal command error.
-
-    This is the argparse/Python-handler counterpart to the Rust fast-path
-    target extraction: callers pass only command operands that are bead IDs,
-    never notes, titles, artifact refs, or file paths.
-    """
-    from sase.bead.operation_context import (
-        BeadOperationRoutingError,
-        resolve_operation_context_for_targets,
-    )
-
-    try:
-        return resolve_operation_context_for_targets(
-            targets,
-            for_write=for_write,
-            materialize=materialize,
-            require_single_store=require_single_store,
-        )
-    except BeadOperationRoutingError as exc:
-        message = _cli_routing_error_message(str(exc))
-        if exit_on_error:
-            print(f"Error: {message}", file=sys.stderr)
-            sys.exit(1)
-        raise RuntimeError(message) from exc
-
-
-def _cli_routing_error_message(message: str) -> str:
-    if message.startswith("Issue not found: "):
-        return f"issue not found: {message.removeprefix('Issue not found: ')}"
-    return message
 
 
 def _refuse_read_only_bead_store(
@@ -340,71 +330,12 @@ def bead_store_mutation(
         _refresh_touch_index_after_mutation(mutation.project.beads_dir, cwd=cwd)
 
 
-def _refresh_touch_index_after_mutation(beads_dir: Path, cwd: Path | None) -> None:
-    """Refresh the agent/bead touch index after a mutation commits.
-
-    Best-effort and off the panel's hot path: a failure logs inside the
-    facade and is swallowed, so an agent's own edit can never break the
-    mutation that just committed. An unresolvable project is a quiet skip;
-    the lumberjack tick converges the store instead.
-    """
-    try:
-        from sase.core.bead_touch_index_facade import (
-            refresh_touch_index_best_effort,
-        )
-
-        refresh_touch_index_best_effort(beads_dir, cwd=cwd)
-    except Exception:
-        _logger.warning(
-            "Skipping bead touch-index refresh after mutation",
-            exc_info=True,
-        )
-
-
 def _routed_bead_context(
     bead_context: BeadOperationContext | None,
 ) -> BeadOperationContext | None:
     if bead_context is None or bead_context.project_key is None:
         return None
     return bead_context
-
-
-def routed_bead_context_requires_publication(
-    bead_context: BeadOperationContext | None,
-) -> bool:
-    """Return whether a routed mutation must prove commit/publication success."""
-    if bead_context is None or bead_context.project_key is None:
-        return False
-    location = bead_context.location
-    return not location.is_in_tree and not location.read_only
-
-
-def emit_routed_bead_publication_failure(
-    description: str | None,
-    *,
-    bead_context: BeadOperationContext | None = None,
-    cause: BaseException | None = None,
-) -> BeadPublicationError:
-    """Print and return the publication error for a failed routed commit."""
-    beads_dir = None if bead_context is None else bead_context.beads_dir
-    project = None if bead_context is None else bead_context.project_label
-    operation = description or "bead mutation"
-    location = "the routed bead store" if beads_dir is None else str(beads_dir)
-    owner = "" if project is None else f" for project {project!r}"
-    lines = [
-        (
-            f"routed bead mutation {operation!r}{owner} changed {location}, "
-            "but the change could not be committed for publication"
-        ),
-        "Resolve the SDD bead-store commit/publish problem and rerun the command.",
-    ]
-    if cause is None:
-        lines.append("The auto-commit hook reported that no commit was created.")
-    else:
-        lines.append(f"Commit failure: {cause}")
-    diagnostic = "\n".join(lines)
-    print(diagnostic, file=sys.stderr)
-    return BeadPublicationError(lines[0], diagnostic=diagnostic)
 
 
 def _require_published_bead_mutation(
@@ -424,54 +355,6 @@ def _require_published_bead_mutation(
     if location is None or location.is_in_tree or location.read_only:
         return None
     return ensure_bead_mutation_published(location.beads_dir, description=description)
-
-
-def ensure_bead_mutation_published(
-    beads_dir: Path,
-    *,
-    description: str | None = None,
-) -> Any | None:
-    """Verify a committed bead mutation was published; publish it if not.
-
-    The configured push policy may be queued, detached, or aimed at a
-    different checkout than the one holding the commit, so this runs above it:
-    it asks whether the commit actually reached the remote and, when it did
-    not, forces one synchronous push against the store that holds it. A store
-    with no upstream is not applicable and stays silent.
-
-    Raises ``BeadPublicationError`` when bead commits remain unpublished.
-    """
-    from sase.bead.sync import (
-        MUTATION_PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
-        bead_publication_failure_lines,
-        push_bead_work_launch,
-        verify_bead_store_published,
-    )
-
-    try:
-        status = verify_bead_store_published(beads_dir)
-        if status.published:
-            return None
-        outcome = push_bead_work_launch(
-            beads_dir,
-            worker_lock_wait=MUTATION_PUBLICATION_WORKER_LOCK_WAIT_SECONDS,
-        )
-        status = verify_bead_store_published(beads_dir)
-        if status.published:
-            return outcome
-        lines = bead_publication_failure_lines(status, description=description)
-    except Exception:
-        # Verification must never turn an otherwise healthy mutation into a
-        # failure because the check itself broke.
-        _logger.warning(
-            "Failed to verify publication of committed bead state",
-            exc_info=True,
-        )
-        return None
-
-    for line in lines:
-        print(line, file=sys.stderr)
-    raise BeadPublicationError(lines[0], diagnostic="\n".join(lines))
 
 
 def _push_committed_bead_store(
@@ -518,194 +401,22 @@ def _push_committed_bead_store(
         return None
 
 
-def normalize_workspace_path(resolved: Path) -> Path:
-    """Normalize a path from an ephemeral workspace to the primary workspace.
+def _refresh_touch_index_after_mutation(beads_dir: Path, cwd: Path | None) -> None:
+    """Refresh the agent/bead touch index after a mutation commits.
 
-    If ``resolved`` is inside a sibling workspace (same parent directory as the
-    primary workspace), rewrite it to be rooted at the primary workspace instead.
-    This prevents ephemeral ``sase_<N>`` prefixes from leaking into stored paths.
+    Best-effort and off the panel's hot path: a failure logs inside the
+    facade and is swallowed, so an agent's own edit can never break the
+    mutation that just committed. An unresolvable project is a quiet skip;
+    the lumberjack tick converges the store instead.
     """
-    from sase.bead.workspace import resolve_primary_workspace
-
-    primary = resolve_primary_workspace()
-    if not primary:
-        return resolved
-
     try:
-        resolved.relative_to(primary)
-        return resolved  # already inside primary
-    except ValueError:
-        pass
-
-    # Check if inside a sibling workspace (same parent directory)
-    try:
-        rel_to_parent = resolved.relative_to(primary.parent)
-    except ValueError:
-        return resolved  # not in a sibling workspace
-
-    parts = rel_to_parent.parts
-    if len(parts) > 1 and _same_owner_workspace(primary.parent / parts[0], primary):
-        return primary / Path(*parts[1:])
-    return resolved
-
-
-def storage_plan_path(
-    resolved: Path,
-    *,
-    bead_context: BeadOperationContext | None = None,
-) -> str:
-    """Return the plan path representation to persist on a bead.
-
-    Plans below a known SDD or local-archive plans root use canonical
-    ``plan:`` references. External paths keep the legacy relative/absolute
-    fallback after workspace-prefix normalization.
-    """
-    if bead_context is not None:
-        contextual = _storage_plan_path_for_context(resolved, bead_context)
-        if contextual is not None:
-            return contextual
-
-    canonical = _canonical_storage_plan_path(resolved)
-    if canonical is not None:
-        return canonical
-
-    normalized = normalize_workspace_path(resolved)
-
-    for root in _storage_relative_roots():
-        try:
-            return str(normalized.relative_to(root))
-        except ValueError:
-            continue
-
-    return str(normalized)
-
-
-def _same_owner_workspace(candidate: Path, primary: Path) -> bool:
-    if candidate == primary:
-        return True
-    marker = candidate / ".sase" / "checkout.json"
-    try:
-        payload = json.loads(marker.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        payload = {}
-    if isinstance(payload, dict):
-        marker_primary = payload.get("primary_workspace_dir")
-        if marker_primary is not None:
-            try:
-                return Path(str(marker_primary)).expanduser().resolve() == primary
-            except OSError:
-                return False
-
-    prefix = f"{primary.name}_"
-    if candidate.parent == primary.parent and candidate.name.startswith(prefix):
-        return candidate.name.removeprefix(prefix).isdigit()
-    return False
-
-
-def _storage_plan_path_for_context(
-    resolved: Path,
-    bead_context: BeadOperationContext,
-) -> str | None:
-    try:
-        from sase.sdd.plan_refs import plan_ref_for_store
-
-        store = bead_context.location.store
-        if store is None:
-            store = _store_for_location(bead_context.location)
-        workspace_dir = bead_context.primary_workspace or bead_context.location.root
-        return plan_ref_for_store(resolved, store, workspace_dir=workspace_dir)
-    except (AttributeError, ImportError, RuntimeError, ValueError):
-        return None
-
-
-def _store_for_location(location: BeadsLocation) -> Any:
-    from sase.sdd.store import SddStore
-
-    if location.beads_dirname == BEADS_DIRNAME:
-        return SddStore(
-            storage="in_tree",
-            sdd_dir=location.root / "sdd",
-            repo_root=location.root,
+        from sase.core.bead_touch_index_facade import (
+            refresh_touch_index_best_effort,
         )
-    storage: Any = location.storage or "local"
-    return SddStore(
-        storage=storage,
-        sdd_dir=location.root,
-        repo_root=location.root,
-    )
 
-
-def _canonical_storage_plan_path(resolved: Path) -> str | None:
-    location = resolve_beads_location(require_existing=True)
-    if location is None:
-        return None
-
-    try:
-        from sase.core.paths import sase_subdir
-        from sase.sdd.plan_refs import canonicalize_plan_reference_from_roots
-    except (AttributeError, ImportError):
-        return None
-
-    roots: list[Path] = []
-    if location.store is not None:
-        try:
-            roots.append(location.store.kind_root("plans"))
-        except ValueError:
-            pass
-    elif location.beads_dirname == BEADS_DIRNAME:
-        roots.append(location.root / "sdd" / "plans")
-    else:
-        roots.append(location.root / "plans")
-    roots.append(sase_subdir("plans"))
-
-    try:
-        return canonicalize_plan_reference_from_roots(
-            resolved,
-            roots=tuple(roots),
+        refresh_touch_index_best_effort(beads_dir, cwd=cwd)
+    except Exception:
+        _logger.warning(
+            "Skipping bead touch-index refresh after mutation",
+            exc_info=True,
         )
-    except (AttributeError, ImportError, RuntimeError, ValueError):
-        return None
-
-
-def _storage_relative_roots() -> list[Path]:
-    """Trusted roots that can produce stable storage-relative plan paths."""
-    from sase.bead.workspace import resolve_primary_workspace
-
-    roots: list[Path] = []
-    primary = resolve_primary_workspace()
-    if primary:
-        roots.append(primary.resolve())
-        return roots
-
-    root, _beads_dirname = find_beads_location()
-    roots.append(root.resolve())
-
-    cwd = Path.cwd().resolve()
-    if cwd not in roots:
-        roots.append(cwd)
-
-    return roots
-
-
-def status_icon(status: Status) -> str:
-    from sase.bead_status_presentation import bead_status_presentation
-
-    return bead_status_presentation(status).glyph
-
-
-def created_cell(issue: Issue, *, use_color: bool) -> str:
-    """Return the trailing ``⧖ <age>`` fragment for a single-line bead row.
-
-    Every compact CLI row surface (list, search, dependency list and tree)
-    appends this so the bead's own creation time reads identically across all
-    of them, and stays distinct from the dependency edge's ``added <ts> by
-    <who>`` provenance line. Empty when the bead carries no usable timestamp,
-    so the row simply ends where it used to instead of trailing whitespace.
-    """
-    from sase.bead_time_presentation import bead_created_cli
-
-    cell = bead_created_cli(issue.created_at, use_color=use_color)
-    return f"  {cell}" if cell else ""
-
-
-# --- Subcommand handlers ---
