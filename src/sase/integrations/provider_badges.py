@@ -9,14 +9,14 @@ _PROVIDER_EMOJI_BADGES: dict[str, str] = {
     "anthropic": "🎭",
     "codex": "🤖",
     "fakey": "🧪",
-    "grok": "🛰️",
+    "grok": "🚀",
     "openai": "🤖",
     "qwen": "🐼",
     "opencode": "🐙",
     "agy": "🪐",
     "muse": "🦋",
     "meta": "🦋",
-    "xai": "🛰️",
+    "xai": "🚀",
 }
 
 

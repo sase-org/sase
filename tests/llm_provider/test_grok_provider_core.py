@@ -173,8 +173,8 @@ def test_grok_provider_metadata_hooks() -> None:
 
 def test_grok_provider_surface_metadata_is_registered() -> None:
     assert provider_cli_status_color_map()["grok"] == "#00C8D7"
-    assert provider_emoji_badge("grok") == "🛰️"
-    assert provider_emoji_badge("xai") == "🛰️"
+    assert provider_emoji_badge("grok") == "🚀"
+    assert provider_emoji_badge("xai") == "🚀"
 
 
 def test_grok_provider_has_no_autodetect_priority() -> None:

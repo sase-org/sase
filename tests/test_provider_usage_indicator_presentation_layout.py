@@ -80,7 +80,7 @@ def test_budget_packing_falls_back_through_the_full_ladder() -> None:
     assert overflow.cell_len <= full.cell_len - 1
     assert overflow.plain.strip().endswith("+1")
     assert "🎭" in overflow.plain
-    assert "🛰️" not in overflow.plain
+    assert "🚀" not in overflow.plain
 
     count_only = build_usage_indicator_segment(groups, budget=cell_len(" usage 3 "))
     assert count_only.plain == " usage 3 "

@@ -57,7 +57,7 @@ def test_build_content_renders_selected_windows() -> None:
     groups = _groups(_usage_entry(provider="grok", remaining_percent=7.0))
     text = ProviderUsageIndicator._build_content(groups, dark=True)
 
-    assert "🛰️" in text.plain
+    assert "🚀" in text.plain
     assert "7%" in text.plain
 
 
@@ -123,7 +123,7 @@ def test_narrow_budget_collapses_then_wide_budget_restores_full_badge_packing() 
 
     assert narrow.plain == " usage 3 "
     assert wide_again.plain == full.plain
-    assert "🛰️" in full.plain and "🤖" in full.plain and "🎭" in full.plain
+    assert "🚀" in full.plain and "🤖" in full.plain and "🎭" in full.plain
 
 
 def test_zero_budget_stays_empty_when_groups_exist() -> None:

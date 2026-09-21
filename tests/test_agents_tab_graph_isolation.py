@@ -233,7 +233,7 @@ def test_apply_publishes_legitimate_provider_and_child_updates() -> None:
     assert published is not container
     published_prefix = row_prefix(published)
     assert "🎭" in published_prefix and "🤖" in published_prefix
-    assert "🛰️" in published_prefix
+    assert "🚀" in published_prefix
 
 
 def test_incomplete_merge_does_not_alias_live_cached_rows() -> None:

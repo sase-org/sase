@@ -250,7 +250,7 @@ def test_named_and_rejected_zero_run_forms_one_inverted_block(
     segment = build_usage_indicator_segment(_groups(entry, dark=dark), dark=dark)
     exhausted_color = usage_percent_color(0, dark=dark)
 
-    assert segment.plain.strip() == "🛰️ grok-preview ! 0% 3d4h"
+    assert segment.plain.strip() == "🚀 grok-preview ! 0% 3d4h"
     start, end = _assert_style_run(
         segment,
         "grok-preview ! 0% 3d4h",
@@ -325,7 +325,7 @@ def test_zero_and_healthy_windows_stay_separated_by_normal_divider(
                 vendor_state="rejected",
                 display_attention="rejected",
             ),
-            "🛰️ ! 0% 3d4h",
+            "🚀 ! 0% 3d4h",
             "0%",
             True,
             id="rejected-zero",

@@ -76,7 +76,7 @@ from tests._provider_usage_indicator_presentation_helpers import (
                 seconds_until_reset=112_200.0,
                 resets_at=FROZEN_NOW + 112_200.0,
             ),
-            "🛰️ mo 44% 1d7h",
+            "🚀 mo 44% 1d7h",
             id="monthly-all",
         ),
         pytest.param(
@@ -276,7 +276,7 @@ def test_vendor_rejected_window_shows_marker_before_percentage() -> None:
 
     segment = build_usage_indicator_segment(_groups(entry))
 
-    assert segment.plain.strip() == "🛰️ ! 4% 3d4h"
+    assert segment.plain.strip() == "🚀 ! 4% 3d4h"
 
 
 def test_collector_problem_entry_has_no_warning_marker_but_keeps_tooltip_prose() -> (

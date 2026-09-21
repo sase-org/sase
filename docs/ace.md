@@ -2434,7 +2434,7 @@ suffix:
 | 🐼    | Qwen              |
 | 🐙    | OpenCode          |
 | 🦋    | Muse Code (Meta)  |
-| 🛰️    | Grok Build (xAI)  |
+| 🚀    | Grok Build (xAI)  |
 
 The same provider palette also colors the `<PROVIDER>(<model>)` suffix on the right edge
 of the row — the provider name, the parentheses, and the model name each render in a
