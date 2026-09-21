@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal, Protocol
 
 from sase.dev_update import DevUpdatePlan, DevUpdateResult
-from sase.dev_update.models import DevCommandRunner
+from sase.dev_update.models import DevCommandRunner, OutputSink
+from sase.update_progress import NULL_PROGRESS, UpdateProgress
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
 from sase.uv_tool.receipt import Requirement, ToolReceipt
 from sase.uv_tool.runner import UvChangeSet
@@ -21,7 +22,20 @@ if TYPE_CHECKING:
 UPDATE_JSON_SCHEMA_VERSION = 4
 
 ProbeFn = Callable[[], UvToolInstall | NotUvToolInstall]
-RunUvFn = Callable[[list[str]], UvChangeSet]
+
+
+class RunUvFn(Protocol):
+    """Run a ``uv`` argv and return its parsed change set.
+
+    ``on_output`` streams sanitized output lines when a progress session
+    is active; ``None`` keeps the legacy captured behavior.
+    """
+
+    def __call__(
+        self, argv: list[str], *, on_output: OutputSink | None = None
+    ) -> UvChangeSet: ...
+
+
 VersionFn = Callable[[str], str | None]
 ClockFn = Callable[[], float]
 InventoryFn = Callable[[], RuntimeVersionInventory]
@@ -44,6 +58,7 @@ class PlanDevFn(Protocol):
         receipt: ToolReceipt | None = None,
         tool_python: str | None = None,
         stale_core_record: VersionPackageRecord | None = None,
+        progress: UpdateProgress = NULL_PROGRESS,
     ) -> DevUpdatePlan: ...
 
 

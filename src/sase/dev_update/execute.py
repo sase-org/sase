@@ -19,12 +19,23 @@ from sase.dev_update.models import (
     DevUpdateResult,
 )
 from sase.dev_update.outcomes import failed_result, skipped_outcomes, success_outcomes
+from sase.dev_update.progress import (
+    MERGE_STEP_ID,
+    MERGE_STEP_TITLE,
+    NULL_PROGRESS,
+    merge_child_id,
+    merge_child_title,
+    reconcile_step_id,
+    reconcile_step_title,
+    root_display_names,
+)
 from sase.dev_update.reconcile import run_reconcile_steps
 from sase.dev_update.roots import (
     fetch_actionable_roots,
     merge_actionable_roots,
     preflight_actionable_roots,
 )
+from sase.update_progress import StepSpec, UpdateProgress
 
 __all__ = [
     "DEV_UPDATE_COMMAND_TIMEOUT_SECONDS",
@@ -38,6 +49,7 @@ def execute_dev_update(
     *,
     run: DevCommandRunner,
     clock: Callable[[], float] = time.monotonic,
+    progress: UpdateProgress = NULL_PROGRESS,
 ) -> DevUpdateResult:
     """Execute ``plan`` with a fully injected subprocess runner."""
     start = clock()
@@ -60,8 +72,14 @@ def execute_dev_update(
             )
         )
 
-    fetch_failure = fetch_actionable_roots(plan.actionable_roots, run, commands, clock)
+    _declare_plan_steps(progress, plan)
+    progress.start(MERGE_STEP_ID)
+
+    fetch_failure = fetch_actionable_roots(
+        plan.actionable_roots, run, commands, clock, progress
+    )
     if fetch_failure is not None:
+        progress.finish(MERGE_STEP_ID, "failed", detail=fetch_failure)
         return finish(
             failed_result(
                 plan,
@@ -73,9 +91,10 @@ def execute_dev_update(
         )
 
     preflight_failure = preflight_actionable_roots(
-        plan.actionable_roots, run, commands, clock
+        plan.actionable_roots, run, commands, clock, progress
     )
     if preflight_failure is not None:
+        progress.finish(MERGE_STEP_ID, "failed", detail=preflight_failure)
         return finish(
             failed_result(
                 plan,
@@ -88,10 +107,14 @@ def execute_dev_update(
 
     with code_swap_writer_lock() as lock:
         if not lock.acquired:
+            reason = _code_swap_deferred_reason(lock.blocked_by)
+            # Finishing the parent marks its still-running children skipped,
+            # and the deferral itself is a warning, not a failure.
+            progress.finish(MERGE_STEP_ID, "warned", detail=reason)
             return finish(
                 failed_result(
                     plan,
-                    _code_swap_deferred_reason(lock.blocked_by),
+                    reason,
                     commands,
                     changed=False,
                     rust_prebuild=rust_prebuild,
@@ -103,8 +126,11 @@ def execute_dev_update(
             merged_any,
             root_diffstats,
             root_commits,
-        ) = merge_actionable_roots(plan.actionable_roots, run, commands, clock)
+        ) = merge_actionable_roots(
+            plan.actionable_roots, run, commands, clock, progress
+        )
         if merge_failure is not None:
+            progress.finish(MERGE_STEP_ID, "failed", detail=merge_failure)
             return finish(
                 failed_result(
                     plan,
@@ -114,9 +140,10 @@ def execute_dev_update(
                     rust_prebuild=rust_prebuild,
                 )
             )
+        progress.finish(MERGE_STEP_ID, "done")
 
         reconcile_failure, rust_prebuild = run_reconcile_steps(
-            plan.reconcile_steps, run, commands, clock
+            plan.reconcile_steps, run, commands, clock, progress
         )
         if reconcile_failure is not None:
             return finish(
@@ -137,6 +164,34 @@ def execute_dev_update(
                 rust_prebuild=rust_prebuild,
             )
         )
+
+
+def _declare_plan_steps(progress: UpdateProgress, plan: DevUpdatePlan) -> None:
+    """Declare the merge tree and reconcile rows up front.
+
+    A no-op on the null sink. Declaring before the first fetch is what
+    makes the pending rows visible while slow subprocesses run.
+    """
+    display_names = root_display_names(
+        tuple(root.git_root for root in plan.actionable_roots)
+    )
+    progress.declare(
+        (
+            StepSpec(MERGE_STEP_ID, MERGE_STEP_TITLE),
+            *(
+                StepSpec(
+                    merge_child_id(root.git_root),
+                    merge_child_title(display_names[root.git_root]),
+                    parent_id=MERGE_STEP_ID,
+                )
+                for root in plan.actionable_roots
+            ),
+            *(
+                StepSpec(reconcile_step_id(index), reconcile_step_title(step))
+                for index, step in enumerate(plan.reconcile_steps)
+            ),
+        )
+    )
 
 
 def _code_swap_deferred_reason(blocked_by: str | None) -> str:

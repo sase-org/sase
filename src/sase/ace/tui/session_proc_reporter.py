@@ -25,7 +25,8 @@ from .proc_subprocess import command_display
 
 if TYPE_CHECKING:
     from sase.agent_clis.runner import CommandResult
-    from sase.dev_update.models import DevCommandResult
+    from sase.dev_update.models import DevCommandResult, OutputSink
+    from sase.mode_switch.execute import RunUvFn
     from sase.uv_tool.runner import UvChangeSet
 
 LineCallback = Callable[[str], None]
@@ -279,14 +280,17 @@ class SessionProcReporter:
 
         return _run
 
-    def uv_runner(self) -> Callable[[list[str]], UvChangeSet]:
+    def uv_runner(self) -> RunUvFn:
         """Return a ``run_uv``-shaped callable with live uv output streaming."""
         from sase.uv_tool.runner import run_uv
 
-        def _run(argv: list[str]) -> UvChangeSet:
+        def _run(
+            argv: list[str], *, on_output: OutputSink | None = None
+        ) -> UvChangeSet:
             return run_uv(
                 argv,
                 run_fn=self.subprocess_run_fn(output_target="stderr"),
+                on_output=on_output,
             )
 
         return _run

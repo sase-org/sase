@@ -10,7 +10,9 @@ from typing import Any
 from rich.console import Console
 
 from sase.dev_update import DevUpdatePlan
+from sase.dev_update.progress import is_active_progress
 from sase.main.update_types import UPDATE_JSON_SCHEMA_VERSION, PlanDevFn
+from sase.update_progress import NULL_PROGRESS, UpdateProgress
 from sase.uv_tool.detect import UvToolInstall
 from sase.uv_tool.errors import UvToolError
 from sase.uv_tool.receipt import ToolReceipt
@@ -65,10 +67,15 @@ def call_plan_dev_update(
     receipt: ToolReceipt | None,
     tool_python: str,
     stale_core_record: VersionPackageRecord | None = None,
+    progress: UpdateProgress = NULL_PROGRESS,
 ) -> DevUpdatePlan:
     kwargs: dict[str, Any] = {"host_record": host_record, "receipt": receipt}
     if _callable_accepts_keyword(fn, "tool_python"):
         kwargs["tool_python"] = tool_python
     if _callable_accepts_keyword(fn, "stale_core_record"):
         kwargs["stale_core_record"] = stale_core_record
+    # Forwarded only when a session is active and the fake accepts it, so
+    # existing plan fakes keep working unchanged.
+    if is_active_progress(progress) and _callable_accepts_keyword(fn, "progress"):
+        kwargs["progress"] = progress
     return fn(records, **kwargs)

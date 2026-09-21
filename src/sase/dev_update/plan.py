@@ -21,6 +21,14 @@ from sase.dev_update.models import (
     DevUpdatePlan,
     DevUpdateRootPlan,
 )
+from sase.dev_update.progress import (
+    CHECK_STEP_ID,
+    CHECK_STEP_TITLE,
+    NULL_PROGRESS,
+    check_child_id,
+    root_display_names,
+)
+from sase.update_progress import StepSpec, StepStatus, UpdateProgress
 from sase.version._display import derive_display_version
 from sase.version._git import (
     GitUpstreamStatus,
@@ -54,6 +62,7 @@ def plan_dev_update(
     tool_python: str | None = None,
     already_refreshed_roots: Collection[str] = (),
     stale_core_record: VersionPackageRecord | None = None,
+    progress: UpdateProgress = NULL_PROGRESS,
 ) -> DevUpdatePlan:
     """Plan a fast-forward-only dev update for editable package records.
 
@@ -100,7 +109,23 @@ def plan_dev_update(
         by_root.setdefault(status.root, []).append(record)
         root_statuses.setdefault(status.root, status)
 
+    display_names = root_display_names(tuple(root_statuses))
+    progress.declare(
+        (
+            StepSpec(CHECK_STEP_ID, CHECK_STEP_TITLE),
+            *(
+                StepSpec(
+                    check_child_id(root),
+                    display_names[root],
+                    parent_id=CHECK_STEP_ID,
+                )
+                for root in root_statuses
+            ),
+        )
+    )
+    progress.start(CHECK_STEP_ID)
     for root, status in root_statuses.items():
+        progress.start(check_child_id(root), detail="fetching…")
         if git_probe_cache_key(Path(root)) in fresh_roots:
             refreshed_status, fetch_error = status, None
         else:
@@ -137,6 +162,7 @@ def plan_dev_update(
                     fetch_error=fetch_error,
                 )
             )
+    _finish_check_step(progress, root_plans)
 
     stale_core_plan = _stale_core_plan(stale_core_record, host_record=host_record)
     if stale_core_plan is not None:
@@ -159,6 +185,56 @@ def plan_dev_update(
         roots=tuple(root_plans),
         reconcile_steps=reconcile_steps,
     )
+
+
+def _finish_check_step(
+    progress: UpdateProgress, root_plans: list[DevUpdateRootPlan]
+) -> None:
+    """Finish the ``check`` step and its per-root children.
+
+    A no-op on the null sink. A root whose fetch failed is ``warned`` and
+    counted as skipped in the parent summary.
+    """
+    for root_plan in root_plans:
+        status, detail = _check_child_outcome(root_plan)
+        progress.finish(check_child_id(root_plan.git_root), status, detail=detail)
+    behind = sum(
+        1
+        for root_plan in root_plans
+        if root_plan.status == "actionable" and root_plan.fetch_error is None
+    )
+    current = sum(
+        1
+        for root_plan in root_plans
+        if root_plan.reason == "already current" and root_plan.fetch_error is None
+    )
+    skipped = len(root_plans) - behind - current
+    segments = []
+    if behind:
+        segments.append(f"{behind} behind")
+    if current:
+        segments.append(f"{current} current")
+    if skipped:
+        segments.append(f"{skipped} skipped")
+    warned = any(root_plan.fetch_error is not None for root_plan in root_plans)
+    progress.finish(
+        CHECK_STEP_ID,
+        "warned" if warned else "done",
+        detail=" · ".join(segments) or None,
+    )
+
+
+def _check_child_outcome(root_plan: DevUpdateRootPlan) -> tuple[StepStatus, str]:
+    """Map a root plan entry to a ``(status, detail)`` step finish."""
+    if root_plan.fetch_error is not None:
+        return "warned", "fetch failed; using cached ref"
+    if root_plan.reason == "already current":
+        return "done", "current"
+    if root_plan.status == "actionable":
+        if root_plan.behind is not None and root_plan.upstream is not None:
+            return "done", f"behind {root_plan.behind} · {root_plan.upstream}"
+        return "done", root_plan.reason
+    return "skipped", root_plan.reason
 
 
 def _refresh_root_status(
