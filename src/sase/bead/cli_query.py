@@ -9,6 +9,7 @@ from contextlib import contextmanager
 from typing import Any
 
 from sase.agent.names._registry import name_registry_load_session
+from sase.bead.bead_views import record_bead_show_views
 from sase.bead.cli_common import created_cell, get_read_view, status_icon
 from sase.bead.cli_dep_render import resolve_color
 from sase.bead.cli_detail import (
@@ -326,6 +327,11 @@ def handle_bead_show(args: argparse.Namespace) -> None:
 
     if body:
         page_or_print(body, mode=pager_mode, document=pager_document)
+    if batch.entries:
+        # Machine-local viewed touch: recorded only when an agent identity
+        # is present, never into the audited artifact-read log. Best-effort
+        # and never raises, so show output is unaffected.
+        record_bead_show_views([str(entry.issue.id) for entry in batch.entries])
     for failure in batch.failures:
         print(f"Error: {failure.message}", file=sys.stderr)
     if batch.failures:

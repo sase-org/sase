@@ -7,7 +7,8 @@ and answers read-only queries from that file. This module owns nothing the
 Rust side already owns: index-path resolution from :func:`sase_projects_dir`,
 thin binding wrappers with wire-to-dataclass conversion, the agent-identity
 matching from the epic plan (so the CLI, the panel, and any later caller
-share one matcher), and a best-effort refresh entry point for the three
+share one matcher), the durable-behind-views merge order for the
+machine-local view log, and a best-effort refresh entry point for the three
 off-hot-path refresh sites (post-mutation, post-sync, lumberjack tick).
 """
 
@@ -332,6 +333,22 @@ def touches_for_agent(
     ]
 
 
+def merge_view_touches(
+    durable_touches: Any,
+    view_touches: Any,
+) -> tuple[BeadTouch, ...]:
+    """Concatenate durable index rows with synthesized view rows.
+
+    Durable rows stay first so a later per-bead merge keeps the durable
+    title and verbs and only gains the weaker ``viewed`` count. View rows
+    (from the machine-local ``bead_views.jsonl`` log) never override
+    durable facts; a bead with only views still surfaces as a
+    ``viewed``-only entry. Both inputs may be any sequence and are never
+    mutated.
+    """
+    return tuple(durable_touches) + tuple(view_touches)
+
+
 def query_touches_for_agent(
     index_path: Path | str,
     *,
@@ -366,6 +383,7 @@ __all__ = [
     "BeadTouchIndexStatus",
     "BeadTouchQuery",
     "BeadTouchRefresh",
+    "merge_view_touches",
     "query_touches_for_agent",
     "query_touch_index",
     "refresh_touch_index_best_effort",

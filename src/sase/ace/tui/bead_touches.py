@@ -12,6 +12,14 @@ at the three off-hot-path sites owned by the host-refresh phase
 answers here rather than paying for freshness on the panel's clock. A
 missing, truncated, or unparseable index is a cache miss that returns no
 rows, never an error.
+
+The machine-local ``bead_views.jsonl`` log (one row per agent-attributed
+``sase bead show``) is folded in behind the durable index rows as
+``viewed``-only synthetic touches, so a bead an agent only peeked at still
+surfaces, ranked by its newest view, with the weakest glyph and no
+promotion to ``read``. The views file is small, append-only, and cached by
+its own mtime-and-size stat under the same throttle, keeping the j/k
+navigation hot path to stat calls on a cache hit.
 """
 
 from __future__ import annotations
@@ -24,6 +32,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.ace.tui.models.agent import Agent
+from sase.bead.bead_views import (
+    BeadViewEvent,
+    bead_views_log_path,
+    read_bead_view_events,
+    view_touches_for_agent,
+    views_to_touches,
+)
 from sase.core.agent_identity_facade import (
     AgentIdentitySnapshot,
     globalize_owned_agent_name,
@@ -31,6 +46,7 @@ from sase.core.agent_identity_facade import (
 from sase.core.bead_touch_index_facade import (
     BeadTouch,
     BeadTouchQuery,
+    merge_view_touches,
     query_touch_index,
     touch_index_path,
     touch_matches_agent,
@@ -88,7 +104,9 @@ class _BeadTouchesCacheEntry:
     events: tuple[_BeadTouchDisplayEvent, ...]
     index_mtime_ns: int
     index_size: int
-    last_read_monotonic: float
+    views_mtime_ns: int = 0
+    views_size: int = 0
+    last_read_monotonic: float = 0.0
 
 
 @dataclass
@@ -96,7 +114,9 @@ class _BeadTouchesContextCacheEntry:
     events: tuple[_BeadTouchDisplayEvent, ...]
     index_mtime_ns: int
     index_size: int
-    last_read_monotonic: float
+    views_mtime_ns: int = 0
+    views_size: int = 0
+    last_read_monotonic: float = 0.0
 
 
 @dataclass
@@ -107,11 +127,22 @@ class _BeadTouchesSnapshotCacheEntry:
     last_read_monotonic: float
 
 
+@dataclass
+class _BeadViewsSnapshotCacheEntry:
+    events: tuple[BeadViewEvent, ...]
+    views_mtime_ns: int
+    views_size: int
+    last_read_monotonic: float
+
+
 _bead_touches_cache: dict[tuple[str, str], _BeadTouchesCacheEntry] = {}
 _bead_touches_context_cache: dict[
     tuple[str, tuple[str, ...]], _BeadTouchesContextCacheEntry
 ] = {}
 _bead_touches_snapshot_cache: OrderedDict[str, _BeadTouchesSnapshotCacheEntry] = (
+    OrderedDict()
+)
+_bead_views_snapshot_cache: OrderedDict[str, _BeadViewsSnapshotCacheEntry] = (
     OrderedDict()
 )
 
@@ -155,8 +186,13 @@ def _index_stat(path: Path) -> _IndexStat:
 
 def _cache_entry_stat(
     entry: _BeadTouchesCacheEntry | _BeadTouchesContextCacheEntry,
-) -> _IndexStat:
-    return (entry.index_mtime_ns, entry.index_size)
+) -> tuple[int, int, int, int]:
+    return (
+        entry.index_mtime_ns,
+        entry.index_size,
+        entry.views_mtime_ns,
+        entry.views_size,
+    )
 
 
 def _parse_moment(value: str | None) -> datetime | None:
@@ -238,10 +274,58 @@ def _load_touch_index_snapshot(
     return touches, current_stat
 
 
+def _load_view_snapshot(
+    project: str,
+    *,
+    views_path: Path,
+    now: float,
+    current_stat: _IndexStat,
+) -> tuple[tuple[BeadViewEvent, ...], _IndexStat]:
+    """Return cached-or-fresh view events with their file stat.
+
+    The views log is append-only and small; a read failure (or an
+    unresolvable path upstream) degrades to no views rather than an error,
+    so a missing log simply contributes no ``viewed`` rows.
+    """
+    cached = _bead_views_snapshot_cache.get(project)
+    if cached is not None:
+        cached_stat = (cached.views_mtime_ns, cached.views_size)
+        recent = (now - cached.last_read_monotonic) < _MIN_REREAD_INTERVAL_S
+        if recent or current_stat == cached_stat:
+            _bead_views_snapshot_cache.move_to_end(project)
+            return cached.events, cached_stat
+
+    try:
+        events = read_bead_view_events(log_path=views_path)
+    except Exception:
+        return (), current_stat
+    entry = _BeadViewsSnapshotCacheEntry(
+        events=events,
+        views_mtime_ns=current_stat[0],
+        views_size=current_stat[1],
+        last_read_monotonic=now,
+    )
+    _bead_views_snapshot_cache[project] = entry
+    _bead_views_snapshot_cache.move_to_end(project)
+    while len(_bead_views_snapshot_cache) > _MAX_SNAPSHOT_CACHE_PROJECTS:
+        _bead_views_snapshot_cache.popitem(last=False)
+    return events, current_stat
+
+
 def _snapshot_for_agent(
     agent: Agent,
-) -> tuple[str, tuple[BeadTouch, ...], _IndexStat] | None:
-    """Resolve the project, index stat, and cached-or-fresh touches."""
+) -> (
+    tuple[
+        str, tuple[BeadTouch, ...], tuple[BeadViewEvent, ...], tuple[int, int, int, int]
+    ]
+    | None
+):
+    """Resolve the project, combined stat, touches, and raw view events.
+
+    View events stay unfiltered here: the per-agent loader attributes them
+    to one agent while the family loader attributes them per member, both
+    through the facade's shared matcher.
+    """
     project = _project_name_for_agent(agent)
     if project is None:
         return None
@@ -259,7 +343,25 @@ def _snapshot_for_agent(
     )
     if snapshot is None:
         return None
-    return project, snapshot[0], snapshot[1]
+    try:
+        views_path = bead_views_log_path(project)
+    except Exception:
+        index_stat = snapshot[1]
+        return project, snapshot[0], (), (*index_stat, 0, 0)
+    views_stat = _index_stat(views_path)
+    view_snapshot = _load_view_snapshot(
+        project,
+        views_path=views_path,
+        now=now,
+        current_stat=views_stat,
+    )
+    index_stat = snapshot[1]
+    return (
+        project,
+        snapshot[0],
+        view_snapshot[0],
+        (*index_stat, *view_snapshot[1]),
+    )
 
 
 def _load_bead_touches_for_agent(
@@ -282,7 +384,7 @@ def _load_bead_touches_for_agent_inner(
     resolved = _snapshot_for_agent(agent)
     if resolved is None:
         return ()
-    project, all_touches, _snapshot_stat = resolved
+    project, all_touches, view_events, _snapshot_stat = resolved
 
     now = time.monotonic()
     key = _cache_key(project, agent)
@@ -302,7 +404,15 @@ def _load_bead_touches_for_agent_inner(
         local_name=local_name,
         identity=identity,
     )
-    ordered = sorted(filtered, key=_touch_sort_key, reverse=True)
+    view_hits = view_touches_for_agent(
+        view_events,
+        globalized_name=globalized_name,
+        local_name=local_name,
+        identity=identity,
+    )
+    ordered = sorted(
+        merge_view_touches(filtered, view_hits), key=_touch_sort_key, reverse=True
+    )
     capped = tuple(
         _BeadTouchDisplayEvent(touch=touch) for touch in ordered[:MAX_KEPT_TOUCHES]
     )
@@ -310,6 +420,8 @@ def _load_bead_touches_for_agent_inner(
         events=capped,
         index_mtime_ns=current_stat[0],
         index_size=current_stat[1],
+        views_mtime_ns=current_stat[2],
+        views_size=current_stat[3],
         last_read_monotonic=now,
     )
     return capped[:limit]
@@ -350,7 +462,7 @@ def _load_bead_touches_for_agent_context_inner(
     resolved = _snapshot_for_agent(agent)
     if resolved is None:
         return ()
-    project, all_touches, _snapshot_stat = resolved
+    project, all_touches, view_events, _snapshot_stat = resolved
 
     now = time.monotonic()
     key = (project, context_cache_key(members))
@@ -379,12 +491,26 @@ def _load_bead_touches_for_agent_context_inner(
                 matched.append(_BeadTouchDisplayEvent(touch=touch, agent_label=label))
                 break
 
+    view_rows = views_to_touches(view_events)
+    for touch in view_rows:
+        for label, globalized_name, local_name in matchers:
+            if touch_matches_agent(
+                touch.actor,
+                globalized_name=globalized_name,
+                local_name=local_name,
+                identity=identity,
+            ):
+                matched.append(_BeadTouchDisplayEvent(touch=touch, agent_label=label))
+                break
+
     matched.sort(key=lambda item: _touch_sort_key(item.touch), reverse=True)
     capped = tuple(matched[:MAX_KEPT_TOUCHES])
     _bead_touches_context_cache[key] = _BeadTouchesContextCacheEntry(
         events=capped,
         index_mtime_ns=current_stat[0],
         index_size=current_stat[1],
+        views_mtime_ns=current_stat[2],
+        views_size=current_stat[3],
         last_read_monotonic=now,
     )
     return capped[:limit]
@@ -496,9 +622,11 @@ def merge_bead_touch_entries(
     """Fold touches, audited bead reads, and own beads into one ranked view.
 
     Pure function over its three inputs so it is testable without a store:
-    indexed touches, the already-loaded audited artifact reads (only
-    ``bead:`` refs contribute; anything else is ignored so a bead read can
-    never double-list), and the agent's own bead ids. Emits one entry per
+    touch rows (durable index rows plus synthesized ``viewed`` rows from the
+    machine-local view log, already ordered durable-first so durable titles
+    win), the already-loaded audited artifact reads (only ``bead:`` refs
+    contribute; anything else is ignored so a bead read can never
+    double-list), and the agent's own bead ids. Emits one entry per
     bead with merged verb counts, the newest timestamp across all sources,
     the title from whichever source has one, and the ``own`` mark. Bead ids
     are compared after :func:`_canonical_bead_id` so a ``bead:``-prefixed ref
