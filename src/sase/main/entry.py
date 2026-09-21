@@ -120,6 +120,7 @@ def main() -> NoReturn:
             handle_bead_sync,
             handle_bead_sync_external,
             handle_bead_task_type,
+            handle_bead_touched,
             handle_bead_update,
             handle_bead_work,
         )
@@ -158,6 +159,7 @@ def main() -> NoReturn:
             "sync": handle_bead_sync,
             "sync-external": handle_bead_sync_external,
             "task-type": handle_bead_task_type,
+            "touched": handle_bead_touched,
             "update": handle_bead_update,
             "work": handle_bead_work,
         }
@@ -165,7 +167,7 @@ def main() -> NoReturn:
         if handler is None:
             print(
                 "Usage: sase bead"
-                " {+1,apply-status,blocked,close,create,dep,doctor,epic-symbols,history,init,list,note,onboard,open,pages,ready,ref,resolve-conflicts,rm,search,show,snooze,stats,sync,sync-external,task-type,update,work}"
+                " {+1,apply-status,blocked,close,create,dep,doctor,epic-symbols,history,init,list,note,onboard,open,pages,ready,ref,resolve-conflicts,rm,search,show,snooze,stats,sync,sync-external,task-type,touched,update,work}"
             )
             sys.exit(1)
         try:

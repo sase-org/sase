@@ -15,10 +15,11 @@ off-hot-path refresh sites (post-mutation, post-sync, lumberjack tick).
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from collections.abc import Mapping
 
 from sase.core.paths import sase_projects_dir
 from sase.core.rust import require_rust_binding
@@ -377,12 +378,141 @@ def query_touches_for_agent(
     )
 
 
+@dataclass(frozen=True)
+class FoldedBeadTouch:
+    """One bead folded from every contributing ``(actor, bead)`` row."""
+
+    bead_id: str
+    title: str = ""
+    issue_type: str = ""
+    status: str = ""
+    verbs: dict[str, int] = field(default_factory=dict)
+    first_at: str = ""
+    last_at: str = ""
+    actors: tuple[str, ...] = ()
+
+
+def canonical_bead_touch_id(value: str | None) -> str:
+    """Return the per-bead fold key for a touch id or ``bead:`` read ref."""
+    text = (value or "").strip()
+    if text.startswith("bead:"):
+        text = text.removeprefix("bead:").strip()
+    return text
+
+
+def _parse_touch_moment(value: str | None) -> datetime | None:
+    text = (value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed
+
+
+class _FoldBucket:
+    """Mutable per-bead accumulator behind :func:`fold_touches_per_bead`."""
+
+    def __init__(self, bead_id: str) -> None:
+        self.bead_id = bead_id
+        self.title = ""
+        self.issue_type = ""
+        self.status = ""
+        self.verbs: dict[str, int] = {}
+        self._moments: list[tuple[datetime, str]] = []
+        self._actors: set[str] = set()
+
+    def add(self, touch: BeadTouch) -> None:
+        actor = str(getattr(touch, "actor", "") or "").strip()
+        if actor:
+            self._actors.add(actor)
+        title = str(getattr(touch, "title", "") or "").strip()
+        if not self.title and title:
+            self.title = title
+        issue_type = str(getattr(touch, "issue_type", "") or "").strip()
+        if not self.issue_type and issue_type:
+            self.issue_type = issue_type
+        status = str(getattr(touch, "status", "") or "").strip()
+        if not self.status and status:
+            self.status = status
+        verbs = getattr(touch, "verbs", {}) or {}
+        for verb, count in verbs.items():
+            try:
+                total = int(count)  # type: ignore[arg-type]
+            except (TypeError, ValueError):
+                continue
+            if total > 0:
+                self.verbs[str(verb)] = self.verbs.get(str(verb), 0) + total
+        for moment_value in (
+            str(getattr(touch, "first_at", "") or ""),
+            str(getattr(touch, "last_at", "") or ""),
+        ):
+            moment = _parse_touch_moment(moment_value)
+            if moment is not None:
+                self._moments.append((moment, moment_value.strip()))
+
+    def build(self) -> FoldedBeadTouch:
+        first_at = ""
+        last_at = ""
+        if self._moments:
+            ordered = sorted(self._moments, key=lambda item: item[0])
+            first_at = ordered[0][1]
+            last_at = ordered[-1][1]
+        return FoldedBeadTouch(
+            bead_id=self.bead_id,
+            title=self.title,
+            issue_type=self.issue_type,
+            status=self.status,
+            verbs=dict(self.verbs),
+            first_at=first_at,
+            last_at=last_at,
+            actors=tuple(sorted(self._actors)),
+        )
+
+
+def fold_touches_per_bead(
+    touches: Sequence[BeadTouch],
+) -> list[FoldedBeadTouch]:
+    """Fold ``(actor, bead)`` rows into one row per bead.
+
+    Pure function over its input so it is testable without a store: verb
+    counts sum, ``first_at`` is the earliest moment and ``last_at`` the
+    newest across all contributing rows, and the title (plus ``issue_type``
+    and ``status``) is the first non-empty value in input order. Callers
+    pass durable index rows first so durable facts win over synthesized
+    ``viewed`` and ``read`` rows; ``viewed`` never promotes to ``read``.
+    Bead ids are compared after :func:`canonical_bead_touch_id` so a
+    ``bead:``-prefixed ref and a bare id never split into two rows.
+    """
+    buckets: dict[str, _FoldBucket] = {}
+    order: list[str] = []
+    for touch in touches:
+        key = canonical_bead_touch_id(getattr(touch, "bead_id", ""))
+        if not key:
+            continue
+        bucket = buckets.get(key)
+        if bucket is None:
+            display_id = str(getattr(touch, "bead_id", "") or "").strip()
+            if display_id.startswith("bead:"):
+                display_id = display_id.removeprefix("bead:").strip()
+            bucket = buckets[key] = _FoldBucket(display_id or key)
+            order.append(key)
+        bucket.add(touch)
+    return [buckets[key].build() for key in order]
+
+
 __all__ = [
     "TOUCH_INDEX_FILENAME",
     "BeadTouch",
     "BeadTouchIndexStatus",
     "BeadTouchQuery",
     "BeadTouchRefresh",
+    "FoldedBeadTouch",
+    "canonical_bead_touch_id",
+    "fold_touches_per_bead",
     "merge_view_touches",
     "query_touches_for_agent",
     "query_touch_index",

@@ -37,7 +37,7 @@ _ANSI_ESC_RE = re.compile(r"\x1b[@-Z\\-_]")
 OnLineCallback = Callable[[str, str], None]
 
 
-def sanitize_line(line: str) -> str:
+def _sanitize_line(line: str) -> str:
     """Return *line* without ANSI/OSC escapes or control characters.
 
     ``[red]``-style literal text is preserved; only real escape sequences
@@ -233,7 +233,7 @@ def _pump_stream(
             while "\n" in buf:
                 raw_line, buf = buf.split("\n", 1)
                 collapsed = raw_line.split("\r")[-1]
-                callback(name, sanitize_line(collapsed))
+                callback(name, _sanitize_line(collapsed))
         tail = decoder.decode(b"", final=True)
         if tail:
             chunks.append(tail)
@@ -241,7 +241,7 @@ def _pump_stream(
         if buf:
             collapsed = buf.split("\r")[-1]
             if collapsed:
-                callback(name, sanitize_line(collapsed))
+                callback(name, _sanitize_line(collapsed))
     finally:
         try:
             stream.close()
@@ -319,4 +319,4 @@ def _interrupt_process_group(process: subprocess.Popen[bytes]) -> None:
             pass
 
 
-__all__ = ["OnLineCallback", "run_streaming", "sanitize_line"]
+__all__ = ["OnLineCallback", "run_streaming"]

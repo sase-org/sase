@@ -1975,6 +1975,28 @@ provenance. Reads are not audited.
 | `list`     | `-j, --json` | Machine-readable catalog                                |
 | `show`     | `-j, --json` | Machine-readable spec, fields, template, and provenance |
 
+### `sase bead touched <agent>`
+
+List the beads one agent touched, newest touch first, one row per bead with verb chips,
+title, and relative age. Durable index rows merge with the machine-local
+`sase bead show` view log (`viewed`) and audited `bead:` reads (`read`), matching the
+Agents-tab `Beads:` sub-section row for row for touched beads. The CLI lists touched
+beads only; the panel also marks assigned but untouched beads `own`.
+
+```bash
+sase bead touched bbugyi200.athena.0oa
+sase bead touched 0oa -l 10
+sase bead touched 0oa -v noted -v closed
+sase bead touched 0oa -v viewed
+sase bead touched 0oa -j
+```
+
+| Flag              | Description                                  |
+| ----------------- | -------------------------------------------- |
+| `-j, --json`      | Machine-readable rows with `actors` per bead |
+| `-l, --limit N`   | Maximum beads to print; `0` means unlimited  |
+| `-v, --verb VERB` | Only show beads with this verb (repeatable)  |
+
 ### `sase bead update <id> [<id2> ...]`
 
 Update one or more fields on one or more issues. Every listed bead receives the same

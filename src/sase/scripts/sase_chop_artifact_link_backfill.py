@@ -307,6 +307,7 @@ def _refresh_touch_index_for_project(
     try:
         from sase.bead.cli_location import find_beads_location
         from sase.core.bead_touch_index_facade import (
+            BeadTouchRefresh,
             refresh_touch_index_best_effort,
         )
 
@@ -314,7 +315,9 @@ def _refresh_touch_index_for_project(
         beads_dir = root / beads_dirname
         if not beads_dir.is_dir():
             return
-        report = refresh_touch_index_best_effort(beads_dir, project=project_key)
+        report: BeadTouchRefresh | None = refresh_touch_index_best_effort(
+            beads_dir, project=project_key
+        )
     except Exception as exc:  # noqa: BLE001 - one broken project cannot stall the rest.
         totals.warnings.append(f"{project_key}: touch-index refresh failed: {exc}")
         return

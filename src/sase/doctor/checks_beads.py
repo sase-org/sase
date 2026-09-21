@@ -169,6 +169,7 @@ def _check_touch_index(context: DoctorContext) -> DiagnosticCheck:
     The status probe is stat-only, so this check never pays for a reduction.
     """
     from sase.core.bead_touch_index_facade import (
+        BeadTouchIndexStatus,
         resolve_touch_index_project,
         touch_index_path,
         touch_index_status,
@@ -196,7 +197,7 @@ def _check_touch_index(context: DoctorContext) -> DiagnosticCheck:
         )
     index_path = touch_index_path(project)
     try:
-        status = touch_index_status(beads_dir, index_path)
+        status: BeadTouchIndexStatus = touch_index_status(beads_dir, index_path)
     except Exception as exc:  # noqa: BLE001 - a doctor check never breaks the report.
         return DiagnosticCheck(
             id="beads.touch_index",

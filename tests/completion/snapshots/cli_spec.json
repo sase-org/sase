@@ -8171,6 +8171,79 @@
           {
             "aliases": [],
             "default_child": null,
+            "description_digest": "38c1e75e7d90cdec",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "touched",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "limit",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-l",
+                  "--limit"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "verb",
+                "hidden": false,
+                "kind": null,
+                "repeatable": true,
+                "strings": [
+                  "-v",
+                  "--verb"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "bead",
+              "touched"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "agent",
+                "is_remainder": false,
+                "kind": "agent",
+                "metavar": "<agent>",
+                "nargs": null
+              }
+            ],
+            "subcommands": []
+          },
+          {
+            "aliases": [],
+            "default_child": null,
             "description_digest": "724360f06d623ea8",
             "hidden": false,
             "mutex_groups": [

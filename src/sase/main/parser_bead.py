@@ -38,6 +38,7 @@ from sase.main.parser_bead_store import (
     register_bead_sync_parser,
 )
 from sase.main.parser_bead_task_type import register_bead_task_type_parser
+from sase.main.parser_bead_touched import register_bead_touched_parser
 
 
 def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -79,6 +80,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     register_bead_sync_parser(bead_subparsers)
     register_bead_sync_external_parser(bead_subparsers)
     register_bead_task_type_parser(bead_subparsers)
+    register_bead_touched_parser(bead_subparsers)
     register_bead_update_parser(bead_subparsers)
     register_bead_work_parser(bead_subparsers)
 

@@ -36,6 +36,7 @@ from sase.bead.cli_query import (
     handle_bead_stats,
 )
 from sase.bead.cli_refs import handle_bead_ref
+from sase.bead.cli_touched import handle_bead_touched
 
 _parse_type_arg = parse_type_arg
 
@@ -65,5 +66,6 @@ __all__ = [
     "handle_bead_show",
     "handle_bead_stats",
     "handle_bead_sync",
+    "handle_bead_touched",
     "handle_bead_update",
 ]

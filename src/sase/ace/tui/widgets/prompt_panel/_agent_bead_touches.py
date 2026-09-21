@@ -6,20 +6,14 @@ from rich.cells import cell_len
 from rich.text import Text
 
 from sase.ace.tui.bead_touches import BeadTouchEntry
+from sase.bead.touch_glyphs import touch_glyph
 
 from ._agent_context_common import (
-    ARTIFACT_READ_GLYPH,
-    BEAD_CLOSED_GLYPH,
-    BEAD_CREATED_GLYPH,
-    BEAD_EDITED_GLYPH,
-    BEAD_REMOVED_GLYPH,
-    BEAD_REOPENED_GLYPH,
     COLOR_BEAD_PRIMARY,
     COLOR_BEAD_SUBHEADER,
     COLOR_ROLE,
     COLOR_SUMMARY,
     COLOR_TRUNCATION,
-    MEMORY_GLYPH,
     append_context_reason,
     append_lane_row,
     format_local_hhmm,
@@ -31,54 +25,16 @@ _SUBSECTION_ROW_PREFIX = "  "
 
 __all__ = [
     "MAX_VISIBLE_BEADS",
-    "bead_touch_glyph",
-    "ordered_bead_verb_chips",
     "append_agent_bead_touch_rows",
 ]
 
-#: Durable verbs sharing the ``✎`` edited glyph.
-_EDITED_VERBS = frozenset(
-    {
-        "updated",
-        "noted",
-        "ready",
-        "snoozed",
-        "dep",
-        "linked",
-        "ref",
-        "+1",
-    }
-)
+
+def _bead_touch_glyph(entry: BeadTouchEntry) -> str:
+    """Return the row's single strongest verb glyph via the shared vocabulary."""
+    return touch_glyph(entry.verbs)
 
 
-def bead_touch_glyph(entry: BeadTouchEntry) -> str:
-    """Return the row's single strongest verb glyph.
-
-    Precedence follows the epic plan top to bottom: ``created`` beats
-    ``closed`` beats ``reopened`` beats the edited group beats ``read``
-    beats ``viewed`` beats ``removed``. ``own`` is a mark, not a verb,
-    so it never selects the glyph. A bead with no verbs at all (assigned
-    but untouched) renders the neutral ``◇``.
-    """
-    verbs = entry.verbs
-    if "created" in verbs:
-        return BEAD_CREATED_GLYPH
-    if "closed" in verbs:
-        return BEAD_CLOSED_GLYPH
-    if "reopened" in verbs:
-        return BEAD_REOPENED_GLYPH
-    if any(verb in verbs for verb in _EDITED_VERBS):
-        return BEAD_EDITED_GLYPH
-    if "read" in verbs:
-        return ARTIFACT_READ_GLYPH
-    if "viewed" in verbs:
-        return MEMORY_GLYPH
-    if "removed" in verbs:
-        return BEAD_REMOVED_GLYPH
-    return MEMORY_GLYPH
-
-
-def ordered_bead_verb_chips(entry: BeadTouchEntry) -> list[str]:
+def _ordered_bead_verb_chips(entry: BeadTouchEntry) -> list[str]:
     """Return the verb chips in render order.
 
     ``own`` first, then durable verbs in the entry's verb-map order
@@ -132,7 +88,7 @@ def append_agent_bead_touch_rows(
     show_role_column = any(item.agent_label for item in visible)
     extra_indent = len(_SUBSECTION_ROW_PREFIX)
     for item in visible:
-        glyph = bead_touch_glyph(item)
+        glyph = _bead_touch_glyph(item)
         assert cell_len(glyph) == 1, f"bead glyph must stay single-cell: {glyph!r}"
         hint_label = None
         if hint_state is not None:
@@ -157,7 +113,7 @@ def append_agent_bead_touch_rows(
             )
             + extra_indent
         )
-        for chip in ordered_bead_verb_chips(item):
+        for chip in _ordered_bead_verb_chips(item):
             text.append(" · ", style=COLOR_SUMMARY)
             text.append(chip, style=COLOR_ROLE if chip == "own" else COLOR_SUMMARY)
         text.append("\n")

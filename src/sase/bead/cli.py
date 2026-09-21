@@ -34,6 +34,7 @@ from sase.bead.cli_work import handle_bead_work
 from sase.bead.cli_pages import handle_bead_pages
 from sase.bead.cli_sync_external import handle_bead_sync_external
 from sase.bead.cli_task_type import handle_bead_task_type
+from sase.bead.cli_touched import handle_bead_touched
 from sase.bead.model import IssueType, Status
 
 _confirm_cleanup = cli_work.confirm_cleanup
@@ -97,6 +98,7 @@ __all__ = [
     "handle_bead_sync",
     "handle_bead_sync_external",
     "handle_bead_task_type",
+    "handle_bead_touched",
     "handle_bead_update",
     "handle_bead_work",
 ]

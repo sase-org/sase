@@ -18,9 +18,9 @@ from sase.ace.tui.widgets.prompt_panel._agent_artifacts_lane import (
 )
 from sase.ace.tui.widgets.prompt_panel._agent_bead_touches import (
     MAX_VISIBLE_BEADS,
+    _bead_touch_glyph,
+    _ordered_bead_verb_chips,
     append_agent_bead_touch_rows,
-    bead_touch_glyph,
-    ordered_bead_verb_chips,
 )
 from sase.ace.tui.widgets.prompt_panel._agent_context_common import (
     ARTIFACT_READ_GLYPH,
@@ -142,7 +142,7 @@ def test_bead_glyphs_are_single_cell() -> None:
 
 def test_glyph_precedence_created_over_closed_over_edited_over_read() -> None:
     assert (
-        bead_touch_glyph(
+        _bead_touch_glyph(
             _entry(
                 "sase-1",
                 "2026-05-24T14:00:00+00:00",
@@ -152,7 +152,7 @@ def test_glyph_precedence_created_over_closed_over_edited_over_read() -> None:
         == BEAD_CREATED_GLYPH
     )
     assert (
-        bead_touch_glyph(
+        _bead_touch_glyph(
             _entry(
                 "sase-1", "2026-05-24T14:00:00+00:00", verbs={"closed": 1, "noted": 3}
             )
@@ -160,7 +160,7 @@ def test_glyph_precedence_created_over_closed_over_edited_over_read() -> None:
         == BEAD_CLOSED_GLYPH
     )
     assert (
-        bead_touch_glyph(
+        _bead_touch_glyph(
             _entry(
                 "sase-1", "2026-05-24T14:00:00+00:00", verbs={"reopened": 1, "noted": 1}
             )
@@ -168,30 +168,30 @@ def test_glyph_precedence_created_over_closed_over_edited_over_read() -> None:
         == BEAD_REOPENED_GLYPH
     )
     assert (
-        bead_touch_glyph(
+        _bead_touch_glyph(
             _entry("sase-1", "2026-05-24T14:00:00+00:00", verbs={"noted": 2, "read": 1})
         )
         == BEAD_EDITED_GLYPH
     )
     assert (
-        bead_touch_glyph(
+        _bead_touch_glyph(
             _entry("sase-1", "2026-05-24T14:00:00+00:00", verbs={"read": 2})
         )
         == ARTIFACT_READ_GLYPH
     )
     assert (
-        bead_touch_glyph(
+        _bead_touch_glyph(
             _entry("sase-1", "2026-05-24T14:00:00+00:00", verbs={"viewed": 1})
         )
         == MEMORY_GLYPH
     )
     assert (
-        bead_touch_glyph(
+        _bead_touch_glyph(
             _entry("sase-1", "2026-05-24T14:00:00+00:00", verbs={"removed": 1})
         )
         == BEAD_REMOVED_GLYPH
     )
-    assert bead_touch_glyph(_entry("sase-1", "", own=True)) == MEMORY_GLYPH
+    assert _bead_touch_glyph(_entry("sase-1", "", own=True)) == MEMORY_GLYPH
 
 
 def test_verb_chip_order_own_then_durable_then_read_then_viewed() -> None:
@@ -201,7 +201,7 @@ def test_verb_chip_order_own_then_durable_then_read_then_viewed() -> None:
         verbs={"noted": 3, "closed": 1, "read": 2, "viewed": 1},
         own=True,
     )
-    assert ordered_bead_verb_chips(entry) == [
+    assert _ordered_bead_verb_chips(entry) == [
         "own",
         "noted ×3",
         "closed",
@@ -214,7 +214,7 @@ def test_single_counts_carry_no_suffix() -> None:
     entry = _entry(
         "sase-1", "2026-05-24T14:00:00+00:00", verbs={"created": 1, "dep": 1}
     )
-    assert ordered_bead_verb_chips(entry) == ["created", "dep"]
+    assert _ordered_bead_verb_chips(entry) == ["created", "dep"]
 
 
 # --- rows --------------------------------------------------------------------

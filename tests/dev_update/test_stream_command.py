@@ -12,7 +12,7 @@ import pytest
 
 from sase.dev_update.command import run_dev_update_command, run_recorded_command
 from sase.dev_update.models import DevCommandResult, DevExecutedCommand
-from sase.dev_update.stream_command import run_streaming, sanitize_line
+from sase.dev_update.stream_command import _sanitize_line, run_streaming
 from sase.git_lock_retry import run_with_git_lock_retry
 from sase.uv_tool.runner import run_uv
 
@@ -73,11 +73,11 @@ def test_ansi_stripped_from_sink_but_kept_in_result() -> None:
 
 
 def test_osc_sequence_stripped() -> None:
-    assert sanitize_line("\x1b]0;title\x07hello") == "hello"
-    assert sanitize_line("a\x1b[31mb\x1b[0mc") == "abc"
-    assert sanitize_line("[red]x[/] literal") == "[red]x[/] literal"
-    assert sanitize_line("a\x00b\x1fc") == "abc"
-    assert sanitize_line("a\tb") == "a\tb"
+    assert _sanitize_line("\x1b]0;title\x07hello") == "hello"
+    assert _sanitize_line("a\x1b[31mb\x1b[0mc") == "abc"
+    assert _sanitize_line("[red]x[/] literal") == "[red]x[/] literal"
+    assert _sanitize_line("a\x00b\x1fc") == "abc"
+    assert _sanitize_line("a\tb") == "a\tb"
 
 
 def test_invalid_utf8_decoded_with_replace() -> None:
