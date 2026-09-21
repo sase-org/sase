@@ -83,8 +83,6 @@ class _Fake(AxeDisplayMixin):
         self.refresh_interval = 10
         self.axe_running = True
         self._countdown_remaining = 10
-        self._axe_status = None
-        self._axe_metrics = None
         self._axe_output = ""
         self._axe_pinned_to_bottom = False
         self._axe_cmds_hidden = False
@@ -282,8 +280,6 @@ def test_apply_axe_status_data_reconciles_pinned_offsets() -> None:
     )
     data = AxeCollectedData(
         axe_running=True,
-        axe_status=None,
-        axe_metrics=None,
         axe_output="",
         lumberjack_names=["hooks"],
         bgcmd_slots=[],
@@ -330,8 +326,6 @@ def test_apply_summary_payload_preserves_chop_snapshots() -> None:
     app._axe_lumberjack_log_tails["hooks"] = "stale jack\n"
     data = AxeCollectedData(
         axe_running=True,
-        axe_status=None,
-        axe_metrics=None,
         axe_output="new axe log\n",
         lumberjack_names=["hooks"],
         bgcmd_slots=[],

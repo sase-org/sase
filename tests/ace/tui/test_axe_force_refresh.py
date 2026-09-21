@@ -48,8 +48,6 @@ class FakeAxeApp(AxeDisplayMixin):
         self.refresh_interval = 10
         self.axe_running = True
         self._countdown_remaining = 10
-        self._axe_status = None
-        self._axe_metrics = None
         self._axe_output = ""
         self._axe_pinned_to_bottom = False
         self._axe_cmds_hidden = False

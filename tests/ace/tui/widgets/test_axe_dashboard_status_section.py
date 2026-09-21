@@ -205,7 +205,7 @@ def test_status_section_renders_no_wrap_text() -> None:
         run_idx=0,
         run_total=0,
     )
-    section.update_display(status=None, is_running=True, full_cycles=0)
+    section.update_display(is_running=True)
     section.update_bgcmd_display(info=None, is_running=False)
 
     assert captured, "status section never emitted a Text"
@@ -222,9 +222,7 @@ def test_status_section_renders_degraded_axe_status() -> None:
     section.update = lambda content: captured.append(content)  # type: ignore[assignment,arg-type]
 
     section.update_display(
-        status=None,
         is_running=True,
-        full_cycles=0,
         countdown=17,
         degraded_status=AxeStatusDegradation(
             "axe config invalid: [unknown_key] axe.extra: unsupported setting"
@@ -544,3 +542,20 @@ def test_chop_detail_header_omits_segment_without_overrun_verdict() -> None:
     )
     plain = _run_display_plain(snap, run_idx=0)
     assert "⚠" not in plain
+
+
+def test_axe_mode_placeholder_stays_pixel_identical() -> None:
+    """Zero-lumberjack placeholder keeps the retired None/0 render."""
+    section = axe_dashboard._AxeStatusSection.__new__(axe_dashboard._AxeStatusSection)
+    section.__init__()  # type: ignore[misc]
+    captured: list[Text] = []
+    section.update = lambda content: captured.append(content)  # type: ignore[assignment,arg-type]
+
+    section.update_display(is_running=True)
+
+    assert captured
+    plain = captured[-1].plain
+    assert "Runtime: ..." in plain
+    assert "Cycles: 0" in plain
+    assert "Hooks: ..." in plain
+    assert "Agents: ..." in plain

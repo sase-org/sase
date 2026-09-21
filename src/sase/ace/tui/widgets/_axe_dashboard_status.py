@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Any
 from rich.text import Text
 from textual.widgets import Static
 
-from sase.axe.state import AxeStatus, LumberjackStatus
+from sase.axe.state import LumberjackStatus
 from sase.core.time import parse_local
 
 from ._axe_dashboard_render import (
@@ -49,9 +49,7 @@ class AxeStatusSection(Static):
         super().__init__(**kwargs)
         # State for axe daemon mode
         self._axe_mode = True
-        self._status: AxeStatus | None = None
         self._is_running = False
-        self._full_cycles = 0
         self._degraded_status: AxeStatusDegradation | None = None
         # State for bgcmd mode
         self._bgcmd_info: BackgroundCommandInfo | None = None
@@ -81,18 +79,14 @@ class AxeStatusSection(Static):
 
     def update_display(
         self,
-        status: AxeStatus | None,
         is_running: bool,
-        full_cycles: int,
         countdown: int = 0,
         degraded_status: "AxeStatusDegradation | None" = None,
     ) -> None:
         """Update the compact status section for axe daemon.
 
         Args:
-            status: Current axe status, or None if not available.
             is_running: Whether axe daemon is currently running.
-            full_cycles: Number of full cycles run.
             countdown: Seconds until next auto-refresh.
             degraded_status: Recoverable collection problem to display.
         """
@@ -100,9 +94,7 @@ class AxeStatusSection(Static):
         self._lumberjack_mode = False
         self._chop_mode = False
         self._service_mode = False
-        self._status = status
         self._is_running = is_running
-        self._full_cycles = full_cycles
         self._countdown = countdown
         self._degraded_status = degraded_status
         self._refresh_display()
@@ -261,38 +253,22 @@ class AxeStatusSection(Static):
         if self._is_running:
             # Runtime (always show when running)
             text.append("Runtime: ", style="bold #87D7FF")
-            if self._status and self._status.started_at:
-                runtime_str = _format_runtime(self._status.started_at)
-            else:
-                runtime_str = "..."
-            text.append(runtime_str, style="#00D7AF")
+            text.append("...", style="#00D7AF")
 
             # Cycles
             text.append("  │  ", style="dim")
             text.append("Cycles: ", style="bold #87D7FF")
-            text.append(f"{self._full_cycles}", style="#00D7AF bold")
+            text.append("0", style="#00D7AF bold")
 
             # Hook runners (current/max)
             text.append("  │  ", style="dim")
             text.append("Hooks: ", style="bold #87D7FF")
-            if self._status:
-                text.append(
-                    f"({self._status.current_hook_runners}/{self._status.max_hook_runners})",
-                    style="#00D7AF",
-                )
-            else:
-                text.append("...", style="#00D7AF")
+            text.append("...", style="#00D7AF")
 
             # Agent runners (current/max)
             text.append("  │  ", style="dim")
             text.append("Agents: ", style="bold #87D7FF")
-            if self._status:
-                text.append(
-                    f"({self._status.current_agent_runners}/{self._status.max_agent_runners})",
-                    style="#00D7AF",
-                )
-            else:
-                text.append("...", style="#00D7AF")
+            text.append("...", style="#00D7AF")
 
             # Countdown
             if self._countdown > 0:

@@ -52,7 +52,6 @@ def test_collector_degrades_invalid_axe_config_to_status() -> None:
         data = collect_axe_status_data()
 
     assert data.axe_running is True
-    assert data.axe_status is None
     assert data.lumberjack_names == []
     assert data.degraded_status is not None
     assert data.degraded_status.message == (

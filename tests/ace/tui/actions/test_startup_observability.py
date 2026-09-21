@@ -250,8 +250,6 @@ async def test_axe_startup_path_emits_startup_and_load_status_spans(
     stats = AxeCollectorStats(file_opens=7, run_json_parses=2)
     payload = AxeCollectedData(
         axe_running=False,
-        axe_status=None,
-        axe_metrics=None,
         axe_output="",
         lumberjack_names=[],
         bgcmd_slots=[],
@@ -301,8 +299,6 @@ async def test_axe_startup_on_axe_tab_schedules_background_full_refresh(
     stats = AxeCollectorStats(file_opens=0, run_json_parses=0)
     payload = AxeCollectedData(
         axe_running=False,
-        axe_status=None,
-        axe_metrics=None,
         axe_output="",
         lumberjack_names=["hooks"],
         bgcmd_slots=[],

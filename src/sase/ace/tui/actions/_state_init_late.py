@@ -38,8 +38,6 @@ def init_late_startup_state(
     """Initialize AXE, query persistence, prompt catalog, and keymap state."""
     from ..util.debounce import DetailPanelDebouncer
 
-    self._axe_status = None
-    self._axe_metrics = None
     self._axe_output = ""
     self._axe_degraded_status = None
     self._axe_pinned_to_bottom = True

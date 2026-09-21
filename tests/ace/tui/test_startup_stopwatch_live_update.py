@@ -641,8 +641,6 @@ def test_axe_first_load_path_no_longer_ends_stopwatch_directly() -> None:
 
     data = AxeCollectedData(
         axe_running=False,
-        axe_status=None,
-        axe_metrics=None,
         axe_output="",
         lumberjack_names=[],
         bgcmd_slots=[],

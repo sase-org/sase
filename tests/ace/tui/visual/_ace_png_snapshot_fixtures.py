@@ -378,8 +378,6 @@ def axe_collected_data(
     """Build a deterministic AxeCollectedData fixture for the Axe tab."""
     return AxeCollectedData(
         axe_running=False,
-        axe_status=None,
-        axe_metrics=None,
         axe_output="",
         lumberjack_names=list(lumberjack_names or []),
         bgcmd_slots=list(bgcmd_slots or []),

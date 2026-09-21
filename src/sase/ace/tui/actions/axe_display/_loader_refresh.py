@@ -135,8 +135,6 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
         if not self.axe_running:
             self._set_axe_stopping(False)  # type: ignore[attr-defined]
 
-        self._axe_status = data.axe_status
-        self._axe_metrics = data.axe_metrics
         self._axe_degraded_status = data.degraded_status
         self._service_status = data.service_status
 

@@ -197,15 +197,10 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
                     # The synthetic "axe" sidebar row is gone, so this branch
                     # only fires when zero lumberjacks are configured.
                     axe_info.update_status(self.axe_running)
-                    full_cycles = 0
-                    if self._axe_metrics:
-                        full_cycles = self._axe_metrics.full_cycles_run
                     from ...keymaps import key_display_name
 
                     axe_dashboard.update_empty_axe_display(
                         is_running=self.axe_running,
-                        status=self._axe_status,
-                        full_cycles=full_cycles,
                         countdown=self._countdown_remaining,
                         add_key=key_display_name(
                             self._keymap_registry.app.add_axe_item

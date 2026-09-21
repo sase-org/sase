@@ -12,8 +12,6 @@ from sase.axe import config as axe_config
 from sase.axe.chop_overrun import ChopOverrun, classify_chop_overrun
 from sase.axe.chop_script_runner import discover_chop_script
 from sase.axe.state import (
-    AxeMetrics,
-    AxeStatus,
     ChopRunEntry,
     LumberjackMetrics,
     LumberjackStatus,
@@ -141,8 +139,6 @@ class AxeCollectedData:
     """Data collected from disk I/O for axe status."""
 
     axe_running: bool
-    axe_status: AxeStatus | None
-    axe_metrics: AxeMetrics | None
     axe_output: str
     lumberjack_names: list[str]
     bgcmd_slots: list[tuple[int, BackgroundCommandInfo]]
@@ -305,7 +301,7 @@ def collect_axe_status_data(
 
     ``include_full_snapshots`` is the Axe-tab / sanity path: chop run
     history, lumberjack log tails, and axe/bgcmd output. Other tabs pass
-    False and receive header fields only (running flag, status, metrics,
+    False and receive header fields only (running flag,
     lumberjack/chop names, bgcmd slot info).
 
     ``tail_chop_keys`` limits per-run log tails to the chops currently
@@ -359,8 +355,6 @@ def _collect_axe_status_data_impl(
         "starting",
     }
 
-    axe_status: AxeStatus | None = None
-    axe_metrics: AxeMetrics | None = None
     degraded_status: AxeStatusDegradation | None = None
 
     if service_status is not None and include_full_snapshots and tail_service_name:
@@ -537,8 +531,6 @@ def _collect_axe_status_data_impl(
     )
     return AxeCollectedData(
         axe_running=axe_running,
-        axe_status=axe_status,
-        axe_metrics=axe_metrics,
         axe_output=axe_output,
         lumberjack_names=lumberjack_names,
         bgcmd_slots=bgcmd_slots,

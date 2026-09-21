@@ -7,7 +7,7 @@ from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual.widgets import Static
 
-from sase.axe.state import AxeStatus, LumberjackStatus
+from sase.axe.state import LumberjackStatus
 
 from ..util.axe_log_renderer import render_axe_output
 from ..util.trace import tui_trace
@@ -98,9 +98,7 @@ class AxeDashboard(Static):
     def update_display(
         self,
         is_running: bool,
-        status: AxeStatus | None,
         output: str,
-        full_cycles: int = 0,
         countdown: int = 0,
         lumberjack_summaries: list[LumberjackSummary] | None = None,
         degraded_status: "AxeStatusDegradation | None" = None,
@@ -109,9 +107,7 @@ class AxeDashboard(Static):
 
         Args:
             is_running: Whether axe daemon is currently running.
-            status: Current axe status, or None if not available.
             output: Raw output log with ANSI codes.
-            full_cycles: Number of full cycles run.
             countdown: Seconds until next auto-refresh.
             lumberjack_summaries: Per-lumberjack (name, status, chops_executed)
                 tuples for the activity summary, or None to skip.
@@ -127,9 +123,7 @@ class AxeDashboard(Static):
 
             self._hide_description_banner()
             status_section.update_display(
-                status,
                 is_running,
-                full_cycles,
                 countdown,
                 degraded_status,
             )
@@ -145,17 +139,13 @@ class AxeDashboard(Static):
         """Show empty/stopped state."""
         self.update_display(
             is_running=False,
-            status=None,
             output="",
-            full_cycles=0,
         )
 
     def update_empty_axe_display(
         self,
         *,
         is_running: bool,
-        status: AxeStatus | None,
-        full_cycles: int,
         countdown: int,
         add_key: str,
         degraded_status: "AxeStatusDegradation | None" = None,
@@ -165,9 +155,7 @@ class AxeDashboard(Static):
         output_section = self.query_one("#axe-output-section", _AxeOutputSection)
         self._hide_description_banner()
         status_section.update_display(
-            status,
             is_running,
-            full_cycles,
             countdown,
             degraded_status,
         )

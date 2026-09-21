@@ -129,9 +129,8 @@ def test_footer_unhealthy_pill_is_loud() -> None:
     assert "!" in text
 
 
-def test_footer_flag_off_keeps_legacy_grammar() -> None:
+def test_footer_pre_snapshot_pill() -> None:
     footer = _footer()
-    footer.set_service_health(None)
     assert "STOPPED" in str(footer._get_status_text())
     footer._axe_running = True
     assert "RUNNING" in str(footer._get_status_text())

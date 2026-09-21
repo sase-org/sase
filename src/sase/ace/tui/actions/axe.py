@@ -7,11 +7,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from textual.worker import Worker, WorkerState
 
-from sase.axe.state import (
-    AxeMetrics,
-    AxeStatus,
-    clear_lumberjack_output_log,
-)
+from sase.axe.state import clear_lumberjack_output_log
 
 from ..bgcmd import BackgroundCommandInfo, clear_slot_output
 from ..exit_action import AceExitAction
@@ -49,8 +45,6 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
     axe_running: bool
     axe_description_expanded: bool
     _countdown_remaining: int
-    _axe_status: AxeStatus | None
-    _axe_metrics: AxeMetrics | None
     _axe_output: str
     _axe_degraded_status: AxeStatusDegradation | None
     _axe_pinned_to_bottom: bool

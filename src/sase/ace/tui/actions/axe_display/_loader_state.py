@@ -6,8 +6,6 @@ from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     from sase.axe.state import (
-        AxeMetrics,
-        AxeStatus,
         LumberjackMetrics,
         LumberjackStatus,
     )
@@ -43,8 +41,6 @@ class AxeLoaderState:
     refresh_interval: int
     axe_running: bool
     _countdown_remaining: int
-    _axe_status: AxeStatus | None
-    _axe_metrics: AxeMetrics | None
     _axe_output: str
     _axe_degraded_status: AxeStatusDegradation | None
     _axe_pinned_to_bottom: bool

@@ -141,8 +141,12 @@ class KeybindingStatusMixin:
         self._bgcmd_done_count = done_count
         self._update_status()
 
-    def set_service_health(self, health: ServiceHealth | None) -> None:
-        """Update the service-health pill; ``None`` restores the legacy AXE pill."""
+    def set_service_health(self, health: ServiceHealth) -> None:
+        """Update the service-health pill.
+
+        The footer keeps an initial ``None`` state that renders the
+        pre-snapshot RUNNING/STOPPED pill until the first snapshot arrives.
+        """
         self._service_health = health
         self._update_status()
 

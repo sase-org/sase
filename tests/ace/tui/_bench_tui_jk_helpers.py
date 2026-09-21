@@ -234,8 +234,6 @@ def _make_axe_cached_data(
 
     return AxeCollectedData(
         axe_running=True,
-        axe_status=None,
-        axe_metrics=None,
         axe_output="",
         lumberjack_names=lumberjack_names,
         bgcmd_slots=[],
