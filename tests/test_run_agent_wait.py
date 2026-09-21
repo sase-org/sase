@@ -7,7 +7,7 @@ import os
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -35,13 +35,6 @@ def _patch_index_updates(side_effect: Callable[[str], None]) -> Iterator[None]:
         ),
     ):
         yield
-
-
-@pytest.fixture(autouse=True)
-def _disable_real_axe_ensure() -> Iterator[MagicMock]:
-    """Keep wait-loop tests isolated from the host axe daemon."""
-    with patch("sase.axe.run_agent_wait._opportunistic_ensure_axe") as ensure:
-        yield ensure
 
 
 def _make_waiter(base: Path, project: str = "proj") -> Path:
@@ -333,10 +326,9 @@ def test_hood_only_wait_writes_marker_and_names_only_hoods(
     assert "agents:" not in output
 
 
-def test_unresolved_named_wait_opportunistically_ensures_axe(
+def test_unresolved_named_wait_blocks_until_ready_marker_arrives(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
-    _disable_real_axe_ensure: MagicMock,
 ) -> None:
     waiter_dir = _make_waiter(tmp_path)
     ready_path = waiter_dir / "ready.json"
@@ -352,7 +344,7 @@ def test_unresolved_named_wait_opportunistically_ensures_axe(
             side_effect=resolve_after_poll,
         ),
     ):
-        wait_for_dependencies(
+        blocked = wait_for_dependencies(
             ["missing"],
             str(waiter_dir),
             "cl",
@@ -361,7 +353,8 @@ def test_unresolved_named_wait_opportunistically_ensures_axe(
             project_name="proj",
         )
 
-    _disable_real_axe_ensure.assert_called_once_with()
+    assert blocked is True
+    assert not ready_path.exists()
 
 
 def test_stale_cancelled_ready_marker_is_removed_and_wait_continues(

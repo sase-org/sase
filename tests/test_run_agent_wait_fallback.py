@@ -36,13 +36,6 @@ def _patch_index_updates(side_effect: Callable[[str], None]) -> Iterator[None]:
         yield
 
 
-@pytest.fixture(autouse=True)
-def _disable_real_axe_ensure() -> Iterator[None]:
-    """Keep wait-loop tests isolated from the host axe daemon."""
-    with patch("sase.axe.run_agent_wait._opportunistic_ensure_axe"):
-        yield
-
-
 def _make_waiter(base: Path) -> Path:
     artifact_dir = base / ".sase/projects/proj/artifacts/ace-run/waiter"
     artifact_dir.mkdir(parents=True)

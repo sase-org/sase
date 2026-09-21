@@ -17,7 +17,7 @@ pytestmark = pytest.mark.usefixtures("allow_axe_lifecycle_in_tests")
 
 
 class TestUpdateRestartInterruption:
-    """Simulated update-restart interruption recovery via `sase axe ensure`."""
+    """Simulated update-restart interruption recovery via desired state."""
 
     def test_desired_state_survives_mid_restart_crash(
         self, temp_state_dir: Path
@@ -219,7 +219,7 @@ class TestIntegratedOutageRecovery:
     def test_full_restart_interruption_recovery_flow(
         self, temp_state_dir: Path, axe_config: AxeConfig
     ) -> None:
-        """Desired state survives an interrupted restart until `axe ensure` heals."""
+        """Desired state survives an interrupted restart until a fresh start heals."""
         write_desired_state("running", source="restart", timestamp=get_timestamp())
         marker_before = read_desired_state()
         assert marker_before is not None

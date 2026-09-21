@@ -32,8 +32,6 @@ def handle_axe_command(args: argparse.Namespace) -> None:
         _handle_bgcmd_launch(args)
     elif axe_sub in {"chop", "job"}:
         _handle_job(args)
-    elif axe_sub == "ensure":
-        _handle_ensure(args)
     elif axe_sub in {"lumberjack", "routine"}:
         _handle_routine(args)
     elif axe_sub == "maintenance":
@@ -47,9 +45,7 @@ def handle_axe_command(args: argparse.Namespace) -> None:
     elif axe_sub == "stop":
         _handle_stop(args)
     else:
-        print(
-            "Usage: sase axe {ensure,job,maintenance,restart,routine,start,status,stop}"
-        )
+        print("Usage: sase axe {job,maintenance,restart,routine,start,status,stop}")
         sys.exit(1)
 
 
@@ -102,45 +98,6 @@ def _handle_job(args: argparse.Namespace) -> None:
     else:
         print("Usage: sase axe job {doctor,list,run}")
         sys.exit(1)
-
-
-def _handle_ensure(args: argparse.Namespace) -> None:
-    """Handle ``sase axe ensure`` and its timer-management commands."""
-    from rich.console import Console
-
-    from sase.axe.ensure import (
-        ensure_axe,
-        install_ensure_timer,
-        uninstall_ensure_timer,
-    )
-
-    console = Console()
-    ensure_sub = getattr(args, "axe_ensure_subcommand", None)
-    if ensure_sub == "install":
-        timer_result = install_ensure_timer()
-        style = "bold green" if timer_result.succeeded else "bold red"
-        console.print(f"[{style}]{timer_result.message}[/{style}]")
-        sys.exit(0 if timer_result.succeeded else 1)
-    if ensure_sub == "uninstall":
-        timer_result = uninstall_ensure_timer()
-        style = "bold green" if timer_result.succeeded else "bold red"
-        console.print(f"[{style}]{timer_result.message}[/{style}]")
-        sys.exit(0 if timer_result.succeeded else 1)
-    if ensure_sub is not None:
-        print("Usage: sase axe ensure {install,uninstall}")
-        sys.exit(1)
-
-    result = ensure_axe()
-    styles = {
-        "failed": "bold red",
-        "healed": "bold green",
-        "healthy": "cyan",
-        "rate_limited": "yellow",
-        "stopped": "yellow",
-    }
-    style = styles[result.status]
-    console.print(f"[{style}]{result.message}[/{style}]")
-    sys.exit(0 if result.succeeded else 1)
 
 
 def _handle_routine(args: argparse.Namespace) -> None:

@@ -52,19 +52,6 @@ def remaining_until(wait_until: str) -> float:
     return max(0.0, (target - now).total_seconds())
 
 
-def _opportunistic_ensure_axe() -> None:
-    """Best-effort, host-rate-limited healing while waiters are alive."""
-    try:
-        from sase.axe.ensure import DEFAULT_ENSURE_CADENCE_SECONDS, ensure_axe
-
-        ensure_axe(
-            rate_limit_seconds=DEFAULT_ENSURE_CADENCE_SECONDS,
-            source="waiting agent runner",
-        )
-    except Exception:  # noqa: BLE001 - waiting must survive watchdog failures.
-        pass
-
-
 def _identity_dep_label(dep: dict[str, Any]) -> str:
     name = dep.get("name")
     if isinstance(name, str) and name:
@@ -255,9 +242,8 @@ def wait_for_dependencies(
                     break
                 next_fallback_at = now + _WAIT_DEPENDENCY_FALLBACK_INTERVAL
             blocked = True
-            _opportunistic_ensure_axe()
-            # Fallback resolution and axe healing both allocate; release what
-            # they leave behind instead of growing the parked runner again.
+            # Fallback resolution allocates; release what it leaves behind
+            # instead of growing the parked runner again.
             if now >= next_trim_at:
                 release_idle_memory()
                 next_trim_at = now + IDLE_TRIM_INTERVAL_SECONDS

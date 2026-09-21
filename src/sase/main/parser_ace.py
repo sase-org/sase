@@ -160,7 +160,7 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     axe_subparsers = axe_parser.add_subparsers(
         dest="axe_subcommand",
         help="Axe subcommands",
-        metavar="{ensure,job,maintenance,restart,routine,start,status,stop}",
+        metavar="{job,maintenance,restart,routine,start,status,stop}",
     )
 
     axe_bgcmd_parser = axe_subparsers.add_parser(
@@ -180,36 +180,6 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
 
     _add_axe_job_group(axe_subparsers, name="job", hidden=False)
     _add_axe_job_group(axe_subparsers, name="chop", hidden=True)
-
-    # --- axe ensure ---
-    axe_ensure_parser = axe_subparsers.add_parser(
-        "ensure",
-        help="Heal a downed axe or manage its optional watchdog timer",
-        description=(
-            "Ensure axe matches its persistent desired state. Bare `sase axe ensure` "
-            "starts a missing orchestrator unless axe was explicitly stopped. The "
-            "optional user systemd timer provides the same check on idle hosts."
-        ),
-        epilog=(
-            "Examples:\n"
-            "  sase axe ensure\n"
-            "  sase axe ensure install\n"
-            "  sase axe ensure uninstall"
-        ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    axe_ensure_subparsers = axe_ensure_parser.add_subparsers(
-        dest="axe_ensure_subcommand",
-        help="Ensure watchdog commands (omit one to heal now)",
-    )
-    axe_ensure_subparsers.add_parser(
-        "install",
-        help="Install and start the user systemd watchdog timer",
-    )
-    axe_ensure_subparsers.add_parser(
-        "uninstall",
-        help="Stop and remove the user systemd watchdog timer",
-    )
 
     _add_axe_routine_group(axe_subparsers, name="routine", hidden=False)
     _add_axe_routine_group(axe_subparsers, name="lumberjack", hidden=True)

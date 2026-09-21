@@ -6,15 +6,13 @@ import subprocess
 import sys
 from pathlib import Path
 from textwrap import dedent
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 import sase.axe.state as axe_state
 from sase.axe.config import AxeConfig
-from sase.axe.ensure import ensure_axe
 from sase.axe._process_guard import AXE_LIFECYCLE_TEST_OVERRIDE_ENV
-from sase.axe._process_types import AxeOrchestratorProbe, TerminateResult
 from sase.axe.process import (
     restart_axe_daemon_result,
     start_axe_daemon_result,
@@ -171,7 +169,6 @@ class TestLeakedOrchestratorIncidentRegression:
         with (
             patch("sase.axe.run_agent_wait.was_killed", return_value=False),
             patch("sase.axe.run_agent_wait._WAIT_DEPENDENCY_FALLBACK_INTERVAL", 0),
-            patch("sase.axe.run_agent_wait._opportunistic_ensure_axe"),
             patch(
                 "sase.axe.run_agent_wait.time.sleep",
                 side_effect=finish_dependency,
@@ -192,93 +189,3 @@ class TestLeakedOrchestratorIncidentRegression:
         assert isinstance(agent_meta.get("wait_completed_at"), str)
         assert not (waiter_dir / "waiting.json").exists()
         assert not (waiter_dir / "ready.json").exists()
-
-    def test_ensure_recovers_wedged_lock_and_restarts_axe(
-        self,
-        temp_state_dir: Path,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        """Ensure crosses the aged-lock recovery path into a fresh spawn."""
-        holder_pid = 98_765
-        (temp_state_dir / "wedged_lifecycle_lock.json").write_text(
-            json.dumps(
-                {
-                    "observed_at_epoch": 100.0,
-                    "lock_holder_pid": holder_pid,
-                }
-            ),
-            encoding="utf-8",
-        )
-        monkeypatch.setenv("SASE_AXE_WEDGED_LOCK_GRACE_SECONDS", "60")
-        wedged_probe = AxeOrchestratorProbe(
-            lock_held=True,
-            lock_holder_pid=holder_pid,
-            orchestrator_pid_file_pid=None,
-            legacy_pid=None,
-            running_pid=None,
-        )
-        free_probe = AxeOrchestratorProbe(
-            lock_held=False,
-            lock_holder_pid=None,
-            orchestrator_pid_file_pid=None,
-            legacy_pid=None,
-            running_pid=None,
-        )
-        lifecycle_lock = MagicMock()
-        lifecycle_lock.fd = 99
-        spawned_process = MagicMock()
-
-        with (
-            patch(
-                "sase.axe._process_start.get_pid_from_pid_files",
-                return_value=None,
-            ),
-            patch(
-                "sase.axe._process_start._acquire_lifecycle_lock_for_start",
-                side_effect=[None, lifecycle_lock],
-            ),
-            patch(
-                "sase.axe._process_start.probe_orchestrator",
-                side_effect=[wedged_probe, wedged_probe, free_probe],
-            ),
-            patch(
-                "sase.axe._process_stop.terminate_process",
-                return_value=TerminateResult(
-                    pid=holder_pid,
-                    signaled=True,
-                    stopped=True,
-                ),
-            ) as terminate,
-            patch(
-                "sase.axe._process_start._build_axe_start_command",
-                return_value=["fake-sase"],
-            ),
-            patch(
-                "sase.axe._process_start.subprocess.Popen",
-                return_value=spawned_process,
-            ) as popen,
-            patch(
-                "sase.axe._process_start._wait_for_daemon_start",
-                return_value=4_321,
-            ),
-            patch("sase.axe._process_start.time.time", return_value=161.0),
-            patch(
-                "sase.axe._process_start._notify_wedged_lock_recovery"
-            ) as notify_recovery,
-        ):
-            result = ensure_axe(
-                now_fn=lambda: 161.0,
-                running_fn=lambda: False,
-                start_fn=lambda **kwargs: start_axe_daemon_result(
-                    AxeConfig(), **kwargs
-                ),
-                notify_fn=lambda _downtime, _pid: "healed-notification",
-            )
-
-        assert result.status == "healed"
-        assert result.pid == 4_321
-        terminate.assert_called_once_with(holder_pid, timeout=5.0, kill_timeout=2.0)
-        popen.assert_called_once()
-        lifecycle_lock.close_after_handoff.assert_called_once_with()
-        notify_recovery.assert_called_once_with(holder_pid, 4_321)
-        assert not (temp_state_dir / "wedged_lifecycle_lock.json").exists()

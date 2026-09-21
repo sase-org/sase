@@ -240,29 +240,6 @@ def notify_axe_restart_failed(message: str, attempts: list[str]) -> str:
     return notification_id
 
 
-def notify_axe_healed(downtime_seconds: float | None, pid: int) -> str:
-    """Send a durable notification after ``sase axe ensure`` heals axe."""
-    notification_id = str(uuid4())
-    if downtime_seconds is None:
-        downtime = "The apparent outage duration is unknown."
-    else:
-        downtime = f"Axe appeared down for {_format_duration(downtime_seconds)}."
-    n = Notification(
-        id=notification_id,
-        timestamp=datetime.now(get_timezone()).isoformat(),
-        sender="axe",
-        icon="🪓",
-        notes=[
-            "Axe self-healed",
-            f"Started orchestrator pid {pid}.",
-            downtime,
-        ],
-        tags=normalize_notification_tags(["axe", "healed"]),
-    )
-    append_notification(n)
-    return notification_id
-
-
 def notify_axe_lock_recovered(
     terminated_pid: int,
     started_pid: int | None,
@@ -284,46 +261,6 @@ def notify_axe_lock_recovered(
         icon="🪓",
         notes=notes,
         tags=normalize_notification_tags(["axe", "healed", "lock-recovery"]),
-    )
-    append_notification(n)
-    return notification_id
-
-
-def notify_axe_ensure_failed(message: str, source: str) -> str:
-    """Send a durable notification when an axe ensure attempt fails."""
-    notification_id = str(uuid4())
-    n = Notification(
-        id=notification_id,
-        timestamp=datetime.now(get_timezone()).isoformat(),
-        sender="axe",
-        icon="⚠",
-        notes=[
-            "Axe self-healing failed",
-            message,
-            f"Source: {source}",
-        ],
-        tags=normalize_notification_tags(["axe", "ensure", "error"]),
-    )
-    append_notification(n)
-    return notification_id
-
-
-def notify_axe_restart_storm(sources: list[str], journal_path: str) -> str:
-    """Send a durable notification when automatic axe healing is damped."""
-    notification_id = str(uuid4())
-    source_summary = ", ".join(sources) if sources else "unknown"
-    n = Notification(
-        id=notification_id,
-        timestamp=datetime.now(get_timezone()).isoformat(),
-        sender="axe",
-        icon="⚠",
-        notes=[
-            "Axe restart storm damped",
-            f"Recent successful start sources: {source_summary}",
-            f"Lifecycle journal: {journal_path}",
-        ],
-        files=[journal_path],
-        tags=normalize_notification_tags(["axe", "ensure", "restart-storm"]),
     )
     append_notification(n)
     return notification_id

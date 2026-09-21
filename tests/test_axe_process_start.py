@@ -10,8 +10,6 @@ import pytest
 
 from sase.axe.config import AxeConfig
 from sase.axe.desired_state import read_desired_state
-from sase.axe.ensure import ensure_axe
-from sase.axe.lock import AxeLifecycleLock
 from sase.axe._process_start import (
     _build_axe_start_command,
     _compose_axe_daemon_env,
@@ -379,90 +377,6 @@ def _spawn_unpublished_lock_holder(lock_path: Path) -> subprocess.Popen[str]:
     assert line, holder.stderr.read() if holder.stderr is not None else ""
     assert int(line) == holder.pid
     return holder
-
-
-def test_ensure_recovers_unpublished_lock_holder_after_grace(
-    axe_config: AxeConfig,
-    temp_state_dir: Path,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Ensure terminates an aged lock holder and retries startup once."""
-    holder = _spawn_unpublished_lock_holder(temp_state_dir / "orchestrator.lock")
-    spawned: list[subprocess.Popen[bytes]] = []
-    acquire_calls = 0
-    real_popen = subprocess.Popen
-
-    def acquire_for_start() -> AxeLifecycleLock | None:
-        nonlocal acquire_calls
-        acquire_calls += 1
-        if acquire_calls <= 2:
-            return None
-        return AxeLifecycleLock.acquire(blocking=False)
-
-    def spawn_for_start(
-        command: list[str],
-        *args: object,
-        **kwargs: object,
-    ) -> subprocess.Popen[bytes]:
-        if command == ["fake-sase"]:
-            command = [
-                sys.executable,
-                "-c",
-                "import time; time.sleep(30)",
-            ]
-        process = real_popen(command, *args, **kwargs)
-        if command[0] == sys.executable and "time.sleep(30)" in command[-1]:
-            spawned.append(process)
-        return process
-
-    monkeypatch.setenv("SASE_AXE_WEDGED_LOCK_GRACE_SECONDS", "60")
-    try:
-        with (
-            patch(
-                "sase.axe._process_start._acquire_lifecycle_lock_for_start",
-                side_effect=acquire_for_start,
-            ),
-            patch(
-                "sase.axe._process_start._build_axe_start_command",
-                return_value=["fake-sase"],
-            ),
-            patch(
-                "sase.axe._process_start.subprocess.Popen",
-                side_effect=spawn_for_start,
-            ),
-            patch(
-                "sase.axe._process_start._wait_for_daemon_start",
-                side_effect=lambda process: process.pid,
-            ),
-            patch(
-                "sase.axe._process_start.time.time",
-                side_effect=[100.0, 161.0],
-            ),
-            patch(
-                "sase.axe._process_start._notify_wedged_lock_recovery"
-            ) as notify_recovery,
-        ):
-            first = start_axe_daemon_result(axe_config)
-            result = ensure_axe(
-                running_fn=lambda: False,
-                start_fn=lambda **kwargs: start_axe_daemon_result(axe_config, **kwargs),
-                notify_fn=lambda _downtime, _pid: "healed-notification",
-            )
-
-        assert first.status == "blocked"
-        assert result.status == "healed"
-        assert result.pid == spawned[0].pid
-        assert holder.poll() is not None
-        assert not (temp_state_dir / "wedged_lifecycle_lock.json").exists()
-        notify_recovery.assert_called_once_with(holder.pid, spawned[0].pid)
-    finally:
-        if holder.poll() is None:
-            holder.terminate()
-            holder.wait(timeout=2)
-        for process in spawned:
-            if process.poll() is None:
-                process.terminate()
-                process.wait(timeout=2)
 
 
 def test_unpublished_lock_holder_that_publishes_during_grace_is_preserved(

@@ -96,7 +96,7 @@ def test_axe_health_warns_when_desired_running_but_down(monkeypatch) -> None:
 
     assert check.status == "WARN"
     assert "orchestrator is down" in check.summary
-    assert check.next_steps == ("Run `sase axe ensure`.",)
+    assert check.next_steps == ("Run `sase scheduler start`.",)
 
 
 def test_axe_health_accepts_explicit_stop(monkeypatch) -> None:

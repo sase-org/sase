@@ -58,12 +58,10 @@ def test_agent_prompts_help_documents_group_and_validation_flags() -> None:
     assert "-s, --show-warnings" in validate_help
 
 
-def test_axe_ensure_help_documents_healing_and_watchdog() -> None:
+def test_axe_parser_has_no_ensure_watchdog() -> None:
     axe_parser = parser_for(("sase", "axe"))
-    ensure_help = flat_help(parser_for(("sase", "axe", "ensure")).format_help())
     status_help = flat_help(parser_for(("sase", "axe", "status")).format_help())
     expected_commands = {
-        "ensure",
         "job",
         "maintenance",
         "restart",
@@ -77,13 +75,11 @@ def test_axe_ensure_help_documents_healing_and_watchdog() -> None:
 
     assert help_commands == sorted(expected_commands)
     assert (
-        "{ensure,job,maintenance,restart,routine,start,status,stop}"
+        "{job,maintenance,restart,routine,start,status,stop}"
         in axe_parser.format_help()
     )
-    assert "Bare `sase axe ensure` starts a missing orchestrator" in ensure_help
-    assert "{install,uninstall}" in ensure_help
-    assert "sase axe ensure install" in ensure_help
-    assert "sase axe ensure uninstall" in ensure_help
+    with pytest.raises(KeyError):
+        parser_for(("sase", "axe", "ensure"))
     assert "read-only, whole-system AXE health snapshot" in status_help
     assert "-j, --json" in status_help
     assert "machine-readable status object" in status_help

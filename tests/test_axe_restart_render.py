@@ -166,7 +166,9 @@ def test_plain_renderer_prints_retry_and_failure_lines() -> None:
     assert "Attempt 1 failed; retrying in 0.25s…" in lines
     assert "Attempt 2 failed to start: spawn failed again" in lines
     assert lines[-2] == "Axe restart failed after 2 attempt(s)."
-    assert lines[-1] == "AXE may be down. Run `sase axe status` or `sase axe ensure`."
+    assert lines[-1] == (
+        "AXE may be down. Run `sase scheduler status` or `sase scheduler restart`."
+    )
 
 
 def test_settle_panel_success_variant_is_green_and_lists_lumberjacks() -> None:
@@ -206,7 +208,7 @@ def test_settle_panel_failure_variant_is_red_and_lists_attempts_and_hints() -> N
     assert "Attempt 2: spawn failed" in text
     assert "Attempt 3: timed out" in text
     assert "sase axe status" in text
-    assert "sase axe ensure" in text
+    assert "sase scheduler restart" in text
 
 
 def test_live_panel_renders_stop_start_and_verify_rows() -> None:

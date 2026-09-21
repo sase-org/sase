@@ -69,17 +69,7 @@ def stop_axe_daemon_result(
         )
 
     if record_desired_state:
-        # Wait for any in-flight ensure start before publishing the operator's
-        # authoritative stop. Otherwise that start could overwrite ``stopped``
-        # with ``running`` after this command records its intent.
-        from .ensure import acquire_axe_ensure_lock, release_axe_ensure_lock
-
-        ensure_lock = acquire_axe_ensure_lock(blocking=True)
-        assert ensure_lock is not None
-        try:
-            write_desired_state("stopped", source=desired_state_source)
-        finally:
-            release_axe_ensure_lock(ensure_lock)
+        write_desired_state("stopped", source=desired_state_source)
 
     probe = probe_orchestrator()
     pid = probe.running_pid or probe.lock_holder_pid

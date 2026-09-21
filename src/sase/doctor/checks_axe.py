@@ -60,7 +60,7 @@ def _check_axe_health() -> DiagnosticCheck:
             details=(
                 f"Running was requested by {desired.source} at {desired.timestamp}.",
             ),
-            next_steps=("Run `sase axe ensure`.",),
+            next_steps=("Run `sase scheduler start`.",),
             data={
                 "desired_state": desired.state,
                 "desired_state_source": desired.source,

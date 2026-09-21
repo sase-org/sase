@@ -251,8 +251,8 @@ def render_restart_settle_panel(
     body.append("AXE may be down. Next steps:\n", style="yellow")
     body.append("  $ sase axe status", style="bold cyan")
     body.append(" — inspect the health snapshot\n")
-    body.append("  $ sase axe ensure", style="bold cyan")
-    body.append(" — let the watchdog attempt to heal")
+    body.append("  $ sase scheduler restart", style="bold cyan")
+    body.append(" — ask the service host to restart the scheduler")
     return Panel(body, title="AXE restart failed", border_style="red", box=box.ROUNDED)
 
 
@@ -384,7 +384,7 @@ class RestartPlainRenderer:
             return
         self._console.print(result.message)
         self._console.print(
-            "AXE may be down. Run `sase axe status` or `sase axe ensure`."
+            "AXE may be down. Run `sase scheduler status` or `sase scheduler restart`."
         )
 
 
