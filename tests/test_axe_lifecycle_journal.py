@@ -13,10 +13,9 @@ import pytest
 from sase.axe.config import AxeConfig
 from sase.axe.desired_state import write_desired_state
 from sase.axe.lifecycle_journal import (
+    _lifecycle_journal_path,
     append_lifecycle_event,
-    lifecycle_journal_path,
     read_recent_lifecycle_events,
-    read_recent_successful_starts,
 )
 from sase.axe.maintenance import start_maintenance
 from sase.axe.orchestrator import Orchestrator
@@ -51,7 +50,7 @@ def test_journal_retains_complete_recent_records_within_byte_cap(
                 max_bytes=2048,
             )
 
-    journal = lifecycle_journal_path()
+    journal = _lifecycle_journal_path()
     assert journal.stat().st_size <= 2048
     raw_records = [json.loads(line) for line in journal.read_text().splitlines()]
     records = read_recent_lifecycle_events(limit=0)
@@ -61,7 +60,6 @@ def test_journal_retains_complete_recent_records_within_byte_cap(
     assert records[-1]["source"] == "source-11"
     assert records[-1]["desired_state"]["state"] == "running"
     assert records[-1]["maintenance"] == maintenance
-    assert read_recent_successful_starts(now=112.0, window_seconds=5) == records[-5:]
     assert all(record["schema_version"] == 1 for record in records)
 
 
@@ -77,7 +75,7 @@ def test_reader_skips_malformed_and_truncated_historical_rows(
         succeeded=True,
         timestamp_epoch=200.0,
     )
-    journal = lifecycle_journal_path()
+    journal = _lifecycle_journal_path()
     valid = journal.read_bytes()
     journal.write_bytes(b'{"broken":\n' + valid + b'{"schema_version":1')
 

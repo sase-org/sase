@@ -26,7 +26,7 @@ DEFAULT_LIFECYCLE_JOURNAL_MAX_BYTES = 256 * 1024
 _LIFECYCLE_JOURNAL_LOCK_FILENAME = "lifecycle_journal.lock"
 
 
-def lifecycle_journal_path() -> Path:
+def _lifecycle_journal_path() -> Path:
     """Return the axe lifecycle JSONL journal path."""
     return axe_state.axe_state_dir() / LIFECYCLE_JOURNAL_FILENAME
 
@@ -58,7 +58,7 @@ def append_lifecycle_event(
         if len(line) > cap:
             return False
 
-        target = lifecycle_journal_path()
+        target = _lifecycle_journal_path()
         target.parent.mkdir(parents=True, exist_ok=True)
         lock_path = target.parent / _LIFECYCLE_JOURNAL_LOCK_FILENAME
         with lock_path.open("a+b") as lock_file:
@@ -78,7 +78,7 @@ def append_lifecycle_event(
 def read_recent_lifecycle_events(*, limit: int = 100) -> list[dict[str, Any]]:
     """Return recent valid records, skipping malformed or truncated rows."""
     try:
-        data = lifecycle_journal_path().read_bytes()
+        data = _lifecycle_journal_path().read_bytes()
     except OSError:
         return []
 
@@ -90,24 +90,6 @@ def read_recent_lifecycle_events(*, limit: int = 100) -> list[dict[str, Any]]:
     if limit <= 0:
         return records
     return records[-limit:]
-
-
-def read_recent_successful_starts(
-    *,
-    now: float | None = None,
-    window_seconds: float,
-) -> list[dict[str, Any]]:
-    """Return successful orchestrator starts within a recent wall-clock window."""
-    current = time.time() if now is None else now
-    window = max(0.0, window_seconds)
-    return [
-        record
-        for record in read_recent_lifecycle_events(limit=0)
-        if record["event"] == "start"
-        and record["outcome"] == "started"
-        and record["succeeded"] is True
-        and 0 <= current - record["timestamp_epoch"] <= window
-    ]
 
 
 def _lifecycle_record(
@@ -252,7 +234,5 @@ __all__ = [
     "DEFAULT_LIFECYCLE_JOURNAL_MAX_BYTES",
     "LIFECYCLE_JOURNAL_FILENAME",
     "append_lifecycle_event",
-    "lifecycle_journal_path",
     "read_recent_lifecycle_events",
-    "read_recent_successful_starts",
 ]

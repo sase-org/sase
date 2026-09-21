@@ -456,8 +456,9 @@ def _blocked_lock_result(
         status="blocked",
         message=(
             f"Axe lifecycle lock is held{lock_holder}, but no live "
-            f"orchestrator PID is published. {detail} Run `sase axe stop`; "
-            "if the lock remains stuck, run `sase axe stop --force`."
+            f"orchestrator PID is published. {detail} Run "
+            "`sase scheduler restart`; if the lock remains stuck, stop the "
+            "process holding it."
         ),
     )
 

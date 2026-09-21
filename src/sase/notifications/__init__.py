@@ -41,7 +41,6 @@ from sase.notifications.report import (
 )
 from sase.notifications.senders import (
     notify_axe_error_digest,
-    notify_axe_restart_failed,
     notify_hitl_request,
     notify_mentors_complete,
     notify_sync_result,
@@ -121,7 +120,6 @@ __all__ = [
     "rewrite_notifications",
     "build_question_summary",
     "notify_axe_error_digest",
-    "notify_axe_restart_failed",
     "notify_hitl_request",
     "notify_mentors_complete",
     "notify_sync_result",

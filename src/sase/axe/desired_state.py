@@ -13,7 +13,7 @@ AxeDesiredStateValue = Literal["running", "stopped"]
 
 
 @dataclass(frozen=True)
-class AxeDesiredState:
+class _AxeDesiredState:
     """The operator's last requested axe lifecycle state."""
 
     state: AxeDesiredStateValue
@@ -31,9 +31,9 @@ def write_desired_state(
     *,
     source: str,
     timestamp: str | None = None,
-) -> AxeDesiredState:
+) -> _AxeDesiredState:
     """Atomically persist the requested axe lifecycle state."""
-    marker = AxeDesiredState(
+    marker = _AxeDesiredState(
         state=state,
         source=source,
         timestamp=timestamp or _state.get_timestamp(),
@@ -42,7 +42,7 @@ def write_desired_state(
     return marker
 
 
-def read_desired_state() -> AxeDesiredState | None:
+def read_desired_state() -> _AxeDesiredState | None:
     """Read and validate the desired-state marker, if one exists."""
     data = _state.read_json(_desired_state_path())
     if not isinstance(data, dict):
@@ -56,11 +56,10 @@ def read_desired_state() -> AxeDesiredState | None:
         return None
     if not isinstance(timestamp, str) or not timestamp:
         return None
-    return AxeDesiredState(state=state, source=source, timestamp=timestamp)
+    return _AxeDesiredState(state=state, source=source, timestamp=timestamp)
 
 
 __all__ = [
-    "AxeDesiredState",
     "AxeDesiredStateValue",
     "read_desired_state",
     "write_desired_state",

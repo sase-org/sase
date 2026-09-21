@@ -5352,7 +5352,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "10df0791797019a7",
+            "description_digest": "b7afc348f9f72369",
             "hidden": false,
             "mutex_groups": [],
             "name": "restart",
@@ -5625,7 +5625,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "8bff05c301795483",
+            "description_digest": "d1fe80f194ba8bfa",
             "hidden": false,
             "mutex_groups": [],
             "name": "start",
@@ -5701,7 +5701,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "25ab60e9e45e17a5",
+            "description_digest": "bdb5826322468ad9",
             "hidden": false,
             "mutex_groups": [],
             "name": "status",
@@ -5741,7 +5741,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "24b16d065da7b751",
+            "description_digest": "7fd9a0e5861fa5be",
             "hidden": false,
             "mutex_groups": [],
             "name": "stop",

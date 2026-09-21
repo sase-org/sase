@@ -26,7 +26,6 @@ def stop_axe_daemon(
     timeout: float = 15.0,
     kill_timeout: float = 5.0,
     *,
-    force: bool = False,
     desired_state_source: str = "axe stop",
     record_desired_state: bool = True,
 ) -> bool:
@@ -39,7 +38,6 @@ def stop_axe_daemon(
     Args:
         timeout: Seconds to wait after SIGTERM before sending SIGKILL.
         kill_timeout: Seconds to wait after SIGKILL before giving up.
-        force: Also kill matched axe worker processes and reset PID state.
 
     Returns:
         True if process was stopped, False if not running.
@@ -47,7 +45,6 @@ def stop_axe_daemon(
     return stop_axe_daemon_result(
         timeout=timeout,
         kill_timeout=kill_timeout,
-        force=force,
         desired_state_source=desired_state_source,
         record_desired_state=record_desired_state,
     ).terminated_anything
@@ -57,7 +54,6 @@ def stop_axe_daemon_result(
     timeout: float = 15.0,
     kill_timeout: float = 5.0,
     *,
-    force: bool = False,
     desired_state_source: str = "axe stop",
     record_desired_state: bool = True,
 ) -> AxeStopResult:
@@ -87,27 +83,18 @@ def stop_axe_daemon_result(
     sweep = _sweep_lumberjack_orphans(
         timeout=min(timeout, 5.0),
         kill_timeout=min(kill_timeout, 2.0),
-        force=force,
     )
-
-    force_killed = 0
-    if force:
-        force_killed = _force_kill_matching_axe_processes(
-            timeout=min(timeout, 3.0),
-            kill_timeout=min(kill_timeout, 2.0),
-        )
 
     final_probe = probe_orchestrator(cleanup=False)
     should_clear_state = (
-        force
-        or orchestrator_result.stopped
+        orchestrator_result.stopped
         or (pid is not None and not process_probe.is_process_running(pid))
         or not final_probe.running
     )
     if should_clear_state:
         stopped_pid = pid if orchestrator_result.stopped else None
         cleanup_pid_files(stopped_pid=stopped_pid)
-        if not final_probe.lock_held or force:
+        if not final_probe.lock_held:
             clear_lock_holder_pid()
 
     lock_still_held = is_lifecycle_lock_held()
@@ -118,11 +105,11 @@ def stop_axe_daemon_result(
         if pid is not None
     )
     error: str | None = None
-    if probe.lock_held and pid is None and not sweep.stopped_pids and not force_killed:
+    if probe.lock_held and pid is None and not sweep.stopped_pids:
         error = (
             "Axe lifecycle lock is held, but no live orchestrator PID could be "
-            "resolved. Run `sase axe stop --force` to sweep matched axe "
-            "processes and reset PID state."
+            "resolved. Run `sase scheduler restart`; if the lock remains stuck, "
+            "stop the process holding it."
         )
 
     result = AxeStopResult(
@@ -131,11 +118,9 @@ def stop_axe_daemon_result(
         orchestrator_stopped=orchestrator_result.stopped,
         lumberjack_pids=tuple(pid for _name, pid in sweep.seen),
         lumberjacks_stopped=len(sweep.stopped_pids),
-        force_killed_processes=force_killed,
         failed_pids=failed_pids,
         lock_was_held=probe.lock_held,
         lock_still_held=lock_still_held,
-        force=force,
         error=error,
     )
     if result.error is not None and not result.terminated_anything:
@@ -257,7 +242,6 @@ def _sweep_lumberjack_orphans(
     *,
     timeout: float,
     kill_timeout: float,
-    force: bool,
 ) -> SweepResult:
     """Terminate live lumberjacks tracked by their PID files."""
     seen: list[tuple[str, int]] = []
@@ -305,95 +289,11 @@ def _sweep_lumberjack_orphans(
         if not process_probe.is_process_running(pid):
             stopped_pids.add(pid)
             remove_lumberjack_pid(name)
-        elif force:
-            remove_lumberjack_pid(name)
-            failed_pids.add(pid)
 
     return SweepResult(
         seen=tuple(seen),
         stopped_pids=tuple(sorted(stopped_pids)),
         failed_pids=tuple(sorted(failed_pids - stopped_pids)),
-    )
-
-
-def _force_kill_matching_axe_processes(
-    *,
-    timeout: float,
-    kill_timeout: float,
-) -> int:
-    """Last-resort force sweep for axe processes without usable PID files."""
-    matches = _matching_axe_process_pids()
-    if not matches:
-        return 0
-
-    signaled_groups: set[int] = set()
-    signaled_pids: set[int] = set()
-    for pid in matches:
-        if _send_signal(
-            pid,
-            signal.SIGTERM,
-            prefer_group=True,
-            signaled_groups=signaled_groups,
-        ):
-            signaled_pids.add(pid)
-
-    remaining = _wait_for_all_exited(signaled_pids, timeout)
-    if remaining:
-        signaled_groups.clear()
-        for pid in remaining:
-            _send_signal(
-                pid,
-                signal.SIGKILL,
-                prefer_group=True,
-                signaled_groups=signaled_groups,
-            )
-        _wait_for_all_exited(remaining, kill_timeout)
-    return len(matches)
-
-
-def _matching_axe_process_pids() -> list[int]:
-    """Return live axe process PIDs found by command-line matching."""
-    try:
-        completed = subprocess.run(
-            ["ps", "-eo", "pid=,args="],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except OSError:
-        return []
-    if completed.returncode != 0:
-        return []
-
-    current_pid = os.getpid()
-    pids: list[int] = []
-    for line in completed.stdout.splitlines():
-        stripped = line.strip()
-        if not stripped:
-            continue
-        try:
-            pid_text, command = stripped.split(maxsplit=1)
-            pid = int(pid_text)
-        except ValueError:
-            continue
-        if pid == current_pid or not process_probe.is_process_running(pid):
-            continue
-        if _is_matching_axe_process_command(command):
-            pids.append(pid)
-    return pids
-
-
-def _is_matching_axe_process_command(command: str) -> bool:
-    """Return True for long-lived axe orchestrator or lumberjack commands."""
-    padded = f" {command} "
-    if " axe stop" in padded:
-        return False
-    if "sase" not in command:
-        return False
-    return (
-        " axe lumberjack run " in padded
-        or " axe routine run " in padded
-        or " axe start " in padded
     )
 
 

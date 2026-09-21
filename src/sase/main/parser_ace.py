@@ -198,8 +198,7 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     # --- axe restart (alias of `sase scheduler restart`) ---
     axe_restart_parser = axe_subparsers.add_parser(
         "restart",
-        help="Restart the axe orchestrator and verify fresh worker heartbeats "
-        "(works even when axe is not running)",
+        help="Restart the scheduler (alias of `sase scheduler restart`)",
     )
     add_scheduler_overrides(axe_restart_parser)
     add_json_flag(axe_restart_parser)
@@ -207,19 +206,24 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     # --- axe status (alias of `sase scheduler status`) ---
     axe_status_parser = axe_subparsers.add_parser(
         "status",
-        help="Show a read-only, whole-system AXE health snapshot",
-        description="Show a read-only, whole-system AXE health snapshot.",
+        help="Show scheduler status (alias of `sase scheduler status`)",
+        description=(
+            "Show the `scheduler` service proc's status. Alias of "
+            "`sase scheduler status`."
+        ),
     )
     add_json_flag(axe_status_parser)
 
     # --- axe start (alias of `sase scheduler start`) ---
     axe_start_parser = axe_subparsers.add_parser(
-        "start", help="Start the axe orchestrator (spawns all routines)"
+        "start", help="Start the scheduler (alias of `sase scheduler start`)"
     )
     add_scheduler_overrides(axe_start_parser)
 
     # --- axe stop (alias of `sase scheduler stop`) ---
-    axe_subparsers.add_parser("stop", help="Stop the running axe orchestrator")
+    axe_subparsers.add_parser(
+        "stop", help="Stop the scheduler (alias of `sase scheduler stop`)"
+    )
 
 
 def _add_axe_job_group(

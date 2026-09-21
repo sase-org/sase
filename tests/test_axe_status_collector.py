@@ -8,7 +8,7 @@ import pytest
 
 import sase.axe.status_collector as collector
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
-from sase.axe.desired_state import AxeDesiredState
+from sase.axe.desired_state import _AxeDesiredState
 from sase.axe.state import LumberjackStatus
 from sase.axe._process_types import AxeOrchestratorProbe
 
@@ -262,7 +262,7 @@ def test_intentional_stop_and_fresh_state_remain_healthy(monkeypatch) -> None:
     monkeypatch.setattr(
         collector,
         "read_desired_state",
-        lambda: AxeDesiredState(
+        lambda: _AxeDesiredState(
             state="stopped",
             source="test",
             timestamp="2026-07-23T11:00:00+00:00",
@@ -296,7 +296,7 @@ def test_desired_running_down_and_active_maintenance(monkeypatch) -> None:
     monkeypatch.setattr(
         collector,
         "read_desired_state",
-        lambda: AxeDesiredState(
+        lambda: _AxeDesiredState(
             state="running",
             source="test",
             timestamp="2026-07-23T11:00:00+00:00",

@@ -51,21 +51,15 @@ class AxeStopResult:
     orchestrator_stopped: bool = False
     lumberjack_pids: tuple[int, ...] = ()
     lumberjacks_stopped: int = 0
-    force_killed_processes: int = 0
     failed_pids: tuple[int, ...] = ()
     lock_was_held: bool = False
     lock_still_held: bool = False
-    force: bool = False
     error: str | None = None
     blocked_in_tests: bool = False
 
     @property
     def terminated_anything(self) -> bool:
-        return (
-            self.orchestrator_signaled
-            or self.lumberjacks_stopped > 0
-            or self.force_killed_processes > 0
-        )
+        return self.orchestrator_signaled or self.lumberjacks_stopped > 0
 
     @property
     def succeeded(self) -> bool:
@@ -83,14 +77,13 @@ class AxeStopResult:
                 parts.append("orchestrator signaled")
         if self.lumberjacks_stopped:
             parts.append(f"{self.lumberjacks_stopped} routine process(es)")
-        if self.force_killed_processes:
-            parts.append(f"{self.force_killed_processes} matched axe process(es)")
         if parts:
             return "Stopped " + " + ".join(parts)
         if self.lock_was_held and self.lock_still_held:
             return (
                 "Axe lifecycle lock is still held, but no live PID could be "
-                "resolved; retry with `sase axe stop --force`."
+                "resolved; run `sase scheduler restart`, and if the lock remains "
+                "stuck, stop the process holding it."
             )
         return "Axe orchestrator is not running."
 

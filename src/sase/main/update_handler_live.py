@@ -125,7 +125,7 @@ def handle_live_update(
                 restart=RestartInfo(
                     attempted=False,
                     status="skipped_no_change",
-                    reason="update failed before axe restart",
+                    reason="update failed before scheduler restart",
                 ),
             )
             elapsed = max(0.0, clock() - start)
@@ -174,7 +174,7 @@ def handle_live_update(
                     restart=RestartInfo(
                         attempted=False,
                         status="skipped_no_change",
-                        reason="managed update failed before axe restart",
+                        reason="managed update failed before scheduler restart",
                     ),
                 )
             return fail_update(exc, as_json=as_json, err=err)

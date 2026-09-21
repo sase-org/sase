@@ -80,7 +80,7 @@ def test_axe_parser_has_no_ensure_watchdog() -> None:
     )
     with pytest.raises(KeyError):
         parser_for(("sase", "axe", "ensure"))
-    assert "read-only, whole-system AXE health snapshot" in status_help
+    assert "Alias of `sase scheduler status`" in status_help
     assert "-j, --json" in status_help
     assert "machine-readable JSON object" in status_help
 

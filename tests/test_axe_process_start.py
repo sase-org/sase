@@ -254,7 +254,8 @@ def test_start_axe_daemon_result_reports_held_lock_without_pid(
 
     assert result.status == "blocked"
     assert result.pid is None
-    assert "sase axe stop --force" in result.message
+    assert "sase scheduler restart" in result.message
+    assert "--force" not in result.message
     marker = read_desired_state()
     assert marker is not None
     assert marker.state == "running"
