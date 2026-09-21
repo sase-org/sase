@@ -13,6 +13,7 @@ from sase.gate_shell.store import (
     resolve_gate_shell_ref,
 )
 from sase.notification_gates.cli_support import GateCliError, resolve_gate_cli_bundle
+from sase.notification_gates.durability import canonical_json_bytes, sha256_bytes
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.models import GateError
 from sase.sudo.gate import APPROVE_OPTION_ID
@@ -215,6 +216,11 @@ def runner_timeout_seconds(manifest: Mapping[str, Any]) -> float | None:
     return total + 30.0 if total else None
 
 
+def operation_payload_digest(payload: Mapping[str, Any]) -> str:
+    """Return the canonical digest of a sudo finalize operation payload."""
+    return sha256_bytes(canonical_json_bytes(dict(payload)))
+
+
 def print_answer(payload: Mapping[str, Any]) -> None:
     """Print the human form of an answer or execution-started payload."""
     if payload.get("status") == "execution_started":
@@ -232,6 +238,7 @@ __all__ = [
     "apply_approved_receipt",
     "error_exit_code",
     "error_payload",
+    "operation_payload_digest",
     "print_answer",
     "resolve_sudo_gate_id",
     "runner_timeout_seconds",
