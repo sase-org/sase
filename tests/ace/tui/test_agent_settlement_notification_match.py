@@ -7,7 +7,7 @@ from typing import Any
 
 from sase.ace.tui.actions.agents._notification_utils import (
     agent_row_notification_matches_agent,
-    agent_settlement_notification_matches_agent,
+    _agent_settlement_notification_matches_agent,
 )
 
 _CL_NAME = "gh_sase-org__sase"
@@ -35,7 +35,7 @@ def _notification(
 
 
 def _matches(notification: SimpleNamespace) -> bool:
-    return agent_settlement_notification_matches_agent(
+    return _agent_settlement_notification_matches_agent(
         notification, cl_name=_CL_NAME, raw_suffix=_RAW_SUFFIX
     )
 

@@ -735,7 +735,7 @@ def active_row_owned_notification_keys(
 
     Union of :func:`active_completion_agent_keys` and the exact keys of active
     host-owned settlement rows (``epic-launch`` / ``monitor-settlement``). The
-    settlement half mirrors :func:`agent_settlement_notification_matches_agent`:
+    settlement half mirrors :func:`_agent_settlement_notification_matches_agent`:
     exact match only, no ``cl_name``-only fallback.
     """
     keys = active_completion_agent_keys(notifications)
@@ -814,7 +814,7 @@ def _agent_completion_notification_matches_agent(
     return notification_raw_suffix is None or notification_raw_suffix == raw_suffix
 
 
-def agent_settlement_notification_matches_agent(
+def _agent_settlement_notification_matches_agent(
     notification: Notification,
     *,
     cl_name: str,
@@ -856,7 +856,7 @@ def agent_row_notification_matches_agent(
     """
     return _agent_completion_notification_matches_agent(
         notification, cl_name=cl_name, raw_suffix=raw_suffix
-    ) or agent_settlement_notification_matches_agent(
+    ) or _agent_settlement_notification_matches_agent(
         notification, cl_name=cl_name, raw_suffix=raw_suffix
     )
 

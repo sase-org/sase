@@ -359,16 +359,10 @@ _lint-patch-stitch-terminology: _setup
 # sase-11y entries: platform/init symbols whose owning phase (sase-11y.5) is closed,
 # plus service facades the Services tab deliberately does not consume (the status
 # snapshot is its read model).
-# sase-14l entry: host-ack settlement predicate whose only non-test caller is
-# same-file (agent_row_notification_matches_agent), so symvision still wants a
-# whitelist. Re-keyed from sase-14l.3 on that phase's close; the epic land agent
-# triages it (e.g. privatize the predicate and rewire its tests through the
-# combined predicate).
 _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
-        --epic-symbol "sase-14l(agent_settlement_notification_matches_agent)" \
         --epic-symbol "sase-11y(CapturedServiceEnvironment)" \
         --epic-symbol "sase-11y(NativeInspection)" \
         --epic-symbol "sase-11y(NativeServiceDefinition)" \
