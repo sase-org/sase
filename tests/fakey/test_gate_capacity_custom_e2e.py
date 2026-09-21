@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import replace
 from pathlib import Path
 import threading
 
@@ -24,6 +25,7 @@ from sase.main.parser_gate import register_gate_parser
 import sase.notification_gates.cli_answer as gate_cli_answer_module
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
 from sase.notification_gates.model_shell import GateShellSpec
+from sase.notification_gates.models import GateSpec
 from sase.notification_gates.paths import bundle_paths
 from sase.notification_gates.registry import adapter_for_kind
 from sase.notification_gates.service import create_gate
@@ -445,7 +447,10 @@ def test_gate_cancellation_and_failed_startup_do_not_disturb_an_unrelated_owners
         ],
         "shell": {"pending_status": "GATE", "settled_status": "GATED"},
     }
-    gate_b = create_gate(spec_b)
+    # This test establishes the gate-shell row itself below: mark the spec
+    # the way the production transaction does so the shell-row guard accepts
+    # the setup.
+    gate_b = create_gate(replace(GateSpec.from_mapping(spec_b), shell_row_managed=True))
     from sase.notification_gates.paths import owned_resource_path
 
     owned_resource_path(gate_b.bundle_path, "commands/run").chmod(0o644)

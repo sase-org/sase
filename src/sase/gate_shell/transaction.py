@@ -288,12 +288,16 @@ def _pulse_after_gate_visible(project_name: str | None) -> None:
 def _spec_from_request(request: Mapping[str, Any] | GateSpec) -> GateSpec:
     if isinstance(request, GateSpec):
         if request.request_id:
-            return request
-        return replace(request, request_id=f"{request.kind}-{uuid4()}")
+            return replace(request, shell_row_managed=True)
+        return replace(
+            request,
+            request_id=f"{request.kind}-{uuid4()}",
+            shell_row_managed=True,
+        )
     data = dict(request)
     if not data.get("request_id"):
         data["request_id"] = _default_request_id(data)
-    return GateSpec.from_mapping(data)
+    return replace(GateSpec.from_mapping(data), shell_row_managed=True)
 
 
 def _default_request_id(data: Mapping[str, Any]) -> str:

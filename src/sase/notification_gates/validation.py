@@ -61,6 +61,21 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             "'gate_shell' mode, and create shell-backed gates with "
             "sase.gate_shell.create_gate_shell so the row is registered.",
         )
+    if (
+        spec.shell is not None
+        and adapter.kind == "custom"
+        and not spec.shell_row_managed
+    ):
+        raise GateError(
+            "missing_gate_shell_row",
+            "shell",
+            "a custom gate declaring a shell block must be created through "
+            "sase.gate_shell.create_gate_shell (or `sase gate create`) so its "
+            "gate-shell row is registered: creating it with "
+            "sase.notification_gates.service.create_gate directly records "
+            "continuation_mode 'gate_shell' but leaves the gate invisible to "
+            "`sase gate list`.",
+        )
     resource_paths = [resource.path for resource in spec.resources]
     _reject_duplicates(resource_paths, "resources", "resource path")
     reserved_roots = {

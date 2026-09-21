@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,7 @@ import pytest
 from sase.main.gate_handler import handle_gate_command
 from sase.main.parser_gate import register_gate_parser
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
-from sase.notification_gates.models import GateError
+from sase.notification_gates.models import GateError, GateSpec
 from sase.notification_gates.operations import execute_gate_operation
 from sase.notification_gates.service import create_gate
 
@@ -258,7 +259,10 @@ def test_agent_gate_wait_refuses_shell_gate(
     request_id = "wait-shell"
     raw = _spec(request_id)
     raw["shell"] = {}
-    create_gate(raw)
+    # The wait surface needs a shell-backed gate; the row is irrelevant to
+    # what it asserts, so mark the spec the way the production transaction
+    # does to accept the setup.
+    create_gate(replace(GateSpec.from_mapping(raw), shell_row_managed=True))
     monkeypatch.setenv("SASE_AGENT", "1")
 
     parser = argparse.ArgumentParser(prog="sase")

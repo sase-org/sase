@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
 from sase.notification_gates.decision import accept_gate_decision
+from sase.notification_gates.models import GateSpec
 from sase.notification_gates.paths import bundle_paths
 from sase.notification_gates.service import create_gate
 from tests.gate_shell._cli_fixtures import (
@@ -24,28 +26,40 @@ _ECHO_COMMAND = (
 )
 
 
-def _spec(request_id: str) -> dict[str, object]:
-    return {
-        "schema_version": 3,
-        "request_id": request_id,
-        "kind": "custom",
-        "producer": {"agent": "test"},
-        "payload": {},
-        "presentation": {"icon": "🧪", "title": "T", "notes": ["n"]},
-        "query": "cleanup",
-        "primary_branch": ["cleanup"],
-        "options": [
+def _spec(request_id: str) -> GateSpec:
+    # Every spec here declares a shell block and every test establishes the
+    # gate-shell row itself with ``make_gate_shell``: mark the spec the way
+    # the production transaction does so the shell-row guard accepts the setup.
+    return replace(
+        GateSpec.from_mapping(
             {
-                "id": "cleanup",
-                "label": "Clean up",
-                "command": {"argv": ["commands/cleanup"]},
+                "schema_version": 3,
+                "request_id": request_id,
+                "kind": "custom",
+                "producer": {"agent": "test"},
+                "payload": {},
+                "presentation": {"icon": "🧪", "title": "T", "notes": ["n"]},
+                "query": "cleanup",
+                "primary_branch": ["cleanup"],
+                "options": [
+                    {
+                        "id": "cleanup",
+                        "label": "Clean up",
+                        "command": {"argv": ["commands/cleanup"]},
+                    }
+                ],
+                "resources": [
+                    {
+                        "path": "commands/cleanup",
+                        "role": "command",
+                        "content": _ECHO_COMMAND,
+                    }
+                ],
+                "shell": {},
             }
-        ],
-        "resources": [
-            {"path": "commands/cleanup", "role": "command", "content": _ECHO_COMMAND}
-        ],
-        "shell": {},
-    }
+        ),
+        shell_row_managed=True,
+    )
 
 
 def _make_pending_gate_shell(gate_id: str, member_name: str, lane: str) -> str:

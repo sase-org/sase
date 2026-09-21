@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -12,6 +13,7 @@ import pytest
 from sase.main.gate_handler import handle_gate_command
 from sase.main.parser_gate import register_gate_parser
 from sase.notification_gates.executor import cancel_gate, execute_gate_selection
+from sase.notification_gates.models import GateSpec
 from sase.notification_gates.service import create_gate
 
 _ANSWER_COMMAND = (
@@ -330,7 +332,16 @@ def test_show_resolves_a_gate_shell_by_member_name(
         patch_gate_shell_project_records,
     )
 
-    gate = create_gate({**_spec("shell-ref-1"), "shell": {}})
+    # This test establishes the gate-shell row itself below: mark the spec
+    # the way the production transaction does so the shell-row guard accepts
+    # the setup.
+    gate = create_gate(
+        replace(
+            GateSpec.from_mapping({**_spec("shell-ref-1"), "shell": {}}),
+            shell_row_managed=True,
+        )
+    )
+
     artifacts_dir = make_gate_shell(
         "proj", "20260812120000", "acme--gate", lane="acme", gate_id="shell-ref-1"
     )

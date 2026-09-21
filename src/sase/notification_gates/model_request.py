@@ -167,6 +167,11 @@ class GateSpec:
     resources: tuple[GateResource, ...]
     auto: _GateAuto
     shell: GateShellSpec | None = None
+    # Internal marker: the caller accepts responsibility for the gate-shell
+    # row. Set only by the gate-shell transaction (after it registers the
+    # member row) or by tests that establish their own rows. Never parsed
+    # from request mappings, so raw JSON cannot claim it.
+    shell_row_managed: bool = False
 
     @classmethod
     def from_mapping(cls, value: object) -> GateSpec:

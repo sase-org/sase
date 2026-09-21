@@ -6,6 +6,7 @@ import argparse
 from contextlib import redirect_stdout
 import io
 import json
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -15,6 +16,7 @@ from sase.gate_shell.member import create_gate_shell_member
 from sase.main.gate_handler import handle_gate_command
 from sase.main.parser_gate import register_gate_parser
 from sase.notification_gates.model_shell import GateShellSpec
+from sase.notification_gates.models import GateSpec
 from sase.notification_gates.service import create_gate
 from sase.plan_gate import build_plan_approval_gate_spec
 from sase.plan_shell.create import plan_gate_shell_block
@@ -98,7 +100,10 @@ def make_blocking_gate(
         ],
         "shell": shell_block,
     }
-    gate = create_gate(spec)
+    # This helper establishes the gate-shell row itself below: mark the spec
+    # the way the production transaction does so the shell-row guard accepts
+    # the setup.
+    gate = create_gate(replace(GateSpec.from_mapping(spec), shell_row_managed=True))
     parsed_shell = GateShellSpec.from_mapping(shell_block, branches=(("run",),))
     artifacts_dir = create_gate_shell_member(
         MONITOR_PROJECT,

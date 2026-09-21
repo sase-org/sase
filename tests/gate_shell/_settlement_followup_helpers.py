@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ import pytest
 
 from sase.gate_shell.member import create_gate_shell_member
 from sase.notification_gates.model_shell import GateShellSpec, subset_branches_allowed
+from sase.notification_gates.models import GateSpec
 
 __all__ = [
     "DEFAULT_SHELL",
@@ -36,7 +38,9 @@ DEFAULT_SHELL: dict[str, Any] = {
 }
 
 
-def gate_spec(request_id: str, *, shell: dict[str, Any] | None) -> dict[str, object]:
+def gate_spec(
+    request_id: str, *, shell: dict[str, Any] | None
+) -> dict[str, object] | GateSpec:
     spec: dict[str, object] = {
         "schema_version": 3,
         "request_id": request_id,
@@ -69,6 +73,10 @@ def gate_spec(request_id: str, *, shell: dict[str, Any] | None) -> dict[str, obj
     }
     if shell is not None:
         spec["shell"] = shell
+        # These tests establish the gate-shell row themselves with
+        # ``make_gate_shell_member``: mark the spec the way the production
+        # transaction does so the shell-row guard accepts the setup.
+        return replace(GateSpec.from_mapping(spec), shell_row_managed=True)
     return spec
 
 

@@ -2,12 +2,18 @@
 
 from __future__ import annotations
 
+import argparse
+import io
 import json
+from contextlib import redirect_stdout
 from pathlib import Path
 
 import pytest
 
-from sase.gate_shell.store import find_gate_shell_by_gate_id
+from sase.gate_shell.store import find_gate_shell_by_gate_id, list_gate_shells
+from sase.gate_shell.transaction import create_gate_shell
+from sase.main.gate_handler import handle_gate_command
+from sase.main.parser_gate import register_gate_parser
 from sase.notification_gates.durability import request_sha256
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.model_shell import (
@@ -19,12 +25,8 @@ from sase.notification_gates.model_shell import (
 from sase.notification_gates.models import GateError, GateSpec
 from sase.notification_gates.service import create_gate
 from tests._notification_gates_fixtures import custom_gate_spec, gate_spec
-from tests.gate_shell._settlement_followup_helpers import (
-    DEFAULT_SHELL,
-    gate_spec as shell_member_gate_spec,
-    make_gate_shell_member,
-    sandbox_home,
-)
+from tests.gate_shell._settlement_followup_helpers import sandbox_home
+from tests.monitor._fixtures import make_starter_agent, write_project_file
 
 __all__ = ["sandbox_home"]
 
@@ -174,24 +176,76 @@ def test_shell_less_request_keeps_none_default() -> None:
     assert spec.continuation_mode == "none"
 
 
-def test_shell_block_custom_gate_records_shell_mode_and_registers_row(
+def _shell_row_request(request_id: str) -> dict[str, object]:
+    """Return a raw custom request with a shell block and no explicit mode."""
+    raw = custom_gate_spec(request_id=request_id)
+    raw["shell"] = {"next": {"prompt": "Verify the cleanup landed."}}
+    return raw
+
+
+def test_shell_block_custom_gate_registers_and_lists_row_end_to_end(
     gate_home: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A custom gate declaring a shell block keeps it through creation."""
+    """A shell-block custom gate registers its row through ``create_gate_shell``."""
     del gate_home
+    project = "shell-row-e2e"
+    write_project_file(project)
+    creator_dir = make_starter_agent(
+        project,
+        "20260812120000",
+        "lane",
+        agent_family="lane",
+        agent_family_role="root",
+    )
+    monkeypatch.setenv("SASE_AGENT_NAME", "lane")
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", creator_dir)
+    monkeypatch.setenv("SASE_AGENT", "1")
+
     request_id = "shell-row-custom"
-    shell = dict(DEFAULT_SHELL)
+    creation = create_gate_shell(_shell_row_request(request_id))
 
-    gate = create_gate(shell_member_gate_spec(request_id, shell=shell))
-
-    assert gate.continuation_mode == "gate_shell"
-    envelope = json.loads((gate.bundle_path / "request.json").read_text())
+    assert creation.gate.continuation_mode == "gate_shell"
+    envelope = json.loads(
+        (creation.gate.bundle_path / "request.json").read_text(encoding="utf-8")
+    )
     assert envelope["continuation_mode"] == "gate_shell"
     assert isinstance(envelope.get("shell"), dict)
 
-    artifacts_dir = make_gate_shell_member(request_id, gate.bundle_path, shell=shell)
-    record = find_gate_shell_by_gate_id(None, request_id)
-
+    record = find_gate_shell_by_gate_id(project, request_id)
     assert record is not None
     assert record.gate_id == request_id
-    assert record.artifacts_dir == artifacts_dir
+
+    assert request_id in [row.gate_id for row in list_gate_shells(project=project)]
+
+    parser = argparse.ArgumentParser(prog="sase")
+    register_gate_parser(parser.add_subparsers(dest="command"))
+    args = parser.parse_args(["gate", "list", "--all", "--project", project, "--json"])
+    out = io.StringIO()
+    with redirect_stdout(out):
+        with pytest.raises(SystemExit) as excinfo:
+            handle_gate_command(args)
+    assert int(excinfo.value.code or 0) == 0
+    payload = json.loads(out.getvalue())
+    assert request_id in [entry["gate_id"] for entry in payload["gate_shells"]]
+
+
+def test_direct_create_gate_with_shell_block_fails_loudly(
+    gate_home: Path,
+) -> None:
+    """Bypassing the gate-shell transaction fails instead of dropping the row."""
+    del gate_home
+    request_id = "shell-row-bypass"
+
+    with pytest.raises(GateError) as exc_info:
+        create_gate(_shell_row_request(request_id))
+
+    assert exc_info.value.code == "missing_gate_shell_row"
+    assert exc_info.value.target == "shell"
+    assert "create_gate_shell" in str(exc_info.value)
+
+    with pytest.raises(GateError) as obj_exc_info:
+        create_gate(GateSpec.from_mapping(_shell_row_request("shell-row-obj")))
+
+    assert obj_exc_info.value.code == "missing_gate_shell_row"

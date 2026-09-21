@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock
@@ -14,6 +15,7 @@ from sase.gate_shell.member import create_gate_shell_member
 from sase.main.gate_handler import handle_gate_command
 from sase.main.parser_gate import register_gate_parser
 from sase.notification_gates.model_shell import GateShellSpec
+from sase.notification_gates.models import GateSpec
 from sase.notification_gates.service import create_gate
 
 _ECHO_COMMAND = (
@@ -44,7 +46,7 @@ def _run(*argv: str) -> tuple[int, dict[str, Any]]:
     return code, payload
 
 
-def _spec(request_id: str, *, shell: bool = False) -> dict[str, Any]:
+def _spec(request_id: str, *, shell: bool = False) -> dict[str, Any] | GateSpec:
     spec: dict[str, Any] = {
         "schema_version": 3,
         "request_id": request_id,
@@ -71,6 +73,10 @@ def _spec(request_id: str, *, shell: bool = False) -> dict[str, Any]:
     }
     if shell:
         spec["shell"] = {}
+        # These tests establish the gate-shell row themselves with
+        # ``_make_gate_shell_member``: mark the spec the way the production
+        # transaction does so the shell-row guard accepts the setup.
+        return replace(GateSpec.from_mapping(spec), shell_row_managed=True)
     return spec
 
 

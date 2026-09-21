@@ -14,6 +14,7 @@ all -- it answered the gate but left the shell pending forever.
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,7 @@ from sase.gate_shell.member import create_gate_shell_member
 from sase.gate_shell.models import GateShellRecord
 from sase.gate_shell.store import read_gate_shell_marker
 from sase.notification_gates.model_shell import GateShellSpec
+from sase.notification_gates.models import GateSpec
 from sase.notification_gates.service import create_gate
 from tests.gate_conformance._cases import Submission
 from tests.gate_conformance._surfaces import SURFACES, SurfaceTarget
@@ -93,7 +95,12 @@ def _build_gate_shell(project: str, request_id: str) -> GateShellRecord:
     )
     (Path(creator_dir) / "done.json").write_text("{}", encoding="utf-8")
 
-    gate = create_gate(_spec(request_id))
+    # This helper establishes the gate-shell row itself below: mark the spec
+    # the way the production transaction does so the shell-row guard accepts
+    # the setup.
+    gate = create_gate(
+        replace(GateSpec.from_mapping(_spec(request_id)), shell_row_managed=True)
+    )
     shell = GateShellSpec.from_mapping(_SHELL_BLOCK, branches=(("cleanup",),))
     artifacts_dir = create_gate_shell_member(
         project,
