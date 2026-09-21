@@ -199,7 +199,6 @@ def test_update_state_rebuilds_when_seeded_flag_changes() -> None:
         "read": 0,
         "sase_agent_count": 5,
         "starting": 0,
-        "neighbor_count": 0,
         "countdown": 5,
         "interval": 5,
         "view_mode": "",

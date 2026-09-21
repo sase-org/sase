@@ -102,19 +102,11 @@ class TreeNavigationMixin(NavigationMixinBase):
             self._child_mode_active = True
 
     def action_start_sibling_mode(self) -> None:
-        """Enter sibling/neighbor navigation mode (~ key pressed).
+        """Enter sibling navigation mode (~ key pressed).
 
-        On the Patch tab this drives Patch sibling navigation; on
-        the Agents tab it delegates to dotted-name hood neighbor navigation.
+        Drives Patch/Artifacts relation-panel FAMILY navigation. It is a
+        no-op on tabs without a relation contract (including Agents).
         """
-        if self.current_tab == "agents":
-            start_agent_neighbors = getattr(
-                self, "_start_agent_neighbor_navigation", None
-            )
-            if callable(start_agent_neighbors):
-                start_agent_neighbors()
-            return
-
         if not self._relation_navigation_available(RelationRole.FAMILY):
             return
         keymap = self._relation_keymap_or_empty()

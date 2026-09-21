@@ -406,31 +406,24 @@ def test_keybinding_footer_artifacts_and_attempts_have_separate_keys() -> None:
     assert ("D", "attempt view") in bindings
 
 
-def test_keybinding_footer_agent_neighbor_binding_for_single_neighbor() -> None:
+def test_keybinding_footer_agent_neighbor_binding_uses_digit_hint() -> None:
     footer = KeybindingFooter()
     agent = _make_agent(status="RUNNING")
 
-    bindings = footer._compute_agent_bindings(agent, neighbor_count=1)
+    bindings = footer._compute_agent_bindings(agent, lane_neighbor_jump_available=True)
 
-    assert ("~", "neighbor") in bindings
-
-
-def test_keybinding_footer_agent_neighbor_binding_for_multiple_neighbors() -> None:
-    footer = KeybindingFooter()
-    agent = _make_agent(status="RUNNING")
-
-    bindings = footer._compute_agent_bindings(agent, neighbor_count=3)
-
-    assert ("~", "neighbors (3)") in bindings
+    assert ("0-9", "neighbor") in bindings
+    assert not any(key == "~" for key, _label in bindings)
 
 
 def test_keybinding_footer_agent_neighbor_binding_hidden_without_neighbors() -> None:
     footer = KeybindingFooter()
     agent = _make_agent(status="RUNNING")
 
-    bindings = footer._compute_agent_bindings(agent, neighbor_count=0)
+    bindings = footer._compute_agent_bindings(agent, lane_neighbor_jump_available=False)
 
-    assert ("~", "neighbor") not in bindings
+    assert ("0-9", "neighbor") not in bindings
+    assert not any(key == "~" for key, _label in bindings)
     assert not any(label.startswith("neighbors") for _key, label in bindings)
 
 

@@ -47,7 +47,6 @@ _COLLAPSED_PANEL_HIDDEN_AGENT_COMMANDS: frozenset[str] = frozenset(
         "app.open_artifact_files",
         "app.open_tmux",
         "app.start_tmux_mode",
-        "app.start_sibling_mode",
         "app.toggle_mark",
         "leader.agent_from_cl",
     }
@@ -66,7 +65,6 @@ _REMOTE_AGENT_LOCAL_COMMANDS: frozenset[str] = frozenset(
         "app.rename_cl",
         "app.agents_retry",
         "app.start_agent_from_patch",
-        "app.start_sibling_mode",
         "app.start_tmux_mode",
         "app.toggle_agent_unread",
         "app.toggle_attempt_view",

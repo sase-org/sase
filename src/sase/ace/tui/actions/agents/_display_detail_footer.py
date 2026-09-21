@@ -333,7 +333,6 @@ class AgentFooterDisplayMixin:
                     and not current_agent.is_family_container_row
                     and neighbor_count > 0
                 ),
-                neighbor_count=neighbor_count,
                 tmux_choice_count=(
                     0
                     if current_agent is not None and current_agent.is_clan_container

@@ -8,7 +8,6 @@ from sase.ace.tui.keymaps import load_keymap_registry
 
 from ._agent_info_panel_helpers import (
     DEFAULT_GROUPING_KEY,
-    DEFAULT_NEIGHBOR_KEY,
     DEFAULT_VIEW_KEY,
     AgentInfoPanel,
     collect_rich_text,
@@ -24,49 +23,13 @@ def test_grouping_badge_renders_by_project_when_unset() -> None:
     assert f"[group: by project ({DEFAULT_GROUPING_KEY})]" in plain
 
 
-def test_neighbor_badge_is_omitted_without_visible_neighbors() -> None:
+def test_info_panel_never_renders_neighbors_badge() -> None:
     panel = AgentInfoPanel()
     panel._sase_agent_count = 5
-    panel._neighbor_count = 0
 
     plain = collect_text(panel)
 
     assert "neighbors:" not in plain
-
-
-def test_neighbor_badge_renders_single_visible_neighbor() -> None:
-    panel = AgentInfoPanel()
-    panel._sase_agent_count = 5
-    panel._neighbor_count = 1
-
-    plain = collect_text(panel)
-
-    assert f"[neighbors: 1 ({DEFAULT_NEIGHBOR_KEY})]" in plain
-
-
-def test_neighbor_badge_renders_multiple_visible_neighbors_with_styles() -> None:
-    panel = AgentInfoPanel()
-    panel._sase_agent_count = 5
-    panel._neighbor_count = 3
-
-    text = collect_rich_text(panel)
-
-    assert f"[neighbors: 3 ({DEFAULT_NEIGHBOR_KEY})]" in text.plain
-    assert style_for_plain_segment(text, "3") == "bold #00D7AF"
-
-
-def test_neighbor_badge_uses_active_keymap_registry() -> None:
-    panel = AgentInfoPanel()
-    with patch.object(panel, "update"):
-        panel.set_keymap_registry(
-            load_keymap_registry({"keymaps": {"app": {"start_sibling_mode": "f2"}}})
-        )
-    panel._sase_agent_count = 5
-    panel._neighbor_count = 2
-
-    plain = collect_text(panel)
-
-    assert "[neighbors: 2 (f2)]" in plain
 
 
 def test_grouping_badge_renders_label_after_update() -> None:

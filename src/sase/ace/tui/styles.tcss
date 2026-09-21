@@ -2535,46 +2535,6 @@ ArtifactFileSelectionModal {
     padding-top: 1;
 }
 
-/* Agent Neighbor Modal styling */
-AgentNeighborModal {
-    align: center middle;
-}
-
-#agent-neighbor-container {
-    width: 78;
-    max-width: 94%;
-    height: auto;
-    max-height: 24;
-    border: double $primary;
-    background: $surface;
-    padding: 1 2;
-}
-
-#agent-neighbor-title {
-    text-align: center;
-    text-style: bold;
-    height: auto;
-    margin-bottom: 1;
-}
-
-#agent-neighbor-list {
-    height: auto;
-    max-height: 18;
-}
-
-#agent-neighbor-list > .option-list--option-disabled {
-    color: $text-muted;
-    text-style: bold;
-}
-
-#agent-neighbor-hints {
-    text-align: center;
-    color: $text-muted;
-    height: auto;
-    border-top: solid $secondary;
-    padding-top: 1;
-}
-
 /* Artifact Links Panel styling */
 ArtifactLinksPanelModal {
     align: center middle;

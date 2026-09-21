@@ -66,7 +66,6 @@ _LOCAL_AGENT_ROW_ACTIONS = frozenset(
         "rename_cl",
         "agents_retry",
         "start_agent_from_patch",
-        "start_sibling_mode",
         "start_tmux_mode",
         "toggle_agent_unread",
         "toggle_attempt_view",

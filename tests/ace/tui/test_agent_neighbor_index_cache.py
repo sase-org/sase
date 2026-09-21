@@ -202,7 +202,7 @@ def test_agent_neighbor_index_cache_tracks_dismiss_revive_epoch() -> None:
     assert app.visible_walk_count == 3
 
 
-def test_agents_info_panel_update_uses_cached_neighbor_count() -> None:
+def test_agents_info_panel_update_skips_neighbor_count() -> None:
     app = _Bare(
         [
             _agent("foo.plan", suffix="a"),
@@ -236,8 +236,8 @@ def test_agents_info_panel_update_uses_cached_neighbor_count() -> None:
     app._update_agents_info_panel()
     app._update_agents_info_panel()
 
-    assert info_panel.kwargs["neighbor_count"] == 2
+    assert "neighbor_count" not in info_panel.kwargs
     assert info_panel.kwargs["runner_limit"] == 10
     assert info_panel.kwargs["runner_queue_count"] == 2
     assert "runner_slots_in_use" not in info_panel.kwargs
-    assert app.visible_walk_count == 1
+    assert app.visible_walk_count == 0

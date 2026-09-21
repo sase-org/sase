@@ -47,7 +47,6 @@ class AgentInfoPanel(Static):
         self._runner_limit = 0.0
         self._runner_occupied_capacity: float | None = None
         self._runner_queue_count = 0
-        self._neighbor_count = 0
         self._countdown = 0
         self._interval = 0
         self._view_mode: str = ""
@@ -218,7 +217,6 @@ class AgentInfoPanel(Static):
         sase_agent_count: int,
         starting: int,
         proc_shell_count: int = 0,
-        neighbor_count: int = 0,
         countdown: int,
         interval: int,
         view_mode: str,
@@ -255,7 +253,6 @@ class AgentInfoPanel(Static):
             runner_limit,
             runner_occupied_capacity,
             runner_queue_count,
-            max(0, neighbor_count),
             view_mode,
             view_picker_available,
             grouping_mode,
@@ -280,7 +277,6 @@ class AgentInfoPanel(Static):
             self._runner_limit,
             self._runner_occupied_capacity,
             self._runner_queue_count,
-            self._neighbor_count,
             self._view_mode,
             self._view_picker_available,
             self._grouping_mode,
@@ -314,7 +310,6 @@ class AgentInfoPanel(Static):
             self._runner_limit,
             self._runner_occupied_capacity,
             self._runner_queue_count,
-            self._neighbor_count,
             self._view_mode,
             self._view_picker_available,
             self._grouping_mode,
@@ -450,17 +445,6 @@ class AgentInfoPanel(Static):
             text.append(suffix, style=label_style)
         text.append("]", style="dim")
 
-    def _append_neighbor_badge(self, text: Text) -> None:
-        if self._neighbor_count <= 0:
-            return
-        key = key_display_name(self._registry.app.start_sibling_mode)
-        text.append("   ")
-        text.append("[", style="dim")
-        text.append("neighbors: ", style="dim")
-        text.append(str(self._neighbor_count), style="bold #00D7AF")
-        text.append(f" ({key})", style="dim")
-        text.append("]", style="dim")
-
     def _append_proc_shell_badge(self, text: Text) -> None:
         if self._proc_shell_count <= 0:
             return
@@ -481,7 +465,6 @@ class AgentInfoPanel(Static):
         self._append_capacity_prefix(text)
         self._append_status_strip(text)
         self._append_proc_shell_badge(text)
-        self._append_neighbor_badge(text)
         self._search_query_click_span = None
         if self._search_query_rich is not None:
             text.append("   ")

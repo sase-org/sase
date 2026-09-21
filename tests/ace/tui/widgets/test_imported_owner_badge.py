@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sase.ace.tui.modals.agent_neighbor_modal import (
-    AgentNeighborChoice,
-    _agent_neighbor_option_text,
+from sase.ace.tui.models.fold_state import FoldLevel
+from sase.ace.tui.models.sase_agent_neighbors import LaneNeighborRow
+from sase.ace.tui.widgets.prompt_panel._agent_display_neighbors import (
+    _neighbor_roster_entries,
 )
+from sase.ace.tui.widgets.prompt_panel._member_roster import append_member_roster
 from sase.ace.tui.modals.revive_agent_rendering import (
     build_metadata_preview,
     format_agent_label,
@@ -91,15 +93,34 @@ def test_detail_header_renders_owner_field(local_owner: AgentOwnerIdentity) -> N
     assert "bob@zeus" in text.plain
 
 
-def test_neighbor_roster_renders_owner_badge() -> None:
-    choice = AgentNeighborChoice(
-        agent_name="7n--code",
-        display_name="7n--code",
-        status="DONE",
-        panel_label="@backend",
-        owner_badge="athena",
+def test_neighbor_roster_renders_owner_badge(
+    local_owner: AgentOwnerIdentity,
+) -> None:
+    del local_owner
+    agent = _imported_agent(
+        owner=AgentOwnerIdentity("alice", "athena"),
+        name="athena.7n--code",
     )
-    rendered = _agent_neighbor_option_text("a", choice)
+    agent.presented_agent_name = "7n--code"
+    row = LaneNeighborRow(
+        agent=agent,
+        relation="neighbor",
+        group_label="athena hood",
+        label_prefix="lane",
+        is_prospective=False,
+        is_dismissed=False,
+    )
+    (entry,) = _neighbor_roster_entries((row,))
+    assert entry.owner_badge == "athena"
+    rendered = Text()
+    append_member_roster(
+        rendered,
+        container_identity=agent.identity,
+        entries=(entry,),
+        title="NEIGHBORS",
+        accent="#00D7AF",
+        panel_level=FoldLevel.FULLY_EXPANDED,
+    )
     assert "[athena]" in rendered.plain
 
 

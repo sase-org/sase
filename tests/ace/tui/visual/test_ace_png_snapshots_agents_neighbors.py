@@ -13,14 +13,13 @@ from sase.ace.tui.models._agent_ordering import sort_and_reorder
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
 from sase.ace.tui.models.fold_state import FoldLevel
-from sase.ace.tui.widgets import AgentDetail, AgentList, KeybindingFooter
+from sase.ace.tui.widgets import AgentDetail, AgentList
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     pin_agents_visual_now,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
-    hood_neighbor_agents,
     patch_startup_loaders,
     wait_for_startup,
     wait_for_svg_contains,
@@ -69,24 +68,6 @@ def _neighbor_panel_reveal_agents() -> list[Agent]:
             tribe="zeta",
         ),
     ]
-
-
-def _folded_clan_neighbor_modal_agents() -> list[Agent]:
-    """Two hidden hood neighbors, one also inside a collapsed tribe panel."""
-    agents = _neighbor_panel_reveal_agents()
-    peer = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="visual-neighbor-peer",
-        project_file="/workspace/sase/visual_project.sase",
-        status="WAITING",
-        start_time=datetime(2026, 7, 18, 16, 32, 0),
-        raw_suffix="20260718-163200-neighbor-peer",
-        agent_name="visual.jump.review",
-        tribe="beta",
-        agent_clan="visual-reviewers",
-        agent_clan_generation="20260718-163200",
-    )
-    return [agents[0], agents[1], peer, agents[2]]
 
 
 _LANE_STARTED = datetime(2026, 7, 18, 15, 0, 0)
@@ -227,30 +208,6 @@ def _family_container_index(page: AcePage) -> int:
     )
 
 
-async def test_agents_neighbor_badge_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    patch_startup_loaders(monkeypatch, agents=hood_neighbor_agents())
-
-    async with AcePage(query='"visual"', patches=patches()) as page:
-        await wait_for_startup(page)
-        await page.press("shift+tab")
-        await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 4)
-        await wait_for_svg_contains(page, "neighbors: ")
-        await wait_for_visual_idle(page)
-        neighbor_index = page.app._agent_neighbor_index()
-        assert neighbor_index.neighbor_count(page.app.current_idx) == 3
-        assert_page_svg_contains(page, "neighbors: ")
-
-        ace_png_visual.assert_page_png(
-            page,
-            "agents_neighbor_badge_120x40",
-            title="ACE agents neighbor badge",
-        )
-
-
 async def test_agents_neighbor_jump_expands_target_panel_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
@@ -278,7 +235,14 @@ async def test_agents_neighbor_jump_expands_target_panel_png_snapshot(
         assert page.app._panel_group.focused_key is None
         assert page.app._agents[page.app.current_idx].identity == agents[0].identity
 
-        page.app.action_start_sibling_mode()
+        origin_identity = agents[0].identity
+        jump_map = page.app._member_jump_maps[origin_identity]
+        digit = next(
+            entry.number
+            for entry in jump_map.targets
+            if entry.member_identity == target.identity
+        )
+        await page.press(*digit)
         await page.wait_for(
             lambda _screen: "alpha" not in page.app._collapsed_panel_keys
         )
@@ -296,174 +260,6 @@ async def test_agents_neighbor_jump_expands_target_panel_png_snapshot(
             page,
             "agents_neighbor_jump_expanded_panel_120x40",
             title="ACE folded-clan neighbor jump expanded panel",
-        )
-
-
-async def test_agent_neighbor_modal_folded_clan_and_tribe_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    agents = _folded_clan_neighbor_modal_agents()
-    patch_startup_loaders(monkeypatch, agents=agents)
-
-    async with AcePage(query='"visual"', patches=patches(), size=(70, 32)) as page:
-        await wait_for_startup(page)
-        await page.press("shift+tab")
-        await page.expect_state("tab", "agents")
-
-        await page.press("J")
-        assert page.app._panel_group.focused_key == "alpha"
-        await page.press("h")
-        await page.wait_for(
-            lambda _screen: page.app._resolve_focused_panel() is not None
-        )
-        await page.press("h")
-        await page.wait_for(lambda _screen: "alpha" in page.app._collapsed_panel_keys)
-        await page.press("J")
-        assert page.app._panel_group.focused_key is None
-
-        page.app.action_start_sibling_mode()
-        await page.expect_modal("AgentNeighborModal")
-        await wait_for_svg_contains(page, "visual.jump.code")
-        await wait_for_visual_idle(page)
-
-        modal = page.app.screen_stack[-1]
-        choices = vars(modal)["_choices"]
-        assert [choice.agent_name for choice in choices] == [
-            "visual.jump.review",
-            "visual.jump.code",
-        ]
-        assert [choice.panel_label for choice in choices] == ["@beta", "@alpha"]
-        assert [choice.global_idx for choice in choices] == [None, None]
-
-        ace_png_visual.assert_page_png(
-            page,
-            "agent_neighbor_folded_clan_modal_70x32",
-            title="ACE folded-clan neighbor chooser",
-        )
-
-
-async def test_agent_neighbor_modal_narrow_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    patch_startup_loaders(monkeypatch, agents=hood_neighbor_agents())
-
-    async with AcePage(query='"visual"', patches=patches(), size=(60, 30)) as page:
-        await wait_for_startup(page)
-        await page.press("shift+tab")
-        await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 4)
-        page.app.action_start_sibling_mode()
-        await page.expect_modal("AgentNeighborModal")
-        await wait_for_svg_contains(page, "Neighbors of visual.code.plan")
-        await wait_for_visual_idle(page)
-        modal = page.app.screen_stack[-1]
-        assert modal.__class__.__name__ == "AgentNeighborModal"
-        choices = vars(modal)["_choices"]
-        assert [choice.global_idx for choice in choices] == [1, 2, 3]
-        assert [choice.hood for choice in choices] == [
-            "visual.code",
-            "visual.code",
-            "visual",
-        ]
-        assert_page_svg_contains(page, "Neighbors of visual.code.plan")
-        assert_page_svg_contains(page, "visual.code.implementation")
-
-        ace_png_visual.assert_page_png(
-            page,
-            "agent_neighbor_modal_60x30",
-            title="ACE agent neighbor modal narrow",
-        )
-
-
-async def test_agent_neighbor_modal_dismissed_descendant_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    parent = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="visual-parent",
-        project_file="/workspace/sase/visual_project.sase",
-        status="RUNNING",
-        start_time=datetime(2026, 5, 23, 13, 0, 0),
-        raw_suffix="20260523-130000-parent",
-        agent_name="visual.root",
-        tribe="api",
-    )
-    child = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="visual-child",
-        project_file="/workspace/sase/visual_project.sase",
-        status="DONE",
-        start_time=datetime(2026, 5, 23, 13, 8, 0),
-        stop_time=datetime(2026, 5, 23, 13, 12, 30),
-        raw_suffix="20260523-130800-child",
-        agent_name="visual.root.visible",
-        tribe="api",
-    )
-    dismissed = Agent(
-        agent_type=AgentType.RUNNING,
-        cl_name="visual-dismissed",
-        project_file="/workspace/sase/visual_project.sase",
-        status="DONE",
-        start_time=datetime(2026, 5, 23, 13, 16, 0),
-        stop_time=datetime(2026, 5, 23, 13, 17, 5),
-        raw_suffix="20260523-131600-dismissed",
-        agent_name="visual.root.dismissed",
-        tribe="api",
-    )
-    patch_startup_loaders(monkeypatch, agents=[parent, child])
-
-    async with AcePage(query='"visual"', patches=patches(), size=(60, 30)) as page:
-        await wait_for_startup(page)
-        await page.press("shift+tab")
-        await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 2)
-        page.app._dismissed_agent_objects = [dismissed]
-        page.app._dismissed_agents = {dismissed.identity}
-        page.app._dismiss_revive_epoch += 1
-        # Refresh the uncovered base screen before pushing the modal. Textual
-        # does not repaint background screens after they are covered, so an
-        # info-panel update performed after the push leaves the header badge
-        # at its pre-dismissal count.
-        page.app._update_agents_info_panel()
-        page.app._refresh_agent_footer_bindings_only()
-        info_panel = page.app.query_one("#agent-info-panel")
-        await page.wait_for(
-            lambda _state: getattr(info_panel, "_neighbor_count", 0) == 2
-        )
-        await wait_for_visual_idle(page)
-        page.app.action_start_sibling_mode()
-        await page.expect_modal("AgentNeighborModal")
-        # The direct private-state mutation above bypasses the normal action
-        # path that refreshes the footer. Repaint it explicitly, then wait on
-        # footer state specifically: the modal's "2 descendants" text can
-        # otherwise satisfy a broad SVG poll while the footer is still stale.
-        footer = page.app.query_one("#keybinding-footer", KeybindingFooter)
-        await page.wait_for(
-            lambda _screen: (
-                footer._last_layout_inputs is not None
-                and any(
-                    label == "neighbors (2)"
-                    for _key, label in footer._last_layout_inputs[0]
-                )
-            )
-        )
-        # ``_last_layout_inputs`` is updated before Textual necessarily paints
-        # the footer or the separate header badge. Prove both two-neighbor
-        # surfaces reached the exported frame before the final convergence
-        # barrier.
-        await wait_for_svg_contains(page, "neighbors (2)")
-        await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "Descendants")
-        assert_page_svg_contains(page, "visual.root.dismissed")
-        assert_page_svg_contains(page, "dismissed")
-
-        ace_png_visual.assert_page_png(
-            page,
-            "agent_neighbor_modal_descendants_dismissed_60x30",
-            title="ACE agent neighbor modal dismissed descendant",
         )
 
 

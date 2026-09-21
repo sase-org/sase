@@ -1,6 +1,6 @@
 """Tests for sase's TUI Agents-tab help-modal bindings.
 
-Covers Agents-tab-specific sections: zoom/isolation, neighbor navigation,
+Covers Agents-tab-specific sections: zoom/isolation, digit member jumps,
 tmux workspace chooser, save/dismiss/cleanup actions, wait badges, inline
 metadata search, and hint-collapse fold bindings.
 """
@@ -40,7 +40,7 @@ def test_agents_help_describes_zoom_and_isolation_and_capital_h_collapsing() -> 
     ) in agent_pairs
 
 
-def test_agents_help_lists_neighbor_navigation() -> None:
+def test_agents_help_lists_neighbor_digit_jumps() -> None:
     reg = load_keymap_registry({})
     agent_pairs = {
         (key, label)
@@ -53,7 +53,8 @@ def test_agents_help_lists_neighbor_navigation() -> None:
         for key, label in bindings
     }
 
-    assert ("~", "Jump ancestor/neighbor/desc") in agent_pairs
+    assert ("0-9", "Jump numbered member/neighbor") in agent_pairs
+    assert not any(key == "~" for key, _label in agent_pairs)
     assert ("< / > / ~", "Navigate to ancestor / child / sibling") in cls_pairs
 
 

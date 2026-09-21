@@ -315,7 +315,7 @@ def test_open_command_palette_command_is_always_present() -> None:
 
 
 def test_tree_navigation_command_tab_scopes() -> None:
-    """Sibling navigation applies to Patches and Agents; ancestor/child stay Patch-only."""
+    """Tree navigation prefixes stay Patch-only now Agents uses digit jumps."""
     catalog = build_command_catalog(_registry())
     ancestor = get_command_by_id(catalog, "app.start_ancestor_mode")
     child = get_command_by_id(catalog, "app.start_child_mode")
@@ -326,7 +326,7 @@ def test_tree_navigation_command_tab_scopes() -> None:
     assert sibling is not None
     assert ancestor.tabs == ("artifacts",)
     assert child.tabs == ("artifacts",)
-    assert sibling.tabs == ("artifacts", "agents")
+    assert sibling.tabs == ("artifacts",)
 
 
 # ---------------------------------------------------------------------------

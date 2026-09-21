@@ -147,7 +147,6 @@ class KeybindingBindingsMixin:
         has_artifact_files: bool = False,
         artifact_file_viewer_active: bool = False,
         lane_neighbor_jump_available: bool = False,
-        neighbor_count: int = 0,
         tmux_choice_count: int = 0,
         llm_calls_visible: bool = False,
         llm_calls_detail_level: int = 0,
@@ -513,12 +512,6 @@ class KeybindingBindingsMixin:
                     f"cleanup ({completed_count} done)",
                 )
             )
-
-        if neighbor_count > 0:
-            label = (
-                "neighbor" if neighbor_count == 1 else f"neighbors ({neighbor_count})"
-            )
-            bindings.append((self._kd("start_sibling_mode"), label))
 
         return bindings
 

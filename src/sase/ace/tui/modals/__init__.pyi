@@ -15,8 +15,6 @@ from .agent_view_modal import AgentViewChoice as AgentViewChoice
 from .agent_view_modal import AgentViewModal as AgentViewModal
 from .agent_view_modal import AgentViewResult as AgentViewResult
 from .agent_name_modal import AgentNameModal as AgentNameModal
-from .agent_neighbor_modal import AgentNeighborChoice as AgentNeighborChoice
-from .agent_neighbor_modal import AgentNeighborModal as AgentNeighborModal
 from .agent_run_log_modal import AgentRunLogModal as AgentRunLogModal
 from .agent_tribe_modal import AgentTribeModal as AgentTribeModal
 from .agent_tribe_modal import AgentTribeModalResult as AgentTribeModalResult

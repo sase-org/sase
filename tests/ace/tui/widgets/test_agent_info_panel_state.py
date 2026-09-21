@@ -117,38 +117,6 @@ def test_update_state_full_rebuild_when_stable_state_changes() -> None:
     cheap_path.assert_not_called()
 
 
-def test_update_state_routes_unchanged_neighbor_count_to_countdown_only() -> None:
-    """Unchanged neighbor count is part of stable state, not countdown churn."""
-    panel = AgentInfoPanel()
-    with patch.object(panel, "update"):
-        panel.update_state(**stable_state_kwargs(neighbor_count=2, countdown=5))  # type: ignore[arg-type]
-
-    with (
-        patch.object(panel, "_update_display") as full_rebuild,
-        patch.object(panel, "update_countdown_only") as cheap_path,
-    ):
-        panel.update_state(**stable_state_kwargs(neighbor_count=2, countdown=4))  # type: ignore[arg-type]
-
-    full_rebuild.assert_not_called()
-    cheap_path.assert_called_once_with(4, 5)
-
-
-def test_update_state_full_rebuild_when_neighbor_count_changes() -> None:
-    """Neighbor-count changes rebuild the stable badge text."""
-    panel = AgentInfoPanel()
-    with patch.object(panel, "update"):
-        panel.update_state(**stable_state_kwargs(neighbor_count=1))  # type: ignore[arg-type]
-
-    with (
-        patch.object(panel, "_update_display") as full_rebuild,
-        patch.object(panel, "update_countdown_only") as cheap_path,
-    ):
-        panel.update_state(**stable_state_kwargs(neighbor_count=2))  # type: ignore[arg-type]
-
-    full_rebuild.assert_called_once()
-    cheap_path.assert_not_called()
-
-
 def test_update_state_full_rebuild_when_runner_capacity_changes() -> None:
     panel = AgentInfoPanel()
     with patch.object(panel, "update"):

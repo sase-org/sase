@@ -96,7 +96,6 @@ def test_collapsed_panel_exposes_kill_but_hides_hidden_agent_commands() -> None:
         "app.edit_panel",
         "app.open_artifact_files",
         "app.toggle_mark",
-        "app.start_sibling_mode",
         "leader.agent_from_cl",
         "copy.agents.name",
     }:

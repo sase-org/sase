@@ -1256,7 +1256,6 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 | `0`–`9`                   | Jump from a selected clan, agent node, family member, or whole-panel roster to its numbered member or neighbor                                              |
 | `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                     |
 | `oo`                      | Toggle Agents panels between tribe-split and one merged panel, then close the grouping picker                                                               |
-| `~`                       | Jump among agent-node-name ancestors, descendants, and shared-hood neighbors (see `NEIGHBORS`)                                                              |
 | `g`                       | Scroll to top (file, LLM Calls, or metadata panel)                                                                                                          |
 | `G`                       | Scroll to bottom (file, LLM Calls, or metadata panel)                                                                                                       |
 | `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                                                                                 |
@@ -1271,19 +1270,17 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 > their conventional vim-style scroll-to-top/bottom meaning on every tab. See
 > [Grouping Modes](#grouping-modes) below.
 
-On the Agents tab, `~` uses dotted agent-name relationships rather than Patch sibling
-families. Relations are keyed on the name a row presents as its **sase agent** name, so
-a family participates under its bare family name rather than its root member's `--`
-name. sase's TUI includes visible ancestors and descendants plus neighbors from every
+The numbered `NEIGHBORS` rows use dotted agent-name relationships rather than Patch
+sibling families. Relations are keyed on the name a row presents as its **sase agent**
+name, so a family participates under its bare family name rather than its root member's
+`--` name. The section shows visible ancestors and descendants plus neighbors from every
 dotted hood that contains the selected sase-agent name — including the hood that matches
-that name exactly. For example, `foo.bar.worker` can offer peers under `foo.bar` and
-cousins elsewhere under `foo`, grouped deepest hood first, and a family `fam` offers
-`fam.helper` as a descendant while `fam.helper` offers `fam` back as its ancestor.
-Dotless names can still have descendants such as `foo.child`. If there is exactly one
-related visible row and no dismissed descendant to offer, sase's TUI jumps directly.
-Otherwise it opens a chooser that can also revive same-session dismissed descendants. A
-chosen target is resolved by stable identity and revealed through any clan, family,
-workflow, or grouping folds before focus moves.
+that name exactly. For example, `foo.bar.worker` lists peers under `foo.bar` and cousins
+elsewhere under `foo`, grouped deepest hood first, and a family `fam` lists `fam.helper`
+as a descendant while `fam.helper` lists `fam` back as its ancestor. Dotless names can
+still have descendants such as `foo.child`. A digit jump target is resolved by stable
+identity and revealed through any clan, family, workflow, or grouping folds before focus
+moves.
 
 When a clan or a sase agent is selected, its metadata panel assigns a fixed number to
 each numbered row, up to 100 targets. A sase agent is a multi-member family container or
@@ -1297,10 +1294,9 @@ show any remaining entries as an unnumbered count. After the first digit of a tw
 jump, press `Esc` to cancel or any non-digit key to cancel and continue with that key's
 normal action. A successful jump expands only the target's ancestor chain, switches
 tribe panels when needed, and participates in the normal `Ctrl+O` jump-back history. A
-digit on a dismissed neighbor revives that agent instead of jumping, exactly as
-`<enter>` does in the `~` chooser. If the roster or the neighbor relationship changed
-since the panel was drawn, the jump is cancelled with a warning rather than landing
-somewhere stale.
+digit on a dismissed neighbor revives that agent instead of jumping. If the roster or
+the neighbor relationship changed since the panel was drawn, the jump is cancelled with
+a warning rather than landing somewhere stale.
 
 ### Agent Actions
 
@@ -1632,19 +1628,18 @@ and workflow aggregate rows have no `NEIGHBORS` section. A selected family shell
 owns no sase agent, so its panel carries only the `FAMILY SHELLS` roster (siblings,
 minus itself) and never a `NEIGHBORS` section.
 
-The rows are exactly the rows the `~` chooser offers for that sase agent — ancestors,
-descendants including same-session dismissed descendants, then hood neighbors grouped by
-hood, nearest hood first — under dim `ancestors`, `descendants`, and `<hood> hood` group
-labels. A sase agent joins the hood that matches its own name, and a family uses its
-bare family name for that match, so a family `visual.worker` and a single agent
-`visual.worker.notes` relate as ancestor and descendant exactly as two single agents
-with those names would. Row labels are shortened relative to their group, so a `myclan`
-hood neighbor reads `.code` and a descendant reads `--impl.helper`. A `⊘` glyph and a
-`dismissed` annotation mark dismissed rows, and `folded` marks a prospective row that
-currently lives inside a collapsed clan. The section sits directly below
-`WORKFLOW VARIABLES` and immediately above `SASE CONTEXT`, so a sase agent's numbered
-neighbors stay reachable without scrolling past the context, slow-call, and error
-sections.
+The rows for that sase agent are ancestors, descendants including same-session dismissed
+descendants, then hood neighbors grouped by hood, nearest hood first — under dim
+`ancestors`, `descendants`, and `<hood> hood` group labels. A sase agent joins the hood
+that matches its own name, and a family uses its bare family name for that match, so a
+family `visual.worker` and a single agent `visual.worker.notes` relate as ancestor and
+descendant exactly as two single agents with those names would. Row labels are shortened
+relative to their group, so a `myclan` hood neighbor reads `.code` and a descendant
+reads `--impl.helper`. A `⊘` glyph and a `dismissed` annotation mark dismissed rows, and
+`folded` marks a prospective row that currently lives inside a collapsed clan. The
+section sits directly below `WORKFLOW VARIABLES` and immediately above `SASE CONTEXT`,
+so a sase agent's numbered neighbors stay reachable without scrolling past the context,
+slow-call, and error sections.
 
 The row count follows the sase agent's fold scale by position, not by level name: the
 first position shows 3 rows, the last position shows all of them, and any middle
@@ -1654,8 +1649,7 @@ is always the sase agent's total neighbor count, and a dim
 `… +N more neighbors (zz / za to show more)` tail reports what is hidden. Only visible
 rows get digits. On a family, siblings that already appear under `FAMILY SHELLS` are not
 repeated; they are reported by a dim `… +N also listed under FAMILY SHELLS` tail
-instead. That suppression applies only to this section — the `~` chooser and the info
-panel's `neighbors:` badge still count them.
+instead. The heading count still includes the suppressed rows.
 
 ### Opened Repository Context
 

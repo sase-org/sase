@@ -19,8 +19,6 @@ _LAZY_EXPORTS = {
     "AgentViewModal": (".agent_view_modal", "AgentViewModal"),
     "AgentViewResult": (".agent_view_modal", "AgentViewResult"),
     "AgentNameModal": (".agent_name_modal", "AgentNameModal"),
-    "AgentNeighborChoice": (".agent_neighbor_modal", "AgentNeighborChoice"),
-    "AgentNeighborModal": (".agent_neighbor_modal", "AgentNeighborModal"),
     "AgentRunLogModal": (".agent_run_log_modal", "AgentRunLogModal"),
     "AgentTribeModal": (".agent_tribe_modal", "AgentTribeModal"),
     "AgentTribeModalResult": (".agent_tribe_modal", "AgentTribeModalResult"),

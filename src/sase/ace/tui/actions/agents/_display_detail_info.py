@@ -190,7 +190,6 @@ class AgentInfoDisplayMixin:
             proc_shell_count,
         ) = self._agent_info_metrics()
         current_agent = self._get_selected_agent()  # type: ignore[attr-defined]
-        neighbor_count = self._selected_agent_neighbor_count(current_agent)
         view_mode = ""
         if self._focused_tribe_panel_context() is not None:  # type: ignore[attr-defined]
             view_mode = "tribe"
@@ -232,7 +231,6 @@ class AgentInfoDisplayMixin:
                 sase_agent_count=sase_agent_count,
                 starting=starting_count,
                 proc_shell_count=proc_shell_count,
-                neighbor_count=neighbor_count,
                 countdown=self._countdown_remaining,
                 interval=self.refresh_interval,
                 search_query=display_query,

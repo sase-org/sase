@@ -13,7 +13,6 @@ DEFAULT_GROUPING_KEY = key_display_name(
     load_keymap_registry({}).app.choose_agent_grouping
 )
 DEFAULT_VIEW_KEY = key_display_name(load_keymap_registry({}).app.choose_agent_view)
-DEFAULT_NEIGHBOR_KEY = key_display_name(load_keymap_registry({}).app.start_sibling_mode)
 
 
 def collect_text(panel: AgentInfoPanel) -> str:
@@ -73,7 +72,6 @@ def stable_state_kwargs(**overrides: object) -> dict[str, object]:
         "read": 0,
         "sase_agent_count": 5,
         "starting": 0,
-        "neighbor_count": 0,
         "countdown": 5,
         "interval": 5,
         "view_mode": "",

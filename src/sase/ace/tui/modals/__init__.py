@@ -102,8 +102,6 @@ __all__ = [
     "CustomApprovalModal",
     "CustomApprovalResult",
     "AgentNameModal",
-    "AgentNeighborChoice",
-    "AgentNeighborModal",
     "AgentWorkspaceTmuxChoice",
     "AgentWorkspaceTmuxModal",
     "AgentWorkspaceTmuxSelection",
