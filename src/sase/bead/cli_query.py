@@ -269,6 +269,16 @@ def _issue_created_in_window(
 
 
 def handle_bead_show(args: argparse.Namespace) -> None:
+    """Show beads without recording an audited read."""
+    _run_bead_view(args, audited_reason=None)
+
+
+def handle_bead_read(args: argparse.Namespace) -> None:
+    """Read beads after recording an audited, reasoned read."""
+    _run_bead_view(args, audited_reason=str(getattr(args, "reason", "")))
+
+
+def _run_bead_view(args: argparse.Namespace, *, audited_reason: str | None) -> None:
     include_links = not bool(getattr(args, "no_links", False))
     ids = _show_ids(args)
     style = resolve_detail_style(
@@ -324,10 +334,12 @@ def handle_bead_show(args: argparse.Namespace) -> None:
                 wrap=wrap,
                 render_context_for=render_context_for,
             )
+        if audited_reason is not None:
+            _record_bead_reads_before_print(batch, reason=audited_reason)
 
     if body:
         page_or_print(body, mode=pager_mode, document=pager_document)
-    if batch.entries:
+    if audited_reason is None and batch.entries:
         # Machine-local viewed touch: recorded only when an agent identity
         # is present, never into the audited artifact-read log. Best-effort
         # and never raises, so show output is unaffected.
@@ -336,6 +348,36 @@ def handle_bead_show(args: argparse.Namespace) -> None:
         print(f"Error: {failure.message}", file=sys.stderr)
     if batch.failures:
         sys.exit(1)
+
+
+def _record_bead_reads_before_print(batch: Any, *, reason: str) -> None:
+    """Append audited bead reads and queue best-effort read links."""
+    from sase.artifact_read_links import (
+        READ_NOT_RECORDED_NOTE,
+        should_record_read_link,
+    )
+    from sase.artifact_read_log import ArtifactReadError
+    from sase.bead.bead_reads import (
+        bead_read_ref,
+        queue_bead_read_links,
+        record_bead_reads,
+    )
+
+    # Canonicalize once so the audit rows and the read-link edges below
+    # share one stable ref per bead.
+    try:
+        refs = [bead_read_ref(str(entry.issue.id)) for entry in batch.entries]
+        record_bead_reads(refs, reason=reason)
+    except ArtifactReadError as exc:
+        print(f"sase bead read: {exc}", file=sys.stderr)
+        sys.exit(1)
+    if should_record_read_link():
+        try:
+            queue_bead_read_links(refs, reason=reason)
+        except Exception as exc:  # noqa: BLE001 - beads still print
+            print(f"Error: could not record read link: {exc}", file=sys.stderr)
+    else:
+        print(READ_NOT_RECORDED_NOTE, file=sys.stderr)
 
 
 @contextmanager

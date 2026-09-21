@@ -51,6 +51,7 @@ ROUTED_EXISTING_ID_COMMANDS = frozenset(
         "note",
         "open",
         "pages",
+        "read",
         "ref",
         "rm",
         "show",

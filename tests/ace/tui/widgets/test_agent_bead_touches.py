@@ -53,6 +53,7 @@ def _read(
     *,
     read_id: str,
     label: str | None = None,
+    reason: str = "needed it",
 ) -> ArtifactReadDisplayEvent:
     return ArtifactReadDisplayEvent(
         event=ArtifactReadEvent(
@@ -62,7 +63,7 @@ def _read(
             project="test",
             cwd="/tmp/test",
             ref=ref,
-            reason="needed it",
+            reason=reason,
             agent_name="alpha",
             agent_source="SASE_AGENT_NAME",
             artifacts_dir="/tmp/test/artifacts",
@@ -208,6 +209,37 @@ def test_merge_counts_repeated_reads_and_read_only_beads() -> None:
     assert entry.verbs == {"read": 2}
     assert entry.first_at == "2026-09-20T16:00:00Z"
     assert entry.last_at == "2026-09-20T16:05:00Z"
+
+
+def test_merge_carries_newest_read_reason_first() -> None:
+    reads = (
+        _read(
+            "bead:sase-14j.4",
+            "2026-09-20T16:00:00Z",
+            read_id="r1",
+            reason="  older reason  ",
+        ),
+        _read(
+            "bead:sase-14j.4",
+            "2026-09-20T16:05:00Z",
+            read_id="r2",
+            reason="newer reason",
+        ),
+        _read(
+            "bead:sase-14j.4",
+            "2026-09-20T16:06:00Z",
+            read_id="r3",
+            reason="newer reason",
+        ),
+        _read(
+            "bead:sase-14j.4",
+            "",
+            read_id="r4",
+            reason="   ",
+        ),
+    )
+    (entry,) = merge_bead_touch_entries((), reads, ())
+    assert entry.read_reasons == ("newer reason", "older reason")
 
 
 def test_merge_ignores_non_bead_refs() -> None:

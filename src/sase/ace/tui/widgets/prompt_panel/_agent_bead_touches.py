@@ -81,7 +81,9 @@ def append_agent_bead_touch_rows(
 
     The ARTIFACTS lane owns sub-section ordering and the summary counts;
     this helper only paints the compact rows, reasons, hints, and overflow
-    footer. The bead id is never truncated; the title wraps via
+    footer. The bead id is never truncated; the ``↳`` line shows the newest
+    audited read reason when present, otherwise the bead title, and is
+    omitted when both are empty. The reason/title wraps via
     ``append_context_reason``.
     """
     visible = entries[:MAX_VISIBLE_BEADS]
@@ -117,7 +119,9 @@ def append_agent_bead_touch_rows(
             text.append(" · ", style=COLOR_SUMMARY)
             text.append(chip, style=COLOR_ROLE if chip == "own" else COLOR_SUMMARY)
         text.append("\n")
-        append_context_reason(text, item.title, indent=reason_indent)
+        reason_text = item.read_reasons[0] if item.read_reasons else item.title
+        if reason_text.strip():
+            append_context_reason(text, reason_text, indent=reason_indent)
 
     overflow = len(entries) - len(visible)
     if overflow > 0:

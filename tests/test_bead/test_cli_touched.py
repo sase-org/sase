@@ -386,6 +386,57 @@ def test_handle_json_envelope(
     assert "actor" not in row
 
 
+def test_handle_compact_prints_newest_read_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _stub_touched(
+        monkeypatch,
+        tmp_path,
+        [
+            BeadTouch(
+                actor="0oa",
+                bead_id="sase-1",
+                title="Title sase-1",
+                issue_type="task",
+                status="open",
+                verbs={"read": 1},
+                first_at="2026-09-20T16:00:00Z",
+                last_at="2026-09-20T16:05:00Z",
+                read_reasons=("newer reason", "older reason"),
+            ),
+        ],
+    )
+    handle_bead_touched(_args())
+    out = capsys.readouterr().out
+    assert "↳ newer reason" in out
+    assert "older reason" not in out
+
+
+def test_handle_json_includes_read_reasons(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    _stub_touched(
+        monkeypatch,
+        tmp_path,
+        [
+            BeadTouch(
+                actor="0oa",
+                bead_id="sase-1",
+                title="Title sase-1",
+                issue_type="task",
+                status="open",
+                verbs={"read": 1},
+                first_at="2026-09-20T16:00:00Z",
+                last_at="2026-09-20T16:05:00Z",
+                read_reasons=("Need the scope",),
+            ),
+        ],
+    )
+    handle_bead_touched(_args(json=True))
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["touches"][0]["read_reasons"] == ["Need the scope"]
+
+
 def test_handle_empty_reports_no_touches(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

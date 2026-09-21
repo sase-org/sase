@@ -6065,6 +6065,20 @@ With no subcommand, `sase bead task-type` defaults to `sase bead task-type list`
 | `-c, --color`  | `auto`, `always`, `never` | `auto`    | Color mode for compact output              |
 | `-f, --format` | `compact`, `json`         | `compact` | Output format                              |
 
+#### `sase bead read`
+
+| Flag             | Values                             | Default         | Description                                                                             |
+| ---------------- | ---------------------------------- | --------------- | --------------------------------------------------------------------------------------- |
+| `ids`            | string                             | (required)      | One or more IDs; `<epic-id>..` expands the epic plus direct children                    |
+| `-c, --color`    | `auto`, `always`, `never`          | `auto`          | Color mode; applies to `--format full` and compact                                      |
+| `-f, --format`   | `compact`, `json`, `full`          | `full`          | Output format. Compact never expands artifact links                                     |
+| `-N, --no-links` | flag                               | off             | Skip artifact-link neighborhood resolution and omit link sections / JSON                |
+| `-p, --pager`    | `auto`, `always`, `never`          | `auto`          | Page long terminal output                                                               |
+| `-P, --project`  | project key, name, or alias        | current project | Resolve every ID against one enabled project's bead store, including shorthand suffixes |
+| `-r, --reason`   | string                             | (required)      | Non-empty reason for the audited bead read                                              |
+| `-s, --style`    | `auto`, `plain`, `rich`            | `auto`          | Styling level for `--format full`                                                       |
+| `-w, --wrap`     | integer >= 20, `auto`, `none`, `0` | `88`            | Prose wrap width for description, notes, link reasons, and evidence                     |
+
 #### `sase bead show`
 
 | Flag             | Values                             | Default         | Description                                                                             |
@@ -6131,7 +6145,7 @@ once. Removal is irreversible.
 | `id`           | string           | (required)                | Full or shorthand issue ID                                                                    |
 | `text`         | string           | -                         | Note text; a single `@<path>` token reads it from a file. Required unless `--remove` is given |
 | `-a, --author` | string           | current agent, else owner | Author recorded on the entry                                                                  |
-| `-e, --edit`   | note ordinal `N` | -                         | Rewrite note `N` as numbered by `sase bead show`; ordinals shift after any edit or removal    |
+| `-e, --edit`   | note ordinal `N` | -                         | Rewrite note `N` as numbered by `sase bead read`; ordinals shift after any edit or removal    |
 | `-x, --remove` | note ordinal `N` | -                         | Retract note `N`; `sase bead history` keeps the retracted record                              |
 
 #### `sase bead dep`

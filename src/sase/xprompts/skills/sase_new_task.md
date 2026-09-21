@@ -30,7 +30,7 @@ Use this skill before creating any task bead.
 
    ```bash
    sase bead search 'symbol|filename|command|error-fragment' --regex --type task
-   sase bead show <plausible-task-id>
+   sase bead read <plausible-task-id> -r "Need the candidate report"
    ```
 
    Search is case-insensitive across every status, closed and snoozed included. When
@@ -79,7 +79,7 @@ Use this skill before creating any task bead.
 
    ```bash
    sase bead list --type task --since 1w --status all
-   sase bead show <plausible-task-id>
+   sase bead read <plausible-task-id> -r "Need the candidate report"
    ```
 
    A duplicate filed hours ago by another agent often shares no term with your queries,
@@ -96,8 +96,8 @@ Use this skill before creating any task bead.
 
    ```bash
    sase bead list --type plan --tier epic --status in_progress --format full --limit 0
-   sase bead show <plausible-epic-id>
-   sase bead show <plausible-child-id>
+   sase bead read <plausible-epic-id> -r "Need the epic scope"
+   sase bead read <plausible-child-id> -r "Need the child scope"
    ```
 
    When an epic has a credible causal link to the issue—not merely topical

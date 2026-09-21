@@ -339,51 +339,13 @@ def register_bead_search_parser(
     )
 
 
-def register_bead_show_parser(
-    subparsers: argparse._SubParsersAction,
+def _add_bead_view_arguments(
+    parser: argparse.ArgumentParser,
+    default_wrap_width: int,
+    *,
+    require_reason: bool = False,
 ) -> None:
-    """Register ``sase bead show``."""
-    # Resolved at parser-build time, which is per-process and lazy per
-    # subcommand, so `--help` reports the live configured width.
-    default_wrap_width = markdown_print_width()
-    parser = subparsers.add_parser(
-        "show",
-        help="Show one or more issues",
-        description=(
-            "Show every listed bead in argv order. Full or shorthand IDs are "
-            "accepted. Full IDs first resolve against the current project's "
-            "store, then fall back to the enabled project named by the ID "
-            "prefix; shorthand IDs stay local unless --project pins one "
-            "enabled project. An ID ending in '..' expands to that bead plus "
-            "its direct children (phase beads and child epics, one level, in "
-            "phase-number order) before duplicate IDs collapse after "
-            "resolution. A missing ID reports on stderr and exits 1 without "
-            "suppressing beads that did resolve. --format compact prints list "
-            "rows; --format json emits today's single envelope for one ID and "
-            "an array of envelopes for two or more IDs, always an array for "
-            "an expansion. --no-links skips neighborhood resolution and omits "
-            "human and JSON artifact-link fields. Long output on a terminal "
-            "is paged with color intact. DESCRIPTION, NOTES, link reasons, "
-            "and +1 evidence prose wrap at "
-            f"{default_wrap_width} columns by default without breaking URLs "
-            "or inline code spans."
-        ),
-        epilog=(
-            "Examples:\n"
-            "  sase bead show sase-64\n"
-            "  sase bead show bob-cli-1e\n"
-            "  sase bead show sase-64 sase-65 sase-at.1\n"
-            "  sase bead show sase-64 --format compact\n"
-            "  sase bead show sase-64 --format json\n"
-            "  sase bead show sase-64 --no-links\n"
-            "  sase bead show sase-64 --pager always\n"
-            "  sase bead show 1e --project bob-cli\n"
-            "  sase bead show sase-64 --style rich --color always\n"
-            "  sase bead show sase-64 --wrap auto\n"
-            f"  sase bead show sase-tt{EXPANSION_SUFFIX}"
-        ),
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
+    """Add the shared ``show``/``read`` view options, alphabetically."""
     parser.add_argument(
         "-c",
         "--color",
@@ -425,6 +387,13 @@ def register_bead_show_parser(
             "full ID's project prefix)"
         ),
     )
+    if require_reason:
+        parser.add_argument(
+            "-r",
+            "--reason",
+            required=True,
+            help="Non-empty reason for the audited bead read",
+        )
     parser.add_argument(
         "-s",
         "--style",
@@ -447,12 +416,106 @@ def register_bead_show_parser(
             f"integer >= 20, 'auto', 'none', or 0 (default: {default_wrap_width})"
         ),
     )
+
+
+def register_bead_show_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead show``."""
+    # Resolved at parser-build time, which is per-process and lazy per
+    # subcommand, so `--help` reports the live configured width.
+    default_wrap_width = markdown_print_width()
+    parser = subparsers.add_parser(
+        "show",
+        help="Show one or more issues",
+        description=(
+            "Show every listed bead in argv order. Full or shorthand IDs are "
+            "accepted. Full IDs first resolve against the current project's "
+            "store, then fall back to the enabled project named by the ID "
+            "prefix; shorthand IDs stay local unless --project pins one "
+            "enabled project. An ID ending in '..' expands to that bead plus "
+            "its direct children (phase beads and child epics, one level, in "
+            "phase-number order) before duplicate IDs collapse after "
+            "resolution. A missing ID reports on stderr and exits 1 without "
+            "suppressing beads that did resolve. --format compact prints list "
+            "rows; --format json emits today's single envelope for one ID and "
+            "an array of envelopes for two or more IDs, always an array for "
+            "an expansion. --no-links skips neighborhood resolution and omits "
+            "human and JSON artifact-link fields. Long output on a terminal "
+            "is paged with color intact. DESCRIPTION, NOTES, link reasons, "
+            "and +1 evidence prose wrap at "
+            f"{default_wrap_width} columns by default without breaking URLs "
+            "or inline code spans. This is the unaudited human command; "
+            "agents consulting beads to do work must use `sase bead read` "
+            "instead."
+        ),
+        epilog=(
+            "Examples:\n"
+            "  sase bead show sase-64\n"
+            "  sase bead show bob-cli-1e\n"
+            "  sase bead show sase-64 sase-65 sase-at.1\n"
+            "  sase bead show sase-64 --format compact\n"
+            "  sase bead show sase-64 --format json\n"
+            "  sase bead show sase-64 --no-links\n"
+            "  sase bead show sase-64 --pager always\n"
+            "  sase bead show 1e --project bob-cli\n"
+            "  sase bead show sase-64 --style rich --color always\n"
+            "  sase bead show sase-64 --wrap auto\n"
+            f"  sase bead show sase-tt{EXPANSION_SUFFIX}"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    _add_bead_view_arguments(parser, default_wrap_width)
     parser.add_argument(
         "ids",
         nargs="+",
         metavar="ID",
         help=(
             "Full or shorthand issue IDs to show (rendered in the order "
+            f"given); an ID ending in '{EXPANSION_SUFFIX}' expands to that "
+            "bead plus its direct children"
+        ),
+    )
+
+
+def register_bead_read_parser(
+    subparsers: argparse._SubParsersAction,
+) -> None:
+    """Register ``sase bead read``."""
+    default_wrap_width = markdown_print_width()
+    parser = subparsers.add_parser(
+        "read",
+        help="Read one or more beads after recording an audited read",
+        description=(
+            "Read one or more beads after recording an audited, "
+            "agent-attributed read per resolved bead before printing. The "
+            "output is identical to `sase bead show`. Agents consulting "
+            "beads to do work must use this command, while `show` is the "
+            "unaudited human command."
+        ),
+        epilog=(
+            "Examples:\n"
+            '  sase bead read sase-64 -r "Need the epic scope"\n'
+            '  sase bead read sase-64 sase-65 -r "Need both designs"\n'
+            '  sase bead read sase-64 --format compact -r "Need the status"\n'
+            '  sase bead read sase-64 --format json -r "Need the fields"\n'
+            '  sase bead read sase-64 --no-links -r "Need the notes only"\n'
+            '  sase bead read sase-64 --pager always -r "Need the full text"\n'
+            '  sase bead read 1e --project bob-cli -r "Need the task"\n'
+            '  sase bead read sase-64 --style rich --color always -r "Need the detail"\n'
+            '  sase bead read sase-64 --wrap auto -r "Need the prose"\n'
+            f'  sase bead read sase-tt{EXPANSION_SUFFIX} -r "Need the epic and children"\n'
+            '  sase bead read sase-64 -P bob-cli -r "Need the cross-project bead"'
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    _add_bead_view_arguments(parser, default_wrap_width, require_reason=True)
+    parser.add_argument(
+        "ids",
+        nargs="+",
+        metavar="ID",
+        help=(
+            "Full or shorthand issue IDs to read (rendered in the order "
             f"given); an ID ending in '{EXPANSION_SUFFIX}' expands to that "
             "bead plus its direct children"
         ),

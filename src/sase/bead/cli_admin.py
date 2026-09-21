@@ -549,7 +549,8 @@ Quick Start:
   sase bead list --type=task --since=1w --status=all
                                                   Task beads created in the last week
   sase bead ready                                Show unblocked ready task beads
-  sase bead show <id>                            View issue details
+  sase bead read <id> -r "<why>"                 Audited agent read with a reason
+  sase bead show <id>                            View issue details (human viewing)
   sase bead show <id> --format=json              Machine-readable bead detail
   sase bead show <epic-id>..                     Show an epic plus its direct children
   sase bead update <id> --status=in_progress     Claim an issue

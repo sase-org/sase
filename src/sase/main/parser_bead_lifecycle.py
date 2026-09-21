@@ -302,8 +302,8 @@ def register_bead_note_parser(
         type=int,
         metavar="N",
         help=(
-            "Rewrite note #N (the ordinal shown by `sase bead show`); "
-            "re-read `show` after any edit or removal, since ordinals shift"
+            "Rewrite note #N (the ordinal shown by `sase bead read`); "
+            "re-read `read` after any edit or removal, since ordinals shift"
         ),
     )
     edit_group.add_argument(
@@ -312,7 +312,7 @@ def register_bead_note_parser(
         type=int,
         metavar="N",
         help=(
-            "Retract note #N (the ordinal shown by `sase bead show`); "
+            "Retract note #N (the ordinal shown by `sase bead read`); "
             "`sase bead history` keeps the retracted record"
         ),
     )

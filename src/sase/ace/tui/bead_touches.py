@@ -46,6 +46,7 @@ from sase.core.agent_identity_facade import (
 from sase.core.bead_touch_index_facade import (
     BeadTouch,
     BeadTouchQuery,
+    fold_read_reasons,
     merge_view_touches,
     query_touch_index,
     touch_index_path,
@@ -97,6 +98,7 @@ class BeadTouchEntry:
     last_at: str = ""
     own: bool = False
     agent_label: str | None = None
+    read_reasons: tuple[str, ...] = ()
 
 
 @dataclass
@@ -569,6 +571,7 @@ class _BeadBucket:
         self._moments: list[tuple[datetime, str]] = []
         self.own = False
         self._labels: set[str] = set()
+        self._read_pairs: list[tuple[str, str]] = []
 
     def add_verbs(self, verbs: dict[str, int]) -> None:
         for verb, count in verbs.items():
@@ -589,6 +592,9 @@ class _BeadBucket:
         if label is not None:
             self._labels.add(label)
 
+    def add_read_reason(self, timestamp: str | None, reason: str | None) -> None:
+        self._read_pairs.append((str(timestamp or ""), str(reason or "")))
+
     def entry(self) -> BeadTouchEntry:
         first_at = ""
         last_at = ""
@@ -605,6 +611,7 @@ class _BeadBucket:
             last_at=last_at,
             own=self.own,
             agent_label=label,
+            read_reasons=fold_read_reasons(self._read_pairs),
         )
 
 
@@ -666,6 +673,7 @@ def merge_bead_touch_entries(
         bucket.add_verbs({"read": 1})
         bucket.add_moment(read_display.event.timestamp)
         bucket.add_label(read_display.agent_label)
+        bucket.add_read_reason(read_display.event.timestamp, read_display.event.reason)
 
     for key in own_keys:
         bucket = bucket_for(key, key)

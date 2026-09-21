@@ -30,6 +30,7 @@ from sase.bead.cli_history import handle_bead_history
 from sase.bead.cli_query import (
     handle_bead_blocked,
     handle_bead_list,
+    handle_bead_read,
     handle_bead_ready,
     handle_bead_search,
     handle_bead_show,
@@ -57,6 +58,7 @@ __all__ = [
     "handle_bead_plus_one",
     "handle_bead_onboard",
     "handle_bead_open",
+    "handle_bead_read",
     "handle_bead_ready",
     "handle_bead_ref",
     "handle_bead_resolve_conflicts",

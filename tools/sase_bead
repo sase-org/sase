@@ -10,6 +10,9 @@ else
   sase_bin="sase"
 fi
 
+# Automation probes must not count as agent views (see SASE_BEAD_SKIP_VIEW_LOG in src/sase/bead/bead_views.py).
+export SASE_BEAD_SKIP_VIEW_LOG=1
+
 run_symvision_status_show() {
   local attempts=3
   local retry_delay=0.2

@@ -69,7 +69,7 @@ Describe the implementation.
 Phase IDs must be unique slugs. Dependencies may only name earlier-listed phases; do not use self, duplicate, unknown,
 or forward references. Give every phase a `description` that starts with that phase's own `id` followed by `: `, then
 briefly summarizes the phase's section of the plan body. Do not quote or repeat the section title — the phase's `title`
-already names that section — and do not reference the plan file itself because `sase bead show` already displays it.
+already names that section — and do not reference the plan file itself because `sase bead read` already displays it.
 Every phase must declare `size: xsmall | small | medium | large | xlarge`. Choose it after reading
 `sase/memory/sase_sizes.md` with the `/sase_memory_read` skill; that note owns the size meanings, plan-first behavior,
 and model routing rules.

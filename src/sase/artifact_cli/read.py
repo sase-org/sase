@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import replace
-from datetime import UTC, datetime
 import json
-import os
 from pathlib import Path
 import sys
 from typing import cast
@@ -15,12 +13,16 @@ from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 
-from sase.agent.identity import discover_agent_identity
 from sase.artifact_cli.references import (
     ResolvedArtifactReference,
     resolution_error_lines,
     resolved_file_path,
     resolve_cli_reference,
+)
+from sase.artifact_read_links import (
+    READ_NOT_RECORDED_NOTE,
+    record_read_link,
+    should_record_read_link,
 )
 from sase.artifact_read_log import (
     ArtifactReadError,
@@ -44,11 +46,9 @@ from sase.sdd.artifact_link_neighborhood import (
     superseded_by_refs,
 )
 from sase.sdd.artifact_link_store import (
-    ARTIFACT_LINK_ROW_SCHEMA_VERSION,
     canonicalize_artifact_link_ref,
     resolve_artifact_link_store,
 )
-from sase.sdd.artifact_link_outbox import append_artifact_link_outbox_entry
 from sase.sdd.frontmatter import parse_frontmatter
 from sase.core.source_language_facade import logical_source_filename
 from sase.pager.document import (
@@ -76,10 +76,7 @@ from sase.pager.syntax_policy import (
 
 
 _NON_TEXT_POINTER = "Open with `sase artifact open {ref}`."
-_READ_NOT_RECORDED = (
-    "note: this read was not recorded as a graph edge "
-    "(no SASE agent run with an identity was detected)"
-)
+_READ_NOT_RECORDED = READ_NOT_RECORDED_NOTE
 _RESOLVED_STATUSES = frozenset({"exact", "drifted", "vcs_backed"})
 _TEXT_KINDS = frozenset({"chat", "markdown", "plan", "document"})
 
@@ -104,7 +101,11 @@ def handle_read(args: argparse.Namespace) -> int:
         link_ref, link_rows = _link_neighborhood(result)
         if recorded_link:
             try:
-                _record_read_link(result, reason=str(args.reason))
+                record_read_link(
+                    render_artifact_ref(replace(result.parsed, fragment=None)),
+                    reason=str(args.reason),
+                    resolve_store=resolve_artifact_link_store,
+                )
             except Exception as exc:  # noqa: BLE001 - still print the artifact
                 print(f"Error: could not record read link: {exc}", file=sys.stderr)
         else:
@@ -151,7 +152,7 @@ def _prepare_body(result: ResolvedArtifactReference) -> tuple[str, Path | None, 
         return (
             _stitch_body(result),
             result.resolution.resolved_path,
-            _should_record_link(),
+            should_record_read_link(),
         )
 
     path = None
@@ -163,14 +164,14 @@ def _prepare_body(result: ResolvedArtifactReference) -> tuple[str, Path | None, 
 
     if path is not None and _is_text_path(path, result):
         text = path.read_text(encoding="utf-8")
-        return _strip_managed_text(text), path, _should_record_link()
+        return _strip_managed_text(text), path, should_record_read_link()
 
     if path is not None:
-        return _binary_card(result, path), path, _should_record_link()
+        return _binary_card(result, path), path, should_record_read_link()
 
     if result.resolution.status not in _RESOLVED_STATUSES:
         raise ArtifactReadError("\n".join(resolution_error_lines(result)))
-    return _binary_card(result, path), path, _should_record_link()
+    return _binary_card(result, path), path, should_record_read_link()
 
 
 def _strip_managed_text(text: str) -> str:
@@ -260,41 +261,6 @@ def _record_audit_and_consumption(
         ) from exc
 
 
-def _record_read_link(result: ResolvedArtifactReference, *, reason: str) -> None:
-    """Queue a pending read-link row without writing sidecar VCS state.
-
-    A bare read must never create git dirt or a commit obligation on its
-    own, so the row stays local in the read-link outbox until this run
-    earns publish eligibility -- see ``sase.sdd.artifact_link_outbox`` and
-    ``sase.sdd.artifact_link_release_evidence``.
-    """
-    identity = discover_agent_identity()
-    if identity is None:
-        return
-    store = resolve_artifact_link_store()
-    target = canonicalize_artifact_link_ref(
-        render_artifact_ref(replace(result.parsed, fragment=None))
-    )
-    source = f"agent:{identity.name}"
-    row = {
-        "schema_version": ARTIFACT_LINK_ROW_SCHEMA_VERSION,
-        "source_ref": source,
-        "relation": "read",
-        "target_ref": target,
-        "description": reason,
-        "origin": "read",
-        "created_by": identity.name,
-        "created_at": datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "uses": 1,
-    }
-    append_artifact_link_outbox_entry(
-        project_key=store.project_key,
-        agent_name=identity.name,
-        run_id=os.environ.get("SASE_AGENT_TIMESTAMP", ""),
-        row=row,
-    )
-
-
 def _link_neighborhood(
     result: ResolvedArtifactReference,
 ) -> tuple[str | None, tuple[dict[str, object], ...]]:
@@ -320,14 +286,6 @@ def _print_neighborhood(
     footer = neighborhood_footer(canonical, rows)
     if footer is not None:
         print(footer, file=sys.stderr)
-
-
-def _should_record_link() -> bool:
-    return bool(_in_agent_run() and discover_agent_identity())
-
-
-def _in_agent_run() -> bool:
-    return bool(os.environ.get("SASE_AGENT"))
 
 
 def _is_text_path(path: Path, result: ResolvedArtifactReference) -> bool:

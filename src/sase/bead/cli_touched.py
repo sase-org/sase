@@ -6,7 +6,9 @@ presentation: per-bead folding, newest-touch-first ordering, verb-chip
 formatting, the shared glyph vocabulary, and the compact and JSON
 renderings. Durable index rows merge with the machine-local ``sase bead
 show`` view log and audited ``bead:`` artifact reads so the rows agree
-with the panel row for row for touched beads. The index is a derived
+with the panel row for row for touched beads. ``read`` comes from
+``sase bead read`` / ``sase artifact read bead:`` with reasons, and
+automation never produces ``viewed``. The index is a derived
 cache, so a missing index lists nothing.
 """
 
@@ -168,6 +170,7 @@ def _load_read_touches(
                     verbs={"read": 1},
                     first_at=timestamp,
                     last_at=timestamp,
+                    read_reasons=(str(getattr(event, "reason", "") or ""),),
                 )
             )
         except Exception:  # noqa: BLE001 - one bad read row never breaks listing.
@@ -263,6 +266,9 @@ def handle_bead_touched(args: argparse.Namespace) -> None:
         return
     for touch in rows:
         print(_render_touch_row(touch, use_color=use_color))
+        reasons = list(getattr(touch, "read_reasons", ()) or ())
+        if reasons:
+            print(f"  ↳ {reasons[0]}")
     if limit and matched > len(rows):
         print(f"… +{matched - len(rows)} more")
 
@@ -277,6 +283,7 @@ def _touch_to_dict(touch: Any) -> dict[str, Any]:
         "first_at": touch.first_at,
         "last_at": touch.last_at,
         "actors": list(touch.actors),
+        "read_reasons": list(getattr(touch, "read_reasons", ()) or ()),
     }
 
 

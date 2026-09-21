@@ -69,6 +69,7 @@ def _entry(
     title: str = "",
     own: bool = False,
     label: str | None = None,
+    read_reasons: tuple[str, ...] = (),
 ) -> BeadTouchEntry:
     return BeadTouchEntry(
         bead_id=bead_id,
@@ -78,6 +79,7 @@ def _entry(
         last_at=timestamp,
         own=own,
         agent_label=label,
+        read_reasons=read_reasons,
     )
 
 
@@ -267,7 +269,58 @@ def test_own_only_bead_renders_without_verbs() -> None:
     plain = text.plain
     assert "sase-14j.5 · own" in plain
     assert "×" not in plain
+    assert "↳" not in plain
     assert_span_covers(text, "own", COLOR_ROLE)
+
+
+def test_read_reason_renders_over_title() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-14j.5",
+                "2026-05-24T14:00:00+00:00",
+                verbs={"read": 1},
+                title="Bead title",
+                read_reasons=("Need the scope",),
+            ),
+        ),
+    )
+    plain = text.plain
+    assert "↳ Need the scope" in plain
+    assert "Bead title" not in plain
+
+
+def test_title_falls_back_when_no_read_reason() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-14j.5",
+                "2026-05-24T14:00:00+00:00",
+                verbs={"noted": 1},
+                title="Bead title",
+            ),
+        ),
+    )
+    assert "↳ Bead title" in text.plain
+
+
+def test_no_reason_line_without_reason_or_title() -> None:
+    text = Text()
+    append_agent_bead_touch_rows(
+        text,
+        entries=(
+            _entry(
+                "sase-14j.5",
+                "2026-05-24T14:00:00+00:00",
+                verbs={"viewed": 1},
+            ),
+        ),
+    )
+    assert "↳" not in text.plain
 
 
 def test_overflow_footer_and_cap() -> None:

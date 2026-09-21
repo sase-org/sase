@@ -49,7 +49,7 @@ def try_handle_bead_fast_path(argv: list[str]) -> int | None:
     # fall through whenever argv might name a file (or the ``@@`` escape).
     if argv[0] in _AT_PATH_VALUE_VERBS and _argv_requests_at_path(argv):
         return None
-    if argv[0] in {"list", "show"} or _search_uses_full_format(argv):
+    if argv[0] in {"list", "read", "show"} or _search_uses_full_format(argv):
         return None
 
     return execute_bead_cli(argv)

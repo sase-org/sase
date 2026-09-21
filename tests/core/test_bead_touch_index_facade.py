@@ -137,3 +137,40 @@ def test_best_effort_refresh_never_raises(tmp_path: Path) -> None:
         index_path=tmp_path / "agent_bead_touches.json",
     )
     assert report is None or report.stream_count == 0
+
+
+def test_fold_read_reasons_orders_newest_first_dedupes_and_trims() -> None:
+    assert touch_index.fold_read_reasons(
+        [
+            ("2026-09-20T16:00:00Z", "  older reason  "),
+            ("2026-09-20T16:05:00Z", "newer reason"),
+            ("2026-09-20T16:06:00Z", "newer reason"),
+            ("", "undated reason"),
+            ("2026-09-20T16:07:00Z", "   "),
+            (None, ""),
+        ]
+    ) == ("newer reason", "older reason", "undated reason")
+
+
+def test_fold_touches_per_bead_carries_read_reasons() -> None:
+    folded = touch_index.fold_touches_per_bead(
+        [
+            touch_index.BeadTouch(
+                actor="0oa",
+                bead_id="sase-1",
+                verbs={"read": 1},
+                first_at="2026-09-20T16:00:00Z",
+                last_at="2026-09-20T16:00:00Z",
+                read_reasons=("older reason",),
+            ),
+            touch_index.BeadTouch(
+                actor="0oa",
+                bead_id="sase-1",
+                verbs={"read": 1},
+                first_at="2026-09-20T16:05:00Z",
+                last_at="2026-09-20T16:05:00Z",
+                read_reasons=("newer reason",),
+            ),
+        ]
+    )
+    assert folded[0].read_reasons == ("newer reason", "older reason")

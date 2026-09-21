@@ -6971,7 +6971,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "205b1e7999420def",
+            "description_digest": "1f7aa0a6404865e7",
             "hidden": false,
             "mutex_groups": [
               [
@@ -7250,6 +7250,155 @@
                 "subcommands": []
               }
             ]
+          },
+          {
+            "aliases": [],
+            "default_child": null,
+            "description_digest": "1c2345a7c84f5e90",
+            "hidden": false,
+            "mutex_groups": [],
+            "name": "read",
+            "options": [
+              {
+                "choices": null,
+                "dest": "help",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-h",
+                  "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "auto",
+                  "always",
+                  "never"
+                ],
+                "dest": "color",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-c",
+                  "--color"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": [
+                  "compact",
+                  "json",
+                  "full"
+                ],
+                "dest": "format",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-f",
+                  "--format"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "no_links",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-N",
+                  "--no-links"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": [
+                  "auto",
+                  "always",
+                  "never"
+                ],
+                "dest": "pager",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-p",
+                  "--pager"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "project",
+                "hidden": false,
+                "kind": "project",
+                "repeatable": false,
+                "strings": [
+                  "-P",
+                  "--project"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "reason",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-r",
+                  "--reason"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": [
+                  "auto",
+                  "plain",
+                  "rich"
+                ],
+                "dest": "style",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-s",
+                  "--style"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "wrap",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-w",
+                  "--wrap"
+                ],
+                "takes_value": true
+              }
+            ],
+            "path": [
+              "bead",
+              "read"
+            ],
+            "positionals": [
+              {
+                "choices": null,
+                "dest": "ids",
+                "is_remainder": false,
+                "kind": "bead",
+                "metavar": "ID",
+                "nargs": "+"
+              }
+            ],
+            "subcommands": []
           },
           {
             "aliases": [],

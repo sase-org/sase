@@ -125,8 +125,8 @@ free-text `--reason`.
 Notes are a timestamped, attributed, append-only log. `sase bead note <id> "<text>"` and
 `sase bead update --note <text>` both append an entry; `update --notes` is a removed
 tombstone that now errors and names `sase bead note` instead.
-`sase bead note --edit <n>` rewrites note `<n>` (the ordinal `sase bead show` renders)
-and `--remove <n>` retracts it; re-read `show` after either, since ordinals shift.
+`sase bead note --edit <n>` rewrites note `<n>` (the ordinal `sase bead read` renders)
+and `--remove <n>` retracts it; re-read `read` after either, since ordinals shift.
 `sase bead history <id>` replays the event stream field by field (`--format full`
 recovers a value a later write replaced), and
 `sase bead history --lost-notes [--restore]` is a historical repair that finds and
@@ -136,7 +136,10 @@ re-appends notes text that went missing from a store that predates the log.
 
 `list` (repeatable `--status`/`--type`/`--tier` filters; with no `--status` and nothing
 active it falls back to closed beads and says so), `search` (case-insensitive
-substring), `ready` (unblocked ready task beads), `show`, `blocked`, `stats`,
-`dep list|tree|add|rm`, `ref list|add|rm` (artifact references, stored without the
-prompt-time `@`), `rm` (a bead and all its children), and `doctor` (bead-store,
-plan-link, and artifact-reference health, with confirmed `--fix-*` repairs).
+substring), `ready` (unblocked ready task beads), `read`
+(`sase bead read <id> -r "<why>"`, the audited agent command; `show` is the unaudited
+human command, and automation run inside agents never counts as a view), `show`,
+`blocked`, `stats`, `dep list|tree|add|rm`, `ref list|add|rm` (artifact references,
+stored without the prompt-time `@`), `rm` (a bead and all its children), and `doctor`
+(bead-store, plan-link, and artifact-reference health, with confirmed `--fix-*`
+repairs).

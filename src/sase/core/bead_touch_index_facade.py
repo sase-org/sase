@@ -41,6 +41,7 @@ class BeadTouch:
     verbs: dict[str, int] = field(default_factory=dict)
     first_at: str = ""
     last_at: str = ""
+    read_reasons: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -390,6 +391,7 @@ class FoldedBeadTouch:
     first_at: str = ""
     last_at: str = ""
     actors: tuple[str, ...] = ()
+    read_reasons: tuple[str, ...] = ()
 
 
 def canonical_bead_touch_id(value: str | None) -> str:
@@ -413,6 +415,35 @@ def _parse_touch_moment(value: str | None) -> datetime | None:
     return parsed
 
 
+def fold_read_reasons(
+    pairs: Sequence[tuple[str | None, str | None]],
+) -> tuple[str, ...]:
+    """Fold ``(timestamp, reason)`` pairs into newest-first distinct reasons.
+
+    Pure helper: trims whitespace, drops empties, dedupes by trimmed text,
+    orders newest first with undated pairs last and stable ordering.
+    """
+    scored: list[tuple[int, float, int, str]] = []
+    for index, (timestamp, reason) in enumerate(pairs):
+        cleaned = str(reason or "").strip()
+        if not cleaned:
+            continue
+        moment = _parse_touch_moment(timestamp)
+        if moment is None:
+            scored.append((1, 0.0, index, cleaned))
+        else:
+            scored.append((0, -moment.timestamp(), index, cleaned))
+    scored.sort()
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for _, _, _, cleaned in scored:
+        if cleaned in seen:
+            continue
+        seen.add(cleaned)
+        ordered.append(cleaned)
+    return tuple(ordered)
+
+
 class _FoldBucket:
     """Mutable per-bead accumulator behind :func:`fold_touches_per_bead`."""
 
@@ -424,6 +455,7 @@ class _FoldBucket:
         self.verbs: dict[str, int] = {}
         self._moments: list[tuple[datetime, str]] = []
         self._actors: set[str] = set()
+        self._read_pairs: list[tuple[str, str]] = []
 
     def add(self, touch: BeadTouch) -> None:
         actor = str(getattr(touch, "actor", "") or "").strip()
@@ -453,6 +485,9 @@ class _FoldBucket:
             moment = _parse_touch_moment(moment_value)
             if moment is not None:
                 self._moments.append((moment, moment_value.strip()))
+        last_at_value = str(getattr(touch, "last_at", "") or "")
+        for reason in getattr(touch, "read_reasons", ()) or ():
+            self._read_pairs.append((last_at_value, str(reason)))
 
     def build(self) -> FoldedBeadTouch:
         first_at = ""
@@ -470,6 +505,7 @@ class _FoldBucket:
             first_at=first_at,
             last_at=last_at,
             actors=tuple(sorted(self._actors)),
+            read_reasons=fold_read_reasons(self._read_pairs),
         )
 
 
@@ -512,6 +548,7 @@ __all__ = [
     "BeadTouchRefresh",
     "FoldedBeadTouch",
     "canonical_bead_touch_id",
+    "fold_read_reasons",
     "fold_touches_per_bead",
     "merge_view_touches",
     "query_touches_for_agent",

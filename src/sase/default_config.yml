@@ -1785,8 +1785,8 @@ xprompts:
       `just check`. A `just check` pass with a `just check-full` failure is a test-infrastructure bug, not remaining
       epic work.
 
-      1. Verify. Run `sase bead show {{ bead_id }}` (children, linked plan file), review the epic bead's own notes, then
-         run `sase bead show` on every child and review every child note. Confirm each note was addressed, and read the
+      1. Verify. Run `sase bead read {{ bead_id }} -r "Need the epic scope, children, and linked plan file"`, review the epic bead's own notes, then
+         run `sase bead read <child-id> -r "Need the child scope and notes"` on every child and review every child note. Confirm each note was addressed, and read the
          actual source code and the epic's commits (bead IDs appear in commit messages) to confirm the work previous
          agents reported complete really is. While reviewing child beads, collect every `PROPOSED FOLLOW-UP:` note entry.
 
@@ -1806,7 +1806,7 @@ xprompts:
          leave that judgment for the next agent. `sase bead close` refuses while any of these entries remain. Close the
          epic with `sase bead close {{ bead_id }} --note "<what you verified in steps 1-2>"`. After closing, run
          `just symvision` if available to confirm the whitelist is clean. Finally, set `status: done` in the frontmatter
-         of the epic's plan file (the PLAN path shown by `sase bead show`). If the close is rejected because leftover
+         of the epic's plan file (the PLAN path shown by `sase bead read`). If the close is rejected because leftover
          `--epic-symbol` entries remain, finish that cleanup and close again. If the close is rejected because named
          phases were never completed: finish or reopen them, or record the outcome deliberately with
          `--force --reason ... --resolution canceled|superseded`. Never force merely to make the command succeed, and
@@ -1817,7 +1817,7 @@ xprompts:
       or plan-file status update as a child phase; the child epic's `parent_bead` link is the handoff that lets its land
       agent resume this interrupted landing after the child lands.
 
-      After the current epic closes, inspect the linked `parent_bead` from `sase bead show {{ bead_id }}`. If there is
+      After the current epic closes, inspect the linked `parent_bead` from `sase bead read {{ bead_id }} -r "Need the parent link"`. If there is
       no parent bead, finish normally. If the parent is a phase bead, verify this child plan completed the work required
       by that phase, close only that parent phase normally with `sase bead close <parent-bead> --note "<what you
       verified>"`, and leave the containing epic to its already-waiting land agent. If the parent is a plan bead, review
@@ -1857,7 +1857,7 @@ xprompts:
       Can you complete the work for bead {{ bead_id }}? The bead is already reserved for you and assigned to your agent
       name: it was set to status=in_progress before you started reading this, either by the `sase bead work` launch
       checkpoint or by the runtime promoting an ad-hoc wait-time claim. Do not set the status by hand. Read its
-      description and design file, do the work, and close only this bead with
+      description and design file with `sase bead read {{ bead_id }} -r "Need the phase scope and design file"`, do the work, and close only this bead with
       `sase bead close {{ bead_id }} --note "<what you verified>"`. Before closing, run
       `sase bead epic-symbols {{ bead_id }}`. If this phase still has `--epic-symbol` entries, resolve each symbol or
       re-key the Justfile line to a still-open bead (the parent epic or a later phase). `sase bead close` refuses while
@@ -1873,7 +1873,7 @@ xprompts:
     input:
       bead_id: word
     content: |
-      Can you complete the work for task bead {{ bead_id }} by running the `sase bead show {{ bead_id }}` command,
+      Can you complete the work for task bead {{ bead_id }} by running the `sase bead read {{ bead_id }} -r "Need the task scope"` command,
       reviewing the command's output, doing the work, and then closing the bead by running the
       `sase bead close {{ bead_id }} --note "<what you verified>"` command?
 

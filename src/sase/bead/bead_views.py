@@ -7,7 +7,12 @@ whose rows require an authored reason and carry link-recording weight.
 when an agent identity is present, so interactive use pays nothing and the
 audited corpus stays clean. The panel and query layers merge these rows
 behind the durable mutation facts as a visibly weaker ``viewed`` signal
-that is never promoted to ``read``.
+that is never promoted to ``read``. Reasoned ``sase bead read`` rows live
+in the audited log instead and never touch this file.
+
+Automation running inside an agent environment (symvision, flag checks,
+commit hooks) sets ``SASE_BEAD_SKIP_VIEW_LOG=1`` so its ``show`` probes
+never count as views.
 
 Limitation: this log is machine-local. A remote agent's views are not
 visible on this machine while its mutations (which sync through the bead
@@ -19,6 +24,7 @@ from __future__ import annotations
 import fcntl
 import json
 import logging
+import os
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -36,6 +42,7 @@ _logger = logging.getLogger(__name__)
 
 BEAD_VIEWS_FILENAME = "bead_views.jsonl"
 BEAD_VIEW_LOG_SCHEMA_VERSION = 1
+SASE_BEAD_SKIP_VIEW_LOG = "SASE_BEAD_SKIP_VIEW_LOG"
 
 
 @dataclass(frozen=True)
@@ -69,13 +76,16 @@ def record_bead_show_views(
     """Append one view row per bead id for the acting agent.
 
     Returns the number of rows written. Writes nothing — not even an empty
-    file — when no agent identity is present, so interactive ``sase bead
-    show`` use pays nothing. Best-effort and never raises: a failure is
-    debug-logged and the show output is unaffected.
+    file — when no agent identity is present, or when
+    ``SASE_BEAD_SKIP_VIEW_LOG=1`` opts automation out, so interactive
+    ``sase bead show`` use pays nothing. Best-effort and never raises: a
+    failure is debug-logged and the show output is unaffected.
     """
     from sase.bead.attribution import acting_agent_name
 
     try:
+        if os.environ.get(SASE_BEAD_SKIP_VIEW_LOG) == "1":
+            return 0
         agent_name = acting_agent_name()
         if not agent_name:
             return 0

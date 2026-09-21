@@ -22,6 +22,7 @@ from sase.main.parser_bead_queries import (
     register_bead_epic_symbols_parser,
     register_bead_history_parser,
     register_bead_list_parser,
+    register_bead_read_parser,
     register_bead_ready_parser,
     register_bead_search_parser,
     register_bead_show_parser,
@@ -70,6 +71,7 @@ def register_bead_parser(subparsers: argparse._SubParsersAction) -> None:
     register_bead_open_parser(bead_subparsers)
     register_bead_pages_parser(bead_subparsers)
     register_bead_ready_parser(bead_subparsers)
+    register_bead_read_parser(bead_subparsers)
     register_bead_ref_parser(bead_subparsers)
     register_bead_resolve_conflicts_parser(bead_subparsers)
     register_bead_rm_parser(bead_subparsers)

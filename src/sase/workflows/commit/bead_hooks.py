@@ -223,7 +223,10 @@ def bead_status_fact(bead_id: str, cwd: str) -> str:
 
 
 def _run_bead_command(
-    args: list[str], cwd: str
+    args: list[str],
+    cwd: str,
+    *,
+    env: dict[str, str] | None = None,
 ) -> subprocess.CompletedProcess[bytes] | None:
     """Run a bead command best-effort, tolerating missing sase binary."""
 
@@ -233,6 +236,7 @@ def _run_bead_command(
             cwd=cwd,
             capture_output=True,
             check=False,
+            env=env,
         )
     except FileNotFoundError:
         print_status("Skipping bead command: `sase` CLI not found.", "warning")
@@ -242,8 +246,13 @@ def _run_bead_command(
 def _resolve_bead_issue(bead_id: str, cwd: str) -> dict[str, object] | None:
     """Return *bead_id*'s issue dict, or ``None`` when it cannot be determined."""
 
+    from sase.bead.bead_views import SASE_BEAD_SKIP_VIEW_LOG
+
+    env = {**os.environ, SASE_BEAD_SKIP_VIEW_LOG: "1"}
     result = _run_bead_command(
-        ["sase", "bead", "show", bead_id, "--format", "json"], cwd
+        ["sase", "bead", "show", bead_id, "--format", "json"],
+        cwd,
+        env=env,
     )
     if result is None or result.returncode != 0:
         return None

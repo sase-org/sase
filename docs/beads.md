@@ -59,6 +59,7 @@ sase bead list --status=closed                          # List closed issues
 sase bead search auth                                   # Search issues in every status
 sase bead ready                                         # Show unblocked ready task beads
 sase bead show beads-001                                # View issue details
+sase bead read beads-001 -r "Need the scope"            # Audited agent read with a reason
 sase bead ref add beads-001 research:202607/report.md   # Attach durable context
 sase bead ref list beads-001 --resolve                  # List references and resolution state
 sase bead ref rm beads-001 research:202607/report.md    # Detach a reference
@@ -1685,6 +1686,32 @@ sase bead search auth --type plan --tier epic
 | `-r, --tier`      | `plan`, `epic`                                                 | Filter by plan-bead tier (repeatable)                                  |
 | `-t, --type`      | `plan`, `phase`, `task`                                        | Filter by issue type (repeatable). Flag beads are tasks; use `-T flag` |
 
+### `sase bead read <id> [<id2> ...]`
+
+Read one or more beads with output identical to
+[`sase bead show`](#sase-bead-show-id-id2). Agents consulting beads to do work must use
+this command; `show` is the unaudited human command.
+
+```bash
+sase bead read sase-64 -r "Need the epic scope"
+sase bead read sase-64 sase-65 -r "Need both designs" --format json
+```
+
+`-r/--reason` is required and must be non-empty. Before printing, the command appends
+one audited, agent-attributed read row per resolved bead to `artifact_reads.jsonl` with
+ref `bead:<full-id>` (shorthand input still stores the full ID) and the trimmed reason —
+the same row shape as `sase artifact read bead:<id>`. `..` expansion audits each
+expanded bead once, duplicates collapse after resolution so each bead is audited once
+per invocation, and unresolved IDs audit only the beads that did resolve. An
+audit-append failure prints the error, prints no bead output, and exits 1.
+
+Inside a SASE agent run with an identity, the command also queues one
+`agent:<name> -read-> bead:<id>` graph-edge row per bead; outside an agent run it prints
+the one-line "not recorded as a graph edge" note on stderr instead. Link queueing is
+best-effort: a failure prints `Error: could not record read link: ...` but the beads
+still print. `read` writes no `viewed` row, so it never double-counts as
+`read · viewed`.
+
 ### `sase bead show <id> [<id2> ...]`
 
 Display complete details for one or more issues including status, type, task type, tier,
@@ -1980,22 +2007,26 @@ provenance. Reads are not audited.
 List the beads one agent touched, newest touch first, one row per bead with verb chips,
 title, and relative age. Durable index rows merge with the machine-local
 `sase bead show` view log (`viewed`) and audited `bead:` reads (`read`), matching the
-Agents-tab `Beads:` sub-section row for row for touched beads. The CLI lists touched
-beads only; the panel also marks assigned but untouched beads `own`.
+Agents-tab `Beads:` sub-section row for row for touched beads. `read` comes from
+`sase bead read` / `sase artifact read bead:` with reasons; automation running inside
+agents (symvision, flag checks, commit hooks) sets `SASE_BEAD_SKIP_VIEW_LOG=1` and never
+produces `viewed`. The CLI lists touched beads only; the panel also marks assigned but
+untouched beads `own`. A bead with read reasons prints one extra indented line with the
+newest reason (`  ↳ <reason>`); JSON rows carry `read_reasons`.
 
 ```bash
 sase bead touched bbugyi200.athena.0oa
 sase bead touched 0oa -l 10
 sase bead touched 0oa -v noted -v closed
 sase bead touched 0oa -v viewed
-sase bead touched 0oa -j
+sase bead touched 0oa -v read -j
 ```
 
-| Flag              | Description                                  |
-| ----------------- | -------------------------------------------- |
-| `-j, --json`      | Machine-readable rows with `actors` per bead |
-| `-l, --limit N`   | Maximum beads to print; `0` means unlimited  |
-| `-v, --verb VERB` | Only show beads with this verb (repeatable)  |
+| Flag              | Description                                            |
+| ----------------- | ------------------------------------------------------ |
+| `-j, --json`      | Machine-readable rows with `actors` and `read_reasons` |
+| `-l, --limit N`   | Maximum beads to print; `0` means unlimited            |
+| `-v, --verb VERB` | Only show beads with this verb (repeatable)            |
 
 ### `sase bead update <id> [<id2> ...]`
 
