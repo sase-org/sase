@@ -151,7 +151,7 @@ async def test_shipped_muse_weekly_group_renders_in_header(
         assert abs(content.x + content.width / 2 - header_center) <= 1
         rendered = usage.render().plain
         if width >= 80:
-            assert "♾️" in rendered
+            assert "🦋" in rendered
             assert "97%" in rendered
         # The suppressed 5-hour window (12% left) is never advertised.
         assert "12%" not in rendered

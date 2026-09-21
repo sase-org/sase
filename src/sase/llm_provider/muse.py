@@ -227,7 +227,7 @@ class MuseProvider(LLMProvider):
 
     @hookimpl
     def llm_cli_status_color(self) -> str:
-        return "#0064E0"
+        return "#3D9BFF"
 
     @hookimpl
     def llm_autodetect_cli_name(self) -> str:

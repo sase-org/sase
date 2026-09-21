@@ -268,7 +268,7 @@ such as `N [S stopped · R running · W waiting · F failed · U unread · D don
 zero-count items omitted. Each row uses compact glyphs: `▶` for running, `✓` for done,
 `✎` for a submitted plan, `?` for a user question, `⏳` for waiting, `↻` for retrying,
 and `⚡` for autonomous plan approval. Provider emoji badges make the runtime visible at
-a glance: 🎭 Claude, 🪐 Antigravity, 🤖 Codex, 🐼 Qwen, 🐙 OpenCode, and ♾️ Muse Code.
+a glance: 🎭 Claude, 🪐 Antigravity, 🤖 Codex, 🐼 Qwen, 🐙 OpenCode, and 🦋 Muse Code.
 
 State you used to keep in your head becomes a display. Which agent is waiting? Which one
 failed? Which one produced a plan? Which completed row is still unread? Which

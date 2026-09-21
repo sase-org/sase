@@ -16,6 +16,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from sase.ace.tui.provider_styles import provider_emoji_badge
 from sase.llm_provider.base import LLMProvider
 from sase.llm_provider.muse import MuseProvider
 from sase.llm_provider.registry import resolve_model_provider
@@ -102,7 +103,7 @@ def test_muse_provider_metadata_hooks() -> None:
     assert provider.llm_provider_short_name() == "mus"
     assert provider.llm_autodetect_cli_name() == "muse"
     assert provider.llm_skill_deploy_subpath() == ".config/muse"
-    assert provider.llm_cli_status_color() == "#0064E0"
+    assert provider.llm_cli_status_color() == "#3D9BFF"
     assert provider.llm_known_model_names() == _MUSE_MODELS
     assert provider.llm_model_short_aliases() == {
         "muse-spark-1.3": "spark13",
@@ -124,6 +125,13 @@ def test_muse_provider_metadata_hooks() -> None:
 def test_muse_provider_has_no_autodetect_priority() -> None:
     """`muse` is a generic binary name; PATH presence must not win the default."""
     assert not hasattr(MuseProvider, "llm_autodetect_priority")
+
+
+def test_muse_provider_surface_metadata_is_registered() -> None:
+    assert provider_emoji_badge("muse") == "🦋"
+    assert provider_emoji_badge("meta") == "🦋"
+    assert "\ufe0f" not in (provider_emoji_badge("muse") or "")
+    assert "\ufe0f" not in (provider_emoji_badge("meta") or "")
 
 
 def test_muse_provider_resolve_model_name_never_routes_a_tier_to_contributor() -> None:

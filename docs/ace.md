@@ -2440,7 +2440,7 @@ suffix:
 | 🤖    | Codex             |
 | 🐼    | Qwen              |
 | 🐙    | OpenCode          |
-| ♾️    | Muse Code (Meta)  |
+| 🦋    | Muse Code (Meta)  |
 | 🛰️    | Grok Build (xAI)  |
 
 The same provider palette also colors the `<PROVIDER>(<model>)` suffix on the right edge

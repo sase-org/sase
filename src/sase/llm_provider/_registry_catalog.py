@@ -10,7 +10,7 @@ _PROVIDER_FAMILY_COLORS: dict[str, str] = {
     "anthropic": "#D97757",
     "codex": "#10A37F",
     "openai": "#10A37F",
-    "meta": "#0064E0",
+    "meta": "#3D9BFF",
 }
 
 _ProviderMetadataLoader = Callable[[str, object], dict[str, Any]]
