@@ -90,6 +90,20 @@ class UvChangeSet:
         return None
 
 
+def match_uv_change_line(line: str) -> tuple[str, str, str] | None:
+    """Match one ``[+-] name==version`` uv output line.
+
+    Return ``(sign, name, version)`` where *sign* is ``"+"`` or ``"-"``,
+    or ``None`` when the line is not a package change line. This is the
+    public face of :data:`_CHANGE_RE` for live-progress line watchers that
+    turn streamed ``+``/``-`` rows into per-package timeline children.
+    """
+    match = _CHANGE_RE.match(line)
+    if match is None:
+        return None
+    return (match.group("sign"), match.group("name"), match.group("version"))
+
+
 def parse_uv_output(output: str) -> UvChangeSet:
     """Parse uv's stdout/stderr text into a :class:`UvChangeSet`.
 
@@ -219,6 +233,7 @@ __all__ = [
     "ChangeKind",
     "UvChangeSet",
     "UvPackageChange",
+    "match_uv_change_line",
     "parse_uv_output",
     "run_uv",
 ]

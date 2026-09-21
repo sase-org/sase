@@ -73,7 +73,14 @@ def combined_result_json(
     dev_result: DevUpdateResult | None,
     elapsed: float,
     restart: RestartInfo,
+    log_path: str | None = None,
 ) -> dict[str, Any]:
+    """Build the live-update result payload.
+
+    ``log_path`` is the full-run transcript file (or ``None`` when the log
+    sink could not open one). It is additive: ``UPDATE_JSON_SCHEMA_VERSION``
+    is unchanged.
+    """
     changed = combined_changed(dev_result, managed_summary)
     return {
         "schema_version": UPDATE_JSON_SCHEMA_VERSION,
@@ -91,6 +98,7 @@ def combined_result_json(
         if dev_result is not None or dev_plan is not None
         else None,
         "restart": restart_info_json(restart),
+        "log_path": log_path,
     }
 
 

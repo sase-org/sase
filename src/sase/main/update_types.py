@@ -64,7 +64,12 @@ class PlanDevFn(Protocol):
 
 class ExecuteDevFn(Protocol):
     def __call__(
-        self, plan: DevUpdatePlan, *, run: DevCommandRunner
+        self,
+        plan: DevUpdatePlan,
+        *,
+        run: DevCommandRunner,
+        clock: ClockFn = ...,
+        progress: UpdateProgress = NULL_PROGRESS,
     ) -> DevUpdateResult: ...
 
 

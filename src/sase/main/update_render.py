@@ -80,7 +80,14 @@ def render_dev_update_result(
     quiet: bool,
     console: Console,
     failed: bool,
+    timeline_shown: bool = False,
 ) -> None:
+    """Render the editable-leg result panel.
+
+    When ``timeline_shown`` is true the live timeline already displayed each
+    step's commands and durations, so the redundant executed-commands table
+    and slowest line are omitted (deduplicated summary).
+    """
     if quiet:
         console.print(_dev_quiet_line(result, elapsed, failed=failed))
         return
@@ -89,7 +96,7 @@ def render_dev_update_result(
     reconcile = tuple(
         cmd for cmd in result.commands if not cmd.label.startswith("git ")
     )
-    if reconcile:
+    if reconcile and not timeline_shown:
         body.append(Text(""))
         body.append(_dev_executed_commands_table(reconcile))
         if (slowest := _slowest_reconcile_line(result)) is not None:

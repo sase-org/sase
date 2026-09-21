@@ -29,7 +29,10 @@ from sase.config import load_merged_config
 from sase.completion.install import CompletionRefreshReport
 from sase.dev_update import run_dev_update_command
 from sase.main.update_handler_dry_run import handle_dry_run
-from sase.main.update_handler_live import handle_live_update
+from sase.main.update_handler_live import (
+    ProgressSessionFactory,
+    handle_live_update,
+)
 from sase.main.update_handler_mode_switch import handle_mode_switch
 from sase.main.update_handler_support import fail_update
 from sase.main.update_routing import installed_version
@@ -70,11 +73,13 @@ def handle_update_command(
     clock: ClockFn = time.monotonic,
     config_fn: Callable[[], dict[str, Any]] = load_merged_config,
     refresh_completions_fn: Callable[[], CompletionRefreshReport] | None = None,
+    progress_session_factory: ProgressSessionFactory | None = None,
 ) -> int:
     """Run ``sase update``; return the process exit code."""
     as_json = bool(getattr(args, "json", False))
     dry_run = bool(getattr(args, "dry_run", False))
     quiet = bool(getattr(args, "quiet", False))
+    verbose = bool(getattr(args, "verbose", False))
     out = console or Console()
     err = err_console or Console(stderr=True)
 
@@ -130,6 +135,8 @@ def handle_update_command(
         version_fn=version_fn,
         clock=clock,
         refresh_completions_fn=refresh_completions_fn,
+        verbose=verbose,
+        progress_session_factory=progress_session_factory,
     )
 
 

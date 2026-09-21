@@ -76,7 +76,14 @@ def mode_switch_result_json(
     *,
     elapsed: float,
     restart: RestartInfo,
+    log_path: str | None = None,
 ) -> dict[str, Any]:
+    """Build the mode-switch result payload.
+
+    ``log_path`` is the full-run transcript file (or ``None`` when no live
+    session wrote one). It is additive: ``UPDATE_JSON_SCHEMA_VERSION`` is
+    unchanged.
+    """
     return {
         "schema_version": UPDATE_JSON_SCHEMA_VERSION,
         "dry_run": False,
@@ -92,6 +99,7 @@ def mode_switch_result_json(
             ],
         },
         "restart": restart_info_json(restart),
+        "log_path": log_path,
     }
 
 

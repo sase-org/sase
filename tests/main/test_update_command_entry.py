@@ -19,13 +19,25 @@ def test_update_is_registered_top_level() -> None:
     assert ns.json is False
     assert ns.quiet is False
     assert ns.to is None
+    assert ns.verbose is False
     assert ns.yes is False
 
 
 def test_update_accepts_each_flag() -> None:
-    short = create_parser().parse_args(["update", "-n", "-j", "-q", "-t", "dev", "-y"])
+    short = create_parser().parse_args(
+        ["update", "-n", "-j", "-q", "-t", "dev", "-v", "-y"]
+    )
     long = create_parser().parse_args(
-        ["update", "--dry-run", "--json", "--quiet", "--to", "dev", "--yes"]
+        [
+            "update",
+            "--dry-run",
+            "--json",
+            "--quiet",
+            "--to",
+            "dev",
+            "--verbose",
+            "--yes",
+        ]
     )
 
     for ns in (short, long):
@@ -33,6 +45,7 @@ def test_update_accepts_each_flag() -> None:
         assert ns.json is True
         assert ns.quiet is True
         assert ns.to == "dev"
+        assert ns.verbose is True
         assert ns.yes is True
 
 

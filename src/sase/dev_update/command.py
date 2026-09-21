@@ -6,6 +6,7 @@ import os
 import subprocess
 import time
 from collections.abc import Callable, Mapping, Sequence
+from inspect import Parameter, signature
 from pathlib import Path
 from typing import Any
 
@@ -107,9 +108,11 @@ def run_recorded_command(
 ) -> DevCommandResult:
     """Run a command and append its result and duration to ``commands``.
 
-    ``env``, ``timeout``, and ``on_output`` are only forwarded when set, so an
-    injected test fake that does not accept them keeps working when no
-    progress sink is active.
+    ``env`` and ``timeout`` are only forwarded when set. ``on_output`` is
+    only forwarded when set and the injected runner accepts it, so an
+    injected test fake that does not accept ``on_output`` keeps working even
+    when a progress session is active (it just gets the legacy captured
+    behavior instead of streamed lines).
     """
     start = clock()
     overrides: dict[str, Any] = {}
@@ -117,7 +120,7 @@ def run_recorded_command(
         overrides["env"] = _merged_subprocess_env(env)
     if timeout is not None:
         overrides["timeout"] = timeout
-    if on_output is not None:
+    if on_output is not None and _runner_accepts_keyword(run, "on_output"):
         overrides["on_output"] = on_output
     result = run(argv, cwd=cwd, **overrides)
     duration = max(0.0, clock() - start)
@@ -133,6 +136,22 @@ def run_recorded_command(
         )
     )
     return result
+
+
+def _runner_accepts_keyword(run: DevCommandRunner, name: str) -> bool:
+    """Whether the injected runner accepts the ``name`` keyword."""
+    try:
+        params = signature(run).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(
+        param.kind is Parameter.VAR_KEYWORD
+        or (
+            param.name == name
+            and param.kind in (Parameter.KEYWORD_ONLY, Parameter.POSITIONAL_OR_KEYWORD)
+        )
+        for param in params
+    )
 
 
 def command_failure(prefix: str, result: DevCommandResult) -> str:

@@ -34,14 +34,15 @@ def register_update_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase update -n         # preview without changing anything\n"
             "  sase update -q         # only print a one-line summary\n"
             "  sase update -j         # stable machine-readable JSON\n"
+            "  sase update -v         # stream full output of every step\n"
             "  sase update -t dev     # switch to editable checkouts\n"
             "  sase update -t pypi -y # switch to published wheels without prompting\n"
             "\n"
             "Agent CLIs are separate; update them with `sase agent-cli update`."
         ),
     )
-    # Options are listed short-alias alphabetical (-j, -n, -q, -t, -y) to match the bar
-    # set by the `sase plugin install` / `sase plugin update` commands.
+    # Options are listed short-alias alphabetical (-j, -n, -q, -t, -v, -y) to match
+    # the bar set by the `sase plugin install` / `sase plugin update` commands.
     update_parser.add_argument(
         "-j",
         "--json",
@@ -65,6 +66,12 @@ def register_update_parser(subparsers: argparse._SubParsersAction) -> None:
         "--to",
         choices=("dev", "pypi"),
         help="Switch install mode to editable checkouts or published PyPI wheels",
+    )
+    update_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="Stream full output of every step (git, uv, cargo) as it runs",
     )
     update_parser.add_argument(
         "-y",

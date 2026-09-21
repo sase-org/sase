@@ -116,7 +116,7 @@ def test_timeout_raises_and_kills_process_group(tmp_path: Path) -> None:
             break
         except PermissionError:
             break
-        time.sleep(0.1)
+        time.sleep(0.1)  # sase-test-wait: poll until timeout-killed grandchild reaped
     else:
         pytest.fail("grandchild sleep survived the streaming timeout")
 

@@ -16,7 +16,7 @@ from typing import Any
 
 from sase.core.paths import sase_subdir
 from sase.dev_update.code_swap_lock import CODE_SWAP_LOCK_FILENAME
-from sase.dev_update.models import DevCommandResult, DevCommandRunner
+from sase.dev_update.models import DevCommandResult, DevCommandRunner, OutputSink
 from sase.dev_update.prebuild_cache import (
     EXTENSION_FILENAME,
     LSP_BINARY_NAME,
@@ -186,15 +186,35 @@ def _run_command(
     cwd: Path | None = None,
     env: Mapping[str, str] | None = None,
     timeout: float | None = None,
+    on_output: OutputSink | None = None,
 ) -> DevCommandResult:
+    """Run a prebuild probe command, streaming lines when asked.
+
+    The ``on_output`` keyword keeps this default runner conformant with
+    :class:`DevCommandRunner` so it survives ``run_recorded_command``'s
+    keyword check under an active progress session. ``None`` keeps the
+    legacy captured path byte-for-byte.
+    """
     command_env = None if env is None else {**os.environ, **dict(env)}
+    deadline = COMMAND_TIMEOUT_SECONDS if timeout is None else timeout
     try:
-        completed = run_noninteractive(
-            list(argv),
-            cwd=cwd,
-            env=command_env,
-            timeout=COMMAND_TIMEOUT_SECONDS if timeout is None else timeout,
-        )
+        if on_output is not None:
+            from sase.dev_update.stream_command import run_streaming
+
+            completed = run_streaming(
+                list(argv),
+                cwd=cwd,
+                env=command_env,
+                timeout=deadline,
+                on_line=on_output,
+            )
+        else:
+            completed = run_noninteractive(
+                list(argv),
+                cwd=cwd,
+                env=command_env,
+                timeout=deadline,
+            )
     except FileNotFoundError as exc:
         return DevCommandResult(127, stderr=str(exc))
     except subprocess.TimeoutExpired:
