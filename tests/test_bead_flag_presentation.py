@@ -41,7 +41,7 @@ REMOVE_BY_RELEASE = "0.19.0"
 LIVE_TODAY = date(2026, 9, 8)
 SOON_TODAY = date(2026, 11, 19)
 DUE_TODAY = date(2026, 12, 7)
-# Rust ANSI_TYPE_FLAG in sase-core ``bead/cli.rs``.
+# Former Rust ANSI_TYPE_FLAG in the sase-core bead CLI (deleted with the flag type).
 RUST_ANSI_TYPE_FLAG = "\x1b[38;5;209m"
 
 

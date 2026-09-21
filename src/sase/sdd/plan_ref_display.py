@@ -3,7 +3,7 @@
 Every surface that shows a bead's plan link renders the stable reference first
 and where it resolves second, and says plainly when it resolves nowhere. The
 wording here mirrors ``display_design_path`` in the Rust CLI renderer
-(``crates/sase_core/src/bead/cli.rs``); change both together.
+(``crates/sase_core/src/bead/cli/design_refs.rs``); change both together.
 """
 
 from __future__ import annotations

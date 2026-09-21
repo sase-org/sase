@@ -321,8 +321,8 @@ def require_candidate_decision(
 
     Rust's ``candidate_decision`` is the single source of truth for whether
     this candidate may acquire or reuse capacity -- see ``build_candidate_decision``
-    in ``sase-core``'s ``runner_capacity.rs``. A missing, malformed, or unknown
-    decision must never be treated as permission to proceed.
+    in ``sase-core``'s ``runner_capacity/candidate.rs``. A missing, malformed, or
+    unknown decision must never be treated as permission to proceed.
     """
     decision = snapshot.get("candidate_decision")
     if (

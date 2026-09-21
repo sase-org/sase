@@ -802,7 +802,7 @@ and Git query helpers:
 | Query parse / canonical form | `tests/test_core_query_golden_*` (errors / eval / tokens / wire), `tests/test_core_facade/test_query.py`                 |
 | Agent artifact scan          | `tests/test_core_agent_scan_*.py` + `tests/agent_scan_golden/` fixture builder                                           |
 | Notification store           | `tests/test_core_notification_store.py`, `tests/test_core_facade/test_notification_store.py`                             |
-| Snooze expiry end-to-end     | `tests/notification_store/test_snooze_e2e_matrix.py`, `../sase-core/crates/sase_core/tests/notification_store_parity.rs` |
+| Snooze expiry end-to-end     | `tests/notification_store/test_snooze_e2e_matrix.py`, `../sase-core/crates/sase_core/tests/notification_store_parity/`   |
 | Status helpers + planner     | `tests/test_core_facade/test_status.py`, `tests/test_core_status_lines.py`, `tests/test_core_status_wire.py`             |
 | Git query parsers            | `tests/test_core_git_query.py`                                                                                           |
 | Agent launch                 | `tests/core/test_agent_launch_*.py`, `tests/test_agent_launch_executor.py`, `tests/perf/test_agent_launch_regression.py` |
