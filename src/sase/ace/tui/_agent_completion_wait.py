@@ -481,18 +481,109 @@ def wait_dependency_status_counts(
     return WaitDependencyStatusCounts(agents=agents, beads=beads)
 
 
+def _is_unknown_agent_bucket(bucket: str | None) -> bool:
+    """Return whether an agent wait bucket counts as an unknown dependency."""
+    return bucket not in _WAIT_COUNT_FIELDS
+
+
+def _is_unknown_bead_status(status: str | None) -> bool:
+    """Return whether a bead wait status counts as an unknown dependency."""
+    return status not in _BEAD_COUNT_FIELDS
+
+
 def _increment_agent_wait_count(tally: dict[str, int], bucket: str | None) -> None:
-    if bucket in _WAIT_COUNT_FIELDS:
-        tally[bucket] += 1
-    else:
+    if _is_unknown_agent_bucket(bucket):
         tally["unknown"] += 1
+    else:
+        assert bucket is not None
+        tally[bucket] += 1
 
 
 def _increment_bead_wait_count(tally: dict[str, int], status: str | None) -> None:
-    if status in _BEAD_COUNT_FIELDS:
-        tally[status] += 1
-    else:
+    if _is_unknown_bead_status(status):
         tally["unknown"] += 1
+    else:
+        assert status is not None
+        tally[status] += 1
+
+
+def wait_dependency_unknown_targets(
+    agent: Agent,
+    status_maps: AgentWaitStatusMaps,
+    wait_bead_statuses: WaitBeadStatusSnapshot | None = None,
+) -> frozenset[tuple[str, str]]:
+    """Return stable keys for the unknown dependencies of one row.
+
+    Mirrors :func:`wait_dependency_status_counts`: tribe targets are skipped
+    and cold bead-cache misses are omitted. Keys are ``("agent", name)`` for
+    ordinary missing agents, ``("agent", "clan:label")`` for unknown clan
+    members, and ``("bead", bead_id)`` for unknown bead statuses.
+    """
+    from sase.ace.tui.models.agent_time import wait_display_agent
+
+    wait_agent = wait_display_agent(agent)
+    if (
+        not wait_agent.waiting_for
+        and not wait_agent.waiting_for_beads
+        and not wait_agent.waiting_for_hoods
+    ):
+        return frozenset()
+    unknowns: set[tuple[str, str]] = set()
+    for name in wait_agent.waiting_for:
+        if _parse_tribe_target(name) is not None:
+            continue
+        clan_targets = status_maps.clan_member_statuses.get(name)
+        if clan_targets is not None:
+            for label, bucket in clan_targets:
+                if _is_unknown_agent_bucket(bucket):
+                    unknowns.add(("agent", f"{name}:{label}"))
+            continue
+        if _is_unknown_agent_bucket(status_maps.buckets.get(name)):
+            unknowns.add(("agent", name))
+    if wait_bead_statuses is not None:
+        for bead_id in wait_agent.waiting_for_beads:
+            entry = wait_bead_statuses.entry_for(bead_id)
+            if entry is None or entry.is_cold:
+                continue
+            if _is_unknown_bead_status(entry.status):
+                unknowns.add(("bead", bead_id))
+    return frozenset(unknowns)
+
+
+def clan_unknown_wait_dependency_count(
+    clan: Agent,
+    status_maps: AgentWaitStatusMaps,
+) -> int:
+    """Return the distinct unknown-dependency count across a clan's members.
+
+    Only ``WAITING`` members contribute, mirroring the gate in
+    ``append_agent_row_status`` so the clan never shows a ``?`` that no
+    visible member explains. Members are deduplicated by identity and only
+    direct members are considered.
+    """
+    if not clan.is_clan_container:
+        return 0
+    from sase.ace.tui.models._agent_clan import clan_members
+    from sase.ace.tui.models.agent_wait_beads import (
+        cached_wait_bead_status_snapshot,
+    )
+
+    seen: set[object] = set()
+    unknowns: set[tuple[str, str]] = set()
+    for member in clan_members(clan):
+        if member.identity in seen:
+            continue
+        seen.add(member.identity)
+        if member.status != "WAITING":
+            continue
+        unknowns.update(
+            wait_dependency_unknown_targets(
+                member,
+                status_maps,
+                cached_wait_bead_status_snapshot(member),
+            )
+        )
+    return len(unknowns)
 
 
 def _agent_counts_from_tally(tally: Mapping[str, int]) -> WaitAgentStatusCounts:
@@ -528,10 +619,12 @@ __all__ = [
     "ZERO_WAIT_DEPENDENCY_STATUS_COUNTS",
     "agent_status_buckets_for_app",
     "agent_wait_status_maps_for_app",
+    "clan_unknown_wait_dependency_count",
     "collect_agent_status_buckets",
     "collect_agent_wait_status_maps",
     "has_unresolvable_wait_target",
     "missing_wait_dependency_names",
     "wait_dependency_status_counts",
+    "wait_dependency_unknown_targets",
     "wait_dependencies_satisfied",
 ]

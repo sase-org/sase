@@ -13,6 +13,10 @@ from rich.text import Text
 
 from ..agent_completion import WaitDependencyStatusCounts
 from ..agent_count_chip import format_agent_count_chip
+from ..wait_status_presentation import (
+    WAIT_UNKNOWN_GLYPH,
+    WAIT_UNKNOWN_GLYPH_STYLE,
+)
 from ..models._agent_clan import ClanStatusCounts, clan_member_counts
 from ..models.agent import Agent, AgentType, format_compact_duration
 from ..models.agent_bead import agent_has_confirmed_bead
@@ -148,6 +152,7 @@ def format_agent_option(
     wait_dependency_counts: WaitDependencyStatusCounts | None = None,
     has_unresolvable_wait_target: bool = False,
     clan_counts: ClanStatusCounts | None = None,
+    clan_unknown_wait_count: int = 0,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
     shell_lanes: ShellLaneCounts | None = None,
     show_machine_chip: bool = False,
@@ -209,6 +214,12 @@ def format_agent_option(
         if clan_chip:
             text.append(" ")
             text.append_text(clan_chip)
+        if clan_unknown_wait_count > 0:
+            text.append(" ")
+            text.append(
+                f"{WAIT_UNKNOWN_GLYPH}{clan_unknown_wait_count}",
+                style=WAIT_UNKNOWN_GLYPH_STYLE,
+            )
 
     is_container_row = agent.is_clan_container or is_sequential_family_container(agent)
     lanes = (
@@ -341,6 +352,7 @@ def cached_format_agent_option(
     wait_deps_satisfied: bool | None = None,
     wait_dependency_counts: WaitDependencyStatusCounts | None = None,
     has_unresolvable_wait_target: bool = False,
+    clan_unknown_wait_count: int = 0,
     unread_agent_ids: Collection[tuple[AgentType, str, str | None]] = (),
     show_machine_chip: bool = False,
 ) -> tuple[Text, Text, str]:
@@ -382,6 +394,7 @@ def cached_format_agent_option(
         wait_dependency_counts=wait_dependency_counts,
         has_unresolvable_wait_target=has_unresolvable_wait_target,
         clan_counts=visible_clan_counts,
+        clan_unknown_wait_count=clan_unknown_wait_count,
         unread_agent_ids=unread_agent_ids,
         shell_lanes=lanes,
         show_machine_chip=show_machine_chip,
@@ -408,6 +421,7 @@ def cached_format_agent_option(
         wait_dependency_counts=wait_dependency_counts,
         has_unresolvable_wait_target=has_unresolvable_wait_target,
         clan_counts=visible_clan_counts,
+        clan_unknown_wait_count=clan_unknown_wait_count,
         unread_agent_ids=unread_agent_ids,
         shell_lanes=lanes,
         show_machine_chip=show_machine_chip,

@@ -8,7 +8,10 @@ from typing import Any
 
 from textual.widgets.option_list import DuplicateID, Option
 
-from ..agent_completion import WaitDependencyStatusCounts
+from ..agent_completion import (
+    WaitDependencyStatusCounts,
+    clan_unknown_wait_dependency_count,
+)
 from ..models.agent import Agent, AgentType
 from ..models.agent_groups import (
     GroupRow,
@@ -21,6 +24,7 @@ from ..models.group_fold import GroupFoldView
 from ._agent_list_build_analysis import compute_tier_styles, visible_agent_indices
 from ._agent_list_build_rows import (
     agent_row_context,
+    agent_wait_status_maps_for_build,
     build_row_inputs,
     emit_tree_rows,
     format_agent_row,
@@ -231,6 +235,11 @@ def patch_row(
         if wait_dependency_counts is None
         else wait_dependency_counts
     )
+    if agent.is_clan_container:
+        wait_status_maps = agent_wait_status_maps_for_build(widget, widget._agents)
+        clan_unknown = clan_unknown_wait_dependency_count(agent, wait_status_maps)
+    else:
+        clan_unknown = 0
     # Bust the cached entry for this agent so we re-render from
     # current field values; the patch path is the only writer of
     # mid-list mutations and must not return a stale cache hit.
@@ -255,6 +264,7 @@ def patch_row(
         wait_deps_satisfied=ctx.get("wait_deps_satisfied"),
         wait_dependency_counts=counts,
         has_unresolvable_wait_target=ctx.get("has_unresolvable_wait_target", False),
+        clan_unknown_wait_count=clan_unknown,
         unread_agent_ids=effective_unread,
         show_machine_chip=bool(ctx.get("show_machine_chip", False)),
     )
@@ -274,6 +284,7 @@ def patch_row(
     ctx["is_unread"] = is_unread
     ctx["is_selected"] = sel
     ctx["wait_dependency_counts"] = counts
+    ctx["clan_unknown_wait_count"] = clan_unknown
 
     widget._programmatic_update = True
     try:

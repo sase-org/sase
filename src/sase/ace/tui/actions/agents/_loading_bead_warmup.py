@@ -227,6 +227,7 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
             *results.bead_display_results,
             *results.wait_bead_status_identities,
         }
+        patched_identities: set[tuple[AgentType, str, str | None]] = set()
         for identity in current_by_identity:
             if identity not in changed_identities:
                 continue
@@ -248,8 +249,30 @@ class AgentBeadWarmupMixin(AgentLoadingStateMixin):
                 target,
                 wait_dependency_counts=wait_counts,
             )
+            patched_identities.add(identity)
             if not patched:
                 needs_rebuild = True
+
+        if results.wait_bead_status_identities:
+            from ...models._agent_clan import clan_members
+
+            for identity, candidate in current_by_identity.items():
+                if not candidate.is_clan_container:
+                    continue
+                if identity in patched_identities:
+                    continue
+                members = clan_members(candidate)
+                if not any(
+                    member.identity in results.wait_bead_status_identities
+                    for member in members
+                ):
+                    continue
+                patched_identities.add(identity)
+                patched = self._try_patch_agent_row(  # type: ignore[attr-defined]
+                    candidate,
+                )
+                if not patched:
+                    needs_rebuild = True
 
         if needs_rebuild:
             refresh = getattr(self, "_refresh_agents_display", None)

@@ -28,11 +28,13 @@ from sase.ace.tui._agent_completion_wait import (
     ZERO_WAIT_DEPENDENCY_STATUS_COUNTS,
     agent_status_buckets_for_app,
     agent_wait_status_maps_for_app,
+    clan_unknown_wait_dependency_count,
     collect_agent_status_buckets,
     collect_agent_wait_status_maps,
     has_unresolvable_wait_target,
     missing_wait_dependency_names,
     wait_dependency_status_counts,
+    wait_dependency_unknown_targets,
     wait_dependencies_satisfied,
 )
 
@@ -54,6 +56,7 @@ __all__ = [
     "agent_status_buckets_for_app",
     "agent_wait_status_maps_for_app",
     "build_agent_completion_candidates",
+    "clan_unknown_wait_dependency_count",
     "collect_agent_status_buckets",
     "filter_agent_completion_candidates",
     "has_unresolvable_wait_target",
@@ -62,5 +65,6 @@ __all__ = [
     "status_style",
     "visible_agent_completion_agents",
     "wait_dependency_status_counts",
+    "wait_dependency_unknown_targets",
     "wait_dependencies_satisfied",
 ]

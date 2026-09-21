@@ -20,6 +20,7 @@ from textual.widgets.option_list import Option
 from ..agent_completion import (
     AgentWaitStatusMaps,
     agent_wait_status_maps_for_app,
+    clan_unknown_wait_dependency_count,
     collect_agent_wait_status_maps,
     has_unresolvable_wait_target,
     wait_dependency_status_counts,
@@ -78,7 +79,7 @@ def _agent_row_chrome_mode(agents: list[Agent]) -> bool:
     return any(getattr(agent, "fleet_origin_alias", None) for agent in agents)
 
 
-def _agent_wait_status_maps_for_build(
+def agent_wait_status_maps_for_build(
     widget: Any,
     agents: list[Agent],
 ) -> AgentWaitStatusMaps:
@@ -131,7 +132,7 @@ def build_row_inputs(
         parents_with_visible_children=parents_with_visible_children,
         fully_expanded_parents=fully_expanded_parents,
         show_machine_chip=_agent_row_chrome_mode(agents),
-        wait_status_maps=_agent_wait_status_maps_for_build(widget, agents),
+        wait_status_maps=agent_wait_status_maps_for_build(widget, agents),
         now=now,
     )
 
@@ -185,6 +186,11 @@ def agent_row_context(inputs: _RowInputs, agent: Agent, index: int) -> dict[str,
             agent,
             wait_status_maps.tribe_bindings,
         ),
+        "clan_unknown_wait_count": (
+            clan_unknown_wait_dependency_count(agent, wait_status_maps)
+            if agent.is_clan_container
+            else 0
+        ),
         "show_machine_chip": inputs.show_machine_chip,
     }
 
@@ -217,6 +223,7 @@ def format_agent_row(
         wait_deps_satisfied=ctx["wait_deps_satisfied"],
         wait_dependency_counts=ctx["wait_dependency_counts"],
         has_unresolvable_wait_target=ctx["has_unresolvable_wait_target"],
+        clan_unknown_wait_count=int(ctx.get("clan_unknown_wait_count", 0)),
         unread_agent_ids=inputs.unread,
         show_machine_chip=ctx["show_machine_chip"],
     )
@@ -365,6 +372,7 @@ def requested_panel_width(rows: _TreeRows) -> int:
 
 __all__ = [
     "agent_row_context",
+    "agent_wait_status_maps_for_build",
     "build_row_inputs",
     "emit_tree_rows",
     "format_agent_row",
