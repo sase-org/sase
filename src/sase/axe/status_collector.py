@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import replace
 from datetime import UTC, datetime, tzinfo
 from typing import cast
 
@@ -32,14 +31,12 @@ from .status_models import (
     AxeProcessObservation,
     AxeRunnerOccupancy,
     AxeStatusCollectionError,
-    AxeStatusIssue,
     AxeStatusRequest,
     AxeStatusSnapshot,
     classify_axe_status,
 )
 from ._process_probe import probe_orchestrator
 from ._process_types import AxeOrchestratorProbe
-from .systemd_scope import unsafe_axe_systemd_scope
 
 
 Clock = Callable[[], datetime]
@@ -124,32 +121,7 @@ def collect_axe_status_snapshot(
         latest_lifecycle_event=_collect_latest_lifecycle_event(now=now),
         collection_error=None,
     )
-    snapshot = classify_axe_status(request)
-    return _with_systemd_scope_issue(snapshot, pid=probe.running_pid)
-
-
-def _with_systemd_scope_issue(
-    snapshot: AxeStatusSnapshot,
-    *,
-    pid: int | None,
-) -> AxeStatusSnapshot:
-    """Add host-specific scope isolation evidence to a classified snapshot."""
-    if pid is None:
-        return snapshot
-    scope = unsafe_axe_systemd_scope(pid)
-    if scope is None:
-        return snapshot
-    issue = AxeStatusIssue(
-        code="orchestrator_session_scope",
-        severity="warning",
-        subject=str(pid),
-        summary=(
-            f"Orchestrator PID {pid} is in {scope} and will be killed when its "
-            "launching pane or session closes."
-        ),
-        suggested_command="sase axe restart",
-    )
-    return replace(snapshot, issues=(*snapshot.issues, issue))
+    return classify_axe_status(request)
 
 
 def _default_clock() -> datetime:

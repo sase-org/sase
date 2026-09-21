@@ -225,7 +225,6 @@ def test_doctor_registry_includes_phase4_catalog_checks(tmp_path) -> None:
         "plugins.github",
         "axe.jobs",
         "axe.health",
-        "axe.systemd_scope",
         "axe.external_mirror",
         "project.duplicate_patch_blocks",
         "project.current",

@@ -339,7 +339,6 @@ def test_routine_job_upgrade_contract_exercises_public_and_legacy_paths(
         "read_recent_lifecycle_events",
         lambda *, limit: [],
     )
-    monkeypatch.setattr(status_collector, "unsafe_axe_systemd_scope", lambda _pid: None)
 
     snapshot = status_collector.collect_axe_status_snapshot(
         clock=lambda: datetime(2026, 9, 16, 12, 0, tzinfo=UTC)
