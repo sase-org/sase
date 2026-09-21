@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import shlex
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 from textual.markup import escape
 
-from sase.ace.update_receipt import ProviderUpdateReceiptResult
+if TYPE_CHECKING:
+    from sase.ace.update_receipt import ProviderUpdateReceiptResult
 
 
 def provider_result_lines(

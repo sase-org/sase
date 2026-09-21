@@ -9,7 +9,6 @@ from functools import partial
 from typing import TYPE_CHECKING, Any, cast
 
 from sase.config.core import load_merged_config
-from sase.dev_update.prebuild import schedule_rust_prebuild
 from sase.updates import (
     UpdateStatus,
     fetch_incoming_commits,
@@ -424,7 +423,20 @@ def _build_startup_toast_sections(
 
 
 _fetch_incoming_commits = fetch_incoming_commits
-_schedule_rust_prebuild = schedule_rust_prebuild
+
+
+def _schedule_rust_prebuild(status: Any, config: Any) -> bool:
+    """Launch one detached Rust prebuild producer for the editable core.
+
+    Imported lazily so the TUI app startup closure does not pull the
+    dev-update prebuild graph (import budget); tests keep patching this
+    module attribute as before.
+    """
+    from sase.dev_update.prebuild import schedule_rust_prebuild
+
+    return bool(schedule_rust_prebuild(status, config))
+
+
 _refresh_running_code_state = refresh_running_code_state
 
 

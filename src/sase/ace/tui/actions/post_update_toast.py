@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 from textual.markup import escape
-
-from sase.ace.update_receipt import (
-    UpdateToastReceipt,
-    UpdateVersionTransition,
-    read_and_clear_pending_update_toast,
-)
-from sase.dev_update.models import RepoDiffStat
 
 from ..modals.config_center_modal import center_tab_accent
 from . import update_toast
 from ._update_provider_toast_lines import provider_result_lines
+
+if TYPE_CHECKING:
+    from sase.ace.update_receipt import UpdateToastReceipt, UpdateVersionTransition
+    from sase.dev_update.models import RepoDiffStat
 
 log = logging.getLogger(__name__)
 
@@ -40,6 +38,8 @@ class PostUpdateToastMixin:
         installs and, worse, during headless tests that never see this receipt).
         """
         try:
+            from sase.ace.update_receipt import read_and_clear_pending_update_toast
+
             receipt = read_and_clear_pending_update_toast()
         except Exception:
             log.debug("Failed to consume pending update toast", exc_info=True)

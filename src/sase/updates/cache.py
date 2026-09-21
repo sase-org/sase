@@ -19,7 +19,6 @@ from sase.agent_clis.operations import (
     plan_agent_cli_status,
 )
 from sase.core.paths import ensure_sase_directory, sase_subdir
-from sase.dev_update.detect import git_status_has_update
 from sase.plugins.latest import is_newer
 from sase.version._git import GitUpstreamStatus, classify_git_upstream
 
@@ -544,6 +543,10 @@ def _editable_component_still_outdated(
         return True
     except Exception:  # noqa: BLE001 - conservative cache revalidation.
         return True
+    # Imported lazily so the TUI app startup closure does not pull the
+    # dev-update graph (import budget).
+    from sase.dev_update.detect import git_status_has_update
+
     return git_status_has_update(status)
 
 

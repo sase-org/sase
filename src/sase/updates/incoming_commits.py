@@ -9,13 +9,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-from sase.dev_update.models import DevUpdateRootPlan
 from sase.github_cli import gh_api_json
 from sase.plugins.catalog import PluginCatalogEntry
 from sase.plugins.github_source import GH_TIMEOUT_SECONDS
 from sase.uv_tool.versions import CorePackageVersion
 
 if TYPE_CHECKING:
+    from sase.dev_update.models import DevUpdateRootPlan
     from sase.updates.status import OutdatedComponent
 
 CommitSource = Literal["git", "github", "unavailable"]

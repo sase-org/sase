@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sase.ace.update_scope import UpdateLeg, UpdateScope
 from sase.agent_clis.models import (
@@ -12,7 +12,8 @@ from sase.agent_clis.models import (
     UpdateStrategy,
 )
 
-from .plugins_browser_dev_update import DevUpdatePreview
+if TYPE_CHECKING:
+    from .plugins_browser_dev_update import DevUpdatePreview
 
 
 @dataclass(frozen=True)

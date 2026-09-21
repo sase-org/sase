@@ -3,41 +3,53 @@
 from __future__ import annotations
 
 import time
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from sase.ace.comprehensive_update import ComprehensiveUpdateResult
-from sase.ace.tui.modals.plugin_action_confirm_modal import (
-    PluginActionConfirmModal,
-    PluginActionConfirmResult,
-    PluginActionVariant,
-)
-from sase.ace.tui.modals.plugins_browser_comprehensive_update_execution import (
-    comprehensive_update_summary,
-    run_scoped_update,
-    scoped_preview_cl_name,
-    scoped_update_proc_names,
-)
-from sase.ace.tui.modals.plugins_browser_comprehensive_update_models import (
-    ComprehensiveUpdatePreview,
-    ComprehensiveUpdateRequest,
-    error_text,
-)
-from sase.ace.tui.modals.plugins_browser_comprehensive_update_preview import (
-    build_comprehensive_update_preview,
-    comprehensive_confirm_copy,
-    comprehensive_preview_sections,
-    handle_comprehensive_noop,
-)
-from sase.ace.tui.modals.update_panel import UpdatePanel
-from sase.ace.tui.update_panel_state import build_update_panel_state
-from sase.ace.tui.update_preview_inputs import collect_update_preview_inputs
-from sase.ace.tui.session_proc_reporter import SessionProcReporter
-from sase.ace.tui.update_restart import restart_after_update
-from sase.ace.update_receipt import build_update_receipt, write_pending_update_toast
 from sase.ace.update_scope import UpdateLeg
 
-from ._update_completion_toast import COMPLETION_TOAST_TIMEOUT_SECONDS, completion_toast
 from .proc_actions import TrackedProcCompletion, TrackedProcResult
+
+# Heavy update-flow modules stay out of the TUI app startup closure (import
+# budget): runtime uses below import them at their use sites, following the
+# heap/perf precedent, with TYPE_CHECKING imports preserving typing.
+
+if TYPE_CHECKING:
+    from sase.ace.comprehensive_update import ComprehensiveUpdateResult
+    from sase.ace.tui.modals.plugin_action_confirm_modal import (
+        PluginActionConfirmModal,
+        PluginActionConfirmResult,
+        PluginActionVariant,
+    )
+    from sase.ace.tui.modals.plugins_browser_comprehensive_update_execution import (
+        comprehensive_update_summary,
+        run_scoped_update,
+        scoped_preview_cl_name,
+        scoped_update_proc_names,
+    )
+    from sase.ace.tui.modals.plugins_browser_comprehensive_update_models import (
+        ComprehensiveUpdatePreview,
+        ComprehensiveUpdateRequest,
+        error_text,
+    )
+    from sase.ace.tui.modals.plugins_browser_comprehensive_update_preview import (
+        build_comprehensive_update_preview,
+        comprehensive_confirm_copy,
+        comprehensive_preview_sections,
+        handle_comprehensive_noop,
+    )
+    from sase.ace.tui.modals.update_panel import UpdatePanel
+    from sase.ace.tui.session_proc_reporter import SessionProcReporter
+    from sase.ace.tui.update_panel_state import build_update_panel_state
+    from sase.ace.tui.update_preview_inputs import collect_update_preview_inputs
+    from sase.ace.tui.update_restart import restart_after_update
+    from sase.ace.update_receipt import (
+        build_update_receipt,
+        write_pending_update_toast,
+    )
+    from ._update_completion_toast import (
+        COMPLETION_TOAST_TIMEOUT_SECONDS,
+        completion_toast,
+    )
 
 
 class UpdateRunActionsMixin:
@@ -45,6 +57,8 @@ class UpdateRunActionsMixin:
 
     def on_update_panel_recheck_requested(self, event: object) -> None:
         """Re-run the existing periodic checks and mark the open panel busy."""
+        from sase.ace.tui.modals.update_panel import UpdatePanel
+
         if not isinstance(event, UpdatePanel.RecheckRequested):
             return
         self._refresh_open_update_panel(rechecking=True)
@@ -54,6 +68,9 @@ class UpdateRunActionsMixin:
 
     def _refresh_open_update_panel(self, *, rechecking: bool | None = None) -> None:
         """Rebuild the active Update panel from cached snapshots; otherwise no-op."""
+        from sase.ace.tui.modals.update_panel import UpdatePanel
+        from sase.ace.tui.update_panel_state import build_update_panel_state
+
         try:
             screen = self.screen  # type: ignore[attr-defined]
         except Exception:
@@ -73,9 +90,21 @@ class UpdateRunActionsMixin:
 
     def _submit_update_preview_proc(self, request: ComprehensiveUpdateRequest) -> bool:
         """Submit a read-only planning proc for the selected update scope."""
+        from sase.ace.tui.modals.plugins_browser_comprehensive_update_execution import (
+            scoped_preview_cl_name,
+        )
+
         cached_status = getattr(self, "_automatic_update_status", None)
 
         def task() -> TrackedProcResult[ComprehensiveUpdatePreview]:
+            from sase.ace.tui.modals.plugins_browser_comprehensive_update_models import (
+                error_text,
+            )
+            from sase.ace.tui.modals.plugins_browser_comprehensive_update_preview import (
+                build_comprehensive_update_preview,
+            )
+            from sase.ace.tui.update_preview_inputs import collect_update_preview_inputs
+
             try:
                 inputs = collect_update_preview_inputs(
                     cached_status=cached_status,
@@ -128,6 +157,15 @@ class UpdateRunActionsMixin:
             self._submit_scoped_update_task(preview)
             return
 
+        from sase.ace.tui.modals.plugin_action_confirm_modal import (
+            PluginActionConfirmModal,
+            PluginActionVariant,
+        )
+        from sase.ace.tui.modals.plugins_browser_comprehensive_update_preview import (
+            comprehensive_confirm_copy,
+            comprehensive_preview_sections,
+        )
+
         title, intro, panel_title = comprehensive_confirm_copy(preview.request.scope)
         modal = PluginActionConfirmModal(
             title=title,
@@ -153,14 +191,26 @@ class UpdateRunActionsMixin:
         self.push_screen(modal, _on_confirmed)  # type: ignore[attr-defined]
 
     def _handle_comprehensive_noop(self, preview: ComprehensiveUpdatePreview) -> None:
+        from sase.ace.tui.modals.plugins_browser_comprehensive_update_preview import (
+            handle_comprehensive_noop,
+        )
+
         handle_comprehensive_noop(preview, notify=self._notify)
 
     def _submit_scoped_update_task(self, preview: ComprehensiveUpdatePreview) -> bool:
         """Submit exactly one task claiming all update mutation scopes."""
+        from sase.ace.tui.modals.plugins_browser_comprehensive_update_execution import (
+            scoped_update_proc_names,
+        )
 
         def task(
             reporter: SessionProcReporter,
         ) -> TrackedProcResult[ComprehensiveUpdateResult]:
+            from sase.ace.tui.modals.plugins_browser_comprehensive_update_execution import (
+                comprehensive_update_summary,
+                run_scoped_update,
+            )
+
             uv_tool = None
             if UpdateLeg.SASE in preview.selected_legs:
                 from sase.ace.tui.modals.plugins_browser_loading import probe_uv_tool
@@ -204,6 +254,18 @@ class UpdateRunActionsMixin:
         if callable(refresh):
             refresh()
 
+        from sase.ace.tui.actions._update_completion_toast import (
+            COMPLETION_TOAST_TIMEOUT_SECONDS,
+            completion_toast,
+        )
+        from sase.ace.tui.modals.plugins_browser_comprehensive_update_execution import (
+            comprehensive_update_summary,
+        )
+        from sase.ace.update_receipt import (
+            build_update_receipt,
+            write_pending_update_toast,
+        )
+
         result = completion.payload
         if result is None:
             self._notify(
@@ -230,6 +292,8 @@ class UpdateRunActionsMixin:
         )
 
     def _restart_after_update(self, message: str) -> None:
+        from sase.ace.tui.update_restart import restart_after_update
+
         restart_after_update(self, message, notify=self._notify)
 
     def _notify(

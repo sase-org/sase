@@ -378,11 +378,11 @@ def test_code_changed_result_restarts(
     written: list[object] = []
     receipt = object()
     monkeypatch.setattr(
-        "sase.ace.tui.actions.update_run.build_update_receipt",
+        "sase.ace.update_receipt.build_update_receipt",
         lambda _result: receipt,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.actions.update_run.write_pending_update_toast",
+        "sase.ace.update_receipt.write_pending_update_toast",
         written.append,
     )
     harness = _Harness()
@@ -409,11 +409,11 @@ def test_code_changed_result_restarts_immediately_with_monitor_shell(
     written: list[object] = []
     receipt = object()
     monkeypatch.setattr(
-        "sase.ace.tui.actions.update_run.build_update_receipt",
+        "sase.ace.update_receipt.build_update_receipt",
         lambda _result: receipt,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.actions.update_run.write_pending_update_toast",
+        "sase.ace.update_receipt.write_pending_update_toast",
         written.append,
     )
     monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
@@ -446,11 +446,11 @@ def test_code_changed_result_waits_for_telegram_receiver_like_ordinary_proc(
     written: list[object] = []
     receipt = object()
     monkeypatch.setattr(
-        "sase.ace.tui.actions.update_run.build_update_receipt",
+        "sase.ace.update_receipt.build_update_receipt",
         lambda _result: receipt,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.actions.update_run.write_pending_update_toast",
+        "sase.ace.update_receipt.write_pending_update_toast",
         written.append,
     )
     monkeypatch.setattr("sase.ace.tui.update_restart.time.monotonic", lambda: 100.0)
@@ -558,11 +558,11 @@ def test_preview_proc_body_collects_inputs_then_builds_preview(
         return preview
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.update_run.collect_update_preview_inputs",
+        "sase.ace.tui.update_preview_inputs.collect_update_preview_inputs",
         collect,
     )
     monkeypatch.setattr(
-        "sase.ace.tui.actions.update_run.build_comprehensive_update_preview",
+        "sase.ace.tui.modals.plugins_browser_comprehensive_update_preview.build_comprehensive_update_preview",
         build,
     )
     harness = _Harness()

@@ -13,10 +13,8 @@ import dataclasses
 import importlib.metadata as importlib_metadata
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
-from sase.dev_update.detect import detect_dev_latest
-from sase.dev_update.models import DevLatest
 from sase.version.inventory import CORE_DISTRIBUTION_NAME, HOST_DISTRIBUTION_NAME
 from sase.version.inventory import (
     VersionPackageRecord,
@@ -27,6 +25,10 @@ VersionFn = Callable[[str], str | None]
 FetchLatestFn = Callable[[str], str | None]
 IsNewerFn = Callable[[str | None, str | None], bool]
 VersionRecordsFn = Callable[[], Sequence[VersionPackageRecord]]
+
+
+if TYPE_CHECKING:
+    from sase.dev_update.models import DevLatest
 
 
 class _DetectDevLatestFn(Protocol):
@@ -101,9 +103,15 @@ def enrich_core_versions_latest(
     fetch_fn: FetchLatestFn,
     is_newer: IsNewerFn,
     version_records_fn: VersionRecordsFn | None = _runtime_core_records,
-    detect_dev_latest_fn: _DetectDevLatestFn = detect_dev_latest,
+    detect_dev_latest_fn: _DetectDevLatestFn | None = None,
 ) -> CoreVersions:
     """Return *versions* with best-effort latest-version metadata attached."""
+    if detect_dev_latest_fn is None:
+        # Imported lazily so the TUI app startup closure does not pull the
+        # dev-update graph (import budget); only editable installs need it.
+        from sase.dev_update.detect import detect_dev_latest as _detect_dev_latest
+
+        detect_dev_latest_fn = _detect_dev_latest
     records = _record_lookup(_safe_version_records(version_records_fn))
 
     enriched: list[CorePackageVersion] = []

@@ -141,8 +141,7 @@ def test_post_update_toast_formats_update_confirmation(
             self.calls.append({"message": message, **kwargs})
 
     monkeypatch.setattr(
-        post_update_toast,
-        "read_and_clear_pending_update_toast",
+        "sase.ace.update_receipt.read_and_clear_pending_update_toast",
         lambda: _receipt(),
     )
     monkeypatch.setattr(
@@ -441,8 +440,7 @@ def test_post_update_toast_absent_receipt_does_nothing(
             self.calls += 1
 
     monkeypatch.setattr(
-        post_update_toast,
-        "read_and_clear_pending_update_toast",
+        "sase.ace.update_receipt.read_and_clear_pending_update_toast",
         lambda: None,
     )
     app = _App()

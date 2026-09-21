@@ -9,9 +9,6 @@ from sase.ace.update_scope import UpdateScope
 from sase.project_display_names import humanize_cl_name
 
 from ..modals import WorkflowSelectModal
-from ..modals.plugins_browser_comprehensive_update_models import (
-    ComprehensiveUpdateRequest,
-)
 from ..modals.update_panel import UpdatePanel, UpdatePanelResult
 from ..update_panel_state import build_update_panel_state
 from ..update_restart import restart_after_update_when_ready
@@ -210,6 +207,10 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
         auto_approve: bool = False,
     ) -> bool:
         """Submit one scoped update request from the cached provider projection."""
+        from ..modals.plugins_browser_comprehensive_update_models import (
+            ComprehensiveUpdateRequest,
+        )
+
         submit = getattr(self, "_submit_update_preview_proc", None)
         if not callable(submit):
             return False

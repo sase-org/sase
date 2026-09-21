@@ -11,8 +11,6 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
-from sase.dev_update.detect import detect_dev_latest
-from sase.dev_update.models import DevLatest
 from sase.plugins.latest_cache import (
     CachedLatest,
     is_fresh,
@@ -28,6 +26,7 @@ from sase.version.inventory import (
 )
 
 if TYPE_CHECKING:
+    from sase.dev_update.models import DevLatest
     from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 
 LatestSource = Literal["index", "git", "editable", "unknown"]
@@ -151,7 +150,7 @@ def enrich_entry_latest(
     clock: ClockFn = time.time,
     installed_source_fn: InstalledSourceFn | None = None,
     version_records_fn: VersionRecordsFn | None = _runtime_version_records,
-    detect_dev_latest_fn: _DetectDevLatestFn = detect_dev_latest,
+    detect_dev_latest_fn: _DetectDevLatestFn | None = None,
     max_workers: int = 1,
     deadline_seconds: float | None = _FETCH_DEADLINE_SECONDS,
     monotonic: ClockFn = time.monotonic,
@@ -199,7 +198,7 @@ def enrich_with_latest(
     clock: ClockFn = time.time,
     installed_source_fn: InstalledSourceFn | None = None,
     version_records_fn: VersionRecordsFn | None = _runtime_version_records,
-    detect_dev_latest_fn: _DetectDevLatestFn = detect_dev_latest,
+    detect_dev_latest_fn: _DetectDevLatestFn | None = None,
     max_workers: int = _MAX_WORKERS,
     scope: EagerScope | None = None,
     include_keys: Sequence[str] = (),
@@ -219,6 +218,12 @@ def enrich_with_latest(
     installed_source_fn = (
         _installed_source if installed_source_fn is None else installed_source_fn
     )
+    if detect_dev_latest_fn is None:
+        # Imported lazily so the TUI app startup closure does not pull the
+        # dev-update graph (import budget); only editable installs need it.
+        from sase.dev_update.detect import detect_dev_latest as _detect_dev_latest
+
+        detect_dev_latest_fn = _detect_dev_latest
     eager_scope = _resolve_eager_scope(scope)
     include = {normalize_distribution_name(key) for key in include_keys if key} - {""}
     cached = _safe_read_cache(read_cache_fn)
