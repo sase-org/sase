@@ -1697,12 +1697,14 @@ sase's TUI Launch Control shows the launch-effective default in its header
 top-bar launch-default pill shows the same launch-effective default as
 `<shortest %model value>[@<effort>]` (for example `grok-4.6@high`, or `codex/o3@high`
 when the bare model name does not unambiguously name its provider), omitting the suffix
-when that value is unset; its hover tooltip keeps `PROVIDER(model)`. An active temporary
-value carries an override countdown plus an annotation for the underlying configured
-value. Alias-borne effort appears only on rows that explicitly pin or inherit a suffix,
-beside the provider/model badge; the description strip compares it with the current
-effective default. For pools, each member keeps its own suffix in the member list and
-the row badge reflects the next selected member.
+when that value is unset. The pill is toned with the launch default's provider — the
+model in that provider's model hue and the `@<effort>` suffix in a recessive tone from
+the same hue family — while its hover tooltip keeps the unchanged `PROVIDER(model)`
+form. An active temporary value carries an override countdown plus an annotation for the
+underlying configured value. Alias-borne effort appears only on rows that explicitly pin
+or inherit a suffix, beside the provider/model badge; the description strip compares it
+with the current effective default. For pools, each member keeps its own suffix in the
+member list and the row badge reflects the next selected member.
 
 Press `Ctrl+E` in Launch Control for the global default-effort workflow. `e` opens a
 permanent Edit and `o` opens a temporary Override; when an override is active, `x`

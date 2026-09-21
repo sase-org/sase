@@ -4080,22 +4080,31 @@ expiry details, or click it to open Launch Control.
 When no override is active, the same top-bar pill instead names the current launch
 default — the smallest `%model` value that would pin this exact target (a bare model
 name such as `grok-4.6` when the model unambiguously names its provider, otherwise the
-explicit `codex/o3` form) plus the optional `[@<effort>]` suffix, in a calmer dim-cyan
-tone — and stays live for the whole sase's TUI session. A model alias is never used as
-the pill's subject, since an alias may be a rotating pool rather than one concrete
-model. The optional `@<effort>` suffix is the launch-effective default a no-`%model` /
-no-`%effort` prompt will actually receive (alias-borne effort, a temporary
-default-effort override, or `llm_provider.default_effort`); it is omitted when that
-value is unset. If `llm_provider.default_model` (directly or through a referenced alias,
-such as the shipped `@large`) is a load-balanced `|` pool, the pill follows the pool's
-round-robin cursor as it advances: a launch consumes one member, and within a few
-seconds the pill flips to name whichever member runs next. It never resolves on the UI
-thread and never advances the cursor itself — it only reflects state that a real launch
-already changed. Hover the pill for a
+explicit `codex/o3` form) plus the optional `[@<effort>]` suffix, with no background
+accent — and stays live for the whole sase's TUI session. The label is toned with the
+launch default's provider: the model name takes the provider's model hue (the same one
+the model picker uses, for example Grok cyan, Claude amber, or Codex mint) and the
+`@<effort>` suffix takes a recessive tone from the same hue family, so the two-tone
+shape matches the override pills. Provider hue is the calm lane's identity axis, while
+the override lanes keep their gold and violet accents for the override meaning. While
+the default is still resolving (`...`) or unavailable, the pill keeps a neutral dim-cyan
+tone rather than guessing a provider. A model alias is never used as the pill's subject,
+since an alias may be a rotating pool rather than one concrete model. The optional
+`@<effort>` suffix is the launch-effective default a no-`%model` / no-`%effort` prompt
+will actually receive (alias-borne effort, a temporary default-effort override, or
+`llm_provider.default_effort`); it is omitted when that value is unset. If
+`llm_provider.default_model` (directly or through a referenced alias, such as the
+shipped `@large`) is a load-balanced `|` pool, the pill follows the pool's round-robin
+cursor as it advances: a launch consumes one member, and within a few seconds the pill
+flips to name whichever member runs next. For a cross-provider `|` pool the pill's hue
+flips with it, so the color tells you which provider the _next_ launch will actually
+hit. It never resolves on the UI thread and never advances the cursor itself — it only
+reflects state that a real launch already changed. Hover the pill for a
 `<alias> rotates across N models; PROVIDER(model)[@<effort>] is next` line whenever the
 default routes through such a pool. The tooltip deliberately keeps the
 provider-qualified `PROVIDER(model)` form: the pill is the width-constrained surface and
-stays compact, so hovering is how you see which provider the launch default resolves to.
+stays compact, and color is never the only carrier of the provider, so hovering is the
+authoritative confirmation of which provider the launch default resolves to.
 
 Overrides do not displace explicit launch intent: explicit prompt directives
 (`%model:codex/o3`, `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit

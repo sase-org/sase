@@ -10,6 +10,7 @@ from rich.text import Text
 from textual.worker import WorkerState
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.provider_styles import provider_text_palette
 from sase.ace.tui.widgets import llm_override_indicator as indicator_module
 from sase.ace.tui.widgets._override_pill import format_remaining_until
 from sase.ace.tui.widgets.llm_override_indicator import LLMOverrideIndicator
@@ -137,7 +138,7 @@ def test_inactive_renders_default_model(monkeypatch: pytest.MonkeyPatch) -> None
     text = LLMOverrideIndicator._build_content()
 
     assert text.plain == " gpt-5.6-sol "
-    assert "cyan" in str(text.style)
+    assert text.style == provider_text_palette("codex").subject_style
 
 
 def test_active_override_skips_default_resolution(
@@ -595,7 +596,7 @@ def test_calm_default_renders_configured_effort(
     text = LLMOverrideIndicator._build_content()
 
     assert text.plain == " o3@high "
-    assert "cyan" in str(text.style)
+    assert text.style == provider_text_palette("codex").subject_style
 
 
 def test_alias_borne_effort_wins_over_configured_default(
@@ -696,12 +697,13 @@ def test_cached_default_content_appends_effort() -> None:
         member_count=0,
         effort="high",
         directive_label="o3",
+        palette=provider_text_palette("codex"),
     )
 
     text = indicator._build_cached_default_content()
 
     assert text.plain == " o3@high "
-    assert "cyan" in str(text.style)
+    assert text.style == provider_text_palette("codex").subject_style
 
 
 def test_pill_uses_bare_directive_label_while_tooltip_keeps_provider_form() -> None:

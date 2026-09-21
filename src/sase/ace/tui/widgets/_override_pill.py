@@ -1,9 +1,13 @@
-"""Shared rendering grammar for ACE top-bar model-override pills.
+"""Shared rendering grammar for ACE top-bar model pills.
 
-Both lanes render ``<subject>[@<effort>] <time>`` over a lane-specific accent:
-gold for the ``default`` launch lane and violet for every other alias. Subjects
-use the primary foreground while effort and trailing state use a recessive,
-contrast-safe secondary foreground.
+Every pill renders ``<subject>[@<effort>] <trailing>`` in two tones: the subject
+takes a primary foreground while effort and trailing state take a recessive
+secondary one. The override lanes are one kind of pill: they render over a
+lane-specific accent background -- gold for the ``default`` launch lane and
+violet for every other alias -- with contrast-safe foregrounds. The calm
+launch-default pill carries no background; its foregrounds are the provider's
+own hues instead, so lane accents encode override *state* while provider hue
+encodes *identity*.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ from dataclasses import dataclass
 
 from rich.text import Text
 
+from sase.ace.tui.provider_styles import ProviderTextPalette
 from sase.llm_provider.registry import format_provider_model_label
 from sase.llm_provider.temporary_override import TemporaryLLMOverride
 
@@ -112,4 +117,26 @@ def build_override_pill(
     if effort:
         text.append(f"@{effort}", style=palette.secondary_style)
     text.append(f" {trailing} ", style=palette.secondary_style)
+    return text
+
+
+def build_calm_default_pill(
+    *,
+    subject: str,
+    effort: str | None,
+    palette: ProviderTextPalette,
+) -> Text:
+    """Build the backgroundless ``<subject>[@<effort>]`` launch-default pill.
+
+    Mirrors :func:`build_override_pill` -- subject, then ``@<effort>``, then the
+    trailing pad -- but takes its two tones from a provider palette instead of a
+    lane accent. The padding shares the subject style so ``Text.style`` stays
+    meaningful; with no background it is invisible either way. ``subject`` is
+    the shortest ``%model`` spelling of the launch default; the tooltip keeps
+    the provider-qualified ``PROVIDER(model)`` form.
+    """
+    text = Text(f" {subject}", style=palette.subject_style)
+    if effort:
+        text.append(f"@{effort}", style=palette.detail_style)
+    text.append(" ", style=palette.subject_style)
     return text

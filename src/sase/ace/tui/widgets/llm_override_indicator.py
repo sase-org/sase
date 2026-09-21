@@ -9,6 +9,7 @@ from rich.text import Text
 from textual.widgets import Static
 from textual.worker import Worker, WorkerState
 
+from sase.ace.tui.provider_styles import ProviderTextPalette, provider_text_palette
 from sase.llm_provider.config import resolve_effective_effort
 from sase.llm_provider.launch_default_peek import peek_launch_default_change_token
 from sase.llm_provider.model_directive_label import format_model_directive_label
@@ -27,6 +28,7 @@ from sase.xprompt.directives import PromptDirectives
 
 from ._override_pill import (
     DEFAULT_LANE_PALETTE,
+    build_calm_default_pill,
     build_override_pill,
     format_pill_remaining,
     format_tooltip_remaining,
@@ -34,7 +36,13 @@ from ._override_pill import (
 )
 
 _ACTIVE_STYLE = DEFAULT_LANE_PALETTE.base_style
+# Neutral tone for the calm lane's unresolved states (and the no-snapshot
+# fallback): the pill must never guess a provider hue before resolution lands.
 _DEFAULT_STYLE = "dim cyan"
+_NEUTRAL_DEFAULT_PALETTE = ProviderTextPalette(
+    subject_style=_DEFAULT_STYLE,
+    detail_style=_DEFAULT_STYLE,
+)
 _PLACEHOLDER_TEXT = " ... "
 _UNAVAILABLE_TEXT = " unavailable "
 _DEFAULT_WORKER_GROUP = "llm-indicator-default"
@@ -58,6 +66,7 @@ class _LaunchDefaultSnapshot:
     member_count: int
     effort: str | None = None
     directive_label: str | None = None
+    palette: ProviderTextPalette | None = None
 
 
 class LLMOverrideIndicator(Static):
@@ -171,6 +180,9 @@ class LLMOverrideIndicator(Static):
                 directive_label=format_model_directive_label(
                     snapshot.provider, snapshot.model
                 ),
+                # Resolved here, not at render time: the first palette lookup
+                # walks plugin metadata, which must never land on the UI thread.
+                palette=provider_text_palette(snapshot.provider),
             )
 
         self.run_worker(
@@ -209,8 +221,12 @@ class LLMOverrideIndicator(Static):
             subject = None if snapshot is None else snapshot.directive_label
             if not subject:
                 subject = format_provider_model_label(*self._cached_default)
-            label = _format_default_label(subject, effort)
-            return Text(f" {label} ", style=_DEFAULT_STYLE)
+            palette = None if snapshot is None else snapshot.palette
+            return build_calm_default_pill(
+                subject=subject,
+                effort=effort,
+                palette=palette or _NEUTRAL_DEFAULT_PALETTE,
+            )
         if self._cached_default_failed:
             return Text(_UNAVAILABLE_TEXT, style=_DEFAULT_STYLE)
         return Text(_PLACEHOLDER_TEXT, style=_DEFAULT_STYLE)
@@ -310,22 +326,11 @@ class LLMOverrideIndicator(Static):
                 snapshot.effort,
             )
             subject = format_model_directive_label(snapshot.provider, snapshot.model)
+            palette = provider_text_palette(snapshot.provider)
         except Exception:
             return Text(_UNAVAILABLE_TEXT, style=_DEFAULT_STYLE)
 
-        label = _format_default_label(subject, level)
-        return Text(f" {label} ", style=_DEFAULT_STYLE)
-
-
-def _format_default_label(subject: str, effort: str | None) -> str:
-    """Render the compact calm-default pill, with optional ``@effort``.
-
-    ``subject`` is the shortest ``%model`` spelling of the launch default; the
-    tooltip keeps the provider-qualified ``PROVIDER(model)`` form.
-    """
-    if effort:
-        return f"{subject}@{effort}"
-    return subject
+        return build_calm_default_pill(subject=subject, effort=level, palette=palette)
 
 
 def _format_default_tooltip_label(provider: str, model: str, effort: str | None) -> str:
