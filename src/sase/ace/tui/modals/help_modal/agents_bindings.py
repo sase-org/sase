@@ -110,7 +110,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.agents_retry), "Retry local or remote agent"),
                 (
                     d(a.accept_proposal),
-                    "Auto-approve / answer local or remote attention",
+                    "Toggle %auto / answer local or remote attention",
                 ),
                 (d(a.rename_cl), "Name agent"),
                 (d(a.edit_hooks), "Fork local or remote agent"),

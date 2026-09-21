@@ -63,8 +63,6 @@ _LAZY_EXPORTS = {
         ".artifact_links_panel_modal",
         "ArtifactLinksPanelResult",
     ),
-    "AutoApproveChoice": (".auto_approve_modal", "AutoApproveChoice"),
-    "AutoApproveModal": (".auto_approve_modal", "AutoApproveModal"),
     "AxeAddChooserModal": (".axe_add_modals", "AxeAddChooserModal"),
     "AxeAddKind": (".axe_add_modals", "AxeAddKind"),
     "AxeEntryEditorModal": (".axe_entry_editor_modal", "AxeEntryEditorModal"),

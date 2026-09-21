@@ -463,11 +463,18 @@ class KeybindingBindingsMixin:
             if agent.agent_name:
                 bindings.append((self._kd("add_tag"), "new w/ wait"))
             if agent.status in AUTO_APPROVE_ELIGIBLE_STATUSES:
-                # ``accept_proposal`` now always opens the Auto-Approve menu on
-                # eligible agents (it replaced the old 3-state cycle), so the
-                # footer shows one stable ``auto-approve`` label regardless of
-                # the agent's current auto-approval state.
-                bindings.append((self._kd("accept_proposal"), "auto-approve"))
+                # ``accept_proposal`` toggles bare ``%auto`` on eligible
+                # agents, so the footer names what the key will do.
+                auto_on = bool(
+                    getattr(agent, "approve", False)
+                    or getattr(agent, "auto_approve_plan_action", None)
+                )
+                bindings.append(
+                    (
+                        self._kd("accept_proposal"),
+                        "unapprove" if auto_on else "auto-approve",
+                    )
+                )
 
         # Name agent (not available for done/failed agents)
         if agent.status not in ("DONE", "FAILED"):

@@ -1305,7 +1305,7 @@ a warning rather than landing somewhere stale.
 | `!R`                | Revive a previously dismissed agent                                                                             |
 | `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                  |
 | `+`                 | Run custom agent                                                                                                |
-| `A`                 | Open auto-approve menu / answer HITL                                                                            |
+| `A`                 | Toggle bare `%auto` plan auto-approval / answer HITL                                                            |
 | `F`                 | Prepare a fork of the selected agent/family, proc shell, monitor, clan container, or focused named tribe panel  |
 | `n`                 | Name agent                                                                                                      |
 | `r`                 | Refresh the Agents tab, or open the Refresh panel when that panel is enabled                                    |
@@ -5301,18 +5301,18 @@ schema before consuming the approval; failures surface an error and keep the
 notification actionable. CLI rejection also attempts the durable planner cleanup used by
 no-feedback TUI rejection.
 
-For active Agents-tab rows, `A` opens the **Auto-Approve menu**, a single-key modal that
-configures how the agent's _next_ submitted plan is auto-approved. The agent's current
-state is marked with `▸`; pressing `p` (Plan — approve the plan as-is), `t` (Tale —
-approve and commit as a tale), `e` (Epic — approve and commit as an epic), or `d`
-(Disable — turn off auto-approval) applies the change immediately, while `esc`/`q`
-cancels. The selected state shows on the agent row as a `⚡` (plan), `⚡T` (tale), or
-`⚡E` (epic) icon. For plan submissions, these choices correspond to the plan-adapter
-behavior of `%auto`, `%auto:tale`, and `%auto:epic` respectively — for example, epic
-auto-approve accepts the next submitted plan as an epic, writes SDD epic artifacts,
-initializes beads, and launches the epic follow-up agent. The menu only configures plan
-auto-approval; unlike bare `%auto`, it does not automatically answer questions or
-unrelated HITL prompts.
+On an active agent, `A` toggles bare `%auto`. If auto-approval is off, it turns it on
+exactly as if the agent had been launched with `%auto`. If any auto-approval is on
+(including a launch-time `%auto:tale` / `%auto:epic`), it turns it off.
+
+The agent's next submitted plan is approved at its authored tier. A `tier: tale` plan is
+approved and committed as a tale; a `tier: epic` plan is approved as an epic and follows
+the epic follow-up path.
+
+The row shows `⚡` while enabled, and the footer label switches between `auto-approve`
+and `unapprove`.
+
+Like bare `%auto`, it also auto-settles question gates.
 
 ### Plan Approval Keybindings
 

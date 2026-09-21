@@ -96,8 +96,6 @@ __all__ = [
     "ApproveOptionsEditPrompt",
     "ApproveOptionsModal",
     "ApproveOptionsResult",
-    "AutoApproveChoice",
-    "AutoApproveModal",
     "CustomApprovalEditPrompt",
     "CustomApprovalModal",
     "CustomApprovalResult",

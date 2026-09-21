@@ -53,40 +53,6 @@ def _workspace_tmux_choices() -> list:
     ]
 
 
-async def test_auto_approve_modal_png_snapshot(
-    ace_png_visual: AcePngSnapshotFixture,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    patch_startup_loaders(monkeypatch, agents=visual_agents())
-
-    async with AcePage(query='"visual"', patches=patches(), size=(60, 30)) as page:
-        await wait_for_startup(page)
-        await page.press("shift+tab")
-        await page.expect_state("tab", "agents")
-        await page.expect_state("agent_count", 3)
-        await wait_for_visual_idle(page)
-
-        from sase.ace.tui.modals.auto_approve_modal import AutoApproveModal
-
-        page.app.push_screen(AutoApproveModal("epic", agent_name="visual.code"))
-        await page.expect_modal("AutoApproveModal")
-        await wait_for_svg_contains(page, "Auto-Approve")
-        await wait_for_visual_idle(page)
-
-        assert_page_svg_contains(page, "Auto-Approve")
-        assert_page_svg_contains(page, "Plan")
-        assert_page_svg_contains(page, "Tale")
-        assert_page_svg_contains(page, "Epic")
-        assert_page_svg_contains(page, "Disable")
-        assert_page_svg_contains(page, "visual.code")
-
-        ace_png_visual.assert_page_png(
-            page,
-            "auto_approve_modal_60x30",
-            title="ACE auto-approve modal",
-        )
-
-
 async def test_agent_workspace_tmux_modal_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,

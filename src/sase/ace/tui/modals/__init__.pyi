@@ -48,8 +48,6 @@ from .artifact_links_panel_modal import (
 from .artifact_links_panel_modal import (
     ArtifactLinksPanelResult as ArtifactLinksPanelResult,
 )
-from .auto_approve_modal import AutoApproveChoice as AutoApproveChoice
-from .auto_approve_modal import AutoApproveModal as AutoApproveModal
 from .axe_add_modals import AxeAddChooserModal as AxeAddChooserModal
 from .axe_add_modals import AxeAddKind as AxeAddKind
 from .axe_entry_editor_modal import AxeEntryEditorModal as AxeEntryEditorModal

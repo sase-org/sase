@@ -410,7 +410,7 @@ class AgentState:
     _from_patch: bool = False
 
     # Whether this agent has plan auto-approval enabled (via %auto, %auto:tale,
-    # %auto:epic, or the Auto-Approve menu). Stays True in memory for tale/epic
+    # %auto:epic, or the Agents-tab `A` toggle). Stays True in memory for tale/epic
     # — it drives the ⚡ row icon — even though the persisted ``approve`` key is
     # omitted for those (the action below carries the kind).
     approve: bool = False

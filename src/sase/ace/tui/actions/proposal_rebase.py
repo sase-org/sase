@@ -357,7 +357,7 @@ class ProposalRebaseMixin:
                     self._answer_workflow_hitl(agent)  # type: ignore[attr-defined]
                     return
                 if agent.status in AUTO_APPROVE_ELIGIBLE_STATUSES:
-                    self.action_open_auto_approve_menu()  # type: ignore[attr-defined]
+                    self.action_toggle_auto_approve()  # type: ignore[attr-defined]
                     return
             return
 

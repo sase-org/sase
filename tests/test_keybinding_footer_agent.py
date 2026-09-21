@@ -148,21 +148,25 @@ def test_keybinding_footer_failed_agent_advertises_fork_without_chat() -> None:
 
 
 def test_keybinding_footer_approve_eligible_shows_auto_approve_label() -> None:
-    """Approve-eligible agents advertise a single stable auto-approve label.
+    """Approve-eligible agents advertise a state-aware toggle label.
 
-    The old 3-state cycle was replaced by the Auto-Approve menu, so the footer
-    no longer flips between approve/epic/unapprove based on the agent's state.
+    The `A` key toggles bare `%auto`, so the footer names what the key will
+    do: `auto-approve` when off, `unapprove` when any auto-approval is on.
     """
     footer = KeybindingFooter()
     key = footer._kd("accept_proposal")
 
-    # Every prior cycle state (off / normal / epic) plus the new tale state now
-    # collapses to the same label, since `a` always opens the menu.
+    agent = _make_agent(status="RUNNING")
+    agent.approve = False
+    agent.auto_approve_plan_action = None
+    bindings = footer._compute_agent_bindings(agent)
+    labels = [label for k, label in bindings if k == key]
+    assert "auto-approve" in labels
+
     for approve, action in (
-        (False, None),
         (True, None),
-        (True, "epic"),
         (True, "tale"),
+        (True, "epic"),
     ):
         agent = _make_agent(status="RUNNING")
         agent.approve = approve
@@ -171,10 +175,7 @@ def test_keybinding_footer_approve_eligible_shows_auto_approve_label() -> None:
         bindings = footer._compute_agent_bindings(agent)
         labels = [label for k, label in bindings if k == key]
 
-        assert "auto-approve" in labels
-        assert "approve" not in labels
-        assert "epic" not in labels
-        assert "unapprove" not in labels
+        assert "unapprove" in labels
 
 
 def test_keybinding_footer_non_eligible_agent_omits_auto_approve_label() -> None:
