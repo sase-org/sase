@@ -11,6 +11,9 @@ from .notification_modal_action_types import (
 from .notification_modal_basic_actions import NotificationBasicActionsMixin
 from .notification_modal_mute_actions import NotificationMuteActionsMixin
 from .notification_modal_snooze_actions import NotificationSnoozeActionsMixin
+from .notification_modal_undismiss_actions import (
+    NotificationUndismissActionsMixin,
+)
 
 # Preserve the original private helper imports while implementations live in
 # focused modules.
@@ -30,6 +33,7 @@ class NotificationStateActionsMixin(
     NotificationBasicActionsMixin,
     NotificationMuteActionsMixin,
     NotificationSnoozeActionsMixin,
+    NotificationUndismissActionsMixin,
     NotificationActionSupportMixin,
 ):
     """Compose all state-changing notification modal actions."""

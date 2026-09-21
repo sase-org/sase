@@ -356,6 +356,26 @@ def mark_many_dismissed(notification_ids: Iterable[str]) -> int:
     return int(outcome.matched_count)
 
 
+def mark_undismissed(notification_id: str) -> bool:
+    """Restore a dismissed notification to the visible inbox.
+
+    Returns True if the id was found, even when it was already visible.
+    """
+    outcome = _apply_state_update(
+        _state_update(kind="mark_undismissed", id=notification_id)
+    )
+    return outcome.matched_count > 0
+
+
+def mark_many_undismissed(notification_ids: Iterable[str]) -> int:
+    """Restore dismissed notifications. Returns the number of found rows."""
+    ids = tuple(notification_ids)
+    if not ids:
+        return 0
+    outcome = _apply_state_update(_state_update(kind="mark_many_undismissed", ids=ids))
+    return int(outcome.matched_count)
+
+
 def mark_many_muted(notification_ids: Iterable[str], muted: bool = True) -> int:
     """Set muted state for notifications. Returns the number of found rows."""
     ids = tuple(notification_ids)

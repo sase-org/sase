@@ -254,6 +254,7 @@ def _run_notification_state_direct(
         mark_many_dismissed,
         mark_many_muted,
         mark_many_snoozed,
+        mark_many_undismissed,
         mark_read,
         mark_tab_read,
     )
@@ -267,6 +268,9 @@ def _run_notification_state_direct(
             success = matched == len(ids)
         elif action == "dismiss":
             matched = mark_many_dismissed(ids)
+            success = matched == len(ids)
+        elif action == "undismiss":
+            matched = mark_many_undismissed(ids)
             success = matched == len(ids)
         elif action == "mute":
             matched = mark_many_muted(ids, True)
@@ -312,7 +316,7 @@ def _run_notification_state_direct(
     )
 
 
-def _result_action(action: str) -> Literal["mute", "snooze", "read"]:
+def _result_action(action: str) -> Literal["mute", "snooze", "read", "undismiss"]:
     if action == "unmute":
         return "mute"
     if action == "mute":
@@ -321,6 +325,8 @@ def _result_action(action: str) -> Literal["mute", "snooze", "read"]:
         return "snooze"
     if action == "read":
         return "read"
+    if action == "undismiss":
+        return "undismiss"
     return "read"
 
 

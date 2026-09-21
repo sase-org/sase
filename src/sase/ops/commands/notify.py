@@ -17,7 +17,8 @@ def add_notify_operation_parsers(subparsers: argparse._SubParsersAction) -> None
         "apply-state",
         help="Apply a durable notification state change",
         description=(
-            "Mark one notification read, dismissed, muted, unmuted, or snoozed. "
+            "Mark one notification read, dismissed, undismissed, muted, "
+            "unmuted, or snoozed. "
             "The notification id and action are positional; snooze expiry may "
             "come from the private request sidecar."
         ),
@@ -25,7 +26,7 @@ def add_notify_operation_parsers(subparsers: argparse._SubParsersAction) -> None
     parser.add_argument("notification_id", help="Notification id to update")
     parser.add_argument(
         "action",
-        choices=("dismiss", "mute", "read", "snooze", "unmute"),
+        choices=("dismiss", "mute", "read", "snooze", "undismiss", "unmute"),
         help="State change to apply",
     )
     add_operation_io_flags(parser)
@@ -40,7 +41,7 @@ def add_notify_operation_parsers(subparsers: argparse._SubParsersAction) -> None
     )
     many_parser.add_argument(
         "action",
-        choices=("dismiss", "mute", "read", "snooze", "unmute"),
+        choices=("dismiss", "mute", "read", "snooze", "undismiss", "unmute"),
         help="State change to apply",
     )
     add_operation_io_flags(many_parser)
@@ -72,6 +73,7 @@ def _run_apply_state(
         mark_muted,
         mark_read,
         mark_snoozed,
+        mark_undismissed,
     )
 
     request = load_request(NOTIFY_APPLY_STATE, args)
@@ -82,6 +84,8 @@ def _run_apply_state(
         found = mark_read(notification_id)
     elif action == "dismiss":
         found = mark_dismissed(notification_id)
+    elif action == "undismiss":
+        found = mark_undismissed(notification_id)
     elif action == "mute":
         found = mark_muted(notification_id, muted=True)
     elif action == "unmute":
@@ -114,6 +118,7 @@ def _run_apply_state_many(
         mark_many_dismissed,
         mark_many_muted,
         mark_many_snoozed,
+        mark_many_undismissed,
         mark_read,
         mark_tab_read,
     )
@@ -130,6 +135,8 @@ def _run_apply_state_many(
         matched = sum(1 for notification_id in ids if mark_read(notification_id))
     elif action == "dismiss":
         matched = mark_many_dismissed(ids)
+    elif action == "undismiss":
+        matched = mark_many_undismissed(ids)
     elif action == "mute":
         matched = mark_many_muted(ids, True)
     elif action == "unmute":

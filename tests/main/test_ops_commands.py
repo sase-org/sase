@@ -159,6 +159,75 @@ def test_notify_apply_state_success_and_failure(
     assert failed.success is False
 
 
+def test_notify_apply_state_undismiss_reaches_store(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """Parser plus apply-state dispatch must run the undismiss transition."""
+    monkeypatch.setattr("sase.notifications.store.mark_undismissed", lambda _id: True)
+    result_path = tmp_path / "notify-undismiss.json"
+    args = create_parser().parse_args(
+        ["notify", "apply-state", "n-1", "undismiss", "-R", str(result_path)]
+    )
+    monkeypatch.setenv("SASE_PROC_ID", "proc-notify-undismiss")
+    assert handle_notify_operation(args) == 0
+    loaded = read_operation_result(
+        result_path,
+        expected_operation="notify.apply-state",
+        expected_proc_id="proc-notify-undismiss",
+    )
+    assert loaded.success is True
+    assert loaded.payload is not None
+    assert loaded.payload["action"] == "undismiss"
+
+
+def test_notify_apply_state_many_undismiss_reaches_bulk_store(
+    monkeypatch: Any, tmp_path: Path
+) -> None:
+    """Parser plus apply-state-many dispatch must run the bulk undismiss."""
+    marked: list[str] = []
+
+    def fake_mark_many_undismissed(ids: object) -> int:
+        assert isinstance(ids, tuple)
+        marked.extend(ids)
+        return len(ids)
+
+    monkeypatch.setattr(
+        "sase.notifications.store.mark_many_undismissed", fake_mark_many_undismissed
+    )
+    request_path = tmp_path / "req.json"
+    result_path = tmp_path / "res.json"
+    write_operation_request(
+        request_path,
+        DurableOperationRequest(
+            operation="notify.apply-state",
+            payload={"ids": ["n1", "n2"]},
+        ),
+    )
+    args = create_parser().parse_args(
+        [
+            "notify",
+            "apply-state-many",
+            "undismiss",
+            "-Q",
+            str(request_path),
+            "-R",
+            str(result_path),
+        ]
+    )
+    monkeypatch.setenv("SASE_PROC_ID", "proc-notify-many-undismiss")
+    assert handle_notify_operation(args) == 0
+    assert marked == ["n1", "n2"]
+    loaded = read_operation_result(
+        result_path,
+        expected_operation="notify.apply-state",
+        expected_proc_id="proc-notify-many-undismiss",
+    )
+    assert loaded.success is True
+    assert loaded.payload is not None
+    assert loaded.payload["action"] == "undismiss"
+    assert loaded.payload["matched_count"] == 2
+
+
 def test_notify_apply_state_many_read_reaches_tab_scoped_store(
     monkeypatch: Any, tmp_path: Path
 ) -> None:

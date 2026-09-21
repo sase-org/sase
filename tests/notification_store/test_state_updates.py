@@ -7,8 +7,10 @@ from sase.notifications.store import (
     mark_all_read,
     mark_dismissed,
     mark_many_dismissed,
+    mark_many_undismissed,
     mark_read,
     mark_tab_read,
+    mark_undismissed,
 )
 
 from .helpers import make_notification
@@ -108,6 +110,97 @@ class TestMarkManyDismissed:
         mock_update.assert_called_once()
         update = mock_update.call_args.args[1]
         assert update.kind == "mark_many_dismissed"
+        assert update.ids == ("n1",)
+
+
+class TestMarkUndismissed:
+    """Tests for mark_undismissed()."""
+
+    def test_dismiss_undismiss_round_trip_restores_visibility(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        n = make_notification()
+        append_notification(n)
+        assert mark_dismissed(n.id) is True
+        assert load_notifications() == []
+        assert mark_undismissed(n.id) is True
+        loaded = load_notifications()
+        assert [row.id for row in loaded] == [n.id]
+        assert loaded[0].dismissed is False
+
+    def test_nonexistent_id(self, temp_notifications_dir: Path) -> None:
+        n = make_notification()
+        append_notification(n)
+        assert mark_undismissed("nonexistent") is False
+        assert load_notifications()[0].dismissed is False
+
+    def test_visible_row_still_matches(self, temp_notifications_dir: Path) -> None:
+        n = make_notification()
+        append_notification(n)
+        assert mark_undismissed(n.id) is True
+        assert load_notifications()[0].dismissed is False
+
+    def test_routes_through_rust_facade(self, temp_notifications_dir: Path) -> None:
+        import sase.notifications.store as store
+
+        n = make_notification()
+        append_notification(n)
+        with patch(
+            "sase.notifications.store._rust_apply_notification_state_update",
+            wraps=store._rust_apply_notification_state_update,
+        ) as mock_update:
+            assert mark_undismissed(n.id) is True
+
+        mock_update.assert_called_once()
+        assert mock_update.call_args.args[1].kind == "mark_undismissed"
+
+
+class TestMarkManyUndismissed:
+    """Tests for mark_many_undismissed()."""
+
+    def test_restores_many_and_returns_matched_count(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        n1 = make_notification(id="n1")
+        n2 = make_notification(id="n2")
+        n3 = make_notification(id="n3")
+        for notification in (n1, n2, n3):
+            append_notification(notification)
+        assert mark_many_dismissed(["n1", "n2", "n3"]) == 3
+
+        count = mark_many_undismissed(["n1", "n3", "missing"])
+
+        by_id = {n.id: n for n in load_notifications(include_dismissed=True)}
+        assert count == 2
+        assert by_id["n1"].dismissed is False
+        assert by_id["n2"].dismissed is True
+        assert by_id["n3"].dismissed is False
+        assert {n.id for n in load_notifications()} == {"n1", "n3"}
+
+    def test_empty_ids_skip_store_update(self, temp_notifications_dir: Path) -> None:
+        with patch(
+            "sase.notifications.store._rust_apply_notification_state_update"
+        ) as mock_update:
+            assert mark_many_undismissed([]) == 0
+
+        mock_update.assert_not_called()
+
+    def test_routes_through_bulk_rust_update(
+        self, temp_notifications_dir: Path
+    ) -> None:
+        import sase.notifications.store as store
+
+        n = make_notification(id="n1")
+        append_notification(n)
+        with patch(
+            "sase.notifications.store._rust_apply_notification_state_update",
+            wraps=store._rust_apply_notification_state_update,
+        ) as mock_update:
+            assert mark_many_undismissed(["n1"]) == 1
+
+        mock_update.assert_called_once()
+        update = mock_update.call_args.args[1]
+        assert update.kind == "mark_many_undismissed"
         assert update.ids == ("n1",)
 
 

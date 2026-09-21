@@ -81,6 +81,7 @@ class NotificationModal(
             if b[0] not in ("ctrl+n", "ctrl+p")
         ),
         ("x", "dismiss_notification", "Dismiss"),
+        ("u", "undismiss_notification", "Undismiss"),
         ("d", "debug_view", "Debug"),
         ("y", "confirm_dismiss_notification", "Confirm Dismiss"),
         ("n", "cancel_dismiss_notification", "Cancel Dismiss"),
