@@ -271,7 +271,7 @@ async def test_axe_startup_path_emits_startup_and_load_status_spans(
 
     app = _AxeStartupHarness()
     monkeypatch.setattr(
-        "sase.ace.tui.actions.axe_display._loader_refresh.collect_axe_status_data",
+        "sase.ace.tui.actions.axe_display._refresh_full.collect_axe_status_data",
         _slow_collect,
     )
     await app._run_axe_startup_init()
@@ -319,7 +319,7 @@ async def test_axe_startup_on_axe_tab_schedules_background_full_refresh(
         return payload
 
     monkeypatch.setattr(
-        "sase.ace.tui.actions.axe_display._loader_refresh.collect_axe_status_data",
+        "sase.ace.tui.actions.axe_display._refresh_full.collect_axe_status_data",
         _collect,
     )
     app = _AxeStartupHarness(current_tab="services")

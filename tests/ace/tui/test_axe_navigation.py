@@ -242,23 +242,23 @@ def test_navigation_does_not_read_from_disk() -> None:
 
     with (
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_status",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.read_lumberjack_status",
             _boom,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_metrics",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.read_lumberjack_metrics",
             _boom,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_log_tail",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.read_lumberjack_log_tail",
             _boom,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_info_output_tail",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.read_info_output_tail",
             _boom,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.get_slot_info",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.get_slot_info",
             side_effect=_boom,
         ),
         patch("sase.ace.tui.bgcmd.read_bgcmd_slots", side_effect=_boom),

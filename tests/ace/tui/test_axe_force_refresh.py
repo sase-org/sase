@@ -126,15 +126,15 @@ async def test_targeted_refresh_updates_selected_lumberjack() -> None:
 
     with (
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_status",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.read_lumberjack_status",
             return_value=fresh_status,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_metrics",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.read_lumberjack_metrics",
             return_value=fresh_metrics,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_log_tail",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.read_lumberjack_log_tail",
             return_value="fresh log\n",
         ),
     ):
@@ -168,11 +168,11 @@ async def test_targeted_refresh_updates_selected_bgcmd_slot() -> None:
 
     with (
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.get_slot_info",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.get_slot_info",
             return_value=info,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_info_output_tail",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.read_info_output_tail",
             return_value="refreshed\n",
         ),
     ):
@@ -205,11 +205,11 @@ async def test_targeted_refresh_skips_dismissed_bgcmd_slot() -> None:
 
     with (
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.get_slot_info",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.get_slot_info",
             return_value=info,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_info_output_tail",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.read_info_output_tail",
             return_value="x\n",
         ),
     ):
@@ -244,7 +244,7 @@ async def test_targeted_refresh_updates_selected_chop() -> None:
 
     with (
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_status",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.read_lumberjack_status",
             side_effect=AssertionError("should not refresh lumberjack on chop refresh"),
         ),
         patch(
@@ -312,15 +312,15 @@ async def test_targeted_refresh_is_non_blocking() -> None:
 
     with (
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_status",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.read_lumberjack_status",
             side_effect=slow_status,
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_metrics",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.read_lumberjack_metrics",
             return_value=LumberjackMetrics(),
         ),
         patch(
-            "sase.ace.tui.actions.axe_display._loader_refresh.read_lumberjack_log_tail",
+            "sase.ace.tui.actions.axe_display._refresh_targeted.read_lumberjack_log_tail",
             return_value="",
         ),
     ):
