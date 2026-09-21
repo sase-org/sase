@@ -1,17 +1,16 @@
 """Shared plan approval response orchestration and side effects.
 
-The public API remains in this module while protocol, artifact-resolution, and
-epic-launch details live in focused implementation modules.
+The public API remains in this module while protocol, artifact-resolution,
+epic-launch, response-execution, and terminal side-effect details live in
+focused implementation modules.
 """
 
 from __future__ import annotations
 
 import json
-import logging
-import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any
 
 from sase._plan_approval_artifacts import (
     durable_plan_file_for_context as durable_plan_file_for_context,
@@ -53,19 +52,48 @@ from sase._plan_approval_protocol import (
 from sase._plan_approval_protocol import (
     resolve_plan_approval_choice as _resolve_plan_approval_choice,
 )
+from sase._plan_approval_response import (
+    epic_launch_submission_ids as _epic_launch_submission_ids,
+)
+from sase._plan_approval_response import (
+    execute_neutral_plan_approval_response as _execute_neutral_plan_approval_response,
+)
+from sase._plan_approval_response import (
+    parse_plan_approval_capacity as _parse_plan_approval_capacity,
+)
+from sase._plan_approval_response import (
+    parse_plan_approval_wait as _parse_plan_approval_wait,
+)
+from sase._plan_approval_response import write_json_once as _write_json_once
+from sase._plan_approval_side_effects import (
+    apply_plan_post_terminal_side_effects as apply_plan_post_terminal_side_effects,
+)
+from sase._plan_approval_side_effects import (
+    archive_plan_for_approval as _archive_plan_for_approval,
+)
+from sase._plan_approval_side_effects import (
+    dismiss_notification_best_effort as dismiss_notification_best_effort,
+)
+from sase._plan_approval_side_effects import (
+    preflight_plan_archive_credential as preflight_plan_archive_credential,
+)
+from sase._plan_approval_side_effects import (
+    sync_reviewed_plan_to_durable_best_effort as _sync_reviewed_plan_to_durable_best_effort,
+)
 from sase.core.agent_artifact_index_lifecycle import (
     update_agent_artifact_index_for_marker_mutation,
 )
 from sase.plan_approval_choices import (
-    plan_approval_response_message_for_selection,
-    plan_approval_selection_for_choice,
+    plan_approval_response_message_for_selection as plan_approval_response_message_for_selection,
+)
+from sase.plan_approval_choices import (
+    plan_approval_selection_for_choice as plan_approval_selection_for_choice,
 )
 
 if TYPE_CHECKING:
     from sase.bead.epic_launch import EpicLaunchOrigin, EpicLaunchSubmission
     from sase.xprompt.directive_edit import PromptWaitDirective
 
-_logger = logging.getLogger(__name__)
 HOST_PLAN_ARCHIVE_PROTOCOL = "host_v2"
 
 
@@ -220,255 +248,6 @@ def _execute_legacy_plan_approval_response(
     )
 
 
-def _execute_neutral_plan_approval_response(
-    notification: PlanApprovalActionContext,
-    bundle_path: Path,
-    choice: str | None,
-    *,
-    feedback: str | None,
-    commit_plan: bool | None,
-    run_coder: bool | None,
-    coder_prompt: str | None,
-    coder_model: str | None,
-    wait: str | None,
-    wait_spec: PromptWaitDirective | None,
-    capacity: int | None,
-    epic_launch_mode: EpicLaunchMode,
-    epic_launch_origin: EpicLaunchOrigin,
-    option_inputs: Mapping[str, Mapping[str, Any]] | None = None,
-) -> PlanApprovalActionResult:
-    """Execute one selected option set through the shared gate executor."""
-    if not notification.host_files:
-        raise PlanApprovalActionError(
-            "invalid_request", "plan_file", "plan file is missing"
-        )
-    resolved_choice = _resolve_plan_approval_choice(notification.host_files[0], choice)
-    selection_choice = (
-        "feedback"
-        if resolved_choice == "reject" and feedback is not None
-        else resolved_choice
-    )
-    from sase.notification_gates.hashing import load_and_verify_bundle
-    from sase.notification_gates.models import GateError
-
-    try:
-        envelope, _adapter = load_and_verify_bundle(bundle_path)
-    except GateError as exc:
-        raise PlanApprovalActionError(exc.code, exc.target, str(exc)) from exc
-    tier: Literal["tale", "epic"] = (
-        "epic" if envelope.get("kind") == "epic_plan" else "tale"
-    )
-    from sase.gate_shell.log import bind_gate_shell_execution_callbacks
-    from sase.gate_shell.settlement import settle_gate_shell
-    from sase.gate_shell.store import find_gate_shell_by_gate_id
-
-    shell_backed = isinstance(envelope.get("shell"), dict)
-    gate_shell = (
-        find_gate_shell_by_gate_id(None, str(envelope.get("request_id") or ""))
-        if shell_backed
-        else None
-    )
-    execution_kwargs: dict[str, Any] = (
-        {}
-        if gate_shell is None
-        else bind_gate_shell_execution_callbacks(gate_shell.artifacts_dir).as_kwargs()
-    )
-    try:
-        selected_option_ids = plan_approval_selection_for_choice(
-            selection_choice,
-            tier=tier,
-            commit_plan=commit_plan,
-            run_coder=run_coder,
-        )
-    except (KeyError, ValueError) as exc:
-        raise PlanApprovalActionError(
-            "unsupported_action",
-            selection_choice,
-            f"unsupported {tier} plan action selection",
-        ) from exc
-
-    input_data: dict[str, Any] = {}
-    if feedback is not None:
-        input_data["feedback"] = feedback
-    if "approve" in selected_option_ids and tier == "tale":
-        if coder_prompt is not None:
-            input_data["coder_prompt"] = coder_prompt
-        if coder_model is not None:
-            input_data["coder_model"] = coder_model
-    if (
-        wait_spec is not None
-        and wait is not None
-        and any(option_id in selected_option_ids for option_id in ("approve", "commit"))
-    ):
-        input_data["wait"] = wait
-    if tier == "epic" and selected_option_ids == ("approve",):
-        input_data["epic_launch_mode"] = epic_launch_mode
-        if capacity is not None:
-            input_data["capacity"] = capacity
-
-    from sase.notification_gates.executor import execute_gate_selection
-    from sase.notification_gates.paths import RESPONSE_FILENAME
-
-    # `option_inputs` only carries fields a declared-input plan option collects
-    # -- none do today (see the ACE gate-inputs phase's deviation note) -- so
-    # this branch is inert on landing and every existing call keeps taking the
-    # `input_data`-only path below unchanged.
-    per_option_inputs = (
-        {
-            option_id: {**input_data, **dict((option_inputs or {}).get(option_id, {}))}
-            for option_id in selected_option_ids
-        }
-        if option_inputs and any(option_inputs.values())
-        else None
-    )
-    try:
-        execution = execute_gate_selection(
-            bundle_path,
-            selected_option_ids,
-            None if per_option_inputs is not None else input_data,
-            feedback=feedback,
-            source="plan_response",
-            epic_launch_origin=epic_launch_origin,
-            option_inputs=per_option_inputs,
-            **execution_kwargs,
-        )
-    except GateError as exc:
-        code = (
-            "conflict_already_handled"
-            if exc.code in {"gate_cancelled", "already_answered"}
-            else exc.code
-        )
-        raise PlanApprovalActionError(code, exc.target, str(exc)) from exc
-    if gate_shell is not None:
-        from sase.notification_gates.decision import (
-            read_current_receipt,
-            receipt_acceptance_id,
-        )
-        from sase.notification_gates.failure_outcome import (
-            with_follow_up_stage_tracking,
-        )
-
-        acceptance_id = receipt_acceptance_id(read_current_receipt(bundle_path))
-        with_follow_up_stage_tracking(
-            bundle_path,
-            acceptance_id=acceptance_id,
-            source="plan_response",
-            run=lambda: settle_gate_shell(
-                gate_shell,
-                gate_state="answered",
-                reason="plan approval answered",
-            ),
-        )
-    if execution.already_completed:
-        raise PlanApprovalActionError(
-            "conflict_already_handled",
-            notification.id,
-            "response already exists",
-        )
-    from sase.plan_gate import translate_plan_gate_response
-
-    translate_plan_gate_response(bundle_path, execution.response)
-    message = plan_approval_response_message_for_selection(
-        selected_option_ids, tier=tier
-    )
-    return PlanApprovalActionResult(
-        notification_id=notification.id,
-        response_file=RESPONSE_FILENAME,
-        response_path=bundle_path / RESPONSE_FILENAME,
-        response_json=execution.response,
-        message=message,
-        epic_launch_monitor_id=(
-            str(execution.response["epic_launch_monitor_id"])
-            if execution.response.get("epic_launch_monitor_id")
-            else None
-        ),
-        epic_launch_task_id=(
-            str(execution.response["epic_launch_task_id"])
-            if execution.response.get("epic_launch_task_id")
-            else None
-        ),
-    )
-
-
-def _parse_plan_approval_wait(wait: str | None) -> PromptWaitDirective | None:
-    """Parse a reviewer wait spec before any notification or file mutation."""
-    text = wait.strip() if isinstance(wait, str) else None
-    if not text:
-        return None
-    from sase.wait_spec import WaitSpecError, parse_wait_spec
-
-    try:
-        return parse_wait_spec(text)
-    except WaitSpecError as exc:
-        raise PlanApprovalActionError("invalid_request", "wait", str(exc)) from exc
-
-
-def _parse_plan_approval_capacity(capacity: int | None) -> int | None:
-    """Validate a reviewer capacity budget before any mutation."""
-    if capacity is None:
-        return None
-    from ._plan_gate_shared import plan_gate_optional_capacity
-
-    try:
-        return plan_gate_optional_capacity(capacity)
-    except ValueError as exc:
-        raise PlanApprovalActionError("invalid_request", "capacity", str(exc)) from exc
-
-
-def _epic_launch_submission_ids(
-    launch: EpicLaunchSubmission | None,
-) -> tuple[str | None, str | None]:
-    if launch is None:
-        return None, None
-    monitor_id = getattr(launch, "monitor_id", None)
-    if monitor_id:
-        return str(monitor_id), None
-    task_id = getattr(launch, "task_id", None)
-    if task_id:
-        return None, str(task_id)
-    return None, None
-
-
-def _write_json_once(
-    response_path: Path,
-    response_json: dict[str, Any],
-    notification_id: str,
-) -> None:
-    """Write a JSON response without overwriting an existing approval."""
-    try:
-        with response_path.open("x", encoding="utf-8") as f:
-            json.dump(response_json, f, indent=2)
-            f.write("\n")
-    except FileExistsError as exc:
-        raise PlanApprovalActionError(
-            "conflict_already_handled", notification_id, "response already exists"
-        ) from exc
-
-
-def dismiss_notification_best_effort(notification_id: str) -> None:
-    try:
-        from sase.notifications import mark_dismissed
-
-        mark_dismissed(notification_id)
-    except Exception:
-        pass
-
-
-def _mark_action_handled_best_effort(
-    notification_id: str,
-    *,
-    source: str,
-    action: str | None = None,
-) -> None:
-    """Record that a notification action was resolved in the shared store."""
-    try:
-        from sase.notifications.pending_actions import mark_already_handled
-
-        mark_already_handled(notification_id, source=source, action=action)
-    except Exception:
-        pass
-
-
 def run_plan_side_effects(
     notification: PlanApprovalActionContext,
     choice: str,
@@ -530,43 +309,6 @@ def prepare_plan_terminal_response(
         response_json["plan_archive_state"] = "not_requested"
 
 
-def apply_plan_post_terminal_side_effects(
-    notification: PlanApprovalActionContext,
-    choice: str,
-    *,
-    source: str = "plan_response",
-) -> None:
-    dismiss_notification_best_effort(notification.id)
-    _mark_action_handled_best_effort(notification.id, source=source, action=choice)
-
-
-def preflight_plan_archive_credential(selected_option_ids: Sequence[str]) -> None:
-    """Refuse a host-archived plan approval whose git credential is rejected.
-
-    A tale approval that selects ``commit`` makes the host archive the plan over
-    an SSH remote. Discovering a rejected credential there fails the gate after
-    the decision was accepted; asking the remote first refuses the answer while
-    the gate is still pending. Only an explicit ``denied`` refuses: an offline
-    or otherwise unknowable remote (``unknown``) must not block an approval.
-    """
-    if "commit" not in selected_option_ids:
-        return
-    from sase.service.ssh_agent import probe_git_remote_auth
-
-    if probe_git_remote_auth(os.environ) != "denied":
-        return
-    raise PlanApprovalActionError(
-        "git_credential_denied",
-        "git_remote",
-        "the git remote rejected this host's SSH credential "
-        "(`Permission denied (publickey)`), so the approved plan cannot be "
-        "archived; the gate remains pending. Give the host an unattended "
-        "credential (a passphrase-less `IdentityFile` for `Host github.com`, or "
-        "a key loaded into the agent the service host inherits; see "
-        "docs/init.md), then answer again.",
-    )
-
-
 def _response_requires_host_plan_archive(
     response_json: dict[str, Any],
     persisted_action: str,
@@ -598,31 +340,6 @@ def _apply_host_plan_archive_fields(
     if isinstance(archive_ref, str) and archive_ref.strip():
         response_json["plan_archive_protocol"] = HOST_PLAN_ARCHIVE_PROTOCOL
         response_json["plan_archive_ref"] = archive_ref.strip()
-
-
-def _sync_reviewed_plan_to_durable_best_effort(
-    notification: PlanApprovalActionContext,
-) -> None:
-    """Copy reviewed bundle edits back to the durable proposal when known."""
-    if not notification.host_files:
-        return
-    durable = durable_plan_file_for_context(notification)
-    if durable is None:
-        return
-    reviewed = Path(notification.host_files[0]).expanduser()
-    if reviewed.resolve(strict=False) == durable.resolve(strict=False):
-        return
-    try:
-        content = reviewed.read_text(encoding="utf-8")
-        durable.parent.mkdir(parents=True, exist_ok=True)
-        durable.write_text(content, encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        _logger.warning(
-            "Failed to sync reviewed plan %s to durable proposal %s",
-            reviewed,
-            durable,
-            exc_info=True,
-        )
 
 
 def _persist_plan_approved_metadata(
@@ -685,42 +402,3 @@ def _project_plan_committed(
         project_plan_committed(Path(bundle), action=persisted_action)
     if persisted_action == "commit":
         _write_plan_action_metadata(notification, "commit", plan_committed=True)
-
-
-def _archive_plan_for_approval(
-    notification: PlanApprovalActionContext,
-    persisted_action: str,
-    *,
-    required: bool = False,
-) -> str | None:
-    if not notification.host_files:
-        if required:
-            raise PlanApprovalActionError(
-                "invalid_request",
-                "plan_file",
-                "plan file is missing",
-            )
-        return None
-    tier: Literal["tale", "epic"] = "epic" if persisted_action == "epic" else "tale"
-    src_plan = durable_plan_file_for_context(notification) or Path(
-        notification.host_files[0]
-    )
-    try:
-        from sase._plan_archive_approval import archive_approved_plan
-
-        return archive_approved_plan(
-            notification.host_action_data,
-            src_plan,
-            tier=tier,
-        )
-    except Exception as error:
-        from sase._plan_archive_approval import report_plan_archive_failure
-
-        report_plan_archive_failure(src_plan, notification.host_action_data, error)
-        if required:
-            raise PlanApprovalActionError(
-                "plan_archive_failed",
-                str(src_plan),
-                f"failed to archive approved plan: {error}",
-            ) from error
-        return None
