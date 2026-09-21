@@ -458,7 +458,8 @@ def _diagnose_capability(core_dir: Path, name: str) -> CapabilityDiagnosis:
             "--reverse",
             f"-S{name}",
             "--",
-            "crates/sase_core_py/src/lib.rs",
+            # Bindings live in per-domain submodules under src/, not only lib.rs.
+            "crates/sase_core_py/src",
         ],
     )
     first_line = next((line for line in log.splitlines() if line.strip()), "")

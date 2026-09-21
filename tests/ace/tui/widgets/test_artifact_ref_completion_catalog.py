@@ -315,7 +315,7 @@ def test_commit_completion_rows_match_shared_inventory_and_resolve(
     # Set the budget explicitly rather than relying on sase-core's default
     # (currently 30s) being generous enough on a heavily oversubscribed CI
     # runner; see SASE_ARTIFACT_REF_COMMIT_TIMEOUT in sase-core's
-    # editor/completion.rs.
+    # editor/completion/artifact_ref.rs.
     monkeypatch.setenv("SASE_ARTIFACT_REF_COMMIT_TIMEOUT", "30")
     first = tmp_path / "sase"
     second = tmp_path / "sase-core"

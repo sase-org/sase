@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import subprocess
 import sys
 from importlib.machinery import SourceFileLoader
 from pathlib import Path
@@ -291,3 +292,43 @@ def test_stale_actionable_verdict_names_release(
     assert verdict.status == "stale_actionable"
     assert verdict.exit_code == tool.EXIT_STALE_ACTIONABLE
     assert verdict.capabilities[0].release == "v0.22.0"
+
+
+def test_diagnose_capability_finds_bindings_in_domain_submodules(
+    tool: ModuleType,
+    tmp_path: Path,
+) -> None:
+    core = tmp_path / "sase-core"
+    binding_src = core / "crates" / "sase_core_py" / "src"
+    (binding_src / "vcs").mkdir(parents=True)
+
+    def _git(*args: str) -> None:
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=Test",
+                "-c",
+                "user.email=test@example.com",
+                *args,
+            ],
+            cwd=core,
+            check=True,
+            capture_output=True,
+        )
+
+    _git("init", "-q")
+    (binding_src / "lib.rs").write_text("mod vcs;\n", encoding="utf-8")
+    (binding_src / "vcs" / "mod.rs").write_text("\n", encoding="utf-8")
+    _git("add", ".")
+    _git("commit", "-q", "-m", "chore: split bindings")
+    (binding_src / "vcs" / "mod.rs").write_text(
+        "fn py_parse_merge_summary() {}\n", encoding="utf-8"
+    )
+    _git("commit", "-q", "-am", "feat(vcs-log): add merge summaries")
+
+    diagnosis = tool._diagnose_capability(core, "parse_merge_summary")
+
+    assert diagnosis.subject == "feat(vcs-log): add merge summaries"
+    assert diagnosis.commit is not None
+    assert diagnosis.release is None
