@@ -888,9 +888,29 @@ with `sase artifact read <ref> "<reason>"` when the prompt needs bytes.
 
 ### Filters
 
-| Filter                             | Description                                                                                                          |
-| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `{{ plan_file \| plan_ref_path }}` | Returns the `YYYYmm/<name>.md` portion of a plan path or `plan:` reference; passes non-plan values through unchanged |
+| Filter                              | Description                                                                                                          |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `{{ plan_file \| plan_ref_path }}`  | Returns the `YYYYmm/<name>.md` portion of a plan path or `plan:` reference; passes non-plan values through unchanged |
+| `{{ "grok" \| provider_disabled }}` | `true` when the named LLM provider has an active machine-wide disable; `false` otherwise                             |
+| `{{ "grok" \| provider_enabled }}`  | `true` when the named LLM provider has no active machine-wide disable; `false` otherwise                             |
+
+Both provider filters accept an optional mode argument — `"any"` (the default),
+`"hard"`, or `"soft"` — so `{{ "grok" \| provider_disabled("soft") }}` is `true` only
+for an active soft disable. A non-string, blank, or unknown provider name returns
+not-disabled rather than raising, so a templating slip cannot claim a provider is down;
+a corrupt disable-state file likewise fails open. An unknown mode raises `ValueError` so
+the typo fails loudly at render time.
+
+The positive form exists for
+[static conditional segments](#static-conditional-segments), where the condition must
+read as a single `should_run=` value:
+
+```text
+Always launch this segment.
+---
+%if(should_run={{ "grok" | provider_enabled }})
+This segment is dropped whole whenever grok is disabled.
+```
 
 ## Legacy Placeholders
 
@@ -1723,6 +1743,11 @@ Draft the report.
 %if(should_run={{ include_images }})
 Generate the supporting images.
 ```
+
+A Jinja filter can also drive the condition:
+`%if(should_run={{ "grok" | provider_enabled }})` drops the segment whenever that
+provider is disabled (see the `provider_disabled` / `provider_enabled` filters under
+[Jinja2 Integration](#jinja2-integration)).
 
 In an [xprompt swarm](#xprompt-swarms-library-defined-fan-out), a disabled segment is
 dropped before any nested references in it expand. In an ordinary inline xprompt, a
