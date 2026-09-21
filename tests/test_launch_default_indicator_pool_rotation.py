@@ -68,9 +68,7 @@ async def test_indicator_pill_follows_pool_rotation_without_consuming() -> None:
     _reset_launch_default_token_cache()
     async with AcePage() as page:
         source = page.query_one_widget("#launch-context-source", LaunchContextSource)
-        indicator = page.query_one_widget(
-            "#llm-override-indicator", LLMOverrideIndicator
-        )
+        indicator = page.app.query(LLMOverrideIndicator).first()
         await page.wait_for(lambda _state: source.state.default_snapshot is not None)
         assert indicator._cached_default == (member0[0], member0[1])
 

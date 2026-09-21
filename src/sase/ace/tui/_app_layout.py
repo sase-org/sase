@@ -18,18 +18,19 @@ from ._patch_list_layout import (
 from .widgets import (
     AgentDetail,
     AgentInfoPanel,
+    AgentInfoRow,
     AgentList,
     AgentsFilterBar,
     AliasOverridesIndicator,
     ArtifactsView,
     AxeDashboard,
     AxeInfoPanel,
+    AxeInfoRow,
     BgCmdList,
-    CurrentProjectIndicator,
     KeybindingFooter,
+    LaunchContextBar,
     LaunchContextSource,
     LinkRail,
-    LLMOverrideIndicator,
     MonitorIndicator,
     NotificationIndicator,
     ProviderDisablesIndicator,
@@ -88,7 +89,7 @@ class AppLayoutMixin:
         agents_classes = "" if initial_tab == "agents" else "hidden"
         axe_classes = "" if initial_tab == SERVICES_TAB else "hidden"
         # App-scoped launch-context state. Mounted first (and exactly once) so
-        # the top-bar indicator views can pull resolved state on mount instead
+        # the status-row cluster views can pull resolved state on mount instead
         # of flashing placeholders. Non-rendering (display: none): zero size.
         yield LaunchContextSource(id="launch-context-source")
         yield UsageHeader(id="ace-header")
@@ -97,10 +98,8 @@ class AppLayoutMixin:
             yield ProcIndicator(id="proc-indicator")
             yield MonitorIndicator(id="monitor-indicator")
             yield UpdatesAvailableIndicator(id="updates-indicator")
-            yield LLMOverrideIndicator(id="llm-override-indicator")
             yield AliasOverridesIndicator(id="alias-overrides-indicator")
             yield ProviderDisablesIndicator(id="provider-disables-indicator")
-            yield CurrentProjectIndicator(id="current-project-indicator")
             yield StashedPromptsIndicator(id="stashed-prompts-indicator")
             yield NotificationIndicator(id="notification-indicator")
         with Horizontal(id="main-container"):
@@ -110,7 +109,9 @@ class AppLayoutMixin:
                 classes=cs_classes,
             )
             with Vertical(id="agents-view", classes=agents_classes):
-                yield AgentInfoPanel(id="agent-info-panel")
+                with AgentInfoRow(id="agent-info-row"):
+                    yield AgentInfoPanel(id="agent-info-panel")
+                    yield LaunchContextBar(id="launch-context-bar-agents")
                 yield AgentsFilterBar(
                     id="agents-filter-bar",
                     profile=agents_live_query_profile(),
@@ -131,7 +132,9 @@ class AppLayoutMixin:
                 with Vertical(id="bgcmd-list-container"):
                     yield BgCmdList(id="bgcmd-list-panel")
                 with Vertical(id="axe-container"):
-                    yield AxeInfoPanel(id="axe-info-panel")
+                    with AxeInfoRow(id="axe-info-row"):
+                        yield AxeInfoPanel(id="axe-info-panel")
+                        yield LaunchContextBar(id="launch-context-bar-axe")
                     yield AxeDashboard(id="axe-dashboard")
         yield LinkRail(id="link-rail")
         yield KeybindingFooter(id="keybinding-footer")

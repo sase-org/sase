@@ -87,16 +87,6 @@ def format_pill_remaining(
     return format_remaining_until(expires_at, now) or None
 
 
-def format_tooltip_remaining(
-    expires_at: float | None,
-    now: float | None = None,
-) -> str:
-    """Render the long-form remaining-time line for a tooltip."""
-    if expires_at is None:
-        return "Until cleared"
-    return f"{format_remaining_until(expires_at, now)} left"
-
-
 def format_tooltip_target(override: TemporaryLLMOverride) -> str:
     """Render an override target with the canonical spaced effort connective."""
     target = format_provider_model_label(override.provider, override.model)
@@ -111,12 +101,18 @@ def build_override_pill(
     effort: str | None,
     trailing: str,
     palette: _PillPalette,
+    pad: bool = True,
 ) -> Text:
-    """Build one two-tone ``<subject>[@<effort>] <trailing>`` pill."""
-    text = Text(f" {subject}", style=palette.base_style)
+    """Build one two-tone ``<subject>[@<effort>] <trailing>`` pill.
+
+    ``pad=False`` drops the built-in leading/trailing pad spaces for hosts
+    (like the launch-context cluster) whose labels supply the spacing.
+    """
+    edge = " " if pad else ""
+    text = Text(f"{edge}{subject}", style=palette.base_style)
     if effort:
         text.append(f"@{effort}", style=palette.secondary_style)
-    text.append(f" {trailing} ", style=palette.secondary_style)
+    text.append(f" {trailing}{edge}", style=palette.secondary_style)
     return text
 
 
@@ -125,6 +121,7 @@ def build_calm_default_pill(
     subject: str,
     effort: str | None,
     palette: ProviderTextPalette,
+    pad: bool = True,
 ) -> Text:
     """Build the backgroundless ``<subject>[@<effort>]`` launch-default pill.
 
@@ -133,10 +130,12 @@ def build_calm_default_pill(
     lane accent. The padding shares the subject style so ``Text.style`` stays
     meaningful; with no background it is invisible either way. ``subject`` is
     the shortest ``%model`` spelling of the launch default; the tooltip keeps
-    the provider-qualified ``PROVIDER(model)`` form.
+    the provider-qualified ``PROVIDER(model)`` form. ``pad=False`` drops the
+    edge pads for labeled hosts that supply their own spacing.
     """
-    text = Text(f" {subject}", style=palette.subject_style)
+    edge = " " if pad else ""
+    text = Text(f"{edge}{subject}", style=palette.subject_style)
     if effort:
         text.append(f"@{effort}", style=palette.detail_style)
-    text.append(" ", style=palette.subject_style)
+    text.append(edge, style=palette.subject_style)
     return text

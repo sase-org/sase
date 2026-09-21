@@ -65,10 +65,7 @@ def current_project() -> CurrentProject:
 def paint_current_project_chip(page: AcePage) -> CurrentProjectIndicator:
     """Force the project chip to its resolved state so the top bar is stable."""
     project = current_project()
-    indicator = page.app.query_one(
-        "#current-project-indicator",
-        CurrentProjectIndicator,
-    )
+    indicator = page.app.query(CurrentProjectIndicator).first()
     indicator._cached_snapshot = CurrentProjectSnapshot(
         project=project,
         accent=project_accent(project.project_key, among=(project.project_key,)),

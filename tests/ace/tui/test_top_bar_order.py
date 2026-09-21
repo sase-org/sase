@@ -13,6 +13,7 @@ from sase.ace.tui.project_styles import project_accent
 from sase.ace.tui.widgets import (
     AliasOverridesIndicator,
     CurrentProjectIndicator,
+    LaunchContextBar,
     LLMOverrideIndicator,
     ProviderDisablesIndicator,
     UpdatesAvailableIndicator,
@@ -29,25 +30,33 @@ from sase.llm_provider.provider_priority import provider_routing_context_from_pa
 
 # Expected left-to-right order of widgets inside ``#top-bar``. The ``#tab-bar``
 # spacer (``width: 1fr``) anchors the right-aligned indicator cluster, so every
-# widget after it forms that cluster. The updates badge must sit immediately to
-# the left of the model (LLM override) indicator; the non-default override pill
-# sits just right of it so the two override indicators read as a pair. The
-# current-project chip mounts immediately after the provider-disables pill:
-# both intervening override/disable pills render empty (zero width) in the
-# normal case, so the chip sits visually flush against the model indicator
-# without splitting the tested override pairing. Pinning the whole order keeps
-# future reorders intentional.
+# widget after it forms that cluster. The launch-default model and current
+# project chips no longer live here: they render in the labeled
+# ``LaunchContextBar`` at the far right of each tab's status row, so the top
+# bar keeps only the alert-style indicators (procs, monitors, updates, the
+# violet non-``default`` alias override pill, provider disables, stashed
+# prompts, notifications). Pinning the whole order keeps future reorders
+# intentional.
 EXPECTED_TOP_BAR_ORDER = [
     "tab-bar",
     "proc-indicator",
     "monitor-indicator",
     "updates-indicator",
-    "llm-override-indicator",
     "alias-overrides-indicator",
     "provider-disables-indicator",
-    "current-project-indicator",
     "stashed-prompts-indicator",
     "notification-indicator",
+]
+
+# Expected left-to-right child order inside every ``LaunchContextBar``: the
+# model label, the model view, the group separator, the project label, and
+# the project view.
+EXPECTED_LAUNCH_CONTEXT_BAR_ORDER = [
+    "launch-model-label",
+    "llm-override-indicator",
+    "launch-separator",
+    "launch-project-label",
+    "current-project-indicator",
 ]
 
 
@@ -92,10 +101,7 @@ def _paint_current_project_chip(page: AcePage) -> CurrentProjectIndicator:
     """Force the current-project chip visible for narrow-terminal bounds tests."""
 
     project = _current_project()
-    indicator = page.app.query_one(
-        "#current-project-indicator",
-        CurrentProjectIndicator,
-    )
+    indicator = page.app.query(CurrentProjectIndicator).first()
     indicator._cached_snapshot = CurrentProjectSnapshot(
         project=project,
         accent=project_accent(project.project_key, among=(project.project_key,)),
@@ -114,7 +120,27 @@ async def test_top_bar_places_updates_indicator_left_of_model() -> None:
         assert ids == EXPECTED_TOP_BAR_ORDER
         # Pin the relative order this change is about so a regression points at
         # the intended invariant directly.
-        assert ids.index("updates-indicator") < ids.index("llm-override-indicator")
+        assert ids.index("updates-indicator") < ids.index("alias-overrides-indicator")
+        # The launch-context chips left the top bar for the status rows.
+        assert "llm-override-indicator" not in ids
+        assert "current-project-indicator" not in ids
+
+
+async def test_launch_context_cluster_closes_each_status_row() -> None:
+    """Each tab's status row ends with the labeled cluster in child order."""
+
+    async with AcePage() as page:
+        for row_id in ("#agent-info-row", "#artifacts-header", "#axe-info-row"):
+            row = page.query_one_widget(row_id)
+            last = row.children[-1]
+            assert isinstance(last, LaunchContextBar), row_id
+            assert [child.id for child in last.children] == (
+                EXPECTED_LAUNCH_CONTEXT_BAR_ORDER
+            ), row_id
+            model_view = last.query_one(LLMOverrideIndicator)
+            project_view = last.query_one(CurrentProjectIndicator)
+            assert model_view is not None
+            assert project_view is not None
 
 
 async def test_mixed_updates_indicator_keeps_narrow_top_bar_in_bounds(
@@ -147,7 +173,7 @@ async def test_mixed_updates_indicator_keeps_narrow_top_bar_in_bounds(
         await page.app.wait_for_refresh()
 
         assert indicator.render().plain == " ↑ 3 * CLI ↑ 2 "
-        assert project_indicator.render().plain == " +sase "
+        assert project_indicator.render().plain == "+sase"
         visible_regions = [
             child.region for child in top_bar.children if child.region.width > 0
         ]
@@ -199,10 +225,7 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
 
     async with AcePage(size=(80, 30)) as page:
         top_bar = page.query_one_widget("#top-bar")
-        default_indicator = page.app.query_one(
-            "#llm-override-indicator",
-            LLMOverrideIndicator,
-        )
+        default_indicator = page.app.query(LLMOverrideIndicator).first()
         alias_indicator = page.app.query_one(
             "#alias-overrides-indicator",
             AliasOverridesIndicator,
@@ -215,10 +238,10 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
 
-        assert default_indicator.render().plain == " CODEX(o3)@xhigh ∞ "
+        assert default_indicator.render().plain == "CODEX(o3)@xhigh ∞"
         assert alias_indicator.render().plain == " @medium@max ∞ "
         assert provider_indicator.render().plain == " CLAUDE off ∞ "
-        assert project_indicator.render().plain == " +sase "
+        assert project_indicator.render().plain == "+sase"
         visible_children = [
             child for child in top_bar.children if child.region.width > 0
         ]

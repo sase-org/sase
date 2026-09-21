@@ -3,6 +3,7 @@
 import time
 from typing import TYPE_CHECKING, Any
 
+from rich.cells import cell_len
 from rich.text import Text
 from textual.widgets import Static
 
@@ -48,8 +49,19 @@ class AxeInfoPanel(Static):
         self._service_total: int = 0
         self._service_proc: ServiceStatusProc | None = None
         self._loading: bool = False
+        self._content_width = 0
         self._host: ServiceStatusHost | None = None
         self._host_start_hint = "!x"
+
+    @property
+    def content_width(self) -> int:
+        """Return the cell width of the last rendered first-line content.
+
+        The hosting status row uses this to compute the cells free for the
+        launch-context cluster beside the panel's first line.
+        """
+
+        return self._content_width
 
     def update_host_chrome(
         self,
@@ -202,6 +214,7 @@ class AxeInfoPanel(Static):
         if self._loading:
             text.append("Services ", style="bold")
             text.append("…", style="dim italic")
+            self._content_width = cell_len(text.plain)
             self.update(text)
             return
 
@@ -264,4 +277,9 @@ class AxeInfoPanel(Static):
             text.append(f"{self._countdown}s", style="bold #FFD700")
             text.append(")", style="dim")
 
+        self._content_width = cell_len(text.plain)
+        parent = self.parent
+        fit = getattr(parent, "fit_launch_context_bar", None)
+        if callable(fit):
+            fit()
         self.update(text)

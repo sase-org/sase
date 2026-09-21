@@ -1,6 +1,6 @@
 """sase's TUI PNG visual snapshot coverage for the current-project chip.
 
-Phase polish (epic sase-pw): pin how the top-bar ``CurrentProjectIndicator``
+Phase polish (epic sase-pw): pin how the status-row ``CurrentProjectIndicator``
 renders a resolved ``+<project>`` chip beside the gold default-model pill.
 
 The empty state (no current project) is the baseline pinned by every other
@@ -43,10 +43,7 @@ def _paint_current_project_chip(page: AcePage) -> CurrentProjectIndicator:
     """Force the chip visible so the snapshot does not wait on the worker."""
 
     project = _current_project()
-    indicator = page.app.query_one(
-        "#current-project-indicator",
-        CurrentProjectIndicator,
-    )
+    indicator = page.app.query(CurrentProjectIndicator).first()
     indicator._cached_snapshot = CurrentProjectSnapshot(
         project=project,
         accent=project_accent(project.project_key, among=(project.project_key,)),
@@ -89,7 +86,7 @@ async def test_current_project_indicator_png_snapshot(
         await page.app.wait_for_refresh()
         await wait_for_state(
             page,
-            lambda: indicator.render().plain == " +sase ",
+            lambda: indicator.render().plain == "+sase",
             description="current-project chip",
         )
         await wait_for_visual_idle(page)

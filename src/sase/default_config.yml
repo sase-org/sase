@@ -301,8 +301,10 @@ ace:
     # committed query is persisted; a user-cleared query stays cleared.
     default_query: "-service"
   current_project:
-    # Show the +<project> chip in the top bar. The current project is derived
-    # from the VCS xprompt MRU store; launching an agent is what moves it.
+    # Show the current-project group of the status-row launch-context cluster
+    # (the `current +<project>` chip at the far right of each tab's status
+    # row). The current project is derived from the VCS xprompt MRU store;
+    # launching an agent is what moves it.
     indicator: true
     # Seed project filters that have no value yet. Never overrides an explicit
     # choice, and never re-scopes a surface that is already open.

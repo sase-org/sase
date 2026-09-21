@@ -115,6 +115,24 @@
     background: $surface;
 }
 
+/* Launch-context cluster shared by every tab's status row */
+LaunchContextBar {
+    width: auto;
+    height: 1;
+    background: $surface;
+}
+
+LaunchContextBar #launch-model-label,
+LaunchContextBar #launch-project-label,
+LaunchContextBar #launch-separator {
+    width: auto;
+    text-style: dim;
+}
+
+LaunchContextBar #launch-model-label.-override {
+    color: #D7AF5F;
+}
+
 #artifacts-pane-brief {
     width: 100%;
     height: auto;
@@ -3731,6 +3749,15 @@ HintInputBar #hint-escape-hint {
     display: none;
 }
 
+#agent-info-row {
+    height: 1;
+    background: $surface;
+}
+
+#agent-info-row #agent-info-panel {
+    width: 1fr;
+}
+
 #agent-info-panel {
     height: auto;
     max-height: 1;
@@ -3738,7 +3765,7 @@ HintInputBar #hint-escape-hint {
     background: $surface;
 }
 
-#agents-view.-onboarding-active #agent-info-panel {
+#agents-view.-onboarding-active #agent-info-row {
     display: none;
 }
 
@@ -5545,12 +5572,21 @@ BgCmdList > .option-list--option-highlighted {
     height: 100%;
 }
 
+#axe-info-row {
+    height: 2;
+    background: $surface;
+    border-bottom: solid $secondary;
+}
+
+#axe-info-row #axe-info-panel {
+    width: 1fr;
+}
+
 #axe-info-panel {
     height: 2;
     max-height: 2;
     padding: 0 1;
     background: $surface;
-    border-bottom: solid $secondary;
 }
 
 #axe-dashboard {

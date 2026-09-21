@@ -1,14 +1,16 @@
-"""Current-project chip for sase's TUI top bar.
+"""Current-project chip for the status-row launch-context cluster.
 
-Renders ``+<display_name>`` in the project's accent color immediately after
-the provider-disables pill. Empty (zero width) when no project resolves or
-when ``ace.current_project.indicator`` is false.
+Renders ``+<display_name>`` in the project's accent color after the
+``current`` label. Empty (zero width) when no project resolves or when
+``ace.current_project.indicator`` is false; the hosting
+:class:`LaunchContextBar` then collapses the whole project group.
 
 A render-only view over :class:`LaunchContextSource`: the periodic tick (a
 cheap change-token peek) and the real
 :func:`sase.current_project.resolve_current_project` call -- plus the enabled
 project key set used for accent assignment -- live in the app-scoped source,
-which pushes fresh state here via :meth:`apply_launch_context`.
+which pushes fresh state here via :meth:`apply_launch_context`. The chip
+renders without edge pads: the bar labels supply the spacing.
 
 Clicking opens the ``+`` launch picker. The current project is derived
 from the VCS xprompt MRU store: launching an agent, ``sase project
@@ -29,10 +31,6 @@ from .launch_context_source import (
     LaunchContextSource,
     LaunchContextState,
     CurrentProjectSnapshot,
-)
-
-_LAUNCH_HINT = (
-    "Launch an agent on a project, or press c on the Projects tab, to make it current."
 )
 
 
@@ -132,9 +130,8 @@ class CurrentProjectIndicator(Static):
         if not indicator or project is None:
             return Text("")
         text = Text()
-        text.append(" +", style=f"dim {accent}")
+        text.append("+", style=f"dim {accent}")
         text.append(project.display_name, style=f"bold {accent}")
-        text.append(" ")
         return text
 
     @staticmethod
@@ -147,14 +144,23 @@ class CurrentProjectIndicator(Static):
 
         if not indicator or project is None:
             return None
-        lines = [project.display_name]
+        lines = [f"Current project: {project.display_name}"]
+        lines.append(
+            "Your working project: it seeds project filters and is "
+            "preselected in the + launch picker."
+        )
         if project.origin == "patch":
-            lines.append(f"via Patch {project.origin_ref}")
-        if project.workflow_type:
-            lines.append(f"#{project.workflow_type}:{project.origin_ref}")
+            lines.append(f"Set via Patch {project.origin_ref}")
+        elif project.workflow_type:
+            lines.append(
+                f"Set by your last launch (#{project.workflow_type}:{project.origin_ref})"
+            )
         else:
-            lines.append(project.origin_ref)
-        lines.append(_LAUNCH_HINT)
+            lines.append(f"Set by your last launch ({project.origin_ref})")
+        lines.append(
+            "Click to launch an agent on a project · "
+            "press c on the Projects tab to switch."
+        )
         return "\n".join(lines)
 
 

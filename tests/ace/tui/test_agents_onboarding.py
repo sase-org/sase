@@ -29,12 +29,12 @@ def _mounted_onboarding_plain(page: AcePage) -> str:
 def _assert_agents_onboarding_layout(page: AcePage, *, active: bool) -> None:
     agents_view = page.query_one_widget("#agents-view")
     list_container = page.query_one_widget("#agent-list-container")
-    info_panel = page.query_one_widget("#agent-info-panel")
+    info_row = page.query_one_widget("#agent-info-row")
     expected_chrome_display = not active
 
     assert agents_view.has_class("-onboarding-active") is active
     assert list_container.display is expected_chrome_display
-    assert info_panel.display is expected_chrome_display
+    assert info_row.display is expected_chrome_display
 
 
 async def _wait_for_onboarding_launch_target_refresh(

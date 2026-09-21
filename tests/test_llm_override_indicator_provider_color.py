@@ -66,7 +66,7 @@ def test_calm_pill_paints_subject_and_effort_in_the_provider_hues() -> None:
 
     text = _resolved("grok", "grok-4.6")._build_cached_default_content()
 
-    assert text.plain == " grok-4.6@high "
+    assert text.plain == "grok-4.6@high"
     assert text.style == palette.subject_style
     assert ("@high", palette.detail_style) in _segments(text)
 
@@ -76,7 +76,7 @@ def test_calm_pill_without_effort_has_no_detail_span() -> None:
 
     text = _resolved("claude", "opus-5", effort=None)._build_cached_default_content()
 
-    assert text.plain == " opus-5 "
+    assert text.plain == "opus-5"
     assert text.style == palette.subject_style
     assert all(style != palette.detail_style for _, style in _segments(text))
 
@@ -84,7 +84,7 @@ def test_calm_pill_without_effort_has_no_detail_span() -> None:
 def test_calm_pill_width_matches_the_uncolored_label() -> None:
     text = _resolved("codex", "o3")._build_cached_default_content()
 
-    assert text.cell_len == len(" o3@high ")
+    assert text.cell_len == len("o3@high")
 
 
 def test_two_providers_yield_two_pill_subject_styles_for_one_model_name() -> None:
@@ -121,14 +121,14 @@ def test_cached_pill_renders_from_the_cached_palette_without_the_registry(
 
     text = indicator._build_cached_default_content()
 
-    assert text.plain == " o3@high "
+    assert text.plain == "o3@high"
     assert text.style == provider_text_palette("codex").subject_style
 
 
 def test_snapshot_without_a_palette_renders_the_neutral_pill() -> None:
     text = _resolved("codex", "o3", with_palette=False)._build_cached_default_content()
 
-    assert text.plain == " o3@high "
+    assert text.plain == "o3@high"
     assert text.style == _NEUTRAL_STYLE
     assert all(style == _NEUTRAL_STYLE for _, style in _segments(text))
 
@@ -140,7 +140,7 @@ def test_cached_default_without_a_snapshot_renders_the_neutral_pill() -> None:
 
     text = indicator._build_cached_default_content()
 
-    assert text.plain == " CODEX(o3) "
+    assert text.plain == "CODEX(o3)"
     assert text.style == _NEUTRAL_STYLE
 
 
@@ -149,9 +149,9 @@ def test_unresolved_states_never_guess_a_provider_hue() -> None:
     failed = LLMOverrideIndicator()
     failed._cached_default_failed = True
 
-    assert placeholder.plain == " ... "
+    assert placeholder.plain == "..."
     assert placeholder.style == _NEUTRAL_STYLE
-    assert failed._build_cached_default_content().plain == " unavailable "
+    assert failed._build_cached_default_content().plain == "unavailable"
     assert failed._build_cached_default_content().style == _NEUTRAL_STYLE
 
 
@@ -170,7 +170,7 @@ def test_synchronous_default_content_palette_failure_degrades_to_unavailable(
 
     text = LLMOverrideIndicator._build_default_content()
 
-    assert text.plain == " unavailable "
+    assert text.plain == "unavailable"
     assert text.style == _NEUTRAL_STYLE
 
 
@@ -187,11 +187,11 @@ def test_gold_override_pill_styles_are_unchanged() -> None:
 
     text = LLMOverrideIndicator._build_content(override, now=100.0)
 
-    assert text.plain == " CODEX(o3)@medium 1h2m "
+    assert text.plain == "CODEX(o3)@medium 1h2m"
     assert str(text.style) == "bold #1a1a1a on #D7AF5F"
     assert _segments(text) == [
         ("@medium", "not bold #4F3D18 on #D7AF5F"),
-        (" 1h2m ", "not bold #4F3D18 on #D7AF5F"),
+        (" 1h2m", "not bold #4F3D18 on #D7AF5F"),
     ]
 
 
@@ -214,9 +214,7 @@ async def test_worker_resolves_the_palette_off_the_ui_thread(
     monkeypatch.setattr(source_module, "provider_text_palette", recording_palette)
 
     async with AcePage() as page:
-        indicator = page.query_one_widget(
-            "#llm-override-indicator", LLMOverrideIndicator
-        )
+        indicator = page.app.query(LLMOverrideIndicator).first()
         await page.wait_for(lambda _state: indicator._cached_snapshot is not None)
         snapshot = indicator._cached_snapshot
         rendered = indicator._build_cached_default_content()

@@ -402,13 +402,14 @@ class LaunchContextSource(Widget):
         return CurrentProjectSettings()
 
     def _broadcast(self) -> None:
-        """Push the current state to every mounted indicator view."""
+        """Push the current state to every mounted indicator view and bar."""
 
         try:
             app = self.app
         except Exception:  # noqa: BLE001 - unmounted source has no views.
             return
         from .current_project_indicator import CurrentProjectIndicator
+        from .launch_context_bar import LaunchContextBar
         from .llm_override_indicator import LLMOverrideIndicator
 
         try:
@@ -416,10 +417,13 @@ class LaunchContextSource(Widget):
                 *app.query(LLMOverrideIndicator),
                 *app.query(CurrentProjectIndicator),
             ]
+            bars = list(app.query(LaunchContextBar))
         except Exception:  # noqa: BLE001 - display state always degrades.
             return
         for view in views:
             view.apply_launch_context(self._state)
+        for bar in bars:
+            bar.apply_launch_context(self._state)
 
 
 __all__ = [

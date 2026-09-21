@@ -39,11 +39,11 @@ def test_resolved_project_renders_display_name_with_accent() -> None:
         project, accent=accent, indicator=True
     )
 
-    assert text.plain == " +sase "
+    assert text.plain == "+sase"
     styled = [
         (text.plain[span.start : span.end], str(span.style)) for span in text.spans
     ]
-    assert (" +", f"dim {accent}") in styled
+    assert ("+", f"dim {accent}") in styled
     assert ("sase", f"bold {accent}") in styled
 
 
@@ -73,14 +73,15 @@ def test_patch_origin_renders_project_name_and_names_patch_in_tooltip() -> None:
     )
     tooltip = CurrentProjectIndicator._build_tooltip(project, indicator=True)
 
-    assert text.plain == " +sase "
+    assert text.plain == "+sase"
     assert "my_patch" not in text.plain
     assert tooltip == (
-        "sase\n"
-        "via Patch my_patch\n"
-        "#gh:my_patch\n"
-        "Launch an agent on a project, or press c on the Projects tab, "
-        "to make it current."
+        "Current project: sase\n"
+        "Your working project: it seeds project filters and is "
+        "preselected in the + launch picker.\n"
+        "Set via Patch my_patch\n"
+        "Click to launch an agent on a project · "
+        "press c on the Projects tab to switch."
     )
 
 
@@ -90,8 +91,12 @@ def test_project_origin_tooltip_names_mru_ref_and_launch_hint() -> None:
     tooltip = CurrentProjectIndicator._build_tooltip(project, indicator=True)
 
     assert tooltip == (
-        "sase\n#gh:sase\nLaunch an agent on a project, or press c on the "
-        "Projects tab, to make it current."
+        "Current project: sase\n"
+        "Your working project: it seeds project filters and is "
+        "preselected in the + launch picker.\n"
+        "Set by your last launch (#gh:sase)\n"
+        "Click to launch an agent on a project · "
+        "press c on the Projects tab to switch."
     )
 
 
@@ -105,9 +110,7 @@ async def test_click_dispatches_start_custom_agent(
 
     async with AcePage() as page:
         monkeypatch.setattr(page.app, "run_action", capture)
-        indicator = page.query_one_widget(
-            "#current-project-indicator", CurrentProjectIndicator
-        )
+        indicator = page.app.query(CurrentProjectIndicator).first()
         await indicator.on_click()
         await page.pause()
 
@@ -122,9 +125,7 @@ async def test_unresolved_chip_takes_zero_width(
     )
 
     async with AcePage() as page:
-        indicator = page.query_one_widget(
-            "#current-project-indicator", CurrentProjectIndicator
-        )
+        indicator = page.app.query(CurrentProjectIndicator).first()
         indicator._cached_snapshot = CurrentProjectSnapshot(project=None, accent="")
         indicator._apply_content()
         page.app.refresh(layout=True)
@@ -139,9 +140,7 @@ async def test_disabled_indicator_takes_zero_width_when_resolved() -> None:
 
     async with AcePage() as page:
         page.app._current_project_settings = CurrentProjectSettings(indicator=False)
-        indicator = page.query_one_widget(
-            "#current-project-indicator", CurrentProjectIndicator
-        )
+        indicator = page.app.query(CurrentProjectIndicator).first()
         indicator._cached_snapshot = CurrentProjectSnapshot(
             project=project,
             accent=project_accent(project.project_key, among=(project.project_key,)),

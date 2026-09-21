@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from rich.cells import cell_len
 from rich.style import Style
 from rich.text import Text
 from textual.events import Click
@@ -61,12 +62,32 @@ class AgentInfoPanel(Static):
         self._countdown_text_span: tuple[int, int] | None = None
         self._countdown_render_template: tuple[Text, Text] | None = None
         self._loading: bool = False
+        self._content_width = 0
         self._registry = load_keymap_registry({})
 
     def set_keymap_registry(self, registry: KeymapRegistry) -> None:
         """Override the keymap registry and refresh display."""
         self._registry = registry
         self._update_display()
+
+    @property
+    def content_width(self) -> int:
+        """Return the cell width of the last rendered panel content.
+
+        The hosting status row uses this to compute the cells free for the
+        launch-context cluster.
+        """
+
+        return self._content_width
+
+    def _note_content_width(self, text: Text) -> None:
+        """Record the content width and refit the host status row's cluster."""
+
+        self._content_width = cell_len(text.plain)
+        parent = self.parent
+        fit = getattr(parent, "fit_launch_context_bar", None)
+        if callable(fit):
+            fit()
 
     def set_loading(self, loading: bool) -> None:
         """Show or hide the startup-loading ellipsis.
@@ -348,6 +369,7 @@ class AgentInfoPanel(Static):
         text = prefix.copy()
         text.append(f"{self._countdown}s", style="bold #FFD700")
         text.append_text(suffix.copy())
+        self._note_content_width(text)
         try:
             self.update(text, layout=False)
         except TypeError:
@@ -537,6 +559,7 @@ class AgentInfoPanel(Static):
         self._countdown_render_template = (
             (text[: span[0]], text[span[1] :]) if span is not None else None
         )
+        self._note_content_width(text)
         try:
             self.update(text, layout=layout)
         except TypeError:

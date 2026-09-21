@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any, cast
 from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.containers import Vertical, VerticalScroll
 from textual.widgets import ContentSwitcher, Static
 
 from ...artifact_tabs import artifacts_provider_diagnostics
@@ -26,6 +26,7 @@ from ...artifacts_split import (
 )
 from ...keymaps import KeymapRegistry, key_display_name
 from ...tab_order import ARTIFACTS_TAB
+from ..launch_context_bar import ArtifactsHeader, LaunchContextBar
 from ..panel_tab_strip import PanelTab, PanelTabStrip
 from .agents_pane import ArtifactsAgentsPane
 from .beads_pane import ArtifactsBeadsPane
@@ -88,7 +89,7 @@ class ArtifactsView(Vertical):
         self._commits_default_filter = commits_default_filter
 
     def compose(self) -> ComposeResult:
-        with Horizontal(id="artifacts-header"):
+        with ArtifactsHeader(id="artifacts-header"):
             yield Static(id="artifacts-split-spacer")
             tabs = PanelTabStrip(
                 self._panel_tabs(),
@@ -101,6 +102,7 @@ class ArtifactsView(Vertical):
             tabs.styles.width = "1fr"
             yield tabs
             yield ArtifactsSplitBadge(id="artifacts-split-badge")
+            yield LaunchContextBar(id="launch-context-bar-artifacts")
         yield ArtifactsPaneBrief(id="artifacts-pane-brief")
         with ContentSwitcher(
             initial=self._pane_id(self._current_subtab),
@@ -158,6 +160,12 @@ class ArtifactsView(Vertical):
             self._split_mode,
             descriptor.accent,
         )
+        try:
+            self.query_one(
+                "#artifacts-header", ArtifactsHeader
+            ).fit_launch_context_bar()
+        except Exception:  # noqa: BLE001 - pre-compose refresh is a no-op.
+            pass
 
     def _refresh_pane_brief(self) -> None:
         descriptor = self._descriptor_by_id[self._current_subtab]
@@ -324,6 +332,12 @@ class ArtifactsView(Vertical):
         self.query_one("#artifacts-subtabs", PanelTabStrip).set_active_tab(subtab)
         self._refresh_split_badge()
         self._refresh_pane_brief()
+        try:
+            self.query_one(
+                "#artifacts-header", ArtifactsHeader
+            ).fit_launch_context_bar()
+        except Exception:  # noqa: BLE001 - pre-compose switch is a no-op.
+            pass
         if artifacts_visible:
             self._pane(subtab).activate()
 

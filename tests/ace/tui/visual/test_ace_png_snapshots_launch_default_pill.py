@@ -1,6 +1,6 @@
 """sase's TUI PNG visual snapshot coverage for the provider-toned launch-default pill.
 
-The calm top-bar launch-default pill paints its ``<model>[@<effort>]`` label in
+The calm status-row launch-default pill paints its ``<model>[@<effort>]`` label in
 the hue family of the provider behind the current launch default. These two
 80x24 goldens pin the default to two providers whose hues read most distinctly
 (Claude amber, Grok cyan) so the frames are the visual proof that the pill's
@@ -96,11 +96,11 @@ async def _capture_pill(
         await page.expect_state("artifacts_subtab", "patches")
         # The two-tone pill is two SVG text runs, so wait on the widget's own
         # resolved content rather than a contiguous frame sentinel.
-        indicator = page.app.query_one("#llm-override-indicator", LLMOverrideIndicator)
+        indicator = page.app.query(LLMOverrideIndicator).first()
         await wait_for_state(
             page,
             lambda: (
-                indicator._build_cached_default_content().plain == f" {model}@{effort} "
+                indicator._build_cached_default_content().plain == f"{model}@{effort}"
             ),
             description=f"resolved launch-default pill {model}@{effort}",
         )

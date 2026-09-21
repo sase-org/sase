@@ -3391,16 +3391,16 @@ blockers (the row and key appear only then), and `Esc`, `q`, or `n` cancels. `Ct
 scope has a changed, runnable planner, and a plan whose runnable planners would
 overwrite or delete a file is styled as a danger confirmation rather than a neutral one.
 
-The current project — the same one the top-bar `+<project>` chip names — is marked on
-three surfaces at once, all in that project's accent color: a `+` in the row table's
-`CUR` column plus its name rendered in that accent, a `current:+<name>` segment appended
-to the summary line, and a `+CURRENT` badge on the detail panel's header line. The
-detail panel also carries a dedicated `Current project:` line for the highlighted row,
-whether or not it is current — stating the fact for a current row (and, when it arrived
-via a Patch, which one) or the exact reason and fix for one that is not (enable it
-first, it has no launchable ProjectSpec, or press `c`). This display always resolves
-live and ignores `ace.current_project.indicator`, which only hides the top-bar chip; see
-[Current project](#current-project).
+The current project — the same one the status-row `current +<project>` cluster names —
+is marked on three surfaces at once, all in that project's accent color: a `+` in the
+row table's `CUR` column plus its name rendered in that accent, a `current:+<name>`
+segment appended to the summary line, and a `+CURRENT` badge on the detail panel's
+header line. The detail panel also carries a dedicated `Current project:` line for the
+highlighted row, whether or not it is current — stating the fact for a current row (and,
+when it arrived via a Patch, which one) or the exact reason and fix for one that is not
+(enable it first, it has no launchable ProjectSpec, or press `c`). This display always
+resolves live and ignores `ace.current_project.indicator`, which only hides the
+status-row cluster's project group; see [Current project](#current-project).
 
 When one or more projects are marked, `a`, `d`, and `Ctrl+D` target the marked set
 instead of only the highlighted row. Successful lifecycle changes clear the affected
@@ -3831,14 +3831,16 @@ providers stay in the model picker (header labelled `soft`, rows dimmed one step
 are still omitted from both.
 
 sase's TUI also shows active provider routing state in compact top-bar pills beside the
-model override indicators. One hard-disabled provider renders like `CLAUDE off 42m`; one
-soft-disabled provider renders like `CLAUDE soft 42m`; active priority renders like
-`CODEX ★ priority 42m`. When priority and disables are both active, the top bar keeps a
-single priority-led pill with the disable count, such as `CODEX ★ 42m +1`. Several
-disables without priority render the most severe (hard first) provider plus a count,
-such as `CLAUDE +2`, and use the soft palette only when every active disable is soft.
-Hover lists active priority plus every active provider disable, mode, provenance, and
-expiry; clicking the pill opens Launch Control.
+violet alias-override pill (the launch-default and current-project chips moved one row
+down, to each tab's status-row launch-context cluster). One hard-disabled provider
+renders like `CLAUDE off 42m`; one soft-disabled provider renders like
+`CLAUDE soft 42m`; active priority renders like `CODEX ★ priority 42m`. When priority
+and disables are both active, the top bar keeps a single priority-led pill with the
+disable count, such as `CODEX ★ 42m +1`. Several disables without priority render the
+most severe (hard first) provider plus a count, such as `CLAUDE +2`, and use the soft
+palette only when every active disable is soft. Hover lists active priority plus every
+active provider disable, mode, provenance, and expiry; clicking the pill opens Launch
+Control.
 
 ### Disabled-provider launch panel
 
@@ -4048,7 +4050,8 @@ goes back to the duration picker, where a second `Esc` cancels the override flow
 Overrides are per-alias and per-launch-setting, and independent:
 
 - An override on **`default model`** drives the no-`%model` launch default. It renders
-  in a gold top-bar pill as `PROVIDER(model)[@<effort>] <time-left>`.
+  in a gold status-row pill as `PROVIDER(model)[@<effort>] <time-left>` — the model half
+  of the launch-context cluster at the far right of each tab's status row.
 - An override on **any built-in size alias or custom alias** takes effect wherever that
   alias is resolved. A size-specific phase or task override affects only that alias. An
   override on a selector-valued alias — a `|` load-balanced pool, `||` ordered fallback,
@@ -4068,7 +4071,7 @@ both pills, lane color carries the "override" meaning while the effort suffix an
 use a recessive tone; `∞` means until cleared. Hover either pill for full target and
 expiry details, or click it to open Launch Control.
 
-When no override is active, the same top-bar pill instead names the current launch
+When no override is active, the same status-row chip instead names the current launch
 default — the smallest `%model` value that would pin this exact target (a bare model
 name such as `grok-4.6` when the model unambiguously names its provider, otherwise the
 explicit `codex/o3` form) plus the optional `[@<effort>]` suffix, with no background
@@ -4091,11 +4094,11 @@ flips to name whichever member runs next. For a cross-provider `|` pool the pill
 flips with it, so the color tells you which provider the _next_ launch will actually
 hit. It never resolves on the UI thread and never advances the cursor itself — it only
 reflects state that a real launch already changed. Hover the pill for a
-`<alias> rotates across N models; PROVIDER(model)[@<effort>] is next` line whenever the
-default routes through such a pool. The tooltip deliberately keeps the
-provider-qualified `PROVIDER(model)` form: the pill is the width-constrained surface and
-stays compact, and color is never the only carrier of the provider, so hovering is the
-authoritative confirmation of which provider the launch default resolves to.
+`<alias> rotates across N models; PROVIDER(model) is next` line whenever the default
+routes through such a pool. The tooltip deliberately keeps the provider-qualified
+`PROVIDER(model)` form: the pill is the width-constrained surface and stays compact, and
+color is never the only carrier of the provider, so hovering is the authoritative
+confirmation of which provider the launch default resolves to.
 
 Overrides do not displace explicit launch intent: explicit prompt directives
 (`%model:codex/o3`, `%model:opencode/anthropic/claude-sonnet-4-5`) and an explicit
@@ -4147,7 +4150,8 @@ Selecting an alias during `Edit` stores the raw reference (for example, editing
 written and stores that concrete provider/model snapshot together with the raw token;
 later changes to the referenced alias do not change the active override. A canonical
 trailing effort is snapshotted with the target and shown in the row, success
-notification, and single-override top-bar pill. A known suffix on an alias reference is
+notification, and single-override pill (the gold status-row chip for a `default model`
+override, the violet top-bar pill otherwise). A known suffix on an alias reference is
 ignored for dependency/cycle checks but retained for the written value; unknown trailing
 `@token` text is not treated as effort.
 
@@ -4498,8 +4502,8 @@ sase's TUI has one **current project**: the head of the VCS xprompt MRU store. L
 an agent on a project — or on a Patch owned by that project — promotes it to that head.
 `sase project set-current <project>` and the Projects tab's `c` key (see
 [Projects Tab](#projects-tab)) move it the same way, by promoting the project to the MRU
-head, without a launch. Click the top-bar `+<project>` chip to open the `+` launch
-picker, which is the surface that actually records a launch.
+head, without a launch. Click the status-row `current +<project>` chip to open the `+`
+launch picker, which is the surface that actually records a launch.
 
 Because setting the current project and launching an agent both promote the same MRU
 entry, making a project current also moves it to the head of the prompt bar's `<ctrl+p>`

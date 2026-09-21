@@ -54,6 +54,10 @@ from .file_panel import FileLineCountChanged as FileLineCountChanged
 from .artifacts.types import FilesSubTab as FilesSubTab
 from .hint_input_bar import HintInputBar as HintInputBar
 from .keybinding_footer import KeybindingFooter as KeybindingFooter
+from .launch_context_bar import AgentInfoRow as AgentInfoRow
+from .launch_context_bar import ArtifactsHeader as ArtifactsHeader
+from .launch_context_bar import AxeInfoRow as AxeInfoRow
+from .launch_context_bar import LaunchContextBar as LaunchContextBar
 from .launch_context_source import LaunchContextSource as LaunchContextSource
 from .link_rail import LinkRail as LinkRail
 from .llm_override_indicator import LLMOverrideIndicator as LLMOverrideIndicator

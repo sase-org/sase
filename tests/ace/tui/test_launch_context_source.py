@@ -574,13 +574,11 @@ async def test_source_resolution_broadcasts_to_mounted_view(
 
     async with AcePage() as page:
         source = page.query_one_widget("#launch-context-source", LaunchContextSource)
-        indicator = page.query_one_widget(
-            "#llm-override-indicator", LLMOverrideIndicator
-        )
+        indicator = page.app.query(LLMOverrideIndicator).first()
         await page.wait_for(lambda _state: source.state.default_snapshot is not None)
 
     assert indicator._cached_default == ("claude", "sonnet")
-    assert indicator._build_cached_default_content().plain == " sonnet "
+    assert indicator._build_cached_default_content().plain == "sonnet"
 
 
 async def test_one_resolve_per_token_change_with_two_views_mounted(
@@ -609,7 +607,7 @@ async def test_one_resolve_per_token_change_with_two_views_mounted(
 
     async with AcePage() as page:
         source = page.query_one_widget("#launch-context-source", LaunchContextSource)
-        first = page.query_one_widget("#llm-override-indicator", LLMOverrideIndicator)
+        first = page.app.query(LLMOverrideIndicator).first()
         second = LLMOverrideIndicator(id="llm-override-indicator-second")
         await page.app.mount(second)
         await page.wait_for(lambda _state: source.state.default_snapshot is not None)
@@ -647,8 +645,8 @@ async def test_late_mounted_view_paints_resolved_content_immediately(
         await page.app.mount(late_project)
 
         assert late_model._cached_default == ("claude", "sonnet")
-        assert late_model._build_cached_default_content().plain == " sonnet "
-        assert late_project.render().plain == " +sase "
+        assert late_model._build_cached_default_content().plain == "sonnet"
+        assert late_project.render().plain == "+sase"
 
 
 async def test_every_tick_rebroadcasts_to_mounted_views(
@@ -657,9 +655,7 @@ async def test_every_tick_rebroadcasts_to_mounted_views(
     """Ticks rebroadcast even with no state change (override countdowns)."""
     async with AcePage() as page:
         source = page.query_one_widget("#launch-context-source", LaunchContextSource)
-        indicator = page.query_one_widget(
-            "#llm-override-indicator", LLMOverrideIndicator
-        )
+        indicator = page.app.query(LLMOverrideIndicator).first()
         calls: list[LaunchContextState] = []
         monkeypatch.setattr(
             indicator,

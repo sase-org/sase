@@ -335,7 +335,7 @@ class LeaderModeMixin:
         return True
 
     def action_open_models_panel(self) -> None:
-        """Open Launch settings (top-bar override pills click here)."""
+        """Open Launch settings (status-row launch-context chips click here)."""
         self._open_models_panel()
 
     def _open_launch_settings(self) -> None:
@@ -357,13 +357,13 @@ class LeaderModeMixin:
         from ...widgets.launch_context_source import LaunchContextSource
 
         _ = provider_routing_changed
-        # Refresh both top-bar override pills: the gold ``default`` pill and
-        # the violet non-``default`` pill. A single override action may touch
-        # either lane. Every Launch Control write also invalidates the cached
-        # launch default so effort and persistent default-model edits land
-        # without waiting on the peek token. The gold pill is a render-only
-        # view now, so the invalidation goes through the app-scoped source,
-        # which rebroadcasts to every mounted view.
+        # Refresh the override pills: the gold ``default`` pill (one per
+        # tab status row) and the violet non-``default`` pill. A single
+        # override action may touch either lane. Every Launch Control write
+        # also invalidates the cached launch default so effort and persistent
+        # default-model edits land without waiting on the peek token. The gold
+        # pill is a render-only view now, so the invalidation goes through the
+        # app-scoped source, which rebroadcasts to every mounted view.
         for selector, widget_type in (
             ("#alias-overrides-indicator", AliasOverridesIndicator),
             ("#provider-disables-indicator", ProviderDisablesIndicator),

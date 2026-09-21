@@ -1,4 +1,4 @@
-"""LLM model status indicator for sase's TUI top bar."""
+"""Launch-default model status view for the status-row launch-context cluster."""
 
 from __future__ import annotations
 
@@ -28,7 +28,7 @@ from ._override_pill import (
     build_calm_default_pill,
     build_override_pill,
     format_pill_remaining,
-    format_tooltip_remaining,
+    format_remaining_until,
     format_tooltip_target,
 )
 from .launch_context_source import (
@@ -45,19 +45,20 @@ _NEUTRAL_DEFAULT_PALETTE = ProviderTextPalette(
     subject_style=_DEFAULT_STYLE,
     detail_style=_DEFAULT_STYLE,
 )
-_PLACEHOLDER_TEXT = " ... "
-_UNAVAILABLE_TEXT = " unavailable "
+_PLACEHOLDER_TEXT = "..."
+_UNAVAILABLE_TEXT = "unavailable"
 
 
 class LLMOverrideIndicator(Static):
-    """Shows the default model or active temporary override in the top bar.
+    """Shows the default model or active temporary override in a status row.
 
     A render-only view over :class:`LaunchContextSource`: all polling and
     resolution lives in the app-scoped source, which pushes fresh state here
     via :meth:`apply_launch_context`. The cached fields below are the view's
     render inputs -- the source copies its state into them on broadcast, and
     ``refresh()`` re-pulls them -- so content and tooltip builders stay pure
-    functions of already-resolved values.
+    functions of already-resolved values. The view renders without edge pads:
+    the hosting :class:`LaunchContextBar` labels supply the spacing.
     """
 
     def __init__(self, **kwargs: Any) -> None:
@@ -152,6 +153,7 @@ class LLMOverrideIndicator(Static):
                 subject=subject,
                 effort=effort,
                 palette=palette or _NEUTRAL_DEFAULT_PALETTE,
+                pad=False,
             )
         if self._cached_default_failed:
             return Text(_UNAVAILABLE_TEXT, style=_DEFAULT_STYLE)
@@ -195,6 +197,7 @@ class LLMOverrideIndicator(Static):
             effort=override.effort,
             trailing=remaining,
             palette=DEFAULT_LANE_PALETTE,
+            pad=False,
         )
 
     def _build_tooltip(
@@ -205,12 +208,19 @@ class LLMOverrideIndicator(Static):
     ) -> str:
         """Build long-form override or launch-default details."""
         if override is not None:
+            target = format_tooltip_target(override)
+            remaining = format_remaining_until(override.expires_at, now) or (
+                "until cleared"
+            )
+            if remaining == "until cleared":
+                first_line = f"Temporary override: {target} · until cleared"
+            else:
+                first_line = f"Temporary override: {target} · {remaining} left"
             return "\n".join(
                 (
-                    "Temporary override on launch default",
-                    format_tooltip_target(override),
-                    format_tooltip_remaining(override.expires_at, now),
-                    "Press ,m for Config > Launch.",
+                    first_line,
+                    "New agents use this instead of the launch default until it lapses.",
+                    "Click (or ,m) to change or clear it in Config › Launch.",
                 )
             )
 
@@ -218,11 +228,14 @@ class LLMOverrideIndicator(Static):
             effort = (
                 None if self._cached_snapshot is None else self._cached_snapshot.effort
             )
+            base_label = _format_default_tooltip_label(*self._cached_default, None)
             default_label = _format_default_tooltip_label(*self._cached_default, effort)
         elif self._cached_default_failed:
+            base_label = "unavailable"
             default_label = "unavailable"
         else:
-            default_label = "resolving..."
+            base_label = "resolving…"
+            default_label = "resolving…"
 
         lines = [f"Launch default: {default_label}"]
         snapshot = self._cached_snapshot
@@ -234,10 +247,13 @@ class LLMOverrideIndicator(Static):
             )
             lines.append(
                 f"{subject} rotates across {snapshot.member_count} models; "
-                f"{default_label} is next."
+                f"{base_label} is next."
             )
-        lines.append("No temporary override active.")
-        lines.append("Press ,m for Config > Launch.")
+        lines.append(
+            "The model and effort a new agent uses when its prompt "
+            "sets no %model or %effort."
+        )
+        lines.append("Click (or ,m) to change it in Config › Launch.")
         return "\n".join(lines)
 
     @staticmethod
@@ -256,7 +272,9 @@ class LLMOverrideIndicator(Static):
         except Exception:
             return Text(_UNAVAILABLE_TEXT, style=_DEFAULT_STYLE)
 
-        return build_calm_default_pill(subject=subject, effort=level, palette=palette)
+        return build_calm_default_pill(
+            subject=subject, effort=level, palette=palette, pad=False
+        )
 
 
 def _format_default_tooltip_label(provider: str, model: str, effort: str | None) -> str:

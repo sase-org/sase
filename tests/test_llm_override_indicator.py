@@ -91,7 +91,7 @@ def test_inactive_renders_default_model(monkeypatch: pytest.MonkeyPatch) -> None
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " gpt-5.6-sol "
+    assert text.plain == "gpt-5.6-sol"
     assert text.style == provider_text_palette("codex").subject_style
 
 
@@ -105,13 +105,13 @@ def test_active_override_skips_default_resolution(
 
     text = LLMOverrideIndicator._build_content(_override(expires_at=3_820.0), now=100.0)
 
-    assert text.plain == " CODEX(o3) 1h2m "
+    assert text.plain == "CODEX(o3) 1h2m"
 
 
 def test_active_with_expiry_renders_label_and_countdown() -> None:
     text = LLMOverrideIndicator._build_content(_override(expires_at=3_820.0), now=100.0)
 
-    assert text.plain == " CODEX(o3) 1h2m "
+    assert text.plain == "CODEX(o3) 1h2m"
     assert "#D7AF5F" in str(text.style)
 
 
@@ -121,19 +121,19 @@ def test_active_override_renders_effort() -> None:
         now=100.0,
     )
 
-    assert text.plain == " CODEX(o3)@medium 1h2m "
+    assert text.plain == "CODEX(o3)@medium 1h2m"
     assert str(text.style) == "bold #1a1a1a on #D7AF5F"
     styled_segments = [
         (text.plain[span.start : span.end], str(span.style)) for span in text.spans
     ]
     assert ("@medium", "not bold #4F3D18 on #D7AF5F") in styled_segments
-    assert (" 1h2m ", "not bold #4F3D18 on #D7AF5F") in styled_segments
+    assert (" 1h2m", "not bold #4F3D18 on #D7AF5F") in styled_segments
 
 
 def test_active_until_cleared_renders_without_countdown() -> None:
     text = LLMOverrideIndicator._build_content(_override(expires_at=None), now=100.0)
 
-    assert text.plain == " CODEX(o3) ∞ "
+    assert text.plain == "CODEX(o3) ∞"
 
 
 def test_expired_override_renders_default_model(
@@ -147,7 +147,7 @@ def test_expired_override_renders_default_model(
 
     text = LLMOverrideIndicator._build_content(_override(expires_at=99.0), now=100.0)
 
-    assert text.plain == " sonnet "
+    assert text.plain == "sonnet"
 
 
 def test_expired_state_file_is_cleaned_up(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -174,7 +174,7 @@ def test_expired_state_file_is_cleaned_up(monkeypatch: pytest.MonkeyPatch) -> No
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " sonnet "
+    assert text.plain == "sonnet"
     assert not path.exists()
 
 
@@ -184,7 +184,7 @@ def test_long_override_label_renders_fully() -> None:
         now=100.0,
     )
 
-    assert text.plain == " VERYLONGPROVIDER(extremely-long-model-name) 15m "
+    assert text.plain == "VERYLONGPROVIDER(extremely-long-model-name) 15m"
 
 
 def test_long_default_label_renders_fully(
@@ -200,7 +200,7 @@ def test_long_default_label_renders_fully(
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " extremely-long-model-name "
+    assert text.plain == "extremely-long-model-name"
 
 
 def test_default_resolution_failure_renders_fallback(
@@ -213,7 +213,7 @@ def test_default_resolution_failure_renders_fallback(
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " unavailable "
+    assert text.plain == "unavailable"
 
 
 def test_remaining_subminute_rounds_up_to_one_minute() -> None:
@@ -234,9 +234,10 @@ def test_tooltip_describes_inactive_default_states() -> None:
     indicator = LLMOverrideIndicator()
 
     assert indicator._build_tooltip(None) == (
-        "Launch default: resolving...\n"
-        "No temporary override active.\n"
-        "Press ,m for Config > Launch."
+        "Launch default: resolving…\n"
+        "The model and effort a new agent uses when its prompt "
+        "sets no %model or %effort.\n"
+        "Click (or ,m) to change it in Config › Launch."
     )
 
     indicator._cached_default = ("claude", "opus")
@@ -261,10 +262,9 @@ def test_tooltip_describes_active_override_with_effort_and_expiry() -> None:
     )
 
     assert tooltip == (
-        "Temporary override on launch default\n"
-        "CLAUDE(opus) @ xhigh\n"
-        "1h2m left\n"
-        "Press ,m for Config > Launch."
+        "Temporary override: CLAUDE(opus) @ xhigh · 1h2m left\n"
+        "New agents use this instead of the launch default until it lapses.\n"
+        "Click (or ,m) to change or clear it in Config › Launch."
     )
 
 
@@ -274,18 +274,15 @@ def test_tooltip_describes_until_cleared_override() -> None:
     tooltip = indicator._build_tooltip(_override(expires_at=None), now=100.0)
 
     assert tooltip == (
-        "Temporary override on launch default\n"
-        "CODEX(o3)\n"
-        "Until cleared\n"
-        "Press ,m for Config > Launch."
+        "Temporary override: CODEX(o3) · until cleared\n"
+        "New agents use this instead of the launch default until it lapses.\n"
+        "Click (or ,m) to change or clear it in Config › Launch."
     )
 
 
 async def test_llm_override_indicator_is_mounted() -> None:
     async with AcePage() as page:
-        indicator = page.query_one_widget(
-            "#llm-override-indicator", LLMOverrideIndicator
-        )
+        indicator = page.app.query(LLMOverrideIndicator).first()
 
     assert isinstance(indicator, LLMOverrideIndicator)
 
@@ -308,7 +305,7 @@ def test_init_skips_cold_default_resolution(monkeypatch: pytest.MonkeyPatch) -> 
 
     rendered = indicator._build_initial_content()
     assert isinstance(rendered, Text)
-    assert rendered.plain == " ... "
+    assert rendered.plain == "..."
     assert "cyan" in str(rendered.style)
     assert indicator._cached_default is None
     assert indicator._cached_default_failed is False
@@ -323,9 +320,7 @@ async def test_click_opens_models_panel(monkeypatch: pytest.MonkeyPatch) -> None
             "_open_models_panel",
             lambda: calls.append("opened"),
         )
-        indicator = page.query_one_widget(
-            "#llm-override-indicator", LLMOverrideIndicator
-        )
+        indicator = page.app.query(LLMOverrideIndicator).first()
         await indicator.on_click()
         await page.pause()
 
@@ -348,8 +343,9 @@ def test_tooltip_adds_rotation_line_for_round_robin_pool() -> None:
     assert tooltip == (
         "Launch default: CLAUDE(opus)\n"
         "@large rotates across 2 models; CLAUDE(opus) is next.\n"
-        "No temporary override active.\n"
-        "Press ,m for Config > Launch."
+        "The model and effort a new agent uses when its prompt "
+        "sets no %model or %effort.\n"
+        "Click (or ,m) to change it in Config › Launch."
     )
 
 
@@ -368,8 +364,9 @@ def test_tooltip_omits_rotation_line_for_non_pool_default() -> None:
 
     assert tooltip == (
         "Launch default: CLAUDE(opus)\n"
-        "No temporary override active.\n"
-        "Press ,m for Config > Launch."
+        "The model and effort a new agent uses when its prompt "
+        "sets no %model or %effort.\n"
+        "Click (or ,m) to change it in Config › Launch."
     )
 
 
@@ -385,7 +382,7 @@ def test_calm_default_renders_configured_effort(
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " o3@high "
+    assert text.plain == "o3@high"
     assert text.style == provider_text_palette("codex").subject_style
 
 
@@ -401,7 +398,7 @@ def test_alias_borne_effort_wins_over_configured_default(
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " o3@medium "
+    assert text.plain == "o3@medium"
 
 
 def test_temporary_effort_override_wins_over_configured_and_loses_to_alias(
@@ -428,7 +425,7 @@ def test_temporary_effort_override_wins_over_configured_and_loses_to_alias(
     )
 
     text = LLMOverrideIndicator._build_content()
-    assert text.plain == " o3@low "
+    assert text.plain == "o3@low"
 
     monkeypatch.setattr(
         indicator_module,
@@ -436,7 +433,7 @@ def test_temporary_effort_override_wins_over_configured_and_loses_to_alias(
         lambda *a, **k: _snapshot(provider="codex", model="o3", effort="medium"),
     )
     text = LLMOverrideIndicator._build_content()
-    assert text.plain == " o3@medium "
+    assert text.plain == "o3@medium"
 
 
 def test_configured_none_renders_none_suffix(
@@ -451,7 +448,7 @@ def test_configured_none_renders_none_suffix(
 
     text = LLMOverrideIndicator._build_content()
 
-    assert text.plain == " o3@none "
+    assert text.plain == "o3@none"
 
 
 def test_tooltip_includes_effort_and_round_robin_keeps_suffix() -> None:
@@ -470,9 +467,10 @@ def test_tooltip_includes_effort_and_round_robin_keeps_suffix() -> None:
 
     assert tooltip == (
         "Launch default: CLAUDE(opus) @ high\n"
-        "@large rotates across 2 models; CLAUDE(opus) @ high is next.\n"
-        "No temporary override active.\n"
-        "Press ,m for Config > Launch."
+        "@large rotates across 2 models; CLAUDE(opus) is next.\n"
+        "The model and effort a new agent uses when its prompt "
+        "sets no %model or %effort.\n"
+        "Click (or ,m) to change it in Config › Launch."
     )
 
 
@@ -492,7 +490,7 @@ def test_cached_default_content_appends_effort() -> None:
 
     text = indicator._build_cached_default_content()
 
-    assert text.plain == " o3@high "
+    assert text.plain == "o3@high"
     assert text.style == provider_text_palette("codex").subject_style
 
 
@@ -509,7 +507,7 @@ def test_pill_uses_bare_directive_label_while_tooltip_keeps_provider_form() -> N
         directive_label="opus",
     )
 
-    assert indicator._build_cached_default_content().plain == " opus@high "
+    assert indicator._build_cached_default_content().plain == "opus@high"
     assert indicator._build_tooltip(None).startswith(
         "Launch default: CLAUDE(opus) @ high\n"
     )
@@ -528,7 +526,7 @@ def test_pill_renders_explicit_directive_label_verbatim() -> None:
         directive_label="codex/o3",
     )
 
-    assert indicator._build_cached_default_content().plain == " codex/o3@high "
+    assert indicator._build_cached_default_content().plain == "codex/o3@high"
     assert indicator._build_tooltip(None).startswith(
         "Launch default: CODEX(o3) @ high\n"
     )
@@ -550,7 +548,7 @@ def test_cached_default_without_directive_label_falls_back_to_provider_label(
             directive_label=None,
         )
 
-    assert indicator._build_cached_default_content().plain == " CLAUDE(opus) "
+    assert indicator._build_cached_default_content().plain == "CLAUDE(opus)"
 
 
 def test_render_paths_never_call_directive_formatter(
@@ -582,8 +580,8 @@ def test_render_paths_never_call_directive_formatter(
 
     indicator.refresh()
 
-    assert indicator._build_initial_content().plain == " opus "
-    assert indicator._build_cached_default_content().plain == " opus "
+    assert indicator._build_initial_content().plain == "opus"
+    assert indicator._build_cached_default_content().plain == "opus"
 
 
 def test_default_content_formatter_failure_renders_unavailable(
@@ -599,4 +597,4 @@ def test_default_content_formatter_failure_renders_unavailable(
     )
     monkeypatch.setattr(indicator_module, "format_model_directive_label", fail)
 
-    assert LLMOverrideIndicator._build_content().plain == " unavailable "
+    assert LLMOverrideIndicator._build_content().plain == "unavailable"

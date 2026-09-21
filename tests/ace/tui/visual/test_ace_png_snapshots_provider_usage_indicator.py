@@ -87,7 +87,7 @@ async def test_top_bar_usage_attention_narrow_png_snapshot(
         await page.expect_state("artifacts_subtab", "patches")
         updates = page.app.query_one("#updates-indicator", UpdatesAvailableIndicator)
         updates.set_available(3, core=True, agent_cli_count=2)
-        page.app.query_one("#llm-override-indicator", LLMOverrideIndicator)
+        page.app.query(LLMOverrideIndicator).first()
         page.app.query_one("#alias-overrides-indicator", AliasOverridesIndicator)
         paint_current_project_chip(page)
         usage_indicator = page.app.query_one(
