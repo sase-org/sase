@@ -8,12 +8,14 @@ from rich.text import Text
 from textual.widgets import Label
 
 from sase.agent.status_buckets import FEEDBACK_STATUS
+from sase.ace.testing import wait_for
 from sase.ace.tui.modals import ZoomPanelModal, ZoomPanelSeed, ZoomPanelTarget
 from sase.ace.tui.modals.zoom_panel_modal import (
     _renderable_to_text,
     _status_text,
     _ZoomLLMCallsPanel,
 )
+from sase.ace.tui.widgets.llm_calls_panel import LLMCallsVisibilityChanged
 from sase.ace.tui.models.agent_status import (
     STOPPED_COLOR,
     STOPPED_GLYPH,
@@ -154,3 +156,31 @@ async def test_zoom_llm_calls_detail_level_seed_and_keys() -> None:
 
         await pilot.press("h")
         assert panel.detail_level == ToolDetailLevel.EXPANDED
+
+
+async def test_zoom_modal_llm_calls_visibility_message_dispatches() -> None:
+    agent = _make_agent(status="DONE")
+    modal = ZoomPanelModal(
+        agent_provider=lambda: agent,
+        initial_agent=agent,
+        initial_target=ZoomPanelTarget.LLM_CALLS,
+        seed=ZoomPanelSeed(metadata_renderable=Text("seed metadata")),
+        refresh_interval=10,
+    )
+
+    async with _ModalTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        assert not modal._has_llm_calls_content
+
+        panel = modal.query_one("#zoom-llm-calls-panel", _ZoomLLMCallsPanel)
+        # The panel's own message must reach the modal through Textual
+        # dispatch, not a direct handler call.
+        panel.post_message(LLMCallsVisibilityChanged(has_llm_calls=True))
+        await wait_for(pilot, lambda: modal._has_llm_calls_content)
+        assert modal._has_llm_calls_content
+
+        panel.post_message(LLMCallsVisibilityChanged(has_llm_calls=False))
+        await wait_for(pilot, lambda: not modal._has_llm_calls_content)
+        assert not modal._has_llm_calls_content
+        assert modal._target is ZoomPanelTarget.METADATA

@@ -25,11 +25,6 @@ async def choose_agent_metadata_view(page: AcePage) -> None:
     await page.expect_modal("AgentViewModal")
     await page.press("[")
     await page.expect_no_modal()
-    # Choosing the layout that is already current changes nothing, so no
-    # surface refresh follows. A countdown tick during the modal would leave
-    # the header without its ``(p)`` hint until the next tick; refresh once
-    # after the modal is gone so the frame does not depend on that race.
-    page.app._update_agents_info_panel()
     await wait_for_visual_idle(page)
 
 

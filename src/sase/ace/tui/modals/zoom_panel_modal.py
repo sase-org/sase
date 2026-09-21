@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from rich.text import Text
+from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, VerticalScroll
@@ -342,6 +343,10 @@ class ZoomPanelModal(ZoomSearchMixin, ModalScreen[None]):
     def on_file_line_count_changed(self, message: FileLineCountChanged) -> None:
         on_file_line_count_changed(self, message)
 
+    # Textual derives this message's handler name as
+    # ``on_llmcalls_visibility_changed``, so the naming convention alone never
+    # dispatches it; the decorator does.
+    @on(LLMCallsVisibilityChanged)
     def on_llm_calls_visibility_changed(
         self, message: LLMCallsVisibilityChanged
     ) -> None:

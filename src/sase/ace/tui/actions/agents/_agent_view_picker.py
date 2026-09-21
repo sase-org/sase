@@ -130,9 +130,15 @@ class AgentViewPickerMixin:
         selected_key = self._agent_view_selected_key(capabilities)
 
         def _on_choice(result: AgentViewResult | None) -> None:
+            # Repaint the header view hint on every picker exit path: an
+            # Esc dismissal, an unchanged mode/layout choice, and a changed
+            # one all reach this callback, and only the changed branches
+            # refresh below.
             if result is None:
+                self._refresh_agent_view_surfaces()
                 return
             self._apply_agent_view_result(snapshot, result)
+            self._refresh_agent_view_surfaces()
 
         self.push_screen(  # type: ignore[attr-defined]
             AgentViewModal(choices, selected_key=selected_key),
