@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from sase.ace.patch.models import DeltaEntry
 from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent, ArtifactReadRefSpec
+from sase.ace.tui.bead_touches import BeadTouchEntry
 from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
@@ -128,6 +129,7 @@ class DetailHeaderSummary:
     linked_delta_groups: tuple[LinkedDeltaGroup, ...] = ()
     artifact_file_paths: list[ArtifactFilePath] | None = None
     artifact_reads: tuple[ArtifactReadDisplayEvent, ...] = ()
+    bead_touch_entries: tuple[BeadTouchEntry, ...] = ()
     memory_reads: tuple[MemoryReadDisplayEvent, ...] = ()
     glossary_reads: tuple[GlossaryReadDisplayEvent, ...] = ()
     skill_uses: tuple[SkillUseDisplayEvent, ...] = ()

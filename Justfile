@@ -381,14 +381,9 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-11y(readiness_warnings)" \
         --epic-symbol "sase-11y(resolve_service_enablement)" \
         --epic-symbol "sase-11y(service_platform_supported)" \
-        --epic-symbol "sase-14j(BeadTouch)" \
         --epic-symbol "sase-14j(BeadTouchIndexStatus)" \
-        --epic-symbol "sase-14j(BeadTouchQuery)" \
         --epic-symbol "sase-14j(BeadTouchRefresh)" \
-        --epic-symbol "sase-14j(query_touch_index)" \
         --epic-symbol "sase-14j(query_touches_for_agent)" \
-        --epic-symbol "sase-14j(touch_matches_agent)" \
-        --epic-symbol "sase-14j(touches_for_agent)" \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

@@ -60,6 +60,7 @@ from ._helpers import load_xprompts_used
 
 if TYPE_CHECKING:
     from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
+    from sase.ace.tui.bead_touches import BeadTouchEntry
     from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
     from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
     from sase.ace.tui.skill_uses import SkillUseDisplayEvent
@@ -109,6 +110,7 @@ _LANE_FIELDS: dict[DetailContextLane, tuple[str, ...]] = {
         "delta_entries",
         "linked_delta_groups",
         "artifact_reads",
+        "bead_touch_entries",
     ),
     "memory": ("memory_reads",),
     "glossary": ("glossary_reads",),
@@ -439,6 +441,7 @@ def _build_detail_header_summary_impl(
     resolved_artifact_file_paths = None
     delta_entries = None
     artifact_reads: tuple[ArtifactReadDisplayEvent, ...] = ()
+    bead_touch_entries: tuple[BeadTouchEntry, ...] = ()
     if "artifacts" in lanes:
         from ..file_panel._linked_deltas import get_cached_linked_delta_groups
         from ._artifact_files import (
@@ -475,6 +478,19 @@ def _build_detail_header_summary_impl(
 
         with tui_trace(f"{_TRACE_SPAN_PREFIX}.artifact_reads"):
             artifact_reads = load_artifact_reads_for_agent_context(agent)
+
+        from sase.ace.tui.bead_touches import (
+            load_bead_touches_for_agent_context,
+            merge_bead_touch_entries,
+            own_bead_ids_for_agent,
+        )
+
+        with tui_trace(f"{_TRACE_SPAN_PREFIX}.bead_touches"):
+            bead_touch_entries = merge_bead_touch_entries(
+                load_bead_touches_for_agent_context(agent),
+                artifact_reads,
+                own_bead_ids_for_agent(agent),
+            )
 
     memory_reads: tuple[MemoryReadDisplayEvent, ...] = ()
     if "memory" in lanes:
@@ -521,6 +537,7 @@ def _build_detail_header_summary_impl(
         linked_delta_groups=linked_delta_groups,
         artifact_file_paths=resolved_artifact_file_paths,
         artifact_reads=artifact_reads,
+        bead_touch_entries=bead_touch_entries,
         memory_reads=memory_reads,
         glossary_reads=glossary_reads,
         skill_uses=skill_uses,
