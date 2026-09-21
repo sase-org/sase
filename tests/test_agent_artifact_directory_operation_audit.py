@@ -213,7 +213,7 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "workspace-local SDD sidecar clone, not an agent artifact directory."
         ),
     ),
-    "src/sase/sudo/execution.py:cleanup_handoff": DirOpReview(
+    "src/sase/sudo/execution_handoff.py:cleanup_handoff": DirOpReview(
         exemption=(
             "Deletes only a user-owned sudo executor handoff directory under "
             "SASE_HOME/sudo/exec after ownership and containment checks, not "
