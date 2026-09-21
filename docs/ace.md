@@ -2840,7 +2840,7 @@ panel between the status line and scrolling output. Every row of the panel carri
 solid left accent gutter (`▌ `) in the row's own hue, so the block reads as a blockquote
 and stays visually distinct from the output pane below. Generated `for_each` job
 instances also show their target key on the summary row. The panel stays fixed while
-output scrolls and disappears for background-command and empty AXE views.
+output scrolls and disappears for background-command and empty Services views.
 
 The panel has two states, and `d` toggles between them for the rest of the session. The
 summary row ends with a `▸ d` / `▾ d` disclosure hint whenever there is a body to reveal
@@ -3195,7 +3195,7 @@ These work on all tabs:
 | `$$` / `$1`-`$9` / `$0` | Follow the first / numbered contextual artifact link, or open the links panel                                                                                          |
 | `Q`                     | Open the quit / restart menu                                                                                                                                           |
 | `R`                     | Open the [Refresh panel](#refresh-panel) on Artifacts and Services (this tab, full history, usage, or everything). On Agents, retry the selected local or remote agent |
-| `r`                     | On Agents, refresh (or open the Refresh panel). Artifacts and Services keep `r` for Patch workflow / Axe run or re-run                                                 |
+| `r`                     | On Agents, refresh (or open the Refresh panel). Artifacts and Services keep `r` for Patch workflow / Services run or re-run                                            |
 | `q`                     | Quit (first closes an open artifact viewer pane)                                                                                                                       |
 | `?`                     | Show help modal                                                                                                                                                        |
 

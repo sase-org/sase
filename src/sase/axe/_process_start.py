@@ -1,4 +1,4 @@
-"""Stable executable resolution for axe daemon startup."""
+"""Stable ``sase`` executable resolution for the platform service units."""
 
 import re
 import shutil
@@ -34,26 +34,16 @@ def _resolve_primary_workspace_sase() -> str | None:
     return None
 
 
-def _resolve_sase_executable(*, prefer_canonical: bool) -> str | None:
-    """Find the best ``sase`` executable for launching long-lived daemons."""
+def canonical_axe_start_command() -> str | None:
+    """Return a stable, non-ephemeral ``sase`` executable for service units."""
     current_bin = Path(sys.executable).parent / "sase"
-    current = str(current_bin) if current_bin.exists() else None
     path_sase = shutil.which("sase")
-
-    candidates: list[str | None]
-    if prefer_canonical:
-        candidates = [
-            str(Path.home() / ".local" / "bin" / "sase"),
-            path_sase,
-            _resolve_primary_workspace_sase(),
-            current,
-        ]
-    else:
-        candidates = [
-            current,
-            path_sase,
-            str(Path.home() / ".local" / "bin" / "sase"),
-        ]
+    candidates = [
+        str(Path.home() / ".local" / "bin" / "sase"),
+        path_sase,
+        _resolve_primary_workspace_sase(),
+        str(current_bin) if current_bin.exists() else None,
+    ]
 
     for candidate in candidates:
         if not candidate:
@@ -61,12 +51,7 @@ def _resolve_sase_executable(*, prefer_canonical: bool) -> str | None:
         candidate_path = Path(candidate)
         if candidate != path_sase and not candidate_path.exists():
             continue
-        if prefer_canonical and _path_is_ephemeral_workspace(candidate_path):
+        if _path_is_ephemeral_workspace(candidate_path):
             continue
         return str(candidate_path)
     return None
-
-
-def canonical_axe_start_command() -> str | None:
-    """Return a stable ``sase`` executable for axe daemon startup."""
-    return _resolve_sase_executable(prefer_canonical=True)

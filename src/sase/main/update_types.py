@@ -4,16 +4,18 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal, Protocol
+from typing import TYPE_CHECKING, Literal, Protocol
 
 from sase.dev_update import DevUpdatePlan, DevUpdateResult
 from sase.dev_update.models import DevCommandRunner
-from sase.service.actions import ServiceProcActionOutcome
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
 from sase.uv_tool.receipt import Requirement, ToolReceipt
 from sase.uv_tool.runner import UvChangeSet
 from sase.uv_tool.render import UpdateSummary
 from sase.version.inventory import RuntimeVersionInventory, VersionPackageRecord
+
+if TYPE_CHECKING:
+    from sase.service.actions import ServiceProcActionOutcome
 
 #: Bump when the ``-j|--json`` payload shape changes incompatibly.
 UPDATE_JSON_SCHEMA_VERSION = 4
@@ -24,7 +26,7 @@ VersionFn = Callable[[str], str | None]
 ClockFn = Callable[[], float]
 InventoryFn = Callable[[], RuntimeVersionInventory]
 SchedulerRunningFn = Callable[[], bool]
-RestartSchedulerFn = Callable[..., ServiceProcActionOutcome]
+RestartSchedulerFn = Callable[..., "ServiceProcActionOutcome"]
 RestartStatus = Literal[
     "skipped_no_change",
     "skipped_not_running",

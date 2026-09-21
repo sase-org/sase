@@ -7,7 +7,7 @@ pdf: false
 !!! warning "Historical review"
 
     This critique records the pre-Artifacts sase's TUI layout and the state of the asset before its 2026-05-10 regeneration.
-    Current sase's TUI navigation is **Agents · Artifacts · Axe**. Artifacts has **Stitches · Patches · Beads**,
+    Current sase's TUI navigation is **Agents · Artifacts · Services**. Artifacts has **Stitches · Patches · Beads**,
     configured document-provider panes, and **Files**. The PNG is no longer embedded in active documentation, and
     claims below about current code paths or a missing prompt sidecar should be read only as historical context.
 

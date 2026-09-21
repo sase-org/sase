@@ -709,7 +709,7 @@ Configures sase's TUI behavior. Defaults are provided by `src/sase/default_confi
 
 ```yaml
 ace:
-  axe_description_expanded: true # Axe-tab description panel starts expanded
+  axe_description_expanded: true # Services-tab description panel starts expanded
   artifacts:
     description_mode: summary # off | summary | full
     panes:
@@ -811,7 +811,7 @@ ace:
 | ----------------------------------- | ------------ | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `artifact_file_viewer`              | dict         | see below | mpv-backed terminal video playback settings for the external artifact-file viewer.                                                                         |
 | `artifacts`                         | dict         | see below | Per-pane settings for sase's TUI Artifacts tab.                                                                                                            |
-| `axe_description_expanded`          | bool         | `true`    | State the Axe-tab [description panel](ace.md#description-panel) starts each session in; `d` toggles it in memory.                                          |
+| `axe_description_expanded`          | bool         | `true`    | State the Services-tab [description panel](ace.md#description-panel) starts each session in; `d` toggles it in memory.                                     |
 | `current_project`                   | dict         | see below | Top-bar `+<project>` chip and session seeds for project filters.                                                                                           |
 | `keymaps`                           | dict         | -         | Configurable keybindings (see below).                                                                                                                      |
 | `notification_indicator_max_counts` | int          | `4`       | Per-tab counts shown in the top-bar notification indicator before the rest collapse into `+N`.                                                             |
@@ -896,7 +896,7 @@ independent of the `sase stitch list` CLI's sidecar opt-in and limit contract.
 
 #### `ace.axe_description_expanded`
 
-Sets whether the Axe-tab description panel starts expanded (`true`, the default) or
+Sets whether the Services-tab description panel starts expanded (`true`, the default) or
 collapsed to its summary line in each `sase tui` session. The `toggle_axe_description`
 keymap action — `d` by default, configurable under `ace.keymaps.app` — flips the state
 in memory for the rest of the session; it never writes the toggle back to configuration,
@@ -1355,8 +1355,8 @@ tribe panel. The configured prefix and subkeys are used by dispatch, the command
 palette, footers, and help.
 
 Query editing is one app-level action. `ace.keymaps.app.edit_query` controls Patches,
-Stitches, Plans, Files, Axe, and the top-level Agents query editor, and defaults to bare
-`/`. The top-level Agents filter bar also has `ace.keymaps.app.agents_filters` as a
+Stitches, Plans, Files, Services, and the top-level Agents query editor, and defaults to
+bare `/`. The top-level Agents filter bar also has `ace.keymaps.app.agents_filters` as a
 direct alias, default `f`. Agents metadata search is
 `ace.keymaps.modes.leader_mode.keys.search_forward`, default `,/`. Stale
 `ace.keymaps.app.search_forward` and `ace.keymaps.modes.leader_mode.keys.edit_query`
@@ -1382,16 +1382,16 @@ rejects every other duplicate app binding:
 
 | Shared key (default)  | Spelled in YAML as    | Pair                                                    | Disjoint because                                       |
 | --------------------- | --------------------- | ------------------------------------------------------- | ------------------------------------------------------ |
-| `a`                   | `a`                   | `add_axe_item` / `open_artifact_files`                  | Axe vs Artifacts                                       |
-| `d`                   | `d`                   | `show_diff` / `toggle_axe_description`                  | Patches vs Axe                                         |
+| `a`                   | `a`                   | `add_axe_item` / `open_artifact_files`                  | Services vs Artifacts                                  |
+| `d`                   | `d`                   | `show_diff` / `toggle_axe_description`                  | Patches vs Services                                    |
 | `E`                   | `E`                   | `beads_open_bug` / `files_open_external`                | Beads vs Files panes (the shared open-externally verb) |
 | `w`                   | `w`                   | `agents_revive` / `beads_launch_work`                   | Artifacts Agents pane vs Beads pane                    |
 | `w`                   | `w`                   | `agents_revive` / `reword`                              | Artifacts Agents pane vs Patches                       |
-| `.`                   | `full_stop`           | `toggle_relation_panel` / `toggle_hide_reverted`        | Artifacts vs Agents/Axe                                |
+| `.`                   | `full_stop`           | `toggle_relation_panel` / `toggle_hide_reverted`        | Artifacts vs Agents/Services                           |
 | `X`                   | `X`                   | `open_agent_cleanup_panel` / `patches_toggle_reverted`  | Agents vs Patches                                      |
 | `D`                   | `D`                   | `toggle_attempt_view` / `cycle_artifacts_description`   | Agents vs Artifacts                                    |
 | `_`                   | `underscore` (or `_`) | `next_query` / `collapse_all_panel_folds`               | Artifacts query history vs Agents fold sweep           |
-| `r`                   | `r`                   | `agents_refresh` / `run_workflow`                       | Agents vs Patches/Axe                                  |
+| `r`                   | `r`                   | `agents_refresh` / `run_workflow`                       | Agents vs Patches/Services                             |
 | `R`                   | `R`                   | `agents_retry` / `refresh`                              | Agents vs every other tab                              |
 | `o`                   | `o`                   | `choose_agent_grouping` / `cycle_grouping_mode`         | Agents vs Artifacts                                    |
 | `p`                   | `p`                   | `choose_agent_view` / `pick_artifacts_project`          | Agents vs Artifacts                                    |
@@ -1416,7 +1416,7 @@ but moving both actions onto one new key is logged as a duplicate and both rever
 selection: press it, then a slot digit (`1`-`9`, then `0`) to load that slot. Its digit
 sub-keys are not configurable -- they are the slot identifiers themselves, the same way
 `start_checkout_mode`'s `1`-`9` workspace digits aren't. The prefix is scoped to the
-Artifacts tab (any sub-tab); it does not arm on Agents or Axe.
+Artifacts tab (any sub-tab); it does not arm on Agents or Services.
 
 Custom mode key fields:
 

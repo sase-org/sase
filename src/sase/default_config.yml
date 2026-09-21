@@ -271,7 +271,7 @@ mobile_gateway:
 
 ace:
   repro_output_dir: ""
-  # Press d on the AXE tab to toggle this state for the current session.
+  # Press d on the Services tab to toggle this state for the current session.
   axe_description_expanded: true
   # Ctrl+J / Ctrl+K step and the default Artifacts limit: value.
   page_size: 100
@@ -676,7 +676,7 @@ ace:
       jump_to_all_entries: "grave_accent"
       edit_spec: "e"
       add_axe_item: "a"
-      # AXE-tab only.
+      # Services-tab only.
       toggle_axe_description: "d"
       rename_cl: "n"
       # Patch edits

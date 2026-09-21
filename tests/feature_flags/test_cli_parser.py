@@ -40,7 +40,7 @@ def test_flag_enable_and_disable_help_document_persistence_and_restart() -> None
         assert "SASE_HOME" in help_text
         assert "SASE_FEATURE_FLAGS" in help_text
         assert "--enable-feature" in help_text
-        assert "AXE" in help_text
+        assert "scheduler" in help_text
         assert "TUI" in help_text
         assert "--json" in help_text
         assert "sase/memory/sase_flags.md" not in help_text

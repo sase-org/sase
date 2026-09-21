@@ -29,11 +29,7 @@ def test_axe_lifecycle_verbs_alias_scheduler_verbs(
 
     monkeypatch.setattr(scheduler_handler, "handle_scheduler_command", fake_handle)
 
-    extra: list[str] = []
-    if verb in {"restart", "start"}:
-        extra = ["-A", "2", "-H", "3", "-q", "@p", "-z", "600"]
-    if verb in {"restart", "status"}:
-        extra = [*extra, "-j"]
+    extra = ["-j"] if verb == "status" else []
 
     axe_ns = _parse(["axe", verb, *extra])
     scheduler_ns = _parse(["scheduler", verb, *extra])
@@ -48,14 +44,7 @@ def test_axe_lifecycle_verbs_alias_scheduler_verbs(
     delegated = seen[0]
     assert delegated is axe_ns
     assert delegated.scheduler_subcommand == verb
-    for attr in (
-        "json",
-        "max_agent_runners",
-        "max_hook_runners",
-        "query",
-        "zombie_timeout",
-    ):
-        assert getattr(delegated, attr, None) == getattr(scheduler_ns, attr, None), attr
+    assert getattr(delegated, "json", None) == getattr(scheduler_ns, "json", None)
 
 
 def test_axe_restart_rejects_verify_timeout() -> None:
