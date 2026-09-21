@@ -26,10 +26,9 @@ from sase.project_display_names import (
 
 from .notification_modal_constants import (
     ACTION_BADGES,
-    DEFAULT_HINT_TEXT,
-    GATE_HINT_TEXT,
     HEADER_ID_PREFIX,
-    QUESTION_HINT_TEXT,
+    NOTIFICATION_HINT_FALLBACK_WIDTH,
+    notification_hint_text,
     notification_icon,
 )
 
@@ -278,15 +277,28 @@ class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
 
         if self.jump_mode_active:
             action = "back" if self.jump_back_stack else "first"
-            footer.update(f"JUMP ' {action}  <esc> cancel")
-        elif (
+            show_transient = getattr(footer, "show_transient", None)
+            if callable(show_transient):
+                show_transient(f"JUMP ' {action}  <esc> cancel")
+            else:
+                footer.update(f"JUMP ' {action}  <esc> cancel")
+            return
+
+        if (
             notification := self._get_highlighted_notification()
         ) is not None and notification.action == "UserQuestion":
-            footer.update(QUESTION_HINT_TEXT)
+            variant = "question"
         elif notification is not None and notification.action in _GATE_HINT_ACTIONS:
-            footer.update(GATE_HINT_TEXT)
+            variant = "gate"
         else:
-            footer.update(DEFAULT_HINT_TEXT)
+            variant = "default"
+        set_variant = getattr(footer, "set_variant", None)
+        if callable(set_variant):
+            set_variant(variant)
+        else:
+            footer.update(
+                notification_hint_text(variant, NOTIFICATION_HINT_FALLBACK_WIDTH)
+            )
 
     def on_key(self: Any, event: events.Key) -> None:
         """Intercept case-sensitive keys before modal bindings run."""

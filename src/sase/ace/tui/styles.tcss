@@ -7281,6 +7281,7 @@ NotificationModal #notification-file-content {
 
 NotificationModal #notification-hints {
     height: 1;
+    width: 1fr;
     color: $text-muted;
     text-align: center;
     margin-top: 1;

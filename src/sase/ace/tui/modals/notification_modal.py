@@ -33,10 +33,10 @@ from .base import OptionListNavigationMixin
 from .notification_modal_actions import NotificationStateActionsMixin
 from .notification_modal_attachments import NotificationAttachmentMixin
 from .notification_modal_constants import (
-    DEFAULT_HINT_TEXT,
     HEADER_ID_PREFIX,
     NOTIFICATION_TAB_SHORTCUTS,
 )
+from .notification_modal_footer import NotificationHintFooter
 from .notification_modal_gate import NotificationGateMixin, NotificationSummaryMixin
 from .notification_modal_options import NotificationOptionMixin
 from .notification_modal_plus_ones import NotificationPlusOneMixin
@@ -173,8 +173,8 @@ class NotificationModal(
                     yield Label("", id="notification-snooze-status", classes="hidden")
                     with VerticalScroll(id="notification-file-scroll"):
                         yield Static(id="notification-file-content")
-            yield Label(
-                DEFAULT_HINT_TEXT,
+            yield NotificationHintFooter(
+                "default",
                 id="notification-hints",
             )
 
