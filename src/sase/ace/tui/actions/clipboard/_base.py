@@ -9,7 +9,7 @@ if TYPE_CHECKING:
     from ...keymaps import KeymapRegistry
     from ...models import Agent
 
-TabName = Literal["artifacts", "patches", "agents", "axe"]
+TabName = Literal["artifacts", "patches", "agents", "services"]
 AxeViewType = Literal["axe"] | int
 
 

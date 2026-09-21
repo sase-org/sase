@@ -244,7 +244,7 @@ def test_flag_on_footer_palette_and_help_omit_comma_y() -> None:
         assert refresh.label == REFRESH_PANEL_COMMAND_LABEL
         assert agents_refresh.label == REFRESH_PANEL_COMMAND_LABEL
         assert agents_refresh.tabs == ("agents",)
-        assert refresh.tabs == ("artifacts", "axe")
+        assert refresh.tabs == ("artifacts", "services")
 
         labels = _help_labels(agents_bindings)
         assert "Refresh from full history" not in labels

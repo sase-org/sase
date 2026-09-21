@@ -519,7 +519,7 @@ class PatchMixin(
         if self.current_tab == "agents":
             self._toggle_hide_non_run_agents()  # type: ignore[attr-defined]
             return
-        if self.current_tab == "axe":
+        if self.current_tab == "services":
             self._axe_cmds_hidden = not self._axe_cmds_hidden  # type: ignore[attr-defined]
             # If hiding and current selection is a bgcmd, navigate to axe parent
             from ...widgets.bgcmd_list import BgCmdItem

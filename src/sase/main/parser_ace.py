@@ -97,9 +97,9 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
             "axe",
         ],
         default="agents",
-        help="Tab to focus on startup; 'services' is the Services tab, and "
-        "'changespecs'/'patches' remain legacy aliases for 'artifacts' "
-        "(default: agents)",
+        help="Tab to focus on startup; 'services' is the Services tab ('axe' "
+        "remains a legacy alias), and 'changespecs'/'patches' remain legacy "
+        "aliases for 'artifacts' (default: agents)",
     )
     set_completion_compat_choices(tab, "changespecs", "patches", "axe")
     set_completion_summary(tab, "Tab to focus on startup (default: agents)")

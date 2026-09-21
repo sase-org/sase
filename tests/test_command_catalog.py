@@ -76,7 +76,7 @@ def test_jump_commands_use_back_and_forward_defaults_on_every_tab() -> None:
     assert forward.label == "Jump forward through jump stack"
     assert forward.key_sequence == ("ctrl+shift+o",)
     assert forward.key_display == "Ctrl+Shift+O"
-    assert forward.tabs == ("artifacts", "agents", "axe")
+    assert forward.tabs == ("artifacts", "agents", "services")
     assert "ctrl+shift+o" in forward.aliases
     assert "ctrl+k" not in forward.aliases
     assert by_id["app.next_agent_metadata_section"].tabs == ("agents",)
@@ -93,7 +93,7 @@ def test_last_vcs_xprompt_editor_command_is_all_tab_agent_command() -> None:
     spec = by_id["app.start_last_vcs_xprompt_in_editor"]
     assert spec.label == "Edit last VCS xprompt"
     assert spec.category == "Agents"
-    assert spec.tabs == ("artifacts", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "services")
     assert spec.key_sequence == ("ctrl+g",)
     assert spec.key_display == "Ctrl+G"
 
@@ -117,7 +117,7 @@ def test_restore_prompt_stash_command_is_all_tab_at_keymap() -> None:
 
     assert spec.label == "Restore stashed prompt"
     assert spec.category == "Agents"
-    assert spec.tabs == ("artifacts", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "services")
     assert spec.key_sequence == ("at",)
     assert spec.key_display == "@"
     assert spec.executor.kind == "app_action"
@@ -134,7 +134,7 @@ def test_show_help_command_is_global_question_mark_keymap() -> None:
 
     assert spec.label == "Show help"
     assert spec.category == "Display"
-    assert spec.tabs == ("artifacts", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "services")
     assert spec.key_sequence == ("question_mark",)
     assert spec.key_display == "?"
     assert spec.executor.kind == "app_action"
@@ -159,7 +159,7 @@ def test_start_agent_home_command_uses_bare_space() -> None:
 
     assert spec.label == "Run agent (home mode)"
     assert spec.category == "Agents"
-    assert spec.tabs == ("artifacts", "agents", "axe")
+    assert spec.tabs == ("artifacts", "agents", "services")
     assert spec.key_sequence == ("space",)
     assert spec.key_display == "Space"
     assert spec.executor.kind == "app_action"
@@ -171,7 +171,7 @@ def test_run_workflow_command_is_artifacts_and_axe_run() -> None:
     spec = by_id["app.run_workflow"]
 
     assert spec.label == "Run workflow / re-run"
-    assert spec.tabs == ("artifacts", "axe")
+    assert spec.tabs == ("artifacts", "services")
     assert spec.key_sequence == ("r",)
     assert spec.key_display == "r"
     assert spec.executor.action == "run_workflow"
@@ -418,7 +418,7 @@ def test_copy_mode_commands_per_tab_scope() -> None:
     # Each per-tab subdict produces commands tagged with that single tab.
     assert by_id["copy.patches.bug"].tabs == ("artifacts",)
     assert by_id["copy.agents.name"].tabs == ("agents",)
-    assert by_id["copy.axe.visible"].tabs == ("axe",)
+    assert by_id["copy.axe.visible"].tabs == ("services",)
     # Coverage for every nested key.
     expected: set[str] = set()
     for tab_name, sub in reg.copy_mode.keys.items():

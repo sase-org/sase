@@ -124,7 +124,7 @@ class ProcsTestApp(App[None]):
         self._agents = agents
         self.killed_task_ids: list[str] = []
         self.notifications: list[tuple[str, str | None]] = []
-        self.current_tab = "axe"
+        self.current_tab = "services"
         self.save_tab_position_calls = 0
         self.reveal_calls: list[tuple[Any, str]] = []
         self._reveal_result = reveal_result

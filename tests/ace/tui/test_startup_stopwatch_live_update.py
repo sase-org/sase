@@ -383,7 +383,7 @@ def test_startup_tab_switch_does_not_duplicate_surface_load() -> None:
         patch.object(app, "_start_prompt_source_watcher"),
     ):
         app._start_post_mount_background_loads()
-        assert app._maybe_start_startup_surface_for_tab("axe") is True
+        assert app._maybe_start_startup_surface_for_tab("services") is True
         app._agents_first_load_done = True
         app._mark_startup_agents_ready()
         app._maybe_end_startup_stopwatch()
@@ -422,7 +422,7 @@ async def test_slow_mount_state_read_does_not_block_app_key_dispatch(
             await page.wait_for(
                 lambda _state: page.app.current_tab != "artifacts",
             )
-            assert page.app.current_tab == "axe"
+            assert page.app.current_tab == "services"
         finally:
             release.set()
             await page.wait_for(
@@ -581,7 +581,7 @@ def test_maybe_end_startup_stopwatch_gates_on_axe_when_axe_is_visible() -> None:
     footer = MagicMock()
 
     with patch.object(app, "query_one", return_value=footer):
-        app._startup_initial_tab = "axe"
+        app._startup_initial_tab = "services"
         app._agents_first_load_done = False
         app._axe_first_load_done = False
         app._maybe_end_startup_stopwatch()

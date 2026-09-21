@@ -180,7 +180,7 @@ def _iter_copy_commands(registry: KeymapRegistry) -> Iterator[CommandSpec]:
         "artifacts_agents": "artifacts",
         "patches": "artifacts",
         "agents": "agents",
-        "axe": "axe",
+        "axe": "services",
     }
     for tab_name, sub in copy.keys.items():
         if not isinstance(sub, dict):

@@ -238,7 +238,7 @@ async def test_number_keys_jump_artifacts_without_entering_from_other_tabs() -> 
         for key in ("1", "2", "3", "4", "5", "6", "asterisk"):
             await page.press(key)
             await page.pause()
-            assert page.app.current_tab == "axe"
+            assert page.app.current_tab == "services"
             assert page.app.current_artifacts_subtab == remembered_subtab
             assert page.state["modal"] is None
 

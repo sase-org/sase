@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...models.agent import AgentType
 
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 
 class AgentMarkNavigationMixin:

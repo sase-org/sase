@@ -178,13 +178,13 @@ def test_extract_context_expanded_panel_clears_hidden_backing_agent() -> None:
 def test_extract_context_axe_tab_lumberjack_row_is_not_done() -> None:
     items = [LumberjackItem(name="hooks")]
     app = _make_app_stub(
-        tab="axe",
+        tab="services",
         axe_items=items,
         current_idx=0,
         axe_running=True,
     )
     ctx = extract_command_context(app)  # type: ignore[arg-type]
-    assert ctx.tab == "axe"
+    assert ctx.tab == "services"
     assert isinstance(ctx.axe_item, LumberjackItem)
     assert ctx.axe_running is True
     # selected_axe_slot_done only tracks bgcmd rows.
@@ -195,7 +195,7 @@ def test_extract_context_axe_tab_lumberjack_row_is_not_done() -> None:
 def test_extract_context_axe_tab_done_bgcmd_marks_done() -> None:
     item = BgCmdItem(slot=2)
     app = _make_app_stub(
-        tab="axe",
+        tab="services",
         axe_items=[item],
         current_idx=0,
         bgcmd_slots=[(2, SimpleNamespace(running=False))],
@@ -208,7 +208,7 @@ def test_extract_context_axe_tab_done_bgcmd_marks_done() -> None:
 def test_extract_context_axe_tab_running_bgcmd_marks_running() -> None:
     item = BgCmdItem(slot=3)
     app = _make_app_stub(
-        tab="axe",
+        tab="services",
         axe_items=[item],
         current_idx=0,
         bgcmd_slots=[(3, SimpleNamespace(running=True))],

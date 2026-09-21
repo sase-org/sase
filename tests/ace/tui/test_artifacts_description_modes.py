@@ -68,7 +68,7 @@ async def test_description_action_scoped_to_every_artifacts_subtab() -> None:
         page.app.current_tab = "agents"
         await page.pause()
         assert page.app.check_action("cycle_artifacts_description", ()) is False
-        page.app.current_tab = "axe"
+        page.app.current_tab = "services"
         await page.pause()
         assert page.app.check_action("cycle_artifacts_description", ()) is False
 

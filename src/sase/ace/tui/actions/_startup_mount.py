@@ -45,7 +45,7 @@ class StartupMountMixin:
             tab_bar.set_keymap_registry(self._keymap_registry)
             tab_bar.update_tab(self.current_tab)
             self.query_one("#agents-view").disabled = self.current_tab != "agents"
-            self.query_one("#axe-view").disabled = self.current_tab != "axe"
+            self.query_one("#axe-view").disabled = self.current_tab != "services"
             if self.current_tab == "artifacts":
                 self._wire_artifacts_startup_widgets()
                 # The view's mount hook owns lifecycle activation; share the
@@ -197,7 +197,7 @@ class StartupMountMixin:
             except Exception:
                 log.debug("startup focus normalization skipped: AgentList unfocusable")
             return
-        elif self.current_tab == "axe":
+        elif self.current_tab == "services":
             selector = "#bgcmd-list-panel"
         else:
             return

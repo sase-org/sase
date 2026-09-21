@@ -45,7 +45,7 @@ class FakeAxeApp(AxeDisplayMixin):
     """Minimal stand-in exposing the axe-display surface for unit tests."""
 
     def __init__(self) -> None:
-        self.current_tab = "axe"
+        self.current_tab = "services"
         self.current_idx = 0
         self.refresh_interval = 10
         self.axe_running = True
@@ -158,7 +158,7 @@ class _DescriptionDashboardProbe:
 class _ToggleProbe:
     """Minimal action host proving the toggle stays cache-only."""
 
-    def __init__(self, tab: str = "axe") -> None:
+    def __init__(self, tab: str = "services") -> None:
         self.current_tab = tab
         self.axe_description_expanded = True
         self.dashboard = MagicMock()

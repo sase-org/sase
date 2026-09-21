@@ -65,7 +65,7 @@ class AxeConfigActionsMixin:
         ) -> None: ...
 
     def action_add_axe_item(self) -> None:
-        if self.current_tab != "axe":  # type: ignore[attr-defined]
+        if self.current_tab != "services":  # type: ignore[attr-defined]
             return
         guard = self._selected_axe_config_key()
         contextual_parent: str | None = None
@@ -107,7 +107,7 @@ class AxeConfigActionsMixin:
         self.push_screen(AxeLumberjackPickerModal(names), selected)  # type: ignore[attr-defined]
 
     def _open_selected_axe_entry_editor(self) -> None:
-        if self.current_tab != "axe":  # type: ignore[attr-defined]
+        if self.current_tab != "services":  # type: ignore[attr-defined]
             return
         key = self._selected_axe_config_key()
         if key is None or key[0] == "bgcmd":
@@ -151,7 +151,7 @@ class AxeConfigActionsMixin:
             return
         if not getattr(self, "is_mounted", True):
             return
-        if self.current_tab != "axe" or self._selected_axe_config_key() != guard:  # type: ignore[attr-defined]
+        if self.current_tab != "services" or self._selected_axe_config_key() != guard:  # type: ignore[attr-defined]
             return
         if purpose == "edit":
             self._show_axe_edit_session(inventory, guard)

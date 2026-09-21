@@ -12,7 +12,7 @@ class _Host:
         self._axe_chop_selection: tuple[str, str] | None = None
         self._axe_lumberjack_idx: int | None = None
         self.axe_running = False
-        self.current_tab = "axe"
+        self.current_tab = "services"
         self._bgcmd_slots: list[object] = []
         self.calls: list[tuple[str, str] | str] = []
 

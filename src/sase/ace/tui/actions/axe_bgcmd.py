@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from ..modals.project_select_modal import ProjectSelectResult
 
 # Type alias for tab names
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 # How long a launched slot stays reserved while the launch operation runs and
 # the next Services refresh picks the new oneshot row up.

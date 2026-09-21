@@ -15,7 +15,7 @@ if TYPE_CHECKING:
         CollapsedAgentPanelFocus,
     )
 
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 
 class AgentKillActionFlowMixin:
@@ -32,7 +32,7 @@ class AgentKillActionFlowMixin:
         if self.current_tab == "artifacts":
             self.action_toggle_hide_submitted()  # type: ignore[attr-defined]
             return
-        if self.current_tab == "axe":
+        if self.current_tab == "services":
             self._toggle_or_kill_axe_view()  # type: ignore[attr-defined]
             return
         if self.current_tab != "agents":

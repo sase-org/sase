@@ -318,7 +318,7 @@ def test_sparse_plan_projects_missing_script_warning_and_exact_diff(
 
 class _ActionHarness(AxeConfigActionsMixin):
     def __init__(self) -> None:
-        self.current_tab = "axe"
+        self.current_tab = "services"
         self.current_idx = 0
         self._axe_items: list[Any] = [LumberjackItem(name="hooks")]
         self.pushed: list[tuple[object, object]] = []

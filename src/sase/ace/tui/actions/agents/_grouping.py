@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from ...models.group_fold import GroupFoldRegistry
 
 TabName = Literal[  # legacy compatibility alias
-    "artifacts", "patches", "changespecs", "agents", "axe"
+    "artifacts", "patches", "changespecs", "agents", "services"
 ]
 GroupingSaveTarget = Literal[  # legacy compatibility alias
     "agents", "artifacts", "patches", "changespecs"

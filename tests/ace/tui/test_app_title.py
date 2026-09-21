@@ -43,7 +43,8 @@ def test_app_default_initial_tab_is_agents() -> None:
         ("patches", "artifacts"),
         ("patches", "artifacts"),
         ("agents", "agents"),
-        ("axe", "axe"),
+        ("axe", "services"),
+        ("services", "services"),
     ],
 )
 def test_app_initial_tab_assigned_during_init(tab: str, expected: str) -> None:

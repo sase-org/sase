@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from textual.timer import Timer
 
 # Type alias for tab names (used in type hints)
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 type NotificationActivityCursor = tuple[str, str]
 type NotificationStartupState = tuple[
     set[str],

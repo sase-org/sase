@@ -311,7 +311,7 @@ def test_open_command_palette_command_is_always_present() -> None:
     assert spec is not None
     assert "artifacts" in spec.tabs
     assert "agents" in spec.tabs
-    assert "axe" in spec.tabs
+    assert "services" in spec.tabs
 
 
 def test_tree_navigation_command_tab_scopes() -> None:

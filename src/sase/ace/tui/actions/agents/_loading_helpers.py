@@ -34,7 +34,7 @@ from ...util.trace import tui_trace
 from ._refresh_trace import classify_agents_data_cost
 
 # Type alias for tab names
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 log = logging.getLogger(__name__)
 
 # Loaded statuses that mean the agent has resumed past an asking/answered

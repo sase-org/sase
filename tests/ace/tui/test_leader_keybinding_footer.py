@@ -197,7 +197,7 @@ def test_footer_surfaces_space_run_agent_on_cl_and_agents_tabs() -> None:
         assert "<space>" in _last_keys(captured)
         assert "run agent (PR)" in _last_labels(captured)
 
-    footer.update_leader_bindings(current_tab="axe")
+    footer.update_leader_bindings(current_tab="services")
     assert "run agent (PR)" not in _last_labels(captured)
 
 

@@ -525,7 +525,7 @@ def test_leader_u_records_and_repeat_invokes_bulk_toggle_again() -> None:
 
 
 def test_leader_uppercase_u_opens_sase_update_shortcut() -> None:
-    app = _FakeApp(current_tab="axe")
+    app = _FakeApp(current_tab="services")
 
     handled = app._handle_leader_key("U")
 
@@ -551,7 +551,7 @@ def test_leader_uppercase_e_runs_update_everything_on_all_tabs() -> None:
 
 
 def test_leader_update_everything_repeat_and_remap_use_configured_key() -> None:
-    app = _FakeApp(current_tab="axe")
+    app = _FakeApp(current_tab="services")
     app._keymap_registry = load_keymap_registry(
         {"keymaps": {"modes": {"leader_mode": {"keys": {"update_everything": "Q"}}}}}
     )
@@ -569,7 +569,7 @@ def test_leader_update_everything_repeat_and_remap_use_configured_key() -> None:
 
 
 def test_leader_uppercase_l_jumps_to_last_error() -> None:
-    app = _FakeApp(current_tab="axe")
+    app = _FakeApp(current_tab="services")
 
     handled = app._handle_leader_key("L")
 
@@ -581,7 +581,7 @@ def test_leader_uppercase_l_jumps_to_last_error() -> None:
 
 
 def test_leader_at_schedules_panel_only_action_and_repeat() -> None:
-    app = _FakeApp(current_tab="axe")
+    app = _FakeApp(current_tab="services")
 
     handled = app._handle_leader_key("at")
 

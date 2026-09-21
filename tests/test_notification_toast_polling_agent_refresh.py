@@ -511,7 +511,7 @@ class TestNotificationAgentTargeting:
         tmp_path: Path,
     ) -> None:
         app = _FakeApp()
-        app.current_tab = "axe"  # type: ignore[attr-defined]
+        app.current_tab = "services"  # type: ignore[attr-defined]
         artifacts_dir = tmp_path / "artifacts"
         artifacts_dir.mkdir()
         agent = Agent(
@@ -601,7 +601,7 @@ class TestNotificationAgentTargeting:
         tmp_path: Path,
     ) -> None:
         app = _FakeApp()
-        app.current_tab = "axe"  # type: ignore[attr-defined]
+        app.current_tab = "services"  # type: ignore[attr-defined]
         artifacts_dir = tmp_path / "monitor"
         artifacts_dir.mkdir()
         monitor = Agent(
@@ -633,7 +633,7 @@ class TestNotificationAgentTargeting:
 
     def test_scheduled_poll_broad_fallback_is_tab_gated(self) -> None:
         app = _FakeApp()
-        app.current_tab = "axe"  # type: ignore[attr-defined]
+        app.current_tab = "services"  # type: ignore[attr-defined]
         completion = _make(
             action="JumpToAgent",
             sender="user-agent",
@@ -743,7 +743,7 @@ class TestPendingGateArrivalRefresh:
         planner_dir = _ace_run_dir(sase_home, planner_ts)
         gate_dir = _ace_run_dir(sase_home, gate_ts)
         app = _FakeApp()
-        app.current_tab = "axe"  # type: ignore[attr-defined]
+        app.current_tab = "services"  # type: ignore[attr-defined]
         planner = Agent(
             agent_type=AgentType.WORKFLOW,
             cl_name="0nn",

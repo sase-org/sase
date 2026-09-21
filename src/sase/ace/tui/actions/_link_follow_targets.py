@@ -165,7 +165,7 @@ class LinkFollowTargetsMixin:
             self._notify_dangling_link_ref(f"job:{payload}")
             return False
         self._save_current_tab_position()  # type: ignore[attr-defined]
-        self.current_tab = "axe"
+        self.current_tab = "services"
         self.current_idx = idx
         self._axe_last_idx = idx  # type: ignore[attr-defined]
         self._axe_last_item_key = selected_axe_item_key(  # type: ignore[attr-defined]

@@ -212,7 +212,7 @@ class EventAutoRefreshSurfacesMixin(
         # watcher is active and nothing about axe has changed.
         if _should_refresh("_dirty_axe", "axe"):
             run_axe_refresh = getattr(self, "_run_axe_status_refresh", None)
-            axe_full = sanity_due or self.current_tab == "axe"
+            axe_full = sanity_due or self.current_tab == "services"
             if callable(run_axe_refresh):
                 if not getattr(
                     self, "_axe_status_refresh_running", False

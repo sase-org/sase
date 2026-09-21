@@ -49,7 +49,7 @@ if TYPE_CHECKING:
     from sase.history.prompt_word_index import PromptWordIndex
     from ._startup_history_words import HistoryPromptCacheSourceToken
 
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 
 class StartupMixin(

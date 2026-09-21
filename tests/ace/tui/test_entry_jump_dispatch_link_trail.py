@@ -36,7 +36,7 @@ class _TrailFirstApp(EntryJumpDispatchMixin):
 
 class _FallthroughApp(EntryJumpDispatchMixin):
     def __init__(self) -> None:
-        self.current_tab = "axe"
+        self.current_tab = "services"
         self.current_idx = 1
         self._axe_items = [object(), object()]
         self._entry_jump_mode_active = False
@@ -78,12 +78,12 @@ def test_fast_jump_falls_through_when_the_link_trail_declines() -> None:
     # moved there from index 1, and pushed the origin it left behind.
     assert app._entry_jump_mode_active is False
     assert app.current_idx == 0
-    assert app._entry_jump_index_stack.get("axe") == [1]
+    assert app._entry_jump_index_stack.get("services") == [1]
 
 
 def test_forward_jump_falls_through_when_the_link_trail_declines() -> None:
     app = _FallthroughApp()
-    app._entry_jump_forward_index_stack["axe"] = [0]
+    app._entry_jump_forward_index_stack["services"] = [0]
     app.current_idx = 1
 
     app.action_jump_to_entry_forward()

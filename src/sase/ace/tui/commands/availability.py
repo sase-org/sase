@@ -42,7 +42,7 @@ def is_command_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return _patches_available(spec, ctx)
     if ctx.tab == "agents":
         return _agents_available(spec, ctx)
-    if ctx.tab == "axe":
+    if ctx.tab == "services":
         return _axe_available(spec, ctx)
 
     return True

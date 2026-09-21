@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from ..artifact_tabs import ArtifactsPaneKey
 
 # Type alias for tab names
-TabName = Literal["artifacts", "patches", "changespecs", "agents", "axe"]
+TabName = Literal["artifacts", "patches", "changespecs", "agents", "services"]
 
 
 class MarkingMixin:

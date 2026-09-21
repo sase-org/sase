@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from .axe_display import ChopSnapshot
     from ..widgets.bgcmd_list import AxeItem
 
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 
 class AxeChopRunMixin:
@@ -53,7 +53,7 @@ class AxeChopRunMixin:
         on the asyncio loop so the backend call doesn't block the UI. No-op
         when the selection is not a chop row.
         """
-        if self.current_tab != "axe":
+        if self.current_tab != "services":
             return
         items = self._axe_items
         if not (0 <= self.current_idx < len(items)):
@@ -89,7 +89,7 @@ class AxeChopRunMixin:
 
     def _open_selected_chop_output(self) -> None:
         """Open the selected chop run's persisted output log in ``$EDITOR``."""
-        if self.current_tab != "axe":
+        if self.current_tab != "services":
             return
 
         self._derive_axe_view_from_selection()  # type: ignore[attr-defined]

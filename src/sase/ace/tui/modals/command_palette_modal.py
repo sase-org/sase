@@ -34,7 +34,7 @@ from .base import FilterInput
 _TAB_BADGE: dict[CommandTab, tuple[str, str]] = {
     "artifacts": ("Artifacts", "#00D7AF"),
     "agents": ("Agents", "#87D7FF"),
-    "axe": ("AXE", "#FFD700"),
+    "services": ("Services", "#FFD700"),
 }
 
 # Visual layout constants.
@@ -250,7 +250,7 @@ class CommandPaletteModal(ModalScreen[CommandPaletteResult]):
             (Phase 3 wiring) is responsible for producing this list
             from the catalog + ``is_command_available``.
         tab: The current tab (``"artifacts"``, ``"agents"``, or
-            ``"axe"``); used only for the context badge in the title.
+            ``"services"``); used only for the context badge in the title.
     """
 
     BINDINGS = [

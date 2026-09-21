@@ -71,7 +71,7 @@ def test_metadata_sections_are_agents_only_and_forward_jump_is_all_tab() -> None
         assert not is_command_available(paging_command, CommandContext(tab="agents"))
         assert not is_command_available(paging_command, CommandContext(tab="axe"))
 
-    for tab in ("changespecs", "agents", "axe"):  # legacy tab id
+    for tab in ("changespecs", "agents", "services"):
         assert is_command_available(jump_forward, CommandContext(tab=tab))
 
 

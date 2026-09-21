@@ -18,7 +18,7 @@ class FakeAxeSelectionApp(AxeMixin, BasicNavigationMixin, AxeDisplayMixin):
     """Minimal app surface for AXE item rebuild and tab-restore tests."""
 
     def __init__(self) -> None:
-        self.current_tab: Any = "axe"
+        self.current_tab: Any = "services"
         self.current_idx = 0
         self._axe_cmds_hidden = False
         self._axe_lumberjack_names: list[str] = []

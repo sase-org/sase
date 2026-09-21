@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 from .artifact_tabs import ArtifactsSubTab, FilesSubTab
 from .artifacts_description import ArtifactsDescriptionMode
 from .artifacts_split import ArtifactsSplitMode
-from .tab_order import ARTIFACTS_TAB, TabName
+from .tab_order import ARTIFACTS_TAB, SERVICES_TAB, TabName
 from .widgets import ArtifactsView, TabBar
 
 if TYPE_CHECKING:
@@ -30,7 +30,7 @@ class AppWatchersMixin:
                 self._refresh_patches_display_debounced()
             elif self.current_tab == "agents":
                 self._refresh_agents_display_debounced()
-            elif self.current_tab == "axe":
+            elif self.current_tab == SERVICES_TAB:
                 self._refresh_axe_display_debounced()
             refresh_link_rail = getattr(self, "refresh_link_rail", None)
             if callable(refresh_link_rail):
@@ -59,7 +59,7 @@ class AppWatchersMixin:
 
         set_trace_context(current_tab=new_tab)
 
-        if new_tab == "axe" or (
+        if new_tab == SERVICES_TAB or (
             new_tab == ARTIFACTS_TAB and self.current_artifacts_subtab != "patches"
         ):
             self._fold_mode_active = False
@@ -72,7 +72,7 @@ class AppWatchersMixin:
             self._exit_agent_metadata_search_for_context_change()
             self._agent_detail_debouncer.cancel()
             self._expanded_panel_focus = False
-        elif old_tab == "axe":
+        elif old_tab == SERVICES_TAB:
             self._axe_detail_debouncer.cancel()
         elif old_tab == ARTIFACTS_TAB and self.current_artifacts_subtab == "patches":
             self._patch_detail_debouncer.cancel()
@@ -172,7 +172,9 @@ class AppWatchersMixin:
                 None,
             )
             if callable(maybe_start_startup_surface):
-                startup_surface_started = bool(maybe_start_startup_surface("axe"))
+                startup_surface_started = bool(
+                    maybe_start_startup_surface(SERVICES_TAB)
+                )
             self._refresh_axe_display()
             if not startup_surface_started:
                 self._schedule_axe_async_refresh()

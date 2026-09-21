@@ -43,7 +43,7 @@ class EntryJumpGenericHistoryMixin(NavigationMixinBase):
 
     def _entry_jump_index_is_valid(self, tab: str, idx: int) -> bool:
         """Return whether ``idx`` still identifies a row in AXE's flat list."""
-        if tab == "axe":
+        if tab == "services":
             return 0 <= idx < len(self._axe_items)  # type: ignore[attr-defined]
         return False
 

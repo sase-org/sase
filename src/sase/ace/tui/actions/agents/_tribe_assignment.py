@@ -14,7 +14,7 @@ from sase.xprompt.directive_edit import prompt_declares_clan
 from ...models.agent_pin import DEFAULT_PINNED_TRIBE
 from ..proc_actions import TrackedProcCompletion
 
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 __all__ = ["AgentTribeAssignmentMixin", "DEFAULT_PINNED_TRIBE"]
 

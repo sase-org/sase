@@ -298,7 +298,7 @@ class PromptBarMountMixin:
             if widget is not None:
                 return widget
             candidates = (f"#{_MAIN_PANEL_ID}",)
-        elif tab == "axe":
+        elif tab == "services":
             candidates = ("#bgcmd-list-panel",)
         else:
             candidates = ("#list-panel",)

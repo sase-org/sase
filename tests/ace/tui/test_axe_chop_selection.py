@@ -17,7 +17,7 @@ class _Fake(AxeMixin, BasicNavigationMixin, AxeDisplayMixin):
     """Minimal app surface that exercises chop-row selection routing."""
 
     def __init__(self) -> None:
-        self.current_tab: Any = "axe"
+        self.current_tab: Any = "services"
         self.current_idx = 0
         self.notifications: list[tuple[str, str]] = []
         self.refresh_count = 0

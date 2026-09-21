@@ -48,7 +48,7 @@ _TAB_ROWS: dict[TabName, tuple[str, str, str]] = {
         "#00D7AF",
         "Browse commits, patches, beads, and nested files in one place.",
     ),
-    "axe": (
+    "services": (
         "AXE",
         "#FF5F5F",
         "Monitor the Axe daemon and automation.",

@@ -32,7 +32,7 @@ class _LLMCallsDetail:
 
 
 class _OtherTabExpandApp(AgentFoldingMixin):
-    def __init__(self, current_tab: Literal["axe", "patches"]) -> None:
+    def __init__(self, current_tab: Literal["services", "patches"]) -> None:
         self.current_tab = current_tab
         self.axe_expand_calls = 0
         self.patch_expand_calls = 0
@@ -88,7 +88,7 @@ def test_capital_l_still_expands_all_folds_on_axe_but_not_patches() -> None:
     freeing the bare `L` key for siblings' `artifacts_link_jump`. A bare `L`
     on Patches is now a no-op at this layer.
     """
-    axe = _OtherTabExpandApp("axe")
+    axe = _OtherTabExpandApp("services")
     patches = _OtherTabExpandApp("patches")
 
     axe.action_expand_all_folds()

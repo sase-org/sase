@@ -56,7 +56,7 @@ from ....patch import Patch
 from ._loading import DISMISSABLE_STATUSES
 
 # Type alias for tab names
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 
 class AgentsMixinCore(

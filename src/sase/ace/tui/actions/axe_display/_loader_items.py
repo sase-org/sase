@@ -97,7 +97,7 @@ class AxeDisplayItemsMixin(AxeLoaderState):
         from ...models.fold_state import FoldLevel
         from ...util.selection import restore_selection_by_identity
 
-        on_axe_tab = self.current_tab == "axe"
+        on_axe_tab = self.current_tab == "services"
 
         # Capture identity *before* mutating ``_axe_items`` so off-tab
         # rebuilds (e.g. axe daemon push while the user is on Agents)

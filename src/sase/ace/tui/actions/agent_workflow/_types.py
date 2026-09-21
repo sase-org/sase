@@ -7,7 +7,7 @@ from typing import Any, Literal, cast
 from uuid import uuid4
 
 # Type alias for tab names
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 
 @dataclass

@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from sase.ace.patch import Patch
 from sase.ace.tui import AceApp
+from sase.ace.tui.tab_order import SERVICES_TAB
 from sase.ace.tui.util.pump_tasks import cancel_pump_free_tasks
 from textual.worker import WorkerCancelled
 
@@ -34,6 +35,7 @@ _LEGACY_SELECTOR_ALIASES = {
 _LEGACY_STATE_VALUE_ALIASES = {
     ("tab", "changespecs"): "artifacts",
     ("tab", "patches"): "artifacts",
+    ("tab", "axe"): "services",
 }
 
 
@@ -99,7 +101,7 @@ def _extract_state(app: AceApp) -> dict[str, Any]:
             }
         else:
             state["selected_agent"] = None
-    elif app.current_tab == "axe":
+    elif app.current_tab == SERVICES_TAB:
         state["axe_running"] = app.axe_running
 
     return state
@@ -191,7 +193,8 @@ class AcePage:
             "patches",
             "changespecs",  # legacy compatibility tab id
             "agents",
-            "axe",
+            "services",
+            "axe",  # legacy compatibility tab id
         ] = "artifacts",
         notifications: bool = False,
         wait_for_startup_state: bool = True,

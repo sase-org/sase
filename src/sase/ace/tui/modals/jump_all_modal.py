@@ -41,7 +41,7 @@ TabName = Literal[
     "patches",
     "changespecs",  # legacy compatibility alias
     "agents",
-    "axe",
+    "services",
 ]
 
 # ── Visual constants ──────────────────────────────────────────────
@@ -50,12 +50,14 @@ _STATUS_MAX = 18
 _SECTION_RULE_WIDTH = 76
 
 # Per-tab section header colours
-_TAB_STYLES: dict[TabName, tuple[str, str]] = {
+# NOTE: keyed by str (not TabName) because the Services section still uses
+# the legacy "axe" entry key at runtime; TabName only carries "services".
+_TAB_STYLES: dict[str, tuple[str, str]] = {
     "artifacts": ("Artifacts", "#00D7AF"),
     "patches": ("Patches", "#00D7AF"),
     "changespecs": ("Patches", "#00D7AF"),  # legacy compatibility alias
     "agents": ("Agents", "#87D7FF"),
-    "axe": ("AXE", "#FFD700"),
+    "axe": ("Services", "#FFD700"),
 }
 
 # Status colours (Patch)
@@ -86,7 +88,7 @@ _AGENT_STATUS_STYLES: dict[str, str] = {
 class JumpAllResult:
     """Result returned when the user selects an entry."""
 
-    tab: TabName
+    tab: str
     index: int
 
 
@@ -94,7 +96,7 @@ class JumpAllResult:
 class _Entry:
     """Internal entry representation for display."""
 
-    tab: TabName
+    tab: str
     index: int
     name: str
     status: str
@@ -255,7 +257,7 @@ class JumpAllModal(ModalScreen[JumpAllResult | None]):
         text = Text()
         hint_width = len(next(iter(self._hint_to_entry), "0"))
 
-        current_tab: TabName | None = None
+        current_tab: str | None = None
         for entry in self._entries:
             # Section header when tab changes
             if entry.tab != current_tab:

@@ -309,7 +309,7 @@ def test_axe_hop_restores_across_tabs_and_expands_the_lumberjack() -> None:
     )
 
     _follow_first(app)
-    assert app.current_tab == "axe"
+    assert app.current_tab == "services"
     assert app.current_idx == 1
 
     assert app._walk_link_trail_back() is True
@@ -317,7 +317,7 @@ def test_axe_hop_restores_across_tabs_and_expands_the_lumberjack() -> None:
     assert files_pane.selected_entry_target() == origin
 
     assert app._walk_link_trail_forward() is True
-    assert app.current_tab == "axe"
+    assert app.current_tab == "services"
     assert app.current_idx == 1
     assert app._axe_last_item_key == ("chop", "hooks", "build")
 
@@ -359,7 +359,7 @@ def test_back_walk_re_collapses_the_lumberjack_the_forward_hop_expanded() -> Non
     assert app.hooks_expanded is False
 
     _follow_first(app)
-    assert app.current_tab == "axe"
+    assert app.current_tab == "services"
     assert app.hooks_expanded is True
     assert app._link_trail[-1].axe_fold_expanded == "hooks"
 
@@ -422,7 +422,7 @@ def test_agents_to_axe_hop_round_trips_the_last_untested_tab_pair() -> None:
     app.current_tab = "agents"
 
     _follow_first(app)
-    assert app.current_tab == "axe"
+    assert app.current_tab == "services"
     assert app.current_idx == 1
     assert [hop.tab for hop in app._link_trail] == ["agents"]
 
@@ -433,7 +433,7 @@ def test_agents_to_axe_hop_round_trips_the_last_untested_tab_pair() -> None:
     assert app._link_trail == []
 
     assert app._walk_link_trail_forward() is True
-    assert app.current_tab == "axe"
+    assert app.current_tab == "services"
     assert app.current_idx == 1
     assert app._axe_last_item_key == ("chop", "hooks", "build")
 

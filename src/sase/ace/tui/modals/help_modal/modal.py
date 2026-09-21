@@ -58,12 +58,12 @@ _HELP_PANEL_LABELS: dict[HelpPanelTab, str] = {
 _TAB_ACCENTS: dict[TabName, str] = {
     "artifacts": "#00D7AF",
     "agents": "#87D7FF",
-    "axe": "#FF5F5F",
+    "services": "#FF5F5F",
 }
 _TAB_CLASSES: dict[TabName, str] = {
     "artifacts": "-tab-patches",
     "agents": "-tab-agents",
-    "axe": "-tab-axe",
+    "services": "-tab-axe",
 }
 
 

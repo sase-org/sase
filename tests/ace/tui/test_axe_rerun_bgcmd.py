@@ -41,7 +41,7 @@ class _FakeRerunApp(AxeBgCmdMixin, BaseActionsMixin):
     """Minimal fake with exactly what the re-run path and dispatcher use."""
 
     def __init__(self) -> None:
-        self.current_tab: Any = "axe"
+        self.current_tab: Any = "services"
         self.current_idx = 0
         self.axe_running = False
         self.patches = []  # type: ignore[assignment]

@@ -49,7 +49,7 @@ class AgentPanelDetailMixin:
         """Edit spec/chat - behavior depends on current tab."""
         if self.current_tab == "agents":
             self._open_agent_chat()
-        elif self.current_tab == "axe":
+        elif self.current_tab == "services":
             self._open_selected_axe_entry_editor()  # type: ignore[attr-defined]
         else:
             # Call parent implementation for Patches
@@ -145,7 +145,7 @@ class AgentPanelDetailMixin:
 
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
             agent_detail.cycle_next_file()
-        elif self.current_tab == "axe":
+        elif self.current_tab == "services":
             self._axe_step_chop_run(direction=1)  # type: ignore[attr-defined]
 
     def action_prev_agent_file(self) -> None:
@@ -155,7 +155,7 @@ class AgentPanelDetailMixin:
 
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
             agent_detail.cycle_prev_file()
-        elif self.current_tab == "axe":
+        elif self.current_tab == "services":
             self._axe_step_chop_run(direction=-1)  # type: ignore[attr-defined]
 
     def action_toggle_layout(self) -> None:
@@ -337,7 +337,7 @@ class AgentPanelDetailMixin:
         import subprocess
         import tempfile
 
-        if self.current_tab == "axe":
+        if self.current_tab == "services":
             self._open_selected_chop_output()  # type: ignore[attr-defined]
             return
         if self.current_tab != "agents":

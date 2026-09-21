@@ -532,7 +532,7 @@ class KeybindingModesMixin:
         """Update bindings to show copy mode options for the current tab.
 
         Args:
-            tab: Current tab name ("artifacts", "agents", or "axe").
+            tab: Current tab name ("artifacts", "agents", or "services").
             artifacts_pane_key: Visible leaf pane when ``tab`` is patches.
             file_visible: Whether the file panel is visible (agents tab only).
         """
@@ -552,6 +552,10 @@ class KeybindingModesMixin:
             from sase.ace.tui.artifact_tabs import copy_keymap_group_for_artifacts_pane
 
             key_group = copy_keymap_group_for_artifacts_pane(str(artifacts_pane_key))
+        elif tab == "services":
+            # The copy-mode keymap group is still named ``axe`` in the
+            # user-editable keymap config; ``services`` is only the tab id.
+            key_group = "axe"
         else:
             key_group = tab
         if key_group == "artifacts_files":

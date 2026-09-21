@@ -38,7 +38,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
         the selected chop has no recorded runs. Repaints from cache only —
         never reads from disk.
         """
-        if self.current_tab != "axe":
+        if self.current_tab != "services":
             return
         # Make sure the derived chop-selection field reflects what the user
         # is actually pointing at; navigation may have happened before the
@@ -241,7 +241,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             self._push_service_health(footer)
             footer.set_runner_count(get_runner_count())
             if getattr(self, "_leader_mode_active", False):
-                footer.update_leader_bindings(current_tab="axe")
+                footer.update_leader_bindings(current_tab="services")
             elif getattr(self, "_bang_mode_active", False):
                 footer.update_bang_bindings()
             elif getattr(self, "_copy_mode_active", False):

@@ -116,7 +116,7 @@ class LinkSubjectMixin:
                 str(getattr(self, "current_artifacts_pane_key", "")),
                 _selected_artifacts_target_key(self),
             )
-        if tab == "axe":
+        if tab == "services":
             return (
                 *base,
                 getattr(self, "current_idx", None),

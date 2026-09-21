@@ -89,7 +89,7 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
             return
         if self.current_tab == "agents":
             self._expand_fold()
-        elif self.current_tab == "axe":
+        elif self.current_tab == "services":
             self._expand_axe_fold()
         elif self.current_tab in _PATCH_ONLY_TABS:
             expand = getattr(self, "_expand_patch_group_fold", None)
@@ -107,7 +107,7 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
         """Navigate/collapse/jump on Agents, or collapse elsewhere."""
         if self.current_tab == "agents":
             self._collapse_fold()
-        elif self.current_tab == "axe":
+        elif self.current_tab == "services":
             self._collapse_axe_fold()
         elif self.current_tab in _PATCH_ONLY_TABS:
             collapse = getattr(self, "_collapse_patch_group_fold", None)
@@ -162,7 +162,7 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
                     return
             if not self._collapse_agent_structural_fold(structural_target):
                 self._collapse_group_fold()
-        elif self.current_tab == "axe":
+        elif self.current_tab == "services":
             self._collapse_all_axe_folds()
         elif self.current_tab in _PATCH_ONLY_TABS:
             collapse = getattr(self, "_collapse_all_patch_group_folds", None)
@@ -189,7 +189,7 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
             return
         if self._route_llm_calls_detail_level("max"):
             return
-        if self.current_tab == "axe":
+        if self.current_tab == "services":
             self._expand_all_axe_folds()
         elif self.current_tab == "artifacts" and (
             getattr(self, "current_artifacts_pane_key", "patches") != "patches"

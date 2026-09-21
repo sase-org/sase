@@ -17,14 +17,14 @@ from sase.ace.tui.modals.refresh_panel_modal import (
 from sase.feature_flags import FeatureFlag, current_flags
 from sase.llm_provider.usage.refresh import UsageRefreshReceipt, submit_usage_refresh
 
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 FULL_HISTORY_MIGRATION_BANNER = ",y lives here now — press f"
 REFRESH_PANEL_COMMAND_LABEL = "Open Refresh panel"
 REFRESH_TAB_COMMAND_LABEL = "Refresh tab"
 _USAGE_DISABLED_MESSAGE = "subscription usage collection is disabled"
 _USAGE_ALREADY_RUNNING = "Usage refresh already running"
-_TAB_LABELS = {"agents": "Agents", "axe": "Services"}
+_TAB_LABELS = {"agents": "Agents", "services": "Services"}
 
 
 def refresh_panel_enabled() -> bool:
@@ -234,7 +234,7 @@ class RefreshPanelMixin:
         tab = getattr(self, "current_tab", "agents")
         if tab == "agents":
             return "Reload the visible inbox from the index."
-        if tab == "axe":
+        if tab == "services":
             return "Reload the focused Services panel and fleet."
         return "Reload the visible artifacts pane."
 
@@ -243,7 +243,7 @@ class RefreshPanelMixin:
         tab = getattr(self, "current_tab", "agents")
         if tab == "agents":
             return "agents"
-        if tab == "axe":
+        if tab == "services":
             return "axe"
         if getattr(self, "current_artifacts_subtab", "patches") == "patches":
             return "patches"

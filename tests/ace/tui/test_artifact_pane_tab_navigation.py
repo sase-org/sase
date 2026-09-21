@@ -61,13 +61,13 @@ def test_next_tab_patches_moves_to_axe() -> None:
 
     app.action_next_tab()
 
-    assert app.current_tab == "axe"
+    assert app.current_tab == "services"
     assert app.focus_calls == 0
     assert app.activity_calls == 1
 
 
 def test_next_tab_axe_cycles_back_to_agents() -> None:
-    app = _TabNavigationApp(current_tab="axe", focus_result=True)
+    app = _TabNavigationApp(current_tab="services", focus_result=True)
 
     app.action_next_tab()
 
@@ -81,14 +81,14 @@ def test_prev_tab_from_agents_goes_to_axe() -> None:
 
     app.action_prev_tab()
 
-    assert app.current_tab == "axe"
+    assert app.current_tab == "services"
     # prev_tab never consults the artifact pane, even on the agents tab.
     assert app.focus_calls == 0
     assert app.activity_calls == 1
 
 
 def test_prev_tab_from_axe_goes_to_artifacts() -> None:
-    app = _TabNavigationApp(current_tab="axe", focus_result=True)
+    app = _TabNavigationApp(current_tab="services", focus_result=True)
 
     app.action_prev_tab()
 

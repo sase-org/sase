@@ -43,7 +43,9 @@ def _normalize_tab(tab: object) -> CommandTab:
         "changespecs",  # legacy compatibility alias
     }:
         return "artifacts"
-    if tab in {"artifacts", "agents", "axe"}:
+    if tab == "axe":  # legacy compatibility alias
+        return "services"
+    if tab in {"artifacts", "agents", "services"}:
         return tab  # type: ignore[return-value]
     return "artifacts"
 
@@ -242,7 +244,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
 
     cs = _selected_patch(app) if tab == "artifacts" else None
     agent = _selected_agent(app) if tab == "agents" else None
-    axe_item = _selected_axe_item(app) if tab == "axe" else None
+    axe_item = _selected_axe_item(app) if tab == "services" else None
 
     if tab == "agents":
         mark_count = _agents_mark_count(app)
@@ -289,7 +291,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
     except Exception:
         link_edges_present = None
 
-    if tab == "axe":
+    if tab == "services":
         done, running = _selected_axe_slot_states(app, axe_item)
         chop_run_total = _selected_axe_chop_run_total(app, axe_item)
         chop_enabled, chop_running = _selected_axe_chop_state(app, axe_item)

@@ -15,6 +15,7 @@ from sase.axe.state import (
 
 from ..bgcmd import BackgroundCommandInfo, clear_slot_output
 from ..exit_action import AceExitAction
+from ..tab_order import SERVICES_TAB
 from .axe_bgcmd import AxeBgCmdMixin
 from .axe_chop_run import AxeChopRunMixin
 from .axe_config_actions import AxeConfigActionsMixin
@@ -28,7 +29,7 @@ if TYPE_CHECKING:
     from .axe_display._data import AxeStatusDegradation
 
 # Type alias for tab names
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 # Type alias for axe view: "axe" for daemon view, int for bgcmd slot (1-9)
 AxeViewType = Literal["axe"] | int
@@ -76,14 +77,14 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
         if self.current_tab == "agents":
             self.action_open_agent_cleanup_panel()  # type: ignore[attr-defined]
             return
-        if self.current_tab != "axe":
+        if self.current_tab != SERVICES_TAB:
             return
 
         self.action_clear_axe_output()
 
     def action_toggle_axe_description(self) -> None:
         """Collapse or expand the selected config description for this session."""
-        if self.current_tab != "axe":
+        if self.current_tab != SERVICES_TAB:
             return
 
         self.axe_description_expanded = not self.axe_description_expanded
@@ -137,7 +138,7 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
           - If only bgcmd running: Show selector
           - If both running: Show selector
         """
-        if self.current_tab == "axe":
+        if self.current_tab == SERVICES_TAB:
             if self._axe_current_view == "axe":
                 self._toggle_host_or_axe_daemon()
                 return
@@ -308,7 +309,7 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
         """Clear the output log for the current view."""
         from ..widgets.bgcmd_list import BgCmdItem, ChopItem, LumberjackItem
 
-        if self.current_tab != "axe":
+        if self.current_tab != SERVICES_TAB:
             return
 
         # Derive what to clear from the selected item. Chop run history is
@@ -363,7 +364,7 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
             key: AxeItemKey = ("bgcmd", view)
             idx = find_axe_item_idx(self._axe_items, key)  # type: ignore[attr-defined]
             if idx is not None:
-                if self.current_tab == "axe":
+                if self.current_tab == SERVICES_TAB:
                     self.current_idx = idx
                 self._axe_last_idx = idx
                 self._axe_last_item_key = key

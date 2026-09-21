@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from ..models import Agent
 
 # Type alias for tab names
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 
 class EventHandlersBase:

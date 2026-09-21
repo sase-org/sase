@@ -65,7 +65,7 @@ class StartupTelemetryMixin:
         """Return whether the initially visible tab's own surface is loaded."""
         if self._startup_initial_tab == "agents":
             return bool(self._agents_first_load_done)
-        if self._startup_initial_tab == "axe":
+        if self._startup_initial_tab == "services":
             return bool(self._axe_first_load_done)
         # The artifacts tab is composed synchronously during on_mount, so it
         # has no analogous async "first load" gate to wait on.

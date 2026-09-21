@@ -84,7 +84,8 @@ class AcePageGroup:
             "artifacts",
             "patches",
             "agents",
-            "axe",
+            "services",
+            "axe",  # legacy compatibility tab id
         ] = "artifacts",
         notifications: bool = False,
         wait_for_startup_state: bool = True,

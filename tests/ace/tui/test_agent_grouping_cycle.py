@@ -283,7 +283,7 @@ def test_cycle_on_patches_tab_does_not_touch_agents_state() -> None:
 
 
 def test_cycle_on_axe_tab_is_silent_noop() -> None:
-    app = _StubApp([_agent()], current_tab="axe")
+    app = _StubApp([_agent()], current_tab="services")
     app.action_cycle_grouping_mode()
     assert app.scroll_calls == 0
     assert app.refilter_calls == 0
@@ -380,7 +380,7 @@ def test_stale_agent_grouping_save_failure_is_suppressed() -> None:
 
 # ---------------------------------------------------------------------------
 def test_reverse_cycle_on_axe_tab_is_silent_noop() -> None:
-    app = _StubApp([_agent()], current_tab="axe")
+    app = _StubApp([_agent()], current_tab="services")
     app.action_cycle_grouping_mode_reverse()
     assert app.refilter_calls == 0
     assert app.refresh_calls == 0

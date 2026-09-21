@@ -42,7 +42,7 @@ class LinkFollowTrailStateMixin:
             name = getattr(agent, "agent_name", None) if agent is not None else None
             if isinstance(name, str) and name:
                 origin = ArtifactEntryTarget("agents", (name,))
-        elif tab == "axe":
+        elif tab == "services":
             axe_key = selected_axe_item_key(
                 getattr(self, "_axe_items", []),
                 getattr(self, "current_idx", -1),

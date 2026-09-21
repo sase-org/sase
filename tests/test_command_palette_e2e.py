@@ -57,8 +57,8 @@ async def test_colon_opens_command_palette_from_axe_tab() -> None:
 
             modal = page.app.screen
             assert isinstance(modal, CommandPaletteModal)
-            assert modal._tab == "axe"
-            assert "AXE" in modal._build_title().plain
+            assert modal._tab == "services"
+            assert "Services" in modal._build_title().plain
 
 
 async def test_semicolon_opens_command_palette_from_agents_and_axe_tabs() -> None:
@@ -89,7 +89,7 @@ async def test_semicolon_opens_command_palette_from_agents_and_axe_tabs() -> Non
             await page.expect_modal("CommandPaletteModal")
             modal = page.app.screen
             assert isinstance(modal, CommandPaletteModal)
-            assert modal._tab == "axe"
+            assert modal._tab == "services"
 
 
 async def test_palette_executes_refresh_from_agents_tab() -> None:

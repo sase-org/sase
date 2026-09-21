@@ -46,7 +46,7 @@ class _SuspendRecorder:
 
 class _FakeAxeEditApp(AgentPanelDetailMixin, AxeChopRunMixin):
     def __init__(self, runs: list[ChopRunSnapshot]) -> None:
-        self.current_tab: Any = "axe"
+        self.current_tab: Any = "services"
         self.current_idx = 1
         self._axe_items = [
             LumberjackItem(name="hooks"),

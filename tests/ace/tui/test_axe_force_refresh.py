@@ -43,7 +43,7 @@ def _status(name: str, kind: str = "running") -> LumberjackStatus:
 
 class FakeAxeApp(AxeDisplayMixin):
     def __init__(self) -> None:
-        self.current_tab = "axe"
+        self.current_tab = "services"
         self.current_idx = 0  # select the "hooks" lumberjack (top-level row)
         self.refresh_interval = 10
         self.axe_running = True

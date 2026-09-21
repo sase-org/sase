@@ -9,11 +9,11 @@ from __future__ import annotations
 
 from typing import Literal, cast
 
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 LegacyTabName = Literal[
     "changespecs",  # legacy compatibility tab id persisted by older sessions
     "patches",
-    "services",
+    "axe",  # legacy Services tab id persisted by older sessions
 ]
 TabInput = TabName | LegacyTabName | str
 
@@ -21,13 +21,13 @@ TabInput = TabName | LegacyTabName | str
 # sessions; ``patches`` appeared in short-lived development captures during the
 # Patch terminology migration.
 LEGACY_ARTIFACTS_TABS: frozenset[str] = frozenset({"changespecs", "patches"})
-SERVICE_TAB_ALIASES: frozenset[str] = frozenset({"services"})
+LEGACY_SERVICES_TABS: frozenset[str] = frozenset({"axe"})
 ARTIFACTS_TAB: TabName = "artifacts"
-SERVICES_TAB: TabName = "axe"
+SERVICES_TAB: TabName = "services"
 
 # Left-to-right order of the top-bar tabs.  The Agents tab leads because
 # it is the app's default startup tab.
-TAB_ORDER: tuple[TabName, ...] = ("agents", "artifacts", "axe")
+TAB_ORDER: tuple[TabName, ...] = ("agents", "artifacts", "services")
 
 
 def normalize_tab_name(tab: TabInput | None, *, default: TabName = "agents") -> TabName:
@@ -37,7 +37,7 @@ def normalize_tab_name(tab: TabInput | None, *, default: TabName = "agents") -> 
     value = str(tab).strip()
     if value in LEGACY_ARTIFACTS_TABS:
         return ARTIFACTS_TAB
-    if value in SERVICE_TAB_ALIASES:
+    if value in LEGACY_SERVICES_TABS:
         return SERVICES_TAB
     if value in TAB_ORDER:
         return cast(TabName, value)

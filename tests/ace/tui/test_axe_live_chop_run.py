@@ -78,7 +78,7 @@ class _Fake(AxeDisplayMixin):
     """Minimal AXE-tab harness used by the live-run reconciliation tests."""
 
     def __init__(self, runs: list[ChopRunSnapshot]) -> None:
-        self.current_tab: Any = "axe"
+        self.current_tab: Any = "services"
         self.current_idx = 1  # ChopItem
         self.refresh_interval = 10
         self.axe_running = True

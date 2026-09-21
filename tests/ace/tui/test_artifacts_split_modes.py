@@ -136,7 +136,7 @@ async def test_split_actions_are_scoped_to_every_artifacts_subtab() -> None:
         page.app.current_tab = "agents"
         await page.pause()
         assert all(page.app.check_action(action, ()) is False for action in actions)
-        page.app.current_tab = "axe"
+        page.app.current_tab = "services"
         await page.pause()
         assert all(page.app.check_action(action, ()) is False for action in actions)
 

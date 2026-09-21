@@ -115,7 +115,7 @@ async def test_palette_omits_inapplicable_axe_only_command_on_cls_tab() -> None:
 
 
 async def test_palette_context_uses_current_tab_badge() -> None:
-    """Switching to the AXE tab and opening the palette shows the AXE badge."""
+    """Switching to the Services tab and opening the palette shows the Services badge."""
     with (
         patch.object(AceApp, "_load_agents"),
         patch.object(AceApp, "_load_axe_status"),
@@ -124,7 +124,7 @@ async def test_palette_context_uses_current_tab_badge() -> None:
             query="test_feature",
             patches=[make_patch()],
         ) as page:
-            # Tab to axe (Agents-first order: PRs -> AXE).
+            # Tab to Services (Agents-first order: PRs -> Services).
             await page.press("tab")
             await page.expect_state("tab", "axe")
 
@@ -137,9 +137,9 @@ async def test_palette_context_uses_current_tab_badge() -> None:
 
             modal = page.app.screen
             assert isinstance(modal, CommandPaletteModal)
-            assert modal._tab == "axe"
+            assert modal._tab == "services"
             title = modal._build_title().plain
-            assert "AXE" in title
+            assert "Services" in title
 
 
 async def test_palette_filter_input_swallows_typing_no_action_dispatched() -> None:

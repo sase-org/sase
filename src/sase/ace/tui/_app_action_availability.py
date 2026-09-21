@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from .tab_order import ARTIFACTS_TAB
+from .tab_order import ARTIFACTS_TAB, SERVICES_TAB
 
 CheckAction = Callable[[str, tuple[object, ...]], bool | None]
 
@@ -211,9 +211,9 @@ def check_app_action(
     ):
         return False
     if action == "add_axe_item":
-        return app.current_tab == "axe"
+        return app.current_tab == SERVICES_TAB
     if action == "toggle_axe_description":
-        return app.current_tab == "axe"
+        return app.current_tab == SERVICES_TAB
     if action == "toggle_attempt_view":
         return app.current_tab == "agents"
     if action == "show_diff" and app.current_tab != ARTIFACTS_TAB:
@@ -405,7 +405,7 @@ def check_app_action(
         return False
     if action == "open_agent_cleanup_panel" and app.current_tab not in {
         "agents",
-        "axe",
+        SERVICES_TAB,
     }:
         return False
     if action == "save_marked_agents":
@@ -423,7 +423,7 @@ def check_app_action(
     ):
         return False
     if action == "start_fold_mode" and (
-        app.current_tab == "axe"
+        app.current_tab == SERVICES_TAB
         or (
             app.current_tab == ARTIFACTS_TAB
             and app.current_artifacts_pane_key != "patches"

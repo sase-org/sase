@@ -31,7 +31,7 @@ class _FakeChopApp(AxeChopRunMixin, AxeBgCmdMixin, BaseActionsMixin):
     """Minimal fake exercising the manual chop-run dispatch and async path."""
 
     def __init__(self) -> None:
-        self.current_tab: Any = "axe"
+        self.current_tab: Any = "services"
         self.current_idx = 0
         self.axe_running = False
         self.patches = []  # type: ignore[assignment]

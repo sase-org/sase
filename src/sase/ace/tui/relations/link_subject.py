@@ -156,7 +156,7 @@ def _subject_from_axe(app: Any) -> LinkSubject | None:
 _ADAPTERS = {
     "artifacts": _subject_from_artifacts,
     "agents": _subject_from_agents,
-    "axe": _subject_from_axe,
+    "services": _subject_from_axe,
 }
 
 

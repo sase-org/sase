@@ -162,7 +162,7 @@ def test_cycle_clears_current_patch_group_key() -> None:
 
 def test_cycle_on_axe_tab_is_silent_noop() -> None:
     """The cycle key has no grouping target on AXE — both sides untouched."""
-    app = _StubApp(current_tab="axe")
+    app = _StubApp(current_tab="services")
     app.action_cycle_grouping_mode()
     assert app.refilter_calls == 0
     assert app.refresh_calls == 0
@@ -302,7 +302,7 @@ def test_forward_then_reverse_returns_to_by_project() -> None:
 
 
 def test_reverse_cycle_on_axe_tab_is_silent_noop() -> None:
-    app = _StubApp(current_tab="axe")
+    app = _StubApp(current_tab="services")
     app.action_cycle_grouping_mode_reverse()
     assert app.refilter_calls == 0
     assert app.refresh_calls == 0

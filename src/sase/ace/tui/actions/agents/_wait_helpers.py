@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from ...models import Agent
     from ...modals import WaitAgentCandidate, WaitModalResult
 
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 # Post-plan handoff statuses where forking should pick up the coder
 # follow-up's chat rather than the planner's. Symmetric with the

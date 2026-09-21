@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from sase.ace.tui.commands.types import CommandTab
 
-ALL_TABS: tuple[CommandTab, ...] = ("artifacts", "agents", "axe")
+ALL_TABS: tuple[CommandTab, ...] = ("artifacts", "agents", "services")
 CL_ONLY: tuple[CommandTab, ...] = ("artifacts",)
 AGENTS_ONLY: tuple[CommandTab, ...] = ("agents",)
-AXE_ONLY: tuple[CommandTab, ...] = ("axe",)
-AGENTS_AXE: tuple[CommandTab, ...] = ("agents", "axe")
+AXE_ONLY: tuple[CommandTab, ...] = ("services",)
+AGENTS_AXE: tuple[CommandTab, ...] = ("agents", "services")
 CL_AGENTS: tuple[CommandTab, ...] = ("artifacts", "agents")
-CL_AXE: tuple[CommandTab, ...] = ("artifacts", "axe")
+CL_AXE: tuple[CommandTab, ...] = ("artifacts", "services")

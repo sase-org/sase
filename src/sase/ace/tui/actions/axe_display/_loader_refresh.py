@@ -56,7 +56,9 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
         live traces: 452 ``file_opens``, ~400 run JSON parses).
         """
         if include_full_snapshots is None:
-            include_full_snapshots = getattr(self, "current_tab", "axe") == "axe"
+            include_full_snapshots = (
+                getattr(self, "current_tab", "services") == "services"
+            )
         cache = getattr(self, "_axe_status_read_cache", None)
         if cache is None:
             cache = AxeStatusReadCache()
@@ -66,7 +68,7 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             tail_chop_keys = frozenset()
         elif tail_all_chop_logs:
             tail_chop_keys = None
-        elif getattr(self, "current_tab", "axe") == "axe":
+        elif getattr(self, "current_tab", "services") == "services":
             derive = getattr(self, "_derive_axe_view_from_selection", None)
             if callable(derive):
                 derive()
@@ -226,7 +228,7 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             self._switch_to_axe_view(focus_slot)  # type: ignore[attr-defined]
 
         # Update display if on axe tab
-        if self.current_tab == "axe":
+        if self.current_tab == "services":
             self._refresh_axe_display()  # type: ignore[attr-defined]
 
         # Update keybinding footer for all tabs (X binding changes label)
@@ -435,7 +437,7 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
                     for c in jack_snap.chops
                     if c.overrun is not None and c.overrun.level == "intermittent"
                 )
-            if self.current_tab == "axe":
+            if self.current_tab == "services":
                 self._refresh_axe_display()  # type: ignore[attr-defined]
             return
 
@@ -471,7 +473,7 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
                 self._service_tailed_names = set()
                 tailed = self._service_tailed_names
             tailed.add(name)
-            if self.current_tab == "axe":
+            if self.current_tab == "services":
                 self._refresh_axe_display()  # type: ignore[attr-defined]
             return
 
@@ -497,7 +499,7 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
             self._axe_lumberjack_statuses[name] = status
             self._axe_lumberjack_metrics[name] = metrics
             self._axe_lumberjack_log_tails[name] = log_tail
-            if self.current_tab == "axe":
+            if self.current_tab == "services":
                 self._refresh_axe_display()  # type: ignore[attr-defined]
         elif isinstance(view, int):
             slot = view
@@ -517,7 +519,7 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
                 self._axe_bgcmd_details[slot] = BgCmdSnapshot(
                     info=info, running=info.running, output_tail=tail
                 )
-            if self.current_tab == "axe":
+            if self.current_tab == "services":
                 self._refresh_axe_display()  # type: ignore[attr-defined]
 
     def _schedule_targeted_axe_refresh(self) -> None:
@@ -632,7 +634,7 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
         thread and the cache write goes through the same reconciliation as
         ``y``. No-op when the selected row is not a chop with a running run.
         """
-        if self.current_tab != "axe":
+        if self.current_tab != "services":
             return
         if self._axe_selected_service_running():
             self._schedule_targeted_axe_refresh()
@@ -702,7 +704,7 @@ class AxeDisplayRefreshMixin(AxeDisplayItemsMixin):
         await self._load_axe_status_async(include_full_snapshots=False)
         initial_tab = getattr(self, "_startup_initial_tab", None)
         current_tab = getattr(self, "current_tab", None)
-        if initial_tab == "axe" or current_tab == "axe":
+        if initial_tab == "services" or current_tab == "services":
             schedule = getattr(self, "_schedule_axe_async_refresh", None)
             if callable(schedule):
                 schedule()

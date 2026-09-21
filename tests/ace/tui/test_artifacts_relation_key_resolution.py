@@ -50,7 +50,7 @@ def test_full_stop_resolves_to_one_action_per_tab() -> None:
     artifacts = _KeyResolutionApp(tab="artifacts", pane_key="patches")
     beads = _KeyResolutionApp(tab="artifacts", pane_key="beads")
     agents = _KeyResolutionApp(tab="agents")
-    axe = _KeyResolutionApp(tab="axe")
+    axe = _KeyResolutionApp(tab="services")
 
     assert _available_for_key(artifacts, "full_stop") == ("toggle_relation_panel",)
     assert _available_for_key(beads, "full_stop") == ("toggle_relation_panel",)
@@ -62,7 +62,7 @@ def test_capital_x_resolves_to_one_action_per_tab() -> None:
     patches = _KeyResolutionApp(tab="artifacts", pane_key="patches")
     beads = _KeyResolutionApp(tab="artifacts", pane_key="beads")
     agents = _KeyResolutionApp(tab="agents")
-    axe = _KeyResolutionApp(tab="axe")
+    axe = _KeyResolutionApp(tab="services")
 
     assert _available_for_key(patches, "X") == ("patches_toggle_reverted",)
     assert _available_for_key(beads, "X") == ()

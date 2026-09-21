@@ -10,7 +10,7 @@ from ...keymaps import (
 )
 from ..numbered_link_keys import NUMBERED_LINK_HELP_KEYS
 
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 # Box dimensions for consistent formatting
 BOX_WIDTH = 57  # Total box width in characters
@@ -289,12 +289,12 @@ _custom_mode_sections = custom_mode_sections
 TAB_DISPLAY_NAMES = {
     "artifacts": "Artifacts",
     "agents": "Agents",
-    "axe": "Axe",
+    "services": "Axe",
 }
 
 # Column split indices for each tab (left column gets indices < split, right gets >= split)
 COLUMN_SPLITS = {
     "artifacts": 11,  # Balance artifact panes + PR actions against modes/copy help.
     "agents": 3,  # Left: Navigation, Agent Actions, Workflow Folding; Right: rest
-    "axe": 3,  # Left: Navigation, BgCmds, Leader Mode; Right: rest
+    "services": 3,  # Left: Navigation, BgCmds, Leader Mode; Right: rest
 }

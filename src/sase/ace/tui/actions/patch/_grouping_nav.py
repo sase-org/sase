@@ -23,7 +23,7 @@ if TYPE_CHECKING:
     from ...models.group_fold import GroupFoldRegistry, GroupKey
 
 
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 
 # Banner stops are ``("banner", group_key)`` and PR stops are

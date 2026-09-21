@@ -135,7 +135,7 @@ async def test_agents_grouping_result_after_tab_change_is_ignored() -> None:
         await page.press("o")
         await page.expect_modal("AgentGroupingModal")
 
-        page.app.current_tab = "axe"
+        page.app.current_tab = "services"
         await page.press("o")
         await page.expect_no_modal()
 

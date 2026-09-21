@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 # Type alias retained for callers that import it from this module.
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 
 class AgentKillMixin(

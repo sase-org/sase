@@ -288,7 +288,7 @@ class BasicNavigationMixin(NavigationMixinBase):
             self._release_agent_metadata_bottom_pin()
             height = scroll_container.scrollable_content_region.height
             scroll_container.scroll_relative(y=height // 2, animate=False)
-        elif self.current_tab == "axe":
+        elif self.current_tab == "services":
             self._axe_pinned_to_bottom = False
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
             height = scroll_container.scrollable_content_region.height
@@ -304,7 +304,7 @@ class BasicNavigationMixin(NavigationMixinBase):
             self._release_agent_metadata_bottom_pin()
             height = scroll_container.scrollable_content_region.height
             scroll_container.scroll_relative(y=-(height // 2), animate=False)
-        elif self.current_tab == "axe":
+        elif self.current_tab == "services":
             self._axe_pinned_to_bottom = False
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
             height = scroll_container.scrollable_content_region.height
@@ -416,7 +416,7 @@ class BasicNavigationMixin(NavigationMixinBase):
             action="first", boundary="first"
         ):
             return
-        if self.current_tab == "axe":
+        if self.current_tab == "services":
             self._axe_pinned_to_bottom = False
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
             scroll_container.scroll_home(animate=False)
@@ -441,7 +441,7 @@ class BasicNavigationMixin(NavigationMixinBase):
             action="last", boundary="last"
         ):
             return
-        if self.current_tab == "axe":
+        if self.current_tab == "services":
             self._axe_pinned_to_bottom = True
             scroll_container = self.query_one("#axe-output-scroll", VerticalScroll)  # type: ignore[attr-defined]
             scroll_container.scroll_end(animate=False)
@@ -571,7 +571,7 @@ class BasicNavigationMixin(NavigationMixinBase):
                 self._agents_last_identity = self._agents[self.current_idx].identity
             else:
                 self._agents_last_identity = None
-        elif self.current_tab == "axe":
+        elif self.current_tab == "services":
             self._axe_last_idx = self.current_idx  # type: ignore[attr-defined]
             from ..axe_display._loaders import selected_axe_item_key
 

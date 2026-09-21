@@ -126,7 +126,7 @@ async def test_help_guide_axe_png_snapshot(
         await _open_help_guide(
             page,
             HelpModal(
-                current_tab="axe",
+                current_tab="services",
                 active_query=page.app.canonical_query_string,
                 registry=page.app._keymap_registry,
             ),

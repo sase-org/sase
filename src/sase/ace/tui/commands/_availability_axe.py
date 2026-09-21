@@ -84,5 +84,5 @@ def axe_available(spec: CommandSpec, ctx: CommandContext) -> bool:
 
     # Most Patch/agent actions don't apply on AXE - they're already
     # filtered by spec.tabs, so this branch only sees commands that
-    # listed "axe" in their tabs (mode prefixes, navigation, etc.).
+    # listed "services" in their tabs (mode prefixes, navigation, etc.).
     return True

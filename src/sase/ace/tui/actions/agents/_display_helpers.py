@@ -8,7 +8,7 @@ from typing import Any, Literal
 from sase.core.agent_tribe import public_tribe_name
 
 # Type alias for tab names
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 #: Widget id of the reserved ``@default`` panel (internal key ``None``).
 #: Named tribes use ``agent-list-panel-{public_tribe_name}`` instead of

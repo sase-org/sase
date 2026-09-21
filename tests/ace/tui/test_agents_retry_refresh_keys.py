@@ -64,7 +64,7 @@ def test_refresh_and_run_workflow_commands_are_unavailable_on_agents() -> None:
 
 def test_agents_only_commands_are_unavailable_on_artifacts_and_axe() -> None:
     catalog = catalog_by_id()
-    for tab in ("artifacts", "axe"):
+    for tab in ("artifacts", "services"):
         ctx = CommandContext(tab=tab)
         assert not is_command_available(catalog["app.agents_refresh"], ctx)
         assert not is_command_available(catalog["app.agents_retry"], ctx)
@@ -74,7 +74,7 @@ def test_agents_only_commands_are_unavailable_on_artifacts_and_axe() -> None:
 def test_r_and_R_actions_are_tab_gated() -> None:
     agents_app = AceApp(auto_start_axe=False, initial_tab="agents")
     patches_app = AceApp(auto_start_axe=False, initial_tab="patches")
-    axe_app = AceApp(auto_start_axe=False, initial_tab="axe")
+    axe_app = AceApp(auto_start_axe=False, initial_tab="services")
     patches_app.current_artifacts_subtab = "patches"
 
     assert agents_app.check_action("agents_refresh", ()) is not False
@@ -198,13 +198,13 @@ async def test_axe_r_runs_and_R_refreshes(monkeypatch: pytest.MonkeyPatch) -> No
         lambda self: refresh_calls.append(self.current_tab),
     )
 
-    async with AcePage(initial_tab="axe") as page:
+    async with AcePage(initial_tab="services") as page:
         await page.press("r")
         await page.pause()
         await page.press("R")
         await page.pause()
 
-    assert run_calls == ["axe"]
-    assert refresh_calls == ["axe"]
+    assert run_calls == ["services"]
+    assert refresh_calls == ["services"]
     assert page.app.check_action("agents_refresh", ()) is False
     assert page.app.check_action("agents_retry", ()) is False

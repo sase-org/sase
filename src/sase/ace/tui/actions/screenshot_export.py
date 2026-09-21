@@ -34,7 +34,7 @@ _SCREENSHOT_VISUAL_WORKER_NAME_PREFIXES = ("screenshot-visual:",)
 _SCREENSHOT_STABLE_FRAME_COUNT = 3
 _SCREENSHOT_SETTLE_TIMEOUT_SECONDS = 3.0
 _SCREENSHOT_SETTLING_TIMER_MAX_SECONDS = 0.5
-_SCREENSHOT_STARTUP_TABS = frozenset({"agents", "axe"})
+_SCREENSHOT_STARTUP_TABS = frozenset({"agents", "services"})
 
 
 class ScreenshotExportMixin:

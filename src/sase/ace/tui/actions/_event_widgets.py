@@ -320,7 +320,7 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         self, event: BgCmdList.SelectionChanged
     ) -> None:
         """Handle selection change in the BgCmdList widget."""
-        if self.current_tab == "axe":
+        if self.current_tab == "services":
             self.current_idx = event.index
 
     def on_bg_cmd_list_width_changed(self, event: BgCmdList.WidthChanged) -> None:

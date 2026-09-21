@@ -387,18 +387,18 @@ def test_hidden_startup_work_does_not_block_visible_surface() -> None:
 
     _debouncers, workers, _timers, _animations = app._pending_screenshot_visual_work()
 
-    assert "startup-visible:axe" not in workers
+    assert "startup-visible:services" not in workers
 
 
 def test_current_tab_controls_startup_readiness_after_navigation() -> None:
     app = _DelayedStartupVisibleApp()
-    app.current_tab = "axe"
+    app.current_tab = "services"
     app._agents_first_load_done = True
     app._axe_first_load_done = False
 
     _debouncers, workers, _timers, _animations = app._pending_screenshot_visual_work()
 
-    assert "startup-visible:axe" in workers
+    assert "startup-visible:services" in workers
 
 
 async def test_projected_detail_hydration_counts_as_visual_work() -> None:

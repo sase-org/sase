@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from ...models import Agent
 
 
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 
 def loaded_real_agent_roster(owner: Any) -> tuple[Agent, ...]:

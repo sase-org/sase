@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 
 from ....patch import Patch
 
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 
 class PatchQueryMixin:

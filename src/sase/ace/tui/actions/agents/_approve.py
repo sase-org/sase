@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from ...modals import AutoApproveChoice
 
 # Type alias for tab names
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 
 def _approve_eligible_statuses() -> frozenset[str]:

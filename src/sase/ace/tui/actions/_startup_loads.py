@@ -77,7 +77,7 @@ class StartupLoadsMixin:
         )
         if initial_tab == "agents":
             self._start_startup_agents_surface()
-        elif initial_tab == "axe":
+        elif initial_tab == "services":
             self._start_startup_axe_surface()
         else:
             # Artifacts is composed synchronously. Its mount-state disk reads
@@ -152,7 +152,7 @@ class StartupLoadsMixin:
             return False
         if tab == "agents" and not getattr(self, "_agents_first_load_done", False):
             return self._start_startup_agents_surface()
-        if tab == "axe" and not getattr(self, "_axe_first_load_done", False):
+        if tab == "services" and not getattr(self, "_axe_first_load_done", False):
             return self._start_startup_axe_surface()
         return False
 

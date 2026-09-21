@@ -326,7 +326,7 @@ async def test_axe_startup_on_axe_tab_schedules_background_full_refresh(
         "sase.ace.tui.actions.axe_display._loader_refresh.collect_axe_status_data",
         _collect,
     )
-    app = _AxeStartupHarness(current_tab="axe")
+    app = _AxeStartupHarness(current_tab="services")
     await app._run_axe_startup_init()
 
     assert collect_kwargs[0]["include_full_snapshots"] is False

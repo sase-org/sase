@@ -566,7 +566,7 @@ def test_sweep_is_noop_outside_agents_tab() -> None:
     key = agent_fold_key(root)
     assert key is not None
     app._fold_manager.expand(key)
-    app.current_tab = "axe"
+    app.current_tab = "services"
 
     app.action_collapse_panel_folds()
 

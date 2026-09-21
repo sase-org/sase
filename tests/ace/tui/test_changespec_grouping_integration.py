@@ -326,7 +326,7 @@ def test_tab_switch_preserves_each_tabs_grouping_mode(monkeypatch: Any) -> None:
 def test_axe_cycle_is_silent_noop_for_both_tabs(monkeypatch: Any) -> None:
     """Cycling on AXE leaves both Agents and Patches grouping state untouched."""
     widget, _ = _wire_widget(monkeypatch)
-    app = _IntegrationApp(widget, _three_project_specs(), current_tab="axe")
+    app = _IntegrationApp(widget, _three_project_specs(), current_tab="services")
 
     app.action_cycle_grouping_mode()
 

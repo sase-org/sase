@@ -527,7 +527,7 @@ def test_axe_collector_kwargs_off_tab_skip_full_snapshots() -> None:
     assert off_tab["include_full_snapshots"] is False
     assert off_tab["tail_chop_keys"] == frozenset()
 
-    app.current_tab = "axe"
+    app.current_tab = "services"
     on_tab = app._axe_collector_kwargs()
     assert on_tab["include_full_snapshots"] is True
     assert on_tab["tail_chop_keys"] == frozenset({("hooks", "fast")})
@@ -562,7 +562,7 @@ def test_axe_collector_kwargs_first_load_matches_visible_tab() -> None:
     assert off_tab["include_full_snapshots"] is False
     assert off_tab["tail_chop_keys"] == frozenset()
 
-    app.current_tab = "axe"
+    app.current_tab = "services"
     on_tab = app._axe_collector_kwargs()
     assert on_tab["include_full_snapshots"] is True
 

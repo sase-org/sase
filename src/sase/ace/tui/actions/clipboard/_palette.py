@@ -163,7 +163,7 @@ def _build_axe_context(app: Any) -> CopyAsContext | None:
         notify_copy_warning(app, "No AXE item to copy")
         return None
 
-    ctx = CommandContext(tab="axe", axe_item=item)
+    ctx = CommandContext(tab="services", axe_item=item)
     subtitle = axe_item_label(item)
     output = getattr(app, "_axe_output", "")
     output_preview = output_hint(output)

@@ -97,7 +97,7 @@ class LinkTrailMixin:
             return self._restore_artifacts_link_trail_hop(hop)
         if hop.tab == "agents":
             return self._restore_agents_link_trail_hop(hop)
-        if hop.tab == "axe":
+        if hop.tab == "services":
             return self._restore_axe_link_trail_hop(hop)
         return False
 
@@ -154,9 +154,9 @@ class LinkTrailMixin:
         idx = find_axe_item_idx(getattr(self, "_axe_items", []), hop.axe_key)
         if idx is None:
             return False
-        if self.current_tab != "axe":
+        if self.current_tab != "services":
             self._save_current_tab_position()  # type: ignore[attr-defined]
-            self.current_tab = "axe"
+            self.current_tab = "services"
         self.current_idx = idx
         self._axe_last_idx = idx
         self._axe_last_item_key = hop.axe_key
@@ -218,7 +218,7 @@ def link_trail_breadcrumb_text(app: Any) -> str | None:
 
 def _hop_icon_and_label(hop: LinkTrailHop) -> tuple[str, str]:
     axe_key = hop.axe_key
-    if hop.tab == "axe" and axe_key is not None:
+    if hop.tab == "services" and axe_key is not None:
         if axe_key[0] == "chop":
             return _AXE_ICON, f"{axe_key[1]}/{axe_key[2]}"
         if axe_key[0] == "lumberjack":

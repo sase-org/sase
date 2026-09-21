@@ -442,6 +442,6 @@ def test_agent_and_axe_contexts_require_a_live_selection() -> None:
     assert build_copy_as_context(app) is None
     assert app.notifications[-1] == ("No agent selected", "warning")
 
-    app.current_tab = "axe"
+    app.current_tab = "services"
     assert build_copy_as_context(app) is None
     assert app.notifications[-1] == ("No AXE item to copy", "warning")

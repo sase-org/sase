@@ -36,7 +36,7 @@ if TYPE_CHECKING:
 AxeViewType = Literal["axe"] | int
 
 # Type alias for tab names
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 
 class NavigationMixinBase:

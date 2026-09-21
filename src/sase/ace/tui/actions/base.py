@@ -24,7 +24,7 @@ if TYPE_CHECKING:
     from ..modals.config_center_modal import CenterTab
 
 # Type alias for tab names (used in type hints)
-TabName = Literal["artifacts", "agents", "axe"]
+TabName = Literal["artifacts", "agents", "services"]
 
 
 class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
@@ -47,7 +47,7 @@ class BaseActionsMixin(AdminCenterPersistenceMixin, RefreshPanelMixin):
         """
         # On axe tab, dispatch to re-run for done bgcmds or to manual chop run
         # for chop rows. Other rows (lumberjacks, running bgcmds) are no-ops.
-        if self.current_tab == "axe":
+        if self.current_tab == "services":
             from ..widgets.bgcmd_list import BgCmdItem, ChopItem, ServiceProcItem
 
             items = getattr(self, "_axe_items", [])

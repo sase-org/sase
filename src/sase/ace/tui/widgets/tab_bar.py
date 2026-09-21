@@ -13,13 +13,13 @@ from ..tab_order import TAB_ORDER, TabName
 _TAB_COLORS: dict[TabName, str] = {
     "artifacts": "#00D7AF",
     "agents": "#87D7FF",
-    "axe": "#00D7AF",
+    "services": "#00D7AF",
 }
 
 _TAB_DISPLAY_NAMES: dict[TabName, str] = {
     "artifacts": "Artifacts",
     "agents": "Agents",
-    "axe": "Services",
+    "services": "Services",
 }
 
 # Rendered left-to-right in TAB_ORDER so the visible labels track the

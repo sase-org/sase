@@ -33,10 +33,12 @@ if TYPE_CHECKING:
     from sase.ace.tui.widgets.bgcmd_list import AxeItem
 
 
-CommandTab = Literal["artifacts", "agents", "axe"]
+CommandTab = Literal["artifacts", "agents", "services"]
 """The three top-level tabs that scope command applicability."""
 
-LegacyCommandTab = Literal["patches", "changespecs"]  # legacy compatibility alias
+LegacyCommandTab = Literal[
+    "patches", "changespecs", "axe"
+]  # legacy compatibility alias
 
 
 CommandCategory = Literal[
@@ -142,7 +144,7 @@ class CommandExecutor:
             mode's keys dict.
         copy_tab: For ``copy_mode_key`` — which per-tab subdict the
             subkey lives under (``"artifacts"``, ``"agents"``, or
-            ``"axe"``).
+            ``"services"``).
     """
 
     kind: ExecutorKind
@@ -254,6 +256,8 @@ class CommandContext:
     ) -> None:
         if self.tab in {"patches", "changespecs"}:  # legacy compatibility alias
             object.__setattr__(self, "tab", "artifacts")
+        if self.tab == "axe":  # legacy compatibility alias
+            object.__setattr__(self, "tab", "services")
         if self.patch is None and changespec is not None:  # legacy compatibility alias
             object.__setattr__(self, "patch", changespec)  # legacy compatibility alias
         if (  # legacy compatibility alias

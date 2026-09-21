@@ -10,6 +10,7 @@ from textual.containers import Horizontal, Vertical
 from textual.widgets import Static
 
 from .models.agent_live_query_engine import agents_live_query_profile
+from .tab_order import SERVICES_TAB
 from ._patch_list_layout import (
     CL_LIST_MAX_PANEL_WIDTH,
     CL_LIST_MIN_PANEL_WIDTH,
@@ -85,7 +86,7 @@ class AppLayoutMixin:
         initial_tab = self.current_tab
         cs_classes = "" if initial_tab == "artifacts" else "hidden"
         agents_classes = "" if initial_tab == "agents" else "hidden"
-        axe_classes = "" if initial_tab == "axe" else "hidden"
+        axe_classes = "" if initial_tab == SERVICES_TAB else "hidden"
         # App-scoped launch-context state. Mounted first (and exactly once) so
         # the top-bar indicator views can pull resolved state on mount instead
         # of flashing placeholders. Non-rendering (display: none): zero size.

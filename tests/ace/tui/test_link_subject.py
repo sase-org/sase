@@ -116,7 +116,7 @@ def test_agents_tab_returns_none_for_a_synthetic_clan_container_row() -> None:
 
 def _axe_app(items: list[Any], current_idx: int, snapshots: dict[Any, Any]) -> Any:
     return SimpleNamespace(
-        current_tab="axe",
+        current_tab="services",
         _axe_items=items,
         current_idx=current_idx,
         _axe_chop_snapshots=snapshots,

@@ -85,8 +85,8 @@ def test_visible_surface_ready_matches_initial_tab() -> None:
     app._agents_first_load_done = True
     assert app._startup_visible_surface_ready()
 
-    axe_app = _TelemetryApp(current_tab="axe")
-    axe_app._startup_initial_tab = "axe"
+    axe_app = _TelemetryApp(current_tab="services")
+    axe_app._startup_initial_tab = "services"
     assert not axe_app._startup_visible_surface_ready()
     axe_app._axe_first_load_done = True
     assert axe_app._startup_visible_surface_ready()
@@ -97,16 +97,16 @@ def test_visible_surface_ready_matches_initial_tab() -> None:
 
 
 def test_mark_startup_on_mount_snapshots_tab_once() -> None:
-    app = _TelemetryApp(current_tab="axe")
+    app = _TelemetryApp(current_tab="services")
     app._mark_startup_on_mount()
     first_mono = app._startup_on_mount_mono
-    assert app._startup_initial_tab == "axe"
+    assert app._startup_initial_tab == "services"
     assert first_mono is not None
 
     app.current_tab = "agents"
     app._mark_startup_on_mount()
     assert app._startup_on_mount_mono == first_mono
-    assert app._startup_initial_tab == "axe"
+    assert app._startup_initial_tab == "services"
 
 
 @pytest.mark.asyncio
