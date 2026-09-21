@@ -67,6 +67,9 @@ class _FakeOptionList:
     def add_class(self, _class_name: str) -> None:
         return
 
+    def remove_class(self, _class_name: str) -> None:
+        return
+
 
 class _KeyEvent:
     def __init__(self, key: str, character: str | None) -> None:

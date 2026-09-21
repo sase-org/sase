@@ -62,17 +62,22 @@ def test_full_tier_preserves_legacy_hint_strings() -> None:
     assert notification_hint_text("gate", 10**6) == GATE_HINT_TEXT
 
 
-def test_compact_tier_sheds_file_navigation_first() -> None:
+def test_narrow_tier_sheds_file_navigation_first() -> None:
     """The 120-column tier drops file-nav entries but keeps navigation aids."""
     text = notification_hint_text("default", NOTIFICATION_HINT_FALLBACK_WIDTH)
+    # The dismissed-view keys ride the tag-tabs rung so both stay visible at
+    # the standard width; every variant therefore selects micro, not compact,
+    # at 120 columns while keeping the same shed order.
     assert _notification_hint_tier("default", NOTIFICATION_HINT_FALLBACK_WIDTH) == (
-        "compact"
+        "micro"
     )
     assert "C-n/C-p" not in text
     assert "V: view" not in text
     assert "Enter: select" in text
     assert "S: sections" in text
     assert "1-0/[]: tab" in text
+    assert "T: dismissed" in text
+    assert "u: undismiss" in text
 
 
 class _RecordingFooter:

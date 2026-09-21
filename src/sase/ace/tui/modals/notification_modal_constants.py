@@ -111,6 +111,12 @@ _HINT_PRIORITY_SCROLL = 50
 _HINT_PRIORITY_TOP_BOT = 55
 _HINT_PRIORITY_READ_TAB = 60
 _HINT_PRIORITY_TAG_TABS = 65
+# Dismissed-view navigation and restore share the tag-tabs rung: the 120-column
+# modal has only 8 cells of headroom in its default compact tier, so a lower
+# rung would hide both keys at the standard width, while the compact tier can
+# no longer fit once they are added. At this rung every variant selects the
+# micro tier at 120 columns (84 cells), keeping both keys visible.
+_HINT_PRIORITY_DISMISSED_VIEW = 65
 _HINT_PRIORITY_SECTIONS = 70
 _HINT_PRIORITY_ENTER = 80
 _HINT_PRIORITY_PLUS_ONE = 90
@@ -123,6 +129,8 @@ DEFAULT_HINT_FRAGMENTS: tuple[_NotificationHintFragment, ...] = (
     _NotificationHintFragment("x", "dismiss", _HINT_PRIORITY_ROW_STATE),
     _NotificationHintFragment("M", "mute", _HINT_PRIORITY_ROW_STATE),
     _NotificationHintFragment("s", "snooze", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("T", "dismissed", _HINT_PRIORITY_DISMISSED_VIEW),
+    _NotificationHintFragment("u", "undismiss", _HINT_PRIORITY_DISMISSED_VIEW),
     _NotificationHintFragment("e", "edit", _HINT_PRIORITY_FILE_NAV),
     _NotificationHintFragment("V", "view", _HINT_PRIORITY_FILE_NAV),
     _NotificationHintFragment("Y", "copy path", _HINT_PRIORITY_FILE_NAV),
@@ -144,6 +152,8 @@ QUESTION_HINT_FRAGMENTS: tuple[_NotificationHintFragment, ...] = (
     _NotificationHintFragment("x", "dismiss", _HINT_PRIORITY_ROW_STATE),
     _NotificationHintFragment("M", "mute", _HINT_PRIORITY_ROW_STATE),
     _NotificationHintFragment("s", "snooze", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("T", "dismissed", _HINT_PRIORITY_DISMISSED_VIEW),
+    _NotificationHintFragment("u", "undismiss", _HINT_PRIORITY_DISMISSED_VIEW),
     _NotificationHintFragment("S", "sections", _HINT_PRIORITY_SECTIONS),
     _NotificationHintFragment("1-0/[]", "tab", _HINT_PRIORITY_TAG_TABS),
     _NotificationHintFragment("+", "+1", _HINT_PRIORITY_PLUS_ONE),
@@ -159,6 +169,8 @@ GATE_HINT_FRAGMENTS: tuple[_NotificationHintFragment, ...] = (
     _NotificationHintFragment("x", "dismiss", _HINT_PRIORITY_ROW_STATE),
     _NotificationHintFragment("M", "mute", _HINT_PRIORITY_ROW_STATE),
     _NotificationHintFragment("s", "snooze", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("T", "dismissed", _HINT_PRIORITY_DISMISSED_VIEW),
+    _NotificationHintFragment("u", "undismiss", _HINT_PRIORITY_DISMISSED_VIEW),
     _NotificationHintFragment("S", "sections", _HINT_PRIORITY_SECTIONS),
     _NotificationHintFragment("1-0/[]", "tab", _HINT_PRIORITY_TAG_TABS),
     _NotificationHintFragment("+", "+1", _HINT_PRIORITY_PLUS_ONE),
@@ -186,7 +198,7 @@ QUESTION_HINT_TEXT = _join_hint_fragments(QUESTION_HINT_FRAGMENTS)
 GATE_HINT_TEXT = _join_hint_fragments(GATE_HINT_FRAGMENTS)
 
 # Tier ladder: each tier keeps the fragments at or above a priority floor.
-# Compact (100/87/87 cells) is the tier a 120-column modal renders: the
+# Micro (84/84/84 cells) is the tier a 120-column modal renders: the
 # container is 95% of 120 (114 cells) minus the thick border and padding.
 NOTIFICATION_HINT_TIERS: tuple[str, ...] = ("full", "compact", "micro", "minimal")
 _NOTIFICATION_HINT_TIER_FLOORS: dict[str, int] = {
@@ -197,7 +209,7 @@ _NOTIFICATION_HINT_TIER_FLOORS: dict[str, int] = {
 }
 
 # Modal content width at 120 columns: 95%-wide container (114 cells) minus
-# the thick border (2) and horizontal padding (4). Compact peaks at 100
+# the thick border (2) and horizontal padding (4). Micro peaks at 84
 # cells, so every variant fits here with headroom for border rounding.
 NOTIFICATION_HINT_FALLBACK_WIDTH = 108
 

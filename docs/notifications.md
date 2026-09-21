@@ -36,10 +36,12 @@ diagnostic instead of routing the answer elsewhere.
 Press `i` on any tab in sase's TUI to open the notifications modal. The modal receives
 the complete unread, non-silent inbox dataset, so every populated tab and every eligible
 row remains accessible even when the backlog is large. Rows in the list show relative
-timestamps (e.g., "2m ago", "1h ago") and can be marked as read or dismissed. The detail
-pane shows the selected notification's absolute send time alongside its relative age
-(`sent today 13:18:42 · 4m ago`), tiered as `today HH:MM:SS` / `yesterday HH:MM` /
-`Mon D HH:MM` / `Mon D 'YY HH:MM` in the configured timezone.
+timestamps (e.g., "2m ago", "1h ago") and can be marked as read or dismissed. Dismissed
+rows are not gone for good: the [dismissed view](#dismissed-view) lists them again for
+review and one-key restore. The detail pane shows the selected notification's absolute
+send time alongside its relative age (`sent today 13:18:42 · 4m ago`), tiered as
+`today HH:MM:SS` / `yesterday HH:MM` / `Mon D HH:MM` / `Mon D 'YY HH:MM` in the
+configured timezone.
 
 ### Modal Keybindings
 
@@ -49,6 +51,7 @@ pane shows the selected notification's absolute send time alongside its relative
 | `Enter`             | Select notification (jump to PR, approve plan, etc)                         |
 | `d`                 | Open Gate Debug for the highlighted row                                     |
 | `x`                 | Dismiss notification, or dismiss marked rows when marks are present         |
+| `u`                 | Restore (undismiss) the highlighted dismissed row, or marked rows           |
 | `m`                 | Toggle the per-row mark on the highlighted notification                     |
 | `M`                 | Toggle mute on the highlighted notification, or marked rows                 |
 | `s`                 | Snooze the highlighted notification, or marked rows (opens duration picker) |
@@ -62,6 +65,7 @@ pane shows the selected notification's absolute send time alongside its relative
 | `+`                 | Cycle newest-first through the selected row's `+1` evidence, then default   |
 | `R`                 | Mark every unread notification in the **active tab** read (confirms first)  |
 | `S`                 | Toggle the active tab between sectioned and newest-first rows               |
+| `T`                 | Toggle between the unread inbox and the dismissed-notifications view        |
 | `Esc` / `q`         | Close modal                                                                 |
 
 The detail-pane scroll keys work with either the notification list or detail pane
@@ -77,6 +81,20 @@ sudo, task-triage, flag-triage, snooze, stale-cleanup, and required-plugin) and 
 dismissal to prevent accidental loss of pending decisions. The same `y` / `n`
 confirmation is used for bulk dismissal when at least one marked protected notification
 is included in the batch.
+
+### Dismissed View
+
+Press `T` to switch the modal between the unread inbox and the dismissed view, which
+lists dismissed rows that are still unread; the title reads `Notifications (dismissed)`
+while that view is active. Press `u` to restore the highlighted row (or every marked
+row) to the inbox, then press `T` again to return to the normal inbox.
+
+A dismissed live gate stays unread — selecting it never marks it read, and dismissing it
+never does either — so it always resurfaces in the dismissed view until it is answered
+or restored. Rows that are both read and dismissed (for example after `R` marks their
+tab read) are outside the inbox's unread scope and stay out of both views; the pending
+gate bundle itself remains reachable through the gate CLI (`sase gate list` /
+`sase gate show`).
 
 `R` is scoped to the tab you are on, not the whole inbox, and it is a wider write than
 it looks: it marks the tab read in the notification store, which includes rows matching

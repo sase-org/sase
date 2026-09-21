@@ -103,6 +103,7 @@ class NotificationModal(
         ),
         ("R", "read_tab", "Read Tab"),
         ("S", "toggle_sections", "Sections"),
+        ("T", "toggle_dismissed_view", "Dismissed"),
         ("M", "toggle_mute", "Toggle Mute"),
         ("m", "toggle_mark", "Mark"),
         ("s", "snooze", "Snooze"),
@@ -138,6 +139,7 @@ class NotificationModal(
         self._active_notification_tag: str | None = tabs[0].tag if tabs else None
         self._pending_confirm_notification_id: str | None = None
         self._pending_confirm_notification_ids: list[str] | None = None
+        self._showing_dismissed: bool = False
         self._marked_notification_ids: set[str] = set()
         self._gate_summary_cache: dict[str, tuple[tuple[int, ...], GateSummary]] = {}
         self._gate_summary_debouncer: DetailPanelDebouncer | None = None
@@ -600,6 +602,12 @@ class NotificationModal(
             pass
         return None
 
+    def _dismissed_view_empty_text(self) -> str:
+        """Return the empty-list message for the active inbox/dismissed view."""
+        if getattr(self, "_showing_dismissed", False):
+            return "No dismissed notifications"
+        return "No unread notifications"
+
     def _rebuild_list(
         self, highlight_index: int | None = None, *, show_jump_hints: bool = False
     ) -> None:
@@ -625,12 +633,18 @@ class NotificationModal(
                 left_panel = self.query_one("#notification-left", Vertical)
                 left_panel.mount(
                     Static(
-                        "No unread notifications",
+                        self._dismissed_view_empty_text(),
                         id="notification-empty",
                     ),
                 )
             self._display_file(None)
             return
+
+        option_list.remove_class("hidden")
+        try:
+            self.query_one("#notification-empty", Static).remove()
+        except Exception:
+            pass
 
         jump_hints = self.jump_hints_by_key() if show_jump_hints else None
         for option in self._create_notification_options(jump_hints=jump_hints):
