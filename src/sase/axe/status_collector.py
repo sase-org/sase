@@ -10,7 +10,7 @@ from sase.ace.patch import count_hook_and_agent_runners_global
 from sase.ace.hooks.processes import is_process_running
 
 from .config import AxeConfig, load_axe_config
-from .desired_state import read_desired_state
+from ._scheduler_desired_state import scheduler_desired_state
 from .lifecycle_journal import read_recent_lifecycle_events
 from .maintenance import read_maintenance
 from .state import (
@@ -190,16 +190,9 @@ def _process_observation(pid: int | None) -> AxeProcessObservation:
 
 def _collect_desired_state() -> AxeDesiredStateRecord | None:
     try:
-        desired = read_desired_state()
+        return scheduler_desired_state()
     except OSError:
         return None
-    if desired is None:
-        return None
-    return AxeDesiredStateRecord(
-        state=desired.state,
-        source=desired.source,
-        timestamp=desired.timestamp,
-    )
 
 
 def _collect_maintenance(*, now: datetime) -> AxeMaintenanceRecord | None:

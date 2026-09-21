@@ -25,7 +25,6 @@ _AXE_ROOT_FILES = (
     "status.json",
     "metrics.json",
     "pid",
-    "desired_state.json",
     "orchestrator.pid",
 )
 _AXE_LUMBERJACK_FILES = (

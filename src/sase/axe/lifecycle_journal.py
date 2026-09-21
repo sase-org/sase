@@ -7,7 +7,6 @@ import json
 import os
 import tempfile
 import time
-from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -15,7 +14,6 @@ from typing import Any, Literal
 from sase.core.time import get_timezone
 
 from . import state as axe_state
-from .desired_state import read_desired_state
 from .maintenance import clear_stale_maintenance, read_maintenance
 
 
@@ -103,7 +101,6 @@ def _lifecycle_record(
     timestamp_epoch: float | None,
 ) -> dict[str, Any]:
     now = time.time() if timestamp_epoch is None else float(timestamp_epoch)
-    desired_state = read_desired_state()
     try:
         clear_stale_maintenance()
     except Exception:  # noqa: BLE001 - snapshots are best-effort.
@@ -122,7 +119,9 @@ def _lifecycle_record(
         "source": source.strip() or "unknown",
         "reason": reason,
         "orchestrator_pid": orchestrator_pid,
-        "desired_state": asdict(desired_state) if desired_state is not None else None,
+        # The retired desired-state marker is no longer stamped here. Readers
+        # must tolerate old entries that still carry the field.
+        "desired_state": None,
         "maintenance": maintenance,
     }
 

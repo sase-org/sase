@@ -10,8 +10,11 @@ from sase.axe.chop_doctor import (
     build_chop_doctor_report,
     chop_check_to_public_dict,
 )
-from sase.axe.desired_state import read_desired_state
 from sase.axe._process_probe import probe_orchestrator
+from sase.axe._scheduler_desired_state import (
+    scheduler_desired_running,
+    scheduler_desired_state,
+)
 from sase.diagnostics import CheckSpec, DiagnosticCheck
 
 if TYPE_CHECKING:
@@ -26,7 +29,7 @@ def axe_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
         CheckSpec(
             id="axe.health",
             group="axe",
-            title="AXE desired runtime health",
+            title="Scheduler service proc health",
             runner=_check_axe_health,
         ),
         CheckSpec(
@@ -40,40 +43,43 @@ def axe_check_specs(context: DoctorContext) -> tuple[CheckSpec, ...]:
 
 
 def _check_axe_health() -> DiagnosticCheck:
-    """Flag a requested-running axe whose orchestrator is down."""
-    desired = read_desired_state()
+    """Flag a scheduler the service host wants running whose orchestrator is down."""
+    desired = scheduler_desired_state()
     pid = probe_orchestrator(cleanup=False).running_pid
-    if desired is not None and desired.state == "running" and pid is None:
+    if scheduler_desired_running() and pid is None:
         return DiagnosticCheck(
             id="axe.health",
             group="axe",
             status="WARN",
-            title="AXE desired runtime health",
-            summary="axe is desired running, but its orchestrator is down",
-            details=(
-                f"Running was requested by {desired.source} at {desired.timestamp}.",
+            title="Scheduler service proc health",
+            summary="scheduler is desired running, but its orchestrator is down",
+            details=("The service host wants the scheduler service proc running.",),
+            next_steps=(
+                "Run `sase service status`.",
+                "Run `sase scheduler start`.",
             ),
-            next_steps=("Run `sase scheduler start`.",),
             data={
-                "desired_state": desired.state,
-                "desired_state_source": desired.source,
-                "desired_state_timestamp": desired.timestamp,
+                "desired_state": desired.state if desired is not None else None,
+                "desired_state_source": desired.source if desired is not None else None,
+                "desired_state_timestamp": (
+                    desired.timestamp if desired is not None else None
+                ),
                 "orchestrator_pid": None,
             },
         )
 
     desired_value = desired.state if desired is not None else None
     if pid is not None:
-        summary = f"axe orchestrator is running (pid {pid})"
+        summary = f"scheduler orchestrator is running (pid {pid})"
     elif desired_value == "stopped":
-        summary = "axe is explicitly stopped"
+        summary = "scheduler is explicitly stopped"
     else:
-        summary = "no axe desired-state marker or live orchestrator was found"
+        summary = "no scheduler desired state or live orchestrator was found"
     return DiagnosticCheck(
         id="axe.health",
         group="axe",
         status="OK",
-        title="AXE desired runtime health",
+        title="Scheduler service proc health",
         summary=summary,
         data={
             "desired_state": desired_value,

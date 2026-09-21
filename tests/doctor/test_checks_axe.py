@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from sase.axe.chop_doctor import build_chop_doctor_report
 from sase.axe.chop_inventory import collect_chop_inventory
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
-from sase.axe.desired_state import _AxeDesiredState
+from sase.axe.status_models import AxeDesiredStateRecord
 from sase.doctor.checks_axe import (
     _check_axe_chops,
     _check_axe_health,
@@ -73,12 +73,15 @@ def test_axe_chops_check_ok_when_clean(monkeypatch, tmp_path) -> None:
 
 def test_axe_health_warns_when_desired_running_but_down(monkeypatch) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_axe.read_desired_state",
-        lambda: _AxeDesiredState(
+        "sase.doctor.checks_axe.scheduler_desired_state",
+        lambda: AxeDesiredStateRecord(
             state="running",
-            source="restart",
+            source="service host",
             timestamp="2026-07-19T12:00:00+00:00",
         ),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_axe.scheduler_desired_running", lambda: True
     )
     monkeypatch.setattr(
         "sase.doctor.checks_axe.probe_orchestrator",
@@ -89,17 +92,23 @@ def test_axe_health_warns_when_desired_running_but_down(monkeypatch) -> None:
 
     assert check.status == "WARN"
     assert "orchestrator is down" in check.summary
-    assert check.next_steps == ("Run `sase scheduler start`.",)
+    assert check.next_steps == (
+        "Run `sase service status`.",
+        "Run `sase scheduler start`.",
+    )
 
 
 def test_axe_health_accepts_explicit_stop(monkeypatch) -> None:
     monkeypatch.setattr(
-        "sase.doctor.checks_axe.read_desired_state",
-        lambda: _AxeDesiredState(
+        "sase.doctor.checks_axe.scheduler_desired_state",
+        lambda: AxeDesiredStateRecord(
             state="stopped",
-            source="axe stop",
+            source="service host",
             timestamp="2026-07-19T12:00:00+00:00",
         ),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_axe.scheduler_desired_running", lambda: False
     )
     monkeypatch.setattr(
         "sase.doctor.checks_axe.probe_orchestrator",
@@ -109,4 +118,4 @@ def test_axe_health_accepts_explicit_stop(monkeypatch) -> None:
     check = _check_axe_health()
 
     assert check.status == "OK"
-    assert check.summary == "axe is explicitly stopped"
+    assert check.summary == "scheduler is explicitly stopped"

@@ -6,7 +6,6 @@ import subprocess
 import time
 
 from . import _process_probe as process_probe
-from .desired_state import write_desired_state
 from .lifecycle_journal import append_lifecycle_event
 from .lock import clear_lock_holder_pid, is_lifecycle_lock_held
 from .state import (
@@ -25,9 +24,6 @@ from ._process_types import AxeStopResult, SweepResult, TerminateResult
 def stop_axe_daemon(
     timeout: float = 15.0,
     kill_timeout: float = 5.0,
-    *,
-    desired_state_source: str = "axe stop",
-    record_desired_state: bool = True,
 ) -> bool:
     """Stop the running axe orchestrator and wait for full shutdown.
 
@@ -45,17 +41,12 @@ def stop_axe_daemon(
     return stop_axe_daemon_result(
         timeout=timeout,
         kill_timeout=kill_timeout,
-        desired_state_source=desired_state_source,
-        record_desired_state=record_desired_state,
     ).terminated_anything
 
 
 def stop_axe_daemon_result(
     timeout: float = 15.0,
     kill_timeout: float = 5.0,
-    *,
-    desired_state_source: str = "axe stop",
-    record_desired_state: bool = True,
 ) -> AxeStopResult:
     """Stop axe and return a detailed lifecycle result."""
     if axe_lifecycle_blocked_in_tests():
@@ -63,9 +54,6 @@ def stop_axe_daemon_result(
             error=AXE_LIFECYCLE_TEST_BLOCK_MESSAGE,
             blocked_in_tests=True,
         )
-
-    if record_desired_state:
-        write_desired_state("stopped", source=desired_state_source)
 
     probe = probe_orchestrator()
     pid = probe.running_pid or probe.lock_holder_pid
@@ -134,7 +122,7 @@ def stop_axe_daemon_result(
     append_lifecycle_event(
         "stop",
         outcome,
-        source=desired_state_source,
+        source="axe stop",
         reason=result.summary(),
         orchestrator_pid=result.orchestrator_pid,
         succeeded=result.error is None and not result.failed_pids,

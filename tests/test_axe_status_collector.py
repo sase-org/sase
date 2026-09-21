@@ -8,7 +8,7 @@ import pytest
 
 import sase.axe.status_collector as collector
 from sase.axe.config import AxeConfig, ChopConfig, LumberjackConfig
-from sase.axe.desired_state import _AxeDesiredState
+from sase.axe.status_models import AxeDesiredStateRecord
 from sase.axe.state import LumberjackStatus
 from sase.axe._process_types import AxeOrchestratorProbe
 
@@ -107,7 +107,7 @@ def _patch_host(
     monkeypatch.setattr(
         collector, "count_hook_and_agent_runners_global", lambda: (1, 2)
     )
-    monkeypatch.setattr(collector, "read_desired_state", lambda: None)
+    monkeypatch.setattr(collector, "scheduler_desired_state", lambda: None)
     monkeypatch.setattr(collector, "read_maintenance", lambda: None)
     monkeypatch.setattr(collector, "read_recent_lifecycle_events", lambda *, limit: [])
     monkeypatch.setattr(collector, "list_lumberjack_names", lambda: [])
@@ -261,16 +261,16 @@ def test_intentional_stop_and_fresh_state_remain_healthy(monkeypatch) -> None:
     _patch_host(monkeypatch, config=config, probe=probe, live_pids=set())
     monkeypatch.setattr(
         collector,
-        "read_desired_state",
-        lambda: _AxeDesiredState(
+        "scheduler_desired_state",
+        lambda: AxeDesiredStateRecord(
             state="stopped",
-            source="test",
+            source="service host",
             timestamp="2026-07-23T11:00:00+00:00",
         ),
     )
 
     stopped = collector.collect_axe_status_snapshot(clock=lambda: NOW)
-    monkeypatch.setattr(collector, "read_desired_state", lambda: None)
+    monkeypatch.setattr(collector, "scheduler_desired_state", lambda: None)
     fresh = collector.collect_axe_status_snapshot(clock=lambda: NOW)
 
     assert (stopped.state, stopped.health, stopped.issues) == (
@@ -295,10 +295,10 @@ def test_desired_running_down_and_active_maintenance(monkeypatch) -> None:
     _patch_host(monkeypatch, probe=stopped_probe, live_pids=set())
     monkeypatch.setattr(
         collector,
-        "read_desired_state",
-        lambda: _AxeDesiredState(
+        "scheduler_desired_state",
+        lambda: AxeDesiredStateRecord(
             state="running",
-            source="test",
+            source="service host",
             timestamp="2026-07-23T11:00:00+00:00",
         ),
     )
@@ -377,7 +377,7 @@ def test_optional_file_and_directory_races_are_best_effort(monkeypatch) -> None:
     def vanished(*_args, **_kwargs):
         raise FileNotFoundError("raced with collection")
 
-    monkeypatch.setattr(collector, "read_desired_state", vanished)
+    monkeypatch.setattr(collector, "scheduler_desired_state", vanished)
     monkeypatch.setattr(collector, "read_maintenance", vanished)
     monkeypatch.setattr(collector, "read_recent_lifecycle_events", vanished)
     monkeypatch.setattr(collector, "list_lumberjack_names", vanished)
@@ -457,6 +457,7 @@ def test_collection_does_not_create_state_directories(monkeypatch, tmp_path) -> 
     monkeypatch.setattr(
         collector, "count_hook_and_agent_runners_global", lambda: (0, 0)
     )
+    monkeypatch.setattr(collector, "scheduler_desired_state", lambda: None)
 
     snapshot = collector.collect_axe_status_snapshot(clock=lambda: NOW)
 

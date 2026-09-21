@@ -186,7 +186,7 @@ def handover_scheduler() -> bool:
 
         if not is_lifecycle_lock_held():
             return True
-        result = stop_axe_daemon_result(record_desired_state=False, timeout=10.0)
+        result = stop_axe_daemon_result(timeout=10.0)
         if result.error is not None or result.failed_pids:
             return False
         deadline = time.monotonic() + 10.0

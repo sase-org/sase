@@ -330,7 +330,7 @@ def test_routine_job_upgrade_contract_exercises_public_and_legacy_paths(
     monkeypatch.setattr(
         status_collector, "count_hook_and_agent_runners_global", lambda: (0, 0)
     )
-    monkeypatch.setattr(status_collector, "read_desired_state", lambda: None)
+    monkeypatch.setattr(status_collector, "scheduler_desired_state", lambda: None)
     monkeypatch.setattr(status_collector, "read_maintenance", lambda: None)
     monkeypatch.setattr(
         status_collector,

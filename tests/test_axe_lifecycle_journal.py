@@ -11,7 +11,6 @@ from unittest.mock import patch
 import pytest
 
 from sase.axe.config import AxeConfig
-from sase.axe.desired_state import write_desired_state
 from sase.axe.lifecycle_journal import (
     _lifecycle_journal_path,
     append_lifecycle_event,
@@ -31,7 +30,6 @@ def axe_state_dir(tmp_path: Path) -> Iterator[Path]:
 def test_journal_retains_complete_recent_records_within_byte_cap(
     axe_state_dir: Path,
 ) -> None:
-    write_desired_state("running", source="test setup")
     with patch(
         "sase.axe.maintenance._process_identity",
         return_value={"start_ticks": 123, "boot_id": "boot-a"},
@@ -57,7 +55,7 @@ def test_journal_retains_complete_recent_records_within_byte_cap(
     assert records == raw_records
     assert 1 < len(records) < 12
     assert records[-1]["source"] == "source-11"
-    assert records[-1]["desired_state"]["state"] == "running"
+    assert records[-1]["desired_state"] is None
     assert records[-1]["maintenance"] == maintenance
     assert all(record["schema_version"] == 1 for record in records)
 

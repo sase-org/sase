@@ -38,7 +38,6 @@ def test_stop_is_blocked_before_any_side_effect(
     monkeypatch.setenv("PYTEST_CURRENT_TEST", "present")
     monkeypatch.delenv(AXE_LIFECYCLE_TEST_OVERRIDE_ENV, raising=False)
     with (
-        patch("sase.axe._process_stop.write_desired_state") as write_state,
         patch("sase.axe._process_stop.probe_orchestrator") as probe,
         patch("sase.axe._process_stop._terminate_process") as terminate,
     ):
@@ -47,6 +46,5 @@ def test_stop_is_blocked_before_any_side_effect(
     assert result.blocked_in_tests is True
     assert result.error == AXE_LIFECYCLE_TEST_BLOCK_MESSAGE
     assert result.summary() == AXE_LIFECYCLE_TEST_BLOCK_MESSAGE
-    write_state.assert_not_called()
     probe.assert_not_called()
     terminate.assert_not_called()

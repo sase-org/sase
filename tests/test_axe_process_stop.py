@@ -9,7 +9,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.axe.desired_state import read_desired_state
 from sase.axe.lock import _AxeLifecycleLock
 from sase.axe.lifecycle_journal import read_recent_lifecycle_events
 from sase.axe._process_probe import cleanup_pid_files, probe_orchestrator
@@ -27,10 +26,6 @@ def test_stop_axe_daemon_returns_false_when_no_pid_file(
 ) -> None:
     """Test stop_axe_daemon returns False when no PID file exists."""
     assert stop_axe_daemon() is False
-    marker = read_desired_state()
-    assert marker is not None
-    assert marker.state == "stopped"
-    assert marker.source == "axe stop"
     journal = read_recent_lifecycle_events(limit=0)
     assert journal[-1]["event"] == "stop"
     assert journal[-1]["outcome"] == "not_running"
@@ -241,7 +236,7 @@ def test_stop_cleanup_preserves_pid_published_by_concurrent_restart(
         ),
         patch("sase.axe._process_probe.is_process_running", return_value=True),
     ):
-        result = stop_axe_daemon_result(record_desired_state=False)
+        result = stop_axe_daemon_result()
 
     assert result.orchestrator_stopped is True
     assert pid_file.read_text() == f"{new_pid}\n"
