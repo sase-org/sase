@@ -121,6 +121,65 @@ def test_scheduler_legacy_lifecycle_options_are_gone() -> None:
     assert "--force" not in stop_help
 
 
+def test_scheduler_service_path_ignores_no_overrides() -> None:
+    for command in ("start", "restart"):
+        help_text = flat_help(parser_for(("sase", "scheduler", command)).format_help())
+        for flag in (
+            "--max-agent-runners",
+            "--max-hook-runners",
+            "--query",
+            "--zombie-timeout",
+        ):
+            assert flag not in help_text
+    for command in ("start", "restart"):
+        help_text = flat_help(parser_for(("sase", "axe", command)).format_help())
+        for flag in (
+            "--max-agent-runners",
+            "--max-hook-runners",
+            "--query",
+            "--zombie-timeout",
+        ):
+            assert flag not in help_text
+
+    restart_help = flat_help(parser_for(("sase", "scheduler", "restart")).format_help())
+    assert "--json" not in restart_help
+    axe_restart_help = flat_help(parser_for(("sase", "axe", "restart")).format_help())
+    assert "--json" not in axe_restart_help
+
+    # The overrides stay on `run`, and `-j` stays on `status`.
+    run_help = flat_help(parser_for(("sase", "scheduler", "run")).format_help())
+    for flag in (
+        "--max-agent-runners",
+        "--max-hook-runners",
+        "--query",
+        "--zombie-timeout",
+    ):
+        assert flag in run_help
+    status_help = flat_help(parser_for(("sase", "scheduler", "status")).format_help())
+    assert "--json" in status_help
+    axe_status_help = flat_help(parser_for(("sase", "axe", "status")).format_help())
+    assert "--json" in axe_status_help
+
+    # Removed flags are argparse errors, not silently ignored options.
+    parser = create_parser()
+    for argv in (
+        ["scheduler", "start", "--query", "x"],
+        ["scheduler", "restart", "-A", "2"],
+        ["scheduler", "restart", "--json"],
+        ["axe", "start", "-z", "5"],
+        ["axe", "restart", "--json"],
+    ):
+        with pytest.raises(SystemExit):
+            parser.parse_args(argv)
+
+
+def test_scheduler_lifecycle_help_names_service_host() -> None:
+    for command in ("start", "stop", "restart"):
+        help_text = flat_help(parser_for(("sase", "scheduler", command)).format_help())
+        assert "service host" in help_text
+        assert "request is recorded" in help_text
+
+
 def test_service_proc_run_submits_transient_oneshot_metadata(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

@@ -5352,7 +5352,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "b7afc348f9f72369",
+            "description_digest": "be142d595706fc1f",
             "hidden": false,
             "mutex_groups": [],
             "name": "restart",
@@ -5366,66 +5366,6 @@
                 "strings": [
                   "-h",
                   "--help"
-                ],
-                "takes_value": false
-              },
-              {
-                "choices": null,
-                "dest": "max_agent_runners",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-A",
-                  "--max-agent-runners"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
-                "dest": "max_hook_runners",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-H",
-                  "--max-hook-runners"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
-                "dest": "query",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-q",
-                  "--query"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
-                "dest": "zombie_timeout",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-z",
-                  "--zombie-timeout"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
-                "dest": "json",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-j",
-                  "--json"
                 ],
                 "takes_value": false
               }
@@ -5625,7 +5565,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "d1fe80f194ba8bfa",
+            "description_digest": "87b93f6baa81f208",
             "hidden": false,
             "mutex_groups": [],
             "name": "start",
@@ -5641,54 +5581,6 @@
                   "--help"
                 ],
                 "takes_value": false
-              },
-              {
-                "choices": null,
-                "dest": "max_agent_runners",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-A",
-                  "--max-agent-runners"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
-                "dest": "max_hook_runners",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-H",
-                  "--max-hook-runners"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
-                "dest": "query",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-q",
-                  "--query"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
-                "dest": "zombie_timeout",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-z",
-                  "--zombie-timeout"
-                ],
-                "takes_value": true
               }
             ],
             "path": [
@@ -5741,7 +5633,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "7fd9a0e5861fa5be",
+            "description_digest": "9d0b29e7962d2c07",
             "hidden": false,
             "mutex_groups": [],
             "name": "stop",
@@ -23292,7 +23184,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "7587ccaf150da56d",
+            "description_digest": "215b5a2237f13b84",
             "hidden": false,
             "mutex_groups": [],
             "name": "restart",
@@ -23306,66 +23198,6 @@
                 "strings": [
                   "-h",
                   "--help"
-                ],
-                "takes_value": false
-              },
-              {
-                "choices": null,
-                "dest": "max_agent_runners",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-A",
-                  "--max-agent-runners"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
-                "dest": "max_hook_runners",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-H",
-                  "--max-hook-runners"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
-                "dest": "query",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-q",
-                  "--query"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
-                "dest": "zombie_timeout",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-z",
-                  "--zombie-timeout"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
-                "dest": "json",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-j",
-                  "--json"
                 ],
                 "takes_value": false
               }
@@ -23456,7 +23288,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "8c81b8edf0ea4685",
+            "description_digest": "de3e93bdee2f9ecc",
             "hidden": false,
             "mutex_groups": [],
             "name": "start",
@@ -23472,54 +23304,6 @@
                   "--help"
                 ],
                 "takes_value": false
-              },
-              {
-                "choices": null,
-                "dest": "max_agent_runners",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-A",
-                  "--max-agent-runners"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
-                "dest": "max_hook_runners",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-H",
-                  "--max-hook-runners"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
-                "dest": "query",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-q",
-                  "--query"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
-                "dest": "zombie_timeout",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-z",
-                  "--zombie-timeout"
-                ],
-                "takes_value": true
               }
             ],
             "path": [
@@ -23572,7 +23356,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "11b1080899061a05",
+            "description_digest": "db4c632d0f07d01b",
             "hidden": false,
             "mutex_groups": [],
             "name": "stop",
@@ -23781,7 +23565,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "7a888a002f295a5e",
+        "description_digest": "61ccd644dfa657c9",
         "hidden": false,
         "mutex_groups": [],
         "name": "service",

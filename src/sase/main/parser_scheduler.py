@@ -24,24 +24,29 @@ def register_scheduler_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="{restart,run,start,status,stop}",
     )
 
-    restart_parser = scheduler_sub.add_parser(
+    scheduler_sub.add_parser(
         "restart",
-        help="Restart the scheduler",
+        help="Ask the service host to restart the scheduler proc",
+        description=(
+            "Ask the service host to stop and start the `scheduler` service "
+            "proc. Returns once the request is recorded."
+        ),
     )
-    add_scheduler_overrides(restart_parser)
-    add_json_flag(restart_parser)
 
     run_parser = scheduler_sub.add_parser(
         "run",
         help="Run the foreground scheduler orchestrator",
     )
-    add_scheduler_overrides(run_parser)
+    _add_scheduler_overrides(run_parser)
 
-    start_parser = scheduler_sub.add_parser(
+    scheduler_sub.add_parser(
         "start",
-        help="Start the scheduler",
+        help="Ask the service host to start the scheduler proc",
+        description=(
+            "Ask the service host to start the `scheduler` service proc. "
+            "Returns once the request is recorded."
+        ),
     )
-    add_scheduler_overrides(start_parser)
 
     status_parser = scheduler_sub.add_parser(
         "status",
@@ -51,11 +56,15 @@ def register_scheduler_parser(subparsers: argparse._SubParsersAction) -> None:
 
     scheduler_sub.add_parser(
         "stop",
-        help="Stop the scheduler",
+        help="Ask the service host to stop the scheduler proc",
+        description=(
+            "Ask the service host to stop the `scheduler` service proc. "
+            "Returns once the request is recorded."
+        ),
     )
 
 
-def add_scheduler_overrides(parser: argparse.ArgumentParser) -> None:
+def _add_scheduler_overrides(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-A",
         "--max-agent-runners",
@@ -96,6 +105,5 @@ def add_json_flag(parser: argparse.ArgumentParser) -> None:
 
 __all__ = [
     "add_json_flag",
-    "add_scheduler_overrides",
     "register_scheduler_parser",
 ]

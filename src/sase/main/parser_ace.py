@@ -131,7 +131,7 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
 
 def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'axe' subcommand parser."""
-    from sase.main.parser_scheduler import add_json_flag, add_scheduler_overrides
+    from sase.main.parser_scheduler import add_json_flag
     from sase.ops.cli import add_operation_io_flags
 
     axe_parser = subparsers.add_parser(
@@ -196,12 +196,17 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     axe_maintenance_subparsers.add_parser("status", help="Show maintenance status")
 
     # --- axe restart (alias of `sase scheduler restart`) ---
-    axe_restart_parser = axe_subparsers.add_parser(
+    axe_subparsers.add_parser(
         "restart",
-        help="Restart the scheduler (alias of `sase scheduler restart`)",
+        help=(
+            "Ask the service host to restart the scheduler proc "
+            "(alias of `sase scheduler restart`)"
+        ),
+        description=(
+            "Ask the service host to stop and start the `scheduler` service "
+            "proc. Returns once the request is recorded."
+        ),
     )
-    add_scheduler_overrides(axe_restart_parser)
-    add_json_flag(axe_restart_parser)
 
     # --- axe status (alias of `sase scheduler status`) ---
     axe_status_parser = axe_subparsers.add_parser(
@@ -215,14 +220,29 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     add_json_flag(axe_status_parser)
 
     # --- axe start (alias of `sase scheduler start`) ---
-    axe_start_parser = axe_subparsers.add_parser(
-        "start", help="Start the scheduler (alias of `sase scheduler start`)"
+    axe_subparsers.add_parser(
+        "start",
+        help=(
+            "Ask the service host to start the scheduler proc "
+            "(alias of `sase scheduler start`)"
+        ),
+        description=(
+            "Ask the service host to start the `scheduler` service proc. "
+            "Returns once the request is recorded."
+        ),
     )
-    add_scheduler_overrides(axe_start_parser)
 
     # --- axe stop (alias of `sase scheduler stop`) ---
     axe_subparsers.add_parser(
-        "stop", help="Stop the scheduler (alias of `sase scheduler stop`)"
+        "stop",
+        help=(
+            "Ask the service host to stop the scheduler proc "
+            "(alias of `sase scheduler stop`)"
+        ),
+        description=(
+            "Ask the service host to stop the `scheduler` service proc. "
+            "Returns once the request is recorded."
+        ),
     )
 
 
