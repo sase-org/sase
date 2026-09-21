@@ -99,7 +99,11 @@ def patch_startup_loaders(
     from sase.ace.tui import opened_workspaces as opened_workspaces_module
     from sase.ace.tui import skill_uses as skill_uses_module
     from sase.ace.tui.actions import update_toast
+    from sase.ace.tui.actions._usage_refresh_fallback import (
+        UsageRefreshFallbackMixin,
+    )
     from sase.ace.tui.actions.agents import _loading
+    from sase.ace.tui.proc_observer import ProcObserver
     from sase.ace.tui.commands import catalog as commands_catalog
     from sase.ace.tui.keymaps import bindings as keymap_bindings
     from sase.ace.tui.modals.help_modal import (
@@ -374,6 +378,30 @@ def patch_startup_loaders(
         ),
     )
 
+    # Hosts with provider CLIs submit a real `usage-refresh` proc from the
+    # startup fallback, which renders a top-bar gear chip the goldens lack.
+    # The live proc observer would surface the same chip from host store
+    # state, so both stay off. Seeded projections still apply afterwards.
+    def _noop_schedule_usage_refresh_fallback(_self: Any) -> None:
+        return None
+
+    def _noop_proc_observer_start(_self: Any) -> None:
+        return None
+
+    monkeypatch.setattr(
+        UsageRefreshFallbackMixin,
+        "_schedule_usage_refresh_fallback",
+        _noop_schedule_usage_refresh_fallback,
+    )
+    monkeypatch.setattr(ProcObserver, "start", _noop_proc_observer_start)
+
+    assert (
+        UsageRefreshFallbackMixin._schedule_usage_refresh_fallback
+        is _noop_schedule_usage_refresh_fallback
+    ), "usage-refresh fallback patch did not bind — visual snapshot may re-leak state"
+    assert ProcObserver.start is _noop_proc_observer_start, (
+        "proc observer patch did not bind — visual snapshot may re-leak state"
+    )
     assert (
         llm_override_indicator.resolve_effective_default_provider_model
         is _fake_resolve_effective_default_provider_model
