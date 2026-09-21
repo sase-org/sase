@@ -1749,6 +1749,21 @@ A Jinja filter can also drive the condition:
 provider is disabled (see the `provider_disabled` / `provider_enabled` filters under
 [Jinja2 Integration](#jinja2-integration)).
 
+`provider_enabled` defaults to the `"any"` mode, so the bare filter drops the segment on
+either a soft or a hard disable. A segment that pins an explicit provider model should
+normally gate on `provider_enabled("hard")` instead: a soft disable only steers alias
+and pool routing away from the provider and never refuses an explicit launch, while only
+a hard disable trips the launch guard. Use `provider_disabled("soft")` when a segment
+wants to react to a soft disable specifically (for example, to adjust prose rather than
+drop the segment):
+
+```text
+Always launch this segment.
+---
+%if(should_run={{ "grok" | provider_enabled("hard") }})
+This segment pins an explicit grok model, so it is dropped only on a hard disable.
+```
+
 In an [xprompt swarm](#xprompt-swarms-library-defined-fan-out), a disabled segment is
 dropped before any nested references in it expand. In an ordinary inline xprompt, a
 false `%if` removes only that xprompt's own expansion; the prompt segment that

@@ -120,3 +120,50 @@ def test_gated_segment_drops_when_provider_disabled(
     filtered = _filter_conditional_xprompt_segments(_render(body))
     assert "First segment." in filtered
     assert "Grok segment." not in filtered
+
+
+def _hard_gated_body() -> str:
+    return (
+        "First segment.\n---\n"
+        '%if(should_run={{ "grok" | provider_enabled("hard") }})\n'
+        "Grok segment.\n"
+    )
+
+
+def test_hard_gated_segment_survives_without_disable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    filtered = _filter_conditional_xprompt_segments(_render(_hard_gated_body()))
+    assert "First segment." in filtered
+    assert "Grok segment." in filtered
+
+
+def test_hard_gated_segment_survives_soft_disable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    disable_provider("grok", 900.0, source="test", mode="soft")
+    filtered = _filter_conditional_xprompt_segments(_render(_hard_gated_body()))
+    assert "First segment." in filtered
+    assert "Grok segment." in filtered
+
+
+def test_hard_gated_segment_drops_on_hard_disable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    disable_provider("grok", 900.0, source="test")
+    filtered = _filter_conditional_xprompt_segments(_render(_hard_gated_body()))
+    assert "First segment." in filtered
+    assert "Grok segment." not in filtered
+
+
+def test_template_soft_disabled_filter_matches_soft_only(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    disable_provider("grok", 900.0, source="test", mode="soft")
+    assert _render('{{ "grok" | provider_disabled("soft") }}') == "True"
+    assert _render('{{ "grok" | provider_disabled("hard") }}') == "False"
+    assert _render('{{ "grok" | provider_enabled("hard") }}') == "True"
