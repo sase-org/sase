@@ -196,11 +196,20 @@ def stop_proc_shell(proc: Proc, *, requested_by: str | None = None) -> Proc:
     return finished or _reconcile_proc_shell(get_proc(current.proc_id) or current)
 
 
-def reconcile_proc_shells() -> list[Proc]:
-    """Resume or finish proc-shell rows whose supervisor is gone."""
+def reconcile_proc_shells(
+    *,
+    match: Callable[[Proc], bool] | None = None,
+) -> list[Proc]:
+    """Resume or finish proc-shell rows whose supervisor is gone.
+
+    When *match* is given, only rows it accepts are reconciled; the rest
+    are left untouched.
+    """
     reconciled: list[Proc] = []
     for proc in read_procs(status=ACTIVE_PROC_STATUSES):
         if not is_proc_shell_row(proc) or not _should_reconcile(proc):
+            continue
+        if match is not None and not match(proc):
             continue
         current = get_proc(proc.proc_id)
         if current is None or current.status not in ACTIVE_PROC_STATUSES:

@@ -176,6 +176,20 @@ def _proc_occupancy(rows: Mapping[int, Proc]) -> dict[int, tuple[bool, str]]:
     }
 
 
+def settle_orphaned_oneshots() -> list[Proc]:
+    """Settle active transient oneshot rows whose supervisor is gone.
+
+    The service host calls this once at startup. A oneshot runs detached
+    under its own supervisor, so a host restart or reboot can orphan its
+    row while the ``#n`` slot stays consumed. Orphaned rows settle
+    terminally with an unknown outcome and are never relaunched; rows whose
+    supervisor is still alive are left alone.
+    """
+    from .submission import reconcile_proc_shells
+
+    return reconcile_proc_shells(match=_is_transient_oneshot)
+
+
 def submit_oneshot(
     argv: Sequence[str],
     *,
@@ -234,5 +248,6 @@ __all__ = [
     "oneshot_command_text",
     "oneshot_display_rows",
     "oneshot_shell_argv",
+    "settle_orphaned_oneshots",
     "submit_oneshot",
 ]
