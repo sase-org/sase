@@ -22,21 +22,21 @@ the changed initializers in that same order. Config initialization establishes t
 explicit per-user/per-machine owner identity; machine initialization offers optional
 remote-machine enrollment after that identity exists; memory initialization owns
 agent-document initialization (managed `AGENTS.md` and its provider instruction copies);
-repository initialization owns configured sidecars and the workspace ignore rule. When
-the `service_host` beta flag is enabled, service initialization offers the machine-level
-native user unit once per init batch; declining records a machine marker so later bare
-onboarding stays quiet, while an explicit `sase service init` still checks it. In
-non-interactive shells, bare `sase init` reports drift and exits non-zero instead of
-prompting; use `sase init --yes` when you want to apply everything that does not require
-a resource-specific confirmation. Owner identity creation and migration still require a
-TTY. Apply runs can write project files, deploy home files through chezmoi when
-configured, and use each initializer's normal commit/push behavior. Project-wide
-ownership requires `is_sase_managed: true` in the current repository's own
-`sase/sase.yml`; defaults and merged user configuration cannot grant it. Without that
-local marker, memory init leaves project memory and the root `AGENTS.md` untouched while
-still copying every existing project-tree `AGENTS.md` to the provider instruction files
-beside it, and explicit repository initialization exits successfully without detecting a
-provider, materializing sidecars, or generating files.
+repository initialization owns configured sidecars and the workspace ignore rule.
+Service initialization offers the machine-level native user unit once per init batch;
+declining records a machine marker so later bare onboarding stays quiet, while an
+explicit `sase service init` still checks it. In non-interactive shells, bare
+`sase init` reports drift and exits non-zero instead of prompting; use `sase init --yes`
+when you want to apply everything that does not require a resource-specific
+confirmation. Owner identity creation and migration still require a TTY. Apply runs can
+write project files, deploy home files through chezmoi when configured, and use each
+initializer's normal commit/push behavior. Project-wide ownership requires
+`is_sase_managed: true` in the current repository's own `sase/sase.yml`; defaults and
+merged user configuration cannot grant it. Without that local marker, memory init leaves
+project memory and the root `AGENTS.md` untouched while still copying every existing
+project-tree `AGENTS.md` to the provider instruction files beside it, and explicit
+repository initialization exits successfully without detecting a provider, materializing
+sidecars, or generating files.
 
 One resource-specific exception is intentionally non-bypassable: `--yes` can run the
 repository initializer, but it cannot approve creation of a missing provider sidecar.
@@ -166,7 +166,7 @@ compatibility alias for `sase service init`.
 | `sase repo init --check`                | Report sidecar, project-config, generated-guide, and ignore-rule drift without writing.                             |
 | `sase repo init --no-commit`            | Apply project config and ignore changes without committing or pushing them.                                         |
 | `sase init repo`                        | Alias for `sase repo init`.                                                                                         |
-| `sase service init`                     | Plan or install the native per-user service-host unit when the `service_host` flag is enabled.                      |
+| `sase service init`                     | Plan or install the native per-user service-host unit.                                                              |
 | `sase service init --check`             | Report native-unit, captured-environment, and legacy-unit drift without writing.                                    |
 | `sase service init --diff`              | Show planned native-unit changes, with captured environment values redacted.                                        |
 | `sase service init --yes`               | Apply the native-unit plan without the ordinary confirmation prompt.                                                |
@@ -191,17 +191,15 @@ wiring, native service installation, or generated skill files.
 
 ## Service host
 
-Service initialization is available when the default-off `service_host` beta flag is
-enabled, either persistently with `sase flag enable service_host` or for one command
-with `sase -f service_host service init`. It installs a per-user systemd unit on Linux
-or a per-user LaunchAgent on macOS, plus a mode-`0600` environment snapshot containing
-only the allowlisted variables needed by the host. The preview is the default:
+Service initialization installs a per-user systemd unit on Linux or a per-user
+LaunchAgent on macOS, plus a mode-`0600` environment snapshot containing only the
+allowlisted variables needed by the host. The preview is the default:
 
 ```bash
-sase -f service_host service init
-sase -f service_host service init --check
-sase -f service_host service init --diff
-sase -f service_host service init --yes
+sase service init
+sase service init --check
+sase service init --diff
+sase service init --yes
 ```
 
 `--check` and `--diff` never write. Apply retires recognized legacy service units and

@@ -151,7 +151,7 @@ title: Structured Agentic Software Engineering
     <li><strong>Beads</strong> provide git-native issue tracking for plans, executable epics, phase dependencies, and agent handoff.</li>
     <li><strong>XPrompts</strong> turn prompt templates into reusable workflows with reference expansion and typed inputs.</li>
     <li><strong>sase's TUI</strong> is the interactive control surface for daily work.</li>
-    <li><strong>Axe Automation</strong> runs background hooks, mentors, maintenance jobs, and scheduled workflows.</li>
+    <li><strong>Scheduler and Service Host</strong> runs background hooks, mentors, maintenance jobs, and scheduled workflows.</li>
     <li><strong>Provider and workspace abstractions</strong> route agent launches, VCS operations, and workspace setup through plugin-backed boundaries.</li>
   </ul>
   </div>

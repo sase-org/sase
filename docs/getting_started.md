@@ -126,9 +126,8 @@ sase's TUI has three top-level tabs:
   you're curious. This first read-only run should not have created one yet; editable
   committed work is where Patches appear.
 - **Services** — machine services, scheduled jobs, hooks waiting to complete, mentor
-  launches, and error digests. With the `service_host` beta flag enabled, this includes
-  every configured service proc and nests scheduled work below `scheduler`; otherwise it
-  presents the legacy Axe daemon. sase's TUI starts the active controller unless you
+  launches, and error digests. This includes every configured service proc and nests
+  scheduled work below `scheduler`. sase's TUI starts the active controller unless you
   pass `--no-service`.
 
 The top bar's colored `+<project>` chip is the [current project](ace.md#current-project)
@@ -325,8 +324,8 @@ The names you'll keep bumping into, in one place:
   context: in practice, the one you most recently launched an agent on (or promoted with
   `sase project set-current` / sase's TUI Projects tab `c`). `sase project current`
   prints it. The working directory never sets it, and there may be none.
-- **[AXE](axe.md)** — the background automation daemon. Runs hooks, mentor launches,
-  comment polling, dependency unblocking, error digests.
+- **[Scheduler and Service Host](axe.md)** — background automation. Runs hooks, mentor
+  launches, comment polling, dependency unblocking, error digests.
 - **`sase run`** — the entry point that launches an agent or workflow. See the
   [CLI reference](cli.md).
 - **[Workspaces](workspace.md)** — isolated numbered clones managed by SASE so agents

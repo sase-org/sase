@@ -40,7 +40,7 @@ layer, use those CLIs directly.
   shell history.
 - Track every PR-sized unit of work with status, commits, comments, and review state
   (**Patches**).
-- Schedule background and recurring agent work with the **AXE** daemon.
+- Schedule background and recurring agent work with the **scheduler** service proc.
 
 sase does not replace coding agents; it makes agent-driven engineering dependable.
 
@@ -120,7 +120,8 @@ installation details use [INSTALL.md](INSTALL.md), or follow
 - [sase's TUI](https://sase.sh/ace/) — the interactive control surface
 - [XPrompts](https://sase.sh/xprompt/) — reusable prompts and multi-step workflows
 - [Patches](https://sase.sh/change_spec/) — tracked PR-sized units of work
-- [AXE Automation](https://sase.sh/axe/) — scheduled and background agent work
+- [Scheduler and Service Host](https://sase.sh/axe/) — scheduled and background agent
+  work
 - [Spec-Driven Development](https://sase.sh/sdd/) — plans, epics, and beads
 - [Plugins](https://sase.sh/plugins/) — GitHub, Telegram, editor, and provider
   integrations

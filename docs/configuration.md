@@ -226,9 +226,9 @@ reloads the list. See [agent hold limits](#agent-hold-limits) for the TTL settin
 **Flags** is a keyboard-first control surface for every code-owned SASE feature flag. It
 does not edit `~/.config/sase/sase.yml`, overlays, project-local `sase.yml`, or chezmoi
 source. Enable and disable write a SASE-owned machine-state file under `SASE_HOME`
-(normally `~/.sase/feature_flags.json`) and then restart sase's TUI and AXE so new
-processes see the saved value. See [feature_flags](#feature_flags) for precedence,
-corruption behavior, and the CLI equivalent, and the
+(normally `~/.sase/feature_flags.json`) and then restart sase's TUI and the service host
+so new processes see the saved value. See [feature_flags](#feature_flags) for
+precedence, corruption behavior, and the CLI equivalent, and the
 [Config Flags pane](ace.md#config-flags-pane) for layout, keys, confirmation, and
 self-disable recovery.
 
@@ -465,8 +465,8 @@ launches naturally use the updated binaries. Installable plugins use `I` / `Spac
 marks, while updatable agent CLIs use `Space`, in one shared mark set; `Esc` clears
 every mark, of either kind and regardless of the active filter, before closing. All slow
 work runs off the event loop. Core/plugin code changes retain the existing automatic
-sase's TUI/axe restart behavior after the other legs finish. The context-sensitive
-keymaps are:
+sase's TUI and service host restart behavior after the other legs finish. The
+context-sensitive keymaps are:
 
 | Key                 | Action                                                                                                      |
 | ------------------- | ----------------------------------------------------------------------------------------------------------- |
@@ -905,8 +905,8 @@ so this key is the only durable setting. Descriptions themselves follow the
 budget, and overflow row are described in
 [sase's TUI — Description Panel](ace.md#description-panel).
 
-Because the Axe tab claims `d`, the `show_diff` action is active only on the Patches
-sub-tab.
+Because the Services tab claims `d`, the `show_diff` action is active only on the
+Patches sub-tab.
 
 #### `ace.current_project`
 
@@ -3334,7 +3334,7 @@ jobs:
       MY_API_KEY: { env: MY_API_KEY }
 ```
 
-CLI flags on `sase scheduler start` override `max_hook_runners`, `max_agent_runners`,
+CLI flags on `sase scheduler run` override `max_hook_runners`, `max_agent_runners`,
 `zombie_timeout_seconds`, and `query` for a single run (see [CLI Flags](#cli-flags)).
 
 Source: `src/sase/axe/config.py`, `src/sase/default_config.yml`
@@ -3808,11 +3808,11 @@ launch's own admission budget, replacing the global budget for that launch only.
 admitted, the launch holds an ordinary weighted claim, so occupied capacity can honestly
 exceed the global budget until work drains.
 
-When upgrading from an unweighted scheduler build, restart sase's TUI and AXE and let
-already running agent processes finish or relaunch them under the new binary. Legacy
-records without `queue_weight` still read as `1.0`, but mixed old and new admission
-processes do not provide a safe weighted-capacity rollout because old binaries do not
-enforce weighted claims.
+When upgrading from an unweighted scheduler build, restart sase's TUI and the service
+host and let already running agent processes finish or relaunch them under the new
+binary. Legacy records without `queue_weight` still read as `1.0`, but mixed old and new
+admission processes do not provide a safe weighted-capacity rollout because old binaries
+do not enforce weighted claims.
 
 ### max_agent_pipe_chain
 
@@ -4709,8 +4709,8 @@ The Flags pane and `sase flag list` / `show` report **effective** state and **sa
 state separately. Provenance `SAVED` means the machine-state file won. If environment or
 root CLI overrides still shadow the saved choice, the UI shows a “forced for this
 process” warning rather than pretending the toggle already controls this process. Saving
-still restarts sase's TUI and AXE; the saved value takes effect once that higher source
-is removed.
+still restarts sase's TUI and the service host; the saved value takes effect once that
+higher source is removed.
 
 Root-level `-f/--enable-feature` and `-F/--disable-feature` force a registered flag on
 or off for one `sase` invocation. They must appear before the subcommand
@@ -4735,21 +4735,22 @@ sase flag enable <flag>
 sase flag disable <flag>
 ```
 
-Both commands persist the choice in the machine-state file and, on success, restart AXE
-when it is already running. A stopped AXE daemon is left stopped. They never start a
-daemon the user had stopped, and they never signal an sase's TUI session in another
-terminal — restart any separately running sase's TUI yourself. Repeating an
-already-saved enable or disable is idempotent for the store but still retries that AXE
-restart. A restart failure does not roll back the saved preference: rich and JSON output
-distinguish `mutation` from `restart` so a partial success is safe to retry. Unknown
-flags are usage errors (exit `2`); store or restart failures use exit `1`. `--json`
-emits one versioned document with separate `mutation` and `restart` objects.
+Both commands persist the choice in the machine-state file and, on success, restart the
+`scheduler` service proc when it is already running. A stopped scheduler is left
+stopped. They never start a proc the user had stopped, and they never signal a sase's
+TUI session in another terminal — restart any separately running sase's TUI yourself.
+Repeating an already-saved enable or disable is idempotent for the store but still
+retries that scheduler restart. A restart failure does not roll back the saved
+preference: rich and JSON output distinguish `mutation` from `restart` so a partial
+success is safe to retry. Unknown flags are usage errors (exit `2`); store or restart
+failures use exit `1`. `--json` emits one versioned document with separate `mutation`
+and `restart` objects.
 
 From Config > Flags, a confirmed toggle uses the same mutation path, then waits for
-tracked background procs and performs one controlled sase's TUI+AXE restart. Disabling
-`admin_center_flags` from its own row is supported: the pane disappears after restart,
-and `sase flag enable admin_center_flags` restores it. The CLI commands are not gated by
-that flag.
+tracked background procs and performs one controlled sase's TUI and service host
+restart. Disabling `admin_center_flags` from its own row is supported: the pane
+disappears after restart, and `sase flag enable admin_center_flags` restores it. The CLI
+commands are not gated by that flag.
 
 Create temporary flags with `sase flag new <key>` rather than editing the registry by
 hand. The command creates a task bead of type `flag`, prints the registry entry, and
@@ -5293,7 +5294,8 @@ layering.
 ### `sase axe`
 
 `sase axe start|stop|restart|status` is an alias of the matching `sase scheduler`
-command; the flags below apply to both spellings.
+command. `-v/--vcs-provider` below is a `sase axe` group flag only; it applies to every
+`axe` subcommand and has no `scheduler` spelling.
 
 | Flag                 | Values              | Default | Description            |
 | -------------------- | ------------------- | ------- | ---------------------- |
@@ -5301,52 +5303,30 @@ command; the flags below apply to both spellings.
 
 ### `sase axe status`
 
-Collects one read-only whole-system scheduler snapshot. Human output is the default;
-JSON output is deterministic and never contains Rich markup or ANSI escapes. While the
-default-on `axe_routine_job_contract` flag is enabled, `--json` emits the public
-schema-version-2 object with routine/job field names; disabling that flag restores the
-legacy schema-version-1 wire object.
+Shows the `scheduler` service proc's status through the service host. Human output is
+the default; JSON output is deterministic and never contains Rich markup or ANSI
+escapes. `-j, --json` emits the proc record. See
+[Scheduler Status](axe.md#scheduler-status).
 
-| Flag         | Values | Default | Description                              |
-| ------------ | ------ | ------- | ---------------------------------------- |
-| `-j, --json` | flag   | -       | Emit the machine-readable status object. |
-
-The classifier-owned exit code is `0` for healthy or intentionally inactive states, `1`
-for actionable degradation, and `2` for a collection or classification error. See
-[Scheduler Whole-System Status](axe.md#whole-system-status) for the state, health,
-field, and recovery-command contract.
+| Flag         | Values | Default | Description                   |
+| ------------ | ------ | ------- | ----------------------------- |
+| `-j, --json` | flag   | -       | Emit the proc record as JSON. |
 
 ### `sase axe start`
 
-| Flag                      | Values        | Default          | Description                                         |
-| ------------------------- | ------------- | ---------------- | --------------------------------------------------- |
-| `-q, --query`             | string        | `""` (all)       | Query string for filtering Patches.                 |
-| `-H, --max-hook-runners`  | int           | config or `3`    | Maximum concurrent hook runners.                    |
-| `-A, --max-agent-runners` | int           | config or `3`    | Maximum concurrent agent runners.                   |
-| `-z, --zombie-timeout`    | int (seconds) | config or `7200` | Timeout before marking a hook/workflow as a zombie. |
-
-For `sase scheduler start` (and its `sase axe start` alias), CLI flags take precedence
-over values from the `axe` config section in `sase.yml`. If neither is set, the built-in
-defaults from `default_config.yml` are used.
+Asks the service host to start the `scheduler` service proc and returns once the request
+is recorded. It takes no flags. The `-q`, `-H`, `-A`, and `-z` overrides live on
+`sase scheduler run` (and `sase axe routine run`), not on `start`.
 
 ### `sase axe stop`
 
-Requests the stopped state and stops the `scheduler` service proc. It takes no flags.
+Asks the service host to stop the `scheduler` service proc and returns once the request
+is recorded. It takes no flags.
 
 ### `sase axe restart`
 
-Runs the verified stop, start, and heartbeat-verify restart through the `scheduler`
-service proc, even when the scheduler is not running, and exits `0` only once every
-configured routine reports a fresh heartbeat. Unset runner and query flags fall back to
-the `axe` config values, as for `sase scheduler start`.
-
-| Flag                      | Values        | Default      | Description                                                      |
-| ------------------------- | ------------- | ------------ | ---------------------------------------------------------------- |
-| `-j, --json`              | flag          | -            | Suppress progress output and emit one deterministic JSON result. |
-| `-A, --max-agent-runners` | int           | config value | Maximum concurrent agent runners.                                |
-| `-H, --max-hook-runners`  | int           | config value | Maximum concurrent hook runners.                                 |
-| `-q, --query`             | string        | config value | Query string for filtering Patches.                              |
-| `-z, --zombie-timeout`    | int (seconds) | config value | Timeout before marking a hook/workflow as a zombie.              |
+Asks the service host to stop and start the `scheduler` service proc and returns once
+the request is recorded. It takes no flags.
 
 ### `sase axe maintenance`
 
@@ -6279,16 +6259,16 @@ Default exit behavior is `0` for `OK`, `WARN`, and `SKIP`, and `1` for `ERROR`. 
 
 With no subcommand, `sase flag` defaults to `sase flag list`.
 
-| Form                | Flag or argument                                                                                                                                | Description                                                                                                                                                                                                                            |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `sase flag disable` | `<key>`, `-j/--json`                                                                                                                            | Persistently disable a registered flag in `$SASE_HOME/feature_flags.json`. Restarts running AXE; a stopped daemon is left stopped. Restart any separately running sase's TUI. Restart failure does not roll back the saved preference. |
-| `sase flag enable`  | `<key>`, `-j/--json`                                                                                                                            | Persistently enable a registered flag in `$SASE_HOME/feature_flags.json`. Same AXE restart, sase's TUI notice, JSON envelope, and partial-success contract as `disable`.                                                               |
-| `sase flag list`    | `-j, --json`                                                                                                                                    | List registered flags, resolved values, provenance, saved vs effective state, beads, and due state.                                                                                                                                    |
-| `sase flag new`     | `<key>`, `--when-enabled`, `--when-disabled`, `--remove-when`, `-d/--description`, `-k/--kind` (`beta`/`sunset`), `-r/--remove-by`, `-z/--size` | Create a `flag` task bead and print the registry entry to paste.                                                                                                                                                                       |
-| `sase flag show`    | `<key>`, `-j/--json`                                                                                                                            | Show one flag's full decision, saved value, bead thresholds, diagnostics, and call sites.                                                                                                                                              |
+| Form                | Flag or argument                                                                                                                                | Description                                                                                                                                                                                                                                                        |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `sase flag disable` | `<key>`, `-j/--json`                                                                                                                            | Persistently disable a registered flag in `$SASE_HOME/feature_flags.json`. Restarts the running `scheduler` service proc; a stopped scheduler is left stopped. Restart any separately running sase's TUI. Restart failure does not roll back the saved preference. |
+| `sase flag enable`  | `<key>`, `-j/--json`                                                                                                                            | Persistently enable a registered flag in `$SASE_HOME/feature_flags.json`. Same scheduler-proc restart, sase's TUI notice, JSON envelope, and partial-success contract as `disable`.                                                                                |
+| `sase flag list`    | `-j, --json`                                                                                                                                    | List registered flags, resolved values, provenance, saved vs effective state, beads, and due state.                                                                                                                                                                |
+| `sase flag new`     | `<key>`, `--when-enabled`, `--when-disabled`, `--remove-when`, `-d/--description`, `-k/--kind` (`beta`/`sunset`), `-r/--remove-by`, `-z/--size` | Create a `flag` task bead and print the registry entry to paste.                                                                                                                                                                                                   |
+| `sase flag show`    | `<key>`, `-j/--json`                                                                                                                            | Show one flag's full decision, saved value, bead thresholds, diagnostics, and call sites.                                                                                                                                                                          |
 
-Unknown keys on `enable`/`disable` exit `2`. Store or AXE-restart failures exit `1`;
-JSON then has `"ok": false` with the preference still recorded under `mutation`.
+Unknown keys on `enable`/`disable` exit `2`. Store or scheduler-restart failures exit
+`1`; JSON then has `"ok": false` with the preference still recorded under `mutation`.
 `--json` emits one versioned document with separate `mutation` and `restart` objects.
 Neither command edits portable config files.
 

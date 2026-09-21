@@ -13,7 +13,7 @@ reviewed, retried, and handed off through stable project artifacts.
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | CLI          | Top-level `sase` commands, argument parsing, dispatch, and JSON helper bridges.                                                                   | [CLI reference](cli.md)                                            |
 | sase's TUI   | Interactive TUI for Patches, agents, notifications, artifacts, and service status.                                                                | [sase's TUI](ace.md)                                               |
-| Service host | Beta per-machine supervisor for configured daemon procs and transient oneshots; it can own the scheduler and mobile gateway.                      | [CLI reference](cli.md#sase-service)                               |
+| Service host | Per-machine supervisor for configured daemon procs and transient oneshots; it owns the scheduler and mobile gateway procs.                        | [CLI reference](cli.md#sase-service)                               |
 | Axe          | Background orchestrator for scheduled hooks, mentors, workflow checks, comments, cleanup, and digests.                                            | [Axe](axe.md)                                                      |
 | XPrompt      | Prompt templates, reference expansion, directives, typed inputs, and reusable workflows.                                                          | [XPrompts](xprompt.md)                                             |
 | Workflows    | YAML multi-step execution with agent, bash, python, parallel, loop, and human checkpoint steps.                                                   | [Workflow spec](workflow_spec.md)                                  |
@@ -117,19 +117,20 @@ text. Typed launches pre-arm the declared hold before admission can dispatch the
 then rebind it to the running agent or proc; terminal units that never dispatch release
 their pre-armed holds.
 
-The beta service host is a machine-level supervisor gated by `service_host`. Its
+The service host is the machine-level supervisor for configured daemon procs. Its
 `service.procs` catalog comes from builtin, plugin, user, and machine-overlay config;
 project-local entries are intentionally ignored. The shipped `scheduler` proc runs AXE
 routines and jobs, while the shipped `gateway` proc is disabled by default. Native user
 units (`systemd --user` on Linux and LaunchAgents on macOS) can keep the host alive
-across TUI and login-session lifetimes. The legacy `sase axe` commands remain the direct
-scheduler control surface when the flag is off.
+across TUI and login-session lifetimes. `sase axe start|stop|restart|status` is an alias
+of the matching `sase scheduler` command, which routes through the `scheduler` service
+proc on the host.
 
 On Linux, when detached work starts inside a SASE-owned systemd unit or scope (such as
-`sase.service` or an axe scope), agent runners, launch-admission coordinators, proc
-supervisors, and monitor supervisors move into their own transient user scopes, so
-restarting that service does not kill them. `SASE_DETACH_SCOPE_DISABLE=1` turns this
-off.
+`sase.service` or another `sase-*` scope or service), agent runners, launch-admission
+coordinators, proc supervisors, and monitor supervisors move into their own transient
+user scopes, so restarting that service does not kill them.
+`SASE_DETACH_SCOPE_DISABLE=1` turns this off.
 
 ## Agent, Monitor, and Gate Shells
 
