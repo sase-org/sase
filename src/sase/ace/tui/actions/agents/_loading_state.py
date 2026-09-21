@@ -238,6 +238,24 @@ class AgentLoadingStateMixin:
     _agents_prefix_completion_armed_mono: float
     _agents_repro_capture: object | None
 
+    def _capture_agents_apply_selection(
+        self,
+    ) -> tuple[bool, tuple[AgentType, str, str | None] | None]:
+        """Capture the live Agents-tab selection for the apply seam.
+
+        Returns ``(on_agents_tab, selected_identity)`` using the current
+        ``current_idx`` on the Agents tab or ``_agents_last_identity`` off
+        it. Call synchronously with no await before the apply so navigation
+        made during a slow load survives via the finalize stale-token check.
+        """
+        on_agents_tab = self.current_tab == "agents"
+        selected_identity: tuple[AgentType, str, str | None] | None = None
+        if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
+            selected_identity = self._agents[self.current_idx].identity
+        elif not on_agents_tab:
+            selected_identity = getattr(self, "_agents_last_identity", None)
+        return on_agents_tab, selected_identity
+
     def _apply_loaded_agents_prepared(
         self,
         prep: PreparedApplyData,

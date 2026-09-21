@@ -10,7 +10,11 @@ from ._display_panel_state import PanelRefreshStateMixin
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
 from ._folding_panel_sweep import retire_panel_fold_sweep_records
 from ._navigation_order import rendered_panel_slice
-from ._panel_fold_intent import effective_panel_collapses, retire_panel_fold_intents
+from ._panel_fold_intent import (
+    effective_panel_collapses,
+    panel_is_collapsed,
+    retire_panel_fold_intents,
+)
 
 if TYPE_CHECKING:
     from rich.text import Text
@@ -204,14 +208,60 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         keys_per_agent = self._panel_keys_per_agent()
         focused_key = self._panel_group.focused_key
         panel_index = self._agent_panel_index()
-        if 0 <= self.current_idx < len(self._agents):
+        # The selection is the user's intent; panel focus is derived from it
+        # except when focus is deliberately parked on a non-row target.
+        selection_in_range = 0 <= self.current_idx < len(self._agents)
+        keys_in_range = 0 <= self.current_idx < len(keys_per_agent)
+        selected_key = (
+            keys_per_agent[self.current_idx]
+            if selection_in_range and keys_in_range
+            else None
+        )
+        selection_renderable = (
+            selection_in_range
+            and keys_in_range
+            and panel_index.local_idx_for(selected_key, self.current_idx) >= 0
+        )
+        if selection_renderable:
             if (
-                keys_per_agent[self.current_idx] != focused_key
-                or panel_index.local_idx_for(focused_key, self.current_idx) < 0
+                selected_key == focused_key
+                and panel_index.local_idx_for(focused_key, self.current_idx) >= 0
             ):
-                self._snap_current_idx_to_focused_panel(keys_per_agent, focused_key)
-        else:
-            self._snap_current_idx_to_focused_panel(keys_per_agent, focused_key)
+                return
+            focus_reset = focused_key != prev_focused
+            parked = False
+            if not focus_reset:
+                if getattr(self, "_expanded_panel_focus", False):
+                    parked = True
+                elif getattr(self, "_current_group_key", None) is not None:
+                    parked = True
+                elif panel_is_collapsed(self, focused_key):
+                    # Whole-panel focus on a collapsed strip: collapsing is
+                    # deliberate user intent, so a refresh must not drag
+                    # focus out of the collapsed strip to chase the cursor.
+                    parked = True
+                elif panel_is_collapsed(self, selected_key):
+                    # The cursor sits in a collapsed panel (e.g. fold
+                    # persistence collapsed its panel before this sync).
+                    # Its rows are not rendered, so focus must not follow
+                    # it there; snap the cursor back out instead.
+                    parked = True
+                else:
+                    try:
+                        rendered_global, _rendered_agents = rendered_panel_slice(
+                            self, focused_key
+                        )
+                    except Exception:
+                        rendered_global = None
+                    if rendered_global is not None and not rendered_global:
+                        parked = True
+            if selected_key in self._panel_group.panel_keys and not parked:
+                self._panel_group.focused_idx = self._panel_group.panel_keys.index(
+                    selected_key
+                )
+                self._expanded_panel_focus = False
+                return
+        self._snap_current_idx_to_focused_panel(keys_per_agent, focused_key)
 
     def _snap_current_idx_to_focused_panel(
         self, keys_per_agent: list[PanelKey], focused_key: PanelKey

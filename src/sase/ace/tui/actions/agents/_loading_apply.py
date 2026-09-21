@@ -118,6 +118,17 @@ class AgentLoadingApplyMixin(
         trace_extra: dict[str, Any] | None = None,
     ) -> None:
         """Implementation for the traced prepared-apply UI continuation."""
+        # Capture the pre-mutation visible-row anchor for the neighbor
+        # fallback when the selected identity is gone. Cheap: reuses the
+        # cached nav stops when they are already cached.
+        prior_pos: int | None = None
+        if on_agents_tab:
+            capture = getattr(self, "_capture_focused_visible_pos", None)
+            if callable(capture):
+                try:
+                    prior_pos = capture()
+                except Exception:
+                    prior_pos = None
         first_agents_load = not self._agents_first_load_done
         if first_agents_load:
             self._agents_first_load_done = True
@@ -364,11 +375,16 @@ class AgentLoadingApplyMixin(
             debouncer = getattr(self, "_agent_detail_debouncer", None)
             if debouncer is not None:
                 debouncer.cancel()
+        # _panel_navigation_stops() is keyed on the agents-list identity,
+        # so after the roster replacement above it rebuilds from the new
+        # roster when _restore_focus_after_removal runs; no explicit cache
+        # invalidation is needed here.
         self._finalize_agent_list(
             on_agents_tab,
             selected_identity,
             save_unfiltered=False,
             fold_filter_already_applied=True,
+            prior_pos=prior_pos,
             precomputed_plan=finalize_plan,
             previous_agents=previous_agents,
         )

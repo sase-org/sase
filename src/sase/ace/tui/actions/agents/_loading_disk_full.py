@@ -271,12 +271,7 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
         )
         # Capture current state AFTER the await; the user may have navigated
         # (j/k) or switched tabs while disk I/O was in flight.
-        on_agents_tab = self.current_tab == "agents"
-        selected_identity: tuple[AgentType, str, str | None] | None = None
-        if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
-            selected_identity = self._agents[self.current_idx].identity
-        elif not on_agents_tab:
-            selected_identity = getattr(self, "_agents_last_identity", None)
+        on_agents_tab, selected_identity = self._capture_agents_apply_selection()
 
         from ...repro.capture import record_agents_tab_loader_result
 
@@ -350,6 +345,11 @@ class AgentLoadingDiskFullMixin(AgentLoadingDiskViewportMixin):
         installed_active_source = previous_active_source == "unknown"
         if installed_active_source:
             self._agents_refresh_active_source = source
+        # Re-capture the live selection synchronously at the apply seam with
+        # no await between here and the apply, so navigation made during the
+        # worker prep / index / finalize-plan awaits survives via the
+        # finalize stale-token check.
+        on_agents_tab, selected_identity = self._capture_agents_apply_selection()
         try:
             self._apply_loaded_agents_prepared(
                 prep,

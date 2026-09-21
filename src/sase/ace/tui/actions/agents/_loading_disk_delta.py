@@ -6,7 +6,6 @@ import logging
 import time
 from dataclasses import replace
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 from . import _loading_helpers
 from ._loading_compute import (
@@ -19,9 +18,6 @@ from ._refresh_trace import (
     normalize_refresh_source,
     record_agents_refresh_trace,
 )
-
-if TYPE_CHECKING:
-    from ...models.agent import AgentType
 
 log = logging.getLogger(__name__)
 
@@ -95,12 +91,7 @@ class AgentLoadingDiskDeltaMixin(AgentLoadingStateMixin):
             )
             return False
 
-        on_agents_tab = self.current_tab == "agents"
-        selected_identity: tuple[AgentType, str, str | None] | None = None
-        if on_agents_tab and self._agents and 0 <= self.current_idx < len(self._agents):
-            selected_identity = self._agents[self.current_idx].identity
-        elif not on_agents_tab:
-            selected_identity = getattr(self, "_agents_last_identity", None)
+        on_agents_tab, selected_identity = self._capture_agents_apply_selection()
 
         from ...repro.capture import record_agents_tab_loader_result
 
@@ -153,6 +144,11 @@ class AgentLoadingDiskDeltaMixin(AgentLoadingStateMixin):
         installed_active_source = previous_active_source == "unknown"
         if installed_active_source:
             self._agents_refresh_active_source = source
+        # Re-capture the live selection synchronously at the apply seam with
+        # no await between here and the apply, so navigation made during the
+        # worker prep / index / finalize-plan awaits survives via the
+        # finalize stale-token check.
+        on_agents_tab, selected_identity = self._capture_agents_apply_selection()
         try:
             self._apply_loaded_agents_prepared(
                 boundary.prep,
