@@ -2260,14 +2260,17 @@ llm_provider:
             session: never
 ```
 
-Claude, Codex, Grok, and Muse Code currently ship collectors. Claude can also persist
-fenced rate-limit events from its normal stream; Codex, Grok, and Muse are probe-only.
-Muse's probe is free: it reads the `muse serve` host's usage through an `echo`-provider
-session, so it makes no model call and spends no tokens. Other provider plugins remain
-fully usable when they do not implement usage hooks. Per-provider collection can be
-disabled with `llm_provider.usage_metrics.providers.<name>.enabled: false`;
-routing-disabled providers still collect when otherwise eligible because their reset
-information remains useful.
+Claude, Codex, Grok, Muse Code, and Antigravity currently ship collectors. Claude can
+also persist fenced rate-limit events from its normal stream; Codex, Grok, Muse, and agy
+are probe-only. Muse's probe is free: it reads the `muse serve` host's usage through an
+`echo`-provider session, so it makes no model call and spends no tokens. Antigravity's
+probe is likewise free: it runs `agy -p /usage` in plan/sandbox print mode
+(`agy >= 1.1.11`), which answers without starting a model turn. Its four windows —
+Gemini weekly and 5-hour plus Claude/GPT weekly and 5-hour — are `model_family` scoped
+to `gemini` and `3p`. Other provider plugins remain fully usable when they do not
+implement usage hooks. Per-provider collection can be disabled with
+`llm_provider.usage_metrics.providers.<name>.enabled: false`; routing-disabled providers
+still collect when otherwise eligible because their reset information remains useful.
 
 sase's TUI compact usage-window indicator has separate display policy under
 `llm_provider.usage_metrics.indicator`. Collection controls whether SASE probes and

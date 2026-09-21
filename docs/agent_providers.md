@@ -267,6 +267,27 @@ SASE doctor hint: run `agy` and complete the login/trust onboarding.
 Alternatively, Antigravity honors `GEMINI_API_KEY` and `GOOGLE_API_KEY` — see the
 canonical docs for details.
 
+### Subscription usage
+
+Antigravity collects [subscription usage](#subscription-usage) — its Gemini weekly and
+5-hour windows plus the Claude/GPT weekly and 5-hour windows — through a local `/usage`
+probe. The probe makes **no model call and spends no tokens**: it runs
+`agy -p /usage --output-format json --mode plan --sandbox` in print mode with stdin
+closed, which answers without starting an agent turn. It requires `agy >= 1.1.11` (older
+builds would run `/usage` as a real paid turn, so the collector refuses them). A
+logged-out CLI prints `Authentication required…` to stderr and then blocks on an OAuth
+paste prompt; the collector watches stderr and returns logged-out promptly instead of
+waiting out the deadline. Its log file stays in the probe's managed temp dir rather than
+`~/.gemini/…`, and auto-update is disabled for the probe spawn.
+
+The probe runs on the normal background cadence
+(`llm_provider.usage_metrics.refresh_seconds`), costs about three to five seconds of
+wall clock per refresh, and follows the same eligibility rules as every other provider:
+agy must be resolvable and either referenced by a model alias or explicitly enabled. The
+Gemini buckets are `model_family`-scoped to `gemini` and the Claude/GPT buckets to `3p`.
+The user-facing switch is `llm_provider.usage_metrics.providers.agy.enabled`. Inspect
+the result with `sase usage list -p agy`.
+
 Canonical docs: <https://antigravity.google/docs/cli-install>
 
 ## Fakey Testing Provider

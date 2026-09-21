@@ -46,6 +46,7 @@ from .types import (
 
 if TYPE_CHECKING:
     from .retry_config import ProviderRetryConfig
+    from .usage.types import UsageProbeContext
     from .usage_limit_config import ProviderUsageLimitConfig
 
 _TIER_TO_MODEL: dict[ModelTier, str] = {
@@ -320,6 +321,16 @@ class AgyProvider(LLMProvider):
             "claude-opus-4-6-thinking": "opus46t",
             "gpt-oss-120b-medium": "gptoss120m",
         }
+
+    @hookimpl
+    def llm_usage_capabilities(self) -> dict[str, object]:
+        return {"probe": True, "passive_events": False}
+
+    @hookimpl
+    def llm_usage_probe(self, context: UsageProbeContext) -> dict[str, object] | None:
+        from .usage.agy import collect_agy_usage
+
+        return collect_agy_usage(context, executable=context.executable or _agy_bin())
 
     @hookimpl
     def llm_skill_template_context(self) -> dict[str, str]:

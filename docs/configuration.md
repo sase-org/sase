@@ -2055,11 +2055,13 @@ for included-allowance windows.
 `enabled` is the durable user preference; setting it `false` stops probes, isolated
 workers, passive observation writes, scheduled requests, and attention.
 
-Claude, Codex, Grok, and Muse Code ship collectors. Muse's is a free local probe against
-`muse serve` — no model call and no tokens — so it costs only about three seconds of
-wall clock per refresh. To turn it off, set
+Claude, Codex, Grok, Muse Code, and Antigravity ship collectors. Muse's is a free local
+probe against `muse serve` — no model call and no tokens — so it costs only about three
+seconds of wall clock per refresh. To turn it off, set
 `llm_provider.usage_metrics.providers.muse.enabled` to `false`; see
-[Muse Code subscription usage](agent_providers.md#subscription-usage).
+[Muse Code subscription usage](agent_providers.md#subscription-usage). Antigravity's is
+likewise a free local `/usage` probe (`agy >= 1.1.11`, about three to five seconds per
+refresh); see [Antigravity subscription usage](agent_providers.md#antigravity-cli).
 
 ```yaml
 llm_provider:
