@@ -106,12 +106,16 @@ def handle_update_command(
             clock=clock,
             config_fn=config_fn,
             refresh_completions_fn=refresh_completions_fn,
+            verbose=verbose,
+            progress_session_factory=progress_session_factory,
         )
 
     if dry_run:
         return handle_dry_run(
             install,
             as_json=as_json,
+            quiet=quiet,
+            verbose=verbose,
             out=out,
             err=err,
             version_fn=version_fn,

@@ -241,8 +241,25 @@ sase update -t dev     # switch the install to dev (editable) mode; see below
 sase update -t pypi    # switch the install back to managed PyPI mode
 ```
 
-Typical output highlights what changed, marks what was already current, and reminds you
-to restart long-running agents:
+While it runs, `sase update` shows a live timeline of steps on your terminal: every step
+is visible up front as a pending row, the running step shows its elapsed clock plus a
+short tail of its live output, and finished steps collapse to a one-line result. A
+failed step expands to its last output lines:
+
+```text
+╭─ sase update · dev install ─────────────────────────────────╮
+│ ✓ Inspect install        uv tool · 1 editable · 2 managed  0.4s │
+│ ✓ Check for updates      1 behind · 2 current              2.1s │
+│ ✓ Fast-forward sase      a1b2c3d → 9f8e7d6 · 1 commit       0.9s │
+│ ⠼ Rebuild Rust core into uv-tool venv                       0:31 │
+│     │    Compiling sase_core v0.14.2                            │
+│ ○ Restart scheduler                                             │
+╰──────────────────────────────────────────────────────── 0:44 ─╯
+```
+
+When the run finishes, the live region is replaced by a static final frame (no spinner,
+no tails), followed by the result panels highlighting what changed, what was already
+current, and reminding you to restart long-running agents:
 
 ```text
 ✓ sase           0.5.0 → 0.6.1
@@ -252,6 +269,35 @@ to restart long-running agents:
 Updated sase + 1 plugin in 4.2s · 1 already current
 ↻ requested service proc scheduler restart to load the updated code.
 ```
+
+When stderr is not a terminal (or `TERM=dumb`), progress is append-only plain lines
+instead of a live region:
+
+```text
+sase update · dev install
+[00:00] → Inspect install
+[00:00] ✓ Inspect install — uv tool · 1 editable · 2 managed (0.4s)
+```
+
+- **Progress goes to stderr; results stay on stdout.** The live timeline and plain lines
+  are written to stderr, while the final summary panels stay on stdout, so
+  `sase update > out.txt` still shows live progress on the terminal and pipes stay
+  clean. `-j|--json` disables progress entirely.
+- **`-v|--verbose`** streams the full output of every step (git, uv, cargo) as it runs
+  instead of just the short tail. With `-j` or `-q` it is accepted and only affects the
+  log file.
+- **Every run leaves a log file** at `~/.sase/logs/update/update-<UTC>-<pid>.log` with
+  the full transcript (steps, commands, and all output). The newest 20 logs are kept.
+  The JSON payloads also carry a `log_path` key with the transcript path (or `null`),
+  without changing the schema version. Dry runs write no log.
+- **Ctrl-C exits `130`.** The running step's process group is interrupted, the final
+  frame prints, and the command exits `130` with no traceback. Checkouts are never left
+  mid-merge beyond what git itself guarantees.
+- **Mode switches (`-t/--to dev|pypi`) run in the same live session** after the
+  confirmation prompt and plan preview, with restart and completion rows, the same final
+  frame, and the same interrupt handling. A `--dry-run` preview shows a transient
+  timeline on terminals only while it plans its fetches; the dry-run panel remains the
+  only persistent output.
 
 - **Install method is required.** `sase update` only works when sase was installed with
   `uv tool install sase` (the canonical install path). When it is run from a pip/pipx

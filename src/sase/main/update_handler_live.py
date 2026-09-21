@@ -26,10 +26,21 @@ from sase.main.update_handler_completion import (
     render_completion_refresh,
 )
 from sase.main.update_handler_support import (
+    COMPLETIONS_STEP_ID as _COMPLETIONS_STEP_ID,
+    COMPLETIONS_STEP_TITLE as _COMPLETIONS_STEP_TITLE,
+    INSPECT_STEP_ID as _INSPECT_STEP_ID,
+    INSPECT_STEP_TITLE as _INSPECT_STEP_TITLE,
+    RESTART_STEP_ID as _RESTART_STEP_ID,
+    RESTART_STEP_TITLE as _RESTART_STEP_TITLE,
+    ProgressSessionFactory,
     call_execute_dev_update,
     call_plan_dev_update,
     call_run_uv,
     fail_update,
+    finish_completions_step as _finish_completions,
+    finish_restart_step as _finish_restart,
+    print_interrupted as _print_interrupted,
+    session_log_path as _log_path_str,
     tool_python,
 )
 from sase.main.update_json import combined_result_json
@@ -93,22 +104,8 @@ that point could load half-written modules. These names are otherwise unused
 here (the session builds its own renderers), so the tuple keeps them alive.
 """
 
-ProgressSessionFactory = Callable[..., UpdateProgressSession]
-"""Build the progress session for one live update run.
-
-Called as ``factory(err=err, as_json=..., quiet=..., verbose=...)``. Tests
-inject a prebuilt session (for example with a fake clock or ``log_dir``)
-via ``lambda **kwargs: session``.
-"""
-
-_INSPECT_STEP_ID = "inspect"
-_INSPECT_STEP_TITLE = "Inspect install"
 _MANAGED_STEP_ID = "managed"
 _MANAGED_STEP_TITLE = "Upgrade sase + plugins via uv"
-_RESTART_STEP_ID = "restart"
-_RESTART_STEP_TITLE = "Restart scheduler"
-_COMPLETIONS_STEP_ID = "completions"
-_COMPLETIONS_STEP_TITLE = "Refresh shell completions"
 
 
 def _default_progress_session(
@@ -126,12 +123,6 @@ def _default_progress_session(
     must never consume them.
     """
     return UpdateProgressSession(err, as_json=as_json, quiet=quiet, verbose=verbose)
-
-
-def _log_path_str(session: UpdateProgressSession) -> str | None:
-    """Return the session transcript path as a string, if one was opened."""
-    path = session.log_path
-    return str(path) if path is not None else None
 
 
 class _ManagedPackageWatcher:
@@ -178,54 +169,6 @@ def _outcome_detail(outcome: object) -> str | None:
     if new:
         return str(new)
     return str(name) if name else None
-
-
-def _restart_detail(restart: RestartInfo) -> str:
-    """Format the restart step detail line."""
-    if restart.status == "skipped_no_change":
-        return "skipped · no code changed"
-    if restart.status == "skipped_not_running":
-        return "skipped · not running"
-    if restart.message:
-        return restart.message
-    return restart.status
-
-
-def _finish_restart(progress: UpdateProgress, restart: RestartInfo) -> None:
-    """Finish the restart step without failing the update on restart issues."""
-    if restart.status == "restarted":
-        progress.finish(_RESTART_STEP_ID, "done", detail=_restart_detail(restart))
-    elif restart.status == "failed":
-        progress.finish(_RESTART_STEP_ID, "warned", detail=_restart_detail(restart))
-    else:
-        progress.finish(_RESTART_STEP_ID, "skipped", detail=_restart_detail(restart))
-
-
-def _finish_completions(
-    progress: UpdateProgress, refresh: CompletionRefreshReport
-) -> None:
-    """Finish the completions step from the refresh report."""
-    if not refresh.attempted:
-        progress.finish(_COMPLETIONS_STEP_ID, "skipped", detail="not attempted")
-        return
-    if not refresh.outcomes:
-        progress.finish(_COMPLETIONS_STEP_ID, "done", detail="no stamped shells")
-        return
-    failed = [outcome for outcome in refresh.outcomes if not outcome.ok]
-    if not failed:
-        detail = "; ".join(outcome.detail for outcome in refresh.outcomes)
-        progress.finish(_COMPLETIONS_STEP_ID, "done", detail=detail or None)
-    else:
-        detail = "; ".join(outcome.detail for outcome in failed)
-        progress.finish(_COMPLETIONS_STEP_ID, "warned", detail=detail or None)
-
-
-def _print_interrupted(err: Console, log_path: str | None) -> None:
-    """Print the Ctrl-C line; no traceback ever escapes the live path."""
-    if log_path is not None:
-        err.print(f"Interrupted — full log: {log_path}", style="yellow")
-    else:
-        err.print("Interrupted", style="yellow")
 
 
 def _journal_interrupted(run_ref: _RunRef) -> None:
