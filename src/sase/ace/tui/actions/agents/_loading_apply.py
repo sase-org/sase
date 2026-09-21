@@ -1,397 +1,51 @@
-"""UI-thread apply helpers for loaded agent snapshots."""
+"""UI-thread apply helpers for loaded agent snapshots.
+
+:class:`AgentLoadingApplyMixin` is the facade the rest of the loading mixins
+(and tests) import. It owns the prepared-apply orchestration; the snapshot
+capture and finalize-plan selection live in :mod:`._loading_apply_snapshot`,
+the incomplete-load and index-repair handling in
+:mod:`._loading_apply_incomplete`, and the shared history-query predicates in
+:mod:`._loading_apply_history`.
+"""
 
 from __future__ import annotations
 
 import time
 from dataclasses import replace
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from ...models.agent import AgentType
-from ...util.trace import trace_event, tui_trace
+from ...util.trace import tui_trace
+from ._loading_apply_history import (
+    has_complete_history_for_load_query,
+    history_query_key_for_load,
+    should_arm_full_history_reconcile,
+)
+from ._loading_apply_incomplete import AgentLoadingApplyIncompleteMixin
+from ._loading_apply_snapshot import AgentLoadingApplySnapshotMixin
 from ._loading_compute import (
     PreparedApplyBoundary,
     PreparedApplyData,
-    PreparedApplySelectionInputs,
-    PreparedApplySnapshot,
-    PreparedFinalizePlan,
-    make_finalize_stale_token,
-    merge_incomplete_load_after_complete_history,
     prepare_loaded_agents_apply_boundary,
     project_and_fold_rosters,
     rebase_prepared_apply_boundary_on_proc_projection,
 )
 from ._dismiss_memory import trim_dismissed_agent_objects
 from ._loading_diff_badges import carry_over_diff_badges
-from ._loading_helpers import is_always_visible, roster_identities
 from ._loading_live_hints import carry_over_live_hints
-from ._loading_state import AgentLoadingStateMixin
 from ._live_watch_coverage import rearm_live_agent_watch_coverage
 from ._refresh_trace import classify_agents_data_cost, record_agents_refresh_trace
 
 if TYPE_CHECKING:
-    from ...models import Agent
     from ...models.agent_loader import AgentLoadState
-    from ...models.agent_live_query_engine import AgentsHistoryQueryKey
     from ...models.fold_state import FoldLevel
 
 
-def _note_finalize_plan_outcome(
-    trace_extra: dict[str, Any] | None,
-    outcome: str,
-    discard_reason: str | None = None,
-) -> None:
-    """Record whether the worker finalize plan was ``applied`` on the apply span."""
-    if trace_extra is None:
-        return
-    trace_extra["finalize_plan"] = outcome
-    if discard_reason is not None:
-        trace_extra["finalize_plan_discard_reason"] = discard_reason
-
-
-def _agent_index_repair_notice(load_state: AgentLoadState | None) -> str | None:
-    """Return the operator-facing repair notice for a load state."""
-    if load_state is None or not load_state.repair_recommended:
-        return None
-    reason = load_state.repair_reason or "unknown"
-    return (
-        f"Agent index repair recommended: {reason}. "
-        "Run `sase agent index status --json`, then `sase agent index gc`."
-    )
-
-
-def _history_query_key_for_load(
-    app: object,
-    load_state: AgentLoadState | None,
-) -> AgentsHistoryQueryKey:
-    """Return the committed-query key that the incoming load covers."""
-
-    load_key = getattr(load_state, "history_query_key", None)
-    if load_key is not None:
-        return cast("AgentsHistoryQueryKey", load_key)
-    from ...models.agent_live_query_engine import agents_history_query_key
-
-    return agents_history_query_key(getattr(app, "_agent_search_query", "") or "")
-
-
-def _has_complete_history_for_load_query(
-    app: object,
-    load_state: AgentLoadState | None,
-) -> bool:
-    """Return whether cached full history belongs to this load's query key."""
-
-    complete_key = getattr(app, "_agents_complete_history_query_key", None)
-    if complete_key is None:
-        # Compatibility for tests and older in-memory app fakes that set the
-        # historical boolean directly without the keyed latch.
-        return bool(getattr(app, "_agents_seen_complete_history", False))
-    return complete_key == _history_query_key_for_load(app, load_state)
-
-
-def _cache_query_matches_load(
-    app: object,
-    load_state: AgentLoadState | None,
-) -> bool:
-    """Return whether the cached roster was applied under this load's query."""
-
-    applied_key = getattr(app, "_agents_applied_query_key", None)
-    if applied_key is None:
-        return True
-    return applied_key == _history_query_key_for_load(app, load_state)
-
-
-def _should_arm_full_history_reconcile(
-    load_state: AgentLoadState | None,
-    *,
-    history_complete_for_query: bool = False,
-) -> bool:
-    """Return whether this load state should arm a deferred Tier 2 reconcile."""
-    if load_state is None or not load_state.needs_full_history_reconcile:
-        return False
-    if load_state.repair_recommended:
-        return True
-    if load_state.query_incomplete:
-        return not history_complete_for_query
-    return not load_state.complete_visible_inbox and not load_state.used_artifact_index
-
-
-class AgentLoadingApplyMixin(AgentLoadingStateMixin):
+class AgentLoadingApplyMixin(
+    AgentLoadingApplySnapshotMixin,
+    AgentLoadingApplyIncompleteMixin,
+):
     """Methods that merge prepared agent data back into app state."""
-
-    def _preserve_revived_agents_for_incomplete_load(
-        self,
-        prep: PreparedApplyData,
-        load_state: AgentLoadState | None,
-    ) -> bool:
-        """Keep revived historical agents visible until Tier 2 reconciles."""
-        revived_suffixes = getattr(self, "_revived_agent_raw_suffixes", None)
-        if not revived_suffixes:
-            return False
-
-        loaded_suffixes = {
-            agent.raw_suffix
-            for agent in prep.filtered_agents
-            if agent.raw_suffix is not None
-        }
-        if load_state is not None and load_state.complete_history:
-            revived_suffixes.difference_update(loaded_suffixes)
-            return False
-        if load_state is None or load_state.complete_history:
-            return False
-
-        missing_suffixes = revived_suffixes - loaded_suffixes
-        if not missing_suffixes:
-            return False
-
-        dismissed_suffixes = {
-            raw_suffix
-            for _, _, raw_suffix in self._dismissed_agents
-            if raw_suffix is not None
-        }
-        missing_suffixes -= dismissed_suffixes
-        if not missing_suffixes:
-            return False
-
-        existing_identities = {agent.identity for agent in prep.filtered_agents}
-        preserved: list[Agent] = []
-        preserved_suffixes: set[str] = set()
-        for agent in self._agents_with_children:
-            if agent.raw_suffix not in missing_suffixes:
-                continue
-            if agent.identity in existing_identities:
-                continue
-            if agent.identity in self._dismissed_agents:
-                continue
-            preserved.append(agent)
-            existing_identities.add(agent.identity)
-            if agent.raw_suffix is not None:
-                preserved_suffixes.add(agent.raw_suffix)
-
-        # Fall back to the dismissed-bundle cache for revived suffixes that
-        # never landed in ``_agents_with_children`` (e.g. long-dismissed
-        # bundles revived from the archive). The revive flow hydrates those
-        # bundle agents into ``_dismissed_agent_objects`` before calling the
-        # loader, so the data is on hand for first-paint visibility.
-        remaining_suffixes = missing_suffixes - preserved_suffixes
-        if remaining_suffixes:
-            for agent in self._dismissed_agent_objects:
-                if agent.raw_suffix not in remaining_suffixes:
-                    continue
-                if agent.identity in existing_identities:
-                    continue
-                if agent.identity in self._dismissed_agents:
-                    continue
-                preserved.append(agent)
-                existing_identities.add(agent.identity)
-
-        if not preserved:
-            return False
-
-        prep.filtered_agents = [*prep.filtered_agents, *preserved]
-        prep.has_always_visible = any(
-            is_always_visible(a) for a in prep.filtered_agents
-        )
-        prep.hideable_agents = [
-            agent for agent in prep.filtered_agents if not is_always_visible(agent)
-        ]
-        return True
-
-    def _make_prepared_apply_snapshot(
-        self,
-        *,
-        on_agents_tab: bool,
-        selected_identity: tuple[AgentType, str, str | None] | None,
-        load_state: AgentLoadState | None,
-    ) -> PreparedApplySnapshot:
-        """Capture UI-owned state for the pure prepared-apply boundary.
-
-        This is a cheap identity capture: agent lists are shallow-copied.
-        Worker mutation must go through :func:`own_prepared_apply_snapshot`.
-        """
-        from ...models.agent_groups import GroupingMode
-
-        fold_manager = getattr(self, "_fold_manager", None)
-        snapshot_fold = getattr(fold_manager, "snapshot", None)
-        fold_levels = cast(
-            "dict[str, FoldLevel] | None",
-            snapshot_fold() if callable(snapshot_fold) else None,
-        )
-        prior_visual_row: int | None
-        if on_agents_tab:
-            prior_visual_row = self.current_idx
-        else:
-            prior_visual_row = getattr(self, "_agents_last_idx", None)
-        grouping_mode = getattr(self, "_grouping_mode", None)
-        if grouping_mode is None:
-            grouping_mode = GroupingMode.STANDARD
-        from ..._proc_observer_models import ProcProjection
-
-        compose = getattr(self, "_effective_proc_projection", None)
-        proc_projection: ProcProjection | None
-        if callable(compose):
-            captured = compose()
-            proc_projection = (
-                captured if isinstance(captured, ProcProjection) else ProcProjection()
-            )
-        else:
-            captured = getattr(self, "_proc_projection", None)
-            proc_projection = captured if isinstance(captured, ProcProjection) else None
-
-        return PreparedApplySnapshot(
-            cached_agents_with_children=list(
-                getattr(self, "_agents_with_children", [])
-            ),
-            dismissed_agents=set(getattr(self, "_dismissed_agents", set())),
-            agents_seen_complete_history=_has_complete_history_for_load_query(
-                self,
-                load_state,
-            ),
-            hide_non_run_agents=bool(self.hide_non_run_agents),
-            load_state=load_state,
-            fold_levels=fold_levels,
-            selection=PreparedApplySelectionInputs(
-                on_agents_tab=on_agents_tab,
-                selected_identity=selected_identity,
-                prior_visual_row=prior_visual_row,
-            ),
-            capacity_agents_with_children=list(
-                getattr(
-                    self,
-                    "_agents_capacity_with_children",
-                    getattr(self, "_agents_with_children", []),
-                )
-            ),
-            agent_search_query=getattr(self, "_agent_search_query", "") or "",
-            agent_query_cache=getattr(self, "_agent_query_cache", None),
-            agent_status_overrides=dict(getattr(self, "_agent_status_overrides", {})),
-            grouping_mode=grouping_mode,
-            agent_panels_grouped=bool(getattr(self, "_agent_panels_grouped", False)),
-            capacity_generation=int(getattr(self, "_agents_capacity_generation", 0)),
-            unread_agent_ids=frozenset(
-                getattr(self, "_unread_completed_agent_ids", ()) or ()
-            ),
-            proc_projection=proc_projection,
-            proc_generation=int(getattr(self, "_proc_generation", 0)),
-            dismissed_proc_shells=frozenset(
-                getattr(self, "_dismissed_proc_shells", ()) or ()
-            ),
-            cache_query_matches=_cache_query_matches_load(self, load_state),
-            fleet_rows=self._fleet_rows_for_prepared_snapshot(),
-        )
-
-    def _fleet_rows_for_prepared_snapshot(self) -> tuple[Agent, ...]:
-        """Return the fleet rows a load's roster is widened with when published.
-
-        Runs on the UI thread because reconciling dispatch provisionals mutates
-        ``_agents_dispatch_provisional_rows``.
-        """
-        fleet_rows = list(getattr(self, "_agents_fleet_rows", ()) or ())
-        with_provisionals = getattr(
-            self, "_fleet_rows_with_dispatch_provisionals", None
-        )
-        if callable(with_provisionals):
-            fleet_rows = list(with_provisionals(fleet_rows))
-        return tuple(fleet_rows)
-
-    def _select_finalize_plan(
-        self,
-        precomputed: PreparedFinalizePlan | None,
-        *,
-        on_agents_tab: bool,
-        selected_identity: tuple[AgentType, str, str | None] | None,
-        roster_moved: bool = False,
-        trace_extra: dict[str, Any] | None = None,
-    ) -> PreparedFinalizePlan | None:
-        """Return the worker plan if it still describes what is being published.
-
-        The plan is discarded — and the finalize pipeline recomputes the
-        query filter, status overrides, selection math, and group keys on
-        the UI thread — when either:
-
-        * any captured input (selection, fold snapshot, query,
-          status-override set, grouping mode, or hide flag) has drifted since
-          the worker ran (``stale_token``); or
-        * the rows the plan was computed over are not the roster about to be
-          published (``roster_fingerprint``). The token cannot see this: it
-          compares mutable UI state, and a plan over a different row set
-          (for example a local-only roster before the fleet projection
-          widened it) would otherwise silently replace ``self._agents``.
-
-        Call after ``self._agents`` holds the roster being published.
-        *roster_moved* says that roster was re-derived because the fleet rows
-        changed after the plan's rows were projected, which the identity
-        fingerprint alone cannot see (same identities, newer row content).
-        *trace_extra*, when given, receives ``finalize_plan`` and, on a
-        discard, ``finalize_plan_discard_reason``.
-        """
-        if precomputed is None:
-            _note_finalize_plan_outcome(trace_extra, "absent")
-            return None
-        if roster_moved:
-            _note_finalize_plan_outcome(trace_extra, "discarded", "roster_fingerprint")
-            return None
-        current_snapshot = self._make_prepared_apply_snapshot(
-            on_agents_tab=on_agents_tab,
-            selected_identity=selected_identity,
-            load_state=getattr(self, "_agent_load_state", None),
-        )
-        current_token = make_finalize_stale_token(current_snapshot)
-        if current_token != precomputed.stale_token:
-            _note_finalize_plan_outcome(trace_extra, "discarded", "stale_token")
-            return None
-        if precomputed.input_row_identities != roster_identities(self._agents):
-            _note_finalize_plan_outcome(trace_extra, "discarded", "roster_fingerprint")
-            return None
-        _note_finalize_plan_outcome(trace_extra, "applied")
-        return precomputed
-
-    def _merge_incomplete_load_after_complete_history(
-        self,
-        prep: PreparedApplyData,
-        load_state: AgentLoadState | None,
-    ) -> None:
-        """Compatibility hook for the incomplete Tier 1 merge step."""
-        merge_incomplete_load_after_complete_history(
-            prep,
-            self._make_prepared_apply_snapshot(
-                on_agents_tab=False,
-                selected_identity=None,
-                load_state=load_state,
-            ),
-        )
-
-    def _note_empty_incomplete_apply_ignored(
-        self,
-        load_state: AgentLoadState | None,
-    ) -> None:
-        """Trace a same-query bounded zero that the merge keeps out of the cache.
-
-        The bounded zero patches over the cache instead of replacing it; one
-        revalidated load then confirms whether the rows really are gone.
-        """
-        if load_state is None or load_state.returned_count != 0:
-            self._agents_empty_ignored_revalidated = False
-            return
-        if (
-            load_state.complete_history
-            or not load_state.bounded_prefix
-            or not getattr(self, "_agents_with_children", None)
-            or not _cache_query_matches_load(self, load_state)
-        ):
-            return
-        trace_event(
-            "agents.empty_incomplete_apply_ignored",
-            reason="empty_incomplete_apply_ignored",
-            cached=len(self._agents_with_children),
-            history_query_key=repr(_history_query_key_for_load(self, load_state)),
-            has_more=load_state.has_more,
-        )
-        if getattr(self, "_agents_empty_ignored_revalidated", False):
-            return
-        self._agents_empty_ignored_revalidated = True
-        cast("Any", self)._schedule_agents_async_refresh(
-            source="empty_incomplete_revalidate",
-            revalidate_index=True,
-        )
 
     def _apply_loaded_agents_prepared(
         self,
@@ -574,8 +228,8 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
             )
         prep = boundary.prep
 
-        history_query_key = _history_query_key_for_load(self, load_state)
-        history_complete_for_query = _has_complete_history_for_load_query(
+        history_query_key = history_query_key_for_load(self, load_state)
+        history_complete_for_query = has_complete_history_for_load_query(
             self,
             load_state,
         )
@@ -609,7 +263,7 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         # refreshes must not prime the next normal refresh into Tier 2.
         if (
             not schema_rebuild_in_flight
-            and _should_arm_full_history_reconcile(
+            and should_arm_full_history_reconcile(
                 load_state,
                 history_complete_for_query=history_complete_for_query,
             )
@@ -786,20 +440,3 @@ class AgentLoadingApplyMixin(AgentLoadingStateMixin):
         schedule_fleet_refresh = getattr(self, "_schedule_agents_fleet_refresh", None)
         if callable(schedule_fleet_refresh):
             schedule_fleet_refresh(source="apply")
-
-    def _maybe_notify_agent_index_repair(
-        self, load_state: AgentLoadState | None
-    ) -> None:
-        """Show a one-shot visible repair notice when Tier 1 diagnostics ask."""
-        notice = _agent_index_repair_notice(load_state)
-        if notice is None:
-            self._agents_index_repair_notice_key = None
-            return
-        key = (
-            load_state.repair_reason if load_state is not None else None,
-            load_state.index_error if load_state is not None else None,
-        )
-        if key == getattr(self, "_agents_index_repair_notice_key", None):
-            return
-        self._agents_index_repair_notice_key = key
-        self.notify(notice, severity="warning")  # type: ignore[attr-defined]

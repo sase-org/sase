@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import time
 
-from sase.ace.tui.actions.agents._loading_apply import _agent_index_repair_notice
+from sase.ace.tui.actions.agents._loading_apply_incomplete import (
+    _agent_index_repair_notice,
+)
 from sase.ace.tui.models.agent_live_query_engine import agents_history_query_key
 from sase.ace.tui.models.agent_loader import AgentLoadState
 from tests._agents_tab_query_helpers import FakeAgentApp
