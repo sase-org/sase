@@ -127,8 +127,7 @@ sase's TUI has three top-level tabs:
   read-only run should not have created one yet; editable committed work is where
   Patches appear.
 - **Services** — machine services, scheduled jobs, hooks waiting to complete, mentor
-  launches, and error digests. With the `service_host` beta flag enabled, it shows every
-  configured service proc; otherwise it presents the legacy Axe daemon.
+  launches, and error digests. It shows every configured service proc.
 
 **What you just did.** Observed one `sase run` produce a persistent agent artifact
 visible in [sase's TUI](../../ace.md), with the [scheduler](../../axe.md) handling

@@ -259,8 +259,7 @@ shell history._
 **Services**. Agents is the startup default. Artifacts has views for the historical
 Agent catalog, Stitches, Patches, Beads, configured document providers, and Files. Its
 Patches view owns durable PR-sized Patch records. Services shows the service host and
-scheduler, or the legacy Axe daemon while `service_host` is disabled. This post stays on
-Agents because that is the tmux-window-farm replacement.
+scheduler. This post stays on Agents because that is the tmux-window-farm replacement.
 
 The first difference is observability. The Agents tab groups runs by project, date, or
 status; folds and unfolds the tree with `h`/`l` and `H`/`L`; and shows a metric strip

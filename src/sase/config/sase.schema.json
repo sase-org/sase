@@ -3468,7 +3468,7 @@
         },
         "restart_attempts": {
           "type": "integer",
-          "description": "Number of axe start attempts when axe is not running after the update command completes or fails.",
+          "description": "Number of scheduler readiness polls after requesting its service proc start when the scheduler is not running after the update.",
           "default": 3,
           "minimum": 1
         }

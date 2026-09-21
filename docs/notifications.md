@@ -1509,11 +1509,15 @@ the indexed shell lookup and acceptance policy. Then upgrade the SASE Python pac
 sase's TUI, and mobile clients against that binding, and finally upgrade Telegram so its
 receiver submits answers through the same supervised proc path. In-flight legacy gates
 still fall back to their historical `response.json` path. Telegram receiver adoption
-requires no config edit: the first enabled job tick re-arms the persistent receiver,
-`--once` remains the diagnostic direct poll path, disabled or credential-less receivers
-self-terminate. To stop the receiver, disable Telegram or remove its credentials: the
-job tick re-arms it, and it survives `sase axe stop` and TUI updates. Until `sase-11w`
-lands, a package upgrade requires manually retiring the running receiver so one running
+requires no config edit beyond enablement: the plugin declares a `telegram_receiver`
+service proc that ships disabled, so enable it in the owning machine's overlay and the
+sase service keeps it running. `--once` remains the diagnostic direct poll path, and
+disabled or credential-less receivers self-terminate. Control it with
+`sase service proc stop|restart|disable telegram_receiver`. A TUI update restarts the
+service host and therefore the receiver; a CLI `sase update` restarts only the
+scheduler, so a receiver upgrade then needs
+`sase service proc restart telegram_receiver`. Until `sase-11w` lands, a package upgrade
+does not retire the running receiver on its own, so restart it by hand so one running
 current code starts.
 
 Latency evidence from isolated probes on 2026-09-14:

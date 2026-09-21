@@ -105,7 +105,9 @@ Python environment's `bin/` directory, `../sase-core/target/debug/sase_gateway`,
 
 The gateway is a long-running process, so upgrading `sase` or `sase-core-rs` does not
 replace the binary that is already serving clients. Stop and restart
-`sase mobile gateway start` (or the supervisor unit that runs it) after an upgrade.
+`sase mobile gateway start` (or the supervisor unit that runs it) after an upgrade. When
+the gateway runs as a service proc under the service host, restart it with
+`sase service proc restart gateway` instead.
 
 Start the gateway on loopback:
 

@@ -3247,8 +3247,8 @@ warns inline with the count that leaving will stop (`N procs will be stopped`), 
 offers three actions:
 
 - `1` / `s` — quit sase's TUI and stop the scheduler
-- `2` / `r` — restart the TUI, leaving the scheduler running
-- `3` / `a` — restart the TUI and restart the scheduler
+- `2` / `r` — restart the TUI, leaving the service host running
+- `3` / `a` — restart the TUI and restart the service host
 
 Press `esc` (or `q`) to cancel and return to the TUI.
 

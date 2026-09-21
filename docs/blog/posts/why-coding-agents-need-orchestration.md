@@ -400,7 +400,7 @@ top-level tabs:
   plans and research notes.
 - **Services**: machine services and the scheduler view: routines, jobs, run history,
   live output, wait checks, hook checks, mentor checks, comment polling, and error
-  digests. Without the `service_host` beta flag, it presents the legacy Axe daemon.
+  digests.
 
 <!--
 SCREENSHOT BRIEF 1 - place immediately after sase's TUI tab list.
