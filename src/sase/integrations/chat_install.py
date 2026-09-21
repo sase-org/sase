@@ -14,6 +14,7 @@ from pathlib import Path
 from sase.config.core import load_merged_config
 from sase.core.paths import sase_subdir
 from sase.core.time import local_now
+from sase.detach_scope import detach_scope
 from sase.service.actions import start_service_proc
 from sase.service.control import persisted_or_current_status, start_service_host
 
@@ -106,11 +107,19 @@ def start_chat_install_worker() -> ChatInstallLaunchResult:
         ]
         try:
             with log_file:
-                proc = subprocess.Popen(
+                # systemd-run --scope execs in place, so the recorded PID is
+                # unchanged and the inherited lock fd survives the wrap (both
+                # are covered by live tests in tests/test_detach_scope.py).
+                launch = detach_scope(
                     cmd,
+                    description="SASE chat-install worker",
+                    unit_prefix="sase-chat-install",
+                )
+                proc = subprocess.Popen(
+                    launch.argv,
                     stdout=log_file,
                     stderr=subprocess.STDOUT,
-                    start_new_session=True,
+                    start_new_session=launch.start_new_session,
                     pass_fds=(lock_fd,),
                     env=env,
                 )

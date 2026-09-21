@@ -6,6 +6,7 @@ import sys
 import time
 from collections.abc import Callable
 
+from sase.detach_scope import detach_scope
 from sase.core.patch import strip_reverted_suffix
 from sase.core.paths import (
     make_safe_filename,
@@ -109,7 +110,7 @@ def start_single_mentor(
     try:
         env = {**os.environ, "SASE_AGENT_OUTPUT_PATH": output_path}
         with open(output_path, "w") as output_file:
-            proc = subprocess.Popen(
+            launch = detach_scope(
                 [
                     sys.executable,
                     runner_script,
@@ -121,10 +122,15 @@ def start_single_mentor(
                     profile.profile_name,
                     timestamp,
                 ],
+                description="SASE mentor runner",
+                unit_prefix="sase-mentor",
+            )
+            proc = subprocess.Popen(
+                launch.argv,
                 cwd=os.getcwd(),
                 stdout=output_file,
                 stderr=subprocess.STDOUT,
-                start_new_session=True,
+                start_new_session=launch.start_new_session,
                 env=env,
             )
             pid = proc.pid

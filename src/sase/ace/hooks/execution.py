@@ -7,6 +7,7 @@ from pathlib import Path
 
 from sase.core.patch import strip_reverted_suffix
 from sase.core.time import generate_timestamp, local_timezone_name
+from sase.detach_scope import detach_scope
 from sase.telemetry.metrics import HOOK_DURATION, HOOK_EXECUTIONS, HOOK_RETRIES
 
 from ..patch import (
@@ -152,12 +153,17 @@ exit $exit_code
 
     # Start as background process and capture PID
     with open(output_path, "w") as output_file:
-        process = subprocess.Popen(
+        launch = detach_scope(
             [wrapper_path],
+            description="SASE hook runner",
+            unit_prefix="sase-hook",
+        )
+        process = subprocess.Popen(
+            launch.argv,
             cwd=workspace_dir,
             stdout=output_file,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
+            start_new_session=launch.start_new_session,
         )
         process_pid = process.pid
 

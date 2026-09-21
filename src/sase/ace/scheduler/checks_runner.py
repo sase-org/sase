@@ -16,6 +16,7 @@ from typing import Literal
 
 from sase.core.paths import iter_sharded_files, sharded_path
 from sase.core.time import generate_timestamp
+from sase.detach_scope import detach_scope
 from sase.status_state_machine import (
     ARCHIVE_STATUSES,
     remove_workspace_suffix,
@@ -156,12 +157,17 @@ exit $exit_code
     os.chmod(wrapper_path, 0o755)
 
     with open(output_path, "w") as output_file:
-        subprocess.Popen(
+        launch = detach_scope(
             [wrapper_path],
+            description="SASE checks runner",
+            unit_prefix="sase-checks",
+        )
+        subprocess.Popen(
+            launch.argv,
             cwd=workspace_dir,
             stdout=output_file,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
+            start_new_session=launch.start_new_session,
         )
     return True
 

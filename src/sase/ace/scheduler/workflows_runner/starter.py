@@ -6,6 +6,7 @@ import sys
 import time
 from collections.abc import Callable
 
+from sase.detach_scope import detach_scope
 from sase.workflows.commit_utils import run_sase_hg_clean
 from sase.core.patch import strip_reverted_suffix
 from sase.core.paths import make_safe_filename, sharded_path
@@ -259,7 +260,7 @@ def _start_crs_workflow(
     try:
         env = {**os.environ, "SASE_AGENT_OUTPUT_PATH": output_path}
         with open(output_path, "w") as output_file:
-            proc = subprocess.Popen(
+            launch = detach_scope(
                 [
                     sys.executable,
                     runner_script,
@@ -269,10 +270,15 @@ def _start_crs_workflow(
                     comment_entry.reviewer,
                     timestamp,
                 ],
+                description="SASE CRS runner",
+                unit_prefix="sase-crs",
+            )
+            proc = subprocess.Popen(
+                launch.argv,
                 cwd=workspace_dir,
                 stdout=output_file,
                 stderr=subprocess.STDOUT,
-                start_new_session=True,
+                start_new_session=launch.start_new_session,
                 env=env,
             )
             pid = proc.pid
@@ -387,7 +393,7 @@ def start_fix_hook_workflow(
     try:
         env = {**os.environ, "SASE_AGENT_OUTPUT_PATH": output_path}
         with open(output_path, "w") as output_file:
-            proc = subprocess.Popen(
+            launch = detach_scope(
                 [
                     sys.executable,
                     runner_script,
@@ -399,10 +405,15 @@ def start_fix_hook_workflow(
                     entry_id,
                     timestamp,  # Pass timestamp for artifacts directory sync
                 ],
+                description="SASE fix-hook runner",
+                unit_prefix="sase-fix-hook",
+            )
+            proc = subprocess.Popen(
+                launch.argv,
                 cwd=os.path.expanduser("~"),
                 stdout=output_file,
                 stderr=subprocess.STDOUT,
-                start_new_session=True,
+                start_new_session=launch.start_new_session,
                 env=env,
             )
             pid = proc.pid
@@ -492,7 +503,7 @@ def _start_summarize_hook_workflow(
         # Start the background process and capture PID
         env = {**os.environ, "SASE_AGENT_OUTPUT_PATH": output_path}
         with open(output_path, "w") as output_file:
-            proc = subprocess.Popen(
+            launch = detach_scope(
                 [
                     sys.executable,
                     runner_script,
@@ -504,9 +515,14 @@ def _start_summarize_hook_workflow(
                     entry_id,
                     timestamp,  # Pass timestamp for artifacts directory sync
                 ],
+                description="SASE summarize runner",
+                unit_prefix="sase-summarize",
+            )
+            proc = subprocess.Popen(
+                launch.argv,
                 stdout=output_file,
                 stderr=subprocess.STDOUT,
-                start_new_session=True,
+                start_new_session=launch.start_new_session,
                 env=env,
             )
             pid = proc.pid
