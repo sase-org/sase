@@ -4,9 +4,11 @@ Renders ``+<display_name>`` in the project's accent color immediately after
 the provider-disables pill. Empty (zero width) when no project resolves or
 when ``ace.current_project.indicator`` is false.
 
-The periodic tick only peeks a cheap change token. The real
-:func:`sase.current_project.resolve_current_project` call — plus the enabled
-project key set used for accent assignment — runs on a worker thread.
+A render-only view over :class:`LaunchContextSource`: the periodic tick (a
+cheap change-token peek) and the real
+:func:`sase.current_project.resolve_current_project` call -- plus the enabled
+project key set used for accent assignment -- live in the app-scoped source,
+which pushes fresh state here via :meth:`apply_launch_context`.
 
 Clicking opens the ``+`` launch picker. The current project is derived
 from the VCS xprompt MRU store: launching an agent, ``sase project
@@ -15,155 +17,86 @@ set-current``, or the Projects tab set-current key all promote that head.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from rich.text import Text
 from textual.widgets import Static
-from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.current_project_settings import CurrentProjectSettings
-from sase.ace.tui.project_styles import project_accent
-from sase.current_project import (
-    CurrentProject,
-    peek_current_project_change_token,
-    resolve_current_project,
-)
-from sase.xprompt.loader import get_known_project_workspaces
+from sase.current_project import CurrentProject
 
-# Same cadence as :class:`LLMOverrideIndicator`. Affordable only because the
-# tick is a peek (time-gated ``os.stat`` + config token), not a resolve.
-_POLL_INTERVAL_SECONDS = 5.0
-_WORKER_GROUP = "current-project-indicator"
+from .launch_context_source import (
+    LaunchContextSource,
+    LaunchContextState,
+    CurrentProjectSnapshot,
+)
+
 _LAUNCH_HINT = (
     "Launch an agent on a project, or press c on the Projects tab, to make it current."
 )
 
 
-@dataclass(frozen=True, slots=True)
-class _CurrentProjectSnapshot:
-    """Resolved current project plus the accent computed off-thread."""
+class CurrentProjectIndicator(Static):
+    """Shows ``+<project>`` for the current project, or nothing.
 
-    project: CurrentProject | None
-    accent: str
-
-
-def _enabled_project_keys() -> tuple[str, ...]:
-    """Return enabled project keys for accent assignment.
-
-    Disk-backed; call only from the off-thread resolve worker.
+    The cached fields below are the view's render inputs -- the source copies
+    its state into them on broadcast, and ``refresh()`` re-pulls them -- so
+    content and tooltip builders stay pure functions of already-resolved
+    values.
     """
 
-    return tuple(get_known_project_workspaces())
-
-
-def _resolve_snapshot() -> _CurrentProjectSnapshot | None:
-    """Resolve the current project and its accent off the UI thread."""
-
-    try:
-        project = resolve_current_project()
-        enabled_keys = _enabled_project_keys()
-        accent = ""
-        if project is not None:
-            accent = project_accent(project.project_key, among=enabled_keys)
-    except Exception:  # noqa: BLE001 - display reads always degrade.
-        return None
-    return _CurrentProjectSnapshot(project=project, accent=accent)
-
-
-class CurrentProjectIndicator(Static):
-    """Shows ``+<project>`` for the current project, or nothing."""
-
     def __init__(self, **kwargs: Any) -> None:
-        self._cached_snapshot: _CurrentProjectSnapshot | None = None
+        self._cached_snapshot: CurrentProjectSnapshot | None = None
         self._cached_token: tuple[object, ...] | None = None
-        self._pending_resolve_token: tuple[object, ...] | None = None
-        self._resolve_in_flight = False
         self._cached_failed = False
         super().__init__(Text(""), **kwargs)
         self.tooltip = None
 
     def on_mount(self) -> None:
-        """Paint cached state, then resolve off-thread and poll."""
+        """Paint the source's current state (instantly resolved, no placeholder)."""
 
-        self._apply_content()
-        self._schedule_resolution_if_needed()
-        self.set_interval(_POLL_INTERVAL_SECONDS, self.refresh)
+        state = self._source_state()
+        if state is not None:
+            self.apply_launch_context(state)
+        else:
+            self._apply_content()
 
     def refresh(self, *args: Any, **kwargs: Any) -> Any:
-        """Revalidate the peek token; never resolve on the timer tick."""
+        """Re-render from the source state, preserving Widget.refresh kwargs."""
 
         if args or kwargs:
             return super().refresh(*args, **kwargs)
 
-        if self._settings().indicator:
-            peek_current_project_change_token()
-            self._schedule_resolution_if_needed()
-        self._apply_content()
+        state = self._source_state()
+        if state is not None:
+            self.apply_launch_context(state)
+        else:
+            self._apply_content()
         return super().refresh()
 
-    def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
-        """Pick up the resolved project once the background worker finishes."""
+    def apply_launch_context(self, state: LaunchContextState) -> None:
+        """Copy broadcast source state into the render inputs and repaint."""
 
-        worker = event.worker
-        if worker.group != _WORKER_GROUP:
-            return
-        if event.state == WorkerState.SUCCESS:
-            self._resolve_in_flight = False
-            result = worker.result
-            if isinstance(result, _CurrentProjectSnapshot):
-                self._cached_snapshot = result
-                self._cached_failed = False
-                self._cached_token = self._pending_resolve_token
-            else:
-                self._cached_failed = True
-            self._apply_content()
-        elif event.state == WorkerState.ERROR:
-            self._resolve_in_flight = False
-            self._cached_failed = True
-            self._apply_content()
-        elif event.state == WorkerState.CANCELLED:
-            self._resolve_in_flight = False
+        self._cached_snapshot = state.project_snapshot
+        self._cached_token = state.project_token
+        self._cached_failed = state.project_failed
+        self._apply_content()
 
     async def on_click(self) -> None:
         """Open the ``+`` launch picker — the surface that moves the MRU."""
 
         await self.app.run_action("start_custom_agent")
 
-    def invalidate(self) -> None:
-        """Force an off-thread resolve, ignoring the peek-token floor.
+    def _source_state(self) -> LaunchContextState | None:
+        """Return the app-scoped source state, or ``None`` when unmounted."""
 
-        ``refresh()`` can miss a just-written MRU because
-        :func:`peek_current_project_change_token` serves a 0.5s cached stat.
-        Clearing the cached token makes the next schedule unconditional. A
-        no-op while a resolve is already in flight.
-        """
-
-        if self._resolve_in_flight:
-            return
-        self._cached_token = None
-        self._schedule_resolution_if_needed()
-
-    def _schedule_resolution_if_needed(self) -> None:
-        """Launch the off-thread resolve worker when the token says to."""
-
-        if self._resolve_in_flight or not self._settings().indicator:
-            return
-
-        token = peek_current_project_change_token()
-        cold_start = self._cached_snapshot is None
-        token_changed = token != self._cached_token
-        if not (cold_start or self._cached_failed or token_changed):
-            return
-
-        self._resolve_in_flight = True
-        self._pending_resolve_token = token
-        self.run_worker(
-            _resolve_snapshot,
-            thread=True,
-            exclusive=True,
-            group=_WORKER_GROUP,
-        )
+        if not self.is_attached:
+            return None
+        try:
+            source = self.app.query_one("#launch-context-source", LaunchContextSource)
+        except Exception:  # noqa: BLE001 - unmounted views degrade to cache.
+            return None
+        return source.state
 
     def _settings(self) -> CurrentProjectSettings:
         """Read the app's parsed ``ace.current_project`` block."""

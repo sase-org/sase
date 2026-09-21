@@ -13,7 +13,7 @@ from textual.worker import WorkerState
 
 from sase.ace.patch.locking import acquire_edit_lock, release_edit_lock
 from sase.ace.hints import build_editor_args
-from sase.ace.tui.widgets.current_project_indicator import CurrentProjectIndicator
+from sase.ace.tui.widgets.launch_context_source import LaunchContextSource
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_wire import ProjectRecordWire, effective_project_name
 from sase.current_project import SetCurrentProjectOutcome, set_current_project
@@ -153,7 +153,9 @@ class ProjectManagementActionsMixin:
 
     def _invalidate_current_project_indicator(self) -> None:
         try:
-            self.app.query_one(CurrentProjectIndicator).invalidate()
+            self.app.query_one(
+                "#launch-context-source", LaunchContextSource
+            ).invalidate_current_project()
         except Exception:
             return
 

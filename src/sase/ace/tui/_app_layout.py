@@ -26,6 +26,7 @@ from .widgets import (
     BgCmdList,
     CurrentProjectIndicator,
     KeybindingFooter,
+    LaunchContextSource,
     LinkRail,
     LLMOverrideIndicator,
     MonitorIndicator,
@@ -85,6 +86,10 @@ class AppLayoutMixin:
         cs_classes = "" if initial_tab == "artifacts" else "hidden"
         agents_classes = "" if initial_tab == "agents" else "hidden"
         axe_classes = "" if initial_tab == "axe" else "hidden"
+        # App-scoped launch-context state. Mounted first (and exactly once) so
+        # the top-bar indicator views can pull resolved state on mount instead
+        # of flashing placeholders. Non-rendering (display: none): zero size.
+        yield LaunchContextSource(id="launch-context-source")
         yield UsageHeader(id="ace-header")
         with Horizontal(id="top-bar"):
             yield TabBar(id="tab-bar")

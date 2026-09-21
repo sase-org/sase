@@ -9,6 +9,7 @@ from rich.text import Text
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.provider_styles import provider_text_palette
+from sase.ace.tui.widgets import launch_context_source as source_module
 from sase.ace.tui.widgets import llm_override_indicator as indicator_module
 from sase.ace.tui.widgets._override_pill import build_calm_default_pill
 from sase.ace.tui.widgets.llm_override_indicator import LLMOverrideIndicator
@@ -25,11 +26,12 @@ _NEUTRAL_STYLE = "dim cyan"
 @pytest.fixture(autouse=True)
 def _bare_directive_label(monkeypatch: pytest.MonkeyPatch) -> None:
     """Pin the pill subject to the bare model name, independent of plugins."""
-    monkeypatch.setattr(
-        indicator_module,
-        "format_model_directive_label",
-        lambda provider=None, model=None: model or "",
-    )
+    for module in (indicator_module, source_module):
+        monkeypatch.setattr(
+            module,
+            "format_model_directive_label",
+            lambda provider=None, model=None: model or "",
+        )
 
 
 def _resolved(
@@ -42,7 +44,7 @@ def _resolved(
     """Return an indicator whose cached launch default is already resolved."""
     indicator = LLMOverrideIndicator()
     indicator._cached_default = (provider, model)
-    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+    indicator._cached_snapshot = source_module.LaunchDefaultSnapshot(
         provider=provider,
         model=model,
         referenced_alias=None,
@@ -205,11 +207,11 @@ async def test_worker_resolves_the_palette_off_the_ui_thread(
         return provider_text_palette(provider)
 
     monkeypatch.setattr(
-        indicator_module,
+        source_module,
         "build_launch_model_setting_snapshot",
         lambda *a, **k: _snapshot("claude", "sonnet"),
     )
-    monkeypatch.setattr(indicator_module, "provider_text_palette", recording_palette)
+    monkeypatch.setattr(source_module, "provider_text_palette", recording_palette)
 
     async with AcePage() as page:
         indicator = page.query_one_widget(

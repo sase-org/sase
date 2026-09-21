@@ -7,10 +7,10 @@ import time
 
 import pytest
 from rich.text import Text
-from textual.worker import WorkerState
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.provider_styles import provider_text_palette
+from sase.ace.tui.widgets import launch_context_source as source_module
 from sase.ace.tui.widgets import llm_override_indicator as indicator_module
 from sase.ace.tui.widgets._override_pill import format_remaining_until
 from sase.ace.tui.widgets.llm_override_indicator import LLMOverrideIndicator
@@ -55,58 +55,12 @@ def _bare_directive_label(monkeypatch: pytest.MonkeyPatch) -> None:
     The real formatter consults installed provider plugins' model metadata;
     tests that care about a specific spelling re-patch it themselves.
     """
-    monkeypatch.setattr(
-        indicator_module,
-        "format_model_directive_label",
-        lambda provider=None, model=None: model or "",
-    )
-
-
-class _FakeWorker:
-    """Duck-typed stand-in for ``textual.worker.Worker`` in unit tests."""
-
-    def __init__(self, group: str, result: object) -> None:
-        self.group = group
-        self.result = result
-
-
-class _FakeStateChanged:
-    """Duck-typed stand-in for ``Worker.StateChanged`` in unit tests."""
-
-    def __init__(self, worker: _FakeWorker, state: WorkerState) -> None:
-        self.worker = worker
-        self.state = state
-
-
-def _prepare_indicator(
-    monkeypatch: pytest.MonkeyPatch,
-    *,
-    override: TemporaryLLMOverride | None = None,
-    token: tuple[object, ...] = ("token-0",),
-) -> tuple[LLMOverrideIndicator, list[object]]:
-    """Build an unmounted indicator with worker spawning stubbed out.
-
-    ``run_worker`` requires an active Textual app, which these synchronous
-    unit tests do not mount. Stubbing it lets tests assert *whether* a
-    re-resolve was scheduled without needing a live worker thread.
-    """
-    monkeypatch.setattr(
-        indicator_module, "peek_active_temporary_override", lambda *a, **k: override
-    )
-    monkeypatch.setattr(
-        indicator_module, "peek_launch_default_change_token", lambda: token
-    )
-    indicator = LLMOverrideIndicator()
-    scheduled: list[object] = []
-    monkeypatch.setattr(
-        indicator, "run_worker", lambda task, **kwargs: scheduled.append(task)
-    )
-    # These are unmounted widgets (no active Textual app): rendering via
-    # Widget.update() requires app.console, which only exists once mounted.
-    # Stub it out so tests can exercise the real re-arm/gating logic in
-    # refresh() and on_worker_state_changed() without a live AcePage.
-    monkeypatch.setattr(indicator, "update", lambda *a, **k: None)
-    return indicator, scheduled
+    for module in (indicator_module, source_module):
+        monkeypatch.setattr(
+            module,
+            "format_model_directive_label",
+            lambda provider=None, model=None: model or "",
+        )
 
 
 def _override(
@@ -360,30 +314,6 @@ def test_init_skips_cold_default_resolution(monkeypatch: pytest.MonkeyPatch) -> 
     assert indicator._cached_default_failed is False
 
 
-async def test_async_default_resolution_updates_cached_state(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The async resolver path populates the cached default once mounted."""
-
-    monkeypatch.setattr(
-        indicator_module,
-        "build_launch_model_setting_snapshot",
-        lambda *a, **k: _snapshot(provider="claude", model="sonnet"),
-    )
-
-    async with AcePage() as page:
-        indicator = page.query_one_widget(
-            "#llm-override-indicator", LLMOverrideIndicator
-        )
-        await page.wait_for(lambda _state: indicator._cached_default is not None)
-        cached = indicator._cached_default
-
-    assert cached == ("claude", "sonnet")
-    rendered = indicator._build_initial_content()
-    assert isinstance(rendered, Text)
-    assert rendered.plain == " sonnet "
-
-
 async def test_click_opens_models_panel(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
 
@@ -402,150 +332,10 @@ async def test_click_opens_models_panel(monkeypatch: pytest.MonkeyPatch) -> None
     assert calls == ["opened"]
 
 
-def test_refresh_does_not_rearm_when_token_is_unchanged(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    indicator, scheduled = _prepare_indicator(monkeypatch, token=("token-a",))
-    indicator._cached_default = ("claude", "opus")
-    indicator._cached_default_token = ("token-a",)
-
-    indicator.refresh()
-
-    assert scheduled == []
-
-
-def test_refresh_rearms_when_token_changes(monkeypatch: pytest.MonkeyPatch) -> None:
-    indicator, scheduled = _prepare_indicator(monkeypatch, token=("token-b",))
-    indicator._cached_default = ("claude", "opus")
-    indicator._cached_default_token = ("token-a",)
-
-    indicator.refresh()
-
-    assert len(scheduled) == 1
-
-
-def test_refresh_rearms_while_failed_flag_is_set(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    indicator, scheduled = _prepare_indicator(monkeypatch, token=("token-a",))
-    indicator._cached_default = ("claude", "opus")
-    indicator._cached_default_token = ("token-a",)
-    indicator._cached_default_failed = True
-
-    indicator.refresh()
-
-    assert len(scheduled) == 1
-
-
-def test_refresh_rearms_when_override_lapses(monkeypatch: pytest.MonkeyPatch) -> None:
-    indicator, scheduled = _prepare_indicator(
-        monkeypatch, override=None, token=("token-a",)
-    )
-    indicator._cached_default = ("claude", "opus")
-    indicator._cached_default_token = ("token-a",)
-    indicator._override_active_last_tick = True
-
-    indicator.refresh()
-
-    assert len(scheduled) == 1
-
-
-def test_refresh_keeps_stale_default_while_rearming(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """A token-triggered re-arm must not flash the pill to a placeholder."""
-    indicator, scheduled = _prepare_indicator(monkeypatch, token=("token-b",))
-    indicator._cached_default = ("claude", "opus")
-    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
-        provider="claude",
-        model="opus",
-        referenced_alias=None,
-        selector_mode=None,
-        member_count=0,
-        directive_label="opus",
-    )
-    indicator._cached_default_token = ("token-a",)
-
-    indicator.refresh()
-
-    assert scheduled
-    assert indicator._cached_default == ("claude", "opus")
-    assert indicator._build_cached_default_content().plain == " opus "
-
-
-def test_refresh_never_calls_resolver_synchronously(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """The resolver must only ever run inside the off-thread worker task."""
-
-    def fail(*args: object, **kwargs: object) -> LaunchModelSettingSnapshot:
-        raise AssertionError("resolver must not run on the UI thread")
-
-    monkeypatch.setattr(indicator_module, "build_launch_model_setting_snapshot", fail)
-    monkeypatch.setattr(
-        indicator_module,
-        "resolve_effective_effort",
-        lambda *a, **k: (_ for _ in ()).throw(
-            AssertionError("effort resolver must not run on the UI thread")
-        ),
-    )
-    indicator, scheduled = _prepare_indicator(monkeypatch, token=("token-b",))
-    indicator._cached_default_token = ("token-a",)
-
-    indicator.refresh()
-
-    assert len(scheduled) == 1
-
-
-def test_worker_error_does_not_commit_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    indicator, _scheduled = _prepare_indicator(monkeypatch)
-    indicator._pending_resolve_token = ("pending-token",)
-    indicator._resolve_in_flight = True
-
-    indicator.on_worker_state_changed(
-        _FakeStateChanged(
-            _FakeWorker(indicator_module._DEFAULT_WORKER_GROUP, None),
-            WorkerState.ERROR,
-        )
-    )
-
-    assert indicator._cached_default_token is None
-    assert indicator._cached_default_failed is True
-    assert indicator._resolve_in_flight is False
-
-
-def test_worker_success_commits_pending_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    indicator, _scheduled = _prepare_indicator(monkeypatch)
-    indicator._pending_resolve_token = ("pending-token",)
-    indicator._resolve_in_flight = True
-    snapshot = indicator_module._LaunchDefaultSnapshot(
-        provider="claude",
-        model="opus",
-        referenced_alias=None,
-        selector_mode=None,
-        member_count=0,
-        effort="high",
-    )
-
-    indicator.on_worker_state_changed(
-        _FakeStateChanged(
-            _FakeWorker(indicator_module._DEFAULT_WORKER_GROUP, snapshot),
-            WorkerState.SUCCESS,
-        )
-    )
-
-    assert indicator._cached_default == ("claude", "opus")
-    assert indicator._cached_snapshot is snapshot
-    assert indicator._cached_snapshot.effort == "high"
-    assert indicator._cached_default_token == ("pending-token",)
-    assert indicator._resolve_in_flight is False
-    assert indicator._cached_default_failed is False
-
-
 def test_tooltip_adds_rotation_line_for_round_robin_pool() -> None:
     indicator = LLMOverrideIndicator()
     indicator._cached_default = ("claude", "opus")
-    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+    indicator._cached_snapshot = source_module.LaunchDefaultSnapshot(
         provider="claude",
         model="opus",
         referenced_alias="large",
@@ -566,7 +356,7 @@ def test_tooltip_adds_rotation_line_for_round_robin_pool() -> None:
 def test_tooltip_omits_rotation_line_for_non_pool_default() -> None:
     indicator = LLMOverrideIndicator()
     indicator._cached_default = ("claude", "opus")
-    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+    indicator._cached_snapshot = source_module.LaunchDefaultSnapshot(
         provider="claude",
         model="opus",
         referenced_alias=None,
@@ -667,7 +457,7 @@ def test_configured_none_renders_none_suffix(
 def test_tooltip_includes_effort_and_round_robin_keeps_suffix() -> None:
     indicator = LLMOverrideIndicator()
     indicator._cached_default = ("claude", "opus")
-    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+    indicator._cached_snapshot = source_module.LaunchDefaultSnapshot(
         provider="claude",
         model="opus",
         referenced_alias="large",
@@ -689,7 +479,7 @@ def test_tooltip_includes_effort_and_round_robin_keeps_suffix() -> None:
 def test_cached_default_content_appends_effort() -> None:
     indicator = LLMOverrideIndicator()
     indicator._cached_default = ("codex", "o3")
-    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+    indicator._cached_snapshot = source_module.LaunchDefaultSnapshot(
         provider="codex",
         model="o3",
         referenced_alias=None,
@@ -709,7 +499,7 @@ def test_cached_default_content_appends_effort() -> None:
 def test_pill_uses_bare_directive_label_while_tooltip_keeps_provider_form() -> None:
     indicator = LLMOverrideIndicator()
     indicator._cached_default = ("claude", "opus")
-    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+    indicator._cached_snapshot = source_module.LaunchDefaultSnapshot(
         provider="claude",
         model="opus",
         referenced_alias=None,
@@ -728,7 +518,7 @@ def test_pill_uses_bare_directive_label_while_tooltip_keeps_provider_form() -> N
 def test_pill_renders_explicit_directive_label_verbatim() -> None:
     indicator = LLMOverrideIndicator()
     indicator._cached_default = ("codex", "o3")
-    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+    indicator._cached_snapshot = source_module.LaunchDefaultSnapshot(
         provider="codex",
         model="o3",
         referenced_alias=None,
@@ -751,7 +541,7 @@ def test_cached_default_without_directive_label_falls_back_to_provider_label(
     indicator = LLMOverrideIndicator()
     indicator._cached_default = ("claude", "opus")
     if snapshot_present:
-        indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+        indicator._cached_snapshot = source_module.LaunchDefaultSnapshot(
             provider="claude",
             model="opus",
             referenced_alias=None,
@@ -772,10 +562,16 @@ def test_render_paths_never_call_directive_formatter(
         raise AssertionError("directive formatter must not run on the UI thread")
 
     monkeypatch.setattr(indicator_module, "format_model_directive_label", fail)
-    indicator, _scheduled = _prepare_indicator(monkeypatch, token=("token-a",))
+    monkeypatch.setattr(
+        indicator_module, "peek_active_temporary_override", lambda *a, **k: None
+    )
+    indicator = LLMOverrideIndicator()
+    # Unmounted: rendering via Widget.update() needs app.console, so stub it
+    # to exercise the render-only refresh path without a live AcePage.
+    monkeypatch.setattr(indicator, "update", lambda *a, **k: None)
     indicator._cached_default = ("claude", "opus")
     indicator._cached_default_token = ("token-a",)
-    indicator._cached_snapshot = indicator_module._LaunchDefaultSnapshot(
+    indicator._cached_snapshot = source_module.LaunchDefaultSnapshot(
         provider="claude",
         model="opus",
         referenced_alias=None,
@@ -788,34 +584,6 @@ def test_render_paths_never_call_directive_formatter(
 
     assert indicator._build_initial_content().plain == " opus "
     assert indicator._build_cached_default_content().plain == " opus "
-
-
-def test_worker_task_computes_directive_label_off_thread(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls: list[tuple[object, object]] = []
-
-    def fake_label(provider: str | None = None, model: str | None = None) -> str:
-        calls.append((provider, model))
-        return f"{provider}/{model}"
-
-    monkeypatch.setattr(
-        indicator_module,
-        "build_launch_model_setting_snapshot",
-        lambda *a, **k: _snapshot(provider="codex", model="o3"),
-    )
-    monkeypatch.setattr(indicator_module, "format_model_directive_label", fake_label)
-    indicator, scheduled = _prepare_indicator(monkeypatch, token=("token-b",))
-    indicator._cached_default_token = ("token-a",)
-
-    indicator.refresh()
-    assert calls == []
-    (task,) = scheduled
-    snapshot = task()  # type: ignore[operator]
-
-    assert isinstance(snapshot, indicator_module._LaunchDefaultSnapshot)
-    assert snapshot.directive_label == "codex/o3"
-    assert calls == [("codex", "o3")]
 
 
 def test_default_content_formatter_failure_renders_unavailable(

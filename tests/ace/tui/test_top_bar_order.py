@@ -5,8 +5,7 @@ from __future__ import annotations
 import pytest
 
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
-import sase.ace.tui.widgets.current_project_indicator as current_project_indicator
-import sase.ace.tui.widgets.llm_override_indicator as llm_override_indicator
+import sase.ace.tui.widgets.launch_context_source as launch_context_source
 import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions import update_toast
@@ -18,7 +17,7 @@ from sase.ace.tui.widgets import (
     ProviderDisablesIndicator,
     UpdatesAvailableIndicator,
 )
-from sase.ace.tui.widgets.current_project_indicator import _CurrentProjectSnapshot
+from sase.ace.tui.widgets.launch_context_source import CurrentProjectSnapshot
 from sase.current_project import CurrentProject
 from sase.llm_provider import TemporaryLLMOverride, TemporaryProviderDisable
 from sase.llm_provider.config import (
@@ -97,7 +96,7 @@ def _paint_current_project_chip(page: AcePage) -> CurrentProjectIndicator:
         "#current-project-indicator",
         CurrentProjectIndicator,
     )
-    indicator._cached_snapshot = _CurrentProjectSnapshot(
+    indicator._cached_snapshot = CurrentProjectSnapshot(
         project=project,
         accent=project_accent(project.project_key, among=(project.project_key,)),
     )
@@ -127,12 +126,12 @@ async def test_mixed_updates_indicator_keeps_narrow_top_bar_in_bounds(
         lambda **_kwargs: None,
     )
     monkeypatch.setattr(
-        current_project_indicator,
+        launch_context_source,
         "resolve_current_project",
         lambda **_kwargs: _current_project(),
     )
     monkeypatch.setattr(
-        current_project_indicator,
+        launch_context_source,
         "_enabled_project_keys",
         lambda: (_current_project().project_key,),
     )
@@ -166,7 +165,7 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
     default_override = _override("codex", "o3", effort="xhigh")
     alias_override = _override("claude", "opus", effort="max")
     monkeypatch.setattr(
-        llm_override_indicator,
+        launch_context_source,
         "peek_active_temporary_override",
         lambda *a, **k: default_override,
     )
@@ -188,12 +187,12 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
         ),
     )
     monkeypatch.setattr(
-        current_project_indicator,
+        launch_context_source,
         "resolve_current_project",
         lambda **_kwargs: _current_project(),
     )
     monkeypatch.setattr(
-        current_project_indicator,
+        launch_context_source,
         "_enabled_project_keys",
         lambda: (_current_project().project_key,),
     )

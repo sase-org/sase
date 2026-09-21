@@ -7,14 +7,13 @@ from typing import Any
 import pytest
 
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
-import sase.ace.tui.widgets.current_project_indicator as current_project_indicator
-import sase.ace.tui.widgets.llm_override_indicator as llm_override_indicator
+import sase.ace.tui.widgets.launch_context_source as launch_context_source
 import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions import update_toast
 from sase.ace.tui.project_styles import project_accent
 from sase.ace.tui.widgets import CurrentProjectIndicator
-from sase.ace.tui.widgets.current_project_indicator import _CurrentProjectSnapshot
+from sase.ace.tui.widgets.launch_context_source import CurrentProjectSnapshot
 from sase.current_project import CurrentProject
 from sase.llm_provider import TemporaryLLMOverride, TemporaryProviderDisable
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
@@ -70,7 +69,7 @@ def paint_current_project_chip(page: AcePage) -> CurrentProjectIndicator:
         "#current-project-indicator",
         CurrentProjectIndicator,
     )
-    indicator._cached_snapshot = _CurrentProjectSnapshot(
+    indicator._cached_snapshot = CurrentProjectSnapshot(
         project=project,
         accent=project_accent(project.project_key, among=(project.project_key,)),
     )
@@ -93,7 +92,7 @@ def quiet_top_bar(
         update_toast, "get_cached_update_status", lambda **_kwargs: None
     )
     monkeypatch.setattr(
-        llm_override_indicator,
+        launch_context_source,
         "peek_active_temporary_override",
         lambda *a, **k: default_override,
     )
@@ -116,12 +115,12 @@ def quiet_top_bar(
         lambda **_kwargs: ((), frozenset()),
     )
     monkeypatch.setattr(
-        current_project_indicator,
+        launch_context_source,
         "resolve_current_project",
         lambda **_kwargs: current_project(),
     )
     monkeypatch.setattr(
-        current_project_indicator,
+        launch_context_source,
         "_enabled_project_keys",
         lambda: (current_project().project_key,),
     )

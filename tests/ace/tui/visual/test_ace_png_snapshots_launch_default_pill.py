@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import pytest
 
-import sase.ace.tui.widgets.llm_override_indicator as llm_override_indicator
+import sase.ace.tui.widgets.launch_context_source as launch_context_source
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets import LLMOverrideIndicator
 from sase.llm_provider.model_launch_settings import (
@@ -56,12 +56,12 @@ def _pin_launch_default(
         )
 
     monkeypatch.setattr(
-        llm_override_indicator, "build_launch_model_setting_snapshot", _snapshot
+        launch_context_source, "build_launch_model_setting_snapshot", _snapshot
     )
     # Pinned so the goldens do not depend on which provider plugins the
     # capturing host has installed.
     monkeypatch.setattr(
-        llm_override_indicator,
+        launch_context_source,
         "format_model_directive_label",
         lambda *_args, **_kwargs: model,
     )

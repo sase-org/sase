@@ -7,10 +7,10 @@ from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
 from sase.ace.tui.modals.config_hub_session import ConfigHubEntry
 from sase.ace.tui.widgets import (
     AliasOverridesIndicator,
-    LLMOverrideIndicator,
     ProviderDisablesIndicator,
     ProviderUsageIndicator,
 )
+from sase.ace.tui.widgets.launch_context_source import LaunchContextSource
 from tests._temporary_llm_override_helpers import full_registry
 
 
@@ -65,55 +65,48 @@ def test_leader_handler_repeats_models_panel_route() -> None:
     assert mixin._last_leader_key == "m"
 
 
-def test_refresh_launch_indicators_refreshes_all_indicators() -> None:
+def _launch_indicators_mixin() -> tuple[MagicMock, MagicMock, dict[str, MagicMock]]:
+    """Build a mixin whose queries resolve the pills plus the context source."""
     mixin = MagicMock()
-    default_indicator = MagicMock(spec=LLMOverrideIndicator)
-    alias_indicator = MagicMock(spec=AliasOverridesIndicator)
-    provider_indicator = MagicMock(spec=ProviderDisablesIndicator)
-    usage_indicator = MagicMock(spec=ProviderUsageIndicator)
+    source = MagicMock(spec=LaunchContextSource)
     indicators = {
-        "#llm-override-indicator": default_indicator,
-        "#alias-overrides-indicator": alias_indicator,
-        "#provider-disables-indicator": provider_indicator,
-        "#provider-usage-indicator": usage_indicator,
+        "#alias-overrides-indicator": MagicMock(spec=AliasOverridesIndicator),
+        "#provider-disables-indicator": MagicMock(spec=ProviderDisablesIndicator),
+        "#provider-usage-indicator": MagicMock(spec=ProviderUsageIndicator),
+        "#launch-context-source": source,
     }
     mixin.query_one.side_effect = lambda selector, _type: indicators[selector]
+    return mixin, source, indicators
+
+
+def test_refresh_launch_indicators_refreshes_all_indicators() -> None:
+    mixin, source, indicators = _launch_indicators_mixin()
 
     LeaderModeMixin._refresh_launch_indicators(cast(LeaderModeMixin, mixin))
 
     assert mixin.query_one.call_args_list == [
-        call("#llm-override-indicator", LLMOverrideIndicator),
         call("#alias-overrides-indicator", AliasOverridesIndicator),
         call("#provider-disables-indicator", ProviderDisablesIndicator),
         call("#provider-usage-indicator", ProviderUsageIndicator),
+        call("#launch-context-source", LaunchContextSource),
     ]
-    default_indicator.invalidate_cached_default.assert_called_once()
-    default_indicator.refresh.assert_not_called()
-    alias_indicator.refresh.assert_called_once()
-    provider_indicator.refresh.assert_called_once()
-    usage_indicator.refresh.assert_called_once()
+    source.invalidate_launch_default.assert_called_once()
+    for selector in (
+        "#alias-overrides-indicator",
+        "#provider-disables-indicator",
+        "#provider-usage-indicator",
+    ):
+        indicators[selector].refresh.assert_called_once_with()
 
 
 def test_refresh_launch_indicators_invalidates_cached_default_without_routing_flag() -> (
     None
 ):
-    mixin = MagicMock()
-    default_indicator = MagicMock(spec=LLMOverrideIndicator)
-    alias_indicator = MagicMock(spec=AliasOverridesIndicator)
-    provider_indicator = MagicMock(spec=ProviderDisablesIndicator)
-    usage_indicator = MagicMock(spec=ProviderUsageIndicator)
-    indicators = {
-        "#llm-override-indicator": default_indicator,
-        "#alias-overrides-indicator": alias_indicator,
-        "#provider-disables-indicator": provider_indicator,
-        "#provider-usage-indicator": usage_indicator,
-    }
-    mixin.query_one.side_effect = lambda selector, _type: indicators[selector]
+    mixin, source, _indicators = _launch_indicators_mixin()
 
     LeaderModeMixin._refresh_launch_indicators(cast(LeaderModeMixin, mixin))
 
-    default_indicator.invalidate_cached_default.assert_called_once()
-    default_indicator.refresh.assert_not_called()
+    source.invalidate_launch_default.assert_called_once()
 
 
 def test_open_models_panel_routes_to_config_launch() -> None:
@@ -131,26 +124,17 @@ def test_open_models_panel_routes_to_config_launch() -> None:
 
 
 def test_open_models_panel_invalidates_default_on_provider_routing_change() -> None:
-    mixin = MagicMock()
-    default_indicator = MagicMock(spec=LLMOverrideIndicator)
-    alias_indicator = MagicMock(spec=AliasOverridesIndicator)
-    provider_indicator = MagicMock(spec=ProviderDisablesIndicator)
-    usage_indicator = MagicMock(spec=ProviderUsageIndicator)
-    indicators = {
-        "#llm-override-indicator": default_indicator,
-        "#alias-overrides-indicator": alias_indicator,
-        "#provider-disables-indicator": provider_indicator,
-        "#provider-usage-indicator": usage_indicator,
-    }
-    mixin.query_one.side_effect = lambda selector, _type: indicators[selector]
+    mixin, source, indicators = _launch_indicators_mixin()
 
     LeaderModeMixin._refresh_launch_indicators(
         cast(LeaderModeMixin, mixin),
         provider_routing_changed=True,
     )
 
-    default_indicator.invalidate_cached_default.assert_called_once()
-    default_indicator.refresh.assert_not_called()
-    alias_indicator.refresh.assert_called_once()
-    provider_indicator.refresh.assert_called_once()
-    usage_indicator.refresh.assert_called_once()
+    source.invalidate_launch_default.assert_called_once()
+    for selector in (
+        "#alias-overrides-indicator",
+        "#provider-disables-indicator",
+        "#provider-usage-indicator",
+    ):
+        indicators[selector].refresh.assert_called_once_with()

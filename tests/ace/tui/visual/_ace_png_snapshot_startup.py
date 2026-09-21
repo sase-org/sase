@@ -107,7 +107,11 @@ def patch_startup_loaders(
     )
     from sase.ace.tui.models.agent_groups import GroupingMode
     from sase.ace.tui.models.patch_groups import PatchGroupingMode
-    from sase.ace.tui.widgets import llm_override_indicator, notification_tab_style
+    from sase.ace.tui.widgets import (
+        launch_context_source,
+        llm_override_indicator,
+        notification_tab_style,
+    )
     from sase.ace.tui.widgets.artifacts import types as artifacts_types
     from sase.ace.tui.widgets.artifacts import view as artifacts_view
     from sase.llm_provider import temporary_override
@@ -323,32 +327,37 @@ def patch_startup_loaders(
         _fake_get_active_temporary_override,
     )
     monkeypatch.setattr(
-        llm_override_indicator,
-        "peek_active_temporary_override",
-        _fake_peek_active_temporary_override,
-    )
-    monkeypatch.setattr(
         launch_default_peek,
         "peek_launch_default_change_token",
         _fake_peek_launch_default_change_token,
     )
+    # Polling and resolution live in the app-scoped source now; the views are
+    # render-only. Pin the source bindings (the live path) and keep the view
+    # bindings (the synchronous content builders) frozen to the same fakes.
     monkeypatch.setattr(
-        llm_override_indicator,
+        launch_context_source,
         "peek_launch_default_change_token",
         _fake_peek_launch_default_change_token,
     )
-    monkeypatch.setattr(
-        llm_override_indicator,
-        "build_launch_model_setting_snapshot",
-        _fake_build_launch_model_setting_snapshot,
-    )
+    for module in (launch_context_source, llm_override_indicator):
+        monkeypatch.setattr(
+            module,
+            "peek_active_temporary_override",
+            _fake_peek_active_temporary_override,
+        )
+        monkeypatch.setattr(
+            module,
+            "build_launch_model_setting_snapshot",
+            _fake_build_launch_model_setting_snapshot,
+        )
     # Pinned to the value the real formatter yields for an unmapped model so the
     # goldens do not depend on which provider plugins the capturing host has.
-    monkeypatch.setattr(
-        llm_override_indicator,
-        "format_model_directive_label",
-        lambda *_args, **_kwargs: "codex/visual-snapshot-model",
-    )
+    for module in (launch_context_source, llm_override_indicator):
+        monkeypatch.setattr(
+            module,
+            "format_model_directive_label",
+            lambda *_args, **_kwargs: "codex/visual-snapshot-model",
+        )
     monkeypatch.setattr(
         update_toast,
         "get_cached_update_status",
@@ -394,15 +403,22 @@ def patch_startup_loaders(
         "LLM launch-default module token patch did not bind — visual snapshot may re-leak state"
     )
     assert (
-        llm_override_indicator.peek_launch_default_change_token
+        launch_context_source.peek_launch_default_change_token
         is _fake_peek_launch_default_change_token
     ), "LLM launch-default token patch did not bind — visual snapshot may re-leak state"
-    assert (
-        llm_override_indicator.peek_active_temporary_override
-        is _fake_peek_active_temporary_override
-    ), (
-        "LLM temporary-override peek patch did not bind — visual snapshot may re-leak state"
-    )
+    for module in (launch_context_source, llm_override_indicator):
+        assert (
+            module.peek_active_temporary_override
+            is _fake_peek_active_temporary_override
+        ), (
+            "LLM temporary-override peek patch did not bind — visual snapshot may re-leak state"
+        )
+        assert (
+            module.build_launch_model_setting_snapshot
+            is _fake_build_launch_model_setting_snapshot
+        ), (
+            "LLM launch-default snapshot patch did not bind — visual snapshot may re-leak state"
+        )
 
 
 async def wait_for_startup(page: AcePage) -> None:

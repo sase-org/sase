@@ -16,6 +16,7 @@ from sase.ace.tui.modals.config_center_modal import ConfigCenterModal
 from sase.ace.tui.modals.project_management_actions import _CURRENT_PROJECT_SET_GROUP
 from sase.ace.tui.modals.projects_pane import ProjectCountsLoadResult, ProjectsPane
 from sase.ace.tui.widgets.current_project_indicator import CurrentProjectIndicator
+from sase.ace.tui.widgets.launch_context_source import LaunchContextSource
 from sase.current_project import CurrentProject, SetCurrentProjectOutcome
 
 from tests.ace.tui.modals.project_management_modal_test_helpers import (
@@ -362,17 +363,15 @@ async def test_set_updates_row_summary_detail_and_invalidates_chip(
         pane = modal.query_one("#projects", ProjectsPane)
         await page.wait_for(lambda _s: pane._current_project_key == "alpha")
 
-        indicator = page.query_one_widget(
-            "#current-project-indicator", CurrentProjectIndicator
-        )
+        source = page.query_one_widget("#launch-context-source", LaunchContextSource)
         invalidate_calls: list[int] = []
-        original_invalidate = indicator.invalidate
+        original_invalidate = source.invalidate_current_project
 
         def spy_invalidate() -> None:
             invalidate_calls.append(1)
             original_invalidate()
 
-        monkeypatch.setattr(indicator, "invalidate", spy_invalidate)
+        monkeypatch.setattr(source, "invalidate_current_project", spy_invalidate)
 
         option_list = pane.query_one("#projects-list", OptionList)
         option_list.highlighted = 1

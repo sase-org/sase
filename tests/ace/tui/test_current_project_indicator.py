@@ -5,33 +5,14 @@ from __future__ import annotations
 from typing import Literal
 
 import pytest
-from textual.worker import WorkerState
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.current_project_settings import CurrentProjectSettings
 from sase.ace.tui.project_styles import project_accent
-from sase.ace.tui.widgets import current_project_indicator as indicator_module
-from sase.ace.tui.widgets.current_project_indicator import (
-    CurrentProjectIndicator,
-    _CurrentProjectSnapshot,
-)
+from sase.ace.tui.widgets import launch_context_source as source_module
+from sase.ace.tui.widgets.current_project_indicator import CurrentProjectIndicator
+from sase.ace.tui.widgets.launch_context_source import CurrentProjectSnapshot
 from sase.current_project import CurrentProject
-
-
-class _FakeWorker:
-    """Duck-typed stand-in for ``textual.worker.Worker`` in unit tests."""
-
-    def __init__(self, group: str, result: object) -> None:
-        self.group = group
-        self.result = result
-
-
-class _FakeStateChanged:
-    """Duck-typed stand-in for ``Worker.StateChanged`` in unit tests."""
-
-    def __init__(self, worker: _FakeWorker, state: WorkerState) -> None:
-        self.worker = worker
-        self.state = state
 
 
 def _project(
@@ -47,38 +28,6 @@ def _project(
         origin_ref=origin_ref,
         workflow_type="gh",
     )
-
-
-def _prepare_indicator(
-    monkeypatch: pytest.MonkeyPatch,
-    *,
-    token: tuple[object, ...] = ("token-0",),
-    settings: CurrentProjectSettings | None = None,
-) -> tuple[CurrentProjectIndicator, list[object], list[object], list[object]]:
-    """Build an unmounted indicator with worker spawning stubbed out."""
-
-    peek_calls: list[object] = []
-    resolve_calls: list[object] = []
-
-    def peek() -> tuple[object, ...]:
-        peek_calls.append(token)
-        return token
-
-    def resolve(**_kwargs: object) -> CurrentProject | None:
-        resolve_calls.append(1)
-        raise AssertionError("resolve_current_project must not run on the UI thread")
-
-    monkeypatch.setattr(indicator_module, "peek_current_project_change_token", peek)
-    monkeypatch.setattr(indicator_module, "resolve_current_project", resolve)
-    indicator = CurrentProjectIndicator()
-    scheduled: list[object] = []
-    monkeypatch.setattr(
-        indicator, "run_worker", lambda task, **kwargs: scheduled.append(task)
-    )
-    monkeypatch.setattr(indicator, "update", lambda *a, **k: None)
-    if settings is not None:
-        monkeypatch.setattr(indicator, "_settings", lambda: settings)
-    return indicator, scheduled, peek_calls, resolve_calls
 
 
 def test_resolved_project_renders_display_name_with_accent() -> None:
@@ -146,56 +95,6 @@ def test_project_origin_tooltip_names_mru_ref_and_launch_hint() -> None:
     )
 
 
-def test_refresh_peeks_but_does_not_resolve_when_token_unchanged(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    indicator, scheduled, peek_calls, resolve_calls = _prepare_indicator(
-        monkeypatch, token=("token-a",)
-    )
-    indicator._cached_token = ("token-a",)
-    indicator._cached_snapshot = _CurrentProjectSnapshot(
-        project=_project(), accent="#fff"
-    )
-
-    indicator.refresh()
-
-    assert peek_calls
-    assert scheduled == []
-    assert resolve_calls == []
-
-
-def test_token_change_schedules_one_worker_and_second_tick_does_not(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    indicator, scheduled, _peek_calls, resolve_calls = _prepare_indicator(
-        monkeypatch, token=("token-b",)
-    )
-    indicator._cached_token = ("token-a",)
-    indicator._cached_snapshot = _CurrentProjectSnapshot(
-        project=_project(), accent="#fff"
-    )
-
-    indicator.refresh()
-    indicator.refresh()
-
-    assert len(scheduled) == 1
-    assert resolve_calls == []
-
-
-def test_refresh_never_calls_resolver_synchronously(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    indicator, scheduled, _peek_calls, resolve_calls = _prepare_indicator(
-        monkeypatch, token=("token-b",)
-    )
-    indicator._cached_token = ("token-a",)
-
-    indicator.refresh()
-
-    assert len(scheduled) == 1
-    assert resolve_calls == []
-
-
 async def test_click_dispatches_start_custom_agent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -219,14 +118,14 @@ async def test_unresolved_chip_takes_zero_width(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
-        indicator_module, "resolve_current_project", lambda **_kwargs: None
+        source_module, "resolve_current_project", lambda **_kwargs: None
     )
 
     async with AcePage() as page:
         indicator = page.query_one_widget(
             "#current-project-indicator", CurrentProjectIndicator
         )
-        indicator._cached_snapshot = _CurrentProjectSnapshot(project=None, accent="")
+        indicator._cached_snapshot = CurrentProjectSnapshot(project=None, accent="")
         indicator._apply_content()
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
@@ -243,7 +142,7 @@ async def test_disabled_indicator_takes_zero_width_when_resolved() -> None:
         indicator = page.query_one_widget(
             "#current-project-indicator", CurrentProjectIndicator
         )
-        indicator._cached_snapshot = _CurrentProjectSnapshot(
+        indicator._cached_snapshot = CurrentProjectSnapshot(
             project=project,
             accent=project_accent(project.project_key, among=(project.project_key,)),
         )
@@ -253,69 +152,3 @@ async def test_disabled_indicator_takes_zero_width_when_resolved() -> None:
 
         assert indicator.render().plain == ""
         assert indicator.region.width == 0
-
-
-def test_worker_success_commits_pending_token(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    indicator, _scheduled, _peek_calls, _resolve_calls = _prepare_indicator(monkeypatch)
-    indicator._pending_resolve_token = ("pending-token",)
-    indicator._resolve_in_flight = True
-    snapshot = _CurrentProjectSnapshot(project=_project(), accent="#abc")
-
-    indicator.on_worker_state_changed(
-        _FakeStateChanged(
-            _FakeWorker(indicator_module._WORKER_GROUP, snapshot),
-            WorkerState.SUCCESS,
-        )
-    )
-
-    assert indicator._cached_snapshot == snapshot
-    assert indicator._cached_token == ("pending-token",)
-    assert indicator._resolve_in_flight is False
-    assert indicator._cached_failed is False
-
-
-def test_invalidate_forces_resolve_when_refresh_would_skip(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    indicator, scheduled, _peek_calls, resolve_calls = _prepare_indicator(
-        monkeypatch, token=("token-a",)
-    )
-    indicator._cached_token = ("token-a",)
-    indicator._cached_snapshot = _CurrentProjectSnapshot(
-        project=_project(), accent="#fff"
-    )
-
-    indicator.refresh()
-    assert scheduled == []
-
-    indicator.invalidate()
-
-    assert len(scheduled) == 1
-    assert resolve_calls == []
-    assert indicator._cached_token is None
-    assert indicator._resolve_in_flight is True
-
-    indicator.refresh()
-    assert len(scheduled) == 1
-
-
-def test_invalidate_is_noop_while_resolve_in_flight(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    indicator, scheduled, _peek_calls, resolve_calls = _prepare_indicator(
-        monkeypatch, token=("token-b",)
-    )
-    indicator._cached_token = ("token-a",)
-    indicator._cached_snapshot = _CurrentProjectSnapshot(
-        project=_project(), accent="#fff"
-    )
-    indicator._resolve_in_flight = True
-
-    indicator.invalidate()
-
-    assert scheduled == []
-    assert resolve_calls == []
-    assert indicator._cached_token == ("token-a",)
-    assert indicator._resolve_in_flight is True

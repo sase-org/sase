@@ -14,6 +14,7 @@ import json
 import pytest
 
 from sase.ace.testing import AcePage
+from sase.ace.tui.widgets.launch_context_source import LaunchContextSource
 from sase.ace.tui.widgets.llm_override_indicator import LLMOverrideIndicator
 from sase.llm_provider import launch_default_peek
 from sase.llm_provider.launch_selection import resolve_launch_selection
@@ -66,10 +67,11 @@ async def test_indicator_pill_follows_pool_rotation_without_consuming() -> None:
 
     _reset_launch_default_token_cache()
     async with AcePage() as page:
+        source = page.query_one_widget("#launch-context-source", LaunchContextSource)
         indicator = page.query_one_widget(
             "#llm-override-indicator", LLMOverrideIndicator
         )
-        await page.wait_for(lambda _state: indicator._cached_default is not None)
+        await page.wait_for(lambda _state: source.state.default_snapshot is not None)
         assert indicator._cached_default == (member0[0], member0[1])
 
         selection = resolve_launch_selection(PromptDirectives(), consume=True)
@@ -78,9 +80,16 @@ async def test_indicator_pill_follows_pool_rotation_without_consuming() -> None:
         assert _pool_cursor() == 1
 
         _reset_launch_default_token_cache()
-        indicator.refresh()
+        source.refresh()
         await page.wait_for(
-            lambda _state: indicator._cached_default == (member1[0], member1[1])
+            lambda _state: (
+                source.state.default_snapshot is not None
+                and (
+                    source.state.default_snapshot.provider,
+                    source.state.default_snapshot.model,
+                )
+                == (member1[0], member1[1])
+            )
         )
 
         assert indicator._cached_default == (member1[0], member1[1])

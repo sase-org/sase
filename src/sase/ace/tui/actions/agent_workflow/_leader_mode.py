@@ -351,19 +351,20 @@ class LeaderModeMixin:
     ) -> None:
         from ...widgets import (
             AliasOverridesIndicator,
-            LLMOverrideIndicator,
             ProviderDisablesIndicator,
             ProviderUsageIndicator,
         )
+        from ...widgets.launch_context_source import LaunchContextSource
 
         _ = provider_routing_changed
         # Refresh both top-bar override pills: the gold ``default`` pill and
         # the violet non-``default`` pill. A single override action may touch
         # either lane. Every Launch Control write also invalidates the cached
         # launch default so effort and persistent default-model edits land
-        # without waiting on the peek token.
+        # without waiting on the peek token. The gold pill is a render-only
+        # view now, so the invalidation goes through the app-scoped source,
+        # which rebroadcasts to every mounted view.
         for selector, widget_type in (
-            ("#llm-override-indicator", LLMOverrideIndicator),
             ("#alias-overrides-indicator", AliasOverridesIndicator),
             ("#provider-disables-indicator", ProviderDisablesIndicator),
             ("#provider-usage-indicator", ProviderUsageIndicator),
@@ -372,12 +373,12 @@ class LeaderModeMixin:
                 indicator = self.query_one(selector, widget_type)  # type: ignore[attr-defined]
             except Exception:
                 continue
-            if selector == "#llm-override-indicator" and hasattr(
-                indicator, "invalidate_cached_default"
-            ):
-                indicator.invalidate_cached_default()
-                continue
             indicator.refresh()
+        try:
+            source = self.query_one("#launch-context-source", LaunchContextSource)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        source.invalidate_launch_default()
 
     def _open_models_panel(self) -> None:
         """Open Launch settings (leader ``,m`` by default)."""

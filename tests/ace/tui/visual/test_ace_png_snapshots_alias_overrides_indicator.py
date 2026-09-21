@@ -23,7 +23,7 @@ from collections.abc import Callable
 import pytest
 
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
-import sase.ace.tui.widgets.llm_override_indicator as llm_override_indicator
+import sase.ace.tui.widgets.launch_context_source as launch_context_source
 import sase.ace.tui.widgets._override_pill as override_pill
 import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
 from sase.ace.testing import AcePage
@@ -185,7 +185,7 @@ async def test_alias_overrides_indicator_multi_png_snapshot(
         },
     )
     monkeypatch.setattr(
-        llm_override_indicator,
+        launch_context_source,
         "peek_active_temporary_override",
         lambda *a, **k: _override("codex", "o3"),
     )

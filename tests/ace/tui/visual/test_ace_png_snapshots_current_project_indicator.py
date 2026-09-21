@@ -11,11 +11,11 @@ from __future__ import annotations
 
 import pytest
 
-import sase.ace.tui.widgets.current_project_indicator as current_project_indicator
+import sase.ace.tui.widgets.launch_context_source as launch_context_source
 from sase.ace.testing import AcePage
 from sase.ace.tui.project_styles import project_accent
 from sase.ace.tui.widgets import CurrentProjectIndicator
-from sase.ace.tui.widgets.current_project_indicator import _CurrentProjectSnapshot
+from sase.ace.tui.widgets.launch_context_source import CurrentProjectSnapshot
 from sase.current_project import CurrentProject
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -47,7 +47,7 @@ def _paint_current_project_chip(page: AcePage) -> CurrentProjectIndicator:
         "#current-project-indicator",
         CurrentProjectIndicator,
     )
-    indicator._cached_snapshot = _CurrentProjectSnapshot(
+    indicator._cached_snapshot = CurrentProjectSnapshot(
         project=project,
         accent=project_accent(project.project_key, among=(project.project_key,)),
     )
@@ -64,17 +64,17 @@ async def test_current_project_indicator_png_snapshot(
     patch_startup_loaders(monkeypatch)
     project = _current_project()
     monkeypatch.setattr(
-        current_project_indicator,
+        launch_context_source,
         "resolve_current_project",
         lambda **_kwargs: project,
     )
     monkeypatch.setattr(
-        current_project_indicator,
+        launch_context_source,
         "peek_current_project_change_token",
         lambda: ("visual-current-project",),
     )
     monkeypatch.setattr(
-        current_project_indicator,
+        launch_context_source,
         "_enabled_project_keys",
         lambda: (project.project_key,),
     )
