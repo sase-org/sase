@@ -21,7 +21,7 @@ from sase.dev_update.progress import (
     reconcile_step_title,
     record_command,
 )
-from sase.update_progress import UpdateProgress
+from sase.update_progress import StepSpec, UpdateProgress
 
 
 def run_reconcile_steps(
@@ -235,6 +235,7 @@ def _run_rust_health_check_step(
 
     repair_label = step.repair_label or "Restore published sase-core-rs wheel"
     repair_step_id = f"{step_id}:repair"
+    progress.declare((StepSpec(repair_step_id, repair_label, parent_id=step_id),))
     progress.start(repair_step_id, title=repair_label)
     repair = _recorded(
         run,

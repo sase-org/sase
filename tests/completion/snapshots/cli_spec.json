@@ -27188,7 +27188,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "45e94691d6fe1ec0",
+        "description_digest": "aacf34d67c583f34",
         "hidden": false,
         "mutex_groups": [],
         "name": "update",
@@ -27255,6 +27255,18 @@
               "--to"
             ],
             "takes_value": true
+          },
+          {
+            "choices": null,
+            "dest": "verbose",
+            "hidden": false,
+            "kind": null,
+            "repeatable": false,
+            "strings": [
+              "-v",
+              "--verbose"
+            ],
+            "takes_value": false
           },
           {
             "choices": null,

@@ -29,6 +29,11 @@ _INTERRUPT_GRACE_SECONDS = 2.0
 #: Poll interval for the wait loop so pump-thread KeyboardInterrupts surface.
 _WAIT_POLL_SECONDS = 0.05
 
+#: Bound for joining pump threads after a kill before returning or raising
+#: with the output read so far. Pumps are daemon threads, so one abandoned
+#: on a still-open pipe cannot block interpreter exit.
+_PUMP_JOIN_SECONDS = 2.0
+
 _ANSI_OSC_RE = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 _ANSI_CSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 _ANSI_ESC_RE = re.compile(r"\x1b[@-Z\\-_]")
@@ -77,6 +82,7 @@ def run_streaming(
     """
     args = list(argv)
     child_env = _child_env(env)
+    start = time.monotonic()
     process = subprocess.Popen(
         args,
         cwd=str(cwd) if cwd is not None else None,
@@ -98,32 +104,37 @@ def run_streaming(
     try:
         returncode = _wait_process(process, state, timeout)
     except _StreamingTimeout as exc:
-        _terminate_process_group(process)
-        try:
-            process.wait(timeout=_TERMINATE_GRACE_SECONDS)
-        except subprocess.TimeoutExpired:
-            _kill_process_group(process)
-            try:
-                process.wait(timeout=_TERMINATE_GRACE_SECONDS)
-            except subprocess.TimeoutExpired:
-                pass
-        _join_pumps(threads)
-        stdout_text = "".join(stdout_chunks)
-        stderr_text = "".join(stderr_chunks)
+        _timeout_kill_and_join(process, threads)
         raise subprocess.TimeoutExpired(
             args,
             exc.timeout,
-            output=stdout_text,
-            stderr=stderr_text,
+            output="".join(stdout_chunks),
+            stderr="".join(stderr_chunks),
         ) from None
     except BaseException:
         _interrupt_process_group(process)
         _join_pumps(threads)
         raise
-    _join_pumps(threads)
+    if timeout is not None:
+        # The leader exited, but lingering group members may still hold the
+        # pipes open. Enforce the same deadline on the pump join, matching
+        # subprocess.run(timeout=...): past the deadline this is a timeout.
+        remaining = (start + timeout) - time.monotonic()
+        if not _join_pumps(threads, timeout=max(0.0, remaining)):
+            _timeout_kill_and_join(process, threads)
+            raise subprocess.TimeoutExpired(
+                args,
+                timeout,
+                output="".join(stdout_chunks),
+                stderr="".join(stderr_chunks),
+            ) from None
+    else:
+        # No timeout: keep waiting for EOF, as subprocess.run does.
+        _join_pumps(threads, timeout=None)
     pending = state.take_pending()
     if pending is not None:
         _interrupt_process_group(process)
+        _join_pumps(threads)
         raise pending
     return subprocess.CompletedProcess(
         args,
@@ -232,14 +243,14 @@ def _pump_stream(
             buf += text
             while "\n" in buf:
                 raw_line, buf = buf.split("\n", 1)
-                collapsed = raw_line.split("\r")[-1]
+                collapsed = _collapse_redraw(raw_line)
                 callback(name, _sanitize_line(collapsed))
         tail = decoder.decode(b"", final=True)
         if tail:
             chunks.append(tail)
             buf += tail
         if buf:
-            collapsed = buf.split("\r")[-1]
+            collapsed = _collapse_redraw(buf)
             if collapsed:
                 callback(name, _sanitize_line(collapsed))
     finally:
@@ -270,9 +281,59 @@ def _wait_process(
             continue
 
 
-def _join_pumps(threads: list[threading.Thread]) -> None:
+def _collapse_redraw(raw_line: str) -> str:
+    """Collapse a terminal redraw line to its visible segment.
+
+    One trailing ``\\r`` is the ``\\r\\n`` line ending, not a redraw, so it is
+    stripped before collapsing: ``"hello\\r"`` delivers ``hello`` while a
+    redraw sequence like ``"a\\rb"`` still delivers ``b``.
+    """
+    if raw_line.endswith("\r"):
+        raw_line = raw_line[:-1]
+    return raw_line.split("\r")[-1]
+
+
+def _join_pumps(
+    threads: list[threading.Thread], timeout: float | None = _PUMP_JOIN_SECONDS
+) -> bool:
+    """Join pump threads, returning whether none is still alive.
+
+    ``timeout=None`` waits for EOF, as ``subprocess.run`` does. Otherwise the
+    join is bounded so a group member holding the pipes cannot hang the call;
+    pumps are daemon threads, so an abandoned one cannot block exit either.
+    """
+    if timeout is None:
+        for thread in threads:
+            thread.join()
+        return True
+    deadline = time.monotonic() + max(0.0, timeout)
     for thread in threads:
-        thread.join()
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        thread.join(timeout=remaining)
+    return all(not thread.is_alive() for thread in threads)
+
+
+def _timeout_kill_and_join(
+    process: subprocess.Popen[bytes], threads: list[threading.Thread]
+) -> None:
+    """SIGTERM then always SIGKILL the group, then bounded-join the pumps.
+
+    The SIGKILL runs even when the leader already exited: lingering group
+    members may still hold the pipes and the process group alive.
+    """
+    _terminate_process_group(process)
+    try:
+        process.wait(timeout=_TERMINATE_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        pass
+    _kill_process_group(process)
+    try:
+        process.wait(timeout=_TERMINATE_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        pass
+    _join_pumps(threads)
 
 
 def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
@@ -303,20 +364,23 @@ def _interrupt_process_group(process: subprocess.Popen[bytes]) -> None:
     try:
         os.killpg(process.pid, signal.SIGINT)
     except ProcessLookupError:
-        return
+        pass
     except OSError:
         try:
             process.send_signal(signal.SIGINT)
         except (ProcessLookupError, OSError):
-            return
+            pass
     try:
         process.wait(timeout=_INTERRUPT_GRACE_SECONDS)
     except subprocess.TimeoutExpired:
-        _kill_process_group(process)
-        try:
-            process.wait(timeout=_TERMINATE_GRACE_SECONDS)
-        except subprocess.TimeoutExpired:
-            pass
+        pass
+    # Always SIGKILL the group, even when the leader already exited:
+    # lingering members or backgrounded grandchildren may still be alive.
+    _kill_process_group(process)
+    try:
+        process.wait(timeout=_TERMINATE_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        pass
 
 
 __all__ = ["OnLineCallback", "run_streaming"]

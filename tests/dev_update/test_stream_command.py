@@ -121,6 +121,76 @@ def test_timeout_raises_and_kills_process_group(tmp_path: Path) -> None:
         pytest.fail("grandchild sleep survived the streaming timeout")
 
 
+def test_leader_exit_with_lingering_grandchild_times_out(tmp_path: Path) -> None:
+    pidfile = tmp_path / "grandchild.pid"
+    script = (
+        "import subprocess; "
+        "p = subprocess.Popen(['sleep', '30']); "
+        f"open({str(pidfile)!r}, 'w').write(str(p.pid)); "
+        "print('done', flush=True)"
+    )
+    start = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired) as excinfo:
+        run_streaming([PY, "-c", script], timeout=1.0)
+    assert time.monotonic() - start < 10.0
+    assert "done" in (excinfo.value.output or "")
+    grandchild_pid = int(pidfile.read_text(encoding="utf-8").strip())
+    for _ in range(50):
+        try:
+            os.kill(grandchild_pid, 0)
+        except ProcessLookupError:
+            break
+        except PermissionError:
+            break
+        time.sleep(0.1)  # sase-test-wait: poll until lingering grandchild reaped
+    else:
+        pytest.fail("backgrounded grandchild survived the streaming timeout")
+
+
+def test_sigterm_ignoring_member_killed_within_bound(tmp_path: Path) -> None:
+    pidfile = tmp_path / "member.pid"
+    script = (
+        "import os, signal, time; "
+        f"open({str(pidfile)!r}, 'w').write(str(os.getpid())); "
+        "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+        "print('ready', flush=True); "
+        "time.sleep(30)"
+    )
+    start = time.monotonic()
+    with pytest.raises(subprocess.TimeoutExpired) as excinfo:
+        run_streaming(
+            [PY, "-c", script],
+            timeout=1.0,
+            on_line=lambda stream, line: None,
+        )
+    assert time.monotonic() - start < 8.0
+    assert "ready" in (excinfo.value.output or "")
+    member_pid = int(pidfile.read_text(encoding="utf-8").strip())
+    for _ in range(50):
+        try:
+            os.kill(member_pid, 0)
+        except ProcessLookupError:
+            break
+        except PermissionError:
+            break
+        time.sleep(0.1)  # sase-test-wait: poll until SIGKILLed member reaped
+    else:
+        pytest.fail("SIGTERM-ignoring member survived the streaming timeout")
+
+
+def test_crlf_lines_delivered_intact() -> None:
+    script = (
+        "import sys; "
+        "sys.stdout.buffer.write(b'hello\\r\\n'); "
+        "sys.stdout.buffer.write(b'a\\rb\\r\\n'); "
+        "sys.stdout.buffer.write(b'tail\\r'); "
+        "sys.stdout.buffer.flush()"
+    )
+    result, lines = _collect([PY, "-c", script])
+    assert result.returncode == 0
+    assert [line for stream, line in lines] == ["hello", "b", "tail"]
+
+
 def test_raising_callback_does_not_fail_command() -> None:
     calls: list[tuple[str, str]] = []
 
@@ -150,6 +220,38 @@ def test_keyboard_interrupt_via_callback_terminates_and_propagates() -> None:
             on_line=on_line,
         )
     assert time.monotonic() - start < 10.0
+
+
+def test_keyboard_interrupt_via_callback_kills_grandchild(tmp_path: Path) -> None:
+    pidfile = tmp_path / "grandchild.pid"
+    script = (
+        "import subprocess, time; "
+        "p = subprocess.Popen(['sleep', '30']); "
+        f"open({str(pidfile)!r}, 'w').write(str(p.pid)); "
+        "print('hello', flush=True); "
+        "time.sleep(30)"
+    )
+
+    def on_line(stream: str, line: str) -> None:
+        raise KeyboardInterrupt()
+
+    with pytest.raises(KeyboardInterrupt):
+        run_streaming(
+            [PY, "-c", script],
+            timeout=30.0,
+            on_line=on_line,
+        )
+    grandchild_pid = int(pidfile.read_text(encoding="utf-8").strip())
+    for _ in range(50):
+        try:
+            os.kill(grandchild_pid, 0)
+        except ProcessLookupError:
+            break
+        except PermissionError:
+            break
+        time.sleep(0.1)  # sase-test-wait: poll until interrupt-killed grandchild reaped
+    else:
+        pytest.fail("grandchild sleep survived the callback KeyboardInterrupt")
 
 
 def test_return_type_works_with_git_lock_retry(tmp_path: Path) -> None:

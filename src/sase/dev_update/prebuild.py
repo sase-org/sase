@@ -205,6 +205,7 @@ def _run_command(
                 list(argv),
                 cwd=cwd,
                 env=command_env,
+                stdin=subprocess.DEVNULL,
                 timeout=deadline,
                 on_line=on_output,
             )

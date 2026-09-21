@@ -210,15 +210,18 @@ def merge_actionable_roots(
             step_id,
             limit=DEV_UPDATE_COMMIT_LOG_CAPTURE_LIMIT,
         )
+        detail = format_merge_detail(
+            old_head,
+            new_head,
+            root_commits[root.git_root],
+            root_diffstats[root.git_root],
+        )
         progress.finish(
             step_id,
             "done",
-            detail=format_merge_detail(
-                old_head,
-                new_head,
-                root_commits[root.git_root],
-                root_diffstats[root.git_root],
-            ),
+            # Never leave the transient "merging…" detail behind: an empty
+            # merge summary still replaces it with a final detail.
+            detail=detail if detail is not None else "fast-forwarded",
         )
     return None, merged_any, root_diffstats, root_commits
 

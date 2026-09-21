@@ -8,6 +8,7 @@ routing for planning, execution, and reconciliation.
 from __future__ import annotations
 
 import subprocess
+import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
@@ -15,6 +16,7 @@ from sase.dev_update import prebuild
 from sase.dev_update.execute import execute_dev_update
 from sase.dev_update.models import (
     DevCommandResult,
+    DevExecutedCommand,
     DevReconcileStep,
     DevUpdatePlan,
     OutputSink,
@@ -27,15 +29,18 @@ from sase.dev_update.progress import (
     root_display_names,
 )
 from sase.dev_update.code_swap_lock import code_swap_reader_lock
+from sase.dev_update.reconcile import run_reconcile_steps
+from sase.dev_update.roots import merge_actionable_roots
 from sase.main.update_handler_support import call_plan_dev_update
 from sase.update_progress import StepSpec, StepStatus
+from sase.update_progress.timeline import TimelineModel
 from sase.version._git import GitUpstreamStatus
 from sase.version._models import (
     GitProbeResult,
     GitVersionMetadata,
     VersionPackageRecord,
 )
-from tests.dev_update._execute_helpers import FakeRunner, package, plan
+from tests.dev_update._execute_helpers import FakeRunner, package, plan, root
 
 
 class RecordingProgress:
@@ -510,6 +515,66 @@ def test_execute_health_check_repair_has_child_row() -> None:
         ("output", "reconcile:0:repair", "stderr", "Installed sase-core-rs")
     ]
     assert progress.finishes("reconcile:0")[0][2] == "warned"
+
+
+def test_health_check_repair_row_parented_in_timeline_snapshot() -> None:
+    health_command = ("/tool/bin/python", "-c", "import sase_core_rs")
+    repair_command = ("uv", "pip", "install", "--force-reinstall", "sase-core-rs")
+    steps = (
+        DevReconcileStep(
+            kind="rust_health_check",
+            label="Verify sase-core-rs imports in the uv-tool venv",
+            command=health_command,
+            repair_command=repair_command,
+            repair_label="Restore published sase-core-rs wheel",
+        ),
+    )
+    runner = StreamingRunner(
+        sequences={
+            health_command: [
+                DevCommandResult(1, stderr="No module named sase_core_rs"),
+                DevCommandResult(0, stdout="0.3.7\n"),
+            ],
+        },
+        emit={repair_command: [("stderr", "Installed sase-core-rs")]},
+    )
+    model = TimelineModel()
+    model.declare(
+        (StepSpec("reconcile:0", "Verify sase-core-rs imports in the uv-tool venv"),)
+    )
+    commands: list[DevExecutedCommand] = []
+
+    failure, _ = run_reconcile_steps(
+        steps, runner, commands, time.monotonic, progress=model
+    )
+
+    assert failure is not None
+    snapshot = model.snapshot()
+    assert [row.id for row in snapshot] == ["reconcile:0"]
+    parent = snapshot[0]
+    assert [child.id for child in parent.children] == ["reconcile:0:repair"]
+
+
+def test_merge_done_replaces_transient_merging_detail() -> None:
+    runner = StreamingRunner(
+        responses={
+            ("git", "-C", "/repo", "rev-parse", "HEAD"): DevCommandResult(
+                1, stderr="unknown revision"
+            ),
+        }
+    )
+    progress = RecordingProgress()
+    commands: list[DevExecutedCommand] = []
+
+    failure, merged, _, _ = merge_actionable_roots(
+        (root(),), runner, commands, time.monotonic, progress
+    )
+
+    assert failure is None
+    assert merged is True
+    assert progress.finishes("merge:/repo") == [
+        ("finish", "merge:/repo", "done", "fast-forwarded")
+    ]
 
 
 def test_root_display_names_disambiguate_collisions() -> None:
