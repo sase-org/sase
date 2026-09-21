@@ -15,11 +15,13 @@ from sase.version.inventory import VersionPackageRecord
 from tests.main.update_command_helpers import (
     _DEV_RECEIPT,
     _args,
+    _assert_quiet_after,
     _console,
     _dev_plan,
     _install,
     _inventory,
     _record,
+    _shared_terminal,
     _text,
     _versions,
 )
@@ -173,3 +175,26 @@ def test_editable_dry_run_routes_wheel_core_to_dev_restore(
         "skipped",
         "skipped",
     ]
+
+
+def test_dry_run_shared_terminal_leaves_no_frame(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TERM", "xterm-256color")
+    host = _record("sase", role="host", source_root="/home/u/sase")
+
+    stream, out, err = _shared_terminal()
+    code = handle_update_command(
+        _args(dry_run=True),
+        console=out,
+        err_console=err,
+        probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
+        inventory_fn=lambda: _inventory(host),
+        plan_dev_update_fn=lambda records, **_kwargs: _dev_plan(host),
+    )
+
+    assert code == 0
+    text = _assert_quiet_after(stream, "SASE Update (dry run)")
+    # The transient timeline is torn down with no final frame: nothing
+    # timeline-shaped follows the dry-run panel.
+    assert "sase update ·" not in text.split("SASE Update (dry run)", 1)[1]

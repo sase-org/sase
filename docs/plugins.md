@@ -284,8 +284,8 @@ sase update · dev install
   `sase update > out.txt` still shows live progress on the terminal and pipes stay
   clean. `-j|--json` disables progress entirely.
 - **`-v|--verbose`** streams the full output of every step (git, uv, cargo) as it runs
-  instead of just the short tail. With `-j` or `-q` it is accepted and only affects the
-  log file.
+  instead of just the short tail. With `-j` or `-q` it is accepted but has no effect,
+  because the log always records full output.
 - **Every run leaves a log file** at `~/.sase/logs/update/update-<UTC>-<pid>.log` with
   the full transcript (steps, commands, and all output). The newest 20 logs are kept.
   The JSON payloads also carry a `log_path` key with the transcript path (or `null`),
@@ -343,7 +343,7 @@ sase update · dev install
 - **`-n|--dry-run`** prints the exact `uv` command or editable-checkout plan that would
   run and exits `0` without changing anything. uv itself has no dry-run, so sase
   resolves and prints the managed plan itself.
-- **`-j|--json`** emits `schema_version: 2` with a stable, sorted payload. Managed
+- **`-j|--json`** emits `schema_version: 4` with a stable, sorted payload. Managed
   outcomes are reported under `managed`; editable-checkout plans/results are reported
   under `dev`; `mode` is `managed`, `dev`, or `mixed`; `restart` reports whether the
   scheduler was restarted, skipped, or failed. The dry-run JSON reports `dry_run: true`,

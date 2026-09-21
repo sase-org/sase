@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -74,6 +75,7 @@ from sase.main.update_types import (
 )
 from sase.update_progress import StepSpec, UpdateProgress
 from sase.update_progress.render_live import LiveTimelineRenderer as _LiveRenderer
+from sase.version._utils import normalize_distribution_name
 from sase.update_progress.render_plain import (
     PlainTimelineRenderer as _PlainRenderer,
 )
@@ -122,35 +124,60 @@ def _default_progress_session(
     iterators sized for the elapsed-time computation, and session timestamps
     must never consume them.
     """
-    return UpdateProgressSession(err, as_json=as_json, quiet=quiet, verbose=verbose)
+    return UpdateProgressSession(
+        err, argv=sys.argv, as_json=as_json, quiet=quiet, verbose=verbose
+    )
 
 
 class _ManagedPackageWatcher:
     """Turn streamed ``+/- name==ver`` uv lines into ``managed:<pkg>`` rows.
 
-    A ``- name==old`` line followed by ``+ name==new`` pairs into one child
-    row (``old → new``); unpaired lines still get a row with whatever side
-    was seen. Final details come from the parsed :class:`UpdateSummary`.
+    Every line is forwarded to the ``managed`` tail first (live tail,
+    failure expansion, ``-v``, and the log), then ``+/- name==ver`` lines
+    become parented child rows. A ``- name==old`` line followed by
+    ``+ name==new`` pairs into one child row (``old → new``); unpaired lines
+    still get a row with whatever side was seen. Rows the stream never
+    touched are filled in from the parsed :class:`UpdateSummary`.
     """
 
     def __init__(self, progress: UpdateProgress) -> None:
         """Bind to the session progress sink."""
         self._progress = progress
+        self._declared: set[str] = set()
+        self._old_versions: dict[str, str] = {}
 
     def sink(self, stream: str, line: str) -> None:
         """Consume one streamed output line, creating child rows as needed."""
-        del stream
+        self._progress.output(_MANAGED_STEP_ID, stream, line)
         matched = match_uv_change_line(line)
         if matched is None:
             return
-        _sign, name, version = matched
-        child_id = f"{_MANAGED_STEP_ID}:{name}"
-        self._progress.start(child_id, title=name, detail=version)
+        sign, name, version = matched
+        key = normalize_distribution_name(name)
+        child_id = f"{_MANAGED_STEP_ID}:{key}"
+        self._ensure_child(child_id, name)
+        if sign == "-":
+            self._old_versions[key] = version
+            self._progress.start(child_id, title=name, detail=version)
+        else:
+            old = self._old_versions.get(key)
+            detail = f"{old} → {version}" if old else version
+            self._progress.start(child_id, title=name)
+            self._progress.finish(child_id, "done", detail=detail)
+
+    def _ensure_child(self, child_id: str, title: str) -> None:
+        """Declare a transitive package row under ``managed`` once."""
+        if child_id in self._declared:
+            return
+        self._declared.add(child_id)
+        self._progress.declare((StepSpec(child_id, title, parent_id=_MANAGED_STEP_ID),))
 
     def finish_all(self, summary: UpdateSummary) -> None:
         """Finish one child row per summary outcome from the final summary."""
         for outcome in summary.outcomes:
-            child_id = f"{_MANAGED_STEP_ID}:{outcome.name}"
+            key = normalize_distribution_name(outcome.name)
+            child_id = f"{_MANAGED_STEP_ID}:{key}"
+            self._ensure_child(child_id, outcome.name)
             self._progress.finish(child_id, "done", detail=_outcome_detail(outcome))
 
 
@@ -173,7 +200,7 @@ def _outcome_detail(outcome: object) -> str | None:
 
 def _journal_interrupted(run_ref: _RunRef) -> None:
     """Journal an interrupted run wherever a dev plan exists."""
-    if run_ref.plan is None:
+    if run_ref.plan is None or run_ref.journal_appended:
         return
     result = run_ref.result
     if result is None:
@@ -262,18 +289,22 @@ def _prepare_live_update(
     else:
         inspect_detail = f"uv tool · 0 editable · {len(managed_packages)} managed"
 
-    specs = [StepSpec(_RESTART_STEP_ID, _RESTART_STEP_TITLE)]
+    # Trailing rows sort after every dev row (check/merge/reconcile) declared
+    # later, so the timeline renders in execution order.
+    specs = [
+        StepSpec(_RESTART_STEP_ID, _RESTART_STEP_TITLE, trailing=True),
+        StepSpec(_COMPLETIONS_STEP_ID, _COMPLETIONS_STEP_TITLE, trailing=True),
+    ]
     if has_managed:
-        specs.insert(0, StepSpec(_MANAGED_STEP_ID, _MANAGED_STEP_TITLE))
+        specs.insert(0, StepSpec(_MANAGED_STEP_ID, _MANAGED_STEP_TITLE, trailing=True))
         for package in managed_packages:
             specs.append(
                 StepSpec(
-                    f"{_MANAGED_STEP_ID}:{package.name}",
+                    f"{_MANAGED_STEP_ID}:{normalize_distribution_name(package.name)}",
                     package.name,
                     parent_id=_MANAGED_STEP_ID,
                 )
             )
-    specs.append(StepSpec(_COMPLETIONS_STEP_ID, _COMPLETIONS_STEP_TITLE))
     progress.declare(tuple(specs))
     progress.finish(_INSPECT_STEP_ID, "done", detail=inspect_detail)
     return _LiveReady(
@@ -310,7 +341,6 @@ def handle_live_update(
     """Run the live update flow inside a progress session; return exit code."""
     factory = progress_session_factory or _default_progress_session
     session = factory(err=err, as_json=as_json, quiet=quiet, verbose=verbose)
-    progress = session.progress
     run_ref = _RunRef()
     try:
         ready = _prepare_live_update(
@@ -322,7 +352,7 @@ def handle_live_update(
             err=err,
         )
     except KeyboardInterrupt:
-        progress.finalize("interrupted")
+        session.interrupt()
         session.print_final()
         _journal_interrupted(run_ref)
         _print_interrupted(err, _log_path_str(session))
@@ -352,7 +382,7 @@ def handle_live_update(
                 run_ref=run_ref,
             )
         except KeyboardInterrupt:
-            progress.finalize("interrupted")
+            session.interrupt()
             session.print_final()
             _journal_interrupted(run_ref)
             _print_interrupted(err, _log_path_str(session))
@@ -366,6 +396,7 @@ class _RunRef:
         """Start empty; the live body fills these in as they become known."""
         self.plan: DevUpdatePlan | None = None
         self.result: DevUpdateResult | None = None
+        self.journal_appended = False
 
 
 def _run_live_update(
@@ -439,6 +470,7 @@ def _run_live_update(
                     reason="update failed before scheduler restart",
                 ),
             )
+            run_ref.journal_appended = True
             elapsed = max(0.0, clock() - start)
             log_path = _log_path_str(session)
             session.print_final()
@@ -491,6 +523,7 @@ def _run_live_update(
                         reason="managed update failed before scheduler restart",
                     ),
                 )
+                run_ref.journal_appended = True
             session.print_final()
             return fail_update(
                 exc, as_json=as_json, err=err, log_path=_log_path_str(session)
@@ -529,6 +562,7 @@ def _run_live_update(
             dev_result,
             restart=restart,
         )
+        run_ref.journal_appended = True
 
     progress.start(_COMPLETIONS_STEP_ID, title=_COMPLETIONS_STEP_TITLE)
     refresh = completion_refresh_after_update(install, refresh_completions_fn)

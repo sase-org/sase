@@ -23,17 +23,20 @@ from sase.mode_switch.models import (
     SwitchPackagePlan,
     SwitchPlan,
 )
-from sase.update_progress import StepSpec, StepStatus
+from sase.update_progress import StepSpec, StepStatus, UpdateProgressSession
 from sase.uv_tool.errors import UvToolError
 from sase.uv_tool.runner import UvChangeSet
 from tests.main.update_command_helpers import (
     _DEV_RECEIPT,
+    _TickingClock,
     _args,
+    _assert_quiet_after,
     _console,
     _dev_plan,
     _install,
     _inventory,
     _record,
+    _shared_terminal,
     _text,
 )
 
@@ -92,6 +95,9 @@ class FakeSession:
 
     def set_header(self, mode: str) -> None:
         self.headers.append(mode)
+
+    def interrupt(self) -> None:
+        self.progress.finalize("skipped", status_for_running="interrupted")
 
     @property
     def log_path(self) -> Path | None:
@@ -359,7 +365,7 @@ def test_mode_switch_interrupt_returns_130(
     )
 
     assert code == 130
-    assert ("finalize", "interrupted", None) in progress.events
+    assert ("finalize", "skipped", "interrupted") in progress.events
     assert session.final_printed == 1
     assert "Interrupted" in _text(err)
 
@@ -529,3 +535,96 @@ def test_dry_run_json_has_no_timeline(
     assert seen.get("progress") is None
     payload = json.loads(capsys.readouterr().out)
     assert payload["dry_run"] is True
+
+
+def test_mode_switch_shared_terminal_keeps_panel_intact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _switch_plan(tmp_path)
+    monkeypatch.setattr(mode_switch_handler, "plan_mode_switch", lambda *_a, **_k: plan)
+    clock = _TickingClock()
+
+    def _run_uv(argv: list[str], **kwargs: Any) -> UvChangeSet:
+        clock.advance(2.0)
+        on_output = kwargs.get("on_output")
+        if on_output is not None:
+            on_output("stderr", "Installed 1 package in 10ms")
+        return UvChangeSet(changes=(), raw_output="")
+
+    def _confirm(_plan: SwitchPlan, **_kwargs: Any) -> bool:
+        return True
+
+    monkeypatch.setattr(mode_switch_handler, "_confirm_mode_switch", _confirm)
+    stream, out, err = _shared_terminal()
+
+    def _factory(**kwargs: Any) -> UpdateProgressSession:
+        kwargs.pop("err", None)
+        return UpdateProgressSession(err, log_dir=tmp_path, clock=clock, **kwargs)
+
+    code = handle_update_command(
+        _args(to="dev", yes=True),
+        console=out,
+        err_console=err,
+        probe_fn=lambda: _install(tmp_path),
+        inventory_fn=_managed_inventory,
+        run_fn=_run_uv,
+        scheduler_running_fn=lambda: False,
+        config_fn=lambda: {"update": {"dev_root": str(tmp_path / "dev")}},
+        progress_session_factory=_factory,  # type: ignore[arg-type]
+        clock=clock,
+    )
+
+    assert code == 0
+    _assert_quiet_after(stream, "Switched to Dev (editable)")
+
+
+def test_mode_switch_declares_trailing_tail_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _switch_plan(tmp_path)
+    seen = _patch_switch(monkeypatch, plan)
+    progress = RecordingProgress()
+    session = FakeSession(progress)
+
+    code = handle_update_command(
+        _args(to="dev", yes=True),
+        console=_console(),
+        probe_fn=lambda: _install(tmp_path),
+        inventory_fn=_managed_inventory,
+        scheduler_running_fn=lambda: False,
+        config_fn=lambda: {"update": {"dev_root": str(tmp_path / "dev")}},
+        progress_session_factory=lambda **_kwargs: session,  # type: ignore[return-value]
+    )
+
+    assert code == 0
+    declares = [event[1] for event in progress.events if event[0] == "declare"]
+    assert declares, "restart/completions must be declared before execution"
+    first = declares[0]
+    assert ("restart", "Restart scheduler", None) in first
+    assert ("completions", "Refresh shell completions", None) in first
+    assert seen["plan"] is plan
+
+
+def test_mode_switch_confirm_ctrl_c_returns_130(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = _switch_plan(tmp_path)
+    _patch_switch(monkeypatch, plan)
+
+    def _raise(_plan: SwitchPlan, **_kwargs: Any) -> bool:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(mode_switch_handler, "_confirm_mode_switch", _raise)
+    err = _console()
+    code = handle_update_command(
+        _args(to="dev"),
+        console=_console(),
+        err_console=err,
+        probe_fn=lambda: _install(tmp_path),
+        inventory_fn=_managed_inventory,
+        scheduler_running_fn=lambda: False,
+        config_fn=lambda: {"update": {"dev_root": str(tmp_path / "dev")}},
+    )
+
+    assert code == 130
+    assert "Interrupted" in _text(err)

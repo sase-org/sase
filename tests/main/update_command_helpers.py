@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import re
 from pathlib import Path
 
 from rich.console import Console
@@ -102,6 +103,62 @@ def _console() -> Console:
 
 def _text(console: Console) -> str:
     return console.file.getvalue()  # type: ignore[attr-defined]
+
+
+class _TickingClock:
+    """Manually advanced clock giving steps nonzero durations."""
+
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
+
+
+def _shared_terminal(width: int = 80) -> tuple[io.StringIO, Console, Console]:
+    """Build ``out`` and ``err`` consoles on one shared terminal stream."""
+    stream = io.StringIO()
+    out = Console(file=stream, width=width, force_terminal=True)
+    err = Console(file=stream, width=width, force_terminal=True)
+    return stream, out, err
+
+
+_LIVE_SEQUENCES = (
+    "\x1b[1A",
+    "\x1b[A",
+    "\x1b[2K",
+    "\x1b[K",
+    "\x1b[G",
+    "\x1b[H",
+    "\x1b[2J",
+    "\x1b[?25l",
+    "\x1b[?25h",
+)
+"""Cursor-movement and erase sequences a torn-down Live region never emits."""
+
+_SGR_RE = re.compile(r"\x1b\[[0-9;]*m")
+"""SGR color sequences: stripped for marker matching, never asserted on."""
+
+
+def _assert_quiet_after(stream: io.StringIO, marker: str) -> str:
+    """Return the text after *marker*; fail on Live sequences following it.
+
+    SGR color codes are stripped first (rich interleaves them inside panel
+    words), but cursor-movement and erase sequences survive the strip, so a
+    live region still drawing after the marker is caught.
+    """
+    text = _SGR_RE.sub("", stream.getvalue())
+    assert marker in text, f"{marker!r} missing from shared terminal output"
+    tail = text.split(marker, 1)[1]
+    for sequence in _LIVE_SEQUENCES:
+        assert sequence not in tail, (
+            f"{sequence!r} follows the stdout panel: the live region "
+            "was still running when stdout printed"
+        )
+    return text
 
 
 def _versions(name: str) -> str | None:

@@ -6,9 +6,8 @@ import json
 import shutil
 from collections.abc import Callable
 from pathlib import Path
-from typing import Protocol
 
-from sase.dev_update.models import DevCommandResult, OutputSink
+from sase.dev_update.models import DevCommandResult
 from sase.dev_update.execute import run_dev_update_command
 from sase.dev_update.progress import (
     NULL_PROGRESS,
@@ -16,6 +15,7 @@ from sase.dev_update.progress import (
     record_command,
     switch_step_id,
 )
+from sase.main.update_types import RunUvFn
 from sase.mode_switch.models import (
     ModeSwitchCommand,
     ModeSwitchOutcome,
@@ -28,16 +28,7 @@ from sase.uv_tool.errors import UvCommandFailedError, UvToolError
 from sase.uv_tool.runner import UvChangeSet, run_uv
 
 
-class RunUvFn(Protocol):
-    """Run a ``uv`` argv and return its parsed change set.
-
-    ``on_output`` streams sanitized output lines when a progress session
-    is active; ``None`` keeps the legacy captured behavior.
-    """
-
-    def __call__(
-        self, argv: list[str], *, on_output: OutputSink | None = None
-    ) -> UvChangeSet: ...
+__all__ = ["RunUvFn"]
 
 
 RunCommandFn = Callable[..., DevCommandResult]

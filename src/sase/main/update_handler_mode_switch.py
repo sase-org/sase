@@ -48,6 +48,7 @@ from sase.mode_switch import (
     render_mode_switch_result,
 )
 from sase.mode_switch.models import SwitchPlan, TargetMode
+from sase.update_progress import StepSpec
 from sase.update_progress.session import UpdateProgressSession
 from sase.uv_tool.detect import UvToolInstall
 from sase.uv_tool.errors import UvToolError
@@ -61,7 +62,9 @@ def _default_progress_session(
     verbose: bool,
 ) -> UpdateProgressSession:
     """Build a real progress session on the default clock and log directory."""
-    return UpdateProgressSession(err, as_json=as_json, quiet=quiet, verbose=verbose)
+    return UpdateProgressSession(
+        err, argv=sys.argv, as_json=as_json, quiet=quiet, verbose=verbose
+    )
 
 
 def handle_mode_switch(
@@ -130,12 +133,18 @@ def handle_mode_switch(
 
     # The confirmation prompt and plan preview stay before any live region
     # starts. Never prompt inside Live.
-    if not yes and not _confirm_mode_switch(plan, out=out, err=err):
-        return fail_update(
-            UvToolError("mode switch cancelled. Re-run with --yes."),
-            as_json=as_json,
-            err=err,
-        )
+    if not yes:
+        try:
+            confirmed = _confirm_mode_switch(plan, out=out, err=err)
+        except KeyboardInterrupt:
+            err.print("Interrupted", style="yellow")
+            return 130
+        if not confirmed:
+            return fail_update(
+                UvToolError("mode switch cancelled. Re-run with --yes."),
+                as_json=as_json,
+                err=err,
+            )
 
     factory = progress_session_factory or _default_progress_session
     session = factory(err=err, as_json=as_json, quiet=quiet, verbose=verbose)
@@ -158,7 +167,7 @@ def handle_mode_switch(
                 refresh_completions_fn=refresh_completions_fn,
             )
         except KeyboardInterrupt:
-            session.progress.finalize("interrupted")
+            session.interrupt()
             session.print_final()
             print_interrupted(err, session_log_path(session))
             return 130
@@ -182,6 +191,14 @@ def _run_mode_switch(
 ) -> int:
     """Execute a confirmed switch inside the session; return the exit code."""
     progress = session.progress
+    # Trailing rows render below the switch steps and show as pending while
+    # the switch runs.
+    progress.declare(
+        (
+            StepSpec(RESTART_STEP_ID, RESTART_STEP_TITLE, trailing=True),
+            StepSpec(COMPLETIONS_STEP_ID, COMPLETIONS_STEP_TITLE, trailing=True),
+        )
+    )
     start = clock()
     try:
         result = execute_mode_switch(

@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import json
 from collections.abc import Iterator
+from dataclasses import dataclass
 
 from rich.console import Console
 
@@ -35,7 +36,7 @@ from sase.uv_tool.detect import UvToolInstall
 from sase.uv_tool.errors import ReceiptError, UvToolError
 from sase.uv_tool.preflight import missing_local_requirements_error
 from sase.uv_tool.receipt import load_receipt
-from sase.uv_tool.render import render_update_dry_run
+from sase.uv_tool.render import PlannedPackage, render_update_dry_run
 
 
 @contextlib.contextmanager
@@ -79,45 +80,58 @@ def handle_dry_run(
     verbose: bool = False,
 ) -> int:
     try:
+        # The transient timeline exits (tearing down the live region with no
+        # final frame) before the dry-run panel or JSON is printed, so the
+        # panel stays the only persistent output.
         with _dry_run_timeline(
             err, as_json=as_json, quiet=quiet, verbose=verbose
         ) as progress:
-            return _run_dry_run(
+            planned = _plan_dry_run(
                 install,
-                as_json=as_json,
-                out=out,
-                err=err,
                 version_fn=version_fn,
                 inventory_fn=inventory_fn,
                 plan_dev_update_fn=plan_dev_update_fn,
                 progress=progress,
             )
+        return _emit_dry_run(
+            planned,
+            as_json=as_json,
+            out=out,
+            err=err,
+        )
     except KeyboardInterrupt:
         err.print("Interrupted", style="yellow")
         return 130
 
 
-def _run_dry_run(
+@dataclass
+class _DryRunPlan:
+    """Everything the dry-run panel needs, resolved inside the timeline."""
+
+    mode: str
+    argv: list[str]
+    packages: tuple[PlannedPackage, ...]
+    dev_plan: DevUpdatePlan | None
+
+
+def _plan_dry_run(
     install: UvToolInstall,
     *,
-    as_json: bool,
-    out: Console,
-    err: Console,
     version_fn: VersionFn,
     inventory_fn: InventoryFn,
     plan_dev_update_fn: PlanDevFn,
     progress: UpdateProgress,
-) -> int:
+) -> _DryRunPlan | UvToolError:
     try:
         receipt = load_receipt(install.receipt_path)
     except ReceiptError as exc:
-        return fail_update(exc, as_json=as_json, err=err)
+        return exc
 
     progress.start(_INSPECT_STEP_ID, title=_INSPECT_STEP_TITLE)
     route = dev_route(receipt, inventory_fn)
     if isinstance(route, UvToolError):
         progress.finish(_INSPECT_STEP_ID, "failed", detail=str(route))
-        return fail_update(route, as_json=as_json, err=err)
+        return route
 
     has_dev = route is not None and bool(route.records)
     has_managed = should_run_managed_update(receipt, route)
@@ -126,7 +140,7 @@ def _run_dry_run(
             error := missing_local_requirements_error(receipt.reconstruct())
         ) is not None:
             progress.finish(_INSPECT_STEP_ID, "failed", detail=str(error))
-            return fail_update(error, as_json=as_json, err=err)
+            return error
     mode = update_mode(has_dev=has_dev, has_managed=has_managed)
     progress.finish(_INSPECT_STEP_ID, "done", detail=f"{mode} install")
     argv = managed_update_argv(receipt, route, color="never") if has_managed else []
@@ -149,26 +163,44 @@ def _run_dry_run(
                 progress=progress,
             )
         except Exception as exc:  # noqa: BLE001 - dry-run should fail legibly.
-            return fail_update(
-                UvToolError(f"could not plan editable checkout update: {exc}"),
-                as_json=as_json,
-                err=err,
-            )
+            return UvToolError(f"could not plan editable checkout update: {exc}")
+
+    return _DryRunPlan(mode=mode, argv=argv, packages=packages, dev_plan=dev_plan)
+
+
+def _emit_dry_run(
+    planned: _DryRunPlan | UvToolError,
+    *,
+    as_json: bool,
+    out: Console,
+    err: Console,
+) -> int:
+    """Print the dry-run panel, JSON, or failure after timeline teardown."""
+    if isinstance(planned, UvToolError):
+        return fail_update(planned, as_json=as_json, err=err)
 
     if as_json:
         print(
             json.dumps(
-                dry_run_json(argv, packages, mode=mode, dev_plan=dev_plan),
+                dry_run_json(
+                    planned.argv,
+                    planned.packages,
+                    mode=planned.mode,
+                    dev_plan=planned.dev_plan,
+                ),
                 indent=2,
                 sort_keys=True,
             )
         )
         return 0
 
-    if dev_plan is None:
-        render_update_dry_run(argv, packages, console=out)
+    if planned.dev_plan is None:
+        render_update_dry_run(planned.argv, planned.packages, console=out)
     else:
         render_dev_update_dry_run(
-            dev_plan, managed_argv=argv, managed_packages=packages, console=out
+            planned.dev_plan,
+            managed_argv=planned.argv,
+            managed_packages=planned.packages,
+            console=out,
         )
     return 0
