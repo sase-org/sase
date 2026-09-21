@@ -20,7 +20,7 @@ def test_agent_onboarding_content_includes_tabs_and_docs_link() -> None:
     assert "Welcome to sase's TUI" in rendered
     assert "Artifacts" in rendered
     assert "Agents" in rendered
-    assert "AXE" in rendered
+    assert "Services" in rendered
     assert "https://sase.sh" in rendered
     assert "https://sase.sh/ace/" in rendered
     assert "https://sase.sh/xprompt/" in rendered
@@ -33,10 +33,10 @@ def test_agent_onboarding_tab_rows_follow_visible_tab_order() -> None:
     tabs_text = _section_plain(sections, "#agent-onboarding-tabs")
 
     positions = {
-        label: tabs_text.index(label) for label in ("Agents", "Artifacts", "AXE")
+        label: tabs_text.index(label) for label in ("Agents", "Artifacts", "Services")
     }
 
-    assert positions["Agents"] < positions["Artifacts"] < positions["AXE"]
+    assert positions["Agents"] < positions["Artifacts"] < positions["Services"]
 
 
 def test_agent_onboarding_uses_active_keymap_registry() -> None:

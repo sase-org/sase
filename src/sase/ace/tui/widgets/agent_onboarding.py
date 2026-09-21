@@ -15,6 +15,7 @@ from ..keymaps import (
     load_keymap_registry,
 )
 from ..tab_order import TAB_ORDER, TabName
+from .tab_bar import _TAB_COLORS, _TAB_DISPLAY_NAMES
 from ._onboarding_common import (
     append_doc_link,
     append_keycap,
@@ -37,21 +38,23 @@ _STEP_BASE_TITLES: tuple[tuple[str, str], ...] = (
 
 # Per-tab onboarding row copy, keyed by tab name.  Rows are rendered in the
 # shared ``TAB_ORDER`` so this guide can never drift from the visible tab bar.
+# Labels and accents track the tab bar; only the descriptions live here.
 _TAB_ROWS: dict[TabName, tuple[str, str, str]] = {
     "agents": (
-        "Agents",
-        "#87D7FF",
+        _TAB_DISPLAY_NAMES["agents"],
+        _TAB_COLORS["agents"],
         "Inspect prompts, diffs, tools, and artifact files. You are here.",
     ),
     "artifacts": (
-        "Artifacts",
-        "#00D7AF",
+        _TAB_DISPLAY_NAMES["artifacts"],
+        _TAB_COLORS["artifacts"],
         "Browse commits, patches, beads, and nested files in one place.",
     ),
     "services": (
-        "AXE",
-        "#FF5F5F",
-        "Monitor the Axe daemon and automation.",
+        _TAB_DISPLAY_NAMES["services"],
+        _TAB_COLORS["services"],
+        "Manage the service host, service procs, scheduler routines and jobs, "
+        "and oneshots.",
     ),
 }
 

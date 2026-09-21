@@ -289,7 +289,7 @@ _custom_mode_sections = custom_mode_sections
 TAB_DISPLAY_NAMES = {
     "artifacts": "Artifacts",
     "agents": "Agents",
-    "services": "Axe",
+    "services": "Services",
 }
 
 # Column split indices for each tab (left column gets indices < split, right gets >= split)

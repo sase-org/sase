@@ -24,13 +24,13 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
         Binding(
             "3",
             "choose_restart_tui_and_axe",
-            "Restart TUI & scheduler",
+            "Restart TUI & service host",
             show=False,
         ),
         Binding(
             "a",
             "choose_restart_tui_and_axe",
-            "Restart TUI & scheduler",
+            "Restart TUI & service host",
             show=False,
         ),
         Binding("escape", "cancel", "Cancel", show=False),
@@ -72,7 +72,7 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
                         "2",
                         "r",
                         "Restart TUI",
-                        "Reopen the TUI. The scheduler keeps running.",
+                        "Reopen the TUI. The service host keeps running.",
                     ),
                     classes=(
                         "quit-options-row duration-choice-row "
@@ -83,8 +83,8 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
                     self._render_choice(
                         "3",
                         "a",
-                        "Restart TUI & scheduler",
-                        "Reopen the TUI and restart the scheduler.",
+                        "Restart TUI & service host",
+                        "Reopen the TUI and restart the service host.",
                     ),
                     classes=(
                         "quit-options-row duration-choice-row "
@@ -105,7 +105,7 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
                 )
                 yield Static(
                     f"  [dim]1/s quit & stop {self._stop_target.lower()} · 2/r restart · "
-                    "3/a restart + scheduler · esc cancel[/]",
+                    "3/a restart + service host · esc cancel[/]",
                     classes="quit-options-row duration-choice-row",
                 )
 
@@ -134,11 +134,11 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
         self.dismiss("quit_stop_axe")
 
     def action_choose_restart_tui(self) -> None:
-        """Restart the TUI without touching the scheduler."""
+        """Restart the TUI without touching the service host."""
         self.dismiss("restart_tui")
 
     def action_choose_restart_tui_and_axe(self) -> None:
-        """Restart the TUI and restart the scheduler on startup."""
+        """Restart the TUI and restart the service host on startup."""
         self.dismiss("restart_tui_and_axe")
 
     def action_cancel(self) -> None:

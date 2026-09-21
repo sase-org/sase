@@ -17,19 +17,23 @@ def test_axe_onboarding_content_describes_axe_jobs_bgcmds_and_docs() -> None:
     rendered = "\n".join(text.plain for text in sections.values())
 
     assert "Automation, always on" in rendered
-    assert "Axe is the daemon" in rendered
-    assert "Axe starts automatically with sase tui" in rendered
-    assert "start or stop Axe (with the Axe row selected)" in rendered
+    assert "service host" in rendered
+    assert "starts automatically with sase tui" in rendered
+    assert "start or stop the selected service proc" in rendered
+    assert "start or stop the service host" in rendered
+    assert "enable or disable the selected service proc" in rendered
     assert "routine" in rendered
     assert "jobs" in rendered
     assert "add a routine or job" in rendered
-    assert "edit the selected AXE config" in rendered
+    assert "edit the selected routine or job config" in rendered
     assert (
         "Run history keeps each job's status, duration, and captured output" in rendered
     )
     assert "open recorded output" in rendered
-    assert "runs any shell command in a background slot" in rendered
+    assert "starts a new oneshot" in rendered
     assert "kill the selected running command" in rendered
+    assert "restart the selected service proc or run the selected job now" in rendered
+    assert "re-run a finished command" in rendered
     assert "https://sase.sh" in rendered
     assert "https://sase.sh/axe/" in rendered
     assert "https://sase.sh/workflow_spec/" in rendered

@@ -1,7 +1,7 @@
 """Process selection modal for sase's TUI.
 
-Used when pressing X on non-AXE tabs with both axe and background commands running,
-to select which process to stop.
+Used when pressing X on non-Services tabs with both the service host and
+background commands running, to select which process to stop.
 """
 
 from dataclasses import dataclass
@@ -44,7 +44,7 @@ class ProcessSelectModal(
         """Initialize the process selection modal.
 
         Args:
-            axe_running: Whether the axe daemon is running.
+            axe_running: Whether the service host is running.
             bgcmd_slots: List of (slot, info) tuples for running background commands.
         """
         super().__init__()
@@ -95,7 +95,7 @@ class ProcessSelectModal(
     def compose(self) -> ComposeResult:
         """Compose the modal layout."""
         with Container():
-            yield Label("AXE Control", id="modal-title")
+            yield Label("Services Control", id="modal-title")
             yield Label(
                 "Select an action. Press Enter to confirm.",
                 id="process-hint",

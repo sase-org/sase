@@ -22,7 +22,7 @@ project-canonical TUI visual renderer.
   approved regression coverage.
 - `sase screenshot -o /tmp/shot.png` captures a fresh local TUI window. Add repeatable
   `-p/--press` keys and `-w/--wait-for` regexes for setup flows, for example
-  `sase screenshot -o /tmp/agents.png -p tab -w "Agents|Loading" -- -t axe`.
+  `sase screenshot -o /tmp/agents.png -p tab -w "Agents|Loading" -- -t services`.
 - Use `--keep` for iterative inspection. Capture once with
   `sase screenshot --keep -o /tmp/one.png`, copy the printed `sase_tmux_target=...`,
   drive that exact target with `tmux send-keys -t <target> ...`, then recapture with

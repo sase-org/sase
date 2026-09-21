@@ -113,7 +113,7 @@ async def test_help_guide_axe_png_snapshot(
     ace_png_visual: AcePngSnapshotFixture,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The AXE guide is available inside the Help panel's Guide tab."""
+    """The Services guide is available inside the Help panel's Guide tab."""
     patch_startup_loaders(monkeypatch, axe_data=axe_collected_data())
 
     async with AcePage(query='"visual"', patches=patches()) as page:
@@ -133,12 +133,12 @@ async def test_help_guide_axe_png_snapshot(
         )
 
         assert_page_svg_contains(page, "Automation, always on")
-        assert_page_svg_contains(page, "Axe starts automatically")
-        assert_page_svg_contains(page, "with the Axe row selected")
+        assert_page_svg_contains(page, "starts automatically with")
+        assert_page_svg_contains(page, "start or stop the selected service proc")
         ace_png_visual.assert_page_png(
             page,
             "help_guide_axe_120x40",
-            title="ACE Help panel guide (AXE)",
+            title="ACE Help panel guide (Services)",
         )
 
 

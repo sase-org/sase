@@ -1,4 +1,4 @@
-"""On-demand guide for the AXE tab."""
+"""On-demand guide for the Services tab."""
 
 from __future__ import annotations
 
@@ -30,14 +30,14 @@ _MENTORS_DOCS_URL = "https://sase.sh/mentors/"
 
 
 class AxeOnboarding(VerticalScroll):
-    """AXE-tab guide shown inside the Help panel."""
+    """Services-tab guide shown inside the Help panel."""
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(**kwargs)
         self._registry: KeymapRegistry = load_keymap_registry({})
 
     def compose(self) -> ComposeResult:
-        """Compose the fixed AXE guide sections."""
+        """Compose the fixed Services guide sections."""
         yield Static(
             self._build_hero(),
             id="axe-onboarding-hero",
@@ -49,7 +49,7 @@ class AxeOnboarding(VerticalScroll):
             id="axe-onboarding-what",
             classes="axe-onboarding-card",
         )
-        what.border_title = "What is Axe?"
+        what.border_title = "What is Services?"
         yield what
 
         jobs = Static(
@@ -111,7 +111,8 @@ class AxeOnboarding(VerticalScroll):
         text.append("Automation, always on", style="bold #FFFFFF")
         text.append("  *\n", style="bold #FFD700")
         text.append(
-            "Axe is the daemon that keeps your hooks, mentors & workflows moving.",
+            "The service host keeps your service procs, scheduler jobs "
+            "& oneshots moving.",
             style=f"dim {_ACCENT}",
         )
         return text
@@ -119,31 +120,34 @@ class AxeOnboarding(VerticalScroll):
     @staticmethod
     def _build_what_card(registry: KeymapRegistry) -> Text:
         app = registry.app
+        bang = registry.bang_mode
+        bang_prefix = bang.prefix
+        toggle_host_key = bang.keys.get("toggle_axe")
+        toggle_enablement_key = bang.keys.get("toggle_service_enablement")
         text = Text()
-        append_section_heading(text, "Background automation loop", accent=_ACCENT)
-        text.append("Axe starts automatically with ")
+        append_section_heading(text, "Service host and service procs", accent=_ACCENT)
+        text.append("The service host starts automatically with ")
         text.append("sase tui", style="bold #FFD700")
-        text.append(
-            " and cycles through hooks, mentors, workflow checks, pending "
-            "checks, and zombie cleanup."
-        )
+        text.append(" (unless --no-service) and keeps your service procs running.")
         text.append("\n")
         text.append(
-            "Your PRs keep moving while you focus elsewhere.",
+            "Each service proc is one supervised row. The Scheduler proc nests "
+            "its routines, and each routine nests the jobs it runs.",
             style="dim",
         )
         text.append("\n")
         append_keycap(text, key_display_name(app.kill_agent))
-        text.append("start or stop Axe (with the Axe row selected).")
+        text.append("start or stop the selected service proc.")
+        if isinstance(toggle_host_key, str):
+            append_keycap(text, key_sequence_display(bang_prefix, toggle_host_key))
+            text.append("start or stop the service host.")
+        if isinstance(toggle_enablement_key, str):
+            append_keycap(
+                text, key_sequence_display(bang_prefix, toggle_enablement_key)
+            )
+            text.append("enable or disable the selected service proc.")
         append_keycap(text, key_display_name(app.stop_axe_and_quit))
         text.append("open the quit/restart menu.")
-        text.append("\n")
-        text.append("Status bar anatomy: ", style="dim")
-        text.append("Runtime", style="bold #FFD700")
-        text.append(" · ", style="dim")
-        text.append("Cycles", style="bold #87D7FF")
-        text.append(" · ", style="dim")
-        text.append("Hooks/Agents runner slots", style="bold #00D7AF")
         return text
 
     @staticmethod
@@ -164,12 +168,12 @@ class AxeOnboarding(VerticalScroll):
         append_keycap(text, key_display_name(app.prev_patch))
         text.append("move through the sidebar.")
         append_keycap(text, key_display_name(app.run_workflow))
-        text.append("run the selected job now.")
+        text.append("restart the selected service proc or run the selected job now.")
         text.append("\n")
         append_keycap(text, key_display_name(app.add_axe_item))
         text.append("add a routine or job.")
         append_keycap(text, key_display_name(app.edit_spec))
-        text.append("edit the selected AXE config.")
+        text.append("edit the selected routine or job config.")
         text.append("\n")
         append_keycap(text, key_display_name(app.next_agent_file))
         text.append("/")
@@ -203,7 +207,7 @@ class AxeOnboarding(VerticalScroll):
         )
         append_keycap(text, key_sequence_display(bang.prefix, run_cmd_key))
         text.append(
-            "runs any shell command in a background slot with live output "
+            "starts a new oneshot: any shell command with live output "
             "streaming into the dashboard."
         )
         text.append("\n")
@@ -221,7 +225,7 @@ class AxeOnboarding(VerticalScroll):
         append_doc_link(
             text,
             _AXE_DOCS_URL,
-            "the full Axe guide: routines, jobs & configuration.",
+            "the full Services guide: service procs, routines, jobs & configuration.",
             accent=_ACCENT,
         )
         append_doc_link(
@@ -233,7 +237,7 @@ class AxeOnboarding(VerticalScroll):
         append_doc_link(
             text,
             _MENTORS_DOCS_URL,
-            "automated review mentors Axe keeps running.",
+            "automated review mentors the scheduler keeps running.",
             accent=_ACCENT,
         )
         app = registry.app

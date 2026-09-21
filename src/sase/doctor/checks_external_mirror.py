@@ -1,10 +1,10 @@
 """Detached-routine tracker-auth check for the external issue mirror.
 
-Doctor cannot reproduce the AXE daemon's detached environment, so this check
+Doctor cannot reproduce the service host's captured environment, so this check
 does not attempt an interactive provider call. It reports the mirror's own
 persisted evidence instead: what the ``external_issue_mirror`` chop actually
 observed the last time it ran, which is the only thing that can distinguish
-"no issues" from a silent auth failure in the daemon environment.
+"no issues" from a silent auth failure in the service environment.
 """
 
 from __future__ import annotations
@@ -22,7 +22,8 @@ if TYPE_CHECKING:
 
 _STALE_AFTER = timedelta(minutes=30)
 _NEXT_STEPS_AUTH = (
-    "Run `gh auth login` in the AXE daemon's environment.",
+    "Run `gh auth login` in the service host's captured environment "
+    "(written by `sase service init`).",
     "Run `sase bead sync-external --dry-run` to retest interactively.",
 )
 _NEXT_STEPS_GENERAL = (

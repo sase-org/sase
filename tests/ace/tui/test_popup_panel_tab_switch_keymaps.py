@@ -41,7 +41,7 @@ async def test_help_modal_tab_switch_keys_change_tab_and_refresh_content() -> No
         await page.press("tab")
 
         await page.expect_state("tab", "axe")
-        await page.wait_for(lambda _state: "Axe Tab" in _help_title(page))
+        await page.wait_for(lambda _state: "Services Tab" in _help_title(page))
 
         await page.press("shift+tab")
 

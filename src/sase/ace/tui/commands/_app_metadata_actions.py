@@ -69,14 +69,14 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
     (
         "add_axe_item",
         "Add AXE routine or job",
-        "Axe",
+        "Services",
         AXE_ONLY,
         ("new routine", "new job", "add job"),
     ),
     (
         "toggle_axe_description",
         "Toggle AXE description",
-        "Axe",
+        "Services",
         AXE_ONLY,
         ("description", "expand description", "collapse description"),
     ),
@@ -217,7 +217,7 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
         AGENTS_AXE,
         ("cleanup", "dismiss all", "clear output"),
     ),
-    ("stop_axe_and_quit", "Quit / restart menu", "Axe", ALL_TABS, ()),
+    ("stop_axe_and_quit", "Quit / restart menu", "Services", ALL_TABS, ()),
     ("start_custom_agent", "Run custom agent", "Agents", ALL_TABS, ("+",)),
     (
         "start_agent_home",

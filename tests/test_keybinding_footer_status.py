@@ -96,18 +96,28 @@ def test_keybinding_footer_set_axe_stopping() -> None:
 
 
 def test_keybinding_footer_axe_bindings() -> None:
-    """Test that AXE tab shows only entry-dependent bindings (x start/stop/kill)."""
+    """Test that Services tab shows only entry-dependent bindings (x start/stop/kill)."""
     footer = KeybindingFooter()
 
-    # Default: axe not running, on axe view
+    # Default: no service proc selected, on services view. Bare x is a
+    # no-op there (the host toggle is !x), so no x binding is advertised.
     bindings = footer._compute_axe_bindings("axe")
-    assert len(bindings) == 1
-    assert bindings[0] == ("x", "start service host")
+    assert bindings == []
 
-    # Axe running, on axe view
+    # Host running, still no selection: still no x binding.
     footer._axe_running = True
     bindings = footer._compute_axe_bindings("axe")
-    assert bindings[0] == ("x", "stop service host")
+    assert bindings == []
+
+    # Selected service proc: x toggles it.
+    bindings = footer._compute_axe_bindings(
+        "axe", service_selected=True, service_running=False
+    )
+    assert bindings[0] == ("x", "start service")
+    bindings = footer._compute_axe_bindings(
+        "axe", service_selected=True, service_running=True
+    )
+    assert bindings[0] == ("x", "stop service")
 
     # On bgcmd view
     bindings = footer._compute_axe_bindings(1)

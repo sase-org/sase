@@ -135,7 +135,9 @@ def test_keybinding_footer_custom_registry_axe_key() -> None:
     custom_app = AppKeymaps(**kwargs)
     footer.set_keymap_registry(KeymapRegistry(app=custom_app))
 
-    bindings = footer._compute_axe_bindings("axe")
+    # Bare x is a no-op with no service proc selected, so the remap is
+    # proven on a selected service proc, where x still toggles.
+    bindings = footer._compute_axe_bindings("axe", service_selected=True)
     assert bindings[0][0] == "K"
 
 

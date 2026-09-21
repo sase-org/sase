@@ -62,11 +62,12 @@ class KeybindingBindingsMixin:
         config_row_selected: bool = False,
         description_expanded: bool = True,
     ) -> list[tuple[str, str]]:
-        """Compute entry-dependent bindings for Axe tab.
+        """Compute entry-dependent bindings for Services tab.
 
-        ``x`` is entry-dependent: its label changes between "start/stop axe"
-        (no selectable axe-parent row in Phase 3; daemon controls remain on
-        lumberjack and chop rows) and "kill" (bgcmd rows).
+        ``x`` is entry-dependent: it toggles the selected service proc, or
+        kills the selected background command on a bgcmd slot view. Bare
+        ``x`` is a no-op on host chrome, empty selection, and nested
+        scheduler rows; the host toggle is ``!x``.
         ``r`` is dispatched off the selected row: ``re-run`` on a done
         background command, ``run chop`` on an idle chop row, or ``running``
         on a chop whose newest run is still active (the backend refuses an
@@ -86,11 +87,9 @@ class KeybindingBindingsMixin:
                 label = "start service"
             else:
                 label = "disabled"
-        elif axe_current_view == "axe":
-            label = "stop service host" if self._axe_running else "start service host"
-        else:
-            label = "kill"
-        bindings.append((self._kd("kill_agent"), label))
+            bindings.append((self._kd("kill_agent"), label))
+        elif axe_current_view != "axe":
+            bindings.append((self._kd("kill_agent"), "kill"))
         if selected_slot_done:
             bindings.append((self._kd("run_workflow"), "re-run"))
         elif service_selected and service_available and service_enabled:

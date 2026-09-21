@@ -47,7 +47,7 @@ def test_command_context_normalizes_legacy_axe_tab() -> None:
         label="Add",
         key_sequence=("a",),
         key_display="a",
-        category="Axe",
+        category="Services",
         tabs=AXE_ONLY,
         executor=CommandExecutor(kind="app_action", action="add_axe_item"),
     )

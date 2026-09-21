@@ -95,7 +95,7 @@ def register_screenshot_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase screenshot -p / -w INSERT --type machine:apollo "
             "-w machine:apollo -p enter -o /tmp/shot.png\n"
             "  sase screenshot --host apollo -o /tmp/remote.png\n"
-            "  sase screenshot --keep -- -t axe\n"
+            "  sase screenshot --keep -- -t services\n"
             "  sase screenshot --window sase_ace_agents:sase_tmux_1 -o /tmp/again.png"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
