@@ -82,7 +82,7 @@ def _skip_restart(**_kwargs: object) -> RestartInfo:
     return RestartInfo(
         attempted=False,
         status="skipped_not_running",
-        reason="axe is not running",
+        reason="scheduler is not running",
     )
 
 
@@ -197,7 +197,7 @@ def test_public_enable_then_disable_writes_state_and_leaves_config(
     assert "disabled" in out
     for word in ACE_RESTART_NOTICE.split():
         assert word in out
-    assert "AXE is not running; left stopped." in out
+    assert "Scheduler is not running; left stopped." in out
     assert load_saved_feature_flags().flags[KEY] is False
     assert sources == ["sase flag enable", "sase flag disable"]
     for path, fingerprint in fingerprints.items():

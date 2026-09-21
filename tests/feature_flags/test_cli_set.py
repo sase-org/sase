@@ -9,7 +9,6 @@ from pathlib import Path
 import pytest
 from rich.console import Console
 
-from sase.axe.process import AxeStartResult
 from sase.feature_flags import snapshot as snapshot_mod
 from sase.feature_flags.cli_set import (
     ACE_RESTART_NOTICE,
@@ -23,7 +22,8 @@ from sase.feature_flags.state import (
     feature_flag_state_path,
     load_saved_feature_flags,
 )
-from sase.main.update_types import RestartAxeFn
+from sase.main.update_types import RestartSchedulerFn
+from sase.service.actions import ServiceProcActionError, ServiceProcActionOutcome
 from tests.main.parser_cli_helpers import parse_sase_args
 from tests._conftest_runtime import reset_process_feature_flags
 
@@ -36,16 +36,26 @@ def _console() -> tuple[Console, io.StringIO]:
     return Console(file=buf, width=160, color_system=None, highlight=False), buf
 
 
-def _forbid_restart(**_kwargs: object) -> AxeStartResult:
-    raise AssertionError("AXE restart must not run")
+def _scheduler_restart(*, reason: str | None = None) -> ServiceProcActionOutcome:
+    return ServiceProcActionOutcome(
+        action="restart",
+        name="scheduler",
+        mutations=(),
+        nudged=True,
+        message="requested service proc scheduler restart",
+    )
+
+
+def _forbid_restart(**_kwargs: object) -> ServiceProcActionOutcome:
+    raise AssertionError("scheduler restart must not run")
 
 
 def _run(
     argv: list[str],
     *,
     console: Console | None = None,
-    axe_running: bool = False,
-    restart_axe_fn: RestartAxeFn | None = None,
+    scheduler_running: bool = False,
+    restart_scheduler_fn: RestartSchedulerFn | None = None,
 ) -> int:
     args = parse_sase_args(argv)
     enabled = args.flag_subcommand == "enable"
@@ -53,9 +63,11 @@ def _run(
         args,
         enabled=enabled,
         console=console,
-        axe_running_fn=lambda: axe_running,
-        restart_axe_fn=(
-            restart_axe_fn if restart_axe_fn is not None else _forbid_restart
+        scheduler_running_fn=lambda: scheduler_running,
+        restart_scheduler_fn=(
+            restart_scheduler_fn
+            if restart_scheduler_fn is not None
+            else _forbid_restart
         ),
     )
 
@@ -85,30 +97,30 @@ def test_enable_persists_and_reports_skipped_axe() -> None:
     assert FEATURE_FLAG_STATE_FILENAME in out
     assert "shadowed" not in out
     assert ACE_RESTART_NOTICE in out
-    assert "AXE is not running; left stopped." in out
+    assert "Scheduler is not running; left stopped." in out
     assert "load the updated code" not in out
-    assert "Axe restarted" not in out
+    assert "Scheduler Restart" not in out
 
 
-def test_disable_then_repeat_is_idempotent_and_retries_axe() -> None:
-    restart_calls: list[str] = []
+def test_disable_then_repeat_is_idempotent_and_retries_scheduler() -> None:
+    restart_calls: list[str | None] = []
 
-    def _restart(*, desired_state_source: str) -> AxeStartResult:
-        restart_calls.append(desired_state_source)
-        return AxeStartResult(status="started", pid=4242)
+    def _restart(*, reason: str | None = None) -> ServiceProcActionOutcome:
+        restart_calls.append(reason)
+        return _scheduler_restart(reason=reason)
 
     console, buf = _console()
     first = _run(
         ["flag", "disable", KEY],
         console=console,
-        axe_running=True,
-        restart_axe_fn=_restart,
+        scheduler_running=True,
+        restart_scheduler_fn=_restart,
     )
     second = _run(
         ["flag", "disable", KEY],
         console=console,
-        axe_running=True,
-        restart_axe_fn=_restart,
+        scheduler_running=True,
+        restart_scheduler_fn=_restart,
     )
 
     assert first == 0
@@ -120,23 +132,23 @@ def test_disable_then_repeat_is_idempotent_and_retries_axe() -> None:
     assert "previous saved:  —" in out
     assert "previous saved:  off" in out
     assert "disabled" in out
-    assert "Axe restarted (pid 4242)" in out
+    assert "requested service proc scheduler restart" in out
     assert APPLY_SAVED_FEATURE_FLAG in out
     assert "load the updated code" not in out
 
 
-def test_unknown_flag_is_usage_error_and_skips_axe(
+def test_unknown_flag_is_usage_error_and_skips_scheduler(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    def _axe_running() -> bool:
-        raise AssertionError("axe status must not be checked for an unknown flag")
+    def _scheduler_running() -> bool:
+        raise AssertionError("scheduler status must not be checked for an unknown flag")
 
     args = parse_sase_args(["flag", "enable", "missing_flag"])
     code = handle_flag_set(
         args,
         enabled=True,
-        axe_running_fn=_axe_running,
-        restart_axe_fn=_forbid_restart,
+        scheduler_running_fn=_scheduler_running,
+        restart_scheduler_fn=_forbid_restart,
     )
 
     assert code == 2
@@ -198,7 +210,7 @@ def test_json_envelope_separates_mutation_and_restart(
     assert payload["mutation"]["previous_saved"] is None
     assert payload["mutation"]["shadowed"] is False
     assert payload["restart"]["status"] == "skipped_not_running"
-    assert payload["restart"]["reason"] == "axe is not running"
+    assert payload["restart"]["reason"] == "scheduler is not running"
 
 
 def test_json_idempotent_repeat_retries_restart(
@@ -206,22 +218,22 @@ def test_json_idempotent_repeat_retries_restart(
 ) -> None:
     restart_calls = 0
 
-    def _restart(*, desired_state_source: str) -> AxeStartResult:
+    def _restart(*, reason: str | None = None) -> ServiceProcActionOutcome:
         nonlocal restart_calls
         restart_calls += 1
-        assert desired_state_source == "sase flag enable"
-        return AxeStartResult(status="started", pid=99)
+        assert reason == "sase flag enable"
+        return _scheduler_restart(reason=reason)
 
     _run(
         ["flag", "enable", KEY, "--json"],
-        axe_running=True,
-        restart_axe_fn=_restart,
+        scheduler_running=True,
+        restart_scheduler_fn=_restart,
     )
     capsys.readouterr()
     code = _run(
         ["flag", "enable", KEY, "--json"],
-        axe_running=True,
-        restart_axe_fn=_restart,
+        scheduler_running=True,
+        restart_scheduler_fn=_restart,
     )
     payload = json.loads(capsys.readouterr().out)
 
@@ -230,21 +242,21 @@ def test_json_idempotent_repeat_retries_restart(
     assert payload["mutation"]["changed"] is False
     assert payload["mutation"]["previous_saved"] is True
     assert payload["restart"]["status"] == "restarted"
-    assert payload["restart"]["pid"] == 99
+    assert payload["restart"]["message"] == "requested service proc scheduler restart"
 
 
 def test_restart_failure_keeps_saved_preference_and_is_partial_success(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    def _fail(*, desired_state_source: str) -> AxeStartResult:
-        return AxeStartResult(status="failed", message="daemon refused")
+    def _fail(*, reason: str | None = None) -> ServiceProcActionOutcome:
+        raise ServiceProcActionError("daemon refused")
 
     console, buf = _console()
     code = _run(
         ["flag", "disable", KEY],
         console=console,
-        axe_running=True,
-        restart_axe_fn=_fail,
+        scheduler_running=True,
+        restart_scheduler_fn=_fail,
     )
 
     assert code == 1
@@ -257,8 +269,8 @@ def test_restart_failure_keeps_saved_preference_and_is_partial_success(
 
     json_code = _run(
         ["flag", "disable", KEY, "--json"],
-        axe_running=True,
-        restart_axe_fn=_fail,
+        scheduler_running=True,
+        restart_scheduler_fn=_fail,
     )
     payload = json.loads(capsys.readouterr().out)
     assert json_code == 1

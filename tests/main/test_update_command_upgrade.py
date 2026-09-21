@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from sase.axe.process import AxeStartResult
 from sase.main.update_handler import UPDATE_JSON_SCHEMA_VERSION, handle_update_command
+from sase.service.actions import ServiceProcActionOutcome
 from sase.uv_tool.detect import UvToolInstall
 from sase.uv_tool.errors import UvCommandFailedError
 from sase.uv_tool.runner import UvChangeSet, parse_uv_output
@@ -35,7 +35,7 @@ def test_upgrade_runs_expected_argv_and_renders(tmp_path: Path) -> None:
         console=out,
         probe_fn=lambda: _install(tmp_path),
         run_fn=_run,
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         version_fn=_versions,
         clock=lambda: 0.0,
     )
@@ -57,7 +57,7 @@ def test_upgrade_json_payload_is_stable(
         _args(json=True),
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         version_fn=_versions,
         clock=lambda: next(clock),
     )
@@ -85,7 +85,7 @@ def test_upgrade_quiet_prints_one_line(tmp_path: Path) -> None:
         console=out,
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         version_fn=_versions,
         clock=lambda: 0.0,
     )
@@ -96,13 +96,20 @@ def test_upgrade_quiet_prints_one_line(tmp_path: Path) -> None:
     )
 
 
-def test_managed_upgrade_restarts_axe_when_changed(tmp_path: Path) -> None:
+def test_managed_upgrade_restarts_scheduler_when_changed(tmp_path: Path) -> None:
     restart_calls = 0
 
-    def _restart() -> AxeStartResult:
+    def _restart(*, reason: str | None = None) -> ServiceProcActionOutcome:
         nonlocal restart_calls
         restart_calls += 1
-        return AxeStartResult(status="started", pid=9753)
+        assert reason == "sase update"
+        return ServiceProcActionOutcome(
+            action="restart",
+            name="scheduler",
+            mutations=(),
+            nudged=True,
+            message="requested service proc scheduler restart",
+        )
 
     out = _console()
     code = handle_update_command(
@@ -110,15 +117,59 @@ def test_managed_upgrade_restarts_axe_when_changed(tmp_path: Path) -> None:
         console=out,
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
-        axe_running_fn=lambda: True,
-        restart_axe_fn=_restart,
+        scheduler_running_fn=lambda: True,
+        restart_scheduler_fn=_restart,
         version_fn=_versions,
         clock=lambda: 0.0,
     )
 
     assert code == 0
     assert restart_calls == 1
-    assert "Axe restarted (pid 9753)" in _text(out)
+    assert "requested service proc scheduler restart" in _text(out)
+
+
+def test_managed_upgrade_restart_never_touches_axe_daemon(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A successful update restarts the scheduler proc, not the AXE daemon."""
+    import sase.axe.process as axe_process
+    import sase.main.update_restart as update_restart_mod
+
+    requests: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def _forbid_axe_daemon(*args: object, **kwargs: object) -> object:
+        raise AssertionError("restart_axe_daemon_result must not run")
+
+    def _restart(
+        name: str, *, actor: str, reason: str | None = None, delay: float = 0.5
+    ) -> ServiceProcActionOutcome:
+        requests.append(((name,), {"actor": actor, "reason": reason}))
+        return ServiceProcActionOutcome(
+            action="restart",
+            name=name,
+            mutations=(),
+            nudged=True,
+            message="requested service proc scheduler restart",
+        )
+
+    monkeypatch.setattr(axe_process, "restart_axe_daemon_result", _forbid_axe_daemon)
+    monkeypatch.setattr(update_restart_mod, "restart_service_proc", _restart)
+
+    out = _console()
+    code = handle_update_command(
+        _args(),
+        console=out,
+        probe_fn=lambda: _install(tmp_path),
+        run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
+        scheduler_running_fn=lambda: True,
+        version_fn=_versions,
+        clock=lambda: 0.0,
+    )
+
+    assert code == 0
+    assert requests == [(("scheduler",), {"actor": "cli", "reason": "sase update"})]
+    assert "requested service proc scheduler restart" in _text(out)
 
 
 def test_upgrade_noop_says_up_to_date(tmp_path: Path) -> None:
@@ -200,7 +251,7 @@ def test_upgrade_tolerates_missing_receipt(tmp_path: Path) -> None:
         console=out,
         probe_fn=lambda: install,
         run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         version_fn=_versions,
         clock=lambda: 0.0,
     )

@@ -20,7 +20,6 @@ from sase.dev_update.models import (
     DevUpdateResult,
     DevUpdateRootPlan,
 )
-from sase.axe.process import AxeStartAttempt
 from sase.main.update_types import RestartInfo
 from sase.version._models import VersionPackageRecord
 
@@ -156,18 +155,7 @@ def test_append_dev_update_journal_writes_jsonl(tmp_path: Path) -> None:
     restart = RestartInfo(
         attempted=True,
         status="restarted",
-        pid=2468,
-        message="Axe restarted (pid 2468)",
-        verified=True,
-        attempts=(
-            AxeStartAttempt(
-                number=1,
-                status="started",
-                pid=2468,
-                message="started",
-                verified=True,
-            ),
-        ),
+        message="requested service proc scheduler restart",
     )
 
     written = append_dev_update_journal(
@@ -182,9 +170,12 @@ def test_append_dev_update_journal_writes_jsonl(tmp_path: Path) -> None:
     assert len(lines) == 1
     payload = json.loads(lines[0])
     assert payload["result"]["outcomes"][0]["name"] == "sase"
-    assert payload["restart"]["status"] == "restarted"
-    assert payload["restart"]["verified"] is True
-    assert payload["restart"]["attempts"][0]["pid"] == 2468
+    assert payload["restart"] == {
+        "attempted": True,
+        "status": "restarted",
+        "message": "requested service proc scheduler restart",
+        "reason": None,
+    }
 
 
 def test_append_dev_update_journal_rotates_existing_file(

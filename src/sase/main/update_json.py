@@ -258,7 +258,6 @@ def restart_info_json(restart: RestartInfo) -> dict[str, Any]:
     return {
         "attempted": restart.attempted,
         "status": restart.status,
-        "pid": restart.pid,
         "message": restart.message,
         "reason": restart.reason,
     }

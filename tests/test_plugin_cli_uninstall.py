@@ -11,7 +11,6 @@ from typing import Any
 import pytest
 from rich.console import Console
 
-from sase.axe.process import AxeStartResult
 from sase.main.parser import create_parser
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.cli_uninstall import (
@@ -19,6 +18,7 @@ from sase.plugins.cli_uninstall import (
     handle_plugin_uninstall_command,
 )
 from sase.plugins.installed import InstalledInfo
+from sase.service.actions import ServiceProcActionOutcome
 from sase.uv_tool.detect import NotUvToolInstall, NotUvToolReason, UvToolInstall
 from sase.uv_tool.errors import UvCommandFailedError
 from sase.uv_tool.runner import UvChangeSet, parse_uv_output
@@ -183,7 +183,7 @@ def test_uninstall_runs_full_set_minus_plugin(tmp_path: Path) -> None:
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
         run_fn=_run,
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -215,7 +215,7 @@ def test_uninstall_resolves_from_receipt_without_catalog(tmp_path: Path) -> None
         load_fn=_load,
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output(_UNINSTALL_OUTPUT),
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -234,7 +234,7 @@ def test_uninstall_dedupes_dev_receipt_duplicates(tmp_path: Path) -> None:
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path, _DEV_RECEIPT),
         run_fn=_run,
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -251,7 +251,7 @@ def test_uninstall_json_payload_is_stable(tmp_path: Path, capsys: Any) -> None:
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output(_UNINSTALL_OUTPUT),
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         clock=lambda: next(clock),
     )
     assert code == 0
@@ -267,15 +267,21 @@ def test_uninstall_json_payload_is_stable(tmp_path: Path, capsys: Any) -> None:
     assert payload["restart"]["status"] == "skipped_not_running"
 
 
-def test_uninstall_restarts_axe_when_changed(tmp_path: Path) -> None:
+def test_uninstall_restarts_scheduler_when_changed(tmp_path: Path) -> None:
     restart_calls = 0
-    restart_source = ""
+    restart_source: str | None = None
 
-    def _restart(*, desired_state_source: str) -> AxeStartResult:
+    def _restart(*, reason: str | None = None) -> ServiceProcActionOutcome:
         nonlocal restart_calls, restart_source
         restart_calls += 1
-        restart_source = desired_state_source
-        return AxeStartResult(status="started", pid=9753)
+        restart_source = reason
+        return ServiceProcActionOutcome(
+            action="restart",
+            name="scheduler",
+            mutations=(),
+            nudged=True,
+            message="requested service proc scheduler restart",
+        )
 
     out = _console()
     code = handle_plugin_uninstall_command(
@@ -284,20 +290,22 @@ def test_uninstall_restarts_axe_when_changed(tmp_path: Path) -> None:
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output(_UNINSTALL_OUTPUT),
-        axe_running_fn=lambda: True,
-        restart_axe_fn=_restart,
+        scheduler_running_fn=lambda: True,
+        restart_scheduler_fn=_restart,
         clock=lambda: 0.0,
     )
 
     assert code == 0
     assert restart_calls == 1
     assert restart_source == "sase plugin uninstall"
-    assert "Axe restarted (pid 9753)" in _text(out)
+    assert "requested service proc scheduler restart" in _text(out)
 
 
-def test_uninstall_noop_does_not_check_axe(tmp_path: Path) -> None:
-    def _axe_running() -> bool:
-        raise AssertionError("axe status must not be checked for a no-op uninstall")
+def test_uninstall_noop_does_not_check_scheduler(tmp_path: Path) -> None:
+    def _scheduler_running() -> bool:
+        raise AssertionError(
+            "scheduler status must not be checked for a no-op uninstall"
+        )
 
     out = _console()
     code = handle_plugin_uninstall_command(
@@ -306,12 +314,12 @@ def test_uninstall_noop_does_not_check_axe(tmp_path: Path) -> None:
         load_fn=lambda *, refresh: _catalog(),
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: UvChangeSet(),
-        axe_running_fn=_axe_running,
+        scheduler_running_fn=_scheduler_running,
         clock=lambda: 0.0,
     )
 
     assert code == 0
-    assert "Axe Restart" not in _text(out)
+    assert "Scheduler Restart" not in _text(out)
 
 
 # --------------------------------------------------------------------------- #

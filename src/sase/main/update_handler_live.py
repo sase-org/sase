@@ -38,14 +38,14 @@ from sase.main.update_routing import (
 )
 from sase.main.update_state import combined_changed, dev_update_succeeded
 from sase.main.update_types import (
-    AxeRunningFn,
     ClockFn,
     ExecuteDevFn,
     InventoryFn,
     PlanDevFn,
-    RestartAxeFn,
     RestartInfo,
+    RestartSchedulerFn,
     RunUvFn,
+    SchedulerRunningFn,
     VersionFn,
 )
 from sase.uv_tool.detect import UvToolInstall
@@ -71,8 +71,8 @@ def handle_live_update(
     plan_dev_update_fn: PlanDevFn,
     execute_dev_update_fn: ExecuteDevFn,
     run_dev_update_fn: DevCommandRunner,
-    axe_running_fn: AxeRunningFn,
-    restart_axe_fn: RestartAxeFn,
+    scheduler_running_fn: SchedulerRunningFn,
+    restart_scheduler_fn: RestartSchedulerFn,
     version_fn: VersionFn,
     clock: ClockFn,
     refresh_completions_fn: Callable[[], CompletionRefreshReport] | None = None,
@@ -191,8 +191,8 @@ def handle_live_update(
     changed = combined_changed(dev_result, managed_summary)
     restart = restart_after_update(
         changed=changed,
-        axe_running_fn=axe_running_fn,
-        restart_axe_fn=restart_axe_fn,
+        scheduler_running_fn=scheduler_running_fn,
+        restart_scheduler_fn=restart_scheduler_fn,
         source="sase update",
     )
     if dev_plan is not None and dev_result is not None:

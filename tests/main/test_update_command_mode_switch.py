@@ -256,7 +256,7 @@ def test_mode_switch_changed_refreshes_after_success(
         console=out,
         probe_fn=lambda: _install(tmp_path),
         inventory_fn=_managed_inventory,
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         config_fn=lambda: {"update": {"dev_root": str(tmp_path / "dev")}},
         refresh_completions_fn=_refresh,
     )

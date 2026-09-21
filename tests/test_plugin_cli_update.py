@@ -10,7 +10,6 @@ from typing import Any
 
 from rich.console import Console
 
-from sase.axe.process import AxeStartResult
 from sase.main.parser import create_parser
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.cli_update import (
@@ -18,6 +17,7 @@ from sase.plugins.cli_update import (
     handle_plugin_update_command,
 )
 from sase.plugins.installed import InstalledInfo
+from sase.service.actions import ServiceProcActionOutcome
 from sase.uv_tool.detect import NotUvToolInstall, NotUvToolReason, UvToolInstall
 from sase.uv_tool.errors import UvCommandFailedError
 from sase.uv_tool.runner import UvChangeSet, parse_uv_output
@@ -197,7 +197,7 @@ def test_update_single_runs_upgrade_package_argv(tmp_path: Path) -> None:
         probe_fn=lambda: _install(tmp_path),
         run_fn=_run,
         version_fn=_versions,
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -235,7 +235,7 @@ def test_update_resolves_short_name_from_receipt_without_catalog(
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
         version_fn=_versions,
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -263,7 +263,7 @@ requirements = [
             or parse_uv_output("- sase-acme==1.0\n+ sase-acme==1.1\n")
         ),
         version_fn=lambda _n: None,
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -279,7 +279,7 @@ def test_update_json_payload_is_stable(tmp_path: Path, capsys: Any) -> None:
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
         version_fn=_versions,
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         clock=lambda: next(clock),
     )
     assert code == 0
@@ -300,15 +300,21 @@ def test_update_json_payload_is_stable(tmp_path: Path, capsys: Any) -> None:
     assert payload["restart"]["status"] == "skipped_not_running"
 
 
-def test_update_restarts_axe_when_changed(tmp_path: Path) -> None:
+def test_update_restarts_scheduler_when_changed(tmp_path: Path) -> None:
     restart_calls = 0
-    restart_source = ""
+    restart_source: str | None = None
 
-    def _restart(*, desired_state_source: str) -> AxeStartResult:
+    def _restart(*, reason: str | None = None) -> ServiceProcActionOutcome:
         nonlocal restart_calls, restart_source
         restart_calls += 1
-        restart_source = desired_state_source
-        return AxeStartResult(status="started", pid=1357)
+        restart_source = reason
+        return ServiceProcActionOutcome(
+            action="restart",
+            name="scheduler",
+            mutations=(),
+            nudged=True,
+            message="requested service proc scheduler restart",
+        )
 
     out = _console()
     code = handle_plugin_update_command(
@@ -318,15 +324,15 @@ def test_update_restarts_axe_when_changed(tmp_path: Path) -> None:
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
         version_fn=_versions,
-        axe_running_fn=lambda: True,
-        restart_axe_fn=_restart,
+        scheduler_running_fn=lambda: True,
+        restart_scheduler_fn=_restart,
         clock=lambda: 0.0,
     )
 
     assert code == 0
     assert restart_calls == 1
     assert restart_source == "sase plugin update"
-    assert "Axe restarted (pid 1357)" in _text(out)
+    assert "requested service proc scheduler restart" in _text(out)
 
 
 def test_update_noop_says_up_to_date(tmp_path: Path) -> None:
@@ -338,8 +344,8 @@ def test_update_noop_says_up_to_date(tmp_path: Path) -> None:
         probe_fn=lambda: _install(tmp_path),
         run_fn=lambda _argv: parse_uv_output("Nothing to upgrade\n"),
         version_fn=_versions,
-        axe_running_fn=lambda: (_ for _ in ()).throw(
-            AssertionError("axe status must not be checked for a no-op update")
+        scheduler_running_fn=lambda: (_ for _ in ()).throw(
+            AssertionError("scheduler status must not be checked for a no-op update")
         ),
         clock=lambda: 0.0,
     )
@@ -367,7 +373,7 @@ def test_update_all_upgrades_every_injected_plugin(tmp_path: Path) -> None:
         probe_fn=lambda: _install(tmp_path),
         run_fn=_run,
         version_fn=_versions,
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -395,7 +401,7 @@ def test_update_all_dedupes_duplicate_dev_receipt_plugins(tmp_path: Path) -> Non
         probe_fn=lambda: _install(tmp_path, _intact_dev_receipt(tmp_path)),
         run_fn=_run,
         version_fn=_versions,
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0

@@ -125,21 +125,8 @@ def _restart_record(restart: Any | None) -> dict[str, Any] | None:
     return {
         "attempted": bool(restart.attempted),
         "status": str(restart.status),
-        "pid": restart.pid,
         "message": str(restart.message),
         "reason": restart.reason,
-        "verified": bool(restart.verified),
-        "attempts": [
-            {
-                "number": attempt.number,
-                "status": attempt.status,
-                "pid": attempt.pid,
-                "message": attempt.message,
-                "verified": attempt.verified,
-                "verification_error": attempt.verification_error,
-            }
-            for attempt in restart.attempts
-        ],
     }
 
 

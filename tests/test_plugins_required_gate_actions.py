@@ -21,16 +21,12 @@ def _response(**overrides: Any) -> PluginsRequiredResponse:
     return PluginsRequiredResponse(**fields)
 
 
-def test_apply_install_restarts_axe_when_code_changed() -> None:
+def test_apply_install_restarts_scheduler_when_code_changed() -> None:
     restart = MagicMock()
     with (
         patch(
             "sase.axe.process.is_axe_running",
             return_value=True,
-        ),
-        patch(
-            "sase.axe.process.restart_axe_daemon_result",
-            return_value=MagicMock(succeeded=True, pid=9, attempts=1, verified=True),
         ),
         patch(
             "sase.main.update_restart.restart_after_update",

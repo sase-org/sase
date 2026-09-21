@@ -1,15 +1,23 @@
-"""Axe restart helpers for ``sase update``."""
+"""Scheduler restart helpers for ``sase update``."""
 
 from __future__ import annotations
-
-from inspect import Parameter, signature
 
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
-from sase.axe.process import AxeStartResult
-from sase.main.update_types import AxeRunningFn, RestartAxeFn, RestartInfo
+from sase.axe.process import is_axe_running
+from sase.main.update_types import (
+    RestartInfo,
+    RestartSchedulerFn,
+    SchedulerRunningFn,
+)
+from sase.service.actions import (
+    ServiceProcActionError,
+    ServiceProcActionOutcome,
+    restart_service_proc,
+)
+from sase.service.config import ServiceConfigError
 
 
 def restart_skipped(*, changed: bool) -> RestartInfo:
@@ -17,7 +25,7 @@ def restart_skipped(*, changed: bool) -> RestartInfo:
         return RestartInfo(
             attempted=False,
             status="skipped_not_running",
-            reason="axe is not running",
+            reason="scheduler is not running",
         )
     return RestartInfo(
         attempted=False,
@@ -26,74 +34,47 @@ def restart_skipped(*, changed: bool) -> RestartInfo:
     )
 
 
+def restart_scheduler_service_proc(
+    *,
+    reason: str | None = None,
+) -> ServiceProcActionOutcome:
+    """Ask the service host to restart the ``scheduler`` service proc."""
+    return restart_service_proc("scheduler", actor="cli", reason=reason)
+
+
 def restart_after_update(
     *,
     changed: bool,
-    axe_running_fn: AxeRunningFn,
-    restart_axe_fn: RestartAxeFn,
+    scheduler_running_fn: SchedulerRunningFn = is_axe_running,
+    restart_scheduler_fn: RestartSchedulerFn = restart_scheduler_service_proc,
     source: str = "sase update",
 ) -> RestartInfo:
     if not changed:
         return restart_skipped(changed=False)
     try:
-        axe_running = axe_running_fn()
+        scheduler_running = scheduler_running_fn()
     except Exception as exc:  # noqa: BLE001 - update succeeded; report restart only.
         return RestartInfo(
             attempted=False,
             status="failed",
-            message=f"could not check axe status: {exc}",
+            message=f"could not check scheduler status: {exc}",
         )
-    if not axe_running:
+    if not scheduler_running:
         return restart_skipped(changed=True)
 
     try:
-        result = _call_restart_axe(restart_axe_fn, source=source)
-    except Exception as exc:  # noqa: BLE001 - keep update success separate.
+        outcome = restart_scheduler_fn(reason=source)
+    except (ServiceProcActionError, ServiceConfigError) as exc:
         return RestartInfo(
             attempted=True,
             status="failed",
-            message=f"axe restart failed: {exc}",
-        )
-    if result.succeeded and result.pid is not None:
-        return RestartInfo(
-            attempted=True,
-            status="restarted",
-            pid=result.pid,
-            message=f"Axe restarted (pid {result.pid})",
-            attempts=result.attempts,
-            verified=result.verified,
+            message=str(exc),
         )
     return RestartInfo(
         attempted=True,
-        status="failed",
-        message=result.message or "Failed to restart axe",
-        attempts=result.attempts,
-        verified=result.verified,
+        status="restarted",
+        message=outcome.message,
     )
-
-
-def _call_restart_axe(
-    restart_axe_fn: RestartAxeFn,
-    *,
-    source: str,
-) -> AxeStartResult:
-    """Pass attribution when supported while preserving zero-arg test fakes."""
-    try:
-        parameters = tuple(signature(restart_axe_fn).parameters.values())
-    except (TypeError, ValueError):
-        parameters = ()
-    supports_source = any(
-        parameter.kind is Parameter.VAR_KEYWORD
-        or (
-            parameter.name == "desired_state_source"
-            and parameter.kind
-            in (Parameter.KEYWORD_ONLY, Parameter.POSITIONAL_OR_KEYWORD)
-        )
-        for parameter in parameters
-    )
-    if supports_source:
-        return restart_axe_fn(desired_state_source=source)
-    return restart_axe_fn()
 
 
 def render_restart_info(
@@ -112,7 +93,7 @@ def render_restart_info(
         text.append(f" to {purpose}.", style="dim")
     else:
         text.append("⚠ ", style="yellow")
-        text.append(restart.message or "Axe restart failed.", style="yellow")
+        text.append(restart.message or "Scheduler restart failed.", style="yellow")
     console.print(
-        text if quiet else Panel(text, title="Axe Restart", border_style="cyan")
+        text if quiet else Panel(text, title="Scheduler Restart", border_style="cyan")
     )

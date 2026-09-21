@@ -9,7 +9,6 @@ from typing import Any
 
 import pytest
 
-from sase.axe.process import AxeStartResult
 import sase.dev_update.journal as journal_mod
 from sase.dev_update.models import (
     DevCommandResult,
@@ -20,6 +19,7 @@ from sase.dev_update.models import (
     DevUpdateResult,
 )
 from sase.main.update_handler import handle_update_command
+from sase.service.actions import ServiceProcActionOutcome
 from sase.uv_tool.errors import UvCommandFailedError
 from sase.uv_tool.runner import UvChangeSet, parse_uv_output
 from sase.version.inventory import VersionPackageRecord
@@ -37,7 +37,7 @@ from tests.main.update_command_helpers import (
 )
 
 
-def test_dev_update_runs_backend_and_restarts_axe(
+def test_dev_update_runs_backend_and_restarts_scheduler(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -66,10 +66,16 @@ def test_dev_update_runs_backend_and_restarts_axe(
         seen["executed"] = True
         return _dev_result(plan)
 
-    def _restart(*, desired_state_source: str) -> AxeStartResult:
+    def _restart(*, reason: str | None = None) -> ServiceProcActionOutcome:
         seen["restart_calls"] += 1
-        seen["restart_source"] = desired_state_source
-        return AxeStartResult(status="started", pid=2468)
+        seen["restart_source"] = reason
+        return ServiceProcActionOutcome(
+            action="restart",
+            name="scheduler",
+            mutations=(),
+            nudged=True,
+            message="requested service proc scheduler restart",
+        )
 
     clock = iter([0.0, 2.0])
     out = _console()
@@ -83,8 +89,8 @@ def test_dev_update_runs_backend_and_restarts_axe(
         inventory_fn=lambda: _inventory(host, github, telegram),
         plan_dev_update_fn=_plan,
         execute_dev_update_fn=_execute,
-        axe_running_fn=lambda: True,
-        restart_axe_fn=_restart,
+        scheduler_running_fn=lambda: True,
+        restart_scheduler_fn=_restart,
         version_fn=_versions,
         clock=lambda: next(clock),
     )
@@ -98,12 +104,15 @@ def test_dev_update_runs_backend_and_restarts_axe(
     text = _text(out)
     assert "SASE Dev Update" in text
     assert "0.6.1+1.gaaaaaaaaa \u2192 0.6.1+2.gbbbbbbbbb" in text
-    assert "Axe restarted (pid 2468)" in text
+    assert "requested service proc scheduler restart" in text
     journal_payload = json.loads(journal_path.read_text(encoding="utf-8"))
     assert journal_payload["result"]["status"] == "updated"
     assert journal_payload["plan"]["packages"][0]["name"] == "sase"
     assert journal_payload["restart"]["status"] == "restarted"
-    assert journal_payload["restart"]["pid"] == 2468
+    assert (
+        journal_payload["restart"]["message"]
+        == "requested service proc scheduler restart"
+    )
 
 
 def test_dev_update_json_includes_dev_outcomes_and_restart(
@@ -130,15 +139,21 @@ def test_dev_update_json_includes_dev_outcomes_and_restart(
         inventory_fn=lambda: _inventory(host),
         plan_dev_update_fn=_plan,
         execute_dev_update_fn=_execute,
-        axe_running_fn=lambda: True,
-        restart_axe_fn=lambda: AxeStartResult(status="started", pid=1357),
+        scheduler_running_fn=lambda: True,
+        restart_scheduler_fn=lambda reason=None: ServiceProcActionOutcome(
+            action="restart",
+            name="scheduler",
+            mutations=(),
+            nudged=True,
+            message="requested service proc scheduler restart",
+        ),
         version_fn=_versions,
         clock=lambda: 0.0,
     )
 
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["schema_version"] == 3
+    assert payload["schema_version"] == 4
     assert payload["mode"] == "dev"
     assert payload["command"] == []
     assert payload["changed"] is True
@@ -167,8 +182,7 @@ def test_dev_update_json_includes_dev_outcomes_and_restart(
     assert payload["dev"]["packages"][0]["status"] == "updated"
     assert payload["restart"] == {
         "attempted": True,
-        "message": "Axe restarted (pid 1357)",
-        "pid": 1357,
+        "message": "requested service proc scheduler restart",
         "reason": None,
         "status": "restarted",
     }
@@ -209,7 +223,7 @@ def test_dev_update_appends_editable_runtime_core_to_receipt_targets(
         inventory_fn=lambda: _inventory(host, core, github, telegram),
         plan_dev_update_fn=_plan,
         execute_dev_update_fn=lambda plan, **_kwargs: _dev_result(plan),
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         version_fn=_versions,
         clock=lambda: 0.0,
     )
@@ -267,10 +281,16 @@ def test_dev_update_failure_exits_one_and_does_not_restart(tmp_path: Path) -> No
         )
         return DevUpdateResult(changed=True, outcomes=(outcome,))
 
-    def _restart() -> AxeStartResult:
+    def _restart(*, reason: str | None = None) -> ServiceProcActionOutcome:
         nonlocal restart_calls
         restart_calls += 1
-        return AxeStartResult(status="started", pid=1)
+        return ServiceProcActionOutcome(
+            action="restart",
+            name="scheduler",
+            mutations=(),
+            nudged=True,
+            message="requested service proc scheduler restart",
+        )
 
     err = _console()
     code = handle_update_command(
@@ -281,8 +301,8 @@ def test_dev_update_failure_exits_one_and_does_not_restart(tmp_path: Path) -> No
         inventory_fn=lambda: _inventory(host),
         plan_dev_update_fn=_plan,
         execute_dev_update_fn=_execute,
-        axe_running_fn=lambda: True,
-        restart_axe_fn=_restart,
+        scheduler_running_fn=lambda: True,
+        restart_scheduler_fn=_restart,
         version_fn=_versions,
     )
 
@@ -310,7 +330,7 @@ def test_upgrade_json_counts_exclude_receipt_duplicates(
         inventory_fn=lambda: _inventory(host, github, telegram),
         plan_dev_update_fn=lambda records, **_kwargs: _dev_plan(*records),
         execute_dev_update_fn=lambda plan, **_kwargs: _dev_result(plan),
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         version_fn=_versions,
         clock=lambda: 0.0,
     )
@@ -373,10 +393,16 @@ def test_editable_roots_with_wheel_core_restore_core_via_dev_leg(
             "the managed leg must not run when only sase-core-rs is non-editable"
         )
 
-    def _restart() -> AxeStartResult:
+    def _restart(*, reason: str | None = None) -> ServiceProcActionOutcome:
         nonlocal restart_calls
         restart_calls += 1
-        return AxeStartResult(status="started", pid=2468)
+        return ServiceProcActionOutcome(
+            action="restart",
+            name="scheduler",
+            mutations=(),
+            nudged=True,
+            message="requested service proc scheduler restart",
+        )
 
     code = handle_update_command(
         _args(json=True),
@@ -385,8 +411,8 @@ def test_editable_roots_with_wheel_core_restore_core_via_dev_leg(
         inventory_fn=lambda: _inventory(host, core, github, telegram),
         plan_dev_update_fn=_plan,
         execute_dev_update_fn=lambda plan, **_kwargs: _dev_result(plan),
-        axe_running_fn=lambda: True,
-        restart_axe_fn=_restart,
+        scheduler_running_fn=lambda: True,
+        restart_scheduler_fn=_restart,
         version_fn=_versions,
         clock=lambda: 0.0,
     )
@@ -471,7 +497,7 @@ def test_skipped_editable_states_do_not_block_stale_core_restore(
         inventory_fn=lambda: _inventory(host, core),
         plan_dev_update_fn=lambda _records, **_kwargs: plan,
         run_dev_update_fn=_run_command,
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         version_fn=_versions,
         clock=lambda: 0.0,
     )
@@ -513,10 +539,16 @@ def test_managed_core_failure_is_not_success_and_does_not_restart(
         assert argv[-2:] == ["--upgrade-package", "sase-core-rs"]
         raise UvCommandFailedError(argv=argv, returncode=2, stderr="core conflict")
 
-    def _restart() -> AxeStartResult:
+    def _restart(*, reason: str | None = None) -> ServiceProcActionOutcome:
         nonlocal restart_calls
         restart_calls += 1
-        return AxeStartResult(status="started", pid=1)
+        return ServiceProcActionOutcome(
+            action="restart",
+            name="scheduler",
+            mutations=(),
+            nudged=True,
+            message="requested service proc scheduler restart",
+        )
 
     plan = _dev_plan(github, status="skipped")
     err = _console()
@@ -528,8 +560,8 @@ def test_managed_core_failure_is_not_success_and_does_not_restart(
         run_fn=_run,
         inventory_fn=lambda: _inventory(host, core, github),
         plan_dev_update_fn=lambda _records, **_kwargs: plan,
-        axe_running_fn=lambda: True,
-        restart_axe_fn=_restart,
+        scheduler_running_fn=lambda: True,
+        restart_scheduler_fn=_restart,
         version_fn=_versions,
     )
 

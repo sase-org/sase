@@ -6,9 +6,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-from sase.axe.process import AxeStartAttempt, AxeStartResult
+from sase.axe.process import AxeStartResult
 from sase.dev_update import DevUpdatePlan, DevUpdateResult
 from sase.dev_update.models import DevCommandRunner
+from sase.service.actions import ServiceProcActionOutcome
 from sase.uv_tool.detect import NotUvToolInstall, UvToolInstall
 from sase.uv_tool.receipt import Requirement, ToolReceipt
 from sase.uv_tool.runner import UvChangeSet
@@ -16,14 +17,16 @@ from sase.uv_tool.render import UpdateSummary
 from sase.version.inventory import RuntimeVersionInventory, VersionPackageRecord
 
 #: Bump when the ``-j|--json`` payload shape changes incompatibly.
-UPDATE_JSON_SCHEMA_VERSION = 3
+UPDATE_JSON_SCHEMA_VERSION = 4
 
 ProbeFn = Callable[[], UvToolInstall | NotUvToolInstall]
 RunUvFn = Callable[[list[str]], UvChangeSet]
 VersionFn = Callable[[str], str | None]
 ClockFn = Callable[[], float]
 InventoryFn = Callable[[], RuntimeVersionInventory]
-AxeRunningFn = Callable[[], bool]
+SchedulerRunningFn = Callable[[], bool]
+RestartSchedulerFn = Callable[..., ServiceProcActionOutcome]
+#: Still used by ``sase axe restart``; the axe-alias phase deletes it.
 RestartAxeFn = Callable[..., AxeStartResult]
 RestartStatus = Literal[
     "skipped_no_change",
@@ -53,15 +56,12 @@ class ExecuteDevFn(Protocol):
 
 @dataclass(frozen=True)
 class RestartInfo:
-    """Axe restart outcome after a changed successful update."""
+    """Scheduler restart outcome after a changed successful update."""
 
     attempted: bool
     status: RestartStatus
-    pid: int | None = None
     message: str = ""
     reason: str | None = None
-    attempts: tuple[AxeStartAttempt, ...] = ()
-    verified: bool = False
 
 
 @dataclass(frozen=True)

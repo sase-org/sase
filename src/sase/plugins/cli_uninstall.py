@@ -26,10 +26,14 @@ from typing import Any
 
 from rich.console import Console
 
-from sase.axe.process import is_axe_running, restart_axe_daemon_result
+from sase.axe.process import is_axe_running
 from sase.main.update_json import restart_info_json
-from sase.main.update_restart import render_restart_info
-from sase.main.update_types import AxeRunningFn, RestartAxeFn, RestartInfo
+from sase.main.update_restart import render_restart_info, restart_scheduler_service_proc
+from sase.main.update_types import (
+    RestartInfo,
+    RestartSchedulerFn,
+    SchedulerRunningFn,
+)
 from sase.plugins.catalog import PluginCatalogError, load_plugin_catalog
 from sase.plugins.cli_restart import restart_after_plugin_change
 from sase.plugins.operations import (
@@ -68,8 +72,8 @@ def handle_plugin_uninstall_command(
     load_fn: LoadFn = load_plugin_catalog,
     probe_fn: ProbeFn = probe_uv_tool_install,
     run_fn: RunUvFn = run_uv,
-    axe_running_fn: AxeRunningFn = is_axe_running,
-    restart_axe_fn: RestartAxeFn = restart_axe_daemon_result,
+    scheduler_running_fn: SchedulerRunningFn = is_axe_running,
+    restart_scheduler_fn: RestartSchedulerFn = restart_scheduler_service_proc,
     clock: ClockFn = time.monotonic,
 ) -> int:
     """Run ``sase plugin uninstall <plugin>``; return the process exit code."""
@@ -113,8 +117,8 @@ def handle_plugin_uninstall_command(
 
     restart = restart_after_plugin_change(
         outcome.change_set,
-        axe_running_fn=axe_running_fn,
-        restart_axe_fn=restart_axe_fn,
+        scheduler_running_fn=scheduler_running_fn,
+        restart_scheduler_fn=restart_scheduler_fn,
         source="sase plugin uninstall",
     )
 

@@ -1,9 +1,13 @@
-"""Shared AXE restart helpers for plugin CLI mutations."""
+"""Shared scheduler restart helpers for plugin CLI mutations."""
 
 from __future__ import annotations
 
 from sase.main.update_restart import restart_after_update
-from sase.main.update_types import AxeRunningFn, RestartAxeFn, RestartInfo
+from sase.main.update_types import (
+    RestartInfo,
+    RestartSchedulerFn,
+    SchedulerRunningFn,
+)
 from sase.uv_tool.runner import ChangeKind, UvChangeSet
 
 
@@ -15,15 +19,15 @@ def _change_set_changed(change_set: UvChangeSet) -> bool:
 def restart_after_plugin_change(
     change_set: UvChangeSet,
     *,
-    axe_running_fn: AxeRunningFn,
-    restart_axe_fn: RestartAxeFn,
+    scheduler_running_fn: SchedulerRunningFn,
+    restart_scheduler_fn: RestartSchedulerFn,
     source: str = "sase plugin change",
 ) -> RestartInfo:
-    """Restart AXE when a plugin uv operation changed installed code."""
+    """Restart the scheduler when a plugin uv operation changed installed code."""
     return restart_after_update(
         changed=_change_set_changed(change_set),
-        axe_running_fn=axe_running_fn,
-        restart_axe_fn=restart_axe_fn,
+        scheduler_running_fn=scheduler_running_fn,
+        restart_scheduler_fn=restart_scheduler_fn,
         source=source,
     )
 

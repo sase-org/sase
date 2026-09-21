@@ -10,7 +10,7 @@ from collections.abc import Callable
 from rich.console import Console
 from rich.text import Text
 
-from sase.axe.process import is_axe_running, restart_axe_daemon_result
+from sase.axe.process import is_axe_running
 from sase.bead_flag_presentation import flag_key_chip
 from sase.feature_flags.cli_json import mutation_json
 from sase.feature_flags.cli_render import (
@@ -29,8 +29,16 @@ from sase.feature_flags.models import (
 )
 from sase.feature_flags.state import set_saved_feature_flag
 from sase.main.update_json import restart_info_json
-from sase.main.update_restart import render_restart_info, restart_after_update
-from sase.main.update_types import AxeRunningFn, RestartAxeFn, RestartInfo
+from sase.main.update_restart import (
+    render_restart_info,
+    restart_after_update,
+    restart_scheduler_service_proc,
+)
+from sase.main.update_types import (
+    RestartInfo,
+    RestartSchedulerFn,
+    SchedulerRunningFn,
+)
 
 
 SET_JSON_SCHEMA_VERSION = 1
@@ -38,7 +46,7 @@ APPLY_SAVED_FEATURE_FLAG = "apply the saved feature flag"
 ACE_RESTART_NOTICE = (
     "Restart any separately running sase's TUI session to apply the saved feature flag."
 )
-_AXE_NOT_RUNNING_MESSAGE = "AXE is not running; left stopped."
+_SCHEDULER_NOT_RUNNING_MESSAGE = "Scheduler is not running; left stopped."
 MutateFn = Callable[[str, bool], FeatureFlagMutationOutcome]
 
 
@@ -48,10 +56,10 @@ def handle_flag_set(
     enabled: bool,
     console: Console | None = None,
     mutate_fn: MutateFn = set_saved_feature_flag,
-    axe_running_fn: AxeRunningFn = is_axe_running,
-    restart_axe_fn: RestartAxeFn = restart_axe_daemon_result,
+    scheduler_running_fn: SchedulerRunningFn = is_axe_running,
+    restart_scheduler_fn: RestartSchedulerFn = restart_scheduler_service_proc,
 ) -> int:
-    """Persist *enabled* for the parsed flag key and retry the AXE restart."""
+    """Persist *enabled* for the parsed flag key and retry the scheduler restart."""
     key = str(getattr(args, "flag_key", "") or "")
     as_json = bool(getattr(args, "json", False))
     command = "enable" if enabled else "disable"
@@ -66,8 +74,8 @@ def handle_flag_set(
 
     restart = restart_after_update(
         changed=True,
-        axe_running_fn=axe_running_fn,
-        restart_axe_fn=restart_axe_fn,
+        scheduler_running_fn=scheduler_running_fn,
+        restart_scheduler_fn=restart_scheduler_fn,
         source=f"sase flag {command}",
     )
     if as_json:
@@ -132,7 +140,7 @@ def _render_set(
     render_diagnostics(outcome.diagnostics, console)
     console.print(Text(ACE_RESTART_NOTICE, style="dim"))
     if restart.status == "skipped_not_running":
-        console.print(Text(_AXE_NOT_RUNNING_MESSAGE, style="dim"))
+        console.print(Text(_SCHEDULER_NOT_RUNNING_MESSAGE, style="dim"))
         return
     render_restart_info(
         restart,

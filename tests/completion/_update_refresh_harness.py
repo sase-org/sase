@@ -87,7 +87,7 @@ def successful_update(
         _args(json=True),
         probe_fn=lambda: _uv_tool_install(tmp_path / "uv-tool"),
         run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         version_fn=_versions,
         clock=lambda: 0.0,
         refresh_completions_fn=refresh_fn or _refresh_stamped_completions,

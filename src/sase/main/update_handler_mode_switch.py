@@ -18,11 +18,11 @@ from sase.main.update_handler_completion import (
 from sase.main.update_handler_support import fail_update
 from sase.main.update_restart import render_restart_info, restart_after_update
 from sase.main.update_types import (
-    AxeRunningFn,
     ClockFn,
     InventoryFn,
-    RestartAxeFn,
+    RestartSchedulerFn,
     RunUvFn,
+    SchedulerRunningFn,
 )
 from sase.mode_switch import (
     execute_mode_switch,
@@ -51,8 +51,8 @@ def handle_mode_switch(
     inventory_fn: InventoryFn,
     run_fn: RunUvFn,
     run_dev_update_fn: DevCommandRunner,
-    axe_running_fn: AxeRunningFn,
-    restart_axe_fn: RestartAxeFn,
+    scheduler_running_fn: SchedulerRunningFn,
+    restart_scheduler_fn: RestartSchedulerFn,
     clock: ClockFn,
     config_fn: Callable[[], dict[str, Any]],
     refresh_completions_fn: Callable[[], CompletionRefreshReport] | None = None,
@@ -117,8 +117,8 @@ def handle_mode_switch(
     elapsed = max(0.0, clock() - start)
     restart = restart_after_update(
         changed=result.changed,
-        axe_running_fn=axe_running_fn,
-        restart_axe_fn=restart_axe_fn,
+        scheduler_running_fn=scheduler_running_fn,
+        restart_scheduler_fn=restart_scheduler_fn,
         source="sase update mode switch",
     )
     refresh = completion_refresh_after_update(install, refresh_completions_fn)

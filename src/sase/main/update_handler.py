@@ -3,9 +3,9 @@
 Managed installs still use ``uv tool upgrade sase``. Editable uv-tool installs
 route matching editable package records through the dev-update backend: safe git
 fast-forwards first, then uv-tool/Rust reconciliation. Every impure dependency
-(install probing, runtime inventory, git/subprocess execution, uv, axe restart,
-version lookup, and the clock) is injectable so the command remains unit-testable
-without a real uv install or daemon.
+(install probing, runtime inventory, git/subprocess execution, uv, scheduler
+restart, version lookup, and the clock) is injectable so the command remains
+unit-testable without a real uv install or daemon.
 
 The mode-switch, dry-run, and live-update paths are dispatched to sibling
 ``update_handler_*`` modules; this module only wires argument defaults and
@@ -21,10 +21,8 @@ from typing import Any
 
 from rich.console import Console
 
-from sase.axe.process import (
-    is_axe_running,
-    restart_axe_daemon_result,
-)
+from sase.axe.process import is_axe_running
+from sase.main.update_restart import restart_scheduler_service_proc
 from sase.dev_update import execute_dev_update, plan_dev_update
 from sase.dev_update.models import DevCommandRunner
 from sase.config import load_merged_config
@@ -37,14 +35,14 @@ from sase.main.update_handler_support import fail_update
 from sase.main.update_routing import installed_version
 from sase.main.update_types import (
     UPDATE_JSON_SCHEMA_VERSION,
-    AxeRunningFn,
     ClockFn,
     ExecuteDevFn,
     InventoryFn,
     PlanDevFn,
     ProbeFn,
-    RestartAxeFn,
+    RestartSchedulerFn,
     RunUvFn,
+    SchedulerRunningFn,
     VersionFn,
 )
 from sase.uv_tool.detect import NotUvToolInstall, probe_uv_tool_install
@@ -66,8 +64,8 @@ def handle_update_command(
     plan_dev_update_fn: PlanDevFn = plan_dev_update,
     execute_dev_update_fn: ExecuteDevFn = execute_dev_update,
     run_dev_update_fn: DevCommandRunner = run_dev_update_command,
-    axe_running_fn: AxeRunningFn = is_axe_running,
-    restart_axe_fn: RestartAxeFn = restart_axe_daemon_result,
+    scheduler_running_fn: SchedulerRunningFn = is_axe_running,
+    restart_scheduler_fn: RestartSchedulerFn = restart_scheduler_service_proc,
     version_fn: VersionFn = installed_version,
     clock: ClockFn = time.monotonic,
     config_fn: Callable[[], dict[str, Any]] = load_merged_config,
@@ -98,8 +96,8 @@ def handle_update_command(
             inventory_fn=inventory_fn,
             run_fn=run_fn,
             run_dev_update_fn=run_dev_update_fn,
-            axe_running_fn=axe_running_fn,
-            restart_axe_fn=restart_axe_fn,
+            scheduler_running_fn=scheduler_running_fn,
+            restart_scheduler_fn=restart_scheduler_fn,
             clock=clock,
             config_fn=config_fn,
             refresh_completions_fn=refresh_completions_fn,
@@ -127,8 +125,8 @@ def handle_update_command(
         plan_dev_update_fn=plan_dev_update_fn,
         execute_dev_update_fn=execute_dev_update_fn,
         run_dev_update_fn=run_dev_update_fn,
-        axe_running_fn=axe_running_fn,
-        restart_axe_fn=restart_axe_fn,
+        scheduler_running_fn=scheduler_running_fn,
+        restart_scheduler_fn=restart_scheduler_fn,
         version_fn=version_fn,
         clock=clock,
         refresh_completions_fn=refresh_completions_fn,

@@ -11,7 +11,6 @@ from typing import Any
 import pytest
 from rich.console import Console
 
-from sase.axe.process import AxeStartResult
 from sase.main.parser import create_parser
 from sase.plugins.catalog import PluginCatalog, PluginCatalogEntry
 from sase.plugins.cli_install import (
@@ -21,6 +20,7 @@ from sase.plugins.cli_install import (
 )
 from sase.plugins.installed import InstalledInfo
 from sase.plugins.pypi_source import ProjectAvailability
+from sase.service.actions import ServiceProcActionOutcome
 from sase.uv_tool.detect import NotUvToolInstall, NotUvToolReason, UvToolInstall
 from sase.uv_tool.errors import UvCommandFailedError
 from sase.uv_tool.runner import UvChangeSet, parse_uv_output
@@ -347,7 +347,7 @@ def test_install_runs_full_set_plus_new_plugin(tmp_path: Path) -> None:
                 installed=True, version="0.4.0", entry_point_groups=("sase_vcs",)
             )
         },
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -383,7 +383,7 @@ def test_install_json_payload_is_stable(tmp_path: Path, capsys: Any) -> None:
                 installed=True, version="0.4.0", entry_point_groups=("sase_vcs",)
             )
         },
-        axe_running_fn=lambda: False,
+        scheduler_running_fn=lambda: False,
         clock=lambda: 0.0,
     )
     assert code == 0
@@ -399,15 +399,21 @@ def test_install_json_payload_is_stable(tmp_path: Path, capsys: Any) -> None:
     assert payload["restart"]["status"] == "skipped_not_running"
 
 
-def test_install_restarts_axe_when_changed(tmp_path: Path) -> None:
+def test_install_restarts_scheduler_when_changed(tmp_path: Path) -> None:
     restart_calls = 0
-    restart_source = ""
+    restart_source: str | None = None
 
-    def _restart(*, desired_state_source: str) -> AxeStartResult:
+    def _restart(*, reason: str | None = None) -> ServiceProcActionOutcome:
         nonlocal restart_calls, restart_source
         restart_calls += 1
-        restart_source = desired_state_source
-        return AxeStartResult(status="started", pid=2468)
+        restart_source = reason
+        return ServiceProcActionOutcome(
+            action="restart",
+            name="scheduler",
+            mutations=(),
+            nudged=True,
+            message="requested service proc scheduler restart",
+        )
 
     out = _console()
     code = handle_plugin_install_command(
@@ -418,20 +424,20 @@ def test_install_restarts_axe_when_changed(tmp_path: Path) -> None:
         availability_fn=_all_available,
         run_fn=lambda _argv: parse_uv_output(_INSTALL_OUTPUT),
         installed_index_fn=lambda: {},
-        axe_running_fn=lambda: True,
-        restart_axe_fn=_restart,
+        scheduler_running_fn=lambda: True,
+        restart_scheduler_fn=_restart,
         clock=lambda: 0.0,
     )
 
     assert code == 0
     assert restart_calls == 1
     assert restart_source == "sase plugin install"
-    assert "Axe restarted (pid 2468)" in _text(out)
+    assert "requested service proc scheduler restart" in _text(out)
 
 
-def test_install_noop_does_not_check_axe(tmp_path: Path) -> None:
-    def _axe_running() -> bool:
-        raise AssertionError("axe status must not be checked for a no-op install")
+def test_install_noop_does_not_check_scheduler(tmp_path: Path) -> None:
+    def _scheduler_running() -> bool:
+        raise AssertionError("scheduler status must not be checked for a no-op install")
 
     out = _console()
     code = handle_plugin_install_command(
@@ -442,12 +448,12 @@ def test_install_noop_does_not_check_axe(tmp_path: Path) -> None:
         availability_fn=_all_available,
         run_fn=lambda _argv: UvChangeSet(),
         installed_index_fn=lambda: {},
-        axe_running_fn=_axe_running,
+        scheduler_running_fn=_scheduler_running,
         clock=lambda: 0.0,
     )
 
     assert code == 0
-    assert "Axe Restart" not in _text(out)
+    assert "Scheduler Restart" not in _text(out)
 
 
 def test_install_already_injected_is_idempotent(tmp_path: Path) -> None:
