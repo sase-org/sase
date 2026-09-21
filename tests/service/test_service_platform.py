@@ -593,8 +593,8 @@ def test_default_runner_refuses_under_pytest(
 
     _linux_home(tmp_path, monkeypatch)
     monkeypatch.delenv(SERVICE_LIFECYCLE_TEST_OVERRIDE_ENV, raising=False)
-    with patch("sase.service.platform.subprocess.run") as run:
-        result = service_platform._default_runner(
+    with patch("sase.service.platform_runner.subprocess.run") as run:
+        result = service_platform.default_runner(
             ["systemctl", "--user", "is-active", "sase.service"]
         )
     run.assert_not_called()
@@ -603,7 +603,7 @@ def test_default_runner_refuses_under_pytest(
     definition, _blockers, _exe_info = build_native_definition(
         executable_resolver=lambda: str(_exe(tmp_path)),
     )
-    with patch("sase.service.platform.subprocess.run") as run:
+    with patch("sase.service.platform_runner.subprocess.run") as run:
         inspection = inspect_native_service(
             definition,
             desired_env={"PATH": "/bin"},
@@ -618,9 +618,9 @@ def test_default_runner_override_allows_isolated_lifecycle_test(
     from sase.service import platform as service_platform
 
     monkeypatch.setenv(SERVICE_LIFECYCLE_TEST_OVERRIDE_ENV, "1")
-    with patch("sase.service.platform.subprocess.run") as run:
+    with patch("sase.service.platform_runner.subprocess.run") as run:
         run.return_value = SimpleNamespace(returncode=0, stdout="ok\n", stderr="")
-        result = service_platform._default_runner(["true"])
+        result = service_platform.default_runner(["true"])
     run.assert_called_once()
     assert result.returncode == 0
     assert result.stdout == "ok\n"
