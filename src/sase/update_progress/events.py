@@ -44,6 +44,7 @@ class StepSpec:
     id: str
     title: str
     parent_id: str | None = None
+    trailing: bool = False
 
 
 class UpdateProgress(Protocol):
@@ -71,7 +72,12 @@ class UpdateProgress(Protocol):
         """Record a streamed command line for the log. No-op by default."""
         ...
 
-    def finalize(self, status_for_pending: StepStatus = "skipped") -> None:
+    def finalize(
+        self,
+        status_for_pending: StepStatus = "skipped",
+        *,
+        status_for_running: StepStatus | None = None,
+    ) -> None:
         """Mark every still-pending or still-running step with the given status."""
         ...
 
@@ -100,7 +106,12 @@ class NullProgress:
     def command(self, id: str, argv: Sequence[str], cwd: str | None = None) -> None:
         """Discard streamed command records."""
 
-    def finalize(self, status_for_pending: StepStatus = "skipped") -> None:
+    def finalize(
+        self,
+        status_for_pending: StepStatus = "skipped",
+        *,
+        status_for_running: StepStatus | None = None,
+    ) -> None:
         """Discard finalization."""
 
     def output_sink(self, id: str) -> OutputSink:

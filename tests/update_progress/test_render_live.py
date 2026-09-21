@@ -41,7 +41,7 @@ def test_live_frame_layout_matches_target() -> None:
         ]
     )
     model.start("inspect")
-    model.finish("inspect", "done", detail="uv tool · 5 editable · 1 managed")
+    model.finish("inspect", "done", detail="uv tool · 5 editable")
     clock.advance(0.4)
     model.start("check")
     model.output("check", "stdout", "From origin")
@@ -54,7 +54,7 @@ def test_live_frame_layout_matches_target() -> None:
     assert "sase update · dev install" in text
     assert "✓" in text
     assert "Inspect install" in text
-    assert "uv tool · 5 editable · 1 managed" in text
+    assert "uv tool · 5 editable" in text
     assert "Check for updates" in text
 
 

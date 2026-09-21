@@ -63,8 +63,13 @@ class RecordingProgress:
     def command(self, id: str, argv: Sequence[str], cwd: str | None = None) -> None:
         self.events.append(("command", id, tuple(argv), cwd))
 
-    def finalize(self, status_for_pending: StepStatus = "skipped") -> None:
-        self.events.append(("finalize", status_for_pending))
+    def finalize(
+        self,
+        status_for_pending: StepStatus = "skipped",
+        *,
+        status_for_running: StepStatus | None = None,
+    ) -> None:
+        self.events.append(("finalize", status_for_pending, status_for_running))
 
     def output_sink(self, id: str) -> OutputSink:
         def sink(stream: str, line: str) -> None:

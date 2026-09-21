@@ -120,7 +120,6 @@ def test_session_plain_end_to_end(tmp_path: Path) -> None:
         console, mode="dev install", argv=["sase", "update"], log_dir=tmp_path
     ) as session:
         assert session.shown
-        assert not session.degraded
         session.set_header("dev install")
         session.progress.declare([StepSpec(id="inspect", title="Inspect install")])
         session.progress.start("inspect")

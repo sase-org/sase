@@ -6,7 +6,7 @@ import os
 import threading
 
 from collections.abc import Sequence
-from datetime import datetime, timezone, UTC
+from datetime import UTC, datetime
 from pathlib import Path
 
 from .events import OutputSink, StepSpec, StepStatus
@@ -70,7 +70,8 @@ class UpdateLogSink:
                 handle.write("sase update log\n")
                 handle.write(f"argv: {' '.join(argv)}\n")
                 handle.write(f"sase: {version}\n")
-                handle.write(f"mode: {mode}\n")
+                if mode:
+                    handle.write(f"mode: {mode}\n")
                 handle.write(f"started: {started}\n")
                 handle.write("---\n")
             self._prune_locked(directory)
@@ -141,9 +142,28 @@ class UpdateLogSink:
             f"[{_utc_now().isoformat()}] COMMAND {id}{where} {' '.join(argv)}\n"
         )
 
-    def finalize(self, status_for_pending: StepStatus = "skipped") -> None:
+    def set_mode(self, mode: str) -> None:
+        """Record the install mode once it is known."""
+        if mode:
+            self._write(f"[{_utc_now().isoformat()}] mode: {mode}\n")
+
+    def finalize(
+        self,
+        status_for_pending: StepStatus = "skipped",
+        *,
+        status_for_running: StepStatus | None = None,
+    ) -> None:
         """Log finalization; per-step lines come from the model's own events."""
-        self._write(f"[{_utc_now().isoformat()}] FINALIZE {status_for_pending}\n")
+        running = (
+            status_for_running if status_for_running is not None else status_for_pending
+        )
+        if running == status_for_pending:
+            self._write(f"[{_utc_now().isoformat()}] FINALIZE {status_for_pending}\n")
+        else:
+            self._write(
+                f"[{_utc_now().isoformat()}] FINALIZE {status_for_pending}"
+                f" running={running}\n"
+            )
 
     def output_sink(self, id: str) -> OutputSink:
         """Return an :data:`OutputSink` bound to a step."""

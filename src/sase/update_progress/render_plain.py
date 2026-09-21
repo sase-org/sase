@@ -12,7 +12,7 @@ from rich.text import Text
 
 from .events import TERMINAL_STATUSES
 from .styles import FINAL_GLYPH, STATUS_STYLE, format_duration, format_stamp
-from .timeline import TimelineModel, elapsed, walk
+from .timeline import StepSnapshot, TimelineModel, elapsed, walk
 
 _START_DELAY = 2.0
 """Seconds a step runs before its start line prints (keeps fast runs terse)."""
@@ -54,6 +54,7 @@ class PlainTimelineRenderer:
         self._stop = threading.Event()
         self._ticker: threading.Thread | None = None
         self._poll_lock = threading.Lock()
+        self._finalized = False
 
     def set_header(self, mode: str) -> None:
         """Set the install mode shown in the header line."""
@@ -103,7 +104,11 @@ class PlainTimelineRenderer:
     def print_final(self, *, expand_failures: bool = True) -> None:
         """Flush every unreported finish line (with failure tails)."""
         del expand_failures  # Plain always expands: tails print on finish.
+        self.detach()
+        if self._finalized:
+            return
         self.poll()
+        self._finalized = True
 
     def _tick(self) -> None:
         while not self._stop.wait(_TICK_INTERVAL):
@@ -114,6 +119,8 @@ class PlainTimelineRenderer:
 
     def poll(self) -> None:
         """Print newly due start lines, verbose lines, and finish lines once."""
+        if self._finalized:
+            return
         with self._poll_lock:
             self._poll_locked()
 
@@ -125,12 +132,25 @@ class PlainTimelineRenderer:
         stamp = format_stamp(now - t0)
         for _depth, row in walk(self._model.snapshot()):
             if self._verbose:
-                seen = self._seen_tail.get(row.id, 0)
-                for line in row.tail[seen:]:
+                omitted, new_lines = _new_verbose_lines(
+                    row, self._seen_tail.get(row.id, 0)
+                )
+                if omitted:
+                    self._console.print(
+                        Text.assemble(
+                            ("    ", ""),
+                            ("│ ", "dim"),
+                            Text(
+                                f"… {omitted} lines omitted (see full log)",
+                                style="dim",
+                            ),
+                        )
+                    )
+                for line in new_lines:
                     self._console.print(
                         Text.assemble(("    ", ""), ("│ ", "dim"), line)
                     )
-                self._seen_tail[row.id] = len(row.tail)
+                self._seen_tail[row.id] = row.lines_total
             if row.status == "running":
                 if row.id not in self._announced and elapsed(row, now) >= _START_DELAY:
                     self._console.print(Text(f"[{stamp}] → {row.title}"))
@@ -150,3 +170,15 @@ class PlainTimelineRenderer:
                         self._console.print(
                             Text.assemble(("    ", ""), ("│ ", "dim"), tail_line)
                         )
+
+
+def _new_verbose_lines(row: StepSnapshot, emitted: int) -> tuple[int, list[str]]:
+    """Return ``(omitted, lines)`` for verbose streaming by line counter."""
+    total = row.lines_total
+    if total <= emitted:
+        return 0, []
+    tail = row.tail
+    tail_start = total - len(tail)
+    first_available = max(emitted, tail_start)
+    omitted = first_available - emitted
+    return omitted, list(tail[first_available - tail_start :])

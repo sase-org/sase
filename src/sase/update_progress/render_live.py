@@ -104,6 +104,7 @@ class LiveTimelineRenderer:
         self._stop = threading.Event()
         self._watcher: threading.Thread | None = None
         self._verbose_lock = threading.Lock()
+        self._finalized = False
 
     @property
     def degraded(self) -> bool:
@@ -123,7 +124,7 @@ class LiveTimelineRenderer:
         return "sase update"
 
     def __enter__(self) -> LiveTimelineRenderer:
-        """Start the transient Live region and the verbose watcher."""
+        """Start the transient Live region and the watcher thread."""
         self._t0 = self._clock()
         self._live = Live(
             self._Frame(self),
@@ -132,12 +133,11 @@ class LiveTimelineRenderer:
             refresh_per_second=10,
         )
         self._live.start()
-        if self._verbose:
-            self._stop.clear()
-            self._watcher = threading.Thread(
-                target=self._watch_verbose, name="live-timeline-verbose", daemon=True
-            )
-            self._watcher.start()
+        self._stop.clear()
+        self._watcher = threading.Thread(
+            target=self._watch_verbose, name="live-timeline-verbose", daemon=True
+        )
+        self._watcher.start()
         return self
 
     def __exit__(self, *exc: object) -> None:
@@ -165,8 +165,14 @@ class LiveTimelineRenderer:
         def __rich_console__(
             self, console: Console, options: ConsoleOptions
         ) -> Iterator[RenderableType]:
-            del console, options
-            yield self.__rich__()
+            try:
+                panel = self._renderer.frame()
+                # Materialize segments so draw-time errors degrade too.
+                list(console.render(panel, options))
+                yield panel
+            except Exception:  # noqa: BLE001 - reported via degrade, not raised
+                self._renderer._fail_over()  # noqa: SLF001 - owned renderable
+                yield Text("progress unavailable", style="dim")
 
         def __rich__(self) -> RenderableType:
             try:
@@ -210,21 +216,37 @@ class LiveTimelineRenderer:
         if self._plain is not None:
             self._plain.poll()
             return
-        if not self._verbose or self._live is None:
+        if self._finalized:
+            return
+        if self._live is None:
+            return
+        if not self._verbose:
             return
         live = self._live
         with self._verbose_lock:
-            rows = walk(self._model.snapshot())
-            pending: list[str] = []
-            for _depth, row in rows:
-                seen = self._seen_tail.get(row.id, 0)
-                pending.extend(row.tail[seen:])
-                self._seen_tail[row.id] = len(row.tail)
-        for line in pending:
+            pending: list[RenderableType] = []
+            for _depth, row in walk(self._model.snapshot()):
+                emitted = self._seen_tail.get(row.id, 0)
+                omitted, new_lines = _new_verbose_lines(row, emitted)
+                if omitted:
+                    pending.append(
+                        Text.assemble(
+                            ("    ", ""),
+                            ("│ ", "dim"),
+                            Text(
+                                f"… {omitted} lines omitted (see full log)",
+                                style="dim",
+                            ),
+                        )
+                    )
+                for line in new_lines:
+                    pending.append(
+                        Text.assemble(("    ", ""), ("│ ", "dim"), Text(line))
+                    )
+                self._seen_tail[row.id] = row.lines_total
+        for renderable in pending:
             try:
-                live.console.print(
-                    Text.assemble(("    ", ""), ("│ ", "dim"), Text(line))
-                )
+                live.console.print(renderable)
             except Exception:  # noqa: BLE001 - degrade instead of failing
                 self._fail_over()
                 return
@@ -240,6 +262,19 @@ class LiveTimelineRenderer:
 
     def print_final(self, *, expand_failures: bool = True) -> None:
         """Print the static final frame: no spinner, no tails, failures expanded."""
+        if self._finalized:
+            return
+        self._finalized = True
+        self._stop.set()
+        watcher, self._watcher = self._watcher, None
+        if watcher is not None and watcher is not threading.current_thread():
+            watcher.join(timeout=5.0)
+        live, self._live = self._live, None
+        if live is not None:
+            try:
+                live.stop()
+            except Exception:  # noqa: BLE001 - progress must never fail a run
+                pass
         self._switch_if_degraded()
         if self._plain is not None:
             self._plain.print_final()
@@ -275,9 +310,10 @@ class LiveTimelineRenderer:
     def _table(self) -> Table:
         table = Table(box=None, show_header=False, pad_edge=False, expand=True)
         table.add_column("glyph", width=2, no_wrap=True)
-        # Capped so result details fit the 80-column target frame; longer
-        # titles ellipsize instead of squeezing the detail column.
-        table.add_column("title", no_wrap=True, overflow="ellipsis", max_width=28)
+        # Wide enough for the longest built-in top-level title (35 chars) at
+        # 80 columns; the detail column ellipsizes first under pressure and
+        # titles still ellipsize, never wrap, at 40 columns.
+        table.add_column("title", no_wrap=True, overflow="ellipsis", max_width=35)
         table.add_column("detail", ratio=1, no_wrap=True, overflow="ellipsis")
         table.add_column("duration", justify="right", no_wrap=True)
         return table
@@ -314,7 +350,7 @@ class LiveTimelineRenderer:
                     Text("    " * item.depth + item.title),
                     Text(item.detail, style="dim"),
                     Text(
-                        format_duration(elapsed(row, now))
+                        _duration_text(row, now)
                         if row is not None and row.started_at is not None
                         else "",
                         style="dim",
@@ -461,3 +497,22 @@ class LiveTimelineRenderer:
             f"slowest: {slowest.title} ({format_duration(elapsed(slowest, now))})",
             style="dim",
         )
+
+
+def _duration_text(row: StepSnapshot, now: float) -> str:
+    """Return the duration cell: ticking m:ss while running, frozen otherwise."""
+    if row.status == "running":
+        return format_span(elapsed(row, now))
+    return format_duration(elapsed(row, now))
+
+
+def _new_verbose_lines(row: StepSnapshot, emitted: int) -> tuple[int, list[str]]:
+    """Return ``(omitted, lines)`` for verbose streaming by line counter."""
+    total = row.lines_total
+    if total <= emitted:
+        return 0, []
+    tail = row.tail
+    tail_start = total - len(tail)
+    first_available = max(emitted, tail_start)
+    omitted = first_available - emitted
+    return omitted, list(tail[first_available - tail_start :])

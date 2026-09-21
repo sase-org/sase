@@ -18,11 +18,6 @@ class FanOutProgress:
         """Fan out to ``sinks`` in order."""
         self._sinks = list(sinks)
 
-    @property
-    def sinks(self) -> tuple[UpdateProgress, ...]:
-        """Return the child sinks."""
-        return tuple(self._sinks)
-
     def declare(self, specs: Sequence[StepSpec]) -> None:
         """Forward step declarations."""
         for sink in self._sinks:
@@ -65,11 +60,16 @@ class FanOutProgress:
             except Exception:  # noqa: BLE001, S110 - progress must never fail a run
                 pass
 
-    def finalize(self, status_for_pending: StepStatus = "skipped") -> None:
+    def finalize(
+        self,
+        status_for_pending: StepStatus = "skipped",
+        *,
+        status_for_running: StepStatus | None = None,
+    ) -> None:
         """Forward finalization."""
         for sink in self._sinks:
             try:
-                sink.finalize(status_for_pending)
+                sink.finalize(status_for_pending, status_for_running=status_for_running)
             except Exception:  # noqa: BLE001, S110 - progress must never fail a run
                 pass
 

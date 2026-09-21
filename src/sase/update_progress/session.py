@@ -85,6 +85,7 @@ class UpdateProgressSession:
             self._renderer = None
         if self._renderer is not None:
             self._renderer.set_header(mode)
+        self._final_printed = False
 
     @property
     def progress(self) -> UpdateProgress:
@@ -101,19 +102,22 @@ class UpdateProgressSession:
         """Return True when a timeline surface is displayed."""
         return self._renderer is not None
 
-    @property
-    def degraded(self) -> bool:
-        """Return True once the live renderer has fallen back to plain."""
-        renderer = self._renderer
-        return isinstance(renderer, LiveTimelineRenderer) and renderer.degraded
-
     def set_header(self, mode: str) -> None:
         """Update the install mode shown in the timeline header."""
         if self._renderer is not None:
             self._renderer.set_header(mode)
+        self.log_sink.set_mode(mode)
+
+    def interrupt(self) -> None:
+        """Finalize running steps as interrupted and pending steps as skipped."""
+        self._progress.finalize("skipped", status_for_running="interrupted")
 
     def print_final(self, *, expand_failures: bool = True) -> None:
         """Print the static final frame (no-op when no timeline is shown)."""
+        if self._final_printed:
+            return
+        self._final_printed = True
+        self._progress.finalize()
         if self._renderer is not None:
             self._renderer.print_final(expand_failures=expand_failures)
 

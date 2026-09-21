@@ -28,6 +28,7 @@ class StepSnapshot:
     ended_at: float | None
     tail: tuple[str, ...] = ()
     children: tuple[StepSnapshot, ...] = ()
+    lines_total: int = 0
 
 
 @dataclass
@@ -41,6 +42,8 @@ class _Step:
     ended_at: float | None = None
     tail: deque[str] = field(default_factory=lambda: deque(maxlen=_TAIL_CAPACITY))
     children: list[_Step] = field(default_factory=list)
+    trailing: bool = False
+    lines_total: int = 0
 
 
 class TimelineModel:
@@ -64,12 +67,17 @@ class TimelineModel:
                 existing = self._steps.get(spec.id)
                 if existing is not None:
                     existing.title = spec.title
+                    if spec.parent_id is None:
+                        existing.trailing = spec.trailing
                     continue
                 parent_id = spec.parent_id
                 if parent_id is not None and parent_id not in self._steps:
                     self._steps[parent_id] = _Step(id=parent_id, title=parent_id)
                 self._steps[spec.id] = _Step(
-                    id=spec.id, title=spec.title, parent_id=parent_id
+                    id=spec.id,
+                    title=spec.title,
+                    parent_id=parent_id,
+                    trailing=spec.trailing if parent_id is None else False,
                 )
                 if parent_id is not None:
                     self._steps[parent_id].children.append(self._steps[spec.id])
@@ -101,6 +109,7 @@ class TimelineModel:
                 step = _Step(id=id, title=id)
                 self._steps[id] = step
             step.tail.append(line)
+            step.lines_total += 1
 
     def finish(self, id: str, status: StepStatus, *, detail: str | None = None) -> None:
         """Finish a step; finishing a parent skips its still-running children.
@@ -134,13 +143,24 @@ class TimelineModel:
         """Ignore streamed command records; they exist for the log sink."""
         del id, argv, cwd
 
-    def finalize(self, status_for_pending: StepStatus = "skipped") -> None:
+    def finalize(
+        self,
+        status_for_pending: StepStatus = "skipped",
+        *,
+        status_for_running: StepStatus | None = None,
+    ) -> None:
         """Mark every still-pending or still-running step with the given status."""
+        running_status = (
+            status_for_running if status_for_running is not None else status_for_pending
+        )
         with self._lock:
             now = self._clock()
             for step in self._steps.values():
                 if step.status not in TERMINAL_STATUSES:
-                    step.status = status_for_pending
+                    if step.status == "running":
+                        step.status = running_status
+                    else:
+                        step.status = status_for_pending
                     if step.ended_at is None:
                         step.ended_at = now
 
@@ -155,11 +175,10 @@ class TimelineModel:
     def snapshot(self) -> tuple[StepSnapshot, ...]:
         """Return immutable top-level rows with nested children, in order."""
         with self._lock:
-            return tuple(
-                self._freeze(step)
-                for step in self._steps.values()
-                if step.parent_id is None
-            )
+            top = [step for step in self._steps.values() if step.parent_id is None]
+            ordered = [step for step in top if not step.trailing]
+            ordered += [step for step in top if step.trailing]
+            return tuple(self._freeze(step) for step in ordered)
 
     def _freeze(self, step: _Step) -> StepSnapshot:
         return StepSnapshot(
@@ -172,6 +191,7 @@ class TimelineModel:
             ended_at=step.ended_at,
             tail=tuple(step.tail),
             children=tuple(self._freeze(child) for child in step.children),
+            lines_total=step.lines_total,
         )
 
 
