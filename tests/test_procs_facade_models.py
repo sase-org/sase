@@ -55,6 +55,34 @@ def test_proc_service_block_round_trips_and_parses_leniently() -> None:
     }
 
 
+def test_proc_service_name_falls_back_to_the_host_tag_without_a_block() -> None:
+    """A store rewrite by an older core drops the block; the host tag remains."""
+    host_row = Proc.from_dict(
+        {
+            **_proc("0123456789ab", tags=["service", "service:scheduler"]).to_dict(),
+            "origin": "service-host",
+        }
+    )
+    assert host_row.service is None
+    assert host_row.service_name == "scheduler"
+
+    # Only host-written rows are named by their tag.
+    foreign = _proc("0123456789ac", tags=["service", "service:scheduler"])
+    assert foreign.service_name is None
+    # A present block stays authoritative, including an unnamed oneshot.
+    oneshot = Proc.from_dict(
+        {
+            **_proc(
+                "0123456789ad",
+                tags=["service", "service:scheduler"],
+                service=ProcServiceBlock(name=None, mode="oneshot", source="transient"),
+            ).to_dict(),
+            "origin": "service-host",
+        }
+    )
+    assert oneshot.service_name is None
+
+
 def test_proc_reserve_service_block_round_trips() -> None:
     reserve = ProcReserve.from_dict(
         {

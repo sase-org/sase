@@ -20,6 +20,7 @@ from sase.procs.service_meta import (
     SERVICE_ONESHOT_ORIGIN,
     SERVICE_PROC_MODE_DAEMON,
     ProcServiceBlock,
+    host_service_tag_name,
 )
 from sase.project_display_names import humanize_cl_name
 
@@ -120,6 +121,19 @@ def is_service_row(row: ObservedProc) -> bool:
         SERVICE_HOST_ORIGIN,
         SERVICE_ONESHOT_ORIGIN,
     )
+
+
+def service_row_name(row: ObservedProc) -> str | None:
+    """Return the service proc a row runs, if it names one.
+
+    Without a ``service`` block, a host-written daemon row is still named by
+    its ``service:<name>`` label (see :func:`is_service_row`).
+    """
+    if row.service is not None:
+        return row.service.name or None
+    if row.origin != SERVICE_HOST_ORIGIN:
+        return None
+    return host_service_tag_name((row.label,))
 
 
 def is_service_daemon_row(row: ObservedProc) -> bool:
@@ -302,4 +316,5 @@ __all__ = [
     "proc_projection_for",
     "proc_status_is_active",
     "recount_projection",
+    "service_row_name",
 ]

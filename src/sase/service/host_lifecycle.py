@@ -30,7 +30,7 @@ def run_host(host: Any, reconcile_seconds: float) -> int:
     try:
         lock.write_holder_pid()
         _install_signal_handlers(host)
-        settle_orphaned_oneshots()
+        _settle_orphaned_oneshots_at_startup()
         host._record_heartbeat()
         host._reconcile_once()
         while host._running:
@@ -47,6 +47,14 @@ def run_host(host: Any, reconcile_seconds: float) -> int:
         return 130
     finally:
         lock.release()
+
+
+def _settle_orphaned_oneshots_at_startup() -> None:
+    """Settle orphaned oneshot rows without letting a store error stop the host."""
+    try:
+        settle_orphaned_oneshots()
+    except Exception as exc:  # noqa: BLE001 - long-lived host must keep running.
+        print(f"sase service host oneshot settle error: {exc}", file=sys.stderr)
 
 
 def _acquire_startup_lock() -> ServiceHostLock | None:

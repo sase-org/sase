@@ -38,8 +38,10 @@ from sase.project_display_names import project_display_name_for
 from ._proc_observer_models import (
     ObservedProc,
     is_monitor_shell_row,
+    is_service_row,
     monitor_row_agent_name,
     proc_status_is_active,
+    service_row_name,
 )
 
 #: Per-row output cap, matching the tail the pane itself renders.
@@ -72,7 +74,7 @@ def _proc_query_row(
         "status": proc.status,
         "kind": proc.proc_type,
         "monitor": is_monitor_shell_row(proc),
-        "service": proc.service is not None,
+        "service": is_service_row(proc),
         "running": is_running,
         "failed": proc.status in _FAILED_STATUSES,
         "min": runtime_seconds,
@@ -96,8 +98,9 @@ def _proc_query_row(
         )
     if proc.exit_code is not None:
         fields["exit"] = proc.exit_code
-    if proc.service is not None and proc.service.is_named:
-        fields["svc"] = proc.service.name
+    service_name = service_row_name(proc)
+    if service_name is not None:
+        fields["svc"] = service_name
     if proc.finished_at is not None:
         finished_epoch = int(proc.finished_at.timestamp())
         fields["after"] = finished_epoch

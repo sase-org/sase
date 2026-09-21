@@ -16,7 +16,7 @@ from sase.ace.tui._proc_query import (
     _query_needs_output,
 )
 from sase.monitor_state import MONITOR_PROC_ORIGIN
-from sase.procs.service_meta import ProcServiceBlock
+from sase.procs.service_meta import SERVICE_HOST_ORIGIN, ProcServiceBlock
 
 _NOW = datetime(2026, 8, 20, 12, 0, 0)
 
@@ -291,6 +291,22 @@ def test_svc_field_matches_the_exact_service_proc_name() -> None:
         "oneshot",
         "plain",
     ]
+
+
+def test_host_rows_without_a_service_block_still_match_service_and_svc() -> None:
+    """Host rows whose block an older core dropped are still service rows."""
+    procs = [
+        _proc(
+            "stripped",
+            origin=SERVICE_HOST_ORIGIN,
+            display_name="service:scheduler",
+        ),
+        _proc("plain", display_name="service:scheduler"),
+    ]
+    filt = ProcQueryFilter()
+    assert _ids(filt.matching("service", procs, now=_NOW)) == ["stripped"]
+    assert _ids(filt.matching("-service", procs, now=_NOW)) == ["plain"]
+    assert _ids(filt.matching("svc:scheduler", procs, now=_NOW)) == ["stripped"]
 
 
 def test_exit_field_matches_the_exact_exit_code() -> None:

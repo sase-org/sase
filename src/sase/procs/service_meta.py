@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any, Final
 
@@ -32,6 +32,8 @@ RESERVED_BUILTIN_SERVICE_PROCS: Final = ("gateway", "scheduler")
 # a row when that additive field is missing.
 SERVICE_HOST_ORIGIN: Final = "service-host"
 SERVICE_ONESHOT_ORIGIN: Final = "service-proc"
+# The host also tags (and labels) each daemon row ``service:<name>``.
+SERVICE_HOST_TAG_PREFIX: Final = "service:"
 
 
 @dataclass(frozen=True)
@@ -67,9 +69,20 @@ class ProcServiceBlock:
         return payload
 
 
+def host_service_tag_name(values: Iterable[str]) -> str | None:
+    """Return ``<name>`` from the first host-written ``service:<name>`` value."""
+    for value in values:
+        if value.startswith(SERVICE_HOST_TAG_PREFIX):
+            name = value[len(SERVICE_HOST_TAG_PREFIX) :]
+            if name:
+                return name
+    return None
+
+
 __all__ = [
     "RESERVED_BUILTIN_SERVICE_PROCS",
     "SERVICE_HOST_ORIGIN",
+    "SERVICE_HOST_TAG_PREFIX",
     "SERVICE_ONESHOT_ORIGIN",
     "SERVICE_PROC_MODE_DAEMON",
     "SERVICE_PROC_MODE_ONESHOT",
@@ -80,4 +93,5 @@ __all__ = [
     "SERVICE_PROC_SOURCE_USER",
     "SERVICE_PROC_SOURCES",
     "ProcServiceBlock",
+    "host_service_tag_name",
 ]

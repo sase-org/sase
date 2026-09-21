@@ -125,3 +125,60 @@ def test_service_status_validation_errors_surface_value_error(
             generated_at=1.0,
             boot_id="boot-a",
         )
+
+
+def test_proc_observations_see_host_rows_whose_service_block_was_dropped(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    """A store rewrite by an older core drops the block; status still sees the proc.
+
+    Regression for ``sase scheduler status`` / ``sase service proc list``
+    reporting a running host daemon as stopped.
+    """
+    import os
+
+    from sase.procs import (
+        COMMAND_PROC_KIND,
+        ProcReserve,
+        ProcSupervisorClaim,
+        claim_proc_supervisor,
+        get_proc,
+        reserve_proc,
+    )
+    from sase.procs.service_meta import SERVICE_HOST_ORIGIN
+    from sase.service.control import _proc_observations, utc_timestamp
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    proc_id = reserve_proc(
+        ProcReserve(
+            proc_id="svc-stripped",
+            label="service:scheduler",
+            argv=["sase", "scheduler", "run"],
+            cwd=str(tmp_path),
+            created_at=utc_timestamp(),
+            log_path=str(tmp_path / "scheduler.log"),
+            request_fingerprint="service:scheduler:1",
+            reserved_by="service-host:1",
+            kind=COMMAND_PROC_KIND,
+            origin=SERVICE_HOST_ORIGIN,
+            tags=["service", "service:scheduler"],
+        )
+    ).proc.proc_id
+    claim_proc_supervisor(
+        ProcSupervisorClaim(
+            proc_id=proc_id,
+            supervisor_id=f"service-host:1:{proc_id}",
+            claimed_at=utc_timestamp(),
+            pid=os.getpid(),
+            pgid=os.getpgrp(),
+        )
+    )
+    row = get_proc(proc_id)
+    assert row is not None and row.service is None
+
+    observations = {obs.name: obs for obs in _proc_observations()}
+
+    assert observations["scheduler"].alive is True
+    assert observations["scheduler"].pid == os.getpid()
+    assert observations["scheduler"].proc_id == proc_id

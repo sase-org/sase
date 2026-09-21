@@ -8,7 +8,11 @@ from pathlib import Path
 from typing import Any, Final
 
 from sase.core.wire import known_field_kwargs
-from sase.procs.service_meta import ProcServiceBlock
+from sase.procs.service_meta import (
+    SERVICE_HOST_ORIGIN,
+    ProcServiceBlock,
+    host_service_tag_name,
+)
 
 PROC_WIRE_SCHEMA_VERSION: Final = 3
 SUPPORTED_PROC_WIRE_SCHEMA_VERSIONS: Final = frozenset({1, 2, PROC_WIRE_SCHEMA_VERSION})
@@ -166,9 +170,18 @@ class Proc:
 
     @property
     def service_name(self) -> str | None:
-        if self.service is None or not self.service.name:
+        """Return the service proc this row runs, if it names one.
+
+        The wire ``service`` block is authoritative, but it is additive: a
+        ``sase_core_rs`` build that predates it drops the block whenever it
+        rewrites the store. A host-written daemon row still carries the host
+        origin and its ``service:<name>`` tag, so fall back to those.
+        """
+        if self.service is not None:
+            return self.service.name or None
+        if self.origin != SERVICE_HOST_ORIGIN:
             return None
-        return self.service.name
+        return host_service_tag_name(self.tags)
 
     @property
     def is_service(self) -> bool:

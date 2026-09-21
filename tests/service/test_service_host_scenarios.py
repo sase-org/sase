@@ -3,7 +3,7 @@
 Each test drives the real ``_ServiceHost`` / ``ServiceHostLock`` code under
 a temporary ``SASE_HOME`` with cheap real children (``python -c`` sleepers
 and fail-fast exits). Config travels the real composition path
-(``compose_service_config`` over synthetic layers); only the layer-discovery
+(``_compose_service_config`` over synthetic layers); only the layer-discovery
 seam is stubbed. The platform lifecycle stays untouched: no test spawns
 ``sase service run`` or routes through the native unit.
 """
@@ -42,7 +42,7 @@ from sase.procs.service_meta import (
     SERVICE_PROC_SOURCE_TRANSIENT,
     ProcServiceBlock,
 )
-from sase.service.config import ServiceConfigComposition, compose_service_config
+from sase.service.config import ServiceConfigComposition, _compose_service_config
 from sase.service.control import (
     ServiceHostLock,
     _is_service_host_lock_held,
@@ -91,7 +91,7 @@ def _compose(procs: dict[str, dict[str, object]]) -> ServiceConfigComposition:
         list_strategy="concatenate",
         data={"service": {"procs": dict(procs)}},
     )
-    return compose_service_config([layer])
+    return _compose_service_config([layer])
 
 
 def _wait_for(predicate: Callable[[], bool], *, timeout: float = 15.0) -> bool:
@@ -663,3 +663,22 @@ def test_host_start_settles_orphaned_oneshots_without_relaunching(
         assert current is not None and current.status in TERMINAL_PROC_STATUSES
     finally:
         host._stop_all_children()
+
+
+def test_host_start_survives_a_oneshot_settle_error(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A proc-store error while settling oneshots must not stop the host."""
+    import sase.service.host_lifecycle as host_lifecycle
+
+    def _broken_settle() -> list[object]:
+        raise RuntimeError("proc store unreadable")
+
+    monkeypatch.setattr(
+        "sase.service.host_lifecycle.settle_orphaned_oneshots", _broken_settle
+    )
+
+    host_lifecycle._settle_orphaned_oneshots_at_startup()
+
+    assert "oneshot settle error: proc store unreadable" in capsys.readouterr().err

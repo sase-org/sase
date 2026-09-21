@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from sase.detach_scope import detach_scope
+
 
 @dataclass(frozen=True)
 class PushOutcome:
@@ -172,21 +174,26 @@ def push_bead_work_launch_async(
     log_path = new_sync_log_path()
     # Append rather than truncate: the worker writes its own JSON records to
     # this same file, so a child traceback must land after them, not over them.
+    launch = detach_scope(
+        [
+            sys.executable,
+            "-m",
+            "sase.bead.sync_worker",
+            str(repo_root),
+            str(semantic_beads_dir),
+            str(log_path),
+        ],
+        description="SASE bead sync worker",
+        unit_prefix="sase-bead-sync",
+    )
     with open(log_path, "a", encoding="utf-8") as log_file:
         process = subprocess.Popen(
-            [
-                sys.executable,
-                "-m",
-                "sase.bead.sync_worker",
-                str(repo_root),
-                str(semantic_beads_dir),
-                str(log_path),
-            ],
+            launch.argv,
             cwd=repo_root,
             stdin=subprocess.DEVNULL,
             stdout=log_file,
             stderr=subprocess.STDOUT,
-            start_new_session=True,
+            start_new_session=launch.start_new_session,
         )
     return AsyncPushHandle(pid=process.pid, log_path=log_path)
 

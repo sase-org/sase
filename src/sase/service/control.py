@@ -335,9 +335,9 @@ def _proc_observations() -> list[ServiceProcObservation]:
     except Exception:
         return []
     for proc in procs:
-        if proc.service is None or not proc.service.name:
+        name = proc.service_name
+        if name is None:
             continue
-        name = proc.service.name
         if name in observations:
             continue
         alive = proc.status in ACTIVE_PROC_STATUSES and (

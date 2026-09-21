@@ -13,6 +13,7 @@ import sys
 from uuid import uuid4
 
 from sase.config.file_hooks import FileHookConfig, match_events
+from sase.detach_scope import detach_scope
 from sase.file_hooks.audit import (
     FileHookDispatchOutcome,
     FileHookDispatchResult,
@@ -151,15 +152,20 @@ def _spawn_batch(
         "exec-batch",
         str(batch_path),
     ]
+    launch = detach_scope(
+        argv,
+        description="SASE file-hook batch runner",
+        unit_prefix="sase-file-hook",
+    )
     try:
         with runner_log.open("ab") as output:
             popen(
-                argv,
+                launch.argv,
                 cwd=repo_root,
                 stdin=subprocess.DEVNULL,
                 stdout=output,
                 stderr=subprocess.STDOUT,
-                start_new_session=True,
+                start_new_session=launch.start_new_session,
                 close_fds=True,
             )
     except Exception:
