@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 from sase.ace.testing import AcePage
@@ -189,5 +190,109 @@ async def test_top_bar_compact_usage_badges_wide_png_snapshot(
             title=(
                 "ACE top bar with three provider-colored compact usage badges "
                 "at 120 columns"
+            ),
+        )
+
+
+def _agy_pressure_provider() -> dict[str, Any]:
+    """Build an agy snapshot with a healthy weekly anchor and a low 5-hour."""
+    model_ids = ["gemini-3.8-flash-high", "gemini-3.1-pro-low"]
+    weekly: dict[str, Any] = usage_window(
+        key="gemini-weekly",
+        label="Gemini Models Weekly Limit Remaining",
+        used_percent=4.0,
+        remaining_percent=96.0,
+        resets_at=FROZEN_NOW + 522_000.0,
+        applicability={
+            "kind": "model_family",
+            "family": "gemini",
+            "model_ids": model_ids,
+        },
+    )
+    weekly["duration_seconds"] = 604_800.0
+    weekly["period_start"] = FROZEN_NOW + 522_000.0 - 604_800.0
+    five_hour: dict[str, Any] = usage_window(
+        key="gemini-5h",
+        label="Gemini Models Five Hour Limit Remaining",
+        used_percent=88.0,
+        remaining_percent=12.0,
+        resets_at=FROZEN_NOW + 17_400.0,
+        applicability={
+            "kind": "model_family",
+            "family": "gemini",
+            "model_ids": model_ids,
+        },
+    )
+    five_hour["duration_seconds"] = 18_000.0
+    five_hour["period_start"] = FROZEN_NOW + 17_400.0 - 18_000.0
+    return usage_provider(
+        "agy",
+        plan=None,
+        account_mode="subscription",
+        used_percent=4.0,
+        remaining_percent=96.0,
+        attention={"kind": "low", "provider": "agy", "window_key": "gemini-5h"},
+        windows=[weekly, five_hour],
+        known_constraints=[],
+    )
+
+
+@pytest.mark.parametrize("width", [60, 80, 140])
+async def test_top_bar_agy_usage_badges_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    width: int,
+) -> None:
+    """Agy's unlabeled weekly anchor plus its pressured 5-hour badge."""
+    patch_startup_loaders(monkeypatch)
+    quiet_top_bar(monkeypatch)
+
+    codex = usage_provider(
+        "codex",
+        used_percent=85.0,
+        remaining_percent=15.0,
+        attention={"kind": "low", "provider": "codex", "window_key": "primary"},
+        windows=[
+            usage_window(
+                key="primary",
+                label="Codex",
+                used_percent=85.0,
+                remaining_percent=15.0,
+                resets_at=FROZEN_NOW + 7_740.0,
+                applicability={"kind": "account"},
+            )
+        ],
+        known_constraints=[],
+    )
+
+    patch_projection(
+        monkeypatch,
+        real_projection(_agy_pressure_provider(), codex, now=FROZEN_NOW),
+    )
+
+    async with AcePage(
+        query='"visual"',
+        patches=patches(),
+        size=(width, 24),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        paint_current_project_chip(page)
+        usage_indicator = page.app.query_one(
+            "#provider-usage-indicator",
+            ProviderUsageIndicator,
+        )
+        usage_indicator._apply_content(now=FROZEN_NOW)
+        page.app.refresh(layout=True)
+        await page.app.wait_for_refresh()
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            f"top_bar_agy_usage_badges_{width}x24",
+            title=(
+                "ACE top bar with agy's unlabeled Gemini weekly anchor, its "
+                f"pressured 5h/gemini badge, and codex at {width} columns"
             ),
         )

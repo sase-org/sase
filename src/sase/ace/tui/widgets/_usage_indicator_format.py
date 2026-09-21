@@ -87,6 +87,10 @@ def _usage_specifier(entry: Mapping[str, Any], *, compact: bool) -> str | None:
             period_token = None
         if suffix == "all":
             suffix = None
+        elif suffix is not None and suffix.startswith("family:"):
+            # Compact header names drop the `family:` prefix (`5h/gemini`, not
+            # `5h/family:gemini`). Tooltips and `sase usage list` keep it.
+            suffix = suffix[len("family:") :] or None
     parts = [
         sanitized
         for part in (bucket, period_token, suffix)

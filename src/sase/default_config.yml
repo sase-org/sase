@@ -1561,10 +1561,24 @@ llm_provider:
         muse:
           windows:
             session: never
+      # Antigravity (agy) ships with no entry of its own: its Gemini weekly
+      # window classifies as a weekly all-model window (weekly_all: always),
+      # so it anchors the header unlabeled whenever agy is installed and
+      # eligible. The generic `default` threshold above governs the Gemini
+      # 5-hour and `3p-*` windows: they stay hidden until they drop below 20%
+      # remaining. Add exact keys to change that.
       # Claude's per-model weekly Fable window ships with no entry of its own, so
       # the generic `default` threshold above governs it: the header stays quiet
       # until Fable drops below 20% remaining. Add an exact key to change that.
       # providers:
+      #   agy:
+      #     windows:
+      #       # Pin the Gemini 5-hour window to always-visible, at any remaining
+      #       # percentage:
+      #       gemini-5h: always
+      #       # Or hide windows even when they run low:
+      #       # 3p-weekly: never
+      #       # 3p-5h: never
       #   claude:
       #     windows:
       #       # Pin it back to always-visible, at any remaining percentage:

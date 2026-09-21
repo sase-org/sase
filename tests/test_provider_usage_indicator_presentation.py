@@ -95,12 +95,63 @@ from tests._provider_usage_indicator_presentation_helpers import (
             "🤖 Fast/5h/scope? 12% 2h9m",
             id="unknown-scope",
         ),
+        pytest.param(
+            _entry(
+                provider="agy",
+                window_key="gemini-5h",
+                window_label="Gemini Models Five Hour Limit Remaining",
+                weekly_all=False,
+                period_kind="duration",
+                duration_seconds=18_000.0,
+                scope=_scope(kind="model_family", family="gemini"),
+                remaining_percent=12.0,
+                seconds_until_reset=7_740.0,
+                resets_at=FROZEN_NOW + 7_740.0,
+            ),
+            "🪐 5h/gemini 12% 2h9m",
+            id="model-family-5h-drops-prefix",
+        ),
+        pytest.param(
+            _entry(
+                provider="agy",
+                window_key="3p-weekly",
+                window_label="Claude and GPT models Weekly Limit Remaining",
+                weekly_all=False,
+                period_kind="weekly",
+                duration_seconds=604_800.0,
+                scope=_scope(kind="model_family", family="3p"),
+                remaining_percent=62.0,
+                seconds_until_reset=273_840.0,
+                resets_at=FROZEN_NOW + 273_840.0,
+            ),
+            "🪐 3p 62% 3d4h",
+            id="model-family-weekly-omits-period",
+        ),
     ],
 )
 def test_compact_window_names(entry: dict[str, object], expected: str) -> None:
     segment = build_usage_indicator_segment(_groups(entry))
 
     assert segment.plain.strip() == expected
+
+
+def test_model_family_compact_name_drops_prefix_but_tooltip_keeps_it() -> None:
+    entry = _entry(
+        provider="agy",
+        window_key="gemini-5h",
+        window_label="Gemini Models Five Hour Limit Remaining",
+        weekly_all=False,
+        period_kind="duration",
+        duration_seconds=18_000.0,
+        scope=_scope(kind="model_family", family="gemini"),
+        remaining_percent=12.0,
+        seconds_until_reset=7_740.0,
+        resets_at=FROZEN_NOW + 7_740.0,
+    )
+    groups = _groups(entry)
+
+    assert "family:" not in build_usage_indicator_segment(groups).plain
+    assert "scope: family: gemini" in usage_indicator_tooltip_lines(groups)
 
 
 def test_grouped_default_first_text_order_icons_gaps_and_dots() -> None:
