@@ -192,7 +192,9 @@ def extract_directives_and_write_meta(
 
     # Merge env-var-delivered local xprompts (from multi-prompt launcher)
     # with frontmatter-defined ones. Frontmatter takes precedence.
-    env_xprompts_path = os.environ.pop("SASE_AGENT_LOCAL_XPROMPTS", None)
+    from sase.agent.multi_prompt_xprompts import LOCAL_XPROMPTS_ENV
+
+    env_xprompts_path = os.environ.pop(LOCAL_XPROMPTS_ENV, None)
     if env_xprompts_path:
         try:
             from sase.agent.multi_prompt_launcher import deserialize_local_xprompts
@@ -264,9 +266,17 @@ def extract_directives_and_write_meta(
     from sase.agent.clan_membership import (
         ClanMembershipError,
         consume_clan_membership_plan_from_env,
+        preserved_clan_membership_plan,
     )
 
     clan_membership_plan = consume_clan_membership_plan_from_env()
+    if clan_membership_plan is None and directives.clan is not None:
+        # Refreshed runner pass after a dependency wait: the pre-wait pass
+        # already consumed the one-shot env payload and overwrote
+        # agent_meta.json, so preserved clan fields exist only on this replay
+        # of the identical submitted prompt. Recover the launch identity
+        # instead of re-declaring the clan.
+        clan_membership_plan = preserved_clan_membership_plan(preserved_metadata)
     if clan_membership_plan is not None and directives.clan is None:
         raise ClanMembershipError(
             "Clan membership payload requires a %clan directive or "

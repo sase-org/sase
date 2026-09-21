@@ -223,6 +223,7 @@ def _run_agent(state: RunnerRunState) -> None:
         submitted_xprompt=state.submitted_xprompt,
         agent_name=state.agent_name,
         artifacts_dir=state.artifacts_dir,
+        local_xprompts=bootstrap.info.local_xprompts,
     )
 
     repeat_stop: RepeatStopDecision | None = None

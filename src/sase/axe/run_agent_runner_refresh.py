@@ -1,15 +1,46 @@
 """Refresh a long-lived runner after its dependency wait crosses code updates.
 
+Every one-shot launch handoff consumed by the pre-wait pass must survive the
+refresh re-exec in one of two ways.
+
+- **Durable identity:** the refreshed pass recovers it from
+  ``preserved_agent_metadata()`` (clan membership, batch predecessor context,
+  epic work, model selection).
+- **One-shot file or env resource:** this module re-materializes it before
+  exec (the prompt file, local xprompts, the planned name).
+
 The exec replays ``sys.argv`` verbatim. Any future argv field that names a
 one-shot resource must therefore be re-materialized here before exec, just as
 the temporary prompt file is today.
+
+Already-audited inputs that need no behavior change:
+
+- ``SASE_LAUNCH_HOLD_KEY``: ``arm_bootstrap_hold()`` returns early on a
+  refreshed pass.
+- Epic-work env (``epic_work_metadata_from_env()``): its fields are preserved
+  metadata keys.
+- ``SASE_EPIC_CLAN_SUMMARY_SCRIPT``: the resolved ``clan_summary`` is
+  preserved metadata.
+- ``SASE_AGENT_PREDECESSOR_CONTEXT``: already uses the preserved-metadata
+  fallback.
+- ``SASE_AGENT_PLANNED_NAME``: restored by
+  ``refresh_runner_code_after_wait()``.
+- ``SASE_AGENT_GENERATED_NAME``: lost, but harmless. The refreshed claim
+  targets a name already owned by the same artifacts dir, and
+  ``claim_registered_name()`` accepts same-owner claims regardless of
+  ``explicit``.
+
+Anyone adding a new ``consume_*_from_env()`` / ``os.environ.pop(...)`` in the
+bootstrap path must extend one of the two handoff lists above.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 from sase.version._git import probe_git_metadata_at_ref
 from sase.version._models import HOST_DISTRIBUTION_NAME
@@ -70,12 +101,15 @@ def refresh_runner_code_after_wait(
     submitted_xprompt: str,
     agent_name: str | None = None,
     artifacts_dir: str | None = None,
+    local_xprompts: Mapping[str, Any] | None = None,
 ) -> None:
     """Re-exec the runner when its editable source HEAD moved during a wait.
 
     The one-shot guard is removed on the refreshed pass before agent execution,
     preventing nested agents from inheriting runner-internal refresh state.
     """
+    from sase.agent.multi_prompt_xprompts import LOCAL_XPROMPTS_ENV
+
     already_refreshed = os.environ.pop(RUNNER_CODE_REFRESHED_ENV, None) is not None
     if already_refreshed or not blocking_wait_occurred or killed:
         return
@@ -102,6 +136,32 @@ def refresh_runner_code_after_wait(
         )
         return
 
+    previous_local_xprompts = os.environ.get(LOCAL_XPROMPTS_ENV)
+    new_local_xprompts_path: str | None = None
+    if local_xprompts:
+        try:
+            from sase.agent.multi_prompt_xprompts import serialize_local_xprompts
+
+            new_local_xprompts_path = serialize_local_xprompts(dict(local_xprompts))
+            os.environ[LOCAL_XPROMPTS_ENV] = new_local_xprompts_path
+        except Exception as exc:
+            if new_local_xprompts_path is not None:
+                try:
+                    os.unlink(new_local_xprompts_path)
+                except OSError:
+                    pass
+                if previous_local_xprompts is None:
+                    os.environ.pop(LOCAL_XPROMPTS_ENV, None)
+                else:
+                    os.environ[LOCAL_XPROMPTS_ENV] = previous_local_xprompts
+            print(
+                "Warning: Skipping sase runner code refresh because local "
+                f"xprompts could not be re-materialized: {exc}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return
+
     previous_planned_name = os.environ.get(_PLANNED_AGENT_NAME_ENV)
     planned_name_changed = False
     continuation_planned_name = _validated_continuation_planned_name(
@@ -125,6 +185,15 @@ def refresh_runner_code_after_wait(
                 os.environ.pop(_PLANNED_AGENT_NAME_ENV, None)
             else:
                 os.environ[_PLANNED_AGENT_NAME_ENV] = previous_planned_name
+        if new_local_xprompts_path is not None:
+            if previous_local_xprompts is None:
+                os.environ.pop(LOCAL_XPROMPTS_ENV, None)
+            else:
+                os.environ[LOCAL_XPROMPTS_ENV] = previous_local_xprompts
+            try:
+                os.unlink(new_local_xprompts_path)
+            except OSError:
+                pass
         try:
             os.unlink(prompt_file)
         except OSError:

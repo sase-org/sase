@@ -10,6 +10,8 @@ from sase.xprompt._directive_types import _DIRECTIVE_ALIASES, _DIRECTIVE_PATTERN
 from sase.xprompt.models import UNSET as _UNSET
 from sase.xprompt.models import XPrompt
 
+LOCAL_XPROMPTS_ENV = "SASE_AGENT_LOCAL_XPROMPTS"
+
 
 def extract_called_xprompt_names(text: str, available_xprompts: set[str]) -> set[str]:
     """Extract xprompt names called in *text*.

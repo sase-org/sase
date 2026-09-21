@@ -370,6 +370,7 @@ def test_runner_forwards_blocking_wait_result_to_code_refresh(tmp_path: Path) ->
         submitted_xprompt="%i(reviewer, family=foo)\nDo work",
         agent_name="foo--reviewer",
         artifacts_dir=str(tmp_path / "artifacts"),
+        local_xprompts={},
     )
 
 

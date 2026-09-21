@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 CLAN_MEMBERSHIP_ENV = "SASE_AGENT_CLAN_MEMBERSHIP"
 AGENT_CLAN_FIELD = "agent_clan"
@@ -30,11 +32,31 @@ def encode_clan_membership_plan(plan: ClanMembershipPlan) -> str:
 
 
 def consume_clan_membership_plan_from_env() -> ClanMembershipPlan | None:
-    """Consume the host-only clan payload so nested launches cannot inherit it."""
+    """Consume the host-only clan payload so nested launches cannot inherit it.
+
+    The env payload is first-pass only; a refreshed runner pass recovers the
+    same plan through ``preserved_clan_membership_plan()``.
+    """
     raw = os.environ.pop(CLAN_MEMBERSHIP_ENV, None)
     if not raw:
         return None
     return decode_clan_membership_plan(raw)
+
+
+def preserved_clan_membership_plan(
+    preserved: Mapping[str, Any],
+) -> ClanMembershipPlan | None:
+    """Rebuild a clan plan from refreshed-runner preserved metadata."""
+    clan_name = preserved.get(AGENT_CLAN_FIELD)
+    generation = preserved.get(AGENT_CLAN_GENERATION_FIELD)
+    if (
+        not isinstance(clan_name, str)
+        or not clan_name
+        or not isinstance(generation, str)
+        or not generation
+    ):
+        return None
+    return ClanMembershipPlan(clan_name=clan_name, generation=generation)
 
 
 def resolve_or_create_clan_membership(
@@ -251,5 +273,6 @@ __all__ = [
     "decode_clan_membership_plan",
     "derive_clan_name_from_member",
     "encode_clan_membership_plan",
+    "preserved_clan_membership_plan",
     "resolve_or_create_clan_membership",
 ]
