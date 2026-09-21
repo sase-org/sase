@@ -11,10 +11,10 @@ _MUTATION_PRECEDENCE = (
     "-f/--enable-feature or -F/--disable-feature still win for this process."
 )
 _MUTATION_RESTART = (
-    "On success, AXE is restarted when it is already running so new processes "
-    "see the saved value. A stopped AXE daemon is left stopped. Any separately "
+    "On success, the scheduler is restarted when it is already running so new processes "
+    "see the saved value. A stopped scheduler is left stopped. Any separately "
     "running sase's TUI session must be restarted in its own terminal. Repeating an "
-    "already-saved enable or disable still retries that AXE restart. A restart "
+    "already-saved enable or disable still retries that scheduler restart. A restart "
     "failure does not roll back the saved preference."
 )
 _MUTATION_STATE = (

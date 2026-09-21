@@ -20,7 +20,7 @@ def restart_after_update(
     notify: NotifyFn | None = None,
     restart_purpose: str = _DEFAULT_RESTART_PURPOSE,
 ) -> None:
-    """Notify briefly, then reuse the TUI + axe restart machinery."""
+    """Notify briefly, then reuse the TUI + service-host restart machinery."""
     restart_after_update_when_ready(
         app,
         message,

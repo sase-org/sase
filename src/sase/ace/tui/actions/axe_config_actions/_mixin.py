@@ -322,12 +322,12 @@ class AxeConfigActionsMixin:
         if result.restart_requested:
             if not outcome.axe_running:
                 self.notify(
-                    f"Config saved to {path}; AXE stopped before restart, so it was not started",
+                    f"Config saved to {path}; scheduler stopped before restart, so it was not started",
                     severity="warning",
                 )  # type: ignore[attr-defined]
             elif getattr(self, "_axe_worker", None) is not None:
                 self.notify(
-                    f"Config saved to {path}, but AXE is already changing state; restart it when that finishes",
+                    f"Config saved to {path}, but scheduler is already changing state; restart it when that finishes",
                     severity="warning",
                 )  # type: ignore[attr-defined]
             else:
@@ -335,11 +335,11 @@ class AxeConfigActionsMixin:
                 self._run_service_proc_action("scheduler", "restart")  # type: ignore[attr-defined]
         elif outcome.axe_running:
             self.notify(
-                f"Config saved to {path}; running AXE keeps its previous config until restarted",
+                f"Config saved to {path}; running scheduler keeps its previous config until restarted",
                 severity="information",
             )  # type: ignore[attr-defined]
         else:
-            self.notify(f"Config saved to {path}; AXE is stopped")  # type: ignore[attr-defined]
+            self.notify(f"Config saved to {path}; scheduler is stopped")  # type: ignore[attr-defined]
         self._schedule_axe_config_commit_offer(path)
 
     def _schedule_axe_config_commit_offer(self, path: str) -> None:

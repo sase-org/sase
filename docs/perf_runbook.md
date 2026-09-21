@@ -221,7 +221,6 @@ Deterministic regression floors live in tests, not wall-clock CI:
 
 ```bash
 # 1. Fleet spawn rate and no-op ratio (reads routine metrics.json)
-sase axe status
 sase axe routine status
 
 # 2. Confirm the human overlay matches on-disk counters
@@ -270,10 +269,10 @@ for routine in sorted(root.iterdir()):
 PY
 ```
 
-A quiet host after the diet should show `sase axe status` **Job load** at or below the
-~22/min shipped-config floor — fs-guarded jobs contribute 0.0 between `max_quiet`
-re-fires and their lanes report last tick `0 spawned`, while ~12/min of the floor is
-`stale_running_cleanup` and is expected — and `refresh.auto_tick` records with
+A quiet host after the diet should show `sase axe routine status` **Job load** at or
+below the ~22/min shipped-config floor — fs-guarded jobs contribute 0.0 between
+`max_quiet` re-fires and their lanes report last tick `0 spawned`, while ~12/min of the
+floor is `stale_running_cleanup` and is expected — and `refresh.auto_tick` records with
 `surfaces_reloaded=0` (or only `axe`/`notifications` when those tokens actually moved)
 and `axe_file_opens` near zero. If spawn rate is well above the floor, check whether
 shipped jobs lost their `fs` trigger in `src/sase/default_config.yml`, or whether
@@ -434,7 +433,7 @@ Each record contains at least:
 ts            unix epoch seconds
 span          dotted span name (e.g. "agents.refresh_panel_widgets")
 duration_ms   wall time inside the span
-current_tab   "artifacts" | "agents" | "axe" | null
+current_tab   "artifacts" | "agents" | "services" | null
 ```
 
 …plus any per-call counters (`count`, `agents`, `panels`, `output_bytes`, …) and any
@@ -854,19 +853,19 @@ for no size rotation. This bound is separate from the opt-in trace files under
 ## Startup telemetry capture
 
 `~/.sase/logs/tui_startup.jsonl` (`sase/logs/tui_telemetry.py:log_tui_startup`) gets one
-durable record per sase's TUI session, written after both the Agents and AXE surfaces
-finish their first load — the same point the visible startup-stopwatch badge stops. It
-exists so every "startup dropped from X to Y" claim in this repo's plans and epics is
-checkable against a real terminal run instead of a modelled component sum
+durable record per sase's TUI session, written after both the Agents and Services
+surfaces finish their first load — the same point the visible startup-stopwatch badge
+stops. It exists so every "startup dropped from X to Y" claim in this repo's plans and
+epics is checkable against a real terminal run instead of a modelled component sum
 (`plans/202608/ace_startup_critical_path.md`).
 
 Each record carries two headline metrics, both measured from the App's `on_mount` — the
 same anchor the visible stopwatch badge uses, so the two numbers should visually track
 what you saw on screen:
 
-- `all_surfaces_ready_seconds` — elapsed time until **both** the Agents and AXE tabs'
-  first load finished, regardless of which tab was visible. This is today's stopwatch
-  semantics.
+- `all_surfaces_ready_seconds` — elapsed time until **both** the Agents and Services
+  tabs' first load finished, regardless of which tab was visible. This is today's
+  stopwatch semantics.
 - `visible_ready_seconds` — elapsed time until the **initially visible** tab's own
   surface was interactive. Recorded from day one even though nothing currently drives
   the stopwatch off of it, so a later change to end the stopwatch on the visible surface

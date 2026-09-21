@@ -6,7 +6,7 @@ Mentors are automated AI code review agents for Patches. A Patch is SASE's local
 for one proposed code change; mentors watch its commits, decide whether configured
 review profiles match, and then run focused review agents in the background.
 
-The Axe daemon drives mentor checks. When a mentor finds issues, it writes structured
+The scheduler drives mentor checks. When a mentor finds issues, it writes structured
 JSON comments with severities (`error`, `warning`, or `suggestion`). You review those
 comments in sase's TUI and can launch an apply agent for the accepted comments.
 

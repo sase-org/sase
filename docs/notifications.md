@@ -690,7 +690,8 @@ without waiting for the next hourly housekeeping tick.
 The five-minute `plugins_required` job raises one human-only `PluginsRequired` gate per
 enabled project whose `plugins.required` entries are missing or version-mismatched. The
 notification lands in the `Plugins` panel with `plugin` and `required` tags. Its preview
-lists each unsatisfied requirement and notes that a successful install restarts axe.
+lists each unsatisfied requirement and notes that a successful install restarts the
+scheduler.
 
 The gate offers two branches:
 
@@ -839,7 +840,8 @@ entry, preventing premature firing on `Draft → Ready` transitions.
 Any producer — a job, a hook, or an agent — may attach a structured report to a
 notification by setting `action: "ViewReport"`. The report is a **job report document**
 (`{"title": ..., "blocks": [...]}`), the same artifact `sase.jobs.JobReport` builds and
-the AXE tab already renders, so the notification carries no producer-private schema.
+the Services tab already renders, so the notification carries no producer-private
+schema.
 
 `action_data` describes where the document lives:
 

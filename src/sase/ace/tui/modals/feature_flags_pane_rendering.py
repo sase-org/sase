@@ -277,7 +277,7 @@ def build_panel_footer(
     """Build the one-line contextual footer."""
     text = Text()
     if mutating:
-        text.append("saving…  ·  TUI and AXE will restart", style="dim")
+        text.append("saving…  ·  TUI and service host will restart", style="dim")
         return text
     if filter_open:
         text.append("esc", style="bold")
@@ -292,7 +292,7 @@ def build_panel_footer(
         text.append(" toggle  ·  ", style="dim")
     text.append("r", style="bold")
     text.append(" refresh  ·  ", style="dim")
-    text.append("changes restart TUI + AXE", style="dim")
+    text.append("changes restart TUI + service host", style="dim")
     return text
 
 
@@ -322,7 +322,7 @@ def build_toggle_confirmation(
         )
     return _FlagToggleConfirmation(
         title="Toggle feature flag",
-        message="sase's TUI and AXE restart after active procs finish.",
+        message="sase's TUI and service host restart after active procs finish.",
         subject="\n".join(lines),
     )
 
@@ -419,7 +419,7 @@ def _shadow_warning(decision: FeatureFlagDecision) -> Text:
     text.append("Forced for this process by ", style=_SHADOW_STYLE)
     text.append(_shadow_source_label(decision), style=_SHADOW_STYLE)
     text.append(
-        ". Saving still restarts sase's TUI and AXE, but the saved value will not "
+        ". Saving still restarts sase's TUI and the service host, but the saved value will not "
         "win until that override is removed.",
         style=_SHADOW_STYLE,
     )
@@ -429,7 +429,7 @@ def _shadow_warning(decision: FeatureFlagDecision) -> Text:
 def _shadow_plain(decision: FeatureFlagDecision) -> str:
     return (
         f"Forced for this process by {_shadow_source_label(decision)}. "
-        "Saving still restarts sase's TUI and AXE, but the saved value will not "
+        "Saving still restarts sase's TUI and the service host, but the saved value will not "
         "win until that override is removed."
     )
 

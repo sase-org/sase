@@ -97,7 +97,7 @@ def test_plugins_required_gate_builds_canonical_spec_preview_and_pending_action(
     assert "one combined install" in preview
     assert "bounded public-index probe" in preview
     assert "definitive-404 git source resolution" in preview
-    assert "successful install restarts axe" in preview
+    assert "successful install restarts the scheduler" in preview
     assert "sase-github" in preview
     assert "sase-research-artifacts" in preview
     assert "`sase plugin install sase-github`" in preview

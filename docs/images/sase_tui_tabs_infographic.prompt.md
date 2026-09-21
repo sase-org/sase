@@ -6,7 +6,7 @@ pdf: false
 
 !!! warning "Historical generation record"
 
-    This prompt produced the retired pre-Artifacts ACE diagram. Current ACE navigation is **Agents · Artifacts · Axe**.
+    This prompt produced the retired pre-Artifacts ACE diagram. Current ACE navigation is **Agents · Artifacts · Services**.
     Artifacts has fixed **Stitches · Patches · Beads · Files** views, with configured document-provider panes such as
     **Plans** and **Research** inserted before Files. The PNG is no longer embedded in active documentation; do not
     reuse it without regenerating the composition and labels for the current tab model.

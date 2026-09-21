@@ -243,7 +243,7 @@ def execute_plugins_required_gate_command(
     Install preflights the baked names through one bounded batch planner and
     executes at most one reconstructed ``uv`` install before emitting a result,
     so a not-``uv tool`` environment (or any other install failure) leaves the
-    gate pending instead of reporting a phantom success. AXE restart is left to
+    gate pending instead of reporting a phantom success. Scheduler restart is left to
     the host effect after the response is persisted.
     """
     try:

@@ -152,7 +152,7 @@ def test_config_restart_failure_keeps_saved_write_truthful() -> None:
 
     assert app.notifications == [
         (
-            "Config saved to /tmp/sase.yml, but AXE restart failed: Failed to restart axe",
+            "Config saved to /tmp/sase.yml, but scheduler restart failed: Failed to restart axe",
             "error",
         )
     ]

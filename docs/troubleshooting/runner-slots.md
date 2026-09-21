@@ -108,16 +108,16 @@ To diagnose a wait:
    consuming a slot as soon as its PID is observed dead.
 
 The slot gate runs in each agent process under a global file lock. It does not depend on
-the axe daemon, so restarting axe does not release or repair a slot wait. Immediate
-slot-participating launches become admitted before primary and linked-workspace
-preparation; dependency, time, and fork waiters do not consume a slot until those
-prerequisites resolve.
+the scheduler, so restarting the scheduler does not release or repair a slot wait.
+Immediate slot-participating launches become admitted before primary and
+linked-workspace preparation; dependency, time, and fork waiters do not consume a slot
+until those prerequisites resolve.
 
 After upgrading from a build that did not enforce weighted capacity, restart sase's TUI
-and AXE, then let old runner processes drain or relaunch them. The new runtime treats
-legacy records with absent `queue_weight` as `1.0`, but that storage compatibility does
-not make a mixed old/new scheduler fleet safe: an old runner binary cannot enforce
-weighted claims for new work.
+and the service host, then let old runner processes drain or relaunch them. The new
+runtime treats legacy records with absent `queue_weight` as `1.0`, but that storage
+compatibility does not make a mixed old/new scheduler fleet safe: an old runner binary
+cannot enforce weighted claims for new work.
 
 A modern unanswered `QUESTION` is a gate shell and consumes no runner capacity. On
 answer, its next family member transfers or reacquires the family capacity claim through

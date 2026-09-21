@@ -60,7 +60,7 @@ def test_preview_lists_each_requirement_and_notes_axe_restart() -> None:
     assert "bounded public-index probe" in preview
     assert "definitive-404 git source resolution" in preview
     assert "`sase plugin install sase-github`" in preview
-    assert "successful install restarts axe" in preview
+    assert "successful install restarts the scheduler" in preview
     assert "fail closed" in preview
 
 

@@ -7,7 +7,7 @@ required list.
 
 Agent and non-interactive callers use :func:`fail_closed_required_plugins`.
 That helper never attempts an install: ``sase plugin install`` refuses to run
-from a dev-checkout virtualenv and restarts axe on success.
+from a dev-checkout virtualenv and restarts the scheduler on success.
 """
 
 from __future__ import annotations
@@ -153,7 +153,7 @@ def fail_closed_required_plugins(report: RequiredPluginsReport) -> None:
     """Raise :class:`RequiredPluginError` when *report* is unsatisfied.
 
     Never attempts an install: ``sase plugin install`` refuses to run from a
-    dev-checkout virtualenv and restarts axe on success.
+    dev-checkout virtualenv and restarts the scheduler on success.
     """
     if report.ok:
         return

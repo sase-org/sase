@@ -26,7 +26,7 @@ def render_plugins_required_preview(payload: Any) -> str:
         f"one combined install for every missing requirement, using one "
         f"bounded public-index probe and per-plugin index or definitive-404 "
         f"git source resolution. A "
-        f"successful install restarts axe. Choosing **Dismiss** hides this "
+        f"successful install restarts the scheduler. Choosing **Dismiss** hides this "
         f"gate until the required set changes. Agent and non-interactive "
         f"contexts still fail closed and never auto-install."
     )

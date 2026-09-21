@@ -84,9 +84,9 @@ The shipped Rust-backed operations are grouped by the Python facade that calls t
 - Git object-sharing planning for managed workspaces (`plan_git_object_sharing`)
 - AXE configuration composition and entry-edit planning (`axe_config_compose`,
   `axe_config_plan_entry`), including routine/job input aliases, description-shape
-  diagnostics, and the public routine/job projection; the public
-  `sase axe status --json` projection (`project_axe_status_public`); and agent-tribe
-  identity resolution, including the public `job` alias for the stored `chop` tribe
+  diagnostics, and the public routine/job projection; the public routine/job status
+  `--json` projection (`project_axe_status_public`); and agent-tribe identity
+  resolution, including the public `job` alias for the stored `chop` tribe
   (`resolve_agent_tribe_identity`)
 
 The intentionally Python-owned host surfaces include:

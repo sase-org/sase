@@ -250,7 +250,7 @@ to restart long-running agents:
 · sase-telegram  0.1.0   (already current)
 
 Updated sase + 1 plugin in 4.2s · 1 already current
-Axe restarted (pid 12345) to load the updated code.
+↻ requested service proc scheduler restart to load the updated code.
 ```
 
 - **Install method is required.** `sase update` only works when sase was installed with
@@ -279,9 +279,9 @@ Axe restarted (pid 12345) to load the updated code.
   explicitly re-resolves the compatible core wheel without replacing or dropping those
   editable sources.
 - **Restart behavior is automatic after real code changes.** In the CLI, SASE restarts
-  axe when it is running so the daemon loads the new code. In the Admin Center Updates
-  tab, SASE restarts sase's TUI and axe through the same restart path as the `Q` restart
-  action. No-op and failed updates do not restart anything.
+  the scheduler when it is running so it loads the new code. In the Admin Center Updates
+  tab, SASE restarts sase's TUI and the service host through the same restart path as
+  the `Q` restart action. No-op and failed updates do not restart anything.
 - **The Admin Center mirrors the split.** On a highlighted **Plugins** row in the
   Updates tab, `U` updates that installed plugin and `m` switches install mode.
   Pane-wide `u` still runs only the SASE core + plugins update, while pane-wide `A`
@@ -299,9 +299,9 @@ Axe restarted (pid 12345) to load the updated code.
   resolves and prints the managed plan itself.
 - **`-j|--json`** emits `schema_version: 2` with a stable, sorted payload. Managed
   outcomes are reported under `managed`; editable-checkout plans/results are reported
-  under `dev`; `mode` is `managed`, `dev`, or `mixed`; `restart` reports whether axe was
-  restarted, skipped, or failed. The dry-run JSON reports `dry_run: true`, the planned
-  command or dev plan, and each package's current version.
+  under `dev`; `mode` is `managed`, `dev`, or `mixed`; `restart` reports whether the
+  scheduler was restarted, skipped, or failed. The dry-run JSON reports `dry_run: true`,
+  the planned command or dev plan, and each package's current version.
 - **Installed shell-completion scripts are refreshed after a successful upgrade**, so a
   stamped script does not drift behind the CLI it completes. A successful update
   regenerates, `zcompile`s, and re-stamps every previously installed script, adds a
@@ -334,8 +334,8 @@ requirements from the receipt and upgrades each one in place from git instead:
   transitive dependency rather than a top-level uv receipt requirement. Current or
   safely skipped editable checkouts stay visible in the plan but do not block that
   core-wheel update.
-- After any changed update (managed or dev), `sase update` restarts the axe daemon so
-  the new code is picked up by background work.
+- After any changed update (managed or dev), `sase update` restarts the scheduler so the
+  new code is picked up by background work.
 
 A normal `uv tool install sase` user is unaffected by this path, while a contributor
 running editable installs gets the same one-command update. `-n|--dry-run` previews the
@@ -409,8 +409,8 @@ of updating within one:
   through `uv`.
 - Switching to the mode you are already in is a no-op. `-n|--dry-run` previews the plan;
   without `-y|--yes` an interactive confirmation is required, and cancelling exits
-  non-zero. A changed switch restarts axe (and sase's TUI plus axe when driven from the
-  Updates tab) through the shared restart path.
+  non-zero. A changed switch restarts the scheduler (and sase's TUI plus the service
+  host when driven from the Updates tab) through the shared restart path.
 - **In the Admin Center Updates tab, highlight a Plugins row and press `m`** to switch
   mode interactively: it shows the current mode and dev root, confirms, runs the switch
   as a proc, and shows a restart toast.
@@ -472,7 +472,7 @@ sase plugin install github -j       # stable machine-readable JSON (also on upda
   sorted payload with `schema_version`, the resolved `command`, and per-package
   outcomes; **`-r|--refresh`** refetches the catalog before resolving a name.
 - **Restart after real package changes.** Like `sase update`, `sase plugin install`,
-  `update`, and `uninstall` restart the axe daemon from the CLI when uv actually changed
+  `update`, and `uninstall` restart the scheduler from the CLI when uv actually changed
   installed packages, and show an operation-specific post-restart toast when driven from
   sase's TUI. The JSON payload carries the same restart status shape as `sase update`.
 

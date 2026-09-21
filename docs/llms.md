@@ -1148,12 +1148,13 @@ Collection is gated by the durable `llm_provider.usage_metrics.enabled` preferen
 Per-provider `llm_provider.usage_metrics.providers.<name>.enabled` overrides collection
 without hard-coding the initial three providers.
 
-`submit_usage_refresh` is the shared durable refresh service for CLI, sase's TUI, AXE,
-and limit-event triggers. It coalesces work per provider and account generation, joins
-in-flight probes without dropping other requested providers, and bounds automatic
-retries with cadence-based backoff. AXE submits due work from the `usage_refresh` job on
-the five-minute checks routine. sase's TUI requests the same due work after first paint
-and while open when AXE is absent. A normal TUI tick never probes inline.
+`submit_usage_refresh` is the shared durable refresh service for CLI, sase's TUI, the
+scheduler, and limit-event triggers. It coalesces work per provider and account
+generation, joins in-flight probes without dropping other requested providers, and
+bounds automatic retries with cadence-based backoff. The scheduler submits due work from
+the `usage_refresh` job on the five-minute checks routine. sase's TUI requests the same
+due work after first paint and while open when the scheduler is absent. A normal TUI
+tick never probes inline.
 
 ## Configuration
 
@@ -2303,11 +2304,11 @@ stable line-oriented text, while redirected output also becomes plain automatica
 sase's TUI exposes the same cache from Launch Control: press `u`, or choose **Open
 Providers · Usage** from the command palette. The modal never probes on first paint.
 Press its own `u` to update, close it without cancelling durable work, and reopen to
-reattach. AXE submits due refreshes on its checks cadence. sase's TUI independently
-requests due work after its first paint and then on the configured cadence while it
-remains open; it does not first detect whether AXE is running. Per-provider coalescing
-makes concurrent AXE, sase's TUI, CLI, and limit-event requests join the same live
-probe.
+reattach. The scheduler submits due refreshes on its checks cadence. sase's TUI
+independently requests due work after its first paint and then on the configured cadence
+while it remains open; it does not first detect whether the scheduler is running.
+Per-provider coalescing makes concurrent scheduler, sase's TUI, CLI, and limit-event
+requests join the same live probe.
 
 Background refreshes, and `sase usage refresh` without `-p`, only probe eligible
 providers: registered providers that are not hidden from model pickers, ship a probe

@@ -115,15 +115,23 @@ SASE_VCS_PROVIDER=auto sase stitch create -m "Update parser"
 ```
 
 The `-v, --vcs-provider` CLI flag on `sase tui` and `sase axe` sets this variable
-internally:
+internally for that process:
 
 ```bash
 # Equivalent to SASE_VCS_PROVIDER=git sase tui
 sase tui --vcs-provider git
 
-# Same for axe
-sase axe --vcs-provider hg start
+# Same for an in-process axe run
+sase axe --vcs-provider hg job run <name>
 ```
+
+On `sase axe`, the flag belongs to the `axe` command itself and must come before the
+subcommand. It takes effect for `sase axe job run` and `sase axe routine run`, which
+execute in the CLI process. The `start|stop|restart|status` verbs only ask the service
+host to act on the `scheduler` service proc, so a `-v` passed with them never reaches
+the host-run scheduler. Pin the provider for the host-run scheduler in its proc
+environment instead: `service.procs.scheduler.env` (for example,
+`SASE_VCS_PROVIDER: hg`).
 
 Valid values: `git`, `hg`, `auto`.
 
@@ -744,14 +752,15 @@ export SASE_VCS_PROVIDER=hg
 ### CLI Flags
 
 Available as `-v, --vcs-provider` on `sase tui` and `sase axe` only. On `sase axe`, the
-flag belongs to the `axe` command itself and must come before the subcommand:
+flag belongs to the `axe` command itself and must come before the subcommand, and it
+only takes effect for `job run` and `routine run`:
 
 ```bash
 sase tui --vcs-provider git
 sase tui --vcs-provider hg
 sase tui -v auto
 
-sase axe --vcs-provider git start
+sase axe --vcs-provider git routine run <name>
 ```
 
 Valid values for the CLI flag and the config key: `git`, `hg`, `auto`. The environment

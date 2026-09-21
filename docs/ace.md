@@ -956,40 +956,40 @@ stored size; launch routing uses the same `@small` fallback.
 > grouping bucket forward / reverse on Artifacts panes that have a grouping mode (each
 > surface keeps its own in-session mode). Beads has no grouping modes, and a provider
 > document pane has them only when it declares `ref.grouping`, so the keys are a silent
-> no-op on panes without modes; the same is true on the AXE tab. The Artifacts
+> no-op on panes without modes; the same is true on the Services tab. The Artifacts
 > open-externally verb moved to `E`; bang-mode `!o` still marks PR origin. See
 > [PR Grouping and Folding](#pr-grouping-and-folding) and the Agents-tab
 > [Grouping Modes](#grouping-modes) below.
 
 ### PR Actions
 
-| Key             | Action                                                                                     |
-| --------------- | ------------------------------------------------------------------------------------------ |
-| `A`             | Accept proposal (`!` = spec only, `@` = mark ready to mail)                                |
-| `b`             | Rebase PR onto parent                                                                      |
-| `C` / `c1`-`c9` | Checkout PR (primary / workspace 1-9)                                                      |
-| `d`             | Show diff (Patches sub-tab only; `d` toggles sidecars on Stitches and the Axe description) |
-| `e`             | Edit spec file                                                                             |
-| `f`             | Edit the Patches filter query                                                              |
-| `F`             | Edit hooks (re-run / delete via hint input; type `.` to pick from hook history)            |
-| `M`             | Mail PR                                                                                    |
-| `m`             | Mark / unmark current PR (auto-advances to next)                                           |
-| `n`             | Rename PR (non-Sub/Rev PRs only)                                                           |
-| `!o`            | Mark PR origin (`sase`/`external`/`unknown`)                                               |
-| `!R`            | Rewind to previous commit (`!` suffix skips VCS operations)                                |
-| `R`             | Open the [Refresh panel](#refresh-panel) (refreshes immediately when it is disabled)       |
-| `y`             | Copy the PR's `@patch:` reference                                                          |
-| `s`             | Change status (opens status modal)                                                         |
-| `S`             | Bulk status change for all marked PRs                                                      |
-| `T` / `t`       | Checkout + tmux (primary workspace / prompt for a workspace number)                        |
-| `u`             | Clear all marks                                                                            |
-| `v`             | View files (hint mode)                                                                     |
-| `V`             | Open the Agent Run Log modal for the current PR                                            |
-| `w`             | Reword PR description                                                                      |
-| `W`             | Add tag to PR description                                                                  |
-| `x`             | Show/hide submitted PRs                                                                    |
-| `X`             | Show/hide reverted PRs                                                                     |
-| `Y`             | Sync workspace                                                                             |
+| Key             | Action                                                                                          |
+| --------------- | ----------------------------------------------------------------------------------------------- |
+| `A`             | Accept proposal (`!` = spec only, `@` = mark ready to mail)                                     |
+| `b`             | Rebase PR onto parent                                                                           |
+| `C` / `c1`-`c9` | Checkout PR (primary / workspace 1-9)                                                           |
+| `d`             | Show diff (Patches sub-tab only; `d` toggles sidecars on Stitches and the Services description) |
+| `e`             | Edit spec file                                                                                  |
+| `f`             | Edit the Patches filter query                                                                   |
+| `F`             | Edit hooks (re-run / delete via hint input; type `.` to pick from hook history)                 |
+| `M`             | Mail PR                                                                                         |
+| `m`             | Mark / unmark current PR (auto-advances to next)                                                |
+| `n`             | Rename PR (non-Sub/Rev PRs only)                                                                |
+| `!o`            | Mark PR origin (`sase`/`external`/`unknown`)                                                    |
+| `!R`            | Rewind to previous commit (`!` suffix skips VCS operations)                                     |
+| `R`             | Open the [Refresh panel](#refresh-panel) (refreshes immediately when it is disabled)            |
+| `y`             | Copy the PR's `@patch:` reference                                                               |
+| `s`             | Change status (opens status modal)                                                              |
+| `S`             | Bulk status change for all marked PRs                                                           |
+| `T` / `t`       | Checkout + tmux (primary workspace / prompt for a workspace number)                             |
+| `u`             | Clear all marks                                                                                 |
+| `v`             | View files (hint mode)                                                                          |
+| `V`             | Open the Agent Run Log modal for the current PR                                                 |
+| `w`             | Reword PR description                                                                           |
+| `W`             | Add tag to PR description                                                                       |
+| `x`             | Show/hide submitted PRs                                                                         |
+| `X`             | Show/hide reverted PRs                                                                          |
+| `Y`             | Sync workspace                                                                                  |
 
 ### PR Grouping and Folding
 
@@ -1093,7 +1093,7 @@ prefix.
 | Key  | Action                                                                   |
 | ---- | ------------------------------------------------------------------------ |
 | `!!` | Run a background command (choose a project, a workspace, then a command) |
-| `!x` | Start / stop service host or axe (or select process)                     |
+| `!x` | Start / stop service host (or select process)                            |
 | `!o` | Mark PR origin (`sase`/`external`/`unknown`)                             |
 | `!R` | Rewind to previous commit (`!` suffix skips VCS operations)              |
 
@@ -1265,10 +1265,10 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 > the L0 grouping bucket forward / reverse on Artifacts panes that have a grouping mode
 > (each surface keeps its own in-session mode). Beads has no grouping modes, and a
 > provider document pane has them only when it declares `ref.grouping`, so the keys are
-> a silent no-op on panes without modes; the same is true on the AXE tab. The Artifacts
-> open-externally verb moved to `E`; bang-mode `!o` still marks PR origin. `g`/`G` keep
-> their conventional vim-style scroll-to-top/bottom meaning on every tab. See
-> [Grouping Modes](#grouping-modes) below.
+> a silent no-op on panes without modes; the same is true on the Services tab. The
+> Artifacts open-externally verb moved to `E`; bang-mode `!o` still marks PR origin.
+> `g`/`G` keep their conventional vim-style scroll-to-top/bottom meaning on every tab.
+> See [Grouping Modes](#grouping-modes) below.
 
 The numbered `NEIGHBORS` rows use dotted agent-name relationships rather than Patch
 sibling families. Relations are keyed on the name a row presents as its **sase agent**
@@ -1343,9 +1343,9 @@ highlighted row and advances to the next (wrapping around). `Enter` opens every 
 target in the chooser's displayed order, or only the highlighted row when nothing is
 marked. `q` / `Esc` cancel without opening anything.
 
-On Artifacts and Axe, `r` still runs a Patch workflow or an Axe job/bgcmd, and `R` still
-opens the [Refresh panel](#refresh-panel) (or refreshes immediately when that panel is
-disabled). Only the Agents tab swaps those keys.
+On Artifacts and Services, `r` still runs a Patch workflow or an Axe job/bgcmd, and `R`
+still opens the [Refresh panel](#refresh-panel) (or refreshes immediately when that
+panel is disabled). Only the Agents tab swaps those keys.
 
 ### Forking Agents and Groups
 
@@ -1571,23 +1571,23 @@ removes or alters a row).
 
 ### Refresh Panel
 
-Press `R` on Artifacts or Axe, or `r` on Agents, to open the Refresh panel: a centered
-single-key chooser that names every refresh sase's TUI can perform, shows how fresh each
-target already is, and runs exactly one of them.
+Press `R` on Artifacts or Services, or `r` on Agents, to open the Refresh panel: a
+centered single-key chooser that names every refresh sase's TUI can perform, shows how
+fresh each target already is, and runs exactly one of them.
 
-| Key | Aliases  | Option        | What it does                                                                |
-| --- | -------- | ------------- | --------------------------------------------------------------------------- |
-| `r` | `R`, `1` | This tab      | Reload the current tab's visible surface (Agents inbox, Artifacts, or Axe). |
-| `f` | `2`      | Full history  | Reload Agents from the complete archive. Works from any tab.                |
-| `u` | `3`      | Usage windows | Re-probe provider subscription limits.                                      |
-| `a` | `4`      | Everything    | Forced sanity sweep plus full history and usage.                            |
+| Key | Aliases  | Option        | What it does                                                                     |
+| --- | -------- | ------------- | -------------------------------------------------------------------------------- |
+| `r` | `R`, `1` | This tab      | Reload the current tab's visible surface (Agents inbox, Artifacts, or Services). |
+| `f` | `2`      | Full history  | Reload Agents from the complete archive. Works from any tab.                     |
+| `u` | `3`      | Usage windows | Re-probe provider subscription limits.                                           |
+| `a` | `4`      | Everything    | Forced sanity sweep plus full history and usage.                                 |
 
-`R` is an alias for This tab, so a double-tapped `R R` on Artifacts or Axe (or `r r` on
-Agents) reproduces the old immediate refresh. `j`/`k` (or arrows / `Ctrl+N`/`Ctrl+P`)
-move the cursor; `Enter` activates the highlighted row (This tab when the panel opens);
-`Esc` or `q` cancels. The `,y` leader chord opens the same panel from any tab with Full
-history highlighted and a `,y lives here now — press f` reminder, so `,y` then `f` (or
-`Enter`) runs the full-history reload.
+`R` is an alias for This tab, so a double-tapped `R R` on Artifacts or Services (or
+`r r` on Agents) reproduces the old immediate refresh. `j`/`k` (or arrows /
+`Ctrl+N`/`Ctrl+P`) move the cursor; `Enter` activates the highlighted row (This tab when
+the panel opens); `Esc` or `q` cancels. The `,y` leader chord opens the same panel from
+any tab with Full history highlighted and a `,y lives here now — press f` reminder, so
+`,y` then `f` (or `Enter`) runs the full-history reload.
 
 Each row shows a freshness chip from a reload requested in this session (`12s ago`,
 `2h ago`, `just now`). A surface that has not been reloaded yet shows `—`, never a
@@ -1601,8 +1601,8 @@ something else.
 
 The default-on `refresh_panel` sunset flag is the escape hatch back to the old gestures.
 Disable it (`sase flag disable refresh_panel`) to restore immediate current-tab refresh
-(`R` on Artifacts and Axe, `r` on Agents) and `,y` (Agents full-history) without the
-chooser. See [feature flags](configuration.md#feature_flags).
+(`R` on Artifacts and Services, `r` on Agents) and `,y` (Agents full-history) without
+the chooser. See [feature flags](configuration.md#feature_flags).
 
 The dismissed projection that hides agents from the visible inbox is rebuilt from the
 in-memory dismissed set _unioned with every dismissed-bundle summary_. Reviving an agent
@@ -2771,11 +2771,11 @@ not write a new bundle every refresh while the same violation remains active.
 
 ### Bang Mode (`!` prefix)
 
-| Key  | Action                                               |
-| ---- | ---------------------------------------------------- |
-| `!!` | Run background command                               |
-| `!x` | Start / stop service host or axe (or select process) |
-| `!R` | Revive a previously dismissed agent                  |
+| Key  | Action                                        |
+| ---- | --------------------------------------------- |
+| `!!` | Run background command                        |
+| `!x` | Start / stop service host (or select process) |
+| `!R` | Revive a previously dismissed agent           |
 
 ### Copy Mode (`%` prefix)
 
@@ -2816,7 +2816,7 @@ terminology, which is why the detailed scheduler reference below still uses “A
 
 ### Sidebar Row Taxonomy
 
-The Axe sidebar renders three row types so the operational tree reads at a glance:
+The Services sidebar renders three row types so the operational tree reads at a glance:
 
 - **Routine** rows are top-level sections with a solid left accent bar (`▌`) in the
   routine hue, a `[*]` / `[!]` / `[·]` running/error/idle marker, the routine name, and
@@ -2880,7 +2880,7 @@ budgets `max(3, min(16, floor(pane_height * 0.45)))` rows for the panel, falling
 row becomes a dim `… +N more · e` marker: nothing is silently dropped, and `e` opens the
 AXE entry editor, whose first field is the full description in a multi-line text area.
 
-Because `d` belongs to the Axe tab, `show_diff` is scoped to the Patches sub-tab.
+Because `d` belongs to the Services tab, `show_diff` is scoped to the Patches sub-tab.
 Pressing `d` outside Patches no longer opens a diff for an unrelated Patch.
 
 ### Dynamic Sidebar Width and No-Wrap Rows
@@ -2969,10 +2969,10 @@ for removing a target-layer override.
 
 Editing a generated job row edits its immutable base job and warns that every generated
 instance is affected. Before writing, the panel shows an exact effective before/after
-preview plus a source-file diff. When AXE is running, the preview makes restart
-explicit: save and restart AXE to reconcile the daemon immediately, or save only and
-leave the current daemon configuration active until the next restart. `E` remains
-reserved for opening recorded job output.
+preview plus a source-file diff. When the scheduler is running, the preview makes
+restart explicit: save and restart the scheduler to reconcile it immediately, or save
+only and leave the current scheduler configuration active until the next restart. `E`
+remains reserved for opening recorded job output.
 
 #### AXE Property Sheet
 
@@ -3003,14 +3003,14 @@ property.
 | Vim keys                       | Edit through the standard `VimTextArea` layer                      |
 | `Ctrl+S` / `Ctrl+R` / `Ctrl+T` | Preview, inherit/reset, or cycle scope while the editor is focused |
 
-| Preview key                     | Action                                  |
-| ------------------------------- | --------------------------------------- |
-| `↑` / `↓` / `Ctrl+D` / `Ctrl+U` | Scroll by line or page                  |
-| `g` / `G`                       | Scroll to the top / bottom              |
-| `Enter`                         | Save, restarting AXE when it is running |
-| `Ctrl+O`                        | Save without restarting AXE             |
-| `q`                             | Close the panel directly                |
-| `Esc`                           | Return to the property sheet            |
+| Preview key                     | Action                                            |
+| ------------------------------- | ------------------------------------------------- |
+| `↑` / `↓` / `Ctrl+D` / `Ctrl+U` | Scroll by line or page                            |
+| `g` / `G`                       | Scroll to the top / bottom                        |
+| `Enter`                         | Save, restarting the scheduler when it is running |
+| `Ctrl+O`                        | Save without restarting the scheduler             |
+| `q`                             | Close the panel directly                          |
+| `Esc`                           | Return to the property sheet                      |
 
 ### Leader Mode (`,` prefix)
 
@@ -3049,7 +3049,7 @@ cancels, with configured target keys taking precedence.
 | `%O` | Copy full output       |
 | `%s` | Copy sase tui snapshot |
 
-### Axe Control
+### Services Control
 
 | Key | Action                                             |
 | --- | -------------------------------------------------- |
@@ -3110,7 +3110,7 @@ chooser instead. Press a populated slot (`1`–`9`, then `0`), move with `j`/`k`
 arrow keys and press `Enter`, or click a row. `q`/`Esc` closes the chooser without
 changing the query. The chooser shows the saved query text and marks the active query;
 an empty chooser also repeats the save syntax. The chooser is unavailable from the
-Agents and Axe tabs.
+Agents and Services tabs.
 
 ### Query History
 
@@ -3149,8 +3149,8 @@ The pane uses the Admin Center list/detail layout: a header with registered/on/s
 counts, a flag rail, a scrollable detail card, a hidden inline filter, and a one-line
 footer. Effective on/off and source are shown separately from saved on/off. When
 environment or root CLI `-f`/`-F` still wins, a yellow “forced for this process” warning
-explains that saving restarts sase's TUI and AXE but will not take effect until that
-override is removed.
+explains that saving restarts sase's TUI and the service host but will not take effect
+until that override is removed.
 
 | Key              | Action                                                                                        |
 | ---------------- | --------------------------------------------------------------------------------------------- |
@@ -3163,10 +3163,10 @@ override is removed.
 | `0` then `1`–`7` | Jump to a numbered Config child while Flags is visible (`1`–`6` when the rollout flag is off) |
 
 Confirmation is cancel-first. It names the flag, the current-to-target state, the saved
-state path, any shadowing source, and that **sase's TUI and AXE restart after active
-procs finish**. Confirming writes only the machine-state file, waits up to 60 seconds
-for tracked background procs, then performs one controlled sase's TUI+AXE restart. A
-restart failure does not roll back the saved preference.
+state path, any shadowing source, and that **sase's TUI and service host restart after
+active procs finish**. Confirming writes only the machine-state file, waits up to 60
+seconds for tracked background procs, then performs one controlled sase's
+TUI+service-host restart. A restart failure does not roll back the saved preference.
 
 Disabling `admin_center_flags` from its own row is supported: the confirmation says the
 Flags pane will disappear after restart and gives `sase flag enable admin_center_flags`
@@ -3179,25 +3179,25 @@ the CLI contract.
 
 These work on all tabs:
 
-| Key                     | Action                                                                                                                                                            |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Tab` / `Shift+Tab`     | Switch between Agents, Artifacts, and Axe tabs                                                                                                                    |
-| `#`                     | Open SASE Admin Center home (repeat on home to resume the last section); inside a working section, jump to the alternate section (repeat to toggle back)          |
-| `.`                     | Artifacts: collapse/expand the relations panel; Agents: show/hide non-run agents; Axe: show/hide axe commands                                                     |
-| `:` / `;`               | Open the context-aware [Command Palette](#command-palette)                                                                                                        |
-| `i`                     | Show notifications inbox                                                                                                                                          |
-| `+`                     | Run a custom agent (opens project/Patch selection)                                                                                                                |
-| `Space`                 | Run an agent from the home prompt context                                                                                                                         |
-| `Ctrl+Space`            | Prefill the prompt bar with the most recently launched VCS xprompt                                                                                                |
-| `Ctrl+G`                | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                                                                          |
-| `Ctrl+L`                | Dismiss all currently-visible toast notifications                                                                                                                 |
-| `@`                     | Restore a stashed prompt: a lone entry restores directly; several open the restore picker                                                                         |
-| `$$` / `$1`-`$9` / `$0` | Follow the first / numbered contextual artifact link, or open the links panel                                                                                     |
-| `Q`                     | Open the quit / restart menu                                                                                                                                      |
-| `R`                     | Open the [Refresh panel](#refresh-panel) on Artifacts and Axe (this tab, full history, usage, or everything). On Agents, retry the selected local or remote agent |
-| `r`                     | On Agents, refresh (or open the Refresh panel). Artifacts and Axe keep `r` for Patch workflow / Axe run or re-run                                                 |
-| `q`                     | Quit (first closes an open artifact viewer pane)                                                                                                                  |
-| `?`                     | Show help modal                                                                                                                                                   |
+| Key                     | Action                                                                                                                                                                 |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Tab` / `Shift+Tab`     | Switch between Agents, Artifacts, and Services tabs                                                                                                                    |
+| `#`                     | Open SASE Admin Center home (repeat on home to resume the last section); inside a working section, jump to the alternate section (repeat to toggle back)               |
+| `.`                     | Artifacts: collapse/expand the relations panel; Agents: show/hide non-run agents; Services: show/hide axe commands                                                     |
+| `:` / `;`               | Open the context-aware [Command Palette](#command-palette)                                                                                                             |
+| `i`                     | Show notifications inbox                                                                                                                                               |
+| `+`                     | Run a custom agent (opens project/Patch selection)                                                                                                                     |
+| `Space`                 | Run an agent from the home prompt context                                                                                                                              |
+| `Ctrl+Space`            | Prefill the prompt bar with the most recently launched VCS xprompt                                                                                                     |
+| `Ctrl+G`                | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                                                                               |
+| `Ctrl+L`                | Dismiss all currently-visible toast notifications                                                                                                                      |
+| `@`                     | Restore a stashed prompt: a lone entry restores directly; several open the restore picker                                                                              |
+| `$$` / `$1`-`$9` / `$0` | Follow the first / numbered contextual artifact link, or open the links panel                                                                                          |
+| `Q`                     | Open the quit / restart menu                                                                                                                                           |
+| `R`                     | Open the [Refresh panel](#refresh-panel) on Artifacts and Services (this tab, full history, usage, or everything). On Agents, retry the selected local or remote agent |
+| `r`                     | On Agents, refresh (or open the Refresh panel). Artifacts and Services keep `r` for Patch workflow / Axe run or re-run                                                 |
+| `q`                     | Quit (first closes an open artifact viewer pane)                                                                                                                       |
+| `?`                     | Show help modal                                                                                                                                                        |
 
 The generic **Open SASE Admin Center** action and the first `#` always open a
 lightweight landing page without mounting a working pane. Press `#` again while home is
@@ -4429,7 +4429,7 @@ Press `Ctrl+O` to start the guided creation flow:
 ## Jump All Modal
 
 Press `` ` `` (backtick) on any tab to open the Jump All Modal. It displays all entries
-across Agents, Artifacts, and Axe tabs with the same adaptive one- or two-character
+across Agents, Artifacts, and Services tabs with the same adaptive one- or two-character
 hints used by current-tab entry jump. Completing an entry's hint switches to the
 appropriate tab and focuses it.
 
@@ -4444,7 +4444,7 @@ uppercase characters remain case-sensitive.
 | `Ctrl+D` / `Ctrl+U` | Scroll the entry list down / up                          |
 | `Esc`               | Close modal (any other key that is not a hint also does) |
 
-The modal groups entries by tab (Agents, Artifacts, Axe) and shows contextual
+The modal groups entries by tab (Agents, Artifacts, Services) and shows contextual
 information for each: PR names and statuses, agent names with running indicators, and
 Axe routine/command labels.
 
@@ -4460,8 +4460,8 @@ Both jump modals support a jump-back feature for toggling between two entries:
 - **Fast jump**: `Ctrl+O` runs the same current-tab jump-back path without painting
   hints first; when no jump-back target exists, it selects the first current-tab hint.
 - **Forward jump**: After walking backward, `Ctrl+Shift+O` walks forward through that
-  current tab's jump stack. Agents, Artifacts/Patches, and Axe keep independent back and
-  forward positions.
+  current tab's jump stack. Agents, Artifacts/Patches, and Services keep independent
+  back and forward positions.
 
 The single-tab variant (`'` apostrophe) shows entries only from the current tab with the
 same hint-character navigation.
@@ -7668,9 +7668,9 @@ quick access to xprompt references rather than expanding static templates.
 
 sase's TUI auto-refreshes data at a configurable interval (default: 10 seconds). The
 remaining time until the next refresh is shown in the info panel. Set
-`--refresh-interval 0` to disable. Press `R` on Artifacts or Axe, or `r` on Agents, to
-open the [Refresh panel](#refresh-panel) and choose a manual refresh without waiting for
-the next tick.
+`--refresh-interval 0` to disable. Press `R` on Artifacts or Services, or `r` on Agents,
+to open the [Refresh panel](#refresh-panel) and choose a manual refresh without waiting
+for the next tick.
 
 Tab switches are instant: cached data is shown immediately while a background refresh
 runs asynchronously, so moving between tabs never blocks on disk I/O.

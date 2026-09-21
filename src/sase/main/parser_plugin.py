@@ -165,7 +165,7 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
             "\n"
             "Use `-n|--dry-run` to preview the exact uv command and resulting "
             "plugin set without changing anything. A successful install that "
-            "changes packages restarts axe so background automation loads the "
+            "changes packages restarts the scheduler so background automation loads the "
             "new plugin code."
         ),
         epilog=(
@@ -230,7 +230,7 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
             "\n"
             "Use `-n|--dry-run` to preview the exact uv command and resulting "
             "plugin set without changing anything. A successful uninstall that "
-            "changes packages restarts axe so background automation unloads the "
+            "changes packages restarts the scheduler so background automation unloads the "
             "removed plugin code."
         ),
         epilog=(
@@ -284,7 +284,7 @@ def register_plugin_parser(subparsers: argparse._SubParsersAction) -> None:
             "yields a hint to run `sase plugin install <plugin>` instead.\n"
             "\n"
             "Use `-n|--dry-run` to preview the exact uv command without changing "
-            "anything. A successful update that changes packages restarts axe so "
+            "anything. A successful update that changes packages restarts the scheduler so "
             "background automation loads the updated plugin code."
         ),
         epilog=(

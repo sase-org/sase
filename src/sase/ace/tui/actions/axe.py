@@ -119,16 +119,16 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
         self._confirm_kill_bgcmd(slot)
 
     def _toggle_axe_global(self) -> None:
-        """Toggle axe or select process (works on all tabs, triggered by !x).
+        """Toggle the service host or select process (works on all tabs, triggered by !x).
 
-        When on AXE / Services tab:
-          - View ``"axe"``: always start/stop the service host (or legacy
-            axe daemon), even if a proc or nested Scheduler row is selected
+        When on the Services tab:
+          - View ``"axe"``: always start/stop the service host, even if a
+            proc or nested Scheduler row is selected
           - View 1-9 (bgcmd): Show confirm dialog to kill that bgcmd
 
         When on other tabs:
-          - If axe not running and no bgcmd running: Start axe
-          - If only axe running: Stop axe
+          - If service host not running and no bgcmd running: Start host
+          - If only service host running: Stop host
           - If only bgcmd running: Show selector
           - If both running: Show selector
         """
@@ -504,19 +504,17 @@ class AxeMixin(AxeConfigActionsMixin, AxeBgCmdMixin, AxeChopRunMixin, AxeDisplay
             if not success:
                 if saved_path:
                     message = (
-                        f"Config saved to {saved_path}, but AXE restart failed: "
+                        f"Config saved to {saved_path}, but scheduler restart failed: "
                         f"{message}"
                     )
                 self.notify(message, severity="error")  # type: ignore[attr-defined]
             elif saved_path:
-                self.notify(f"Config saved to {saved_path}; AXE restarted")  # type: ignore[attr-defined]
+                self.notify(f"Config saved to {saved_path}; scheduler restarted")  # type: ignore[attr-defined]
         elif state == WorkerState.ERROR:
             error_msg = str(worker.error) if worker.error else "Unknown error"
-            message = f"Axe operation failed: {error_msg}"
+            message = f"Service operation failed: {error_msg}"
             if saved_path:
-                message = (
-                    f"Config saved to {saved_path}, but AXE restart failed: {error_msg}"
-                )
+                message = f"Config saved to {saved_path}, but scheduler restart failed: {error_msg}"
             self.notify(message, severity="error")  # type: ignore[attr-defined]
 
         if saved_path:

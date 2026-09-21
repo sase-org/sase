@@ -17,20 +17,20 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
     """Single-key chooser for leaving the current sase's TUI session."""
 
     BINDINGS = [
-        Binding("1", "choose_quit_stop_axe", "Quit & Stop axe", show=False),
-        Binding("s", "choose_quit_stop_axe", "Quit & Stop axe", show=False),
+        Binding("1", "choose_quit_stop_axe", "Quit & Stop scheduler", show=False),
+        Binding("s", "choose_quit_stop_axe", "Quit & Stop scheduler", show=False),
         Binding("2", "choose_restart_tui", "Restart TUI", show=False),
         Binding("r", "choose_restart_tui", "Restart TUI", show=False),
         Binding(
             "3",
             "choose_restart_tui_and_axe",
-            "Restart TUI & axe",
+            "Restart TUI & scheduler",
             show=False,
         ),
         Binding(
             "a",
             "choose_restart_tui_and_axe",
-            "Restart TUI & axe",
+            "Restart TUI & scheduler",
             show=False,
         ),
         Binding("escape", "cancel", "Cancel", show=False),
@@ -72,7 +72,7 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
                         "2",
                         "r",
                         "Restart TUI",
-                        "Reopen the TUI. Axe keeps running.",
+                        "Reopen the TUI. The scheduler keeps running.",
                     ),
                     classes=(
                         "quit-options-row duration-choice-row "
@@ -83,8 +83,8 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
                     self._render_choice(
                         "3",
                         "a",
-                        "Restart TUI & axe",
-                        "Reopen the TUI and restart axe.",
+                        "Restart TUI & scheduler",
+                        "Reopen the TUI and restart the scheduler.",
                     ),
                     classes=(
                         "quit-options-row duration-choice-row "
@@ -105,7 +105,7 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
                 )
                 yield Static(
                     f"  [dim]1/s quit & stop {self._stop_target.lower()} · 2/r restart · "
-                    "3/a restart + axe · esc cancel[/]",
+                    "3/a restart + scheduler · esc cancel[/]",
                     classes="quit-options-row duration-choice-row",
                 )
 
@@ -130,15 +130,15 @@ class QuitOptionsModal(ModalScreen[QuitOption | None]):
         return f"  {self._running_task_count} {noun} will be stopped."
 
     def action_choose_quit_stop_axe(self) -> None:
-        """Quit and stop the axe daemon."""
+        """Quit and stop the scheduler."""
         self.dismiss("quit_stop_axe")
 
     def action_choose_restart_tui(self) -> None:
-        """Restart the TUI without touching axe."""
+        """Restart the TUI without touching the scheduler."""
         self.dismiss("restart_tui")
 
     def action_choose_restart_tui_and_axe(self) -> None:
-        """Restart the TUI and restart axe on startup."""
+        """Restart the TUI and restart the scheduler on startup."""
         self.dismiss("restart_tui_and_axe")
 
     def action_cancel(self) -> None:

@@ -87,7 +87,7 @@ def _preview_resource(spec: dict[str, Any]) -> dict[str, Any]:
         (
             lambda spec: _preview_resource(spec).update(
                 content=_preview_resource(spec)["content"].replace(
-                    "restarts axe", "does not restart axe"
+                    "restarts the scheduler", "does not restart the scheduler"
                 )
             ),
             "invalid_plugins_required_preview",

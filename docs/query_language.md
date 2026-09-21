@@ -3,7 +3,7 @@
 The Patch query language filters Patches using boolean expressions that combine string
 matching, property filters, and operational shorthands. It is used by the Patches
 sub-tab in `sase tui [query]` and by other Patch filters such as
-`sase axe start --query`.
+`sase axe routine run --query`.
 
 ## Host-owned `limit:` cap
 
