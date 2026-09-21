@@ -1,4 +1,4 @@
-"""Tests for starting and restarting the axe process."""
+"""Tests for starting the axe process."""
 
 import os
 from pathlib import Path
@@ -17,8 +17,6 @@ from sase.axe._process_start import (
 )
 from sase.axe._process_types import AxeOrchestratorProbe
 from sase.axe.process import (
-    AxeStartResult,
-    restart_axe_daemon,
     start_axe_daemon,
     start_axe_daemon_result,
 )
@@ -323,14 +321,3 @@ def test_unpublished_lock_holder_that_publishes_during_grace_is_preserved(
     finally:
         holder.terminate()
         holder.wait(timeout=2)
-
-
-def test_restart_axe_daemon_returns_verified_result_pid(axe_config: AxeConfig) -> None:
-    result = AxeStartResult(status="started", pid=2468, verified=True)
-    with patch(
-        "sase.axe._process_restart.restart_axe_daemon_result",
-        return_value=result,
-    ) as mock_restart:
-        assert restart_axe_daemon(axe_config) == 2468
-
-    mock_restart.assert_called_once_with(axe_config)

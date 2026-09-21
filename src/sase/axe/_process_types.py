@@ -14,18 +14,6 @@ StartStatus = Literal[
 
 
 @dataclass(frozen=True)
-class AxeStartAttempt:
-    """One start-and-verification attempt within an axe restart."""
-
-    number: int
-    status: StartStatus
-    pid: int | None = None
-    message: str = ""
-    verified: bool = False
-    verification_error: str | None = None
-
-
-@dataclass(frozen=True)
 class AxeStartResult:
     """Result of an axe daemon start request."""
 
@@ -33,8 +21,6 @@ class AxeStartResult:
     pid: int | None = None
     message: str = ""
     recovered_lock_holder_pid: int | None = None
-    attempts: tuple[AxeStartAttempt, ...] = ()
-    verified: bool = False
 
     @property
     def succeeded(self) -> bool:

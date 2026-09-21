@@ -5,7 +5,6 @@ the implementation lives in smaller focused modules.
 """
 
 from ._process_probe import get_axe_pid, is_axe_running
-from ._process_restart import restart_axe_daemon, restart_axe_daemon_result
 from ._process_start import (
     canonical_axe_start_command,
     start_axe_daemon,
@@ -17,49 +16,21 @@ from ._process_stop import (
     stop_axe_daemon_result,
 )
 from ._process_types import (
-    AxeStartAttempt,
     AxeStartResult,
     AxeStopResult,
     StartStatus,
 )
-from ._restart_events import (
-    AxeRestartEvent,
-    RestartEventCallback,
-    RestartFinished,
-    RestartPlanned,
-    RetryScheduled,
-    StartAttemptBegan,
-    StartAttemptSettled,
-    StartAttemptSpawned,
-    StopBegan,
-    StopFinished,
-    VerifyProgress,
-)
 
 
 __all__ = [
-    "AxeRestartEvent",
     "AxeStartResult",
-    "AxeStartAttempt",
     "AxeStopResult",
-    "RestartEventCallback",
-    "RestartFinished",
-    "RestartPlanned",
-    "RetryScheduled",
-    "StartAttemptBegan",
-    "StartAttemptSettled",
-    "StartAttemptSpawned",
     "StartStatus",
-    "StopBegan",
-    "StopFinished",
-    "VerifyProgress",
     "canonical_axe_start_command",
     "get_axe_pid",
     "get_axe_status",
     "get_lumberjack_names",
     "is_axe_running",
-    "restart_axe_daemon",
-    "restart_axe_daemon_result",
     "start_axe_daemon",
     "start_axe_daemon_result",
     "stop_axe_daemon",

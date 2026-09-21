@@ -31,10 +31,8 @@ def test_routine_job_upgrade_contract_exercises_public_and_legacy_paths(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     from datetime import UTC, datetime
-    from io import StringIO
 
     import sase.axe.status_collector as status_collector
-    import sase.axe.status_render as status_render
     from sase.axe._process_types import AxeOrchestratorProbe
     from sase.axe.chop_agents import (
         build_chop_launch_env,
@@ -343,10 +341,12 @@ def test_routine_job_upgrade_contract_exercises_public_and_legacy_paths(
     snapshot = status_collector.collect_axe_status_snapshot(
         clock=lambda: datetime(2026, 9, 16, 12, 0, tzinfo=UTC)
     )
-    status_output = StringIO()
+    from sase.core.rust import require_rust_binding
+
     with override_flags(axe_routine_job_contract=True):
-        status_render.render_axe_status_json(snapshot, stream=status_output)
-    status_payload = json.loads(status_output.getvalue())
+        status_payload = require_rust_binding("project_axe_status_public")(
+            snapshot.to_wire()
+        )
     routines = {item["routine_name"]: item for item in status_payload["routines"]}
     assert routines["chop-watch"]["configured_jobs"] == [
         "chop-test",

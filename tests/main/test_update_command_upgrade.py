@@ -136,10 +136,9 @@ def test_managed_upgrade_restart_never_touches_axe_daemon(
     import sase.axe.process as axe_process
     import sase.main.update_restart as update_restart_mod
 
-    requests: list[tuple[tuple[object, ...], dict[str, object]]] = []
+    assert not hasattr(axe_process, "restart_axe_daemon_result")
 
-    def _forbid_axe_daemon(*args: object, **kwargs: object) -> object:
-        raise AssertionError("restart_axe_daemon_result must not run")
+    requests: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
     def _restart(
         name: str, *, actor: str, reason: str | None = None, delay: float = 0.5
@@ -153,7 +152,6 @@ def test_managed_upgrade_restart_never_touches_axe_daemon(
             message="requested service proc scheduler restart",
         )
 
-    monkeypatch.setattr(axe_process, "restart_axe_daemon_result", _forbid_axe_daemon)
     monkeypatch.setattr(update_restart_mod, "restart_service_proc", _restart)
 
     out = _console()

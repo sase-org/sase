@@ -3,13 +3,12 @@
 Wall-clock idle-host numbers live in ``docs/perf_runbook.md``. The chop-SDK
 import-graph floor is ``tests/test_chop_import_budget.py``; the shipped
 fs-trigger fire/skip contract is ``tests/test_axe_default_chop_triggers.py``.
-This module locks those wins into lumberjack metrics and ``sase axe status``.
+This module locks those wins into lumberjack metrics and the status snapshot wire.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta
-from io import StringIO
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -25,8 +24,7 @@ from sase.axe.state import (
     write_lumberjack_metrics,
 )
 from sase.core.time import get_timezone
-from sase.feature_flags.snapshot import override_flags
-from tests.test_axe_status_cli import _plain_render, _snapshot
+from tests.test_axe_status_cli import _snapshot
 
 pytest_plugins = ("tests._axe_lumberjack_fixtures",)
 
@@ -185,34 +183,6 @@ def test_metrics_json_round_trips_skip_buckets_and_ignores_unknown_keys(
     assert reloaded.chops_spawned == 4
 
 
-def test_axe_status_human_render_surfaces_spawn_rate_and_noop_ratio(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    metrics = LumberjackMetrics(
-        chops_executed=10,
-        chops_spawned=10,
-        chops_no_op=8,
-        chops_skipped={"trigger": 40, "run_every": 2, "inhibited": 0},
-        last_tick_spawns=0,
-        last_tick_skipped=7,
-        spawn_rate_per_minute=0.4,
-        no_op_ratio=0.8,
-    )
-    import sase.axe.status_render as status_render
-
-    monkeypatch.setattr(status_render, "read_lumberjack_metrics", lambda name: metrics)
-    output = _plain_render(_snapshot())
-    folded = " ".join(output.split())
-    assert "Job load" in folded
-    assert "0.4 spawns/min" in folded
-    assert "no-op 80%" in folded
-    assert "last tick 0 spawned / 7 skipped" in folded
-    assert "0.4/min" in folded
-    assert "no-op=80%" in folded
-    assert "tick 0/7" in folded
-    assert "t=40 re=2 inh=0" in folded
-
-
 def test_format_lumberjack_chop_load_degrades_without_metrics() -> None:
     assert format_lumberjack_chop_load(None) == "-"
     empty = LumberjackMetrics()
@@ -224,14 +194,7 @@ def test_format_lumberjack_chop_load_degrades_without_metrics() -> None:
 
 def test_axe_status_legacy_json_wire_does_not_embed_chop_load() -> None:
     """The legacy status snapshot stays schema-version-1; load lives in metrics.json."""
-    import json
-
-    import sase.axe.status_render as status_render
-
-    stream = StringIO()
-    with override_flags(axe_routine_job_contract=False):
-        status_render.render_axe_status_json(_snapshot(), stream=stream)
-    payload = json.loads(stream.getvalue())
+    payload = _snapshot().to_wire()
     assert "spawn_rate_per_minute" not in payload
     assert "chops_skipped" not in payload
     assert payload["schema_version"] == 1

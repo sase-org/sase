@@ -51,7 +51,6 @@ _LAZY_EXPORTS = {
     "get_axe_status": ("sase.axe.process", "get_axe_status"),
     "get_lumberjack_names": ("sase.axe.process", "get_lumberjack_names"),
     "is_axe_running": ("sase.axe.process", "is_axe_running"),
-    "restart_axe_daemon": ("sase.axe.process", "restart_axe_daemon"),
     "start_axe_daemon": ("sase.axe.process", "start_axe_daemon"),
     "stop_axe_daemon": ("sase.axe.process", "stop_axe_daemon"),
     # Chop scripts
@@ -155,7 +154,6 @@ __all__ = [
     "get_axe_status",
     "get_lumberjack_names",
     "is_axe_running",
-    "restart_axe_daemon",
     "start_axe_daemon",
     "stop_axe_daemon",
     # Chop scripts
@@ -248,7 +246,6 @@ if TYPE_CHECKING:
         get_axe_status,
         get_lumberjack_names,
         is_axe_running,
-        restart_axe_daemon,
         start_axe_daemon,
         stop_axe_daemon,
     )

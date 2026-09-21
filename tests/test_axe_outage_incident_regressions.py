@@ -14,7 +14,6 @@ import sase.axe.state as axe_state
 from sase.axe.config import AxeConfig
 from sase.axe._process_guard import AXE_LIFECYCLE_TEST_OVERRIDE_ENV
 from sase.axe.process import (
-    restart_axe_daemon_result,
     start_axe_daemon_result,
     stop_axe_daemon_result,
 )
@@ -129,11 +128,9 @@ class TestLeakedOrchestratorIncidentRegression:
         ):
             started = start_axe_daemon_result(AxeConfig())
             stopped = stop_axe_daemon_result()
-            restarted = restart_axe_daemon_result(AxeConfig())
 
         assert started.status == "blocked_in_tests"
         assert stopped.blocked_in_tests is True
-        assert restarted.status == "blocked_in_tests"
         popen.assert_not_called()
         run.assert_not_called()
         assert not state_dir.exists()
