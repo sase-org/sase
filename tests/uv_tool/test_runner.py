@@ -191,3 +191,26 @@ def test_run_uv_nonzero_exit_raises_with_detail() -> None:
         run_uv(["uv", "tool", "install", "sase"], run_fn=_run)
     assert excinfo.value.returncode == 2
     assert "No solution found" in str(excinfo.value)
+
+
+def test_run_uv_on_output_streams_real_child() -> None:
+    import sys
+
+    lines: list[tuple[str, str]] = []
+    script = "import sys; print(' + streamed-pkg==1.0', file=sys.stderr, flush=True)"
+    changeset = run_uv(
+        [sys.executable, "-c", script],
+        on_output=lambda stream, line: lines.append((stream, line)),
+    )
+    assert changeset.get("streamed-pkg") is not None
+    assert any("streamed-pkg==1.0" in line for _, line in lines)
+
+
+def test_run_uv_on_output_nonzero_exit_raises() -> None:
+    import sys
+
+    with pytest.raises(UvCommandFailedError):
+        run_uv(
+            [sys.executable, "-c", "import sys; sys.exit(2)"],
+            on_output=lambda _stream, _line: None,
+        )

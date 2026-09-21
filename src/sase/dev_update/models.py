@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal, Protocol
@@ -177,6 +177,10 @@ class DevCommandResult:
     stderr: str = ""
 
 
+#: Sink receiving ``(stream, line)`` where stream is ``"stdout"``/``"stderr"``.
+OutputSink = Callable[[str, str], None]
+
+
 class DevCommandRunner(Protocol):
     """Subprocess runner used by ``execute_dev_update``."""
 
@@ -187,10 +191,13 @@ class DevCommandRunner(Protocol):
         cwd: Path | None = None,
         env: Mapping[str, str] | None = None,
         timeout: float | None = None,
+        on_output: OutputSink | None = None,
     ) -> DevCommandResult:
         """Run ``argv``; a non-``None`` ``env`` is a complete child environment.
 
         A non-``None`` ``timeout`` overrides the runner's own default deadline.
+        A non-``None`` ``on_output`` streams sanitized output lines; ``None``
+        preserves the legacy captured behavior.
         """
         ...
 

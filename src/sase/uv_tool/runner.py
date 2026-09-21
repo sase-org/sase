@@ -123,14 +123,41 @@ def run_uv(
     *,
     run_fn: RunFn = subprocess.run,
     timeout: float = UV_TIMEOUT_SECONDS,
+    on_output: Callable[[str, str], None] | None = None,
 ) -> UvChangeSet:
     """Execute *argv* (a ``uv ...`` command) and return its parsed change set.
 
     Raises :class:`~sase.uv_tool.errors.UvNotFoundError` when ``uv`` is missing
     and :class:`~sase.uv_tool.errors.UvCommandFailedError` on timeout, OS error,
     or a non-zero exit.
+
+    A non-``None`` ``on_output`` streams each output line through the
+    line-streaming runner; ``None`` keeps the legacy ``run_fn`` capture path.
     """
     args = list(argv)
+    if on_output is not None:
+        from sase.dev_update.stream_command import run_streaming
+
+        try:
+            result = run_streaming(args, timeout=timeout, on_line=on_output)
+        except FileNotFoundError as exc:
+            raise UvNotFoundError() from exc
+        except subprocess.TimeoutExpired as exc:
+            raise UvCommandFailedError(argv=args, timeout=timeout) from exc
+        except (OSError, subprocess.SubprocessError) as exc:
+            raise UvCommandFailedError(
+                argv=args, stderr=f"{type(exc).__name__}: {exc}"
+            ) from exc
+
+        if result.returncode != 0:
+            raise UvCommandFailedError(
+                argv=args,
+                returncode=result.returncode,
+                stderr=result.stderr,
+                stdout=result.stdout,
+            )
+
+        return parse_uv_output(_combined_output(result))
     try:
         result = run_fn(args, capture_output=True, text=True, timeout=timeout)
     except FileNotFoundError as exc:

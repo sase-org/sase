@@ -13,7 +13,9 @@ from sase.dev_update.models import (
     DevCommandResult,
     DevCommandRunner,
     DevExecutedCommand,
+    OutputSink,
 )
+from sase.dev_update.stream_command import run_streaming
 from sase.git_lock_retry import run_with_git_lock_retry
 from sase.workspace_provider.utils import non_interactive_git_env
 
@@ -33,16 +35,29 @@ def run_dev_update_command(
     cwd: Path | None = None,
     env: Mapping[str, str] | None = None,
     timeout: float | None = None,
+    on_output: OutputSink | None = None,
 ) -> DevCommandResult:
     """Run a dev-update command in a non-interactive subprocess.
 
     ``timeout`` of ``None`` selects :data:`DEV_UPDATE_COMMAND_TIMEOUT_SECONDS`.
+    A non-``None`` ``on_output`` streams each output line through
+    :func:`sase.dev_update.stream_command.run_streaming`; ``None`` keeps the
+    legacy ``capture_output`` path byte-for-byte.
     """
     command = list(argv)
     deadline = DEV_UPDATE_COMMAND_TIMEOUT_SECONDS if timeout is None else timeout
     command_env, git_stdin = _subprocess_options(command, env)
 
     def attempt() -> subprocess.CompletedProcess[str]:
+        if on_output is not None:
+            return run_streaming(
+                command,
+                cwd=cwd,
+                env=command_env,
+                stdin=git_stdin,
+                timeout=deadline,
+                on_line=on_output,
+            )
         return subprocess.run(
             command,
             cwd=cwd,
@@ -85,14 +100,16 @@ def run_recorded_command(
     cwd: Path | None,
     env: Mapping[str, str] | None = None,
     timeout: float | None = None,
+    on_output: OutputSink | None = None,
     label: str,
     commands: list[DevExecutedCommand],
     clock: Callable[[], float],
 ) -> DevCommandResult:
     """Run a command and append its result and duration to ``commands``.
 
-    ``env`` and ``timeout`` are only forwarded when set, so a runner keeps its
-    own defaults for every step that does not override them.
+    ``env``, ``timeout``, and ``on_output`` are only forwarded when set, so an
+    injected test fake that does not accept them keeps working when no
+    progress sink is active.
     """
     start = clock()
     overrides: dict[str, Any] = {}
@@ -100,6 +117,8 @@ def run_recorded_command(
         overrides["env"] = _merged_subprocess_env(env)
     if timeout is not None:
         overrides["timeout"] = timeout
+    if on_output is not None:
+        overrides["on_output"] = on_output
     result = run(argv, cwd=cwd, **overrides)
     duration = max(0.0, clock() - start)
     commands.append(
