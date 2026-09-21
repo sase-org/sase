@@ -18,16 +18,6 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
-def _positive_float(value: str) -> float:
-    try:
-        parsed = float(value)
-    except ValueError as exc:
-        raise argparse.ArgumentTypeError("must be a positive number") from exc
-    if not parsed > 0:
-        raise argparse.ArgumentTypeError("must be a positive number")
-    return parsed
-
-
 def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'tui' subcommand parser."""
     ace_parser = subparsers.add_parser(
@@ -141,11 +131,12 @@ def register_ace_parser(subparsers: argparse._SubParsersAction) -> None:
 
 def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register the 'axe' subcommand parser."""
+    from sase.main.parser_scheduler import add_json_flag, add_scheduler_overrides
     from sase.ops.cli import add_operation_io_flags
 
     axe_parser = subparsers.add_parser(
         "axe",
-        help="Schedule-based daemon for continuous Patch status updates",
+        help="Alias of `sase scheduler`, plus the routine and job tree",
     )
     # Only --vcs-provider lives on the root axe parser (applies globally)
     axe_parser.add_argument(
@@ -204,111 +195,31 @@ def register_axe_parser(subparsers: argparse._SubParsersAction) -> None:
     axe_maintenance_subparsers.add_parser("exit", help="Exit maintenance mode")
     axe_maintenance_subparsers.add_parser("status", help="Show maintenance status")
 
-    # --- axe restart ---
+    # --- axe restart (alias of `sase scheduler restart`) ---
     axe_restart_parser = axe_subparsers.add_parser(
         "restart",
         help="Restart the axe orchestrator and verify fresh worker heartbeats "
         "(works even when axe is not running)",
     )
-    axe_restart_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Suppress progress output and emit one deterministic JSON result object",
-    )
-    axe_restart_parser.add_argument(
-        "-A",
-        "--max-agent-runners",
-        type=int,
-        default=None,
-        help="Maximum concurrent agent runners (default: config value)",
-    )
-    axe_restart_parser.add_argument(
-        "-H",
-        "--max-hook-runners",
-        type=int,
-        default=None,
-        help="Maximum concurrent hook runners (default: config value)",
-    )
-    axe_restart_parser.add_argument(
-        "-q",
-        "--query",
-        default="",
-        help="Query string for filtering Patches (empty = config value)",
-    )
-    axe_restart_parser.add_argument(
-        "-t",
-        "--verify-timeout",
-        type=_positive_float,
-        default=15.0,
-        help="Heartbeat verification timeout per start attempt, in seconds "
-        "(default: 15)",
-    )
-    axe_restart_parser.add_argument(
-        "-z",
-        "--zombie-timeout",
-        type=int,
-        default=None,
-        help="Zombie detection timeout in seconds (default: config value)",
-    )
+    add_scheduler_overrides(axe_restart_parser)
+    add_json_flag(axe_restart_parser)
 
-    # --- axe status ---
+    # --- axe status (alias of `sase scheduler status`) ---
     axe_status_parser = axe_subparsers.add_parser(
         "status",
         help="Show a read-only, whole-system AXE health snapshot",
         description="Show a read-only, whole-system AXE health snapshot.",
     )
-    axe_status_parser.add_argument(
-        "-j",
-        "--json",
-        action="store_true",
-        help="Emit the machine-readable status object",
-    )
+    add_json_flag(axe_status_parser)
 
-    # --- axe start ---
+    # --- axe start (alias of `sase scheduler start`) ---
     axe_start_parser = axe_subparsers.add_parser(
         "start", help="Start the axe orchestrator (spawns all routines)"
     )
-    axe_start_parser.add_argument(
-        "-H",
-        "--max-hook-runners",
-        type=int,
-        default=None,
-        help="Maximum concurrent hook runners (default: 3)",
-    )
-    axe_start_parser.add_argument(
-        "-A",
-        "--max-agent-runners",
-        type=int,
-        default=None,
-        help="Maximum concurrent agent runners (default: 3)",
-    )
-    axe_start_parser.add_argument(
-        "-q",
-        "--query",
-        default="",
-        help="Query string for filtering Patches (empty = all Patches). "
-        "Examples: '\"feature\" AND %%d', '+myproject', '!!! OR @@@'",
-    )
-    axe_start_parser.add_argument(
-        "-z",
-        "--zombie-timeout",
-        type=int,
-        default=None,
-        help="Zombie detection timeout in seconds (default: 7200 = 2 hours). "
-        "Hooks and CRS workflows running longer than this are marked as ZOMBIE.",
-    )
+    add_scheduler_overrides(axe_start_parser)
 
-    # --- axe stop ---
-    axe_stop_parser = axe_subparsers.add_parser(
-        "stop", help="Stop the running axe orchestrator"
-    )
-    axe_stop_parser.add_argument(
-        "-f",
-        "--force",
-        action="store_true",
-        help="Sweep orphaned axe processes and reset PID state",
-    )
+    # --- axe stop (alias of `sase scheduler stop`) ---
+    axe_subparsers.add_parser("stop", help="Stop the running axe orchestrator")
 
 
 def _add_axe_job_group(

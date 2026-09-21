@@ -1,166 +1,82 @@
-"""Parser and handler contract tests for ``sase axe restart``."""
+"""Alias contract tests for ``sase axe start|stop|restart|status``."""
 
 from __future__ import annotations
 
 import argparse
-import json
 
 import pytest
 
-import sase.main.axe_handler as axe_handler
-from sase.axe._config_types import AxeConfigDiagnostic
-from sase.axe.config import AxeConfig, AxeConfigError
-from sase.axe.process import AxeStartResult
+import sase.main.scheduler_handler as scheduler_handler
+from sase.main.axe_handler import handle_axe_command
 from sase.main.parser import create_parser
+from tests.main.parser_help_helpers import flat_help, parser_for
 
 
-def _restart_args(**overrides: object) -> argparse.Namespace:
-    defaults: dict[str, object] = {
-        "json": False,
-        "max_hook_runners": None,
-        "max_agent_runners": None,
-        "zombie_timeout": None,
-        "query": "",
-        "verify_timeout": 15.0,
-    }
-    defaults.update(overrides)
-    return argparse.Namespace(**defaults)
+def _parse(argv: list[str]) -> argparse.Namespace:
+    return create_parser().parse_args(argv)
 
 
-def test_parser_accepts_every_restart_option() -> None:
-    ns = create_parser().parse_args(
-        [
-            "axe",
-            "restart",
-            "-A",
-            "2",
-            "-H",
-            "2",
-            "-q",
-            "@p",
-            "-t",
-            "30",
-            "-z",
-            "600",
-            "-j",
-        ]
-    )
-
-    assert ns.axe_subcommand == "restart"
-    assert ns.max_agent_runners == 2
-    assert ns.max_hook_runners == 2
-    assert ns.query == "@p"
-    assert ns.verify_timeout == 30.0
-    assert ns.zombie_timeout == 600
-    assert ns.json is True
-
-
-def test_parser_rejects_non_positive_verify_timeout() -> None:
-    with pytest.raises(SystemExit):
-        create_parser().parse_args(["axe", "restart", "--verify-timeout", "0"])
-
-
-def test_handle_restart_exits_0_on_verified_success(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+@pytest.mark.parametrize("verb", ["restart", "start", "status", "stop"])
+def test_axe_lifecycle_verbs_alias_scheduler_verbs(
+    monkeypatch: pytest.MonkeyPatch, verb: str
 ) -> None:
-    monkeypatch.setattr("sase.axe.config.load_axe_config", lambda: AxeConfig())
-    seen: dict[str, object] = {}
+    """Each axe lifecycle verb reaches the scheduler handler with the same values."""
+    seen: list[argparse.Namespace] = []
 
-    def fake_restart(config: AxeConfig, **kwargs: object) -> AxeStartResult:
-        seen["config"] = config
-        seen["kwargs"] = kwargs
-        return AxeStartResult(status="started", pid=123, message="ok", verified=True)
+    def fake_handle(args: argparse.Namespace) -> None:
+        seen.append(args)
+        raise SystemExit(0)
 
-    with pytest.raises(SystemExit) as exc_info:
-        axe_handler._handle_restart(
-            _restart_args(json=True), restart_axe_fn=fake_restart
-        )
+    monkeypatch.setattr(scheduler_handler, "handle_scheduler_command", fake_handle)
 
-    assert exc_info.value.code == 0
-    assert seen["kwargs"]["verification_timeout"] == 15.0
-    assert "on_event" not in seen["kwargs"]
-    payload = json.loads(capsys.readouterr().out)
-    assert payload["status"] == "started"
-    assert payload["pid"] == 123
-    assert payload["verified"] is True
+    extra: list[str] = []
+    if verb in {"restart", "start"}:
+        extra = ["-A", "2", "-H", "3", "-q", "@p", "-z", "600"]
+    if verb in {"restart", "status"}:
+        extra = [*extra, "-j"]
 
+    axe_ns = _parse(["axe", verb, *extra])
+    scheduler_ns = _parse(["scheduler", verb, *extra])
 
-def test_handle_restart_json_mode_prints_only_the_json_object(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setattr("sase.axe.config.load_axe_config", lambda: AxeConfig())
-
-    def fake_restart(config: AxeConfig, **kwargs: object) -> AxeStartResult:
-        return AxeStartResult(status="started", pid=1, message="ok", verified=True)
+    assert axe_ns.axe_subcommand == verb
+    assert scheduler_ns.scheduler_subcommand == verb
 
     with pytest.raises(SystemExit):
-        axe_handler._handle_restart(
-            _restart_args(json=True), restart_axe_fn=fake_restart
-        )
+        handle_axe_command(axe_ns)
 
-    out = capsys.readouterr().out
-    # A stray progress line before/after the object would break this parse.
-    payload = json.loads(out)
-    assert payload["status"] == "started"
-
-
-def test_handle_restart_exits_1_on_failure(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    monkeypatch.setattr("sase.axe.config.load_axe_config", lambda: AxeConfig())
-
-    def fake_restart(config: AxeConfig, **kwargs: object) -> AxeStartResult:
-        return AxeStartResult(status="failed", message="boom")
-
-    with pytest.raises(SystemExit) as exc_info:
-        axe_handler._handle_restart(
-            _restart_args(json=True), restart_axe_fn=fake_restart
-        )
-
-    assert exc_info.value.code == 1
+    assert len(seen) == 1
+    delegated = seen[0]
+    assert delegated is axe_ns
+    assert delegated.scheduler_subcommand == verb
+    for attr in (
+        "json",
+        "max_agent_runners",
+        "max_hook_runners",
+        "query",
+        "zombie_timeout",
+    ):
+        assert getattr(delegated, attr, None) == getattr(scheduler_ns, attr, None), attr
 
 
-def test_handle_restart_exits_2_on_config_error(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    diagnostic = AxeConfigDiagnostic(code="bad_axe_config", message="boom")
-    monkeypatch.setattr(
-        "sase.axe.config.load_axe_config",
-        lambda: (_ for _ in ()).throw(AxeConfigError([diagnostic])),
-    )
-
-    def fake_restart(config: AxeConfig, **kwargs: object) -> AxeStartResult:
-        raise AssertionError("restart_axe_fn must not run after a config error")
-
-    with pytest.raises(SystemExit) as exc_info:
-        axe_handler._handle_restart(
-            _restart_args(json=True), restart_axe_fn=fake_restart
-        )
-
-    assert exc_info.value.code == 2
-    assert "boom" in capsys.readouterr().err
+def test_axe_restart_rejects_verify_timeout() -> None:
+    with pytest.raises(SystemExit):
+        _parse(["axe", "restart", "--verify-timeout", "30"])
 
 
-def test_handle_restart_plain_mode_renders_progress_and_exits_0(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    from sase.axe.process import RestartFinished, StopBegan
+def test_axe_stop_rejects_force() -> None:
+    with pytest.raises(SystemExit):
+        _parse(["axe", "stop", "--force"])
+    with pytest.raises(SystemExit):
+        _parse(["axe", "stop", "-f"])
 
-    monkeypatch.setattr("sase.axe.config.load_axe_config", lambda: AxeConfig())
 
-    def fake_restart(config: AxeConfig, **kwargs: object) -> AxeStartResult:
-        on_event = kwargs["on_event"]
-        result = AxeStartResult(status="started", pid=77, message="ok", verified=True)
-        on_event(StopBegan())  # type: ignore[operator]
-        on_event(RestartFinished(result=result, elapsed_seconds=1.0))  # type: ignore[operator]
-        return result
+def test_axe_help_names_scheduler_alias() -> None:
+    help_text = flat_help(create_parser().format_help())
 
-    with pytest.raises(SystemExit) as exc_info:
-        axe_handler._handle_restart(
-            _restart_args(json=False), restart_axe_fn=fake_restart
-        )
+    assert "Alias of `sase scheduler`, plus the routine and job tree" in help_text
 
-    assert exc_info.value.code == 0
-    out = capsys.readouterr().out
-    assert "Stopping AXE" in out
-    assert "AXE restarted and verified (pid 77)" in out
+
+def test_scheduler_help_names_axe_alias() -> None:
+    help_text = flat_help(parser_for(("sase", "scheduler")).format_help())
+
+    assert "sase axe" in help_text

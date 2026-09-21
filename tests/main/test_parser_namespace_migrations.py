@@ -8,15 +8,6 @@ from sase.main.parser import create_parser
 from tests.main.parser_help_helpers import root_subparser_action
 
 
-def test_axe_stop_force_parser_aliases() -> None:
-    long_args = create_parser().parse_args(["axe", "stop", "--force"])
-    short_args = create_parser().parse_args(["axe", "stop", "-f"])
-
-    assert long_args.axe_subcommand == "stop"
-    assert long_args.force is True
-    assert short_args.force is True
-
-
 def test_axe_job_run_debug_option_aliases() -> None:
     long_args = create_parser().parse_args(
         [

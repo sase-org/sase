@@ -82,7 +82,7 @@ def test_axe_parser_has_no_ensure_watchdog() -> None:
         parser_for(("sase", "axe", "ensure"))
     assert "read-only, whole-system AXE health snapshot" in status_help
     assert "-j, --json" in status_help
-    assert "machine-readable status object" in status_help
+    assert "machine-readable JSON object" in status_help
 
 
 def test_axe_job_and_routine_public_commands_keep_hidden_legacy_aliases() -> None:

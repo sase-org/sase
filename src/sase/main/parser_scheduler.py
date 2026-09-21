@@ -13,7 +13,8 @@ def register_scheduler_parser(subparsers: argparse._SubParsersAction) -> None:
         description=(
             "Control the SASE scheduler. start, stop, restart, and status route "
             "through the `scheduler` service proc on the SASE service host; run "
-            "execs the foreground orchestrator that the service host itself runs."
+            "execs the foreground orchestrator that the service host itself runs. "
+            "`sase axe start|stop|restart|status` is an alias of this command."
         ),
     )
     scheduler_parser.set_defaults(scheduler_subcommand="status")
@@ -27,26 +28,26 @@ def register_scheduler_parser(subparsers: argparse._SubParsersAction) -> None:
         "restart",
         help="Restart the scheduler",
     )
-    _add_scheduler_overrides(restart_parser)
-    _add_json_flag(restart_parser)
+    add_scheduler_overrides(restart_parser)
+    add_json_flag(restart_parser)
 
     run_parser = scheduler_sub.add_parser(
         "run",
         help="Run the foreground scheduler orchestrator",
     )
-    _add_scheduler_overrides(run_parser)
+    add_scheduler_overrides(run_parser)
 
     start_parser = scheduler_sub.add_parser(
         "start",
         help="Start the scheduler",
     )
-    _add_scheduler_overrides(start_parser)
+    add_scheduler_overrides(start_parser)
 
     status_parser = scheduler_sub.add_parser(
         "status",
         help="Show scheduler status",
     )
-    _add_json_flag(status_parser)
+    add_json_flag(status_parser)
 
     scheduler_sub.add_parser(
         "stop",
@@ -54,7 +55,7 @@ def register_scheduler_parser(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-def _add_scheduler_overrides(parser: argparse.ArgumentParser) -> None:
+def add_scheduler_overrides(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-A",
         "--max-agent-runners",
@@ -84,7 +85,7 @@ def _add_scheduler_overrides(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _add_json_flag(parser: argparse.ArgumentParser) -> None:
+def add_json_flag(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-j",
         "--json",
@@ -93,4 +94,8 @@ def _add_json_flag(parser: argparse.ArgumentParser) -> None:
     )
 
 
-__all__ = ["register_scheduler_parser"]
+__all__ = [
+    "add_json_flag",
+    "add_scheduler_overrides",
+    "register_scheduler_parser",
+]

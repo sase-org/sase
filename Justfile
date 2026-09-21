@@ -359,6 +359,8 @@ _lint-patch-stitch-terminology: _setup
 # sase-11y entries: platform/init symbols whose owning phase (sase-11y.5) is closed,
 # plus service facades the Services tab deliberately does not consume (the status
 # snapshot is its read model).
+# sase-11y.10.1.3.1.5 entries: axe restart/status renderers the axe-alias phase
+# (sase-11y.10.1.3.1.4) orphaned; dead-supervisors deletes them.
 _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
@@ -375,6 +377,13 @@ _lint-symvision *args: _setup
         --epic-symbol "sase-11y(readiness_warnings)" \
         --epic-symbol "sase-11y(resolve_service_enablement)" \
         --epic-symbol "sase-11y(service_platform_supported)" \
+        --epic-symbol "sase-11y.10.1.3.1.5(RestartLiveRenderer)" \
+        --epic-symbol "sase-11y.10.1.3.1.5(RestartPlainRenderer)" \
+        --epic-symbol "sase-11y.10.1.3.1.5(render_axe_status_human)" \
+        --epic-symbol "sase-11y.10.1.3.1.5(render_axe_status_json)" \
+        --epic-symbol "sase-11y.10.1.3.1.5(render_restart_json)" \
+        --epic-symbol "sase-11y.10.1.3.1.5(render_restart_settle_panel)" \
+        --epic-symbol "sase-11y.10.1.3.1.5(should_render_restart_live)" \
         --epic-symbol "sase-14j(BeadTouchIndexStatus)" \
         --epic-symbol "sase-14j(BeadTouchRefresh)" \
         --epic-symbol "sase-14j(query_touches_for_agent)" \

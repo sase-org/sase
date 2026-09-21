@@ -4927,7 +4927,7 @@
       {
         "aliases": [],
         "default_child": null,
-        "description_digest": "354c40d42c0e16ff",
+        "description_digest": "24b35a7052b76b66",
         "hidden": false,
         "mutex_groups": [],
         "name": "axe",
@@ -4966,93 +4966,6 @@
         ],
         "positionals": [],
         "subcommands": [
-          {
-            "aliases": [],
-            "default_child": null,
-            "description_digest": "dd2e88c015ee534a",
-            "hidden": false,
-            "mutex_groups": [],
-            "name": "ensure",
-            "options": [
-              {
-                "choices": null,
-                "dest": "help",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-h",
-                  "--help"
-                ],
-                "takes_value": false
-              }
-            ],
-            "path": [
-              "axe",
-              "ensure"
-            ],
-            "positionals": [],
-            "subcommands": [
-              {
-                "aliases": [],
-                "default_child": null,
-                "description_digest": "4c1537dcaa78436a",
-                "hidden": false,
-                "mutex_groups": [],
-                "name": "install",
-                "options": [
-                  {
-                    "choices": null,
-                    "dest": "help",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-h",
-                      "--help"
-                    ],
-                    "takes_value": false
-                  }
-                ],
-                "path": [
-                  "axe",
-                  "ensure",
-                  "install"
-                ],
-                "positionals": [],
-                "subcommands": []
-              },
-              {
-                "aliases": [],
-                "default_child": null,
-                "description_digest": "215a34e4db4804fc",
-                "hidden": false,
-                "mutex_groups": [],
-                "name": "uninstall",
-                "options": [
-                  {
-                    "choices": null,
-                    "dest": "help",
-                    "hidden": false,
-                    "kind": null,
-                    "repeatable": false,
-                    "strings": [
-                      "-h",
-                      "--help"
-                    ],
-                    "takes_value": false
-                  }
-                ],
-                "path": [
-                  "axe",
-                  "ensure",
-                  "uninstall"
-                ],
-                "positionals": [],
-                "subcommands": []
-              }
-            ]
-          },
           {
             "aliases": [],
             "default_child": "list",
@@ -5439,7 +5352,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "83288d09137e3da4",
+            "description_digest": "10df0791797019a7",
             "hidden": false,
             "mutex_groups": [],
             "name": "restart",
@@ -5453,18 +5366,6 @@
                 "strings": [
                   "-h",
                   "--help"
-                ],
-                "takes_value": false
-              },
-              {
-                "choices": null,
-                "dest": "json",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-j",
-                  "--json"
                 ],
                 "takes_value": false
               },
@@ -5506,18 +5407,6 @@
               },
               {
                 "choices": null,
-                "dest": "verify_timeout",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-t",
-                  "--verify-timeout"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
                 "dest": "zombie_timeout",
                 "hidden": false,
                 "kind": null,
@@ -5527,6 +5416,18 @@
                   "--zombie-timeout"
                 ],
                 "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "json",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-j",
+                  "--json"
+                ],
+                "takes_value": false
               }
             ],
             "path": [
@@ -5724,7 +5625,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "e7d23e848195b487",
+            "description_digest": "8bff05c301795483",
             "hidden": false,
             "mutex_groups": [],
             "name": "start",
@@ -5743,18 +5644,6 @@
               },
               {
                 "choices": null,
-                "dest": "max_hook_runners",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-H",
-                  "--max-hook-runners"
-                ],
-                "takes_value": true
-              },
-              {
-                "choices": null,
                 "dest": "max_agent_runners",
                 "hidden": false,
                 "kind": null,
@@ -5762,6 +5651,18 @@
                 "strings": [
                   "-A",
                   "--max-agent-runners"
+                ],
+                "takes_value": true
+              },
+              {
+                "choices": null,
+                "dest": "max_hook_runners",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-H",
+                  "--max-hook-runners"
                 ],
                 "takes_value": true
               },
@@ -5800,7 +5701,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "d2aab5e0f29174e4",
+            "description_digest": "25ab60e9e45e17a5",
             "hidden": false,
             "mutex_groups": [],
             "name": "status",
@@ -5840,7 +5741,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "7b645a53fc0b51fa",
+            "description_digest": "24b16d065da7b751",
             "hidden": false,
             "mutex_groups": [],
             "name": "stop",
@@ -5854,18 +5755,6 @@
                 "strings": [
                   "-h",
                   "--help"
-                ],
-                "takes_value": false
-              },
-              {
-                "choices": null,
-                "dest": "force",
-                "hidden": false,
-                "kind": null,
-                "repeatable": false,
-                "strings": [
-                  "-f",
-                  "--force"
                 ],
                 "takes_value": false
               }
@@ -16879,6 +16768,7 @@
                   "mute",
                   "read",
                   "snooze",
+                  "undismiss",
                   "unmute"
                 ],
                 "dest": "action",
@@ -16946,6 +16836,7 @@
                   "mute",
                   "read",
                   "snooze",
+                  "undismiss",
                   "unmute"
                 ],
                 "dest": "action",

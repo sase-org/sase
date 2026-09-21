@@ -154,42 +154,22 @@ def test_parser_exposes_status_and_both_json_aliases() -> None:
     assert long.json is True
 
 
-@pytest.mark.parametrize(
-    ("exit_code", "json_mode"), [(0, False), (1, True), (2, False)]
-)
-def test_handler_collects_once_renders_same_snapshot_and_exits(
+@pytest.mark.parametrize("json_mode", [False, True])
+def test_handler_delegates_status_to_scheduler(
     monkeypatch: pytest.MonkeyPatch,
-    exit_code: int,
     json_mode: bool,
 ) -> None:
-    snapshot = replace(
-        _snapshot(),
-        exit_code=exit_code,
-        health="healthy"
-        if exit_code == 0
-        else ("unhealthy" if exit_code == 1 else "error"),
-    )
-    collected = 0
-    rendered: list[tuple[str, AxeStatusSnapshot]] = []
+    import sase.main.scheduler_handler as scheduler_handler
 
-    def collect() -> AxeStatusSnapshot:
-        nonlocal collected
-        collected += 1
-        return snapshot
+    seen: list[argparse.Namespace] = []
 
-    monkeypatch.setattr(status_collector, "collect_axe_status_snapshot", collect)
-    monkeypatch.setattr(
-        status_render,
-        "render_axe_status_human",
-        lambda value: rendered.append(("human", value)),
-    )
-    monkeypatch.setattr(
-        status_render,
-        "render_axe_status_json",
-        lambda value: rendered.append(("json", value)),
-    )
+    def fake_handle(args: argparse.Namespace) -> None:
+        seen.append(args)
+        raise SystemExit(0)
 
-    with pytest.raises(SystemExit) as exc_info:
+    monkeypatch.setattr(scheduler_handler, "handle_scheduler_command", fake_handle)
+
+    with pytest.raises(SystemExit):
         handle_axe_command(
             argparse.Namespace(
                 axe_subcommand="status",
@@ -198,10 +178,9 @@ def test_handler_collects_once_renders_same_snapshot_and_exits(
             )
         )
 
-    assert exc_info.value.code == exit_code
-    assert collected == 1
-    assert rendered == [(("json" if json_mode else "human"), snapshot)]
-    assert rendered[0][1] is snapshot
+    assert len(seen) == 1
+    assert seen[0].scheduler_subcommand == "status"
+    assert seen[0].json is json_mode
 
 
 def test_json_is_exact_stable_plain_wire_contract() -> None:

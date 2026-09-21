@@ -8,7 +8,6 @@ from ._process_probe import get_axe_pid, is_axe_running
 from ._process_restart import restart_axe_daemon, restart_axe_daemon_result
 from ._process_start import (
     canonical_axe_start_command,
-    should_reexec_axe_start_from_canonical,
     start_axe_daemon,
     start_axe_daemon_result,
 )
@@ -61,7 +60,6 @@ __all__ = [
     "is_axe_running",
     "restart_axe_daemon",
     "restart_axe_daemon_result",
-    "should_reexec_axe_start_from_canonical",
     "start_axe_daemon",
     "start_axe_daemon_result",
     "stop_axe_daemon",

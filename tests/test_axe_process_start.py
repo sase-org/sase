@@ -65,7 +65,7 @@ def test_start_axe_daemon_rejects_missing_daemon_cwd(
     missing_home = tmp_path / "missing-home"
     monkeypatch.setenv("HOME", str(missing_home))
     monkeypatch.setattr(os.path, "expanduser", lambda _path: str(missing_home))
-    mock_build_command.return_value = ["sase", "axe", "start"]
+    mock_build_command.return_value = ["sase", "scheduler", "run"]
 
     result = start_axe_daemon_result(axe_config, record_desired_state=False)
 
@@ -94,7 +94,7 @@ def test_start_axe_daemon_returns_existing_pid(
 
 @patch(
     "sase.axe._process_start._build_axe_start_command",
-    return_value=["/usr/bin/sase", "axe", "start"],
+    return_value=["/usr/bin/sase", "scheduler", "run"],
 )
 @patch("sase.axe._process_probe.is_process_running", return_value=True)
 def test_repeated_start_axe_daemon_spawns_once_after_pid_appears(
@@ -125,7 +125,7 @@ def test_repeated_start_axe_daemon_spawns_once_after_pid_appears(
         for call in mock_popen.call_args_list
         if call.args
         and isinstance(call.args[0], list)
-        and call.args[0][1:3] == ["axe", "start"]
+        and call.args[0][1:3] == ["scheduler", "run"]
     ]
     assert len(daemon_calls) == 1
     kwargs = daemon_calls[0].kwargs
@@ -212,6 +212,19 @@ def test_build_start_command_prefers_canonical_sase_from_ephemeral_workspace(
 
     assert cmd is not None
     assert cmd[0] == str(canonical)
+
+
+def test_build_start_command_targets_scheduler_run(
+    axe_config: AxeConfig,
+) -> None:
+    """The detached daemon argv execs the foreground scheduler orchestrator."""
+    cmd = _build_axe_start_command(axe_config)
+
+    assert cmd is not None
+    assert cmd[1:3] == ["scheduler", "run"]
+    assert "--max-hook-runners" in cmd
+    assert "--max-agent-runners" in cmd
+    assert "--zombie-timeout" in cmd
 
 
 def test_start_axe_daemon_result_reports_held_lock_without_pid(

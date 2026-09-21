@@ -344,13 +344,6 @@ def _resolve_sase_executable(*, prefer_canonical: bool) -> str | None:
     return None
 
 
-def should_reexec_axe_start_from_canonical() -> bool:
-    """Return True when ``sase axe start`` should re-exec from a stable install."""
-    if os.environ.get("SASE_AXE_CANONICALIZED"):
-        return False
-    return _running_from_ephemeral_workspace()
-
-
 def canonical_axe_start_command() -> str | None:
     """Return a stable ``sase`` executable for axe daemon startup."""
     return _resolve_sase_executable(prefer_canonical=True)
@@ -366,8 +359,8 @@ def _build_axe_start_command(config: AxeConfig) -> list[str] | None:
 
     cmd = [
         sase_cmd,
-        "axe",
-        "start",
+        "scheduler",
+        "run",
         "--max-hook-runners",
         str(config.max_hook_runners),
         "--max-agent-runners",

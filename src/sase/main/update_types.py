@@ -6,7 +6,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal, Protocol
 
-from sase.axe.process import AxeStartResult
 from sase.dev_update import DevUpdatePlan, DevUpdateResult
 from sase.dev_update.models import DevCommandRunner
 from sase.service.actions import ServiceProcActionOutcome
@@ -26,8 +25,6 @@ ClockFn = Callable[[], float]
 InventoryFn = Callable[[], RuntimeVersionInventory]
 SchedulerRunningFn = Callable[[], bool]
 RestartSchedulerFn = Callable[..., ServiceProcActionOutcome]
-#: Still used by ``sase axe restart``; the axe-alias phase deletes it.
-RestartAxeFn = Callable[..., AxeStartResult]
 RestartStatus = Literal[
     "skipped_no_change",
     "skipped_not_running",
