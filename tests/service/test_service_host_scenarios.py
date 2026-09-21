@@ -233,6 +233,9 @@ def test_concurrent_host_starts_converge_on_one_lifetime_lock_holder(
 
 def _stub_host_spawn(monkeypatch: pytest.MonkeyPatch, spawned: list[list[str]]) -> None:
     """Stub the ``sase service run`` exec: record the spawn, publish a heartbeat."""
+    # These scenarios drive the real detached fallback, so they opt into the
+    # isolated lifecycle override that the pytest guard otherwise blocks.
+    monkeypatch.setenv("SASE_SERVICE_ALLOW_LIFECYCLE_IN_TESTS", "1")
 
     def _fake_popen(argv: object, **kwargs: object) -> object:
         spawned.append([str(part) for part in argv])  # type: ignore[union-attr]

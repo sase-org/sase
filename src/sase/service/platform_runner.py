@@ -14,7 +14,7 @@ from sase.service.platform_models import (
 )
 
 
-def _service_lifecycle_blocked_in_tests(
+def service_lifecycle_blocked_in_tests(
     environ: Mapping[str, str] | None = None,
 ) -> bool:
     effective_environ = os.environ if environ is None else environ
@@ -24,7 +24,7 @@ def _service_lifecycle_blocked_in_tests(
 
 
 def default_runner(argv: Sequence[str]) -> CommandResult:
-    if _service_lifecycle_blocked_in_tests():
+    if service_lifecycle_blocked_in_tests():
         return CommandResult(
             returncode=125,
             stderr=SERVICE_LIFECYCLE_TEST_BLOCK_MESSAGE,

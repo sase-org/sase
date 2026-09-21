@@ -9,7 +9,7 @@ from sase.ace.tui.modals.notification_modal_constants import (
     NOTIFICATION_HINT_FALLBACK_WIDTH,
     QUESTION_HINT_TEXT,
     notification_hint_text,
-    notification_hint_tier,
+    _notification_hint_tier,
 )
 from sase.ace.tui.modals.notification_modal_footer import NotificationHintFooter
 
@@ -65,7 +65,7 @@ def test_full_tier_preserves_legacy_hint_strings() -> None:
 def test_compact_tier_sheds_file_navigation_first() -> None:
     """The 120-column tier drops file-nav entries but keeps navigation aids."""
     text = notification_hint_text("default", NOTIFICATION_HINT_FALLBACK_WIDTH)
-    assert notification_hint_tier("default", NOTIFICATION_HINT_FALLBACK_WIDTH) == (
+    assert _notification_hint_tier("default", NOTIFICATION_HINT_FALLBACK_WIDTH) == (
         "compact"
     )
     assert "C-n/C-p" not in text

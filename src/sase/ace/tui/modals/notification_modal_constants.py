@@ -89,7 +89,7 @@ def notification_tab_shortcut(index: int) -> str | None:
 # width. ``q: close`` and ``+: +1`` carry the highest priorities and survive
 # every tier; low-frequency file-navigation entries shed first.
 @dataclass(frozen=True)
-class NotificationHintFragment:
+class _NotificationHintFragment:
     """One ``key: label`` footer fragment with its shed priority."""
 
     key: str
@@ -116,56 +116,56 @@ _HINT_PRIORITY_ENTER = 80
 _HINT_PRIORITY_PLUS_ONE = 90
 _HINT_PRIORITY_CLOSE = 100
 
-DEFAULT_HINT_FRAGMENTS: tuple[NotificationHintFragment, ...] = (
-    NotificationHintFragment("Enter", "select", _HINT_PRIORITY_ENTER),
-    NotificationHintFragment("d", "debug", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("m", "mark", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("x", "dismiss", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("M", "mute", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("s", "snooze", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("e", "edit", _HINT_PRIORITY_FILE_NAV),
-    NotificationHintFragment("V", "view", _HINT_PRIORITY_FILE_NAV),
-    NotificationHintFragment("Y", "copy path", _HINT_PRIORITY_FILE_NAV),
-    NotificationHintFragment("C-n/C-p", "next/prev file", _HINT_PRIORITY_FILE_NAV),
-    NotificationHintFragment("C-d/C-u", "scroll", _HINT_PRIORITY_SCROLL),
-    NotificationHintFragment("g/G", "top/bot", _HINT_PRIORITY_TOP_BOT),
-    NotificationHintFragment("R", "read tab", _HINT_PRIORITY_READ_TAB),
-    NotificationHintFragment("S", "sections", _HINT_PRIORITY_SECTIONS),
-    NotificationHintFragment("1-0/[]", "tab", _HINT_PRIORITY_TAG_TABS),
-    NotificationHintFragment("+", "+1", _HINT_PRIORITY_PLUS_ONE),
-    NotificationHintFragment("q", "close", _HINT_PRIORITY_CLOSE),
+DEFAULT_HINT_FRAGMENTS: tuple[_NotificationHintFragment, ...] = (
+    _NotificationHintFragment("Enter", "select", _HINT_PRIORITY_ENTER),
+    _NotificationHintFragment("d", "debug", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("m", "mark", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("x", "dismiss", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("M", "mute", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("s", "snooze", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("e", "edit", _HINT_PRIORITY_FILE_NAV),
+    _NotificationHintFragment("V", "view", _HINT_PRIORITY_FILE_NAV),
+    _NotificationHintFragment("Y", "copy path", _HINT_PRIORITY_FILE_NAV),
+    _NotificationHintFragment("C-n/C-p", "next/prev file", _HINT_PRIORITY_FILE_NAV),
+    _NotificationHintFragment("C-d/C-u", "scroll", _HINT_PRIORITY_SCROLL),
+    _NotificationHintFragment("g/G", "top/bot", _HINT_PRIORITY_TOP_BOT),
+    _NotificationHintFragment("R", "read tab", _HINT_PRIORITY_READ_TAB),
+    _NotificationHintFragment("S", "sections", _HINT_PRIORITY_SECTIONS),
+    _NotificationHintFragment("1-0/[]", "tab", _HINT_PRIORITY_TAG_TABS),
+    _NotificationHintFragment("+", "+1", _HINT_PRIORITY_PLUS_ONE),
+    _NotificationHintFragment("q", "close", _HINT_PRIORITY_CLOSE),
 )
-QUESTION_HINT_FRAGMENTS: tuple[NotificationHintFragment, ...] = (
-    NotificationHintFragment("Enter", "answer", _HINT_PRIORITY_ENTER),
-    NotificationHintFragment("d", "debug", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("C-d/C-u", "scroll", _HINT_PRIORITY_SCROLL),
-    NotificationHintFragment("g/G", "top/bot", _HINT_PRIORITY_TOP_BOT),
-    NotificationHintFragment("m", "mark", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("x", "dismiss", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("M", "mute", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("s", "snooze", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("S", "sections", _HINT_PRIORITY_SECTIONS),
-    NotificationHintFragment("1-0/[]", "tab", _HINT_PRIORITY_TAG_TABS),
-    NotificationHintFragment("+", "+1", _HINT_PRIORITY_PLUS_ONE),
-    NotificationHintFragment("q", "close", _HINT_PRIORITY_CLOSE),
+QUESTION_HINT_FRAGMENTS: tuple[_NotificationHintFragment, ...] = (
+    _NotificationHintFragment("Enter", "answer", _HINT_PRIORITY_ENTER),
+    _NotificationHintFragment("d", "debug", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("C-d/C-u", "scroll", _HINT_PRIORITY_SCROLL),
+    _NotificationHintFragment("g/G", "top/bot", _HINT_PRIORITY_TOP_BOT),
+    _NotificationHintFragment("m", "mark", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("x", "dismiss", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("M", "mute", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("s", "snooze", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("S", "sections", _HINT_PRIORITY_SECTIONS),
+    _NotificationHintFragment("1-0/[]", "tab", _HINT_PRIORITY_TAG_TABS),
+    _NotificationHintFragment("+", "+1", _HINT_PRIORITY_PLUS_ONE),
+    _NotificationHintFragment("q", "close", _HINT_PRIORITY_CLOSE),
 )
-GATE_HINT_FRAGMENTS: tuple[NotificationHintFragment, ...] = (
-    NotificationHintFragment("Enter", "review", _HINT_PRIORITY_ENTER),
-    NotificationHintFragment("d", "debug", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("C-n/C-p", "file", _HINT_PRIORITY_FILE_NAV),
-    NotificationHintFragment("C-d/C-u", "scroll", _HINT_PRIORITY_SCROLL),
-    NotificationHintFragment("g/G", "top/bot", _HINT_PRIORITY_TOP_BOT),
-    NotificationHintFragment("m", "mark", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("x", "dismiss", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("M", "mute", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("s", "snooze", _HINT_PRIORITY_ROW_STATE),
-    NotificationHintFragment("S", "sections", _HINT_PRIORITY_SECTIONS),
-    NotificationHintFragment("1-0/[]", "tab", _HINT_PRIORITY_TAG_TABS),
-    NotificationHintFragment("+", "+1", _HINT_PRIORITY_PLUS_ONE),
-    NotificationHintFragment("q", "close", _HINT_PRIORITY_CLOSE),
+GATE_HINT_FRAGMENTS: tuple[_NotificationHintFragment, ...] = (
+    _NotificationHintFragment("Enter", "review", _HINT_PRIORITY_ENTER),
+    _NotificationHintFragment("d", "debug", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("C-n/C-p", "file", _HINT_PRIORITY_FILE_NAV),
+    _NotificationHintFragment("C-d/C-u", "scroll", _HINT_PRIORITY_SCROLL),
+    _NotificationHintFragment("g/G", "top/bot", _HINT_PRIORITY_TOP_BOT),
+    _NotificationHintFragment("m", "mark", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("x", "dismiss", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("M", "mute", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("s", "snooze", _HINT_PRIORITY_ROW_STATE),
+    _NotificationHintFragment("S", "sections", _HINT_PRIORITY_SECTIONS),
+    _NotificationHintFragment("1-0/[]", "tab", _HINT_PRIORITY_TAG_TABS),
+    _NotificationHintFragment("+", "+1", _HINT_PRIORITY_PLUS_ONE),
+    _NotificationHintFragment("q", "close", _HINT_PRIORITY_CLOSE),
 )
 
-_HINT_VARIANT_FRAGMENTS: dict[str, tuple[NotificationHintFragment, ...]] = {
+_HINT_VARIANT_FRAGMENTS: dict[str, tuple[_NotificationHintFragment, ...]] = {
     "default": DEFAULT_HINT_FRAGMENTS,
     "question": QUESTION_HINT_FRAGMENTS,
     "gate": GATE_HINT_FRAGMENTS,
@@ -175,7 +175,7 @@ _HINT_FRAGMENT_SEPARATOR = "  "
 
 
 def _join_hint_fragments(
-    fragments: tuple[NotificationHintFragment, ...],
+    fragments: tuple[_NotificationHintFragment, ...],
 ) -> str:
     """Return the rendered footer line for ``fragments`` in display order."""
     return _HINT_FRAGMENT_SEPARATOR.join(fragment.text for fragment in fragments)
@@ -202,21 +202,21 @@ _NOTIFICATION_HINT_TIER_FLOORS: dict[str, int] = {
 NOTIFICATION_HINT_FALLBACK_WIDTH = 108
 
 
-def notification_hint_fragments(
+def _notification_hint_fragments(
     variant: str,
-) -> tuple[NotificationHintFragment, ...]:
+) -> tuple[_NotificationHintFragment, ...]:
     """Return the full fragment list for one hint ``variant``."""
     return _HINT_VARIANT_FRAGMENTS[variant]
 
 
-def notification_hint_tier(variant: str, width: int) -> str:
+def _notification_hint_tier(variant: str, width: int) -> str:
     """Return the widest tier of ``variant`` that fits ``width`` cells.
 
     An unknown (not yet laid out) width keeps the full render, matching the
     tag strip's pre-mount default; the footer re-renders on resize. The
     minimal tier always wins below every width so close and +1 stay visible.
     """
-    fragments = notification_hint_fragments(variant)
+    fragments = _notification_hint_fragments(variant)
     if width <= 0:
         return "full"
     for tier in NOTIFICATION_HINT_TIERS:
@@ -229,6 +229,6 @@ def notification_hint_tier(variant: str, width: int) -> str:
 
 def notification_hint_text(variant: str, width: int) -> str:
     """Return the tier-selected footer line for ``variant`` at ``width``."""
-    fragments = notification_hint_fragments(variant)
-    floor = _NOTIFICATION_HINT_TIER_FLOORS[notification_hint_tier(variant, width)]
+    fragments = _notification_hint_fragments(variant)
+    floor = _NOTIFICATION_HINT_TIER_FLOORS[_notification_hint_tier(variant, width)]
     return _join_hint_fragments(tuple(f for f in fragments if f.priority >= floor))

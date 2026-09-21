@@ -48,6 +48,8 @@ from sase.service.host_support import (
     terminal_status as _terminal_status,
 )
 from sase.service.paths import service_proc_dir, service_proc_output_log_path
+from sase.service.platform_models import SERVICE_LIFECYCLE_TEST_BLOCK_MESSAGE
+from sase.service.platform_runner import service_lifecycle_blocked_in_tests
 from sase.service.restart import (
     ServiceExit,
     ServiceRestartDecision,
@@ -509,6 +511,9 @@ class _ServiceHost:
 
 def run_service_host() -> int:
     """Entry point used by ``sase service run``."""
+    if service_lifecycle_blocked_in_tests():
+        print(SERVICE_LIFECYCLE_TEST_BLOCK_MESSAGE, file=sys.stderr)
+        return 125
     return _ServiceHost().run()
 
 
