@@ -462,3 +462,53 @@ new file mode 100644
             "commit_plan_view_modal_120x40",
             title="ACE commit plan view modal",
         )
+
+
+async def test_preview_panel_long_markdown_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+
+    sections: list[str] = [
+        "---",
+        "description: Long swarm reference for sizing",
+        "---",
+        "",
+    ]
+    for idx in range(60):
+        sections.append(f"# Section {idx}")
+        sections.append("")
+        sections.append(f"Body paragraph {idx} with stable sizing text.")
+        sections.append("")
+        sections.append(f"- item {idx}a")
+        sections.append(f"- item {idx}b")
+        sections.append("")
+    payload = PreviewPayload(
+        kind_label="xprompt",
+        icon="#",
+        title="#research_swarm",
+        source_path="/workspace/sase/.xprompts/research_swarm.md",
+        reference="#research_swarm",
+        lexer="markdown",
+        default_view="rendered",
+        content="\n".join(sections),
+    )
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        page.app.push_screen(PreviewPanelModal(payload))
+        await page.expect_modal("PreviewPanelModal")
+        modal = page.app.screen_stack[-1]
+        assert isinstance(modal, PreviewPanelModal)
+        await page.wait_for(lambda _state: modal._view_mode == "rendered")  # noqa: SLF001
+        await wait_for_svg_contains(page, "Section 0")
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "preview_panel_long_markdown_120x40",
+            title="ACE prompt preview panel - long markdown at max",
+        )

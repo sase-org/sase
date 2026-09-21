@@ -10,6 +10,7 @@ from rich.text import Text
 
 from sase.ace.tui.modals.preview_search import (
     build_search_result,
+    count_wrapped_rows,
     _find_match_lines,
     _wrapped_row_offsets,
 )
@@ -71,3 +72,46 @@ def test_plain_render_offsets_include_wrapped_notice_and_drop_number_gutter() ->
 
     assert result.row_offsets[0] == notice_rows
     assert result.row_offsets[1] == notice_rows + 1
+
+
+def test_count_wrapped_rows_agrees_with_offsets() -> None:
+    content = "short\naveryveryverylongunbrokentoken\nend"
+    width = 20
+    result = build_search_result(content, "short", width, "text")
+    # Total rows = last offset + wrapped height of the final line.
+    last_offset = result.row_offsets[-1]
+    console = Console(width=width, force_terminal=True)
+    from sase.ace.tui.modals.preview_search import _syntax_code_width
+
+    code_width = _syntax_code_width(content, width)
+    final_wrapped = Text("end").wrap(console, code_width, overflow="fold")
+    total = last_offset + max(1, len(final_wrapped))
+    assert count_wrapped_rows(content, width, "text", limit=1000) == total
+
+
+def test_count_wrapped_rows_early_exits_at_limit() -> None:
+    content = "\n".join(f"line {idx}" for idx in range(200))
+    assert count_wrapped_rows(content, 40, "python", limit=20) == 21
+    # Logical line count fast path: 200 lines without wrapping.
+    assert count_wrapped_rows(content, 40, "python", limit=50) == 51
+
+
+def test_count_wrapped_rows_includes_plain_notice() -> None:
+    content = "\n".join(["match", *["line"] * MARKDOWN_SYNTAX_HIGHLIGHT_MAX_LINES])
+    width = 20
+    result = build_search_result(content, "match", width, "markdown")
+    console = Console(width=width, force_terminal=True)
+    notice_rows = max(
+        1,
+        len(
+            Text("Large output rendered without syntax highlighting\n").wrap(
+                console, width
+            )
+        ),
+    )
+    # Small limit still exceeds because of the notice plus many lines.
+    assert count_wrapped_rows(content, width, "markdown", limit=5) == 6
+    # Large limit agrees with the offset model (notice + one row per line).
+    total = notice_rows + len(content.splitlines())
+    assert count_wrapped_rows(content, width, "markdown", limit=10000) == total
+    assert result.row_offsets[0] == notice_rows

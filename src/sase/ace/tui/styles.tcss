@@ -5904,6 +5904,7 @@ PreviewPanelModal {
     align: center middle;
 }
 
+/* Pre-mount baseline for PreviewPanelModal; mirrored in preview_panel_sizing.py. */
 PreviewPanelModal > Container {
     width: 96%;
     height: 85%;

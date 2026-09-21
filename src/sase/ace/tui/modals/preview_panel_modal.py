@@ -26,6 +26,7 @@ from sase.ace.tui.util.pump_tasks import (
 )
 from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
 
+from ._preview_panel_geometry import PreviewPanelGeometryMixin
 from ._source_file_actions import SourceFileActionsMixin
 from .base import CopyModeForwardingMixin, FilterInput
 from .preview_properties_render import build_properties_band, build_properties_view
@@ -67,6 +68,7 @@ def _fence_leading_yaml_frontmatter(content: str) -> str:
 class PreviewPanelModal(
     CopyModeForwardingMixin,
     SourceFileActionsMixin,
+    PreviewPanelGeometryMixin,
     ModalScreen[None],
 ):
     """Presentational modal for resolved xprompt/file previews and their properties."""
@@ -128,6 +130,8 @@ class PreviewPanelModal(
         self._search_serial = 0
         self._search_viewport_row = 0
         self._pending_match_delta: int | None = None
+        self._geometry_floor = None
+        self._last_geometry_screen: tuple[int, int] | None = None
 
     def compose(self) -> ComposeResult:
         with Container(id="preview-modal-container"):
@@ -155,6 +159,7 @@ class PreviewPanelModal(
             yield Static(self._build_footer(), id="preview-footer")
 
     def on_mount(self) -> None:
+        self._preview_apply_geometry()
         if self._requested_rendered:
             self._schedule_rendered_update()
 
@@ -325,6 +330,11 @@ class PreviewPanelModal(
         if mode == "source":
             self._requested_rendered = False
         self._refresh_preview_widgets(reset_scroll=reset_scroll)
+        if mode in ("rendered", "properties"):
+            self._preview_schedule_ratchet()
+        else:
+            # Source view still respects the grow-only floor.
+            self._preview_apply_geometry()
 
     def _schedule_rendered_update(self) -> None:
         if self._rendered_ready:

@@ -17,6 +17,9 @@ from sase.ace.tui.modals.preview_panel_modal import (
     PreviewPanelModal,
     _fence_leading_yaml_frontmatter,
 )
+from textual.containers import Container, VerticalScroll
+
+from sase.ace.tui.modals.preview_panel_sizing import PanelGeometry
 from sase.ace.tui.util.lazy_syntax import PLAIN_RENDER_MAX_LINES
 from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
 from sase.xprompt.cli_show_model import ShowInput
@@ -645,3 +648,198 @@ async def test_preview_modal_search_warns_for_match_beyond_display_cap(
             "warning",
         )
     ]
+
+
+class _StyledPreviewModalTestApp(App[None]):
+    from pathlib import Path as _Path
+
+    CSS_PATH = str(
+        _Path(__file__).resolve().parents[4]
+        / "src"
+        / "sase"
+        / "ace"
+        / "tui"
+        / "styles.tcss"
+    )
+
+    def __init__(self, payload: PreviewPayload) -> None:
+        super().__init__()
+        self.payload = payload
+
+    def compose(self) -> ComposeResult:
+        yield Static("host")
+
+    def on_mount(self) -> None:
+        self.push_screen(PreviewPanelModal(self.payload))
+
+
+def _short_payload() -> PreviewPayload:
+    return PreviewPayload(
+        kind_label="file",
+        icon="@",
+        title="short.py",
+        source_path="/tmp/short.py",
+        content="\n".join(f"print({idx})" for idx in range(5)),
+        lexer="python",
+        reference="file:short.py",
+    )
+
+
+def _long_narrow_payload() -> PreviewPayload:
+    return PreviewPayload(
+        kind_label="file",
+        icon="@",
+        title="long.py",
+        source_path="/tmp/long.py",
+        content="\n".join(f"print({idx})" for idx in range(300)),
+        lexer="python",
+        reference="file:long.py",
+    )
+
+
+def _long_wide_payload() -> PreviewPayload:
+    line = "x = '" + "y" * 130 + "'  # wide line to force full width"
+    return PreviewPayload(
+        kind_label="file",
+        icon="@",
+        title="wide.py",
+        source_path="/tmp/wide.py",
+        content="\n".join(f"{line}  # {idx}" for idx in range(300)),
+        lexer="python",
+        reference="file:wide.py",
+    )
+
+
+async def test_preview_modal_short_payload_keeps_baseline() -> None:
+    app = _PreviewModalTestApp(_short_payload())
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        modal = app.screen_stack[-1]
+        assert isinstance(modal, PreviewPanelModal)
+        assert modal._geometry_floor == PanelGeometry(96, 25)  # noqa: SLF001
+        container = modal.query_one("#preview-modal-container", Container)
+        assert container.styles.width.cells == 96
+        assert container.styles.height.cells == 25
+
+
+async def test_preview_modal_long_payload_hits_max() -> None:
+    app = _PreviewModalTestApp(_long_narrow_payload())
+    async with app.run_test(size=(160, 60)) as pilot:
+        await pilot.pause()
+        modal = app.screen_stack[-1]
+        assert isinstance(modal, PreviewPanelModal)
+        assert modal._geometry_floor == PanelGeometry(150, 58)  # noqa: SLF001
+        container = modal.query_one("#preview-modal-container", Container)
+        assert container.styles.width.cells == 150
+        assert container.styles.height.cells == 58
+
+    wide_app = _PreviewModalTestApp(_long_wide_payload())
+    async with wide_app.run_test(size=(160, 60)) as pilot:
+        await pilot.pause()
+        modal = wide_app.screen_stack[-1]
+        assert isinstance(modal, PreviewPanelModal)
+        assert modal._geometry_floor == PanelGeometry(156, 58)  # noqa: SLF001
+        container = modal.query_one("#preview-modal-container", Container)
+        assert container.styles.width.cells == 156
+        assert container.styles.height.cells == 58
+
+
+async def test_preview_modal_chrome_guard_has_no_slack_or_scrollbar() -> None:
+    payload = PreviewPayload(
+        kind_label="file",
+        icon="@",
+        title="mid.py",
+        source_path="/tmp/mid.py",
+        content="\n".join(f"print({idx})" for idx in range(25)),
+        lexer="python",
+        reference="file:mid.py",
+    )
+    app = _StyledPreviewModalTestApp(payload)
+    async with app.run_test(size=(120, 40)) as pilot:
+        await pilot.pause()
+        await pilot.pause()
+        modal = app.screen_stack[-1]
+        assert isinstance(modal, PreviewPanelModal)
+        scroll = modal.query_one("#preview-scroll", VerticalScroll)
+        content = modal.query_one("#preview-content", Static)
+        assert scroll.max_scroll_y == 0
+        assert scroll.scrollable_content_region.height == content.outer_size.height
+
+
+async def test_preview_modal_toggle_never_shrinks() -> None:
+    app = _StyledPreviewModalTestApp(_properties_payload())
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.pause()
+        modal = app.screen_stack[-1]
+        assert isinstance(modal, PreviewPanelModal)
+
+        def container_height() -> int:
+            return int(
+                modal.query_one("#preview-modal-container", Container).outer_size.height
+            )
+
+        height_source = container_height()
+        await pilot.press("p")
+        await pilot.pause()
+        await pilot.pause()
+        height_properties = container_height()
+        assert modal._view_mode == "properties"  # noqa: SLF001
+        await pilot.press("p")
+        await pilot.pause()
+        await pilot.pause()
+        height_back = container_height()
+        assert height_properties >= height_source
+        assert height_back >= height_properties
+
+
+async def test_preview_modal_rendered_grows_when_taller() -> None:
+    content = "# A\n\nBody A.\n\n# B\n\nBody B.\n\n```python\nprint(1)\nprint(2)\n```\n"
+    payload = PreviewPayload(
+        kind_label="xprompt",
+        icon="#",
+        title="#md",
+        source_path="/tmp/md.md",
+        content=content,
+        lexer="markdown",
+        reference="#md",
+        default_view="source",
+    )
+    app = _StyledPreviewModalTestApp(payload)
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.pause()
+        modal = app.screen_stack[-1]
+        assert isinstance(modal, PreviewPanelModal)
+        before = int(
+            modal.query_one("#preview-modal-container", Container).outer_size.height
+        )
+        await pilot.press("R")
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.pause()
+        assert modal._view_mode == "rendered"  # noqa: SLF001
+        after = int(
+            modal.query_one("#preview-modal-container", Container).outer_size.height
+        )
+        assert after >= before
+
+
+async def test_preview_modal_resize_recomputes_geometry() -> None:
+    app = _StyledPreviewModalTestApp(_long_narrow_payload())
+    async with app.run_test(size=(100, 30)) as pilot:
+        await pilot.pause()
+        await pilot.pause()
+        modal = app.screen_stack[-1]
+        assert isinstance(modal, PreviewPanelModal)
+        before = modal.query_one("#preview-modal-container", Container).outer_size
+        assert modal._last_geometry_screen == (100, 30)  # noqa: SLF001
+        await pilot.resize_terminal(160, 60)
+        await pilot.pause()
+        await pilot.pause()
+        await pilot.pause()
+        container = modal.query_one("#preview-modal-container", Container)
+        assert modal._last_geometry_screen == (160, 60)  # noqa: SLF001
+        assert modal._geometry_floor == PanelGeometry(150, 58)  # noqa: SLF001
+        assert container.styles.height.cells == 58
+        assert container.outer_size.height >= before.height

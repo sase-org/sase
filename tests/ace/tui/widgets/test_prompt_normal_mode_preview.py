@@ -344,3 +344,45 @@ async def test_k_does_not_overwrite_dot_repeat(
         await page.press(".")
 
         assert page.text == "three"
+
+
+async def test_k_on_long_xprompt_opens_taller_than_baseline(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from textual.containers import Container
+
+    from sase.ace.tui.modals.preview_panel_sizing import baseline_geometry
+
+    payload = PreviewPayload(
+        kind_label="xprompt",
+        icon="#",
+        title="#long",
+        source_path="/tmp/long.md",
+        content="\n".join(f"line {idx} body text" for idx in range(300)),
+        lexer="markdown",
+    )
+
+    def fake_resolve(
+        token: PreviewToken,
+        *,
+        project: str | None,
+        base_dir: str,
+    ) -> PreviewPayload:
+        return payload
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets._prompt_preview.resolve_preview_target",
+        fake_resolve,
+    )
+
+    async with PromptPage("run #foo", cursor=(0, 5), size=(100, 30)) as page:
+        await page.press("K")
+        await page.wait_for(lambda: _top_is_preview(page))
+        await page.pause()
+
+        modal = page.ta.app.screen_stack[-1]
+        assert isinstance(modal, PreviewPanelModal)
+        baseline = baseline_geometry(100, 30)
+        container = modal.query_one("#preview-modal-container", Container)
+        assert container.styles.height.cells is not None
+        assert container.styles.height.cells > baseline.height
