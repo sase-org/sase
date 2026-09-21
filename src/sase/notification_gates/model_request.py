@@ -214,13 +214,17 @@ class GateSpec:
             if raw_request_id is None
             else validate_identifier(raw_request_id, "request_id")
         )
-        continuation = data.get("continuation_mode", "none")
-        if not isinstance(continuation, str) or not continuation.strip():
-            raise GateError(
-                "invalid_request",
-                "continuation_mode",
-                "continuation_mode must be a non-empty string",
-            )
+        raw_continuation = data.get("continuation_mode")
+        if raw_continuation is None:
+            continuation: str | None = None
+        else:
+            if not isinstance(raw_continuation, str) or not raw_continuation.strip():
+                raise GateError(
+                    "invalid_request",
+                    "continuation_mode",
+                    "continuation_mode must be a non-empty string",
+                )
+            continuation = raw_continuation.strip()
         timeout = data.get("gate_timeout_seconds")
         if timeout is not None:
             if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
@@ -257,6 +261,24 @@ class GateSpec:
         )
         if shell is not None and timeout is None:
             timeout = GATE_SHELL_DEFAULT_TIMEOUT_SECONDS
+        if shell is not None:
+            if continuation is None:
+                # A shell block without an explicit mode keeps the shell: every
+                # other shell-backed kind records an explicit mode (sudo
+                # records "gate_shell"), so derive the same default instead of
+                # the shell-less "none" that drops the block at creation time.
+                continuation = "gate_shell"
+            elif continuation == "none":
+                raise GateError(
+                    "invalid_request",
+                    "continuation_mode",
+                    "continuation_mode must not be 'none' when the request "
+                    "declares a shell block: 'none' discards the shell, so no "
+                    "gate-shell row is registered. Omit continuation_mode to "
+                    "use the derived 'gate_shell' mode, or drop the shell block.",
+                )
+        elif continuation is None:
+            continuation = "none"
         raw_operations = data.get("operations", [])
         if not isinstance(raw_operations, list):
             raise GateError(
@@ -287,12 +309,13 @@ class GateSpec:
                 "presentation",
                 "use presentation or notification, not both",
             )
+        assert continuation is not None
         return cls(
             schema_version=GATE_REQUEST_SCHEMA_VERSION,
             kind=kind,
             request_id=request_id,
             producer=json_object(data.get("producer", {}), "producer"),
-            continuation_mode=continuation.strip(),
+            continuation_mode=continuation,
             gate_timeout_seconds=timeout,
             payload=json_object(data.get("payload", {}), "payload"),
             presentation=json_object(

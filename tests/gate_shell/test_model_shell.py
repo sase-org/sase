@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from sase.gate_shell.store import find_gate_shell_by_gate_id
 from sase.notification_gates.durability import request_sha256
 from sase.notification_gates.hashing import load_and_verify_bundle
 from sase.notification_gates.model_shell import (
@@ -18,6 +19,14 @@ from sase.notification_gates.model_shell import (
 from sase.notification_gates.models import GateError, GateSpec
 from sase.notification_gates.service import create_gate
 from tests._notification_gates_fixtures import custom_gate_spec, gate_spec
+from tests.gate_shell._settlement_followup_helpers import (
+    DEFAULT_SHELL,
+    gate_spec as shell_member_gate_spec,
+    make_gate_shell_member,
+    sandbox_home,
+)
+
+__all__ = ["sandbox_home"]
 
 
 def test_shell_block_defaults_timeout_and_statuses() -> None:
@@ -119,3 +128,70 @@ def test_shell_survives_durable_envelope_and_request_hash(
     assert envelope["shell"]["workspace"] == "release"
     assert envelope["shell"]["next"]["fork"] == "shell"
     assert request_sha256(envelope) == result.hashes["request"]
+
+
+def test_shell_block_derives_gate_shell_continuation_mode() -> None:
+    """A shell block without an explicit mode keeps the shell (sase-14n.12)."""
+    raw = custom_gate_spec(request_id="shell-derived-mode")
+    raw["shell"] = {"next": {"fork": "family"}}
+
+    spec = GateSpec.from_mapping(raw)
+
+    assert spec.shell is not None
+    assert spec.continuation_mode == "gate_shell"
+
+
+def test_shell_block_rejects_explicit_none_continuation_mode() -> None:
+    """Shell plus an explicit "none" mode is rejected instead of dropped."""
+    raw = custom_gate_spec(request_id="shell-none-mode")
+    raw["shell"] = {"next": {"fork": "family"}}
+    raw["continuation_mode"] = "none"
+
+    with pytest.raises(GateError) as exc_info:
+        GateSpec.from_mapping(raw)
+
+    assert exc_info.value.code == "invalid_request"
+    assert exc_info.value.target == "continuation_mode"
+
+
+def test_shell_block_keeps_explicit_continuation_mode() -> None:
+    """An explicit non-"none" mode still wins over the derived default."""
+    raw = custom_gate_spec(request_id="shell-explicit-mode")
+    raw["shell"] = {"next": {"fork": "family"}}
+    raw["continuation_mode"] = "agent_question"
+
+    spec = GateSpec.from_mapping(raw)
+
+    assert spec.shell is not None
+    assert spec.continuation_mode == "agent_question"
+
+
+def test_shell_less_request_keeps_none_default() -> None:
+    """Requests without a shell block still default to "none"."""
+    spec = GateSpec.from_mapping(custom_gate_spec(request_id="no-shell-mode"))
+
+    assert spec.shell is None
+    assert spec.continuation_mode == "none"
+
+
+def test_shell_block_custom_gate_records_shell_mode_and_registers_row(
+    gate_home: Path,
+) -> None:
+    """A custom gate declaring a shell block keeps it through creation."""
+    del gate_home
+    request_id = "shell-row-custom"
+    shell = dict(DEFAULT_SHELL)
+
+    gate = create_gate(shell_member_gate_spec(request_id, shell=shell))
+
+    assert gate.continuation_mode == "gate_shell"
+    envelope = json.loads((gate.bundle_path / "request.json").read_text())
+    assert envelope["continuation_mode"] == "gate_shell"
+    assert isinstance(envelope.get("shell"), dict)
+
+    artifacts_dir = make_gate_shell_member(request_id, gate.bundle_path, shell=shell)
+    record = find_gate_shell_by_gate_id(None, request_id)
+
+    assert record is not None
+    assert record.gate_id == request_id
+    assert record.artifacts_dir == artifacts_dir

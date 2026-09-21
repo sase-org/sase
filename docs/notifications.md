@@ -1589,10 +1589,13 @@ The built-in front doors choose statuses and continuation policy for their domai
 For a custom handoff, pass `--shell` to `sase gate create`. `--next` supplies the
 default answered-branch prompt; `--next-fork family|shell|none`, `--next-model`, and
 repeatable `--next-output none|results|tail|file` control its context, model, and output
-channels. Branch policy in the specification may override or suppress that default.
-Selected option IDs joined with `+` in query order form the answered branch key.
-Timeout, stopped, failed, and lost branches never inherit the answered default: they
-launch only when explicitly configured.
+channels. Branch policy in the specification may override or suppress that default. A
+shell block without an explicit `continuation_mode` records the derived `gate_shell`
+mode; pairing a shell block with an explicit `"none"` is rejected, because `"none"`
+would discard the shell and leave the gate without a row in `sase gate list`. Selected
+option IDs joined with `+` in query order form the answered branch key. Timeout,
+stopped, failed, and lost branches never inherit the answered default: they launch only
+when explicitly configured.
 
 Answering a shell-backed gate runs its commands in a supervised detached proc by
 default, so they survive the client that submitted the decision;

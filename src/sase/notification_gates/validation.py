@@ -51,6 +51,16 @@ def validate_gate_spec(spec: GateSpec, adapter: GateAdapter) -> None:
             "schema_version",
             f"new gate requests require schema_version {GATE_REQUEST_SCHEMA_VERSION}",
         )
+    if spec.shell is not None and spec.continuation_mode == "none":
+        raise GateError(
+            "invalid_request",
+            "continuation_mode",
+            "a gate declaring a shell block must not record continuation_mode "
+            "'none': 'none' discards the shell, so no gate-shell row is "
+            "registered. Omit continuation_mode to use the derived "
+            "'gate_shell' mode, and create shell-backed gates with "
+            "sase.gate_shell.create_gate_shell so the row is registered.",
+        )
     resource_paths = [resource.path for resource in spec.resources]
     _reject_duplicates(resource_paths, "resources", "resource path")
     reserved_roots = {
