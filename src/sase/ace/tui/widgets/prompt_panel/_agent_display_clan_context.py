@@ -7,6 +7,7 @@ from collections.abc import Mapping
 
 from sase.ace.patch.models import DeltaEntry
 from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
+from sase.ace.tui.bead_touches import BeadTouchEntry
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 
 from ...models._agent_clan_sections import ClanContextEntry
@@ -66,6 +67,13 @@ def _typed_context_value_path(
     if lane_label == "ARTIFACTS":
         if isinstance(value, ArtifactFilePath):
             return value.actual_path
+        if isinstance(value, BeadTouchEntry):
+            from sase.bead_pages.paths import bead_page_path
+
+            try:
+                return bead_page_path(value.bead_id)
+            except ValueError:
+                return None
         if isinstance(value, ArtifactReadDisplayEvent):
             return value.event.resolved_path
         if isinstance(value, DeltaEntry):

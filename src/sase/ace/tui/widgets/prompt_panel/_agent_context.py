@@ -8,6 +8,7 @@ from rich.text import Text
 
 from sase.ace.patch.models import DeltaEntry
 from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
+from sase.ace.tui.bead_touches import BeadTouchEntry
 from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
@@ -95,6 +96,7 @@ def append_agent_context_section(
     linked_delta_groups: tuple[LinkedDeltaGroup, ...] = (),
     artifact_file_paths: list[ArtifactFilePath] | None = None,
     artifact_reads: tuple[ArtifactReadDisplayEvent, ...] = (),
+    bead_touch_entries: tuple[BeadTouchEntry, ...] = (),
     hint_state: HeaderHintState | None = None,
     responsive_ranges: dict[str, tuple[int, int]] | None = None,
     fold_level: FoldLevel | None = None,
@@ -165,6 +167,7 @@ def append_agent_context_section(
             linked_delta_groups=linked_delta_groups,
             artifact_file_paths=artifact_file_paths,
             artifact_reads=artifact_reads,
+            bead_touch_entries=bead_touch_entries,
             hint_state=hint_state,
         ),
     }

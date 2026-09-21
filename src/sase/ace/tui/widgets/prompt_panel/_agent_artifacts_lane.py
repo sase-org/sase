@@ -6,10 +6,12 @@ from rich.text import Text
 
 from sase.ace.patch.models import DeltaEntry
 from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
+from sase.ace.tui.bead_touches import BEAD_READ_REF_PREFIX, BeadTouchEntry
 
 from ...models.agent import Agent
 from ..file_panel._linked_deltas import LinkedDeltaGroup
 from ._agent_artifact_reads import append_agent_artifact_read_rows
+from ._agent_bead_touches import append_agent_bead_touch_rows
 from ._agent_commits import (
     agent_commit_groups,
     append_agent_commit_groups,
@@ -30,6 +32,22 @@ from ._agent_display_state import HeaderHintState
 from ._artifact_files import ArtifactFilePath, append_artifact_file_paths
 
 
+def _non_bead_reads(
+    artifact_reads: tuple[ArtifactReadDisplayEvent, ...],
+) -> tuple[ArtifactReadDisplayEvent, ...]:
+    """Return artifact reads excluding ``bead:`` refs.
+
+    ``Beads:`` owns every bead interaction (including audited reads, which
+    the merge folds in as ``read`` verbs), so ``Reads:`` renders only
+    non-bead consultation.
+    """
+    return tuple(
+        item
+        for item in artifact_reads
+        if not (item.event.ref or "").strip().startswith(BEAD_READ_REF_PREFIX)
+    )
+
+
 def append_agent_artifacts_lane(
     text: Text,
     *,
@@ -38,17 +56,21 @@ def append_agent_artifacts_lane(
     linked_delta_groups: tuple[LinkedDeltaGroup, ...] = (),
     artifact_file_paths: list[ArtifactFilePath] | None = None,
     artifact_reads: tuple[ArtifactReadDisplayEvent, ...] = (),
+    bead_touch_entries: tuple[BeadTouchEntry, ...] = (),
     hint_state: HeaderHintState | None = None,
 ) -> None:
-    """Append reads, commits, deltas, and artifact files as one ranked lane."""
+    """Append beads, reads, commits, deltas, and artifact files as one ranked lane."""
     commit_groups = agent_commit_groups(agent) if agent is not None else ()
     deltas = visible_agent_delta_entries(delta_entries or ())
     linked_groups = visible_agent_linked_delta_groups(linked_delta_groups)
     artifact_files = artifact_file_paths or []
+    reads = _non_bead_reads(artifact_reads)
 
     details: list[str] = []
-    if artifact_reads:
-        details.append(count_phrase(len(artifact_reads), "read"))
+    if bead_touch_entries:
+        details.append(count_phrase(len(bead_touch_entries), "bead"))
+    if reads:
+        details.append(count_phrase(len(reads), "read"))
     commit_count = count_agent_commit_groups(commit_groups)
     if commit_count:
         details.append(count_phrase(commit_count, "commit"))
@@ -66,11 +88,18 @@ def append_agent_artifacts_lane(
         label_style=COLOR_ARTIFACTS_SUBHEADER,
         details=" · ".join(details),
     )
-    if artifact_reads:
+    if bead_touch_entries:
+        text.append("  Beads:\n", style=COLOR_SUMMARY)
+        append_agent_bead_touch_rows(
+            text,
+            entries=bead_touch_entries,
+            hint_state=hint_state,
+        )
+    if reads:
         text.append("  Reads:\n", style=COLOR_SUMMARY)
         append_agent_artifact_read_rows(
             text,
-            events=artifact_reads,
+            events=reads,
             hint_state=hint_state,
         )
     if commit_groups:

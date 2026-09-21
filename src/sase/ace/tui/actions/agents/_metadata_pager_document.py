@@ -232,6 +232,7 @@ def _sase_context_lanes_text(agent: Agent, summary: DetailHeaderSummary) -> Text
         linked_delta_groups=summary.linked_delta_groups,
         artifact_file_paths=summary.artifact_file_paths,
         artifact_reads=summary.artifact_reads,
+        bead_touch_entries=summary.bead_touch_entries,
         ready_lanes=summary.ready_lanes,
     )
     plain = scratch.plain

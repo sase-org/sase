@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import cast
 
 from sase.ace.tui.artifact_reads import ArtifactReadDisplayEvent
+from sase.ace.tui.bead_touches import BEAD_READ_REF_PREFIX
 from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.ace.tui.opened_workspaces import OpenedWorkspaceDisplayEvent
@@ -107,6 +108,8 @@ def aggregate_clan_context_lanes(
             )
         for artifact_display in summary.artifact_reads:
             artifact_event = cast(ArtifactReadDisplayEvent, artifact_display).event
+            if (artifact_event.ref or "").strip().startswith(BEAD_READ_REF_PREFIX):
+                continue
             _add_context(
                 accumulators,
                 "ARTIFACTS",
@@ -114,6 +117,15 @@ def aggregate_clan_context_lanes(
                 artifact_event.ref,
                 member_label,
                 artifact_display,
+            )
+        for bead_entry in summary.bead_touch_entries:
+            _add_context(
+                accumulators,
+                "ARTIFACTS",
+                bead_entry.bead_id,
+                bead_entry.bead_id,
+                member_label,
+                bead_entry,
             )
         for delta in summary.delta_entries or ():
             _add_context(
