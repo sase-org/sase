@@ -9,7 +9,6 @@ import pytest
 from sase.service.paths import service_dir, service_state_path
 from sase.service.state import (
     ServiceHostRecord,
-    clear_service_enablement,
     clear_service_host,
     clear_service_marker,
     clear_service_stop,
@@ -42,15 +41,6 @@ def test_setting_and_clearing_enablement(tmp_path) -> None:
 
     snapshot = read_service_state(sase_home=tmp_path, boot_id="boot-a")
     assert snapshot.state.enablement["scheduler"].updated_by == "pytest"
-
-    cleared = clear_service_enablement(
-        "scheduler",
-        sase_home=tmp_path,
-        boot_id="boot-a",
-        now=11.0,
-    )
-    assert cleared.changed is True
-    assert cleared.snapshot.state.enablement == {}
 
 
 def test_stop_is_boot_scoped_and_expired_stop_prunes_on_next_write(

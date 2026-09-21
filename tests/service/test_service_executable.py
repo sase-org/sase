@@ -280,7 +280,7 @@ def _launcher_plan_warnings(
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setattr("sase.service.platform.platform.system", lambda: "Linux")
-    monkeypatch.setattr("sase.service.platform.readiness_warnings", lambda _env: ())
+    monkeypatch.setattr("sase.service.platform._readiness_warnings", lambda _env: ())
     interpreter, _bin_dir = _interpreter(tmp_path)
     monkeypatch.setattr("sase.service.executable.sys.executable", interpreter)
     monkeypatch.setattr(

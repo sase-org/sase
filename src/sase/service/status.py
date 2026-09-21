@@ -413,19 +413,6 @@ class ServiceStatusSnapshot:
         }
 
 
-def resolve_service_enablement(
-    entry: ServiceProcConfig,
-    override: ServiceEnablementOverride | None = None,
-) -> ServiceEnablement:
-    """Resolve a config entry plus optional machine override in Rust."""
-    binding = require_rust_binding("service_enablement_resolve")
-    payload = binding(
-        _service_proc_config_to_wire(entry),
-        None if override is None else _enablement_override_to_wire(override),
-    )
-    return ServiceEnablement.from_wire(payload)
-
-
 def build_service_status(
     config: ServiceConfigComposition,
     state: ServiceState | ServiceStateSnapshot,
@@ -632,6 +619,5 @@ __all__ = [
     "ServiceStatusSnapshot",
     "build_service_status",
     "read_service_status",
-    "resolve_service_enablement",
     "write_service_status",
 ]

@@ -49,12 +49,7 @@ from sase.service.platform_models import (
     ServicePlanStatus,
 )
 from sase.service.platform_runner import default_runner
-from sase.service.platform_units import platform_kind
 from sase.service.state import clear_service_marker, set_service_marker
-
-
-def service_platform_supported() -> bool:
-    return platform_kind() in {"linux", "darwin"}
 
 
 def service_init_plan(
@@ -110,7 +105,7 @@ def service_init_plan(
         warnings.append(
             f"user linger is disabled; run `loginctl enable-linger {user}` so the service can survive logout"
         )
-    warnings.extend(readiness_warnings(desired_env))
+    warnings.extend(_readiness_warnings(desired_env))
     warnings.extend(service_launcher_warnings(desired_env))
     if inspection.definition_exists:
         # The capture above answers "what will init write"; this answers "what
@@ -303,7 +298,7 @@ def apply_service_uninstall(
     )
 
 
-def readiness_warnings(env: Mapping[str, str]) -> tuple[str, ...]:
+def _readiness_warnings(env: Mapping[str, str]) -> tuple[str, ...]:
     """Return non-secret readiness warnings for captured service env."""
     warnings: list[str] = []
     try:
@@ -361,8 +356,6 @@ __all__ = [
     "control_installed_service",
     "installed_native_definition",
     "inspect_native_service",
-    "readiness_warnings",
     "service_init_plan",
-    "service_platform_supported",
     "service_uninstall_plan",
 ]

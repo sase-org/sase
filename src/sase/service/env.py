@@ -24,7 +24,7 @@ _SSH_AGENT_PID_ENV = "SSH_AGENT_PID"
 
 
 @dataclass(frozen=True)
-class CapturedServiceEnvironment:
+class _CapturedServiceEnvironment:
     """Service environment values plus redacted planning diagnostics."""
 
     values: dict[str, str]
@@ -44,7 +44,7 @@ def capture_service_environment(
     environ: Mapping[str, str] | None = None,
     force_sase_home: Path | None = None,
     metadata_payload: Mapping[str, Any] | None = None,
-) -> CapturedServiceEnvironment:
+) -> _CapturedServiceEnvironment:
     """Capture only the environment variables the platform host is allowed to use."""
     environment = os.environ if environ is None else environ
     names = set(_allowed_provider_env_names(metadata_payload))
@@ -61,7 +61,7 @@ def capture_service_environment(
     values.update(agent_values)
     if force_sase_home is not None:
         values["SASE_HOME"] = str(force_sase_home.expanduser())
-    return CapturedServiceEnvironment(values=values, warnings=agent_warnings)
+    return _CapturedServiceEnvironment(values=values, warnings=agent_warnings)
 
 
 def write_service_environment(
@@ -265,7 +265,6 @@ def _validate_env_name(name: str) -> None:
 
 
 __all__ = [
-    "CapturedServiceEnvironment",
     "ServiceEnvironmentError",
     "capture_service_environment",
     "environment_files_match",

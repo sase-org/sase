@@ -21,7 +21,7 @@ from unittest.mock import patch
 import pytest
 
 from sase.service.env import (
-    CapturedServiceEnvironment,
+    _CapturedServiceEnvironment,
     write_service_environment,
 )
 from sase.service.paths import service_state_path
@@ -35,7 +35,7 @@ from sase.service.platform import (
     build_native_definition,
     control_installed_service,
     inspect_native_service,
-    readiness_warnings,
+    _readiness_warnings,
     service_init_plan,
     service_uninstall_plan,
 )
@@ -73,7 +73,7 @@ def test_linux_plan_detects_content_env_linger_and_legacy(
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setattr("sase.service.platform.platform.system", lambda: "Linux")
-    monkeypatch.setattr("sase.service.platform.readiness_warnings", lambda _env: ())
+    monkeypatch.setattr("sase.service.platform._readiness_warnings", lambda _env: ())
     runner = _Runner()
 
     plan = service_init_plan(
@@ -123,7 +123,7 @@ def test_apply_service_init_writes_files_and_orders_manager_actions(
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     monkeypatch.setattr("sase.service.platform.platform.system", lambda: "Linux")
-    monkeypatch.setattr("sase.service.platform.readiness_warnings", lambda _env: ())
+    monkeypatch.setattr("sase.service.platform._readiness_warnings", lambda _env: ())
     runner = _Runner()
 
     result = apply_service_init(
@@ -250,7 +250,7 @@ def _linux_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     monkeypatch.setattr("sase.service.platform.platform.system", lambda: "Linux")
-    monkeypatch.setattr("sase.service.platform.readiness_warnings", lambda _env: ())
+    monkeypatch.setattr("sase.service.platform._readiness_warnings", lambda _env: ())
     return sase_home
 
 
@@ -259,7 +259,7 @@ def _darwin_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     sase_home = tmp_path / ".sase"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     monkeypatch.setattr("sase.service.platform.platform.system", lambda: "Darwin")
-    monkeypatch.setattr("sase.service.platform.readiness_warnings", lambda _env: ())
+    monkeypatch.setattr("sase.service.platform._readiness_warnings", lambda _env: ())
     return sase_home
 
 
@@ -410,7 +410,7 @@ def test_init_plan_diff_redacts_env_secrets_on_both_sides(
     )
     monkeypatch.setattr(
         "sase.service.platform.capture_service_environment",
-        lambda **_k: CapturedServiceEnvironment(
+        lambda **_k: _CapturedServiceEnvironment(
             values={
                 "FCM_TOKEN": "new-secret-token",
                 "OPENAI_API_KEY": "super-secret-token",
@@ -441,7 +441,7 @@ def test_uninstall_preserves_state_and_force_removes_suffixed_identity(
     sase_home = tmp_path / "alt-home"
     monkeypatch.setenv("SASE_HOME", str(sase_home))
     monkeypatch.setattr("sase.service.platform.platform.system", lambda: "Linux")
-    monkeypatch.setattr("sase.service.platform.readiness_warnings", lambda _env: ())
+    monkeypatch.setattr("sase.service.platform._readiness_warnings", lambda _env: ())
     runner = _LinuxManager()
     blocked = apply_service_init(
         runner=runner,
@@ -518,7 +518,7 @@ def test_readiness_warnings_omit_secrets_and_compare_paths(
         "sase.integrations.mobile_gateway.load_mobile_gateway_config",
         lambda: SimpleNamespace(command=(str(tmp_path / "missing-gateway"),)),
     )
-    warnings = readiness_warnings(
+    warnings = _readiness_warnings(
         {
             "PATH": str(tmp_path / "empty"),
             "OPENAI_API_KEY": "super-secret-token",
@@ -549,11 +549,11 @@ def test_readiness_warnings_leave_ssh_to_the_capture(
     _stub_non_ssh_readiness(monkeypatch)
 
     def fail(_env: dict[str, str]) -> str:
-        raise AssertionError("readiness_warnings must not probe the git remote")
+        raise AssertionError("_readiness_warnings must not probe the git remote")
 
     monkeypatch.setattr("sase.service.ssh_agent.probe_git_remote_auth", fail)
 
-    assert readiness_warnings({"PATH": "/nowhere"}) == ()
+    assert _readiness_warnings({"PATH": "/nowhere"}) == ()
 
 
 def test_init_plan_reports_a_refused_capture_exactly_once(

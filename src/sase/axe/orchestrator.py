@@ -415,7 +415,7 @@ class Orchestrator:
             append_lifecycle_event(
                 "start",
                 "started",
-                source=os.environ.get("SASE_AXE_START_SOURCE", "axe start"),
+                source=os.environ.get("SASE_AXE_START_SOURCE", "scheduler run"),
                 reason="Orchestrator acquired the lifecycle lock and published its PID.",
                 orchestrator_pid=os.getpid(),
                 succeeded=True,

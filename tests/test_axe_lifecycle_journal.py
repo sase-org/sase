@@ -115,3 +115,37 @@ def test_orchestrator_records_actual_start_source_after_pid_publication(
     assert records[0]["orchestrator_pid"] == os.getpid()
     assert records[0]["maintenance"] is None
     assert not stale_marker.exists()
+
+
+def test_orchestrator_defaults_start_source_to_scheduler_run(
+    axe_state_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("SASE_AXE_START_SOURCE", raising=False)
+    stale_marker = axe_state_dir / "maintenance.json"
+    stale_marker.parent.mkdir(parents=True, exist_ok=True)
+    stale_marker.write_text(
+        json.dumps(
+            {
+                "reason": "abandoned update",
+                "pid": 99999999,
+                "started_at": "2026-07-20T12:00:00+00:00",
+            }
+        )
+    )
+    orchestrator = Orchestrator(AxeConfig(lumberjacks={}))
+
+    def interrupt_sleep(_seconds: float) -> None:
+        raise KeyboardInterrupt
+
+    with (
+        patch("sase.axe.orchestrator.init_telemetry"),
+        patch("sase.axe.orchestrator.reap_stale_log_rotation_temps"),
+        patch("sase.axe.orchestrator.time.sleep", side_effect=interrupt_sleep),
+    ):
+        assert orchestrator.run() is True
+
+    records = read_recent_lifecycle_events(limit=0)
+    assert len(records) == 1
+    assert records[0]["source"] == "scheduler run"
+    assert not stale_marker.exists()

@@ -211,22 +211,6 @@ def set_service_enablement(
     )
 
 
-def clear_service_enablement(
-    name: str,
-    *,
-    sase_home: str | PathLike[str] | None = None,
-    boot_id: str | None | Any = _UNSET,
-    now: float | None = None,
-) -> ServiceStateMutationOutcome:
-    """Clear this machine's enablement override for *name*."""
-    return _mutate(
-        {"op": "clear_enablement", "name": name},
-        sase_home=sase_home,
-        boot_id=boot_id,
-        now=now,
-    )
-
-
 def record_service_stop(
     name: str,
     actor: str,
@@ -358,7 +342,6 @@ __all__ = [
     "ServiceStateMutationOutcome",
     "ServiceStateSnapshot",
     "ServiceStop",
-    "clear_service_enablement",
     "clear_service_host",
     "clear_service_marker",
     "clear_service_stop",

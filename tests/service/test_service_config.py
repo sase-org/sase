@@ -9,7 +9,7 @@ import pytest
 from sase.config.core import ConfigLayer
 from sase.service.config import (
     ServiceConfigError,
-    compose_service_config,
+    _compose_service_config,
     load_service_config,
 )
 
@@ -65,7 +65,7 @@ def test_an_overlay_replaces_a_plugin_declared_entry_field_whole() -> None:
         ),
     ]
 
-    composition = compose_service_config(layers)
+    composition = _compose_service_config(layers)
 
     tunnel = composition.get("tunnel")
     assert tunnel is not None
@@ -91,7 +91,7 @@ def test_a_local_layer_service_section_is_ignored_with_a_warning() -> None:
         ),
     ]
 
-    composition = compose_service_config(layers)
+    composition = _compose_service_config(layers)
 
     assert composition.procs == ()
     assert composition.ignored_layers == ("local:/proj/sase.yml",)

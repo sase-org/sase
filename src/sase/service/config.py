@@ -63,7 +63,7 @@ class ServiceEnablementSource:
 
 
 @dataclass(frozen=True)
-class ServiceFieldProvenance:
+class _ServiceFieldProvenance:
     """One layer's contribution to a single `service.procs.<name>` field."""
 
     field: str
@@ -71,7 +71,7 @@ class ServiceFieldProvenance:
     path: str | None = None
 
     @classmethod
-    def from_wire(cls, payload: dict[str, Any]) -> ServiceFieldProvenance:
+    def from_wire(cls, payload: dict[str, Any]) -> _ServiceFieldProvenance:
         return cls(
             field=str(payload["field"]),
             layer=str(payload["layer"]),
@@ -101,7 +101,7 @@ class ServiceProcConfig:
     env: dict[str, str] = dataclass_field(default_factory=dict)
     success_exit_codes: tuple[int, ...] = ()
     after: tuple[str, ...] = ()
-    field_provenance: tuple[ServiceFieldProvenance, ...] = ()
+    field_provenance: tuple[_ServiceFieldProvenance, ...] = ()
 
     @classmethod
     def from_wire(cls, payload: dict[str, Any]) -> ServiceProcConfig:
@@ -130,7 +130,7 @@ class ServiceProcConfig:
             after=tuple(str(item) for item in payload.get("after", ())),
             log_max_bytes=int(payload["log_max_bytes"]),
             field_provenance=tuple(
-                ServiceFieldProvenance.from_wire(item)
+                _ServiceFieldProvenance.from_wire(item)
                 for item in payload.get("field_provenance", ())
             ),
         )
@@ -184,7 +184,7 @@ class ServiceConfigError(Exception):
         super().__init__(f"Invalid service configuration:\n{details}")
 
 
-def compose_service_config(
+def _compose_service_config(
     layers: Sequence[ConfigLayer] | None = None,
 ) -> ServiceConfigComposition:
     """Compose the ordered `service.procs` layer stack in Rust."""
@@ -223,7 +223,7 @@ def load_service_config() -> ServiceConfigComposition:
         ):
             composition = _service_config_cache_value
         else:
-            composition = compose_service_config(layers)
+            composition = _compose_service_config(layers)
             _service_config_cache_token = token
             _service_config_cache_value = composition
 
@@ -236,9 +236,7 @@ __all__ = [
     "ServiceConfigComposition",
     "ServiceConfigError",
     "ServiceEnablementSource",
-    "ServiceFieldProvenance",
     "ServiceLauncher",
     "ServiceProcConfig",
-    "compose_service_config",
     "load_service_config",
 ]
