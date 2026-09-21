@@ -33,15 +33,11 @@ absolute paths under `$(uv tool dir)/sase/bin/`. The dispatch resolver checks th
 installed-venv directory for `sase_gateway` and `sase_federation_worker`; the shell
 `PATH` does not need to expose those commands.
 
-Restart AXE after updating a target or controller install:
+Restart the scheduler after updating a target or controller install:
 
 ```bash
-sase axe stop
-sase axe start
+sase scheduler restart
 ```
-
-`sase axe ensure` is also acceptable when you want to heal a stopped orchestrator
-without forcing a stop/start cycle.
 
 ## Run The Gateway
 
@@ -59,64 +55,27 @@ automatic compatibility classification. Older gateways without that field can st
 manually enrolled when the authenticated protocol negotiation accepts the controller,
 but discovery will report compatibility as unknown.
 
-### Linux Supervision
+### Supervision Via The Service Host
 
-For a user-systemd target, run the installed gateway from the uv-tool environment:
+Supervise the target gateway with the sase service host instead of a hand-written unit.
+Register the host's native unit — a systemd user unit on Linux, a LaunchAgent on macOS —
+then enable the built-in `gateway` service proc (disabled by default, enabled per
+machine in the overlay) and start it:
 
 ```bash
-TOOL_DIR="$(uv tool dir)"
-systemd-run --user --unit=sase-gateway \
-  --property=Restart=on-failure \
-  --property=Environment="PATH=$HOME/.local/bin:$TOOL_DIR/sase/bin:/usr/bin" \
-  "$TOOL_DIR/sase/bin/sase_gateway" \
-  --bind 127.0.0.1:7629 \
-  --sase-home "$HOME/.sase" \
-  --agent-bridge-command "$HOME/.local/bin/sase"
-
-systemctl --user status sase-gateway --no-pager
+sase service init --yes
+sase service proc enable gateway
+sase mobile gateway start
+sase service proc show gateway
 curl -fsS http://127.0.0.1:7629/api/v1/health
 ```
 
-Use the host's normal unit naming if it already has a permanent service. The important
-properties are loopback bind, the correct SASE home, restart-on-failure behavior, and an
-`sase` agent-bridge command that systemd can exec. User units do not include
-`~/.local/bin` on `PATH` by default, so pass `--agent-bridge-command` with the absolute
-installed `sase` path (or put that directory on the unit `PATH`). Without it,
+The important properties are loopback bind, the correct SASE home, restart-on-failure
+behavior, and an `sase` agent-bridge command the host can exec. On machines where
+noninteractive SSH does not load the uv-tool bin directory, set
+`mobile_gateway.agent_bridge_command` to the absolute installed `sase` path. Without it,
 authenticated hello can succeed while remote launch fails with `agent_bridge`
 unavailable.
-
-### macOS Supervision
-
-For macOS, prefer a LaunchAgent owned by the same user. Replace `TOOL_DIR` with the
-absolute `uv tool dir` result for that machine:
-
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>sh.sase.gateway</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>TOOL_DIR/sase/bin/sase_gateway</string>
-    <string>--bind</string>
-    <string>127.0.0.1:7629</string>
-    <string>--sase-home</string>
-    <string>/Users/YOU/.sase</string>
-  </array>
-  <key>KeepAlive</key>
-  <true/>
-  <key>RunAtLoad</key>
-  <true/>
-</dict>
-</plist>
-```
-
-Load it with
-`launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/sh.sase.gateway.plist` and
-inspect it with `launchctl print gui/$(id -u)/sh.sase.gateway`.
 
 ## Expose Through Tailscale Serve
 

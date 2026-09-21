@@ -1,19 +1,30 @@
-# Axe — Background Automation Daemon
+# Scheduler — Background Automation
 
 ## Overview
 
-Axe is the background automation subsystem of sase. It watches Patches (the per-PR
-records that sase uses to track work) and periodically runs lifecycle jobs such as hook
-completion, mentor launch, workflow cleanup, comment polling, `%wait` dependency checks,
-and error digests.
+The scheduler is the background automation subsystem of sase. It watches Patches (the
+per-PR records that sase uses to track work) and periodically runs lifecycle jobs such
+as hook completion, mentor launch, workflow cleanup, comment polling, `%wait` dependency
+checks, and error digests. AXE is its former name and remains an accepted alias:
+`sase axe start|stop|restart|status` is the same command as
+`sase scheduler start|stop|restart|status`.
 
-Axe uses a multi-process architecture: an **Orchestrator** spawns multiple **Routines**,
-and each routine runs a subset of jobs on its own schedule. The canonical lifecycle
-entry point is `sase scheduler`. With the `service_host` beta flag enabled, its start,
-stop, restart, and status commands operate on the host-managed `scheduler` service proc;
-otherwise they preserve the legacy Axe lifecycle. `sase scheduler run` always runs the
-orchestrator in the foreground. The `sase axe` surface remains available for advanced
-routine/job operations and legacy lifecycle control.
+The scheduler uses a multi-process architecture: an **Orchestrator** spawns multiple
+**Routines**, and each routine runs a subset of jobs on its own schedule.
+
+Two commands own two different layers:
+
+- **`sase service`** owns the **service host**: the per-machine host process
+  (`sase service run`) that starts, restarts, and stops that machine's service procs.
+  `sase service init` registers it as a platform unit — a systemd user unit on Linux, a
+  launchd LaunchAgent on macOS — so it starts at boot or login.
+- **`sase scheduler`** owns the **scheduler service proc**: the builtin service proc
+  that runs the automation. Its start, stop, restart, and status commands route through
+  the `scheduler` service proc on the service host; `sase scheduler run` execs the
+  foreground orchestrator that the service host itself runs.
+
+The `sase axe` surface remains for the routine/job tree (`sase axe job`,
+`sase axe routine`, `sase axe maintenance`) alongside the four lifecycle aliases.
 
 ## Architecture
 
@@ -59,35 +70,31 @@ routine/job operations and legacy lifecycle control.
 `sase axe job` and `sase axe routine` default to their `list` views when invoked without
 a nested subcommand.
 
-| Command                                | Description                                                                   |
-| -------------------------------------- | ----------------------------------------------------------------------------- |
-| `sase scheduler`                       | Show scheduler status; uses service-host or legacy mode according to the flag |
-| `sase scheduler start`                 | Start the host-managed scheduler proc or legacy Axe daemon                    |
-| `sase scheduler stop`                  | Stop the host-managed scheduler proc or legacy Axe daemon                     |
-| `sase scheduler restart`               | Restart the host-managed scheduler proc or legacy Axe daemon                  |
-| `sase scheduler run`                   | Run the scheduler orchestrator in the foreground in either mode               |
-| `sase axe start`                       | Start the orchestrator (spawns all routines)                                  |
-| `sase axe stop`                        | Stop the orchestrator gracefully                                              |
-| `sase axe stop --force`                | Also kill orphaned axe worker processes and reset PID state                   |
-| `sase axe restart`                     | Verified stop/start/heartbeat-verify restart; works even from a stopped state |
-| `sase axe ensure`                      | Heal a missing daemon unless it was explicitly stopped                        |
-| `sase axe ensure install`              | Install and start the optional user-systemd watchdog                          |
-| `sase axe ensure uninstall`            | Stop and remove the optional user-systemd watchdog                            |
-| `sase axe status`                      | Show the read-only whole-system health snapshot                               |
-| `sase axe status --json`               | Emit the machine-readable status object (schema version 2)                    |
-| `sase axe job list`                    | List configured jobs with status (`-a` adds discoverable scripts)             |
-| `sase axe job list -v`                 | Add full descriptions, resolution paths, and search-directory detail          |
-| `sase axe job list --json`             | Emit the job inventory as a schema-version-2 JSON object                      |
-| `sase axe job doctor`                  | Diagnose configured/available jobs and Telegram setup (`-j` for JSON)         |
-| `sase axe job run <name>`              | Run a single job in the foreground                                            |
-| `sase axe job run <name> -L <routine>` | Run a single job attributed to a specific routine                             |
-| `sase axe routine list`                | List configured routines and their enabled jobs                               |
-| `sase axe routine list -v`             | Add each routine's full description under `details`                           |
-| `sase axe routine run <name>`          | Run a single routine in the foreground                                        |
-| `sase axe routine status`              | Show status of all routines                                                   |
-| `sase axe maintenance enter -r <text>` | Pause routine ticks until maintenance exits                                   |
-| `sase axe maintenance exit`            | Clear the maintenance marker                                                  |
-| `sase axe maintenance status`          | Show whether maintenance mode is active                                       |
+| Command                                | Description                                                               |
+| -------------------------------------- | ------------------------------------------------------------------------- |
+| `sase scheduler`                       | Show scheduler status through the `scheduler` service proc                |
+| `sase scheduler start`                 | Start the `scheduler` service proc                                        |
+| `sase scheduler stop`                  | Stop the `scheduler` service proc                                         |
+| `sase scheduler restart`               | Restart the `scheduler` service proc                                      |
+| `sase scheduler run`                   | Run the scheduler orchestrator in the foreground                          |
+| `sase axe start`                       | Alias of `sase scheduler start`                                           |
+| `sase axe stop`                        | Alias of `sase scheduler stop`                                            |
+| `sase axe restart`                     | Alias of `sase scheduler restart`                                         |
+| `sase axe status`                      | Alias of `sase scheduler status` (read-only whole-system health snapshot) |
+| `sase axe status --json`               | Emit the machine-readable status object (schema version 2)                |
+| `sase axe job list`                    | List configured jobs with status (`-a` adds discoverable scripts)         |
+| `sase axe job list -v`                 | Add full descriptions, resolution paths, and search-directory detail      |
+| `sase axe job list --json`             | Emit the job inventory as a schema-version-2 JSON object                  |
+| `sase axe job doctor`                  | Diagnose configured/available jobs and Telegram setup (`-j` for JSON)     |
+| `sase axe job run <name>`              | Run a single job in the foreground                                        |
+| `sase axe job run <name> -L <routine>` | Run a single job attributed to a specific routine                         |
+| `sase axe routine list`                | List configured routines and their enabled jobs                           |
+| `sase axe routine list -v`             | Add each routine's full description under `details`                       |
+| `sase axe routine run <name>`          | Run a single routine in the foreground                                    |
+| `sase axe routine status`              | Show status of all routines                                               |
+| `sase axe maintenance enter -r <text>` | Pause routine ticks until maintenance exits                               |
+| `sase axe maintenance exit`            | Clear the maintenance marker                                              |
+| `sase axe maintenance status`          | Show whether maintenance mode is active                                   |
 
 ### Compatibility aliases
 
@@ -123,28 +130,20 @@ remain intentionally legacy-named storage.
 ### Examples
 
 ```bash
-# Start/stop the daemon
-sase axe start
-sase axe stop
+# Start/stop the scheduler service proc (`sase axe start|stop` is the same command)
+sase scheduler start
+sase scheduler stop
 
-# Verified restart: stop (no-op if already down), start, and wait for fresh
-# routine heartbeats; exits 0 only once the restart is verified
-sase axe restart
-sase axe restart --json
-
-# Check desired state and heal an unexpected outage
-sase axe ensure
+# Restart and wait for fresh routine heartbeats; exits 0 only once verified
+sase scheduler restart
+sase scheduler restart --json
 
 # Inspect whole-system health for an operator or automation
-sase axe status
-sase axe status --json
+sase scheduler status
+sase scheduler status --json
 
-# On a host with user systemd, check automatically every five minutes
-sase axe ensure install
-sase axe ensure uninstall
-
-# Run axe against only matching Patches
-sase axe start --query '!!! OR @@@'
+# Run the scheduler against only matching Patches
+sase scheduler start --query '!!! OR @@@'
 
 # Inspect routines
 sase axe routine list
@@ -176,13 +175,14 @@ sase axe maintenance exit
 
 ## Whole-System Status
 
-`sase axe status` collects one read-only snapshot of AXE intent and runtime evidence,
-classifies it once, and renders an operator dashboard. It does not clean stale files,
-start or stop processes, clear maintenance, or otherwise change host state.
-`sase axe status -j` (equivalently `--json`) emits that same snapshot as a stable JSON
-object, with deterministic formatting and no Rich markup or ANSI escapes. The object is
-schema version 2 with routine/job field names by default, or the legacy schema version 1
-when the rename contract is off (see [Compatibility aliases](#compatibility-aliases)).
+`sase scheduler status` collects one read-only snapshot of scheduler intent and runtime
+evidence, classifies it once, and renders an operator dashboard. It does not clean stale
+files, start or stop processes, clear maintenance, or otherwise change host state.
+`sase scheduler status -j` (equivalently `--json`) emits that same snapshot as a stable
+JSON object, with deterministic formatting and no Rich markup or ANSI escapes. The
+object is schema version 2 with routine/job field names by default, or the legacy schema
+version 1 when the rename contract is off (see
+[Compatibility aliases](#compatibility-aliases)).
 
 The top-level lifecycle state and health are separate:
 
@@ -211,21 +211,17 @@ status/metrics JSON that the human view overlays.
 
 When the classifier reports issues or collection failure, an **Attention** panel
 preserves the issue order and lists deduplicated suggested commands. Issue text uses
-routine/job wording even when the rename contract is off. On Linux, the snapshot also
-warns (`orchestrator_session_scope`) when the live orchestrator sits in a session-tied
-systemd scope that would be killed with its launching pane or session, and suggests
-`sase axe restart`; see [Process Lifecycle](#process-lifecycle). Exit codes are part of
-the snapshot contract: `0` means healthy or intentionally inactive, `1` means actionable
+routine/job wording even when the rename contract is off. Exit codes are part of the
+snapshot contract: `0` means healthy or intentionally inactive, `1` means actionable
 degradation, and `2` means collection/classification error.
 
 Use these related commands according to intent:
 
-- `sase axe status` is the read-only first look at whole-system intent and health.
-- `sase axe restart` is the explicit operator action: stop (if running), start, and
-  verify fresh routine heartbeats before reporting success.
-- `sase axe ensure` reconciles desired state and may start a missing orchestrator; it is
-  a recovery command that lets the watchdog heal, rather than an operator-initiated
-  restart.
+- `sase scheduler status` is the read-only first look at whole-system intent and health.
+- `sase scheduler restart` is the explicit operator action: stop (if running), start,
+  and verify fresh routine heartbeats before reporting success. When the scheduler is
+  down unexpectedly, recovery is the service host's `Restart=on-failure` plus
+  `sase doctor`; see [Supervision and Recovery](#supervision-and-recovery).
 - `sase doctor --deep` runs broader, slower diagnostics when the status evidence needs
   deeper investigation.
 - `sase axe maintenance status` remains the compatibility/debugging view of only the
@@ -235,7 +231,7 @@ Use these related commands according to intent:
 
 ## Default Routines
 
-Axe ships with six default routines:
+The scheduler ships with six default routines:
 
 ### hooks (5-second interval)
 
@@ -679,7 +675,7 @@ Axe is configured in `sase.yml` under the `axe:` section. See
 | `verbose_routine_diagnostics`         | false    | Include verbose diagnostics in job script context JSON    |
 
 The `query` setting uses the same Patch query language as sase's TUI. CLI flags on
-`sase axe start` and `sase axe routine run` override the configured query, runner
+`sase scheduler start` and `sase axe routine run` override the configured query, runner
 limits, and zombie timeout for that process.
 
 ### Routine Configuration
@@ -1509,7 +1505,7 @@ terminal/rendering tools are missing. The direct agent run-log binding is `V`.
 
 ## Maintenance Mode
 
-Maintenance mode is a lightweight pause switch for scheduled axe work.
+Maintenance mode is a lightweight pause switch for scheduled work.
 `sase axe maintenance enter --reason <text>` writes `~/.sase/axe/maintenance.json` with
 the reason, caller PID, and start timestamp. Each routine checks that marker at the
 start of every tick; while it is active, the routine records a cycle and skips the job
@@ -1525,74 +1521,39 @@ Linux `/proc` identity data is readable, new markers also record the owner's pro
 start identity and, when available, the boot ID. Those fields let SASE reject a stale
 marker after its PID has been recycled.
 
-## Watchdog and Recovery
+## Supervision and Recovery
 
-`sase axe ensure` is a single-shot, idempotent reconciliation of the requested axe state
-and the orchestrator process. It checks only orchestrator liveness; use
-`sase axe routine status` or deep doctor mode to inspect individual routines. Start and
-restart requests write `running` before attempting startup, while `sase axe stop` writes
-`stopped` before shutdown. The marker therefore records intent, not proof that the
-process transition succeeded.
+The sase service host is the scheduler's only supervisor. It reconciles roughly every
+second and restarts a crashed scheduler itself under its `Restart=on-failure` policy.
+There is no second healer: no watchdog command, no timer, and no opportunistic healing
+on agent waits. Use `sase axe routine status` or deep doctor mode to inspect individual
+routines. Start and restart requests write `running` before attempting startup, while
+`sase scheduler stop` writes `stopped` before shutdown. The marker therefore records
+intent, not proof that the process transition succeeded.
 
-| Desired-state marker | Live orchestrator | `sase axe ensure` result                                      |
-| -------------------- | ----------------- | ------------------------------------------------------------- |
-| `running`            | Yes               | Reports healthy; no process change                            |
-| `running`            | No                | Starts axe and reports healed, or exits 1 if startup fails    |
-| `stopped`            | Either            | Reports explicitly stopped; no process change                 |
-| Missing or invalid   | Yes               | Uses the historical running default and reports healthy       |
-| Missing or invalid   | No                | Uses the historical running default and attempts to start axe |
+`sase doctor -C axe.health` reports the same desired/live fields, but warns only when a
+valid marker explicitly says `running` and the orchestrator is down. Deep doctor mode
+applies the same explicit-`running` mismatch rule in its broader scheduler runtime
+check.
 
-After a successful heal, SASE makes a best-effort attempt to write an **Axe
-self-healed** entry to the notification inbox. Notification failure does not turn the
-heal into a failure. `sase doctor -C axe.health` reports the same desired/live fields,
-but warns only when a valid marker explicitly says `running` and the orchestrator is
-down. With no marker and no process, that doctor check reports OK even though a
-subsequent `sase axe ensure` would attempt startup. Deep doctor mode applies the same
-explicit-`running` mismatch rule in its broader AXE runtime check.
-
-This distinction prevents a watchdog from undoing an intentional stop. To resume healing
-after `sase axe stop`, start axe again with `sase axe start`; that both launches the
-daemon and restores the desired state to running. Installing or uninstalling the
-watchdog does not directly rewrite an explicit desired state, and uninstalling it does
-not stop a running daemon. Once enabled, however, each due timer invocation behaves like
-bare `ensure`, including treating a missing marker as `running`.
-
-Agent runners blocked on dependency waits also make best-effort ensure calls. Those
-calls share a host-wide marker and are limited to at most one actual check every five
-minutes. The optional timer is useful when no waiting agent is alive to make those
-checks.
+This distinction keeps the supervisor from undoing an intentional stop. To resume after
+`sase scheduler stop`, start the scheduler again with `sase scheduler start`; that both
+launches the orchestrator and restores the desired state to running.
 
 SASE maintains a best-effort `~/.sase/axe/lifecycle.jsonl` journal capped at 256 KiB. It
-appends every successful orchestrator start—including automatic healing—and each
-completed stop or restart request, with its source. A start attempt that fails or exits
-before the PID is published has no start entry. Before healing a down daemon, `ensure`
-checks this journal for restart churn. By default, five successful starts within the
-preceding 30 minutes damp further automatic healing: the command returns a rate-limited
-result without starting axe and emits a durable **Axe restart storm damped**
-notification. Repeated alerts are suppressed while the set of contributing starts is
-unchanged. The notification identifies their sources and attaches the journal; healing
-becomes eligible again after enough starts age out of the window. Explicit lifecycle
-commands remain available to the operator.
-
-On Linux hosts with user systemd, `sase axe ensure install` writes and enables
-`sase-axe-ensure.service` and `sase-axe-ensure.timer` under the user systemd directory.
-Its first activation is scheduled for two minutes after boot (or promptly when enabled
-after that point), followed by an activation five minutes after the prior service
-activation. The monotonic timer does not replay missed intervals after downtime. It
-invokes the stable SASE executable selected at installation time and preserves
-`SASE_HOME` when that variable is set. `sase axe ensure uninstall` disables the timer
-and removes both units. On systems without `systemctl --user`, run bare
-`sase axe ensure` manually or from the host's scheduler instead.
+appends every successful orchestrator start and each completed stop or restart request,
+with its source. A start attempt that fails or exits before the PID is published has no
+start entry.
 
 Managed restart paths, including sase's TUI and update-triggered restarts, record
 `running`, make up to three startup attempts, and report success only after the
 orchestrator is live and every configured routine reports `running` with PID and
 heartbeat values changed from the pre-restart snapshot. If all attempts fail, SASE
 records the attempt summaries in `recent_errors.json` and sends a durable **Axe restart
-failed** notification; an installed watchdog can try a clean start on a later tick.
-`sase axe restart` exposes this same verified orchestration directly to operators, with
-a live TTY panel, plain milestone lines when piped, or `--json` for scripts; it exits 0
-only once the restart is verified.
+failed** notification. `sase scheduler restart` exposes this same verified orchestration
+directly to operators, with a live TTY panel, plain milestone lines when piped, or
+`--json` for scripts; it exits 0 only once the restart is verified. If the host itself
+cannot keep the scheduler up, run `sase doctor` for the next step.
 
 ## State Directory
 
@@ -1601,8 +1562,6 @@ only once the restart is verified.
 ├── orchestrator.pid                # Orchestrator PID
 ├── orchestrator.lock               # Exclusive lifecycle lock held by the live orchestrator
 ├── desired_state.json              # Last requested running/stopped state
-├── ensure.lock                     # Serializes ensure checks with one another and explicit stops
-├── ensure.json                     # Timestamp/source of the latest non-rate-limited ensure check
 ├── lifecycle.jsonl                 # Bounded, source-attributed start/stop/restart journal
 ├── maintenance.json                # Optional maintenance marker that pauses routine ticks
 ├── logs/
@@ -1636,50 +1595,39 @@ only once the restart is verified.
 
 ## Process Lifecycle
 
-1. `sase axe start` first checks for a live orchestrator PID. If one exists, start is a
-   no-op and returns the existing PID.
-2. If no live PID exists, startup acquires `~/.sase/axe/orchestrator.lock` and hands
-   that lock to the detached orchestrator process. Concurrent starts wait briefly and
-   then return the live PID or decline to start.
-3. The orchestrator removes stale PID files, adopts/holds the lifecycle lock, writes
+The service host owns the scheduler's process lifetime; the scheduler owns only its
+routine/job tree.
+
+1. `sase scheduler start` asks the host to start the `scheduler` service proc. If the
+   orchestrator is already live, start is a no-op.
+2. The host execs the foreground orchestrator (`sase scheduler run`) as its child. The
+   orchestrator removes stale PID files, adopts/holds the lifecycle lock, writes
    `orchestrator.pid`, and spawns all configured routines as child processes.
-4. Each routine runs its jobs on its configured interval, unless maintenance mode is
+3. Each routine runs its jobs on its configured interval, unless maintenance mode is
    active.
-5. The orchestrator monitors children and restarts any that exit unexpectedly.
-6. `sase axe stop` sends SIGTERM to the orchestrator, which forwards it to all children.
-   If the orchestrator does not exit within the stop timeout, the stopper escalates to
-   SIGKILL and cleans up stale or owned PID files without deleting a PID published by a
-   concurrent successful restart.
-7. `sase axe ensure` compares this live state with `desired_state.json`; it heals
-   unexpected downtime but honors an explicit stop. See
-   [Watchdog and Recovery](#watchdog-and-recovery).
+4. The orchestrator monitors children and restarts any that exit unexpectedly. If the
+   orchestrator itself crashes, the host restarts it under `Restart=on-failure`.
+5. `sase scheduler stop` stops the service proc: SIGTERM to the orchestrator, which
+   forwards it to all children. If the orchestrator does not exit within the stop
+   timeout, the stopper escalates to SIGKILL and cleans up stale or owned PID files
+   without deleting a PID published by a concurrent successful restart.
 
-### systemd Scope Isolation
-
-On Linux hosts with `systemd-run`, `sase axe start` launches the orchestrator in its own
-transient user scope (`sase-axe-<id>.scope`), so closing the terminal pane or login
-session that started it does not kill the daemon. If the scoped launch exits before
-publishing a PID, startup retries once without the scope. `sase axe status` and
-`sase doctor -C axe.systemd_scope` warn when a live orchestrator is still attached to a
-session-tied scope; `sase axe restart` moves it into a fresh one.
+Under the host the scheduler's cgroup is `sase.service`, not a `.scope`.
 
 Long-lived work that SASE detaches — agent runners, proc supervisors, monitor
-supervisors, and typed launch-admission coordinators — escapes in the same way whenever
-the launching process already runs inside a SASE-owned systemd unit (`sase.service`, an
-`sase-axe-*` scope, or another `sase-*` scope or service). Each such child starts in its
-own transient scope (for example `sase-agent-*`, `sase-proc-*`, or `sase-monitor-*`), so
-stopping or restarting AXE or a SASE service does not tear down the agents and procs it
-launched. Outside a SASE-owned unit, children keep the ordinary new-session detach; on
-macOS they always detach into a new session. Set `SASE_DETACH_SCOPE_DISABLE=1` to turn
-off the child escape, or the older `SASE_AXE_DISABLE_SYSTEMD_SCOPE=1`, which also turns
-off the orchestrator's own scope.
+supervisors, and typed launch-admission coordinators — escapes into its own transient
+scope (for example `sase-agent-*`, `sase-proc-*`, or `sase-monitor-*`) whenever the
+launching process already runs inside a SASE-owned systemd unit (`sase.service` or
+another `sase-*` scope or service), so stopping or restarting the scheduler or a SASE
+service does not tear down the agents and procs it launched. Outside a SASE-owned unit,
+children keep the ordinary new-session detach; on macOS they always detach into a new
+session. Set `SASE_DETACH_SCOPE_DISABLE=1` to turn off the child escape.
 
 ## sase's TUI Integration
 
-The visible **Services** tab provides live monitoring of the scheduler. When
-`service_host` is enabled, the scheduler tree is nested below the top-level `scheduler`
-service proc alongside any other configured services; otherwise the tab uses this legacy
-Axe-only layout:
+The visible **Services** tab provides live monitoring of the service host, the
+configured service procs, and the scheduler. The scheduler tree is nested below the
+top-level `scheduler` service proc alongside any other configured services:
 
 - A routine tree sidebar (routine rows + their jobs as children + background-command
   rows)
@@ -1689,14 +1637,14 @@ Axe-only layout:
   selected exact config entry, and `E` opens recorded job output. Disabled jobs remain
   visible but are not manually runnable; editing a generated row safely targets its base
   job and identifies the all-instances effect.
-- Start/stop the orchestrator (`x` key or `!x`) and runner counts
-- Footer shows the scheduler controller status: RUNNING, STOPPED, STARTING, STOPPING, or
-  RESTARTING
+- Start/stop/restart the selected service proc (`x` / `r`), enable/disable it on this
+  machine (`!e`), and runner counts
+- The `SVC` footer pill shows the service host status: RUNNING, STOPPED, STARTING,
+  STOPPING, or RESTARTING
 
-In service-host mode, select the top-level scheduler row before pressing `x` or `r`;
-those keys intentionally do nothing on its nested routines and jobs. `!x` controls the
-whole service host. The RESTARTING indicator appears when `sase tui --restart-service`
-(`--restart-axe`, `-R`) is used — the active controller restarts in the background while
-the TUI starts up normally.
+Select the top-level scheduler row before pressing `x` or `r`; those keys intentionally
+do nothing on its nested routines and jobs. `!x` starts or stops the whole service host.
+The RESTARTING indicator appears when `sase tui --restart-service` (`--restart-axe`,
+`-R`) is used — the host restarts in the background while the TUI starts up normally.
 
 See [`docs/ace.md`](ace.md) for the full Services tab keybinding reference.

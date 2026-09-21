@@ -31,8 +31,8 @@ printed invocation omits only the root print switch. See the
 | Command                              | Purpose                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Details                                                                  |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | `sase tui`                           | Open sase's TUI, the interactive control surface for Patches, live agents, notifications, and machine services.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | [sase's TUI](ace.md)                                                     |
-| `sase service`                       | Inspect and control the beta per-machine service host. Bare `sase service` shows status; `service proc` manages configured daemon procs and submits transient oneshots. Requires the `service_host` beta flag.                                                                                                                                                                                                                                                                                                                                                                                       | [`sase service`](#sase-service)                                          |
-| `sase scheduler`                     | Inspect or control scheduled automation. Lifecycle commands route through the service host when enabled and preserve legacy Axe behavior otherwise; bare `sase scheduler` shows status.                                                                                                                                                                                                                                                                                                                                                                                                              | [Axe and scheduler](axe.md#cli-commands)                                 |
+| `sase service`                       | Inspect and control the per-machine service host. Bare `sase service` shows status; `service proc` manages configured daemon procs and submits transient oneshots.                                                                                                                                                                                                                                                                                                                                                                                                                                   | [`sase service`](#sase-service)                                          |
+| `sase scheduler`                     | Inspect or control scheduled automation. Lifecycle commands route through the `scheduler` service proc on the service host; bare `sase scheduler` shows status.                                                                                                                                                                                                                                                                                                                                                                                                                                      | [Scheduler](axe.md#cli-commands)                                         |
 | `sase screenshot`                    | Capture a canonical PNG from a real `sase tui` running in tmux. Use `-p/--press`, `-T/--type`, and `-w/--wait-for` as one argv-ordered input script, and `--keep`/`--window` to iterate against the same live TUI.                                                                                                                                                                                                                                                                                                                                                                                   | [Agent screenshots](ace.md#agent-screenshots)                            |
 | `sase tmux-agent`                    | Launch an interactive agent CLI in a new tmux window. A bare invocation paints a keyboard-first chooser of every registered provider; a provider name launches that CLI directly. Drop-in for `bind A run "sase tmux-agent"`.                                                                                                                                                                                                                                                                                                                                                                        | [tmux Agent](ace.md#tmux-agent)                                          |
 | `sase run [PROMPT]`                  | Launch an agent or workflow from a prompt, an xprompt reference, a workflow reference, history, or an editor buffer.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 | [XPrompts](xprompt.md), [workflows](workflow_spec.md)                    |
@@ -215,18 +215,16 @@ the store is read.
 
 ### `sase service`
 
-The beta service host supervises machine-level daemon procs independently of the TUI
-that started them. Enable the gate with `sase -f service_host service status` for one
-invocation, or save the `service_host` preference with `sase flag enable service_host`.
-Bare `sase service` is read-only and delegates to `sase service status`; bare
-`sase service proc` delegates to `proc list`.
+The service host supervises machine-level daemon procs independently of the TUI that
+started them. Bare `sase service` is read-only and delegates to `sase service status`;
+bare `sase service proc` delegates to `proc list`.
 
 ```bash
-sase -f service_host service status
-sase -f service_host service start
-sase -f service_host service proc list
-sase -f service_host service proc restart scheduler
-sase -f service_host service proc run -- just check
+sase service status
+sase service start
+sase service proc list
+sase service proc restart scheduler
+sase service proc run -- just check
 ```
 
 `start`, `stop`, and `restart` control the host; `run` intentionally owns the foreground
@@ -496,35 +494,33 @@ summary. The removed `-t/--tier` option is now invalid command usage. A valid pl
 
 ## Automation
 
-| Command                       | Purpose                                                                                                                     | Details                                      |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| `sase scheduler [status]`     | Inspect the scheduler through the host-managed proc when enabled or the legacy Axe snapshot otherwise.                      | [Axe](axe.md#cli-commands)                   |
-| `sase scheduler start`        | Start the host-managed scheduler proc or legacy Axe daemon.                                                                 | [Axe](axe.md#cli-commands)                   |
-| `sase scheduler stop`         | Stop the host-managed scheduler proc or legacy Axe daemon.                                                                  | [Axe](axe.md#cli-commands)                   |
-| `sase scheduler restart`      | Restart the host-managed scheduler proc or legacy Axe daemon.                                                               | [Axe](axe.md#cli-commands)                   |
-| `sase scheduler run`          | Run the scheduler orchestrator in the foreground regardless of service-host mode.                                           | [Axe](axe.md#cli-commands)                   |
-| `sase axe start`              | Request running state and start the orchestrator and routines.                                                              | [Axe](axe.md)                                |
-| `sase axe stop`               | Request stopped state and stop the orchestrator and routines; `-f` also sweeps orphaned axe processes and resets PID state. | [Axe](axe.md#cli-commands)                   |
-| `sase axe restart`            | Verified stop/start/heartbeat-verify restart; works even when down, and `-j` emits one JSON result.                         | [Axe](axe.md#cli-commands)                   |
-| `sase axe ensure`             | Start a missing orchestrator unless axe was explicitly stopped.                                                             | [Axe recovery](axe.md#watchdog-and-recovery) |
-| `sase axe ensure install`     | Install and enable the optional user-systemd timer.                                                                         | [Axe recovery](axe.md#watchdog-and-recovery) |
-| `sase axe ensure uninstall`   | Disable and remove the optional user-systemd timer.                                                                         | [Axe recovery](axe.md#watchdog-and-recovery) |
-| `sase axe status [--json]`    | Inspect one read-only whole-system snapshot in human or JSON form.                                                          | [Axe status](axe.md#whole-system-status)     |
-| `sase axe job list`           | List configured jobs with status; `-a` adds scripts.                                                                        | [Axe jobs](axe.md#job-fields)                |
-| `sase axe job doctor`         | Diagnose configured/available jobs and Telegram setup.                                                                      | [Axe jobs](axe.md#job-fields)                |
-| `sase axe job run <name>`     | Run one job in the foreground; `-n` previews agent proposals, `-f` bypasses declarative guards, and `-L` names the routine. | [Axe jobs](axe.md#manual-job-runs)           |
-| `sase axe routine list`       | List configured routines.                                                                                                   | [Axe routines](axe.md#default-routines)      |
-| `sase axe routine run <name>` | Run one routine in the foreground for debugging.                                                                            | [Axe routines](axe.md#routine-configuration) |
-| `sase axe routine status`     | Show routine process status.                                                                                                | [Axe](axe.md)                                |
-| `sase axe maintenance enter`  | Pause scheduled routine ticks with a recorded reason.                                                                       | [Maintenance mode](axe.md#maintenance-mode)  |
-| `sase axe maintenance exit`   | Resume scheduled routine ticks.                                                                                             | [Maintenance mode](axe.md#maintenance-mode)  |
-| `sase axe maintenance status` | Inspect the maintenance marker.                                                                                             | [Maintenance mode](axe.md#maintenance-mode)  |
+| Command                       | Purpose                                                                                                                     | Details                                        |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `sase scheduler [status]`     | Inspect the scheduler through the `scheduler` service proc.                                                                 | [Scheduler](axe.md#cli-commands)               |
+| `sase scheduler start`        | Start the `scheduler` service proc.                                                                                         | [Scheduler](axe.md#cli-commands)               |
+| `sase scheduler stop`         | Stop the `scheduler` service proc.                                                                                          | [Scheduler](axe.md#cli-commands)               |
+| `sase scheduler restart`      | Restart the `scheduler` service proc.                                                                                       | [Scheduler](axe.md#cli-commands)               |
+| `sase scheduler run`          | Run the scheduler orchestrator in the foreground.                                                                           | [Scheduler](axe.md#cli-commands)               |
+| `sase axe start`              | Alias of `sase scheduler start`.                                                                                            | [Scheduler](axe.md#cli-commands)               |
+| `sase axe stop`               | Alias of `sase scheduler stop`.                                                                                             | [Scheduler](axe.md#cli-commands)               |
+| `sase axe restart`            | Alias of `sase scheduler restart`; `-j` emits one JSON result.                                                              | [Scheduler](axe.md#cli-commands)               |
+| `sase axe status [--json]`    | Alias of `sase scheduler status`: one read-only whole-system snapshot in human or JSON form.                                | [Scheduler status](axe.md#whole-system-status) |
+| `sase axe job list`           | List configured jobs with status; `-a` adds scripts.                                                                        | [Axe jobs](axe.md#job-fields)                  |
+| `sase axe job doctor`         | Diagnose configured/available jobs and Telegram setup.                                                                      | [Axe jobs](axe.md#job-fields)                  |
+| `sase axe job run <name>`     | Run one job in the foreground; `-n` previews agent proposals, `-f` bypasses declarative guards, and `-L` names the routine. | [Axe jobs](axe.md#manual-job-runs)             |
+| `sase axe routine list`       | List configured routines.                                                                                                   | [Axe routines](axe.md#default-routines)        |
+| `sase axe routine run <name>` | Run one routine in the foreground for debugging.                                                                            | [Axe routines](axe.md#routine-configuration)   |
+| `sase axe routine status`     | Show routine process status.                                                                                                | [Axe](axe.md)                                  |
+| `sase axe maintenance enter`  | Pause scheduled routine ticks with a recorded reason.                                                                       | [Maintenance mode](axe.md#maintenance-mode)    |
+| `sase axe maintenance exit`   | Resume scheduled routine ticks.                                                                                             | [Maintenance mode](axe.md#maintenance-mode)    |
+| `sase axe maintenance status` | Inspect the maintenance marker.                                                                                             | [Maintenance mode](axe.md#maintenance-mode)    |
 
-Axe runs scheduled hooks, mentors, comment polling, workflow checks, `%wait` dependency
-resolution, cleanup, and error digests. sase's TUI starts the service host when enabled
-or legacy Axe otherwise unless launched with `sase tui --no-service` (`--no-axe`). The
-older `sase axe chop ...` and `sase axe lumberjack ...` spellings remain hidden
-compatibility aliases for `sase axe job ...` and `sase axe routine ...`; see
+The scheduler runs scheduled hooks, mentors, comment polling, workflow checks, `%wait`
+dependency resolution, cleanup, and error digests. sase's TUI starts the service host
+unless launched with `sase tui --no-service` (`--no-axe`).
+`sase axe start|stop|restart|status` is an alias of the matching `sase scheduler`
+command. The older `sase axe chop ...` and `sase axe lumberjack ...` spellings remain
+hidden compatibility aliases for `sase axe job ...` and `sase axe routine ...`; see
 [Compatibility aliases](axe.md#compatibility-aliases).
 
 | Command               | Purpose                                                                                                                                                                                                                                                                                                                                                                                                          | Details                                                  |

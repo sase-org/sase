@@ -9,9 +9,9 @@ def register_service_parser(subparsers: argparse._SubParsersAction) -> None:
     """Register service-host lifecycle and service-proc commands."""
     service_parser = subparsers.add_parser(
         "service",
-        help="Manage the beta per-machine SASE service host",
+        help="Manage the per-machine SASE service host",
         description=(
-            "Manage the beta per-machine SASE service host. Bare `sase service` "
+            "Manage the per-machine SASE service host. Bare `sase service` "
             "is harmless and shows `sase service status`; use `sase service run` "
             "only when you intentionally want the host in the foreground."
         ),

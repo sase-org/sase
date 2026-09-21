@@ -12,11 +12,10 @@ sase tui [QUERY] [options]
 ```
 
 Run `sase tui` from an interactive terminal. It opens on the Agents tab and starts the
-service host when `service_host` is enabled, or the legacy Axe daemon otherwise (pass
-`-x` to skip that). Press `?` on any tab for the keymap and a short guide, `:` for the
-[Command Palette](#command-palette), and `q` to quit. The command was previously
-`sase ace`, which no longer exists; the TUI's settings still live under the `ace:`
-section of `sase.yml` (for example `ace.keymaps` and `ace.page_size`).
+service host (pass `-x` to skip that). Press `?` on any tab for the keymap and a short
+guide, `:` for the [Command Palette](#command-palette), and `q` to quit. The command was
+previously `sase ace`, which no longer exists; the TUI's settings still live under the
+`ace:` section of `sase.yml` (for example `ace.keymaps` and `ace.page_size`).
 
 If no Patches query is provided, sase's TUI loads the last used Patches query, then the
 first saved Patches query, then falls back to `!!!` for error suffixes. The top-level
@@ -32,9 +31,9 @@ Agents tab restores its own last submitted Agents query after startup.
 | `-p`, `--profile [PATH]`                   | Profile the TUI session with pyinstrument; optional output path                                                                                              |
 | `-r`, `--refresh-interval`                 | Auto-refresh interval in seconds (default: 10, 0 to disable)                                                                                                 |
 | `-s`, `--sanity-refresh-interval`          | Full sanity-refresh interval in seconds (default: 300); see [Auto-Refresh](#auto-refresh)                                                                    |
-| `-x`, `--no-service`, `--no-axe`           | Disable auto-starting the service host or legacy Axe daemon on startup                                                                                       |
+| `-x`, `--no-service`, `--no-axe`           | Disable auto-starting the service host on startup                                                                                                            |
 | `-v`, `--vcs-provider`                     | Override VCS provider (`git`, `hg`, or `auto`)                                                                                                               |
-| `-R`, `--restart-service`, `--restart-axe` | Restart an already-running service host or legacy Axe daemon on startup (shows RESTARTING indicator)                                                         |
+| `-R`, `--restart-service`, `--restart-axe` | Restart an already-running service host on startup (shows RESTARTING indicator)                                                                              |
 | `-t`, `--tab`                              | Tab to focus on startup (`agents` by default, `artifacts`, or `services`; `axe` is a compatibility alias, and `changespecs` and `patches` alias `artifacts`) |
 | `-T`, `--tmux`                             | Launch sase's TUI in a new tmux window and print the target for external control                                                                             |
 
@@ -119,7 +118,7 @@ sase's TUI has three tabs, cycled with `Tab` and `Shift+Tab`:
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Agents**    | View running and completed agents, their files and prompts                                                                                                                                                                  |
 | **Artifacts** | Browse the durable Agent catalog, Stitches, Patches, Beads, configured document providers, and Files. See the [Artifacts pane contract](artifacts_pane_contract.md) and [visual grammar](artifacts_pane_visual_grammar.md). |
-| **Services**  | Monitor the service host, configured service procs, scheduler work, and background commands; without `service_host`, shows the legacy Axe view                                                                              |
+| **Services**  | Monitor the service host, configured service procs, scheduler work, and background commands                                                                                                                                 |
 
 Agents is the first tab and the startup default. Each tab has contextual help: press `?`
 to open the Help modal on its **Keymaps** view, then `]` to switch to the tab's
@@ -1094,7 +1093,7 @@ prefix.
 | Key  | Action                                                                   |
 | ---- | ------------------------------------------------------------------------ |
 | `!!` | Run a background command (choose a project, a workspace, then a command) |
-| `!x` | Start / stop axe (or select process)                                     |
+| `!x` | Start / stop service host or axe (or select process)                     |
 | `!o` | Mark PR origin (`sase`/`external`/`unknown`)                             |
 | `!R` | Rewind to previous commit (`!` suffix skips VCS operations)              |
 
@@ -2778,11 +2777,11 @@ not write a new bundle every refresh while the same violation remains active.
 
 ### Bang Mode (`!` prefix)
 
-| Key  | Action                               |
-| ---- | ------------------------------------ |
-| `!!` | Run background command               |
-| `!x` | Start / stop axe (or select process) |
-| `!R` | Revive a previously dismissed agent  |
+| Key  | Action                                               |
+| ---- | ---------------------------------------------------- |
+| `!!` | Run background command                               |
+| `!x` | Start / stop service host or axe (or select process) |
+| `!R` | Revive a previously dismissed agent                  |
 
 ### Copy Mode (`%` prefix)
 
@@ -2802,26 +2801,24 @@ which case the target wins.
 
 ## Keybindings: Services Tab
 
-The visible tab is **Services**. With the default-off `service_host` beta flag enabled,
-its top-level rows are the effective machine service procs assembled from built-in,
-plugin, user, and machine-overlay configuration. The built-in `scheduler` row expands to
-the familiar routine/job tree, while other service procs show their lifecycle,
-enablement provenance, restart state, and bounded output. Background commands (oneshot
-service procs) form a separate `── oneshots ──` section below them. Project-local
-`sase.yml` service entries are intentionally ignored.
+The visible tab is **Services**. Its top-level rows are the effective machine service
+procs assembled from built-in, plugin, user, and machine-overlay configuration. The
+built-in `scheduler` row expands to the familiar routine/job tree, while other service
+procs show their lifecycle, enablement provenance, restart state, and bounded output.
+The dashboard status line reports the service host state (`Host: <state>`); background
+commands (oneshot service procs) form a separate `── oneshots ──` section below the
+daemon procs. Project-local `sase.yml` service entries are intentionally ignored.
 
 On a selected top-level service proc, `x` starts or stops it, `r` restarts it, and `!e`
 enables or disables it on this machine. Those actions are no-ops when no service proc is
 selected; in particular, `x` does not toggle the host from a nested scheduler job or
 routine. Use `!x` to start or stop the service host itself. The footer's gear badge
-shows running and total service-proc counts. The right-hand panel shows the selected
-proc's effective command, current and desired state, restart policy, dependencies, last
-exit, and output tail.
+shows running and total service-proc counts, and the `SVC` footer pill shows the host
+status. The right-hand panel shows the selected proc's effective command, current and
+desired state, restart policy, dependencies, last exit, and output tail.
 
-When `service_host` is disabled, the same Services tab presents the legacy Axe daemon,
-routine/job tree, and background commands. The `axe` tab name, configuration keys, and
-many internal row names remain compatibility terminology, which is why the detailed
-scheduler reference below still uses “Axe.”
+The `axe` tab name, configuration keys, and many internal row names remain compatibility
+terminology, which is why the detailed scheduler reference below still uses “Axe.”
 
 ### Sidebar Row Taxonomy
 
@@ -2965,7 +2962,7 @@ scrolled off screen on selection.
 | `E` | Open the selected recorded job output in `$EDITOR`                                                  |
 | `+` | Run agent                                                                                           |
 | `r` | Run an enabled selected job manually, or re-run the focused completed background command (`!!`) row |
-| `x` | Start / stop axe (or kill the focused background command)                                           |
+| `x` | Start / stop service (or kill the focused background command)                                       |
 | `X` | Clear output                                                                                        |
 
 The `a` flow discovers installed `sase_job_*` executables and also accepts a custom
@@ -3041,10 +3038,10 @@ Help is not a leader command: press the app-level `?` on any tab to open the Hel
 
 ### Bang Mode (`!` prefix)
 
-| Key  | Action                               |
-| ---- | ------------------------------------ |
-| `!!` | Run background command               |
-| `!x` | Start / stop axe (or select process) |
+| Key  | Action                                        |
+| ---- | --------------------------------------------- |
+| `!!` | Run background command                        |
+| `!x` | Start / stop service host (or select process) |
 
 ### Copy Mode (`%` prefix)
 
@@ -3060,9 +3057,9 @@ cancels, with configured target keys taking precedence.
 
 ### Axe Control
 
-| Key | Action                                                            |
-| --- | ----------------------------------------------------------------- |
-| `Q` | Open the [quit / restart menu](#quit-restart-menu) (can stop axe) |
+| Key | Action                                             |
+| --- | -------------------------------------------------- |
+| `Q` | Open the [quit / restart menu](#quit-restart-menu) |
 
 ## Query System
 
@@ -3255,9 +3252,9 @@ Pressing `Q` opens the **quit / restart menu**. When procs are still running, th
 warns inline with the count that leaving will stop (`N procs will be stopped`), and it
 offers three actions:
 
-- `1` / `s` — quit sase's TUI and stop the axe daemon
-- `2` / `r` — restart the TUI, leaving axe running
-- `3` / `a` — restart the TUI and restart axe
+- `1` / `s` — quit sase's TUI and stop the scheduler
+- `2` / `r` — restart the TUI, leaving the scheduler running
+- `3` / `a` — restart the TUI and restart the scheduler
 
 Press `esc` (or `q`) to cancel and return to the TUI.
 
@@ -3275,12 +3272,12 @@ label, key sequence (e.g. `%n`, `,A`, `zc`), category, or alias.
 **Behavior:**
 
 - Only commands applicable to the current tab and selected entry are shown by default.
-  For example, PR diff appears only when a PR is selected; AXE start/stop appears only
-  on the AXE tab; agent-specific actions appear only when an agent row (not a group
-  banner) is focused.
+  For example, PR diff appears only when a PR is selected; service start/stop appears
+  only on the Services tab; agent-specific actions appear only when an agent row (not a
+  group banner) is focused.
 - Each row shows the keybinding, the command label, and a category badge such as
   `Navigation`, `PR Actions`, `Agent Actions`, `Copy`, or `Leader`.
-- A title-bar badge (`Agents`, `Artifacts`, or `AXE`) reflects the current tab.
+- A title-bar badge (`Agents`, `Artifacts`, or `Services`) reflects the current tab.
 
 **Keybindings inside the palette:**
 
@@ -4547,9 +4544,9 @@ Inspect the resolved project from the CLI with `sase project current`. See
 
 ## Tab Bar Display
 
-The tab bar renders plain tab labels (`Agents`, `Artifacts`, `AXE`). Per-bucket counts
-live inside each tab's body — for example the per-panel count summaries on the Agents
-tab — rather than as suffixes on the tab title itself.
+The tab bar renders plain tab labels (`Agents`, `Artifacts`, `Services`). Per-bucket
+counts live inside each tab's body — for example the per-panel count summaries on the
+Agents tab — rather than as suffixes on the tab title itself.
 
 ### Proc Indicator
 
@@ -4773,24 +4770,24 @@ can become `QUEUED` after an answer. sase's TUI continues to project that marker
 The keybinding footer renders available conditional actions as non-breaking key/label
 chips. When the chips do not fit on one line, the footer switches to a deterministic
 grid so narrow terminals and leader-mode action sets do not wrap in the middle of a
-binding. Mode labels such as `LEADER` are pinned on the left, and the axe/status
+binding. Mode labels such as `LEADER` are pinned on the left, and the service status
 indicator remains pinned on the right. The status is a segmented badge with a neutral
-`AXE` label chip before the colored state chip, so the indicator always identifies the
-daemon it describes.
+`SVC` label chip before the colored state chip, so the indicator always identifies the
+service host it describes.
 
-The footer also shows axe daemon status indicators:
+The footer also shows service host status indicators:
 
-| Status         | Color         | Description                                                  |
-| -------------- | ------------- | ------------------------------------------------------------ |
-| **RUNNING**    | Green         | Axe daemon is running normally                               |
-| **STOPPED**    | Red           | Axe daemon is not running                                    |
-| **STARTING**   | Yellow        | Axe daemon is starting up                                    |
-| **STOPPING**   | Yellow        | Axe daemon is shutting down                                  |
-| **RESTARTING** | Deep sky blue | Axe daemon is restarting (triggered by `--restart-axe` flag) |
+| Status         | Color         | Description                                                   |
+| -------------- | ------------- | ------------------------------------------------------------- |
+| **RUNNING**    | Green         | Service host is running normally                              |
+| **STOPPED**    | Red           | Service host is not running                                   |
+| **STARTING**   | Yellow        | Service host is starting up                                   |
+| **STOPPING**   | Yellow        | Service host is shutting down                                 |
+| **RESTARTING** | Deep sky blue | Service host is restarting (triggered by `--restart-service`) |
 
 During TUI startup the footer slot shows a live **starting** stopwatch with a rotating
-glyph in place of the daemon status, ticking at ~10 Hz until the TUI finishes mounting
-and the real axe status resolves. The background color turns from its normal tone to a
+glyph in place of the host status, ticking at ~10 Hz until the TUI finishes mounting and
+the real host status resolves. The background color turns from its normal tone to a
 slow-startup tone once the elapsed time crosses the slow threshold, giving immediate
 visual feedback on cold-start latency. A safety timeout forcibly retires the stopwatch
 if the mount signal never fires.
@@ -7332,7 +7329,12 @@ closing and reopening the Admin Center in the same session.
 Free text (and its explicit `text:` spelling) matches the command string, the row label,
 and the retained output; `cmd:` and `out:` narrow to one side. Every key is negatable
 with a leading `-`, and a boolean key takes the bare shorthand (`monitor` means
-`monitor:true`).
+`monitor:true`). The `service` boolean matches service-proc runs (daemon or oneshot),
+and `svc:<name>` narrows to one service proc by exact name.
+
+The seeded default query is `-service`, so service-proc runs stay hidden unless asked
+for; `ace.procs.default_query` in `sase.yml` changes the seed. It applies only when no
+committed query is persisted — a user-cleared query stays cleared.
 
 | Key        | Kind     | Meaning                                                        |
 | ---------- | -------- | -------------------------------------------------------------- |

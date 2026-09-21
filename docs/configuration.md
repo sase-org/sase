@@ -2797,9 +2797,10 @@ Source: `src/sase/default_config.yml`, `src/sase/xprompt/vcs_ref_completion.py`
 
 ### axe
 
-Configures the `sase axe` routine-based daemon. The axe architecture uses an
+Configures the scheduler's routine-based automation. The scheduler architecture uses an
 orchestrator that spawns multiple routines, each running a set of jobs on a fixed
-interval. Defaults are provided by `src/sase/default_config.yml`.
+interval. Defaults are provided by `src/sase/default_config.yml`. The config section
+keeps its historical `axe` name.
 
 The YAML below is an abridged illustration of the shipped defaults, not the whole file:
 it shows the shape of a lane and a job and omits some lanes and jobs entirely. See
@@ -3333,7 +3334,7 @@ jobs:
       MY_API_KEY: { env: MY_API_KEY }
 ```
 
-CLI flags on `sase axe start` override `max_hook_runners`, `max_agent_runners`,
+CLI flags on `sase scheduler start` override `max_hook_runners`, `max_agent_runners`,
 `zombie_timeout_seconds`, and `query` for a single run (see [CLI Flags](#cli-flags)).
 
 Source: `src/sase/axe/config.py`, `src/sase/default_config.yml`
@@ -3958,13 +3959,13 @@ which takes precedence over `tasks.history_limit`. Move the value to
 
 ### service
 
-The beta per-machine service host supervises configured daemon procs and transient
-oneshots. The surface is gated by the default-off `service_host` feature flag. Its
-catalog is deliberately machine-owned: builtin defaults, plugin defaults, user config,
-and machine overlays compose field by field, while project-local `sase/sase.yml`
-`service:` entries are ignored. Lists replace earlier lists whole; `env` is the one map
-that merges key by key. A section-level error fails closed, while an invalid individual
-entry stays visible as unavailable and does not block valid peers.
+The per-machine service host supervises configured daemon procs and transient oneshots.
+Its catalog is deliberately machine-owned: builtin defaults, plugin defaults, user
+config, and machine overlays compose field by field, while project-local `sase/sase.yml`
+`service:` entries are ignored — the host resolves machine-level layers only, never a
+project-local `sase.yml`. Lists replace earlier lists whole; `env` is the one map that
+merges key by key. A section-level error fails closed, while an invalid individual entry
+stays visible as unavailable and does not block valid peers.
 
 ```yaml
 service:
@@ -3985,11 +3986,12 @@ service:
       after: [scheduler]
 ```
 
-The shipped `scheduler` entry is enabled and owns AXE routine/job automation when the
-service host is active. The shipped `gateway` entry is disabled so enabling the beta
-does not expose a mobile API on machines that never paired a phone. Builtin launchers
-must use the entry's own reserved name. A custom entry instead supplies exactly one
-`command`: a string runs through `sh -c`, while a string array runs directly as argv.
+The shipped `scheduler` entry is enabled and owns routine/job automation. The shipped
+`gateway` entry is disabled so a default host does not expose a mobile API on machines
+that never paired a phone; it is enabled per machine in the overlay where the gateway is
+wanted. Builtin launchers must use the entry's own reserved name. A custom entry instead
+supplies exactly one `command`: a string runs through `sh -c`, while a string array runs
+directly as argv.
 
 | Field                                     | Type                               | Default      | Description                                                                                                                  |
 | ----------------------------------------- | ---------------------------------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -5117,7 +5119,7 @@ VCS, workspace, and LLM registries load provider entry points directly.
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `SASE_TMPDIR`                         | Override SASE's [managed temp root](#managed_tmp). When unset, the root is `$SASE_HOME/tmp` (`~/.sase/tmp` by default). Keep it off tmpfs and out of file-sync folders, because build scratch can be large.                                                                                                                    |
 | `SASE_DETACH_SCOPE_DISABLE`           | Set to `1`, `true`, `yes`, or `on` to stop detached agent runners, procs, and monitors from escaping SASE's systemd cgroup. By default on Linux, when the launcher runs inside a SASE-owned systemd unit or scope and `systemd-run` exists, SASE starts that work in its own transient `systemd-run --user --scope`.           |
-| `SASE_AXE_DISABLE_SYSTEMD_SCOPE`      | Set to a truthy value to start the `sase axe start` orchestrator without its transient `sase-axe-*` systemd user scope. It also disables detached-work scope escape, like `SASE_DETACH_SCOPE_DISABLE`.                                                                                                                         |
+| `SASE_AXE_DISABLE_SYSTEMD_SCOPE`      | Legacy alias for `SASE_DETACH_SCOPE_DISABLE`: set to a truthy value to stop detached agent runners, procs, and monitors from escaping SASE's systemd cgroup.                                                                                                                                                                   |
 | `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` | Plan-specific auto-approval action for an agent; currently `approve` or `epic`.                                                                                                                                                                                                                                                |
 | `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                                                                                                                                                                                                                                           |
 | `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                                                                                                                                                                                                                                    |
@@ -5207,11 +5209,11 @@ subcommand. They do not steal `-f`/`-F` or `-p` from commands such as
 | `-M, --model-size`                       | `big`, `little`                                                    | -                                | Deprecated alias for `--model-tier`.                                                                                                                                                                                              |
 | `-p, --profile`                          | optional path                                                      | -                                | Profile the TUI session with pyinstrument. Without a path, write `ace-profiles/ace_profile_<timestamp>.txt` under SASE's managed temp root; after exit, print a shortened path and copy it to the system clipboard when possible. |
 | `-r, --refresh-interval`                 | int (seconds)                                                      | `10`                             | Auto-refresh interval (0 to disable).                                                                                                                                                                                             |
-| `-R, --restart-service`, `--restart-axe` | flag                                                               | -                                | Restart the service host on startup (or the legacy axe daemon when `service_host` is disabled); no-op if it is not running.                                                                                                       |
+| `-R, --restart-service`, `--restart-axe` | flag                                                               | -                                | Restart the service host on startup; no-op if it is not running.                                                                                                                                                                  |
 | `-s, --sanity-refresh-interval`          | int (seconds)                                                      | `300`                            | Full sanity-refresh interval; missed watcher or change-token updates are still reconciled at least this often.                                                                                                                    |
 | `-t, --tab`                              | `artifacts`, `changespecs`, `patches`, `agents`, `services`, `axe` | `agents`                         | Tab to focus on startup. `services` and legacy `axe` select Services; `changespecs` and `patches` select Artifacts.                                                                                                               |
 | `-T, --tmux`                             | flag                                                               | -                                | Launch sase's TUI in a new tmux window named `sase_tmux_<N>` and print the session/window target for external control.                                                                                                            |
-| `-x, --no-service`, `--no-axe`           | flag                                                               | -                                | Disable auto-starting the service host (or the legacy axe daemon when the beta flag is off).                                                                                                                                      |
+| `-x, --no-service`, `--no-axe`           | flag                                                               | -                                | Disable auto-starting the service host on startup.                                                                                                                                                                                |
 | `-v, --vcs-provider`                     | `git`, `hg`, `auto`                                                | -                                | Override VCS provider.                                                                                                                                                                                                            |
 
 ### `sase screenshot`
@@ -5259,8 +5261,8 @@ explains that a tmux session is required, and still prints the catalog.
 
 ### `sase service`
 
-All service-host commands require the `service_host` beta flag. Bare `sase service`
-defaults to `status`, and bare `sase service proc` defaults to `proc list`.
+Bare `sase service` defaults to `status`, and bare `sase service proc` defaults to
+`proc list`.
 
 | Command                                 | Flags / arguments                                                       | Description                                                                                           |
 | --------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
@@ -5290,14 +5292,17 @@ layering.
 
 ### `sase axe`
 
+`sase axe start|stop|restart|status` is an alias of the matching `sase scheduler`
+command; the flags below apply to both spellings.
+
 | Flag                 | Values              | Default | Description            |
 | -------------------- | ------------------- | ------- | ---------------------- |
 | `-v, --vcs-provider` | `git`, `hg`, `auto` | -       | Override VCS provider. |
 
 ### `sase axe status`
 
-Collects one read-only whole-system AXE snapshot. Human output is the default; JSON
-output is deterministic and never contains Rich markup or ANSI escapes. While the
+Collects one read-only whole-system scheduler snapshot. Human output is the default;
+JSON output is deterministic and never contains Rich markup or ANSI escapes. While the
 default-on `axe_routine_job_contract` flag is enabled, `--json` emits the public
 schema-version-2 object with routine/job field names; disabling that flag restores the
 legacy schema-version-1 wire object.
@@ -5308,8 +5313,8 @@ legacy schema-version-1 wire object.
 
 The classifier-owned exit code is `0` for healthy or intentionally inactive states, `1`
 for actionable degradation, and `2` for a collection or classification error. See
-[Axe Whole-System Status](axe.md#whole-system-status) for the state, health, field, and
-recovery-command contract.
+[Scheduler Whole-System Status](axe.md#whole-system-status) for the state, health,
+field, and recovery-command contract.
 
 ### `sase axe start`
 
@@ -5320,24 +5325,20 @@ recovery-command contract.
 | `-A, --max-agent-runners` | int           | config or `3`    | Maximum concurrent agent runners.                   |
 | `-z, --zombie-timeout`    | int (seconds) | config or `7200` | Timeout before marking a hook/workflow as a zombie. |
 
-For `sase axe start`, CLI flags take precedence over values from the `axe` config
-section in `sase.yml`. If neither is set, the built-in defaults from
-`default_config.yml` are used.
+For `sase scheduler start` (and its `sase axe start` alias), CLI flags take precedence
+over values from the `axe` config section in `sase.yml`. If neither is set, the built-in
+defaults from `default_config.yml` are used.
 
 ### `sase axe stop`
 
-Requests the stopped state and stops the running axe orchestrator and its routines.
-
-| Flag          | Values | Default | Description                                                |
-| ------------- | ------ | ------- | ---------------------------------------------------------- |
-| `-f, --force` | flag   | -       | Also sweep orphaned axe processes and reset the PID state. |
+Requests the stopped state and stops the `scheduler` service proc. It takes no flags.
 
 ### `sase axe restart`
 
-Runs the verified stop, start, and heartbeat-verify restart, even when axe is not
-running, and exits `0` only once every configured routine reports a fresh heartbeat.
-Unset runner and query flags fall back to the `axe` config values, as for
-`sase axe start`.
+Runs the verified stop, start, and heartbeat-verify restart through the `scheduler`
+service proc, even when the scheduler is not running, and exits `0` only once every
+configured routine reports a fresh heartbeat. Unset runner and query flags fall back to
+the `axe` config values, as for `sase scheduler start`.
 
 | Flag                      | Values        | Default      | Description                                                      |
 | ------------------------- | ------------- | ------------ | ---------------------------------------------------------------- |
@@ -5345,15 +5346,7 @@ Unset runner and query flags fall back to the `axe` config values, as for
 | `-A, --max-agent-runners` | int           | config value | Maximum concurrent agent runners.                                |
 | `-H, --max-hook-runners`  | int           | config value | Maximum concurrent hook runners.                                 |
 | `-q, --query`             | string        | config value | Query string for filtering Patches.                              |
-| `-t, --verify-timeout`    | float (s)     | `15`         | Heartbeat verification timeout per start attempt.                |
 | `-z, --zombie-timeout`    | int (seconds) | config value | Timeout before marking a hook/workflow as a zombie.              |
-
-### `sase axe ensure`
-
-Bare `sase axe ensure` starts a missing orchestrator unless axe was explicitly stopped.
-`sase axe ensure install` installs and starts the optional user-systemd watchdog timer
-that runs the same check, and `sase axe ensure uninstall` stops and removes it. None of
-the three forms takes flags. See [Watchdog and Recovery](axe.md#watchdog-and-recovery).
 
 ### `sase axe maintenance`
 

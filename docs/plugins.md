@@ -672,6 +672,19 @@ configs are merged between the bundled package defaults and the user's `sase.yml
 the [Deep-Merge System](configuration.md#deep-merge-system) for details on the merge
 chain.
 
+### Service Procs
+
+A plugin declares a service proc through its `sase_config` layer: add a
+`service.procs.<name>` entry to the package's `default_config.yml` with a `command` (or
+exact argv array), a `description`, and the usual proc fields (`cwd`, `env`, `restart`,
+`stop_signal`, `stop_timeout`, `after`, `log_max_bytes`). See
+[service configuration](configuration.md#service) for the full field contract.
+
+Plugin-shipped entries default to `enabled: false`, so installing a plugin never starts
+work on a machine by itself. A machine opts in through its machine overlay, or at
+runtime with `sase service proc enable <name>`. There is no Python plugin proc API in
+v1: no entry-point group launches procs, only `service.procs` config declaration.
+
 ### Artifact Reference and File-Hook Providers
 
 The `sase_artifact_refs` and `sase_file_hooks` groups share the declarative artifact

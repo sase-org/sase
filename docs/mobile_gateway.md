@@ -47,14 +47,13 @@ Start the gateway from SASE:
 sase mobile gateway start
 ```
 
-When the `service_host` beta flag is enabled and the effective built-in `gateway`
-service proc is available and enabled, this command delegates ownership to the service
-host. It clears a boot-scoped stop, starts or nudges the host, and returns instead of
-holding a foreground process. The gateway is disabled by default; enable it for this
-machine and start it with:
+When the effective built-in `gateway` service proc is available and enabled, this
+command delegates ownership to the service host. It clears a boot-scoped stop, starts or
+nudges the host, and returns instead of holding a foreground process. The gateway is
+disabled by default and is enabled per machine in the overlay where it is wanted; enable
+it for this machine and start it with:
 
 ```bash
-sase flag enable service_host
 sase service proc enable gateway
 sase mobile gateway start
 sase mobile gateway pair
@@ -79,7 +78,7 @@ Keep this process running while mobile clients connect.
 
 On this fallback path, keep that process running while clients connect and stop it with
 `Ctrl-C`. An unavailable, disabled, or unconfigured gateway service proc also falls back
-to this path even when `service_host` itself is enabled.
+to this path.
 
 Useful startup overrides:
 
