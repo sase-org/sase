@@ -503,9 +503,12 @@ subdirectory: command scratch (`editors/`, `wrappers/`, `viewers/`, `commit-mess
 back (`launch-prompts/`, `screenshots/`, `workflow-artifacts/`) after 14 days. Launched
 agents default `TMPDIR`/`TMP`/`TEMP`, `CARGO_TARGET_DIR`, and `CARGO_BUILD_BUILD_DIR` to
 per-launch directories under those managed buckets, so shell scratch and Cargo targets
-no longer fall back to host-global `/tmp`. Launched agents also get
-`CARGO_INCREMENTAL=0` and line-tables-only debug info for the dev and test Cargo
-profiles, which keeps per-launch targets small. A runner also removes its own
+no longer fall back to host-global `/tmp`. Launched agents also get line-tables-only
+debug info for the dev and test Cargo profiles, which keeps per-launch targets small.
+They get `CARGO_INCREMENTAL=0` by default, or `CARGO_INCREMENTAL=1` when
+[`managed_tmp.agent_cargo_incremental`](configuration.md#managed_tmp) is enabled (athena
+only, where the splitting rustc wrapper runs metadata-only units incrementally direct
+and strips incremental from codegen units before sccache). A runner also removes its own
 launch-assigned `agent-tmp/` and `cargo-targets/` children at exit when they still match
 its exported `TMPDIR` and `CARGO_TARGET_DIR` and it can prove, through procfs, that no
 live process still references either tree (by environment or working directory). That

@@ -142,6 +142,7 @@ def _managed_agent_scratch_env(
     timestamp: str,
 ) -> dict[str, str]:
     """Return per-launch scratch env rooted in the managed temp tree."""
+    from sase.config import get_managed_tmp_agent_cargo_incremental
     from sase.core.paths import get_sase_managed_tmpdir
 
     label_parts = (safe_name or "agent", f"ws{workspace_num}", timestamp or "launch")
@@ -155,6 +156,10 @@ def _managed_agent_scratch_env(
     )
     tmpdir = get_sase_managed_tmpdir("agent-tmp", scratch_key)
     cargo_target_dir = get_sase_managed_tmpdir("cargo-targets", scratch_key)
+    try:
+        incremental = get_managed_tmp_agent_cargo_incremental()
+    except Exception:  # noqa: BLE001 - launch env must fail open to no-incremental.
+        incremental = False
     return {
         SASE_LAUNCH_SCRATCH_KEY_ENV: scratch_key,
         "TMPDIR": tmpdir,
@@ -162,7 +167,7 @@ def _managed_agent_scratch_env(
         "TEMP": tmpdir,
         "CARGO_TARGET_DIR": cargo_target_dir,
         "CARGO_BUILD_BUILD_DIR": _cargo_build_dir_for_target(cargo_target_dir),
-        "CARGO_INCREMENTAL": "0",
+        "CARGO_INCREMENTAL": "1" if incremental else "0",
         "CARGO_PROFILE_DEV_DEBUG": "line-tables-only",
         "CARGO_PROFILE_TEST_DEBUG": "line-tables-only",
     }

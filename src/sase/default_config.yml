@@ -169,6 +169,10 @@ managed_tmp:
     low_free_space_min_age_seconds: 3600
     # Small entries do not participate in pressure pruning.
     min_entry_bytes: 1073741824
+  # Incremental Cargo check/clippy for launched agents. Only hosts with the
+  # splitting rustc wrapper (athena) should set this true; elsewhere
+  # incremental test builds cost ~9 GB per run.
+  agent_cargo_incremental: false
 
 markdown:
   # Column width SASE wraps generated Markdown prose at: plan files, bead notes

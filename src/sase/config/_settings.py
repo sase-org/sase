@@ -54,6 +54,7 @@ DEFAULT_MANAGED_TMP_PRESSURE_RECOVERY_AVAILABLE_BYTES = 48 * 1024 * 1024 * 1024
 DEFAULT_MANAGED_TMP_PRESSURE_MIN_AGE_SECONDS = 12 * 3600
 DEFAULT_MANAGED_TMP_PRESSURE_LOW_FREE_SPACE_MIN_AGE_SECONDS = 3600
 DEFAULT_MANAGED_TMP_PRESSURE_MIN_ENTRY_BYTES = 1024 * 1024 * 1024
+DEFAULT_MANAGED_TMP_AGENT_CARGO_INCREMENTAL = False
 DEFAULT_GATE_SHELL_RECLAIM_GRACE_SECONDS = 3600
 DEFAULT_PAGER_SYNTAX = "auto"
 DEFAULT_MONITOR_SELECTED_DIAGNOSTICS_BYTES = 8 * 1024
@@ -648,6 +649,21 @@ def get_managed_tmp_pressure_min_entry_bytes() -> int:
     if type(value) is int and value >= 0:
         return value
     return DEFAULT_MANAGED_TMP_PRESSURE_MIN_ENTRY_BYTES
+
+
+def get_managed_tmp_agent_cargo_incremental() -> bool:
+    """Return whether launched agents get incremental Cargo check/clippy.
+
+    Only hosts with the splitting rustc wrapper (athena) should opt in;
+    elsewhere incremental test builds cost ~9 GB per run.
+    """
+    value = _managed_tmp_config().get(
+        "agent_cargo_incremental",
+        DEFAULT_MANAGED_TMP_AGENT_CARGO_INCREMENTAL,
+    )
+    if type(value) is bool:
+        return value
+    return DEFAULT_MANAGED_TMP_AGENT_CARGO_INCREMENTAL
 
 
 def get_gate_shell_reclaim_grace_seconds() -> int:

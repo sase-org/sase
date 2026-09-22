@@ -4806,6 +4806,11 @@
               "description": "Small entries do not participate in pressure pruning."
             }
           }
+        },
+        "agent_cargo_incremental": {
+          "type": "boolean",
+          "default": false,
+          "description": "Incremental Cargo check/clippy for launched agents. Only hosts with the splitting rustc wrapper (athena) should set this true; elsewhere incremental test builds cost ~9 GB per run."
         }
       }
     },

@@ -520,7 +520,7 @@ def _rust_target_observation_rows(
             physical_path=str(normalize_path_no_follow(incremental)),
             size_bytes=tree_size_fn(incremental),
             owner="just rust-dev-install",
-            horizon="safe to delete; CARGO_INCREMENTAL=0 prevents return",
+            horizon="safe to delete; returns only when managed_tmp.agent_cargo_incremental is true",
             reclaim="rm -rf <incremental>",
         ),
     )
