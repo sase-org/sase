@@ -7566,8 +7566,9 @@ timeline across all CLIs. Configure the panel with `ace.updates.agent_cli_histor
 Automatic checks publish one composite snapshot after first paint. Ten-minute session
 ticks only revalidate cached SASE/plugin rows and provider names already known outdated;
 full discovery waits for the longer configured recompute cadence, and provider registry
-lookups retain their own cache. The top bar renders purple/amber SASE and cyan `CLI`
-segments with separate counts.
+lookups retain their own cache. The top bar renders the updates badge as its only dark
+chip (lime `⬆ N` SASE and sage `CLI ⬆ N` segments with separate counts, plus a lime
+`core` tag for a sase-core rebuild).
 
 For editable host, core, and plugin checkouts, the running TUI also remembers the Git
 HEAD imported by the process and cheaply checks whether the checkout has moved on disk.

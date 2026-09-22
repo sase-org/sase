@@ -7,16 +7,22 @@ from textual.widgets import Static
 
 from .update_accents import (
     AGENT_CLI_ACCENT as _AGENT_CLI_ACCENT,
-    CORE_UPDATE_ACCENT as _CORE_UPDATE_ACCENT,
     UPDATE_GLYPH as _UPDATE_GLYPH,
     UPDATES_ACCENT as _UPDATES_ACCENT,
+    UPDATES_SURFACE as _UPDATES_SURFACE,
+    build_core_tag as _build_core_tag,
 )
-
-_CORE_UPDATE_GLYPH = "*"
 
 
 class UpdatesAvailableIndicator(Static):
-    """Top-bar badge showing known SASE and agent-CLI updates."""
+    """Top-bar badge showing known SASE and agent-CLI updates.
+
+    The badge is the top bar's only deep chip (moss surface, lime ink).
+    The SASE/plugin segment always uses the identity style; a pending
+    sase-core Rust rebuild appends the inset ``core`` tag; the agent-CLI
+    segment shares the moss surface with sage ink. Each segment carries
+    its own padding so it reads as its own part of the chip.
+    """
 
     def __init__(self, **kwargs: Any) -> None:
         super().__init__(
@@ -112,20 +118,19 @@ class UpdatesAvailableIndicator(Static):
         core: bool = False,
         agent_cli_count: int = 0,
     ) -> Text:
-        """Build joined domain-specific badge segments without doing I/O."""
+        """Build the deep-chip badge: identity segment, core tag, CLI segment."""
         text = Text()
         if count > 0:
-            suffix = f" {_CORE_UPDATE_GLYPH}" if core else ""
-            accent = _CORE_UPDATE_ACCENT if core else _UPDATES_ACCENT
             text.append(
-                f" {_UPDATE_GLYPH} {count}{suffix} ",
-                style=f"bold #1a1a1a on {accent}",
+                f" {_UPDATE_GLYPH} {count} ",
+                style=f"bold {_UPDATES_ACCENT} on {_UPDATES_SURFACE}",
             )
+            if core:
+                text.append_text(_build_core_tag())
         if agent_cli_count > 0:
-            prefix = " " if count <= 0 else ""
             text.append(
-                f"{prefix}CLI {_UPDATE_GLYPH} {agent_cli_count} ",
-                style=f"bold #1a1a1a on {_AGENT_CLI_ACCENT}",
+                f" CLI {_UPDATE_GLYPH} {agent_cli_count} ",
+                style=f"bold {_AGENT_CLI_ACCENT} on {_UPDATES_SURFACE}",
             )
         return text
 

@@ -24,8 +24,10 @@ from sase.ace.tui.update_panel_state import (
 )
 from sase.ace.tui.widgets.update_accents import (
     AGENT_CLI_ACCENT,
-    CORE_UPDATE_ACCENT,
+    UPDATE_CAUTION_ACCENT,
+    UPDATE_GLYPH,
     UPDATES_ACCENT,
+    build_core_tag,
 )
 
 _SCOPES: tuple[UpdateOptionScope, ...] = (
@@ -67,6 +69,7 @@ def _row(
     count: int = 0,
     details: tuple[str, ...] = (),
     accent: str = UPDATES_ACCENT,
+    core_rebuild: bool = False,
 ) -> UpdateOptionRow:
     key, title, description = _COPY[scope]
     return UpdateOptionRow(
@@ -74,7 +77,9 @@ def _row(
         key=key,
         title=title,
         description=description,
-        chip=UpdateOptionChip(kind=kind, text=text, count=count),
+        chip=UpdateOptionChip(
+            kind=kind, text=text, count=count, core_rebuild=core_rebuild
+        ),
         accent=accent,
         details=details,
     )
@@ -105,7 +110,7 @@ def _populated_state() -> UpdatePanelState:
             _row(
                 "everything",
                 kind="available",
-                text="↑ 6 available",
+                text=f"{UPDATE_GLYPH} 6 available",
                 count=6,
                 details=("sase 1 · sase-core 1 · plugins 2 · providers 2 (1 manual)",),
                 accent="$primary",
@@ -113,15 +118,15 @@ def _populated_state() -> UpdatePanelState:
             _row(
                 "sase",
                 kind="available",
-                text="↑ 4 available",
+                text=f"{UPDATE_GLYPH} 4 available",
                 count=4,
                 details=("sase 1 · sase-core 1 · plugins 2 · core rebuild",),
-                accent=CORE_UPDATE_ACCENT,
+                accent=UPDATES_ACCENT,
             ),
             _row(
                 "providers",
                 kind="available",
-                text="↑ 2 available",
+                text=f"{UPDATE_GLYPH} 2 available",
                 count=2,
                 details=(
                     "• claude  1.0.0 → 1.1.0",
@@ -198,7 +203,7 @@ async def test_restart_key_dismisses_when_restart_row_exists() -> None:
         title="Restart ACE",
         description="Running code changed on disk; restart after tracked procs finish.",
         chip=UpdateOptionChip(kind="stale", text="↻ code changed", count=1),
-        accent=CORE_UPDATE_ACCENT,
+        accent=UPDATE_CAUTION_ACCENT,
         details=("sase: 111111111..222222222",),
     )
     async with _TestApp().run_test(size=(100, 40)) as pilot:
@@ -301,7 +306,7 @@ async def test_set_state_preserves_highlight() -> None:
         assert option_list.highlighted == 1
         assert option_list.option_count == 3
         prompt = _prompt_plain(option_list.get_option_at_index(1))
-        assert "↑ 4 available" in prompt
+        assert f"{UPDATE_GLYPH} 4 available" in prompt
 
         await pilot.press("enter")
         await pilot.pause()
@@ -317,7 +322,7 @@ async def test_everything_row_keeps_key_and_chip_visible() -> None:
         plain = _prompt_plain(option_list.get_option_at_index(0))
         assert plain.lstrip().startswith("e/E")
         assert "Everything" in plain
-        assert "↑ 6 available" in plain
+        assert f"{UPDATE_GLYPH} 6 available" in plain
         assert modal._rich_accent("$primary") == ""
         if isinstance(prompt, Text):
             key_style = str(prompt.spans[0].style) if prompt.spans else ""
@@ -326,7 +331,7 @@ async def test_everything_row_keeps_key_and_chip_visible() -> None:
             capital_styles = " ".join(
                 str(span.style) for span in prompt.spans if span.style is not None
             )
-            assert CORE_UPDATE_ACCENT in capital_styles
+            assert UPDATE_CAUTION_ACCENT in capital_styles
         modal.action_cancel()
         await pilot.pause()
     assert dismissed == [None]
@@ -406,10 +411,10 @@ async def test_border_chrome_uses_freshness_rechecking_and_stale_accent() -> Non
         )
         await _push(pilot, modal)
         container = modal.query_one("#update-panel-container", Container)
-        assert _plain(container.border_title) == "↑ Update"
+        assert _plain(container.border_title) == f"{UPDATE_GLYPH} Update"
         subtitle = container.border_subtitle
         assert _plain(subtitle) == "4m ago"
-        assert CORE_UPDATE_ACCENT in str(subtitle)
+        assert UPDATE_CAUTION_ACCENT in str(subtitle)
         assert container.has_class("-stale")
 
         modal.set_state(_state(freshness_label="4m ago", stale=False, rechecking=True))
@@ -446,3 +451,33 @@ def test_choose_scope_ignores_missing_row(monkeypatch: Any) -> None:
     monkeypatch.setattr(modal, "dismiss", dismissed.append)
     modal._choose_scope("everything", auto_approve=True)
     assert dismissed == []
+
+
+def test_core_rebuild_row_appends_tag_and_keeps_chip_right_aligned() -> None:
+    modal = UpdatePanel(_state())
+    plain_row = _row(
+        "sase",
+        kind="available",
+        text=f"{UPDATE_GLYPH} 4 available",
+        count=4,
+        accent=UPDATES_ACCENT,
+    )
+    core_row = _row(
+        "sase",
+        kind="available",
+        text=f"{UPDATE_GLYPH} 4 available",
+        count=4,
+        accent=UPDATES_ACCENT,
+        core_rebuild=True,
+    )
+
+    plain_prompt = modal._row_prompt(plain_row)
+    core_prompt = modal._row_prompt(core_row)
+
+    assert "core" in core_prompt.plain
+    assert str(build_core_tag().style) in " ".join(
+        str(span.style) for span in core_prompt.spans if span.style is not None
+    )
+    plain_first = plain_prompt.plain.split("\n")[0]
+    core_first = core_prompt.plain.split("\n")[0]
+    assert len(plain_first) == len(core_first)

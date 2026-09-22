@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 from sase.ace.tui.actions import update_toast
+from sase.ace.tui.widgets.update_accents import (
+    AGENT_CLI_ACCENT,
+    UPDATE_GLYPH,
+    UPDATES_ACCENT,
+)
 from sase.updates import (
     CommitSourceSpec,
     CommitSummary,
@@ -106,7 +111,8 @@ def test_update_toast_message_renders_grouped_commits_and_overflow() -> None:
     message = update_toast._format_update_toast_message(status, sections)
 
     assert "1 update" in message
-    assert "↑ sase" in message
+    assert f"{UPDATE_GLYPH} sase" in message
+    assert f"[bold {UPDATES_ACCENT}]" in message
     assert "1.0.0 → 1.1.0" in message
     assert "abc1234" in message
     assert "fix: escape \\[toast] markup" in message
@@ -140,9 +146,10 @@ def test_update_toast_lists_provider_transitions_without_commit_preview() -> Non
 
     assert "2 updates" in message
     assert "2 agent CLI" in message
-    assert "↑ CLI Claude Code" in message
+    assert f"{UPDATE_GLYPH} CLI Claude Code" in message
+    assert f"[bold {AGENT_CLI_ACCENT}]" in message
     assert "1.0.0 → 1.1.0" in message
-    assert "↑ CLI Codex CLI" in message
+    assert f"{UPDATE_GLYPH} CLI Codex CLI" in message
     assert "0.9.0 → 1.0.0" in message
     assert "[yellow]manual[/]" in message
     assert "commit" not in message

@@ -5,7 +5,16 @@ from pathlib import Path
 
 import pytest
 
+from sase.ace.tui.widgets.update_accents import (
+    AGENT_CLI_ACCENT,
+    UPDATES_ACCENT,
+    UPDATES_SURFACE,
+    build_core_tag,
+)
 from sase.ace.tui.widgets.updates_indicator import UpdatesAvailableIndicator
+
+_IDENTITY_STYLE = f"bold {UPDATES_ACCENT} on {UPDATES_SURFACE}"
+_CLI_STYLE = f"bold {AGENT_CLI_ACCENT} on {UPDATES_SURFACE}"
 
 
 def _styles(text: object) -> str:
@@ -21,30 +30,42 @@ def test_zero_updates_renders_hidden_badge() -> None:
 def test_positive_updates_render_updates_badge() -> None:
     text = UpdatesAvailableIndicator._build_content(3)
 
-    assert text.plain == " ↑ 3 "
-    assert "#AF87FF" in _styles(text)
+    assert text.plain == " ⬆ 3 "
+    assert _IDENTITY_STYLE in _styles(text)
 
 
 def test_core_update_renders_rebuild_badge() -> None:
     text = UpdatesAvailableIndicator._build_content(3, core=True)
 
-    assert text.plain == " ↑ 3 * "
-    assert "#FFAF5F" in _styles(text)
+    assert text.plain == " ⬆ 3  core "
+    assert _IDENTITY_STYLE in _styles(text)
+    assert str(build_core_tag().style) in _styles(text)
+    assert "core" in text.plain
 
 
-def test_agent_cli_only_renders_labeled_cyan_segment() -> None:
+def test_core_tag_requires_a_sase_count() -> None:
+    without_core = UpdatesAvailableIndicator._build_content(3)
+    cli_only = UpdatesAvailableIndicator._build_content(0, core=True, agent_cli_count=2)
+
+    assert "core" not in without_core.plain
+    assert cli_only.plain == " CLI ⬆ 2 "
+    assert "core" not in cli_only.plain
+    assert _CLI_STYLE in _styles(cli_only)
+
+
+def test_agent_cli_only_renders_labeled_sage_segment() -> None:
     text = UpdatesAvailableIndicator._build_content(0, agent_cli_count=2)
 
-    assert text.plain == " CLI ↑ 2 "
-    assert "#00D7FF" in _styles(text)
+    assert text.plain == " CLI ⬆ 2 "
+    assert _CLI_STYLE in _styles(text)
 
 
 def test_mixed_updates_render_joined_domain_segments() -> None:
     text = UpdatesAvailableIndicator._build_content(3, agent_cli_count=2)
 
-    assert text.plain == " ↑ 3 CLI ↑ 2 "
-    assert "#AF87FF" in _styles(text)
-    assert "#00D7FF" in _styles(text)
+    assert text.plain == " ⬆ 3  CLI ⬆ 2 "
+    assert _IDENTITY_STYLE in _styles(text)
+    assert _CLI_STYLE in _styles(text)
 
 
 def test_mixed_core_updates_preserve_rebuild_signal() -> None:
@@ -54,9 +75,10 @@ def test_mixed_core_updates_preserve_rebuild_signal() -> None:
         agent_cli_count=2,
     )
 
-    assert text.plain == " ↑ 3 * CLI ↑ 2 "
-    assert "#FFAF5F" in _styles(text)
-    assert "#00D7FF" in _styles(text)
+    assert text.plain == " ⬆ 3  core  CLI ⬆ 2 "
+    assert _IDENTITY_STYLE in _styles(text)
+    assert _CLI_STYLE in _styles(text)
+    assert str(build_core_tag().style) in _styles(text)
 
 
 def test_tooltip_separates_domains_and_manual_only_updates() -> None:
@@ -106,7 +128,27 @@ def test_set_available_reacts_when_core_changes_at_same_count() -> None:
 
     assert indicator.count == 2
     assert indicator.core is True
+    rendered = UpdatesAvailableIndicator._build_content(
+        indicator.sase_count,
+        core=indicator.core,
+        agent_cli_count=indicator.agent_cli_count,
+    )
+    assert "core" in rendered.plain
     assert "Includes sase-core" in str(indicator.tooltip)
+
+
+def test_set_available_without_sase_count_shows_no_core_tag() -> None:
+    indicator = UpdatesAvailableIndicator()
+
+    indicator.set_available(0, core=True, agent_cli_count=2)
+
+    assert indicator.core is False
+    rendered = UpdatesAvailableIndicator._build_content(
+        indicator.sase_count,
+        core=True,
+        agent_cli_count=indicator.agent_cli_count,
+    )
+    assert "core" not in rendered.plain
 
 
 def test_render_helpers_perform_no_disk_or_subprocess_work(
@@ -130,7 +172,7 @@ def test_render_helpers_perform_no_disk_or_subprocess_work(
         manual_agent_cli_count=1,
     )
 
-    assert text.plain == " ↑ 2 * CLI ↑ 1 "
+    assert text.plain == " ⬆ 2  core  CLI ⬆ 1 "
     assert "manual action" in tooltip
 
 

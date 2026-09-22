@@ -8,11 +8,13 @@ from textual.markup import escape
 
 from sase.updates import CommitSummary, ProviderUpdateCandidate, UpdateStatus
 
-from ..modals.config_center_modal import center_tab_accent
+from ..widgets.update_accents import (
+    AGENT_CLI_ACCENT,
+    UPDATE_GLYPH,
+    UPDATES_ACCENT,
+)
 from ._update_toast_sections import ToastRepoSection, header_only_sections
 
-_UPDATE_GLYPH = "↑"
-_AGENT_CLI_ACCENT = "#00D7FF"
 _COMMIT_SUBJECT_WIDTH = 58
 
 
@@ -21,7 +23,7 @@ def format_update_toast_message(
     sections: Sequence[ToastRepoSection] | None = None,
 ) -> str:
     """Build the Rich/Textual markup body for the update toast."""
-    accent = center_tab_accent("updates") or "#AF87FF"
+    accent = UPDATES_ACCENT
     count = status.count
     noun = "update" if count == 1 else "updates"
     repo_sections = (
@@ -59,7 +61,7 @@ def format_update_toast_message(
 def _repo_section_lines(section: ToastRepoSection, accent: str) -> list[str]:
     lines = [
         (
-            f"[bold {accent}]{_UPDATE_GLYPH} {escape(section.label)}[/]  "
+            f"[bold {accent}]{UPDATE_GLYPH} {escape(section.label)}[/]  "
             f"[dim]{escape(section.installed_version)} → "
             f"{escape(section.latest_version)}[/]"
         )
@@ -83,7 +85,7 @@ def _commit_line(commit: CommitSummary) -> str:
 def _provider_candidate_line(candidate: ProviderUpdateCandidate) -> str:
     manual = "  [yellow]manual[/]" if candidate.manual_only else ""
     return (
-        f"[bold {_AGENT_CLI_ACCENT}]{_UPDATE_GLYPH} CLI "
+        f"[bold {AGENT_CLI_ACCENT}]{UPDATE_GLYPH} CLI "
         f"{escape(candidate.display_name)}[/]  "
         f"[dim]{escape(candidate.installed_version)} → "
         f"{escape(candidate.latest_version)}[/]{manual}"

@@ -10,7 +10,8 @@ from sase.ace.tui.update_panel_state import (
 from sase.ace.tui.stale_running_code import RunningCodeRoot, RunningCodeState
 from sase.ace.tui.widgets.update_accents import (
     AGENT_CLI_ACCENT,
-    CORE_UPDATE_ACCENT,
+    UPDATE_CAUTION_ACCENT,
+    UPDATE_GLYPH,
     UPDATES_ACCENT,
 )
 from sase.updates import (
@@ -127,20 +128,22 @@ def test_mixed_counts_sum_into_everything_and_show_breakdowns() -> None:
     everything, sase, providers = state.rows
 
     assert everything.chip.kind == "available"
-    assert everything.chip.text == "↑ 6 available"
+    assert everything.chip.text == f"{UPDATE_GLYPH} 6 available"
     assert everything.chip.count == 6
     assert everything.details == (
         "sase 1 · sase-core 1 · plugins 2 · core rebuild · providers 2",
     )
     assert everything.accent == "$primary"
+    assert everything.chip.core_rebuild is True
 
     assert sase.chip.kind == "available"
-    assert sase.chip.text == "↑ 4 available"
+    assert sase.chip.text == f"{UPDATE_GLYPH} 4 available"
     assert sase.details == ("sase 1 · sase-core 1 · plugins 2 · core rebuild",)
-    assert sase.accent == CORE_UPDATE_ACCENT
+    assert sase.accent == UPDATES_ACCENT
+    assert sase.chip.core_rebuild is True
 
     assert providers.chip.kind == "available"
-    assert providers.chip.text == "↑ 2 available"
+    assert providers.chip.text == f"{UPDATE_GLYPH} 2 available"
     assert providers.details == (
         "• Claude Code  1.0.0 → 1.1.0",
         "• Codex CLI    1.0.0 → 1.1.0",
@@ -148,15 +151,18 @@ def test_mixed_counts_sum_into_everything_and_show_breakdowns() -> None:
     assert providers.accent == AGENT_CLI_ACCENT
 
 
-def test_core_rebuild_switches_sase_accent_without_host_plugins() -> None:
+def test_core_rebuild_keeps_sase_accent_and_marks_rebuild() -> None:
     status = _status(components=(_component("sase-core", role="core"),))
     state = build_update_panel_state(status, now=_NOW)
     sase = state.rows[1]
 
-    assert sase.accent == CORE_UPDATE_ACCENT
+    assert sase.accent == UPDATES_ACCENT
+    assert sase.chip.core_rebuild is True
     assert sase.details == ("sase-core 1 · core rebuild",)
     assert state.rows[0].details == ("sase-core 1 · core rebuild",)
     assert state.rows[0].chip.count == 1
+    assert state.rows[0].chip.core_rebuild is True
+    assert state.rows[2].chip.core_rebuild is False
 
 
 def test_failed_provider_source_uses_error_as_detail() -> None:
@@ -434,5 +440,40 @@ def test_stale_running_code_adds_restart_row_with_commit_preview() -> None:
     assert restart.chip.kind == "stale"
     assert restart.chip.text == "↻ code changed"
     assert restart.details == ("sase: 111111111..222222222",)
+    assert restart.accent == UPDATE_CAUTION_ACCENT
+    assert restart.chip.core_rebuild is False
     assert everything.scope == "everything"
     assert state.stale is True
+
+
+def test_sase_accent_stays_lime_without_core_update() -> None:
+    status = _status(components=(_component("sase"),))
+    state = build_update_panel_state(status, now=_NOW)
+    everything, sase, providers = state.rows
+
+    assert sase.accent == UPDATES_ACCENT
+    assert sase.chip.core_rebuild is False
+    assert everything.chip.core_rebuild is False
+    assert providers.chip.core_rebuild is False
+    assert sase.chip.text == f"{UPDATE_GLYPH} 1 available"
+
+
+def test_core_rebuild_never_marks_providers_or_failed_rows() -> None:
+    status = _status(
+        components=(_component("sase-core", role="core"),),
+        providers=(_candidate("claude", "Claude Code"),),
+    )
+    state = build_update_panel_state(status, now=_NOW)
+    everything, sase, providers = state.rows
+
+    assert sase.chip.core_rebuild is True
+    assert everything.chip.core_rebuild is True
+    assert providers.chip.core_rebuild is False
+
+    failed = build_update_panel_state(
+        _status(
+            components=(_component("sase-core", role="core"),), plugin_error="down"
+        ),
+        now=_NOW,
+    )
+    assert all(row.chip.core_rebuild is False for row in failed.rows)

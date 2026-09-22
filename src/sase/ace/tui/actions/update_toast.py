@@ -24,8 +24,8 @@ from ._update_toast_config import (
     parse_update_toast_config,
     resolve_check_interval_seconds as resolve_check_interval_seconds,
 )
+from ..widgets import update_accents
 from ._update_toast_message import (
-    _UPDATE_GLYPH as _UPDATE_GLYPH,
     format_update_toast_message as _format_update_toast_message,
 )
 from ._update_toast_sections import (
@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-_TOAST_TITLE = f"{_UPDATE_GLYPH} Updates available"
+_TOAST_TITLE = f"{update_accents.UPDATE_GLYPH} Updates available"
 _TOAST_TIMEOUT_SECONDS = 12.0
 _AUTOMATIC_UPDATE_CHECK_TIMER_NAME = "automatic-update-check"
 

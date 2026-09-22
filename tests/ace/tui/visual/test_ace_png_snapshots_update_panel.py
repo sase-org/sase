@@ -17,7 +17,7 @@ from sase.ace.tui.update_panel_state import (
 )
 from sase.ace.tui.widgets.update_accents import (
     AGENT_CLI_ACCENT,
-    CORE_UPDATE_ACCENT,
+    UPDATE_GLYPH,
     UPDATES_ACCENT,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -59,6 +59,7 @@ def _row(
     count: int = 0,
     details: tuple[str, ...] = (),
     accent: str = UPDATES_ACCENT,
+    core_rebuild: bool = False,
 ) -> UpdateOptionRow:
     key, title, description = _COPY[scope]
     return UpdateOptionRow(
@@ -66,7 +67,9 @@ def _row(
         key=key,
         title=title,
         description=description,
-        chip=UpdateOptionChip(kind=kind, text=text, count=count),
+        chip=UpdateOptionChip(
+            kind=kind, text=text, count=count, core_rebuild=core_rebuild
+        ),
         accent=accent,
         details=details,
     )
@@ -79,25 +82,27 @@ def _pending_state() -> UpdatePanelState:
             _row(
                 "everything",
                 kind="available",
-                text="↑ 5 available",
+                text=f"{UPDATE_GLYPH} 5 available",
                 count=5,
                 details=(
                     "sase 1 · sase-core 1 · core rebuild · providers 3 (1 manual)",
                 ),
                 accent="$primary",
+                core_rebuild=True,
             ),
             _row(
                 "sase",
                 kind="available",
-                text="↑ 2 available",
+                text=f"{UPDATE_GLYPH} 2 available",
                 count=2,
                 details=("sase 1 · sase-core 1 · core rebuild",),
-                accent=CORE_UPDATE_ACCENT,
+                accent=UPDATES_ACCENT,
+                core_rebuild=True,
             ),
             _row(
                 "providers",
                 kind="available",
-                text="↑ 3 available",
+                text=f"{UPDATE_GLYPH} 3 available",
                 count=3,
                 details=(
                     "• Claude Code  2.1.0 → 2.2.0",

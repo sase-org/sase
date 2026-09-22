@@ -172,7 +172,7 @@ async def test_mixed_updates_indicator_keeps_narrow_top_bar_in_bounds(
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
 
-        assert indicator.render().plain == " ↑ 3 * CLI ↑ 2 "
+        assert indicator.render().plain == " ⬆ 3  core  CLI ⬆ 2 "
         assert project_indicator.render().plain == "+sase"
         visible_regions = [
             child.region for child in top_bar.children if child.region.width > 0

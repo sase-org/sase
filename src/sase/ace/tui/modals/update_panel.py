@@ -19,7 +19,11 @@ from sase.ace.tui.update_panel_state import (
     UpdateOptionScope,
     UpdatePanelState,
 )
-from sase.ace.tui.widgets.update_accents import CORE_UPDATE_ACCENT, UPDATE_GLYPH
+from sase.ace.tui.widgets.update_accents import (
+    UPDATE_CAUTION_ACCENT,
+    UPDATE_GLYPH,
+    build_core_tag,
+)
 
 from .base import OptionListNavigationMixin
 
@@ -157,7 +161,7 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
             _RECHECKING_LABEL if self._state.rechecking else self._state.freshness_label
         )
         if self._state.stale:
-            container.border_subtitle = Text(label, style=CORE_UPDATE_ACCENT)
+            container.border_subtitle = Text(label, style=UPDATE_CAUTION_ACCENT)
         else:
             container.border_subtitle = label
         container.set_class(self._state.stale, "-stale")
@@ -170,10 +174,13 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
         prompt = Text()
         prompt.append(row.key, style=f"bold {accent}".strip())
         prompt.append("/", style="dim")
-        prompt.append(row.key.upper(), style=f"bold {CORE_UPDATE_ACCENT}")
+        prompt.append(row.key.upper(), style=f"bold {UPDATE_CAUTION_ACCENT}")
         prompt.append("  ")
         prompt.append(row.title, style="bold")
         chip = Text(row.chip.text, style=_chip_style(row.chip, accent))
+        if row.chip.core_rebuild:
+            chip.append(" ")
+            chip.append_text(build_core_tag())
         gap = max(1, _ROW_WIDTH - prompt.cell_len - chip.cell_len)
         prompt.append(" " * gap)
         prompt.append_text(chip)
@@ -204,7 +211,7 @@ class UpdatePanel(OptionListNavigationMixin, ModalScreen[UpdatePanelResult | Non
 
 def _chip_style(chip: UpdateOptionChip, accent: str) -> str:
     if chip.kind == "stale":
-        return f"bold {CORE_UPDATE_ACCENT}"
+        return f"bold {UPDATE_CAUTION_ACCENT}"
     if chip.kind == "available":
         return f"bold {accent}".strip()
     if chip.kind == "current":
@@ -220,10 +227,10 @@ def _hint_text() -> Text:
     hints.append("e s p", style="bold")
     hints.append("  preview", style="dim")
     hints.append("  ·  ")
-    hints.append("E S P", style=f"bold {CORE_UPDATE_ACCENT}")
+    hints.append("E S P", style=f"bold {UPDATE_CAUTION_ACCENT}")
     hints.append("  ")
-    hints.append(_AUTO_APPROVE_GLYPH, style=f"bold {CORE_UPDATE_ACCENT}")
-    hints.append(" apply now · no prompt", style=CORE_UPDATE_ACCENT)
+    hints.append(_AUTO_APPROVE_GLYPH, style=f"bold {UPDATE_CAUTION_ACCENT}")
+    hints.append(" apply now · no prompt", style=UPDATE_CAUTION_ACCENT)
     hints.append("\n")
     hints.append("j/k move · ⏎ run · r re-check · q close", style="dim")
     return hints

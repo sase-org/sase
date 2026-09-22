@@ -9,6 +9,7 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.actions import update_toast
 from sase.ace.tui.actions.update_toast import UpdateToastMixin
+from sase.ace.tui.widgets.update_accents import UPDATE_GLYPH
 
 from tests.ace.tui._update_toast_helpers import _status
 from tests.ace.tui.visual._ace_png_snapshot_helpers import patch_startup_loaders
@@ -30,7 +31,7 @@ def test_show_startup_update_toast_is_once_per_session() -> None:
 
     assert len(app.calls) == 1
     assert app.calls[0]["severity"] == "information"
-    assert app.calls[0]["title"] == "↑ Updates available"
+    assert app.calls[0]["title"] == f"{UPDATE_GLYPH} Updates available"
 
 
 def test_startup_update_check_respects_disabled_config(
@@ -165,7 +166,7 @@ async def test_startup_update_toast_appears_once_in_tui(
         await page.wait_for(lambda _s: bool(list(page.app._notifications)))
         notifications = list(page.app._notifications)
         assert len(notifications) == 1
-        assert notifications[0].title == "↑ Updates available"
+        assert notifications[0].title == f"{UPDATE_GLYPH} Updates available"
         assert "Press" in notifications[0].message
 
         page.app._show_startup_update_toast(status)

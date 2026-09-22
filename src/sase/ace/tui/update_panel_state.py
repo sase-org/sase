@@ -10,7 +10,7 @@ from sase.updates import UpdateSourceStatus, UpdateStatus
 
 from .widgets.update_accents import (
     AGENT_CLI_ACCENT,
-    CORE_UPDATE_ACCENT,
+    UPDATE_CAUTION_ACCENT,
     UPDATE_GLYPH,
     UPDATES_ACCENT,
 )
@@ -54,6 +54,7 @@ class UpdateOptionChip:
     kind: UpdateOptionChipKind
     text: str
     count: int
+    core_rebuild: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,7 +110,7 @@ def _restart_row(running_code: RunningCodeState) -> UpdateOptionRow:
         "stale",
         len(stale_roots),
         _one(_stale_running_code_detail(stale_roots)),
-        CORE_UPDATE_ACCENT,
+        UPDATE_CAUTION_ACCENT,
         glyph="↻",
     )
 
@@ -124,10 +125,10 @@ def _sase_row(status: UpdateStatus | None) -> UpdateOptionRow:
         details = _one(_sase_detail(status))
     else:
         details = ()
-    accent = UPDATES_ACCENT
-    if status is not None and status.has_core_update:
-        accent = CORE_UPDATE_ACCENT
-    return _row("sase", kind, count, details, accent)
+    core_rebuild = kind == "available" and bool(
+        status is not None and status.has_core_update
+    )
+    return _row("sase", kind, count, details, UPDATES_ACCENT, core_rebuild=core_rebuild)
 
 
 def _providers_row(status: UpdateStatus | None) -> UpdateOptionRow:
@@ -174,7 +175,15 @@ def _everything_row(
         details = _one(" · ".join(dict.fromkeys(errors)))
     elif kind == "available":
         details = _one(_everything_summary(status, sase_row, providers_row))
-    return _row("everything", kind, count, details, _EVERYTHING_ACCENT)
+    core_rebuild = kind == "available" and sase_row.chip.core_rebuild
+    return _row(
+        "everything",
+        kind,
+        count,
+        details,
+        _EVERYTHING_ACCENT,
+        core_rebuild=core_rebuild,
+    )
 
 
 def _everything_summary(
@@ -292,6 +301,7 @@ def _row(
     accent: str,
     *,
     glyph: str = UPDATE_GLYPH,
+    core_rebuild: bool = False,
 ) -> UpdateOptionRow:
     key, title, description = _ROW_COPY[scope]
     return UpdateOptionRow(
@@ -299,7 +309,7 @@ def _row(
         key=key,
         title=title,
         description=description,
-        chip=_chip(kind, count, glyph=glyph),
+        chip=_chip(kind, count, glyph=glyph, core_rebuild=core_rebuild),
         accent=accent,
         details=details,
     )
@@ -310,6 +320,7 @@ def _chip(
     count: int,
     *,
     glyph: str,
+    core_rebuild: bool = False,
 ) -> UpdateOptionChip:
     if kind == "available":
         text = f"{glyph} {count} available"
@@ -321,7 +332,9 @@ def _chip(
         text = "↻ code changed"
     else:
         text = "! check failed"
-    return UpdateOptionChip(kind=kind, text=text, count=count)
+    return UpdateOptionChip(
+        kind=kind, text=text, count=count, core_rebuild=core_rebuild
+    )
 
 
 def _stale_running_code_detail(
