@@ -811,7 +811,7 @@ def test_remote_finalize_headless_streams_output_and_settles_once(
         ),
     )
     fake = FakeOpenSSHEndpoint(tmp_path)
-    monkeypatch.setattr("sase.sudo.ssh.subprocess.run", fake)
+    monkeypatch.setattr("sase.sudo.ssh_detached.subprocess.run", fake)
     monkeypatch.setattr(
         "sase.sudo.core._RustSudoCoreBinding.authorize_settlement",
         lambda self, request: {
@@ -939,8 +939,8 @@ def test_remote_finalize_uncertain_error_keeps_recovery_state(
     )
     fake = FakeOpenSSHEndpoint(tmp_path)
     fake.unreachable = True
-    monkeypatch.setattr("sase.sudo.ssh.subprocess.run", fake)
-    monkeypatch.setattr("sase.sudo.ssh._REMOTE_POLL_SECONDS", 0.0)
+    monkeypatch.setattr("sase.sudo.ssh_detached.subprocess.run", fake)
+    monkeypatch.setattr("sase.sudo.ssh_detached.REMOTE_POLL_SECONDS", 0.0)
     monkeypatch.setattr(
         "sase.sudo.detach.runner_timeout_seconds", lambda _manifest: 0.05
     )

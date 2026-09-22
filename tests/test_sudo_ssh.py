@@ -15,8 +15,6 @@ import pytest
 from sase.dispatch.ssh_login_shell import LOGIN_SHELL_ARGV0
 from sase.notification_gates.models import GateError
 from sase.sudo.ssh import (
-    _encode_ssh_remote_command,
-    _probe_remote_executor_liveness,
     allocate_remote_sudo_paths,
     cleanup_remote_sudo,
     remote_supports_detached_execution,
@@ -24,6 +22,8 @@ from sase.sudo.ssh import (
     run_remote_sudo_detached,
     wait_for_remote_sudo_ledger,
 )
+from sase.sudo.ssh_detached import _probe_remote_executor_liveness
+from sase.sudo.ssh_transport import _encode_ssh_remote_command
 from sase.sudo.ssh_cli import unavailable_remote_cli_message
 
 from tests._sudo_ssh_fake import (
@@ -41,7 +41,7 @@ def fake_controlling_tty(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Pat
     path = tmp_path / "controlling-tty"
     path.touch()
     monkeypatch.setattr(
-        "sase.sudo.ssh._open_controlling_tty",
+        "sase.sudo.ssh_transport._open_controlling_tty",
         lambda: os.open(path, os.O_RDWR),
     )
     return path
@@ -310,7 +310,7 @@ def test_wait_for_remote_sudo_ledger_streams_output_without_duplication(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("sase.sudo.ssh._REMOTE_POLL_SECONDS", 0.0)
+    monkeypatch.setattr("sase.sudo.ssh_detached.REMOTE_POLL_SECONDS", 0.0)
     paths = allocate_remote_sudo_paths(base=str(tmp_path / "stream"))
     Path(paths["directory"]).mkdir(parents=True)
     log_path = Path(paths["log"])
@@ -350,8 +350,8 @@ def test_wait_for_remote_sudo_ledger_stop_writes_remote_stop(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("sase.sudo.ssh._REMOTE_POLL_SECONDS", 0.0)
-    monkeypatch.setattr("sase.sudo.ssh._REMOTE_STOP_GRACE_SECONDS", 0.01)
+    monkeypatch.setattr("sase.sudo.ssh_detached.REMOTE_POLL_SECONDS", 0.0)
+    monkeypatch.setattr("sase.sudo.ssh_detached.REMOTE_STOP_GRACE_SECONDS", 0.01)
     paths = allocate_remote_sudo_paths(base=str(tmp_path / "stop"))
     Path(paths["directory"]).mkdir(parents=True)
     inner = FakeOpenSSHEndpoint(tmp_path)
@@ -383,7 +383,7 @@ def test_wait_for_remote_sudo_ledger_unreachable_keeps_offset(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("sase.sudo.ssh._REMOTE_POLL_SECONDS", 0.0)
+    monkeypatch.setattr("sase.sudo.ssh_detached.REMOTE_POLL_SECONDS", 0.0)
     paths = allocate_remote_sudo_paths(base=str(tmp_path / "net"))
     Path(paths["directory"]).mkdir(parents=True)
     Path(paths["log"]).write_bytes(b"one\n")
@@ -580,7 +580,7 @@ def test_missing_controlling_tty_raises_tty_required(
     def factory() -> int:
         raise OSError(errno.ENXIO, "No such device or address")
 
-    monkeypatch.setattr("sase.sudo.ssh._open_controlling_tty", factory)
+    monkeypatch.setattr("sase.sudo.ssh_transport._open_controlling_tty", factory)
     fake = FakeOpenSSHEndpoint(tmp_path)
     paths = allocate_remote_sudo_paths(base=str(tmp_path / "missing-tty"))
     with pytest.raises(GateError) as excinfo:
