@@ -187,6 +187,33 @@ def test_contextual_all_panel_fold_sweep_may_share_next_querys_key() -> None:
     assert reg.app.collapse_all_panel_folds == "f10"
 
 
+def test_agent_header_toggle_may_share_custom_key_with_each_d_owner() -> None:
+    """The header toggle keeps its exemption against every tab-disjoint owner."""
+    for partner in ("show_diff", "toggle_axe_description", "stitches_toggle_sdd"):
+        reg = load_keymap_registry(
+            {"keymaps": {"app": {"toggle_agent_header": "f11", partner: "f11"}}}
+        )
+        assert reg.app.toggle_agent_header == "f11"
+        assert getattr(reg.app, partner) == "f11"
+
+
+def test_agent_header_toggle_explicit_d_override_keeps_exemption(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Pinning the header toggle to ``d`` does not warn about its tab owners."""
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry({"keymaps": {"app": {"toggle_agent_header": "d"}}})
+    assert reg.app.toggle_agent_header == "d"
+    assert not any("Duplicate key" in r.message for r in caplog.records)
+
+
+def test_agent_header_toggle_collision_with_unrelated_action_reverts() -> None:
+    """A header-toggle override that hits an unrelated default reverts."""
+    reg = load_keymap_registry({"keymaps": {"app": {"toggle_agent_header": "q"}}})
+    assert reg.app.toggle_agent_header == "d"
+    assert reg.app.quit == "q"
+
+
 def test_agents_refresh_and_run_workflow_may_share_a_custom_key() -> None:
     """Agents refresh and Artifacts/Axe run are tab-disjoint."""
     reg = load_keymap_registry(

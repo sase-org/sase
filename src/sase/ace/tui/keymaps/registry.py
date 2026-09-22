@@ -105,6 +105,11 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         # Pane-disjoint by construction: Agents-only attempt history vs
         # Artifacts-only pane brief cycling.
         frozenset({"toggle_attempt_view", "cycle_artifacts_description"}),
+        # Tab-disjoint by construction: Agents-only header toggle vs the
+        # three `d` owners on other tabs.
+        frozenset({"toggle_agent_header", "show_diff"}),
+        frozenset({"toggle_agent_header", "toggle_axe_description"}),
+        frozenset({"toggle_agent_header", "stitches_toggle_sdd"}),
         # Pane-disjoint by construction: Artifacts-only query history cycling
         # vs Agents-only all-panel fold sweep.
         frozenset({"next_query", "collapse_all_panel_folds"}),

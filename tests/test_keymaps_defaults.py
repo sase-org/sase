@@ -500,6 +500,12 @@ def test_default_config_covers_all_app_keymaps() -> None:
     assert not missing, f"default_config.yml missing: {sorted(missing)}"
 
 
+def test_agent_header_toggle_default_binding() -> None:
+    """The header toggle ships on lowercase ``d``, tab-disjoint from its owners."""
+    reg = load_keymap_registry({})
+    assert reg.app.toggle_agent_header == "d"
+
+
 def test_default_config_covers_all_statistics_keymaps() -> None:
     """The bundled config is the source of truth for Statistics-pane keys."""
     defaults = load_builtin_statistics_defaults()

@@ -146,6 +146,24 @@ def _has_agent_artifacts(app: AceApp, agent) -> bool:  # type: ignore[no-untyped
         return False
 
 
+def _header_toggle_available(app: AceApp) -> bool:  # type: ignore[no-untyped-def]
+    if app.current_tab != "agents":
+        return False
+    try:
+        from sase.ace.tui.widgets import AgentDetail
+
+        panel = app.query_one("#agent-detail-panel", AgentDetail)
+    except Exception:
+        return False
+    toggle_available = getattr(panel, "header_toggle_available", None)
+    if not callable(toggle_available):
+        return False
+    try:
+        return bool(toggle_available())
+    except Exception:
+        return False
+
+
 def _completed_agent_count(app: AceApp) -> int:  # type: ignore[no-untyped-def]
     agents = getattr(app, "_agents", [])
     return sum(1 for a in agents if is_unread_completed_status(a.status))
@@ -314,6 +332,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         runner_count=_runner_count(app),
         can_jump_to_patch=can_jump,
         attempt_pinned=attempt_pinned,
+        header_toggle_available=_header_toggle_available(app),
         panel_focused=panel_focused,
         panel_collapsed=panel_collapsed,
         focused_panel_key=focused_panel_key,

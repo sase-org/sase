@@ -426,6 +426,18 @@ class AgentPanelDetailMixin:
         self.notify(f"Attempt view: {mode}")  # type: ignore[attr-defined]
         self._refresh_agents_display()  # type: ignore[attr-defined]
 
+    def action_toggle_agent_header(self) -> None:
+        """Toggle the agent header panel between collapsed and expanded."""
+        if self.current_tab != "agents":
+            return
+
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        toggle = getattr(agent_detail, "toggle_header_expanded", None)
+        if callable(toggle):
+            toggle()
+
     def action_toggle_thinking(self) -> None:
         """Retired app action; open the Agent view picker instead."""
         chooser = getattr(self, "action_choose_agent_view", None)

@@ -215,6 +215,24 @@ def check_app_action(
         return app.current_tab == SERVICES_TAB
     if action == "toggle_attempt_view":
         return app.current_tab == "agents"
+    if action == "toggle_agent_header":
+        if app.current_tab != "agents" or _prompt_input_owns_keys(app):
+            return False
+        try:
+            from .widgets import AgentDetail
+
+            detail = app.query_one("#agent-detail-panel", AgentDetail)
+        except Exception:
+            return False
+        toggle_available = getattr(detail, "header_toggle_available", None)
+        if not callable(toggle_available):
+            # The header panel lands in a later phase; until then the key
+            # stays a no-op so the other `d` bindings keep their tabs.
+            return False
+        try:
+            return bool(toggle_available())
+        except Exception:
+            return False
     if action == "show_diff" and app.current_tab != ARTIFACTS_TAB:
         return False
     if action == "open_artifact_files" and app.current_tab != "agents":

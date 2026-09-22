@@ -84,6 +84,43 @@ async def test_toggle_attempt_view_scoped_to_agents_tab() -> None:
         assert page.app.check_action("toggle_attempt_view", ()) is True
 
 
+async def test_agent_header_toggle_unavailable_until_panel_exists() -> None:
+    async with AcePage(initial_tab="patches") as page:
+        assert page.app.check_action("toggle_agent_header", ()) is False
+
+        page.app.current_tab = "agents"
+        await page.pause()
+        assert page.app.check_action("toggle_agent_header", ()) is False
+
+
+async def test_lowercase_d_owners_stay_available_on_their_tabs() -> None:
+    async with AcePage(initial_tab="patches") as page:
+        page.app.current_tab = "artifacts"
+        page.app.current_artifacts_subtab = "stitches"
+        await page.pause()
+        assert page.app.check_action("stitches_toggle_sdd", ()) is True
+        assert page.app.check_action("toggle_agent_header", ()) is False
+
+        page.app.current_tab = "services"
+        await page.pause()
+        assert page.app.check_action("toggle_axe_description", ()) is True
+        assert page.app.check_action("show_diff", ()) is False
+        assert page.app.check_action("toggle_agent_header", ()) is False
+
+        page.app.current_tab = "agents"
+        await page.pause()
+        # Every other `d` owner is tab-gated off on Agents, and the header
+        # toggle is still unavailable, so `d` is a no-op there for now.
+        assert page.app.check_action("show_diff", ()) is False
+        assert page.app.check_action("toggle_axe_description", ()) is False
+        assert page.app.check_action("stitches_toggle_sdd", ()) is False
+        assert page.app.check_action("toggle_agent_header", ()) is False
+
+        await page.press("d")
+        await page.expect_no_modal()
+        assert page.app.check_action("toggle_agent_header", ()) is False
+
+
 async def test_clicking_pane_brief_cycles_forward() -> None:
     async with AcePage(initial_tab="patches") as page:
         assert page.app.artifacts_description_mode == "summary"

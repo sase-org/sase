@@ -738,6 +738,10 @@ ace:
       open_artifact_files: "a"
       # Attempt history (agents tab)
       toggle_attempt_view: "D"
+      # Agents-only agent header panel toggle. Shares "d" with show_diff
+      # (Artifacts), toggle_axe_description (Services), and
+      # stitches_toggle_sdd (Artifacts Stitches).
+      toggle_agent_header: "d"
       # Manual unread marker (agents tab)
       toggle_agent_unread: "U"
       # Agent tribe modal (agents tab)

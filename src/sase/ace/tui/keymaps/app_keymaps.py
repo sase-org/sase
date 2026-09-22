@@ -151,6 +151,7 @@ class AppKeymaps:
     view_agent_metadata: str
     open_artifact_files: str
     toggle_attempt_view: str
+    toggle_agent_header: str
     toggle_agent_unread: str
     edit_agent_tribe: str
     focus_next_agent_panel: str

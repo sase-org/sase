@@ -78,6 +78,22 @@ def test_diff_and_axe_description_toggle_share_d_in_resolution_order() -> None:
     ]
 
 
+def test_agent_header_toggle_shares_lowercase_d_after_tab_owners() -> None:
+    """The Agents-only header toggle binds ``d`` behind its tab-disjoint owners."""
+    bindings = build_app_bindings(default_app_keymaps())
+    by_action = {binding.action: binding for binding in bindings}
+
+    assert by_action["toggle_agent_header"].key == "d"
+    assert [binding.action for binding in bindings if binding.key == "d"] == [
+        "show_diff",
+        "toggle_axe_description",
+        "stitches_toggle_sdd",
+        "toggle_agent_header",
+    ]
+    fallback_by_action = {binding.action: binding for binding in DEFAULT_BINDINGS}
+    assert fallback_by_action["toggle_agent_header"].key == "d"
+
+
 def test_r_and_R_bind_agents_and_generic_pairs_in_order() -> None:
     bindings = build_app_bindings(default_app_keymaps())
     fallback_r = [binding.action for binding in DEFAULT_BINDINGS if binding.key == "r"]

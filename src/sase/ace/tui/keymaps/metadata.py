@@ -156,6 +156,7 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("jump_to_agent_patch", "Go to Patch", False),
     ("open_artifact_files", "Artifact Files", False),
     ("toggle_attempt_view", "Toggle Attempt View", False),
+    ("toggle_agent_header", "Toggle Agent Header", False),
     ("toggle_agent_unread", "Toggle Agent Unread", False),
     ("edit_agent_tribe", "Edit Agent Tribe", False),
     ("focus_next_agent_panel", "Next Panel", False),

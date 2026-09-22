@@ -1299,6 +1299,11 @@ The [Artifacts pane brief](ace.md#pane-description-brief) cycles with
 `cycle_artifacts_description`, default `D`. It shares that key with the Agents-only
 `toggle_attempt_view`; see the shared-key allowlist below.
 
+The Agents header panel toggles with `toggle_agent_header`, default `d`. It shares that
+key with the Artifacts `show_diff`, the Services `toggle_axe_description`, and the
+Stitches `stitches_toggle_sdd` actions; see the shared-key allowlist below. The toggle
+is available only on the Agents tab while the header panel is shown.
+
 Remote Agents actions are also app-level fields. They intentionally ship as `unbound`:
 the command palette exposes them contextually, and a configured key becomes active only
 when the Agents tab and selected remote row support that action.
@@ -1384,6 +1389,9 @@ rejects every other duplicate app binding:
 | --------------------- | --------------------- | ------------------------------------------------------- | ------------------------------------------------------ |
 | `a`                   | `a`                   | `add_axe_item` / `open_artifact_files`                  | Services vs Artifacts                                  |
 | `d`                   | `d`                   | `show_diff` / `toggle_axe_description`                  | Patches vs Services                                    |
+| `d`                   | `d`                   | `toggle_agent_header` / `show_diff`                     | Agents vs Artifacts                                    |
+| `d`                   | `d`                   | `toggle_agent_header` / `toggle_axe_description`        | Agents vs Services                                     |
+| `d`                   | `d`                   | `toggle_agent_header` / `stitches_toggle_sdd`           | Agents vs Artifacts Stitches                           |
 | `E`                   | `E`                   | `beads_open_bug` / `files_open_external`                | Beads vs Files panes (the shared open-externally verb) |
 | `w`                   | `w`                   | `agents_revive` / `beads_launch_work`                   | Artifacts Agents pane vs Beads pane                    |
 | `w`                   | `w`                   | `agents_revive` / `reword`                              | Artifacts Agents pane vs Patches                       |

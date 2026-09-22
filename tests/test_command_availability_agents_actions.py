@@ -230,6 +230,21 @@ def test_accept_proposal_on_agents_only_for_active_statuses() -> None:
     assert not is_command_available(spec, CommandContext(tab="agents", agent=done))
 
 
+def test_toggle_agent_header_hidden_until_panel_available() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.toggle_agent_header"]
+    agent = _make_agent(status="RUNNING")
+    assert not is_command_available(spec, CommandContext(tab="agents", agent=agent))
+    assert is_command_available(
+        spec,
+        CommandContext(tab="agents", agent=agent, header_toggle_available=True),
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="artifacts", agent=agent, header_toggle_available=True),
+    )
+
+
 def test_toggle_attempt_view_requires_history_and_no_pin() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.toggle_attempt_view"]

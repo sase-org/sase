@@ -316,6 +316,13 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("retry", "history"),
     ),
     (
+        "toggle_agent_header",
+        "Toggle agent header",
+        "Agents",
+        AGENTS_ONLY,
+        ("header", "expand header", "collapse header"),
+    ),
+    (
         "toggle_agent_unread",
         "Toggle agent unread marker",
         "Agents",

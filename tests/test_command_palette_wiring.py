@@ -112,6 +112,8 @@ async def test_palette_omits_inapplicable_axe_only_command_on_cls_tab() -> None:
             assert "app.show_agent_run_log" in ids
             # Specs that only apply to other tabs are excluded by tab scope:
             assert "app.toggle_attempt_view" not in ids
+            # The header toggle is Agents-only, so it never appears here either.
+            assert "app.toggle_agent_header" not in ids
 
 
 async def test_palette_context_uses_current_tab_badge() -> None:
@@ -208,6 +210,17 @@ def test_action_open_command_palette_dispatches_selection() -> None:
         callback(CommandPaletteResult(selected_id="app.refresh"))
 
     refresh_mock.assert_called_once_with()
+
+
+def test_palette_catalog_registers_inert_header_toggle() -> None:
+    """The header toggle is an Agents-only palette entry showing its ``d`` key."""
+    from sase.ace.tui.commands import build_command_catalog
+    from sase.ace.tui.keymaps import load_keymap_registry
+
+    catalog = {c.id: c for c in build_command_catalog(load_keymap_registry({}))}
+    spec = catalog["app.toggle_agent_header"]
+    assert spec.tabs == ("agents",)
+    assert spec.key_display == "d"
 
 
 def test_action_open_command_palette_noop_on_cancel() -> None:
