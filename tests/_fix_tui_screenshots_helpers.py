@@ -152,9 +152,10 @@ class ScriptedCapture:
 class AttemptScript:
     """One scripted pytest-pass outcome for :class:`FakeRunner`.
 
-    Non-verify passes consume scripts in call order; when the scripts run
-    out, a default all-passing script with ``exit_code`` is used. Verify
-    passes keep the legacy behavior (``fail_verify``/``verify_png``).
+    Non-verify passes consume ``attempts`` in call order; when the scripts
+    run out, a default all-passing script with ``exit_code`` is used.
+    Verify passes consume ``verify_attempts`` in call order; when empty,
+    the legacy behavior (``fail_verify``/``verify_png``) applies.
     """
 
     exit_code: int = 0
@@ -177,6 +178,8 @@ class FakeRunner:
     fail_verify: bool = False
     verify_png: bytes | None = None
     attempts: list[AttemptScript] = field(default_factory=list)
+    verify_attempts: list[AttemptScript] = field(default_factory=list)
+    verify_captures: list[ScriptedCapture] | None = None
     calls: list[dict[str, object]] = field(default_factory=list)
 
     def __call__(
@@ -201,9 +204,16 @@ class FakeRunner:
                 "workers": workers,
             }
         )
-        if str(run_id).endswith("-verify"):
+        if "-verify" in str(run_id):
+            verify_index = (
+                sum(1 for call in self.calls if "-verify" in str(call["run_id"])) - 1
+            )
+            if verify_index < len(self.verify_attempts):
+                script = self.verify_attempts[verify_index]
+            else:
+                script = AttemptScript()
             return self._write_pass(
-                AttemptScript(),
+                script,
                 repo_root=repo_root,
                 capture_dir=capture_dir,
                 run_id=str(run_id),
@@ -215,8 +225,7 @@ class FakeRunner:
                 verify=True,
             )
         index = (
-            sum(1 for call in self.calls if not str(call["run_id"]).endswith("-verify"))
-            - 1
+            sum(1 for call in self.calls if "-verify" not in str(call["run_id"])) - 1
         )
         if index < len(self.attempts):
             script = self.attempts[index]
@@ -249,7 +258,7 @@ class FakeRunner:
         pager_root: Path,
         verify: bool,
     ) -> int:
-        if verify and self.fail_verify:
+        if verify and self.fail_verify and not self.verify_attempts:
             log_path.write_text("fake visual pytest\n", encoding="utf-8")
             return 1
         lines = ["fake visual pytest"]
@@ -259,10 +268,13 @@ class FakeRunner:
         log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         if script.no_inventory:
             return script.exit_code
-        selected = list(self.captures)
-        node_ids = [arg for arg in pytest_args if "::" in arg]
-        if node_ids:
-            selected = [item for item in selected if item.node_id in node_ids]
+        if verify and self.verify_captures is not None:
+            selected = list(self.verify_captures)
+        else:
+            selected = list(self.captures)
+            node_ids = [arg for arg in pytest_args if "::" in arg]
+            if node_ids:
+                selected = [item for item in selected if item.node_id in node_ids]
         excluded = set(script.errored) | set(script.unexecuted)
         roots = VisualCaptureRoots(ace=ace_root, pager=pager_root)
         session = VisualCaptureSession(
@@ -277,7 +289,11 @@ class FakeRunner:
             if item.node_id in excluded:
                 continue
             png = script.pngs.get(item.node_id, item.png)
-            if verify and self.verify_png is not None:
+            if (
+                verify
+                and self.verify_png is not None
+                and item.node_id not in script.pngs
+            ):
                 png = self.verify_png
             snapshot_root = ace_root if item.identity == "ace" else pager_root
             session.record_capture(
@@ -330,8 +346,6 @@ class FakeRunner:
             session_exitstatus=exitstatus,
         )
         write_inventory(capture_dir, inventory)
-        if verify:
-            return 0
         return script.exit_code
 
 

@@ -124,7 +124,10 @@ def test_session_only_nonzero_exit_applies_with_warning(
     assert manifest["status"] == "applied"
     assert manifest["child_exit_code"] == 1
     assert any("temp-leak guard" in warning for warning in manifest["warnings"])
-    assert [attempt["label"] for attempt in manifest["attempts"]] == ["capture"]
+    assert [attempt["label"] for attempt in manifest["attempts"]] == [
+        "capture",
+        "verify",
+    ]
 
 
 def test_lost_worker_nodes_are_recovered(tmp_path: Path) -> None:
@@ -151,7 +154,7 @@ def test_lost_worker_nodes_are_recovered(tmp_path: Path) -> None:
     assert manifest["status"] == "applied"
     assert manifest["skipped"] == []
     labels = [attempt["label"] for attempt in manifest["attempts"]]
-    assert labels == ["capture", "recover-1"]
+    assert labels == ["capture", "recover-1", "verify"]
 
 
 def test_full_run_with_unrecovered_failure_skips_pruning(

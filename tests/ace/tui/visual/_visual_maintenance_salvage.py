@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
-import dataclasses
 from pathlib import Path
 from typing import Any
 
@@ -21,10 +20,8 @@ from tests.ace.tui.visual._visual_maintenance_compare import (
     classify_selected_captures,
     preserve_expected_bytes,
 )
-from tests.ace.tui.visual._visual_maintenance_exec import (
-    run_pytest,
-    verify_changes,
-)
+from tests.ace.tui.visual._visual_maintenance_exec import run_pytest
+from tests.ace.tui.visual._visual_maintenance_verify import run_verify_agreement
 from tests.ace.tui.visual._visual_maintenance_manifest import (
     build_manifest,
     failure_manifest,
@@ -179,6 +176,7 @@ class _UpdateRun:
     terminal_manifest: ChangeManifest | None = None
     dropped_paths: set[str] = field(default_factory=set)
     protocol_errors: list[str] = field(default_factory=list)
+    verify_sources: dict[str, tuple[CaptureRecord, Path]] = field(default_factory=dict)
 
     def execute(self) -> int:
         """Run capture, recovery, classification, verification, and apply."""
@@ -247,21 +245,21 @@ class _UpdateRun:
                 "and were left untouched"
             )
         changes_tuple = tuple(kept)
-        self._verify(changes_tuple, inventory, ordered)
+        final_changes = self._verify(changes_tuple, ordered)
         partial = bool(self.skipped) or (
             self.request.scope == "full" and self.pruning_skipped_reason is not None
         )
         status = STATUS_PARTIAL if partial else STATUS_CLEAN
-        if has_actionable_changes(changes_tuple):
+        if has_actionable_changes(final_changes):
             status = STATUS_PARTIAL if partial else STATUS_APPLIED
-            self._apply(changes_tuple, inventory, ordered)
+            self._apply(final_changes, inventory, ordered)
             journal_relpath: str | None = str(
                 (self.run_dir / JOURNAL_FILENAME).relative_to(self.repo_root)
             )
         else:
             journal_relpath = None
         manifest = self._manifest(
-            changes_tuple,
+            final_changes,
             inventory,
             status=status,
             exit_code=EXIT_SUCCESS,
@@ -572,26 +570,26 @@ class _UpdateRun:
     def _verify(
         self,
         changes: Sequence[ChangeRecord],
-        inventory: InventoryReport,
         ordered: Sequence[tuple[CaptureRecord, Path]],
-    ) -> None:
+    ) -> tuple[ChangeRecord, ...]:
         if not any(item.kind in {KIND_CREATED, KIND_UPDATED} for item in changes):
-            return
-        verify_dir = self.run_dir / "verify"
-        verify_dir.mkdir(parents=True, exist_ok=True)
-        self.verify_dir = verify_dir
-        self.logs["verify"] = posix_relative(
-            self.run_dir / "verify.log", self.repo_root
-        )
-        verify_changes(
-            self.hooks,
+            return tuple(changes)
+        result = run_verify_agreement(
+            hooks=self.hooks,
             repo_root=self.repo_root,
-            first=_merged_inventory(inventory, ordered),
-            changes=changes,
-            verify_dir=verify_dir,
             run_id=self.run_id,
-            log_path=self.run_dir / "verify.log",
+            run_dir=self.run_dir,
+            baseline=self.baseline,
+            ordered=ordered,
+            changes=changes,
         )
+        self.verify_dir = result.verify_dir
+        self.logs.update(result.logs)
+        self.attempts.extend(result.attempts)
+        self.skipped.extend(result.skipped)
+        self.warnings.extend(result.warnings)
+        self.verify_sources = dict(result.sources)
+        return result.changes
 
     def _apply(
         self,
@@ -651,20 +649,26 @@ class _UpdateRun:
     ) -> Path:
         from tests.ace.tui.visual._visual_capture_paths import atomic_write_bytes
 
-        if all(source_dir == self.capture_dir for _, source_dir in ordered):
+        needed: list[tuple[CaptureRecord, Path]] = list(self.verify_sources.values())
+        needed.extend(ordered)
+        if not needed:
+            return self.capture_dir
+        if all(source_dir == self.capture_dir for _, source_dir in needed):
             return self.capture_dir
         merged = self.capture_dir / "merged"
         merged.mkdir(parents=True, exist_ok=True)
-        for record, source_dir in ordered:
+        seen: set[str] = set()
+        for record, source_dir in needed:
             for relpath in (
                 record.candidate_png_relpath,
                 record.candidate_svg_relpath,
             ):
-                if not relpath:
+                if not relpath or relpath in seen:
                     continue
                 source = source_dir / relpath
                 if source.is_file():
                     atomic_write_bytes(merged / relpath, source.read_bytes())
+                    seen.add(relpath)
         return merged
 
 
@@ -702,13 +706,3 @@ def _evidence_for_path(
         if change.path == path and change.candidate_png_relpath:
             return (change.candidate_png_relpath,)
     return ()
-
-
-def _merged_inventory(
-    first: InventoryReport,
-    ordered: Sequence[tuple[CaptureRecord, Path]],
-) -> InventoryReport:
-    return dataclasses.replace(
-        first,
-        captures=tuple(record for record, _ in ordered),
-    )

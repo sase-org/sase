@@ -42,6 +42,9 @@ from tests.ace.tui.visual._visual_maintenance_salvage import (
 from tests.ace.tui.visual._visual_maintenance_trust import (
     derive_node_trust as derive_node_trust,
 )
+from tests.ace.tui.visual._visual_maintenance_verify import (
+    run_verify_agreement as run_verify_agreement,
+)
 from tests.ace.tui.visual._visual_maintenance_types import (
     EXIT_DRIFT as EXIT_DRIFT,
     EXIT_FAILURE as EXIT_FAILURE,
@@ -104,5 +107,6 @@ __all__ = [
     "run_governed_visual_pytest",
     "run_maintenance",
     "run_update",
+    "run_verify_agreement",
     "validate_pytest_args",
 ]

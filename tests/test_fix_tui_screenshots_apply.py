@@ -368,11 +368,13 @@ def test_zero_tests_are_an_error(tmp_path: Path) -> None:
     )
 
 
-def test_failed_verification_aborts_update(tmp_path: Path) -> None:
+def test_failed_verification_skips_unstable_update(tmp_path: Path) -> None:
     init_repo(tmp_path)
     red = make_png(1, 1, (255, 0, 0, 255))
     blue = make_png(1, 1, (0, 0, 255, 255))
     green = make_png(1, 1, (0, 255, 0, 255))
+    yellow = make_png(1, 1, (255, 255, 0, 255))
+    cyan = make_png(1, 1, (0, 255, 255, 255))
     target = write_golden(tmp_path, "ace", "shot.png", red)
     write_golden(tmp_path, "pager", "shot.png", red)
     commit_all(tmp_path)
@@ -382,14 +384,24 @@ def test_failed_verification_aborts_update(tmp_path: Path) -> None:
             ScriptedCapture(PAGER_NODE, "shot", "pager", red),
         ],
         repo_root=tmp_path,
-        verify_png=green,
+        verify_attempts=[
+            AttemptScript(exit_code=0, pngs={ACE_NODE: green}),
+            AttemptScript(exit_code=0, pngs={ACE_NODE: yellow}),
+            AttemptScript(exit_code=0, pngs={ACE_NODE: cyan}),
+        ],
     )
     assert (
         main([], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
-        == EXIT_FAILURE
+        == EXIT_SUCCESS
     )
     assert target.read_bytes() == red
-    assert any(str(call["run_id"]).endswith("-verify") for call in runner.calls)
+    assert any("-verify" in str(call["run_id"]) for call in runner.calls)
+    manifest = _manifest(tmp_path)
+    assert manifest["status"] == "partial"
+    assert any(
+        item["reason"] == "unstable" and item["node_id"] == ACE_NODE
+        for item in manifest["skipped"]
+    )
 
 
 def test_pre_existing_dirty_paths_are_recorded_separately(tmp_path: Path) -> None:
