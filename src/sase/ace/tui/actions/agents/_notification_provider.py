@@ -155,7 +155,7 @@ def _read_unread_notification_page_for_tui(
     )
 
 
-def _read_notification_detail_for_tui(
+def read_notification_detail_for_tui(
     notification_id: str,
     *,
     args: Any | None = None,
@@ -340,7 +340,7 @@ class AgentNotificationProviderMixin:
         notification_id: str,
     ) -> Any:
         """Return selected notification detail via the configured provider."""
-        result = _read_notification_detail_for_tui(notification_id)
+        result = read_notification_detail_for_tui(notification_id)
         self._notification_detail_provider_used_daemon = False  # type: ignore[attr-defined]
         self._notification_detail_provider_snapshot = getattr(  # type: ignore[attr-defined]
             result.value, "shared_snapshot", None

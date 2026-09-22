@@ -432,6 +432,14 @@ class RemoteAttentionMixin:
     def action_answer_remote_attention(self) -> None:
         """Answer or approve the selected row's pending remote attention."""
         agent = self._get_selected_agent()  # type: ignore[attr-defined]
+        self._answer_remote_attention_for(agent)
+
+    def _answer_remote_attention_for(self, agent: Agent | None) -> None:
+        """Answer or approve *agent*'s pending remote attention.
+
+        Shared by :meth:`action_answer_remote_attention` and the Enter
+        target executor, so both validate and open the modal identically.
+        """
         if not has_pending_remote_attention(agent):
             self.notify(  # type: ignore[attr-defined]
                 "Select a remote row with a pending question or gate",

@@ -26,7 +26,7 @@ class _NamedPatch(Protocol):
     name: str
 
 
-def _find_patch_index_by_name(
+def find_patch_index_by_name(
     patches: Sequence[_NamedPatch], patch_name: str
 ) -> int | None:
     """Find a Patch index, preferring exact names over suffix fallback."""
@@ -42,7 +42,7 @@ def _find_patch_index_by_name(
     return fallback_idx
 
 
-def _get_app_patches(app: object) -> Sequence[_NamedPatch]:
+def get_app_patches(app: object) -> Sequence[_NamedPatch]:
     patches = getattr(app, "patches", None)
     if patches is not None:
         return patches
@@ -235,8 +235,8 @@ def navigate_to_patch_tab(app: object, patch_name: str, project_file: str) -> bo
     app.current_tab = "patches"  # type: ignore[attr-defined]
 
     # Search in current filtered list
-    patches = _get_app_patches(app)
-    idx = _find_patch_index_by_name(patches, patch_name)
+    patches = get_app_patches(app)
+    idx = find_patch_index_by_name(patches, patch_name)
     if idx is not None:
         app.current_idx = idx  # type: ignore[attr-defined]
         return True
@@ -284,8 +284,8 @@ def navigate_to_patch_tab(app: object, patch_name: str, project_file: str) -> bo
         app._save_current_query()  # type: ignore[attr-defined]
 
         # Search again in the new list
-        patches = _get_app_patches(app)
-        idx = _find_patch_index_by_name(patches, patch_name)
+        patches = get_app_patches(app)
+        idx = find_patch_index_by_name(patches, patch_name)
         if idx is not None:
             app.current_idx = idx  # type: ignore[attr-defined]
             return True

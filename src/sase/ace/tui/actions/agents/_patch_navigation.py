@@ -26,12 +26,13 @@ class AgentPatchNavigationMixin:
         For project agents, checks meta output variables.
         For all others, uses agent.cl_name directly.
 
-        Returns None when the resolved name is "unknown" or empty.
+        Returns None when the resolved name is "unknown", "~" (the
+        running-marker fallback), or empty.
         """
         # Workflow step children: resolve via parent
         if agent.parent_workflow is not None:
             cl_name = self._resolve_workflow_child_cl_name(agent)
-            if not cl_name or cl_name == "unknown":
+            if not cl_name or cl_name in {"unknown", "~"}:
                 return None
             return cl_name
 
@@ -43,7 +44,7 @@ class AgentPatchNavigationMixin:
 
         # All others (including follow-up agents): use cl_name directly
         cl_name = agent.cl_name
-        if not cl_name or cl_name == "unknown":
+        if not cl_name or cl_name in {"unknown", "~"}:
             return None
         return cl_name
 

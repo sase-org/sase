@@ -5,10 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 from sase.agent.status_buckets import agent_is_asking
-from sase.notification_gates.registry import (
-    PRIVILEGED_GATE_ACTIONS,
-    adapter_for_action,
-)
+from sase.notification_gates.registry import PRIVILEGED_GATE_ACTIONS
 
 from ._notification_utils import refresh_notification_agent_from_cache
 
@@ -141,28 +138,9 @@ class AgentNotificationModalMixin:
             initial_index: Index of the notification to highlight initially.
         """
         from sase.notifications import mark_read
-        from sase.notification_gates.failure_notifications import (
-            GATE_EXECUTION_FAILED_ACTION,
-        )
 
-        from ._notification_actions import (
-            REMOTE_ATTENTION_NOTIFICATION_ACTION,
-            handle_custom_gate,
-            handle_gate_execution_failed,
-            handle_hitl,
-            handle_jump_to_agent,
-            handle_jump_to_patch,
-            handle_jump_to_mentor_review,
-            handle_launch_approval,
-            handle_open_launch_control,
-            handle_plan_approval,
-            handle_remote_attention_notification,
-            handle_sudo_request,
-            handle_tmux,
-            handle_user_question,
-            handle_view_error_report,
-            handle_view_report,
-        )
+        from ._notification_actions import REMOTE_ATTENTION_NOTIFICATION_ACTION
+        from ._notification_dispatch import open_notification_action
         from ...modals import NotificationModal
 
         page = self._read_unread_notification_page_from_provider()
@@ -185,45 +163,7 @@ class AgentNotificationModalMixin:
             detail = self._read_notification_detail_from_provider(result.id)
             if detail.notification is not None:
                 result = detail.notification
-            gate_adapter = adapter_for_action(result.action)
-            if result.action in PRIVILEGED_GATE_ACTIONS:
-                self._read_notification_pending_actions_from_provider()
-
-            if result.action == "JumpToPatch":
-                handle_jump_to_patch(self, result)
-            elif result.action == "JumpToMentorReview":
-                handle_jump_to_mentor_review(self, result)
-            elif result.action == "JumpToAgent":
-                handle_jump_to_agent(self, result)
-            elif result.action == "Tmux":
-                handle_tmux(self, result)
-            elif result.action == "HITL":
-                handle_hitl(self, result)
-            elif result.action in {"PlanApproval", "EpicApproval"}:
-                handle_plan_approval(self, result)
-            elif result.action == "UserQuestion":
-                handle_user_question(self, result)
-            elif result.action == "LaunchApproval":
-                handle_launch_approval(self, result)
-            elif result.action == REMOTE_ATTENTION_NOTIFICATION_ACTION:
-                handle_remote_attention_notification(self, result)
-            elif result.action == "SudoRequest":
-                handle_sudo_request(self, result)
-            elif gate_adapter is not None and gate_adapter.generic_form:
-                handle_custom_gate(self, result)
-            elif result.action == "ViewErrorReport":
-                handle_view_error_report(self, result)
-            elif result.action == GATE_EXECUTION_FAILED_ACTION:
-                handle_gate_execution_failed(self, result)
-            elif result.action == "ViewReport":
-                handle_view_report(self, result)
-            elif result.action == "OpenLaunchControl":
-                handle_open_launch_control(self, result)
-            elif result.action and result.action.strip():
-                self.notify(  # type: ignore[attr-defined]
-                    f"Unsupported notification action: {result.action}",
-                    severity="warning",
-                )
+            open_notification_action(self, result)
 
         self.push_screen(  # type: ignore[attr-defined]
             NotificationModal(

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
+from ._agent_enter_action import AgentEnterActionMixin
 from ._approve import AgentApproveMixin
 from ._patch_navigation import AgentPatchNavigationMixin
 from ._display import AgentDisplayMixin
@@ -80,6 +81,7 @@ class AgentsMixinCore(
     AgentNavigationOrderMixin,
     AgentSelectionMixin,
     AgentUnreadMixin,
+    AgentEnterActionMixin,
     AgentPatchNavigationMixin,
     AgentQueryPersistenceMixin,
     AgentFilterActionsMixin,
