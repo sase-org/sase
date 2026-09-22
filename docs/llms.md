@@ -2282,16 +2282,16 @@ remaining capacity is strictly below 20%. Claude's observed weekly
 and the header shows it only when it runs low. Muse's 5-hour `session` window is hidden
 from the header by default (`indicator.providers.muse.windows.session: never`) but
 remains in `sase usage list` and Providers · Usage. Antigravity's `gemini-weekly` window
-is a weekly all-model window and always shows; its `gemini-5h`, `3p-weekly`, and `3p-5h`
-windows follow the generic 20% threshold. Use `always`, `never`, or
-`{below_remaining_percent: N}` policies. Exact provider window keys are stable selectors
-and can be found in `sase usage list --json` at `windows[].key`; shortened labels in the
-header are not configuration selectors. Set the exact Fable key to `always` to restore
-always-visible behavior, to `never` to hide it even when low, or to a threshold of its
-own. Invalid display overrides are reported and ignored at that override while unrelated
-collection settings and valid provider/window policies keep working. Config changes are
-picked up by the normal sase's TUI usage refresh path even when no provider writes a new
-usage cache file.
+is treated as its weekly anchor under `weekly_all` and always shows; its `gemini-5h`,
+`3p-weekly`, and `3p-5h` windows follow the generic 20% threshold. Use `always`,
+`never`, or `{below_remaining_percent: N}` policies. Exact provider window keys are
+stable selectors and can be found in `sase usage list --json` at `windows[].key`;
+shortened labels in the header are not configuration selectors. Set the exact Fable key
+to `always` to restore always-visible behavior, to `never` to hide it even when low, or
+to a threshold of its own. Invalid display overrides are reported and ignored at that
+override while unrelated collection settings and valid provider/window policies keep
+working. Config changes are picked up by the normal sase's TUI usage refresh path even
+when no provider writes a new usage cache file.
 
 Use `sase usage` or `sase usage list` to inspect the cache without provider I/O:
 

@@ -2156,11 +2156,13 @@ llm_provider:
 ```
 
 Antigravity reports four windows — `gemini-weekly`, `gemini-5h`, `3p-weekly`, and
-`3p-5h` — and has no bundled indicator entry. Its Gemini weekly window is classified as
-a weekly all-model window, so `weekly_all: always` anchors it in the header unlabeled
-whenever agy is an eligible provider. The Gemini 5-hour window and both `3p-*`
-(Claude/GPT) windows fall through to the global `indicator.default` threshold and appear
-only below 20% remaining. Pin or hide them with exact keys:
+`3p-5h` — and has no bundled indicator entry. Its Gemini weekly window is treated as the
+provider's weekly anchor (it matches the `weekly_all` policy while keeping its
+`family:gemini` scope), so `weekly_all: always` anchors it in the header unlabeled
+whenever agy is an eligible provider; a `providers.agy.default` policy would take
+precedence. The Gemini 5-hour window and both `3p-*` (Claude/GPT) windows fall through
+to the global `indicator.default` threshold and appear only below 20% remaining. Pin or
+hide them with exact keys:
 
 ```yaml
 llm_provider:
@@ -5141,7 +5143,7 @@ VCS, workspace, and LLM registries load provider entry points directly.
 | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `SASE_TMPDIR`                         | Override SASE's [managed temp root](#managed_tmp). When unset, the root is `$SASE_HOME/tmp` (`~/.sase/tmp` by default). Keep it off tmpfs and out of file-sync folders, because build scratch can be large.                                                                                                                                            |
 | `SASE_DETACH_SCOPE_DISABLE`           | Set to `1`, `true`, `yes`, or `on` to stop detached agent runners, procs, monitors, and scheduler/hook/bead-sync workers from escaping SASE's systemd cgroup. By default on Linux, when the launcher runs inside a SASE-owned systemd unit or scope and `systemd-run` exists, SASE starts that work in its own transient `systemd-run --user --scope`. |
-| `SASE_AXE_DISABLE_SYSTEMD_SCOPE`      | Legacy alias for `SASE_DETACH_SCOPE_DISABLE`: set to a truthy value to stop detached agent runners, procs, and monitors from escaping SASE's systemd cgroup.                                                                                                                                                                                           |
+| `SASE_AXE_DISABLE_SYSTEMD_SCOPE`      | Legacy alias for `SASE_DETACH_SCOPE_DISABLE`: set to a truthy value to stop the same detached work from escaping SASE's systemd cgroup.                                                                                                                                                                                                                |
 | `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION` | Plan-specific auto-approval action for an agent; currently `approve` or `epic`.                                                                                                                                                                                                                                                                        |
 | `SASE_AGENT_AUTO_PLAN_ACTION`         | Backward-compatible alias for `SASE_AGENT_AUTO_APPROVE_PLAN_ACTION`.                                                                                                                                                                                                                                                                                   |
 | `SASE_AGENT_AUTO_APPROVE`             | Legacy boolean auto-approve flag; maps plan submissions to normal approval.                                                                                                                                                                                                                                                                            |

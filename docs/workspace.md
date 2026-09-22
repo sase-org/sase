@@ -534,10 +534,11 @@ Preview the fix with `sase workspace repair -n`.
 When preparation fails, the error names the workspace, the failing step (`clean`,
 `checkout`, `sync`, `sidecar-protection`, or `agents-sync-guard`), and the underlying
 git or guard message, in the form
-`Failed to prepare workspace <dir> during <step>: <reason>`. Agent runs record the same
-reason in the run log (`Workspace preparation failed: …`, or
-`Linked repo '<name>' workspace preparation failed: …`), and `sase workspace open`
-prints it to stderr.
+`Failed to prepare workspace <dir> during <step>: <reason>`; `sase workspace open`
+prints that message to stderr. On an agent's first launch attempt, the run log records
+it as `Workspace preparation failed: …` (or
+`Linked repo '<name>' workspace preparation failed: …`), while the error the agent run
+reports omits the step: `Failed to prepare workspace <dir>: <reason>`.
 
 `sase workspace compact -n` previews eligible existing checkouts and reports local
 object bytes without changing Git config or objects. Pass one or more workspace numbers

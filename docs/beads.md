@@ -2036,10 +2036,12 @@ sase bead touched 0oa -v read -j
 | `-l, --limit N`   | Maximum beads to print; `0` means unlimited            |
 | `-v, --verb VERB` | Only show beads with this verb (repeatable)            |
 
-An agent with no touched beads prints `No beads touched by <agent>.`
+When the agent has no touched beads, or none match the `-v` filter, the command prints
+`No beads touched by <agent>.` (`-j` prints an empty `touches` list instead).
 
 Each row leads with one glyph for its strongest verb, shared with the Agents-tab
-`Beads:` rows:
+`Beads:` rows. The table lists glyphs from strongest to weakest, so a bead that was both
+viewed and removed shows `◇`:
 
 | Glyph | Verb(s)                                                              |
 | ----- | -------------------------------------------------------------------- |
@@ -2048,17 +2050,21 @@ Each row leads with one glyph for its strongest verb, shared with the Agents-tab
 | `↻`   | `reopened`                                                           |
 | `✎`   | `updated`, `noted`, `ready`, `snoozed`, `dep`, `linked`, `ref`, `+1` |
 | `←`   | `read`                                                               |
-| `◇`   | `viewed` only (also an `own`-only panel row)                         |
+| `◇`   | `viewed` (also an `own`-only panel row)                              |
 | `⌫`   | `removed`                                                            |
 
 Durable verbs come from a derived per-project touch index
 (`~/.sase/projects/<project>/agent_bead_touches.json`) that is rebuilt from the bead
-event streams after every bead mutation, after `sase bead sync`, and by the periodic
-artifact-link backfill job. Reading it never refreshes it, so rows reflect the last
-refresh, and a missing index lists no durable verbs. Run
-`sase doctor -C beads.touch_index` to check it: a fresh or not-yet-built index reports
-OK, and a stale or wrong-schema index warns with the changed and vanished streams. Any
-`sase bead` mutation refreshes it.
+event streams after `sase bead sync`, by the periodic artifact-link backfill job, and
+after bead mutations that run through SASE's Python mutation path (for example
+`sase bead create`, `sase bead close`, note-style updates, and bead actions taken from
+sase's TUI or gates). Mutations that the Rust fast path handles directly (typically
+plain `sase bead update`, `+1`, or `snooze`) do not refresh it. Reading the index never
+refreshes it, so rows reflect the last refresh; a missing index lists no durable verbs,
+though `read` and `viewed` rows still appear. Run `sase doctor -C beads.touch_index` to
+check it: a fresh or not-yet-built index reports OK, a stale index warns and lists the
+changed and vanished streams, and an unreadable or wrong-schema index warns that the
+next refresh rebuilds it. `sase bead sync` is a reliable way to refresh it on demand.
 
 ### `sase bead update <id> [<id2> ...]`
 

@@ -1605,14 +1605,14 @@ top-level `scheduler` service proc alongside any other configured services:
   job and identifies the all-instances effect.
 - Start/stop/restart the selected service proc (`x` / `r`), enable/disable it on this
   machine (`!e`), and runner counts
-- The `SVC` footer pill shows service health: a teal `N/M` running/desired service-proc
-  count, or a red `!` when the host is stopped or a counted proc is unhealthy (see
-  [Service Health Pill](ace.md#service-health-pill))
+- The `SVC` footer pill shows service health: a teal `N/M` count of running versus
+  counted service procs, or a red `!` when the host is not running or a counted proc is
+  unhealthy (see [Service Health Pill](ace.md#service-health-pill))
 
 Select the top-level scheduler row before pressing `x` or `r`; those keys intentionally
 do nothing on its nested routines and jobs. `!x` starts or stops the whole service host.
-Until the first service-status snapshot loads, the pill shows legacy host-state labels;
-the RESTARTING label appears when `sase tui --restart-service` (`--restart-axe`, `-R`)
-is used — the host restarts in the background while the TUI starts up normally.
+`sase tui --restart-service` (`--restart-axe`, `-R`) restarts an already-running host in
+the background after the TUI's first status load (it is a no-op when the host is not
+running); the pill keeps showing health throughout.
 
 See [`docs/ace.md`](ace.md) for the full Services tab keybinding reference.

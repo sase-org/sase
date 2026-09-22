@@ -33,7 +33,7 @@ Agents tab restores its own last submitted Agents query after startup.
 | `-s`, `--sanity-refresh-interval`          | Full sanity-refresh interval in seconds (default: 300); see [Auto-Refresh](#auto-refresh)                                                                    |
 | `-x`, `--no-service`, `--no-axe`           | Disable auto-starting the service host on startup                                                                                                            |
 | `-v`, `--vcs-provider`                     | Override VCS provider (`git`, `hg`, or `auto`)                                                                                                               |
-| `-R`, `--restart-service`, `--restart-axe` | Restart an already-running service host on startup (shows RESTARTING indicator)                                                                              |
+| `-R`, `--restart-service`, `--restart-axe` | Restart an already-running service host on startup (no-op if it is not running)                                                                              |
 | `-t`, `--tab`                              | Tab to focus on startup (`agents` by default, `artifacts`, or `services`; `axe` is a compatibility alias, and `changespecs` and `patches` alias `artifacts`) |
 | `-T`, `--tmux`                             | Launch sase's TUI in a new tmux window and print the target for external control                                                                             |
 
@@ -1781,12 +1781,12 @@ launching the terminal viewer.
 The prompt/detail header includes those non-chat entries in the plan-adjacent
 `SASE CONTEXT` `ARTIFACTS` lane. Within that lane, `Beads`, `Reads`, `Commits`,
 `Deltas`, and `Files` stay in that order when present. `Beads` lists the beads the agent
-touched, read, or viewed (see the metadata panel description below); audited `bead:`
-reads appear there rather than under `Reads`. `Reads` lists audited `sase artifact read`
-invocations (newest first, with reasons); prompt citations and silent `show` / `path` /
-`open` inspection do not appear. Paths are made workspace-relative when possible, and
-hint mode assigns numbers to filesystem-backed reads and output paths so they can be
-opened with the normal file-hint flow.
+touched, read, or viewed, plus its assigned beads (see the metadata panel description
+below); audited `bead:` reads appear there rather than under `Reads`. `Reads` lists
+audited `sase artifact read` invocations (newest first, with reasons); prompt citations
+and silent `show` / `path` / `open` inspection do not appear. Paths are made
+workspace-relative when possible, and hint mode assigns numbers to filesystem-backed
+reads and output paths so they can be opened with the normal file-hint flow.
 
 Artifact panel controls:
 
@@ -2824,12 +2824,13 @@ The dashboard status line reports the service host state (`Host: <state>`); back
 commands (oneshot service procs) form a separate `── oneshots ──` section below the
 daemon procs. Project-local `sase.yml` service entries are intentionally ignored.
 
-The info panel always leads with a host clause:
+Once service status has loaded, the info panel leads with a host clause:
 `Services · host ● running 4d · sase.service` while the host runs (uptime in its largest
-unit, then the native service unit or `detached`), or
-`Services · host ○ stopped · press !x to start` when it does not. Disabled rows carry an
-inline provenance chip (`disabled here` for a local override, `disabled by <layer>`
-otherwise), and unavailable rows show `unavailable: <reason>`.
+unit when known, then the installed native service unit or `detached`), or
+`Services · host ○ stopped · press !x to start` for any other host state, including a
+host that is still starting or whose heartbeat is stale. Disabled rows carry an inline
+provenance chip (`disabled here` for a local override, `disabled by <layer>` otherwise),
+and unavailable rows show `unavailable: <reason>`.
 
 On a selected top-level service proc, `x` starts or stops it, `r` restarts it, and `!e`
 enables or disables it on this machine. Those actions are no-ops when no service proc is
@@ -3275,10 +3276,11 @@ Plugins, and Agent CLIs alike.
 
 Pressing `Q` opens the **quit / restart menu**. When procs are still running, the menu
 warns inline with the count that leaving will stop (`N procs will be stopped`; service
-procs and oneshots are not counted), and it offers three actions:
+procs, oneshots, and monitor shells are not counted), and it offers three actions:
 
-- `1` / `s` — quit sase's TUI and stop the `scheduler` service proc; the service host
-  and its other service procs keep running
+- `1` / `s` — quit sase's TUI and stop the `scheduler` service proc (best effort: the
+  TUI still quits if the stop fails); the service host and its other service procs keep
+  running
 - `2` / `r` — restart the TUI, leaving the service host running
 - `3` / `a` — restart the TUI and restart the service host
 
@@ -3680,16 +3682,16 @@ The default weekly all-model window renders as `<remaining-percent> <reset-count
 additional selected windows include compact names such as `fable`, `5h`, `mo`,
 `5h/fable`, or `5h/gemini`. Compact names omit redundant weekly and all-model components
 and drop the `family:` prefix of family-scoped windows (`5h/3p`, not `5h/family:3p`)
-while retaining model/family distinctions; tooltips and `sase usage list` keep the full
-`family:` form; `scope?` means the provider did not expose exact applicability. The
-name, percentage, and reset countdown share the window's ten-step remaining-capacity
-color, from red (nearly exhausted) to blue (nearly full), except an exact `0%`
-highlights the window's whole value run — its name, rejection marker, percentage, and
-reset countdown together — with the inverted red style. Provider icons, middle dots,
-provider gaps, and outer padding keep their normal surfaces; a non-zero window's name
-and rejected marker do too. Structural punctuation is neutral, normal weight in both
-themes. Which windows appear, and at what remaining percentage, is fully configurable
-through
+while retaining model/family distinctions; tooltips (`scope: family: 3p`) and
+`sase usage list` (`scope=family:3p`) still show the family scope; `scope?` means the
+provider did not expose exact applicability. The name, percentage, and reset countdown
+share the window's ten-step remaining-capacity color, from red (nearly exhausted) to
+blue (nearly full), except an exact `0%` highlights the window's whole value run — its
+name, rejection marker, percentage, and reset countdown together — with the inverted red
+style. Provider icons, middle dots, provider gaps, and outer padding keep their normal
+surfaces; a non-zero window's name and rejected marker do too. Structural punctuation is
+neutral, normal weight in both themes. Which windows appear, and at what remaining
+percentage, is fully configurable through
 [`llm_provider.usage_metrics.indicator`](configuration.md#llm_providerusage_metrics).
 
 Stale or unknown-age numeric observations render with neutral text and disclose their
@@ -4317,7 +4319,8 @@ cancelled during normal and controlled teardown.
 
 Once due, sase's TUI performs one current-state snapshot read, applies counts, toasts,
 and status projections, then schedules the next future deadline. Each observed resurface
-batch produces one toast and one tmux bell, unless a
+batch produces toasts (one per row, or grouped per severity when more than three rows
+arrive together) and at most one tmux bell, unless a
 [delivery rule](notifications.md#delivery-rules) overrides it — including rows that were
 marked read while snoozed — and no repeat on later polls. Cancelled, dismissed,
 permanently muted, and not-yet-due rows never ring. If another process wins the expiry,
@@ -4335,6 +4338,7 @@ is selected. The following notification action types are supported:
 | Action                | Source          | Behavior                                                                          |
 | --------------------- | --------------- | --------------------------------------------------------------------------------- |
 | `CustomGate`          | Agent/tool      | Opens the generic choices, add-ons, and feedback modal                            |
+| `GateExecutionFailed` | Gate executor   | Opens the resume / restart / cancel dialog, or the error report when none applies |
 | `HITL`                | Workflow        | Opens the workflow human-in-the-loop response modal                               |
 | `JumpToAgent`         | Agent/workflow  | Jumps to the matching Agents-tab row                                              |
 | `JumpToPatch`         | Sync/workflow   | Jumps to the referenced Patch on the Patches sub-tab                              |
@@ -4345,7 +4349,6 @@ is selected. The following notification action types are supported:
 | `SudoRequest`         | Agent           | Opens the [sudo review modal](sudo.md#review-ux); approving runs in a terminal    |
 | `Tmux`                | External bridge | Runs `tm <workspace-name>` for the notification's `action_data.workspace_dir`     |
 | `UserQuestion`        | Agent           | Opens the structured user-question response modal                                 |
-| `GateExecutionFailed` | Gate executor   | Opens the resume / restart / cancel dialog, or the error report when none applies |
 | `ViewErrorReport`     | Axe/agent       | Opens `action_data.error_report_path`, or the first attached file, in `$EDITOR`   |
 
 The axe `error_digest` job creates `ViewErrorReport` notifications whose digest files
@@ -4376,12 +4379,13 @@ the message previews the actual event rather than a generic "N new notification(
 line. Severity is also picked per type: plans, questions, and HITL render as warnings;
 axe errors (and sync failures) render as errors; everything else renders as information.
 
-A genuinely new tale or epic plan review rings the terminal bell once (three short tmux
-beeps) on arrival and remains visually prominent as a warning toast and priority inbox
-row. Already-answered plan reviews discovered during polling and the post-approval coder
-or epic handoff stay silent. Questions, other audible notification classes, and explicit
-snooze-expiry reminders retain their existing bell behavior; snoozing a plan review
-therefore still produces the requested reminder bell when it expires.
+A genuinely new tale or epic plan review rings the terminal bell on arrival (one bell
+announcement, sent as three short tmux beeps) and remains visually prominent as a
+warning toast and priority inbox row. Already-answered plan reviews discovered during
+polling and the post-approval coder or epic handoff stay silent. Questions, other
+audible notification classes, and explicit snooze-expiry reminders retain their existing
+bell behavior; snoozing a plan review therefore still produces the requested reminder
+bell when it expires.
 
 These are defaults. [`ace.notification_rules`](notifications.md#delivery-rules) can
 suppress a toast or replace the bell with a sound file or silence for any notification,
@@ -4820,23 +4824,29 @@ service host it describes.
 
 Once the first service-status snapshot loads, the `SVC` pill summarizes service health:
 
-| Pill      | Color | Description                                                                                                                     |
-| --------- | ----- | ------------------------------------------------------------------------------------------------------------------------------- |
-| **`N/M`** | Teal  | Healthy: `N` of the `M` counted service procs are running (enabled procs whose desired state is running, plus unavailable ones) |
-| **`!`**   | Red   | Unhealthy: the service host is stopped, or a counted proc is unavailable, failed, or not running when it should be              |
+| Pill      | Color | Description                                                                                                                      |
+| --------- | ----- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **`N/M`** | Teal  | Healthy: `N` of the `M` counted service procs are running (enabled procs whose desired state is running or that are unavailable) |
+| **`!`**   | Red   | Unhealthy: the service host is not running, or a counted proc is unavailable, failed, or not running when it should be           |
 
-When health turns unhealthy, sase's TUI also raises a `Services unhealthy: <reason>`
-warning toast (for example `host stopped` or `gateway unavailable`).
+When health is unhealthy, sase's TUI also raises a `Services unhealthy: <reason>`
+warning toast (for example `host stopped` or `gateway unavailable`), and raises it again
+whenever the underlying service status changes while health stays unhealthy. Any host
+state other than running — including starting — is reported as `host stopped`.
 
-Before the first snapshot arrives, the pill falls back to the legacy host-state labels:
+The health pill replaces the host-state labels below as soon as the first status load
+finishes, even when no snapshot could be read (the pill then shows a teal `0/0`). The
+labels are therefore only visible briefly at startup, between the startup stopwatch
+retiring and the first status load; `-R` / `--restart-service` restarts the host after
+that load, so the pill keeps showing health rather than RESTARTING:
 
-| Status         | Color         | Description                                                   |
-| -------------- | ------------- | ------------------------------------------------------------- |
-| **RUNNING**    | Green         | Service host is running normally                              |
-| **STOPPED**    | Red           | Service host is not running                                   |
-| **STARTING**   | Yellow        | Service host is starting up                                   |
-| **STOPPING**   | Yellow        | Service host is shutting down                                 |
-| **RESTARTING** | Deep sky blue | Service host is restarting (triggered by `--restart-service`) |
+| Status         | Color         | Description                      |
+| -------------- | ------------- | -------------------------------- |
+| **RUNNING**    | Green         | Service host is running normally |
+| **STOPPED**    | Red           | Service host is not running      |
+| **STARTING**   | Yellow        | Service host is starting up      |
+| **STOPPING**   | Yellow        | Service host is shutting down    |
+| **RESTARTING** | Deep sky blue | Service host is restarting       |
 
 During TUI startup the footer slot shows a live **starting** stopwatch with a rotating
 glyph in place of the host status, ticking at ~10 Hz until the TUI finishes mounting and
@@ -5110,10 +5120,12 @@ cursor.
   `created`, `noted`, or `closed`, then `read`, then `viewed`; repeats render `×N`). An
   indented `↳` line shows the newest audited read reason, or the bead title when there
   is none. `own` marks the agent's assigned phase, epic, or `sase bead work` bead even
-  when it was never touched. The newest five rows render with a dim
-  `+ N more · HH:MM earliest` footer; a numbered hint opens the bead's page, family rows
-  add the producer label, and clan rows include their members' beads. Audited `bead:`
-  reads live here and are excluded from `Reads`. The data and glyphs match
+  when it was never touched (such rows have no timestamp and sort last). At most the
+  newest five rows render; when there are more, a dim `+ N more · HH:MM earliest` footer
+  reports the rest. A numbered hint opens the bead's page, family rows add the producer
+  label when every contributor to that bead shares one producer, and clan rows include
+  their members' beads (de-duplicated and labeled per member). Audited `bead:` reads
+  live here and are excluded from `Reads`. The data and glyphs match
   [`sase bead touched`](beads.md#sase-bead-touched-agent). `Reads` is the input side of
   the lane: each retained audited `sase artifact read` (including when artifact links
   are disabled) appears newest-first with local time, the canonical reference, the

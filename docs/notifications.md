@@ -521,12 +521,13 @@ first audio player found on `PATH`:
 
 A missing file, a missing player, a player that fails or hangs, or an unsupported
 platform never interrupts the poll: the announcement is simply silent. A player that
-runs longer than 30 seconds is stopped. `bell` rings through tmux only: when sase's TUI
-is not running inside a tmux pane (`$TMUX_PANE` unset), `bell` is silent. Playback runs
-on a worker thread, so it cannot stall the TUI. A sound file also plays detached from
-the poll that triggered it — a long chime never holds up the notification tick or the
-agent refresh behind it — and only one file plays at a time, so notifications arriving
-faster than the file is long cannot stack up players.
+runs longer than 30 seconds is stopped. `bell` rings through tmux only, using the
+`tmux_ring_bell` helper found on `PATH`: when sase's TUI is not running inside a tmux
+pane (`$TMUX_PANE` unset) or the helper is missing, `bell` is silent. Playback runs on a
+worker thread, so it cannot stall the TUI. A sound file also plays detached from the
+poll that triggered it — a long chime never holds up the notification tick or the agent
+refresh behind it — and only one file plays at a time, so notifications arriving faster
+than the file is long cannot stack up players.
 
 Each poll announces **at most one sound**. It is the resolved sound of the first new
 notification, in activity order, whose sound is not `none`; if every arriving row
@@ -808,18 +809,19 @@ approvals and user questions remain explicit response workflows and are not auto
 merely by selection.
 
 Unread state on the Agents tab is projected from the active user-agent completion
-notifications in the store, plus any active host-owned settlement notification
-(`epic-launch` or `monitor-settlement`) that names the row's exact
-`(cl_name, raw_suffix)`, rather than written as separate per-row state. A terminal row
-whose family settles is therefore flagged unread until that notification is dismissed;
-when the underlying notification is dismissed (per-row selection, response modal, or any
-other path) the row's unread marker clears on the next refresh. A host-owned settlement
-notification that names an exact agent row's `(cl_name, raw_suffix)` is acknowledged
-with that row — read, dismissed, or marked — exactly like the row's completion
-notification. Manually toggling a row unread with `U` overrides this projection locally
-so a deliberately re-flagged row is not immediately re-cleared. Plan approvals and user
-questions still require an explicit `y` / `n` response and are never auto-dismissed by
-row navigation.
+notifications in the store, plus any active host-owned settlement notification — the
+notification an epic launch or monitor handoff posts when an agent family finishes
+(senders `epic-launch` or `monitor-settlement`) — whose `(cl_name, raw_suffix)` matches
+the Agents-tab row or an agent row it contains. Unread state is not written as separate
+per-row state. A finished agent row whose family settles is therefore flagged unread
+until that notification is dismissed; when the underlying notification is dismissed
+(per-row selection, response modal, or any other path) the row's unread marker clears on
+the next refresh. A host-owned settlement notification that names an exact agent row's
+`(cl_name, raw_suffix)` is acknowledged with that row — read, dismissed, or marked —
+exactly like the row's completion notification. Manually toggling a row unread with `U`
+overrides this projection locally so a deliberately re-flagged row is not immediately
+re-cleared. Plan approvals and user questions still require an explicit `y` / `n`
+response and are never auto-dismissed by row navigation.
 
 A newly arrived completion notification also drives a targeted Agents-tab refresh:
 sase's TUI reloads only the matching agents' artifact directories rather than rebuilding
@@ -1511,18 +1513,21 @@ gate retry modal.
 - `restart` re-runs the selected commands.
 - `cancel` settles the gate without a follow-up.
 
-In sase's TUI, pressing `Enter` on a `GateExecutionFailed` row opens a
-`Gate execution failed: <stage>` dialog listing the completed and failed options:
+In sase's TUI, pressing `Enter` on a `GateExecutionFailed` row in the notification panel
+opens a `Gate execution failed: <stage>` dialog listing the completed and failed
+options:
 
-| Key         | Action                                                              |
-| ----------- | ------------------------------------------------------------------- |
-| `r`         | Resume after the failed step                                        |
-| `R`         | Re-run the selected commands (only when the stage allows a restart) |
-| `c`         | Cancel the gate (`command` and `terminal_prepare` stages only)      |
-| `e`         | Open the error report in `$EDITOR`                                  |
-| `Esc` / `q` | Close without acting                                                |
+| Key         | Action                                                                    |
+| ----------- | ------------------------------------------------------------------------- |
+| `r`         | Resume after the failed step                                              |
+| `R`         | Run the whole branch again (`command` and `terminal_prepare` stages only) |
+| `c`         | Cancel the gate (`command` and `terminal_prepare` stages only)            |
+| `e`         | Open the error report in `$EDITOR`                                        |
+| `Esc` / `q` | Close without acting                                                      |
 
-When no recovery action applies, `Enter` opens the error report directly.
+`r` and `R` need the selected option IDs from the failure bundle; when those cannot be
+recovered, `R` is hidden. When no recovery action applies (no bundle, or a post-response
+stage without recoverable options), `Enter` opens the error report directly.
 
 A recorded failed outcome, or an execution owner that is provably dead, makes the
 receipt supersedable, so a different answer or a cancel is accepted.
