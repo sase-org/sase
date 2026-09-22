@@ -84,6 +84,7 @@ class TestHandleBeads:
             cwd=str(tmp_path),
             capture_output=True,
             check=False,
+            env=None,
         )
 
     def test_bead_sync_runs_when_bead_dir_exists(self, tmp_path: Path) -> None:
@@ -100,6 +101,7 @@ class TestHandleBeads:
             cwd=str(tmp_path),
             capture_output=True,
             check=False,
+            env=None,
         )
 
     def test_bead_sync_runs_when_split_sidecar_exists(self, tmp_path: Path) -> None:
@@ -116,6 +118,7 @@ class TestHandleBeads:
             cwd=str(tmp_path),
             capture_output=True,
             check=False,
+            env=None,
         )
 
 

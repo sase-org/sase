@@ -516,6 +516,10 @@ _DELIBERATELY_LITERAL_FREE_TEXT = frozenset(
         ("pages", "refresh", "bead"),
         ("search", "task_type"),
         ("show", "project"),
+        ("read", "project"),
+        ("touched", "verb"),
+        # Audit reasons are recorded verbatim, never expanded.
+        ("read", "reason"),
         ("snooze", "until"),
         ("sync-external", "project"),
         ("work", "artifacts_dir"),

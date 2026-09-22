@@ -183,10 +183,12 @@ def test_session_reporter_uv_runner_streams_through_stderr_adapter(
     from sase.uv_tool.runner import UvChangeSet
 
     reporter = session_reporter()
-    seen: list[tuple[list[str], object]] = []
+    seen: list[tuple[list[str], object, object]] = []
 
-    def fake_run_uv(argv: list[str], *, run_fn: object) -> UvChangeSet:
-        seen.append((list(argv), run_fn))
+    def fake_run_uv(
+        argv: list[str], *, run_fn: object, on_output: object = None
+    ) -> UvChangeSet:
+        seen.append((list(argv), run_fn, on_output))
         completed = run_fn(  # type: ignore[operator]
             [
                 sys.executable,
@@ -200,9 +202,14 @@ def test_session_reporter_uv_runner_streams_through_stderr_adapter(
     change_set = reporter.uv_runner()(["uv", "tool", "upgrade", "sase"])
 
     assert seen[0][0] == ["uv", "tool", "upgrade", "sase"]
+    assert seen[0][2] is None
     assert "uv-err" in change_set.raw_output
     assert "uv-err" in reporter.proc.get_live_output()
     assert "$ " in reporter.proc.get_live_output()
+
+    sink: list[str] = []
+    reporter.uv_runner()(["uv", "tool", "upgrade", "sase"], on_output=sink)
+    assert seen[1][2] is sink
 
 
 def test_session_reporter_dev_command_runner_streams_and_sets_phase() -> None:

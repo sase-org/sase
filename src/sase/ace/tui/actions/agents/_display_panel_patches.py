@@ -13,7 +13,11 @@ from ...models.agent_groups import (
     status_bucket_for,
     status_grouping_signature,
 )
-from ._display_helpers import TabName, panel_widget_id_for_key
+from ._display_helpers import (
+    TabName,
+    panel_widget_id_for_key,
+    panel_widget_is_retiring,
+)
 from ._display_panel_titles import agent_panel_border_title, agent_panel_counts
 from ._refresh_trace import (
     ALL_AGENT_REFRESH_FALLBACK_REASONS,
@@ -183,7 +187,23 @@ class PanelPatchMixin:
             )
             return False
 
-        panel_widgets = [w for w in container.children if isinstance(w, AgentList)]
+        group_keys = list(
+            getattr(getattr(self, "_panel_group", None), "panel_keys", ())
+        )
+        live_ids = {panel_widget_id_for_key(key) for key in group_keys}
+        panel_widgets = [
+            w
+            for w in container.children
+            if isinstance(w, AgentList)
+            and not panel_widget_is_retiring(w)
+            # A widget the synced group no longer names is already retired:
+            # the widget sync unmounts it in this same refresh, so row
+            # removal must not repaint it as a collapsed strip first. The
+            # group is only consulted when it names panels; optimistic
+            # dismiss paths call this before the group re-syncs, and those
+            # keep their fast path.
+            and (not live_ids or w.id in live_ids)
+        ]
         target_widget: AgentList | None = None
         for widget in panel_widgets:
             widget_identities = {a.identity for a in widget._agents}
@@ -298,7 +318,7 @@ class PanelPatchMixin:
         now = local_now()
         patched = 0
         for widget in container.children:
-            if isinstance(widget, AgentList):
+            if isinstance(widget, AgentList) and not panel_widget_is_retiring(widget):
                 patched += widget.patch_active_runtime_rows(now)
         return patched
 
@@ -347,6 +367,13 @@ class PanelPatchMixin:
         try:
             widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
         except NoMatches:
+            self._record_display_patch_trace(
+                display_cost="row_patch",
+                fallback_reason="panel_membership_change",
+                count=1,
+            )
+            return False
+        if panel_widget_is_retiring(widget):
             self._record_display_patch_trace(
                 display_cost="row_patch",
                 fallback_reason="panel_membership_change",

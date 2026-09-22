@@ -280,3 +280,47 @@ def test_complete_history_apply_for_stale_query_keeps_sticky_keys() -> None:
 
     assert app._reconcile_session_mounted_for_apply(stale) == set()
     assert app._session_mounted_panel_key_set() == {None, "apple", "banana"}
+
+
+def test_readded_key_waits_for_its_retiring_widget_prune() -> None:
+    """A key re-added before its prune lands neither duplicates nor vanishes."""
+    from sase.ace.tui.actions.agents._display_helpers import (
+        agent_list_widgets_in,
+        panel_widget_id_for_key,
+        panel_widget_is_retiring,
+    )
+
+    agents = _three_panel_agents()
+    app = _FakeApp(agents, [1, 1, 1], container_height=30)
+    container = app._container
+    main_id = panel_widget_id_for_key(None)
+    apple_id = panel_widget_id_for_key("apple")
+    banana_id = panel_widget_id_for_key("banana")
+    doomed = next(w for w in container.children if w.id == banana_id)
+
+    # Retiring hides and marks in the same sync. The widget stays mounted:
+    # the fake ``remove()`` is a no-op, the way Textual's only schedules.
+    ordered = app._sync_mounted_panel_widgets(container, [None, "apple"])
+
+    assert ordered is not None
+    assert [w.id for w in ordered] == [main_id, apple_id]
+    assert panel_widget_is_retiring(doomed)
+    assert doomed.display is False
+    assert [w.id for w in agent_list_widgets_in(container)] == [main_id, apple_id]
+    assert doomed in agent_list_widgets_in(container, include_retiring=True)
+
+    # Re-added while the id is still taken: no duplicate mount, and the sync
+    # reports itself incomplete so a follow-up refresh mounts the replacement.
+    assert app._sync_mounted_panel_widgets(container, [None, "apple", "banana"]) is None
+    assert sum(1 for w in container.children if w.id == banana_id) == 1
+
+    # The prune lands; the next sync mounts a fresh widget for the key.
+    container.children.remove(doomed)
+    ordered = app._sync_mounted_panel_widgets(container, [None, "apple", "banana"])
+
+    assert ordered is not None
+    assert [w.id for w in ordered] == [main_id, apple_id, banana_id]
+    replacement = next(w for w in container.children if w.id == banana_id)
+    assert replacement is not doomed
+    assert not panel_widget_is_retiring(replacement)
+    assert replacement in agent_list_widgets_in(container)

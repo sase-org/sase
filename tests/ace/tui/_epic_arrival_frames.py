@@ -14,9 +14,9 @@ The last two windows are not arrivals: they move ``@default`` rows to another
 status bucket while ``@epic`` changes not at all, then while one ``@epic`` row
 only picks up a badge. These are the sibling-panel cases the panel-scoped
 rebuild gates exist for (sase-142.5). The removal window drops both
-``@default`` rows, collapsing the panel to its title strip, and the wide
-``starting*`` pair lands after it so the collapse still decides the column
-width: the width must settle in the same frame as the rows.
+``@default`` rows, retiring the emptied panel, and the wide ``starting*`` pair
+lands after it so the retirement still decides the column width: the width
+must settle in the same frame as the rows.
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ TERMINAL_SIZE = (120, 30)
 #: Arrival windows in the order they are applied.
 #:
 #: The wide ``starting*`` pair lands after the removal on purpose: the
-#: removal window must still decide the column width when it collapses
+#: removal window must still decide the column width when it retires
 #: ``@default``, which a wider ``@epic`` row would otherwise pin.
 ARRIVALS = (
     "noop",
@@ -151,7 +151,7 @@ def initial_roster() -> list[Agent]:
     """Loader rows: ``@default`` (2), ``@epic`` (14 nodes + one clan), ``@job`` (2).
 
     The ``@default`` rows carry long names on purpose: they hold the column
-    width until the wide arrival, so the removal window collapses the panel
+    width until the wide arrival, so the removal window retires the panel
     that decides the width.
     """
     return [
@@ -216,14 +216,14 @@ def arrival_rosters(base: list[Agent]) -> list[tuple[str, list[Agent]]]:
             ),
         ],
     )
-    # Both ``@default`` rows leave the roster: the panel keeps its widget as a
-    # collapsed title strip (roster absence never retires a session-sticky
-    # key). ``@default`` holds the column here (``home-a``/``home-b`` are the
-    # widest rows until the wide arrival below), so the collapse must settle
-    # the column in the same frame as the rows (sase-142.5 quiet-applies).
+    # Both ``@default`` rows leave the roster: the authoritative apply retires
+    # the emptied session-sticky panel in the same frame. ``@default`` holds
+    # the column here (``home-a``/``home-b`` are the widest rows until the
+    # wide arrival below), so the retirement must settle the column in the
+    # same frame as the rows (sase-142.5 quiet-applies).
     arrive("default_removed", [agent for agent in current if agent.tribe])
     # The wide arrival lands after the removal, so the removal window above
-    # still decides the column width when it collapses ``@default``.
+    # still decides the column width when it retires ``@default``.
     wide = _node(
         "epic-a-very-long-arriving-node-name-wider-than-every-existing-row",
         "epic",

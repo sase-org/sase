@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ...util.trace import tui_trace
-from ._display_helpers import panel_widget_id_for_key
+from ._display_helpers import panel_widget_id_for_key, panel_widget_is_retiring
 from ._display_panel_state import PanelRefreshStateMixin
 from ._panel_fold_intent import effective_panel_collapses, panel_is_collapsed
 
@@ -147,6 +147,7 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
                 for w in getattr(container, "children", [])
                 if isinstance(w, AgentList)
             ]
+        widgets = [w for w in widgets if not panel_widget_is_retiring(w)]
         self._apply_panel_heights(container, widgets)
 
     def _refresh_panel_highlights(self) -> None:
@@ -258,6 +259,8 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
             widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
         except NoMatches:
             return
+        if panel_widget_is_retiring(widget):
+            return
         local_idx = -1
         if 0 <= self.current_idx < len(self._agents):
             local_idx = panel_index.local_idx_for(focused_key, self.current_idx)
@@ -311,6 +314,8 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
         try:
             widget = self.query_one(f"#{wid}", AgentList)  # type: ignore[attr-defined]
         except NoMatches:
+            return
+        if panel_widget_is_retiring(widget):
             return
         try:
             widget.focus()

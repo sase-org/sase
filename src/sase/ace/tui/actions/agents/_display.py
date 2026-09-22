@@ -38,6 +38,7 @@ from ._display_helpers import (
     TabName,
     panel_widget_id,
     panel_widget_id_for_key,
+    panel_widget_is_retiring,
 )
 from ._display_panels import PanelsMixin
 from ._loading import DISMISSABLE_STATUSES
@@ -403,6 +404,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         return all(
             getattr(widget, "_grouping_mode", GroupingMode.STANDARD) is active_mode
             for widget in widgets
+            if not panel_widget_is_retiring(widget)
         )
 
     def _agent_display_widgets_have_previous_rows(
@@ -433,7 +435,11 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
                 for widget in getattr(container, "children", [])
                 if isinstance(widget, AgentList)
             ]
-        return any(int(getattr(widget, "option_count", 0)) > 0 for widget in widgets)
+        return any(
+            int(getattr(widget, "option_count", 0)) > 0
+            for widget in widgets
+            if not panel_widget_is_retiring(widget)
+        )
 
     def _try_refresh_agents_display_incremental_impl(
         self,

@@ -5,7 +5,10 @@ from __future__ import annotations
 from textual import events
 
 from ..widgets import AgentList, BgCmdList, PatchList, TabBar
-from .agents._display_helpers import panel_widget_id_for_key
+from .agents._display_helpers import (
+    panel_widget_id_for_key,
+    panel_widget_is_retiring,
+)
 from .agents._paint_log import record_agents_paint_frame
 from .agents._panel_fold_intent import panel_is_collapsed
 from ._event_base import EventHandlersBase
@@ -294,7 +297,11 @@ class EventWidgetHandlersMixin(EventHandlersBase):
             AgentList
         )
         width = agent_list_column_width(
-            [getattr(widget, "_requested_width", 0) for widget in agent_lists],
+            [
+                getattr(widget, "_requested_width", 0)
+                for widget in agent_lists
+                if not panel_widget_is_retiring(widget)
+            ],
             fallback=event.width,
         )
         previous_width = agent_list_container.styles.width

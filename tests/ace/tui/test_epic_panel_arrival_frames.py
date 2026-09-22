@@ -16,9 +16,9 @@ The two ``sibling_*`` windows (sase-142.5) are not arrivals: they move
 ``@default`` rows to another status bucket and assert that only ``@default`` is
 rebuilt, that the rebuild names its panel and reason, and that ``@epic`` records
 no ``update_list`` or ``render_collapsed``. The ``default_removed`` window drops
-both ``@default`` rows and asserts the collapse settles the column width in the
-same frame as the rows. The wide ``starting*`` pair lands after the removal so
-the collapse still decides the column width.
+both ``@default`` rows and asserts the retirement settles the column width in
+the same frame as the rows, with no paint call at all. The wide ``starting*``
+pair lands after the removal so the retirement still decides the column width.
 """
 
 from __future__ import annotations
@@ -388,10 +388,10 @@ def test_a_partial_rebuild_names_its_panel_and_its_reason(
     assert "full_rebuild" not in kinds
 
 
-# --- a removal that collapses a panel ----------------------------------------
+# --- a removal that retires a panel -------------------------------------------
 
 
-def test_a_removal_that_collapses_a_panel_settles_the_column_in_frame(
+def test_a_removal_that_retires_a_panel_settles_the_column_in_frame(
     run: frames.ArrivalRun,
 ) -> None:
     label = "default_removed"
@@ -402,18 +402,15 @@ def test_a_removal_that_collapses_a_panel_settles_the_column_in_frame(
     )
     after = run.frames[window.end - 1]
     default_before = _panel(before, frames.DEFAULT_WIDGET_ID)
-    default_after = _panel(after, frames.DEFAULT_WIDGET_ID)
 
-    # The collapse is the only paint call in the window: no panel was rebuilt
-    # with update_list, including the collapsed one.
-    assert [(call.method, call.widget_id) for call in run.calls_in(label)] == [
-        ("render_collapsed", frames.DEFAULT_WIDGET_ID)
-    ]
-    # The widget stays mounted as a title strip: roster absence never retires
-    # a session-sticky key.
+    # The retirement paints nothing: no panel is rebuilt with update_list,
+    # and the retired panel gets no render_collapsed title strip either.
+    assert [(call.method, call.widget_id) for call in run.calls_in(label)] == []
+    # @default is present with rows in the before frame...
     assert default_before.option_count > 0 and not default_before.collapsed
-    assert (default_after.option_count, default_after.collapsed) == (0, True)
-    assert default_after.object_id == default_before.object_id
+    # ...and absent from both the refresh frame and the after frame.
+    assert frames.DEFAULT_WIDGET_ID not in {p.widget_id for p in refresh.panels}
+    assert frames.DEFAULT_WIDGET_ID not in {p.widget_id for p in after.panels}
     # The column moves in the refresh frame itself: no width-only frame
     # follows it a pump cycle later.
     assert refresh.container_width < before.container_width
@@ -429,7 +426,7 @@ def test_a_removal_that_collapses_a_panel_settles_the_column_in_frame(
     )
 
 
-def test_a_removal_that_collapses_a_panel_leaves_the_other_panels_alone(
+def test_a_removal_that_retires_a_panel_leaves_the_other_panels_alone(
     run: frames.ArrivalRun,
 ) -> None:
     label = "default_removed"

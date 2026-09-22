@@ -210,14 +210,8 @@ def test_usage_indicator_defaults_and_overrides(
 
     assert settings.enabled is True
     assert settings.raw is not None
-    assert settings.config["providers"]["claude"]["windows"][
-        "weekly:claude-fable-5"
-    ] == {"kind": "always"}
-    assert _projected_window_keys() == (
-        "weekly",
-        "session-low",
-        "weekly:claude-fable-5",
-    )
+    assert "claude" not in settings.config["providers"]
+    assert _projected_window_keys() == ("weekly", "session-low")
 
     mock_provider_config(
         monkeypatch,
@@ -250,8 +244,8 @@ def test_usage_indicator_defaults_and_overrides(
     [
         pytest.param(
             {"llm_provider": {"usage_metrics": {"indicator": {"providers": {}}}}},
-            ("weekly", "session-low", "weekly:claude-fable-5"),
-            id="empty-provider-map-keeps-bundled-exact-window",
+            ("weekly", "session-low"),
+            id="empty-provider-map-keeps-bundled-defaults",
         ),
         pytest.param(
             {
@@ -299,14 +293,21 @@ def test_usage_indicator_defaults_and_overrides(
                     }
                 }
             },
-            ("weekly", "session-low", "weekly:claude-fable-5"),
+            ("weekly", "session-low"),
             id="unrelated-provider-override-keeps-claude-defaults",
         ),
         pytest.param(
             {
                 "llm_provider": {
                     "usage_metrics": {
-                        "indicator": {"providers": {"claude": {"default": "never"}}}
+                        "indicator": {
+                            "providers": {
+                                "claude": {
+                                    "default": "never",
+                                    "windows": {"weekly:claude-fable-5": "always"},
+                                }
+                            }
+                        }
                     }
                 }
             },

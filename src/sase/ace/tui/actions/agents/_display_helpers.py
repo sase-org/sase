@@ -43,8 +43,46 @@ def panel_widget_id(
     return f"{_MAIN_PANEL_ID}-{panel_idx}"
 
 
-def agent_list_widgets_in(container: object) -> list[Any]:
-    """Return AgentList children of *container* in visual order."""
+#: Attribute marking an AgentList whose panel key retired but whose Textual
+#: prune has not landed yet. ``widget.remove()`` only schedules the prune, so
+#: the widget stays a child of ``#agent-list-container`` for at least one more
+#: pump; the marker lets every reader observe the post-retirement panel set
+#: in the same refresh frame instead. Test fakes tolerate the plain attribute
+#: the way they tolerate the existing ``remove``/``children`` fallback.
+_PANEL_RETIRING_ATTR = "_sase_panel_retiring"
+
+
+def panel_widget_is_retiring(widget: object) -> bool:
+    """Return whether *widget* is a retired panel awaiting its prune.
+
+    Identity-compared against ``True`` (rather than truthiness) so mock
+    widgets in tests, where every attribute access yields a truthy mock, are
+    never mistaken for retiring panels. Only :func:`mark_panel_widget_retiring`
+    sets this marker, always to ``True``.
+    """
+    return getattr(widget, _PANEL_RETIRING_ATTR, False) is True
+
+
+def mark_panel_widget_retiring(widget: object) -> None:
+    """Mark *widget* retired; guarded for test fakes."""
+    try:
+        setattr(widget, _PANEL_RETIRING_ATTR, True)
+    except Exception:
+        pass
+
+
+def agent_list_widgets_in(
+    container: object, *, include_retiring: bool = False
+) -> list[Any]:
+    """Return AgentList children of *container* in visual order.
+
+    Retiring widgets (see :func:`mark_panel_widget_retiring`) are skipped by
+    default so reorder, width settle, focus, and the paint log all see the
+    post-retirement panel set. Pass ``include_retiring=True`` only to observe
+    the still-mounted set, e.g. the id map in
+    ``_sync_mounted_panel_widgets`` which must not mount a duplicate id while
+    the prune is pending.
+    """
     from textual.css.query import NoMatches
 
     from ...widgets import AgentList
@@ -63,7 +101,9 @@ def agent_list_widgets_in(container: object) -> list[Any]:
                 and str(widget.id).startswith(_MAIN_PANEL_ID)
             )
         ]
-    return widgets
+    if include_retiring:
+        return widgets
+    return [widget for widget in widgets if not panel_widget_is_retiring(widget)]
 
 
 def first_agent_list_widget(app: object) -> Any | None:
@@ -88,6 +128,7 @@ def first_agent_list_widget(app: object) -> Any | None:
         if widgets:
             return widgets[0]
     try:
-        return query_one(f"#{_MAIN_PANEL_ID}", AgentList)
+        widget = query_one(f"#{_MAIN_PANEL_ID}", AgentList)
     except (NoMatches, KeyError, Exception):
         return None
+    return None if panel_widget_is_retiring(widget) else widget
