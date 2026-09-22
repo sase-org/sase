@@ -66,6 +66,8 @@ def _response(
     cached: bool = False,
     freshness: str = "fresh",
     partial: bool = False,
+    has_more: bool = False,
+    next_cursor: str | None = None,
 ) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -93,8 +95,8 @@ def _response(
                         "entries": entries,
                         "limit": 100,
                         "total_matching_entries": len(entries),
-                        "next_cursor": None,
-                        "has_more": False,
+                        "next_cursor": next_cursor,
+                        "has_more": has_more,
                     },
                 },
                 "error": None,
@@ -157,7 +159,7 @@ def test_attention_inventory_creates_durable_remote_attention_notification(
     assert entry["request_key"]["request_id"] == "gate-00000001"
 
 
-def test_attention_inventory_resurfaces_dismissed_pending_request(
+def test_attention_inventory_keeps_user_dismissed_pending_request(
     notification_store_file: Path,
 ) -> None:
     del notification_store_file
@@ -182,13 +184,162 @@ def test_attention_inventory_resurfaces_dismissed_pending_request(
     )
 
     assert outcome.created == 0
+    assert outcome.updated == 0
+    assert outcome.changed is False
+    assert load_notifications() == []
+    [dismissed] = load_notifications(include_dismissed=True)
+    assert dismissed.id == notification.id
+    assert dismissed.dismissed is True
+    assert dismissed.read is True
+    assert dismissed.muted is True
+    assert dismissed.snooze_until == "2026-05-12T10:00:00+00:00"
+
+
+def test_attention_inventory_cached_repeat_never_resurfaces_user_dismissal(
+    notification_store_file: Path,
+) -> None:
+    del notification_store_file
+    attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry()]),
+        now_unix=_OBSERVED_AT,
+    )
+    [notification] = load_notifications()
+    rewrite_notifications(
+        [dataclasses.replace(notification, read=True, dismissed=True)]
+    )
+
+    for _ in range(5):
+        outcome = attention_inbox.reconcile_remote_attention_inbox(
+            _response([_entry()], cached=True),
+            now_unix=_OBSERVED_AT,
+        )
+        assert outcome.changed is False
+
+    assert load_notifications() == []
+    [dismissed] = load_notifications(include_dismissed=True)
+    assert dismissed.dismissed is True
+    assert dismissed.read is True
+
+
+def test_attention_inventory_new_revision_creates_visible_row(
+    notification_store_file: Path,
+) -> None:
+    del notification_store_file
+    attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=1)]),
+        now_unix=_OBSERVED_AT,
+    )
+    [old] = load_notifications()
+    rewrite_notifications([dataclasses.replace(old, read=True, dismissed=True)])
+
+    outcome = attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=2)]),
+        now_unix=_OBSERVED_AT,
+    )
+
+    assert outcome.created == 1
+    [active] = load_notifications()
+    assert (
+        active.action_data[attention_inbox.REMOTE_ATTENTION_REVISION_ACTION_DATA_KEY]
+        == "2"
+    )
+    assert active.dismissed is False
+    rows = load_notifications(include_dismissed=True)
+    assert len(rows) == 2
+    [stale] = [row for row in rows if row.id == old.id]
+    assert stale.dismissed is True
+    assert attention_inbox.REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY not in (
+        stale.action_data or {}
+    )
+
+
+def test_attention_inventory_resurfaces_own_auto_dismissal(
+    notification_store_file: Path,
+) -> None:
+    del notification_store_file
+    attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry()]),
+        now_unix=_OBSERVED_AT,
+    )
+
+    outcome = attention_inbox.reconcile_remote_attention_inbox(
+        _response([]),
+        now_unix=_OBSERVED_AT,
+    )
+    assert outcome.dismissed == 1
+    [dismissed] = load_notifications(include_dismissed=True)
+    assert dismissed.dismissed is True
+    assert (
+        dismissed.action_data[
+            attention_inbox.REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY
+        ]
+        == "true"
+    )
+
+    outcome = attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry()]),
+        now_unix=_OBSERVED_AT,
+    )
+
     assert outcome.updated == 1
     [active] = load_notifications()
-    assert active.id == notification.id
-    assert active.read is False
+    assert active.id == dismissed.id
     assert active.dismissed is False
-    assert active.muted is True
-    assert active.snooze_until == "2026-05-12T10:00:00+00:00"
+    assert active.read is False
+    assert attention_inbox.REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY not in (
+        active.action_data or {}
+    )
+
+
+def test_attention_inventory_superseded_revision_marks_auto_dismissal(
+    notification_store_file: Path,
+) -> None:
+    del notification_store_file
+    attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=1)]),
+        now_unix=_OBSERVED_AT,
+    )
+
+    attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry(revision=2)]),
+        now_unix=_OBSERVED_AT,
+    )
+
+    rows = load_notifications(include_dismissed=True)
+    [stale] = [
+        row
+        for row in rows
+        if row.action_data.get(
+            attention_inbox.REMOTE_ATTENTION_REVISION_ACTION_DATA_KEY
+        )
+        == "1"
+    ]
+    assert stale.dismissed is True
+    assert (
+        stale.action_data[
+            attention_inbox.REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY
+        ]
+        == "true"
+    )
+
+
+def test_attention_inventory_incomplete_page_does_not_settle_absences(
+    notification_store_file: Path,
+) -> None:
+    del notification_store_file
+    attention_inbox.reconcile_remote_attention_inbox(
+        _response([_entry()]),
+        now_unix=_OBSERVED_AT,
+    )
+
+    outcome = attention_inbox.reconcile_remote_attention_inbox(
+        _response([], has_more=True, next_cursor="off:100"),
+        now_unix=_OBSERVED_AT,
+    )
+
+    assert outcome.changed is False
+    [active] = load_notifications()
+    assert active.dismissed is False
 
 
 def test_attention_inventory_new_revision_supersedes_old_decision(

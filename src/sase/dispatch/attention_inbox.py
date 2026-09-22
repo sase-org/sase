@@ -1,4 +1,9 @@
-"""Project remote fleet attention inventory into the durable notification inbox."""
+"""Project remote fleet attention inventory into the durable notification inbox.
+
+Dismissal and read are local browsing state, never an answer to the remote
+request. A new revision is a new row and needs renewed review; only the
+reconciler's own auto-dismissals are reversible.
+"""
 
 from __future__ import annotations
 
@@ -38,6 +43,7 @@ REMOTE_ATTENTION_ORIGIN_ACTION_DATA_KEY = "remote_attention_origin_installation_
 REMOTE_ATTENTION_REQUEST_ID_ACTION_DATA_KEY = "remote_attention_request_id"
 REMOTE_ATTENTION_REVISION_ACTION_DATA_KEY = "remote_attention_revision"
 REMOTE_ATTENTION_KIND_ACTION_DATA_KEY = "remote_attention_kind"
+REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY = "remote_attention_auto_dismissed"
 
 _FLEET_SCHEMA_VERSION = 1
 _INBOX_PAGE_LIMIT = 100
@@ -125,7 +131,14 @@ def reconcile_remote_attention_inbox(
     *,
     now_unix: float | None = None,
 ) -> _AttentionInboxReconcileOutcome:
-    """Make durable notification rows match one global attention inventory."""
+    """Make durable notification rows match one global attention inventory.
+
+    Dismissal and read are local browsing state, never an answer to the remote
+    request. A same-revision re-poll never resurfaces a user-dismissed row; a
+    new revision arrives as a new row needing renewed review. Only rows the
+    reconciler auto-dismissed itself (marked with
+    REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY) are reversible.
+    """
     entries, covered_hosts = _inventory_entries(response)
     if not entries and not covered_hosts:
         return _AttentionInboxReconcileOutcome()
@@ -169,12 +182,20 @@ def reconcile_remote_attention_inbox(
         origin, request_id, _revision = row_identity
         if (origin, request_id) in pending_base_keys:
             if not row.dismissed:
-                output[index] = dataclasses.replace(row, dismissed=True)
+                output[index] = dataclasses.replace(
+                    row,
+                    dismissed=True,
+                    action_data=_with_auto_dismissed_marker(row),
+                )
                 dismissed += 1
             continue
         if _covered_by_settling_host(row, covered_hosts):
             if not row.dismissed:
-                output[index] = dataclasses.replace(row, dismissed=True)
+                output[index] = dataclasses.replace(
+                    row,
+                    dismissed=True,
+                    action_data=_with_auto_dismissed_marker(row),
+                )
                 dismissed += 1
 
     outcome = _AttentionInboxReconcileOutcome(
@@ -350,6 +371,36 @@ def _refresh_existing_notification(
     existing: Notification,
     incoming: Notification,
 ) -> Notification:
+    """Refresh remote-derived fields, preserving local browsing state.
+
+    The reconciler owns only icon, color, notes, tags, action, action_data
+    (from ``incoming``, which carries no auto-dismiss marker), and
+    ``silent=False``. ``read``/``dismissed`` stay local: a user dismissal of a
+    still-pending same-revision row sticks. Only a row the reconciler itself
+    auto-dismissed (marked with
+    REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY) resurfaces when that same
+    revision comes back pending; the marker drops because action_data comes
+    from ``incoming``. Dismissed rows without the marker (including legacy
+    auto-dismissals predating the marker) count as user-dismissed — the safe
+    direction, since settled requests do not un-settle. ``muted`` and
+    ``snooze_until`` are preserved as today.
+    """
+    existing_data = existing.action_data or {}
+    if existing.dismissed and (
+        existing_data.get(REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY) == "true"
+    ):
+        return dataclasses.replace(
+            existing,
+            icon=incoming.icon,
+            color=incoming.color,
+            notes=incoming.notes,
+            tags=incoming.tags,
+            action=incoming.action,
+            action_data=incoming.action_data,
+            read=False,
+            dismissed=False,
+            silent=False,
+        )
     return dataclasses.replace(
         existing,
         icon=incoming.icon,
@@ -358,10 +409,17 @@ def _refresh_existing_notification(
         tags=incoming.tags,
         action=incoming.action,
         action_data=incoming.action_data,
-        read=False,
-        dismissed=False,
+        read=existing.read,
+        dismissed=existing.dismissed,
         silent=False,
     )
+
+
+def _with_auto_dismissed_marker(row: Notification) -> dict[str, Any]:
+    return {
+        **(row.action_data or {}),
+        REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY: "true",
+    }
 
 
 def _replace_notification(
@@ -412,6 +470,12 @@ def _payload_is_fresh_complete(
         return False
     if bool(host.get("cached")):
         return False
+    page = payload.get("page")
+    if isinstance(page, Mapping):
+        if bool(page.get("has_more")):
+            return False
+        if isinstance(page.get("next_cursor"), str) and page.get("next_cursor"):
+            return False
     freshness = payload.get("freshness")
     if not isinstance(freshness, Mapping):
         return True
@@ -459,6 +523,7 @@ def _iso_from_unix(value: float) -> str:
 
 __all__ = [
     "REMOTE_ATTENTION_ALIAS_ACTION_DATA_KEY",
+    "REMOTE_ATTENTION_AUTO_DISMISSED_ACTION_DATA_KEY",
     "REMOTE_ATTENTION_ENTRY_ACTION_DATA_KEY",
     "REMOTE_ATTENTION_KIND_ACTION_DATA_KEY",
     "REMOTE_ATTENTION_NOTIFICATION_ACTION",
