@@ -22,8 +22,20 @@ _FALLBACK_COLORS: dict[str, str] = {
     "background": "#121212",
     "accent": "#6B4FBB",
     "warning": "#FFA62B",
+    "error": "#B93C5B",
+    "success": "#4EBF71",
+    "secondary": "#004578",
 }
-_THEME_VAR_NAMES = ("surface", "foreground", "background", "accent", "warning")
+_THEME_VAR_NAMES = (
+    "surface",
+    "foreground",
+    "background",
+    "accent",
+    "warning",
+    "error",
+    "success",
+    "secondary",
+)
 _QUERY_CHIP_RAISE = 0.20
 _INK_MIN_CONTRAST = 4.5
 _SIGIL_MIN_CONTRAST = 3.0
@@ -227,6 +239,59 @@ def _ensure_contrast(color: Color, bg: Color, minimum: float) -> Color:
             return current
         current = adjust(current, 0.06)
     return current
+
+
+@dataclass(frozen=True)
+class SearchOperatorPalette:
+    """Operator-search preview styles for one operator family."""
+
+    chip: Style
+    effect: Style
+    region: Style
+
+
+_OPERATOR_ROLE_VARS: dict[str, str] = {
+    "destructive": "error",
+    "yank": "success",
+    "transform": "secondary",
+}
+
+
+def search_operator_palette(
+    family: str,
+    variables: Mapping[str, str] | None,
+) -> SearchOperatorPalette:
+    """Return operator-search preview styles for *family*."""
+    return _search_operator_palette_cached(family, _theme_var_cache_key(variables))
+
+
+@lru_cache(maxsize=24)
+def _search_operator_palette_cached(
+    family: str,
+    raw_values: tuple[str | None, ...],
+) -> SearchOperatorPalette:
+    variables = {
+        name: value
+        for name, value in zip(_THEME_VAR_NAMES, raw_values, strict=True)
+        if value is not None
+    }
+    surface = _theme_var(variables, "surface")
+    role_name = _OPERATOR_ROLE_VARS.get(family, "secondary")
+    role = _theme_var(variables, role_name)
+
+    chip_bg = _terminal_safe(role)
+    chip_fg = _ink_for(chip_bg, variables)
+    effect_fg = _terminal_safe(_ensure_contrast(role, surface, 3.0))
+    region_bg = _terminal_safe(surface.blend(role, 0.30))
+
+    return SearchOperatorPalette(
+        chip=Style(color=chip_fg.hex, bgcolor=chip_bg.hex, bold=True),
+        effect=Style(color=effect_fg.hex, bold=True),
+        region=Style(
+            bgcolor=region_bg.hex,
+            strike=(family == "destructive"),
+        ),
+    )
 
 
 def format_search_count_segment(

@@ -16,10 +16,13 @@ def render_search_command_line(
     total: int,
     width: int,
     status: Text | None = None,
+    prefix: Text | None = None,
 ) -> Text:
     """Render a Vim-style ``/`` or ``?`` search status line."""
     sigil = "/" if direction == "forward" else "?"
     left = Text(no_wrap=True, overflow="crop")
+    if prefix is not None and prefix.plain:
+        left.append_text(prefix)
     left.append(sigil, style="bold #00D7AF")
     left.append(query, style="white")
     left.append(" ", style="reverse")

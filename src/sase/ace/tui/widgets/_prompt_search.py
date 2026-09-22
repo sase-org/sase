@@ -31,6 +31,7 @@ class PromptSearchMixin(_MixinBase):
     if TYPE_CHECKING:
         _count_prefix: str
         _file_completion_active: bool
+        _mutation_key_buffer: list[str]
         _pending_change_surround_locations: (
             tuple[
                 tuple[int, int],
@@ -88,6 +89,8 @@ class PromptSearchMixin(_MixinBase):
         self._search_origin_cursor: tuple[int, int] = (0, 0)
         self._search_origin_offset = 0
         self._search_current_selection: SearchSelection | None = None
+        self._search_operator: Any | None = None
+        self._search_operator_preview: Any | None = None
         super().__init__(*args, **kwargs)
 
     def _is_prompt_search_active(self) -> bool:
@@ -96,6 +99,12 @@ class PromptSearchMixin(_MixinBase):
 
     def _start_prompt_search(self, direction: SearchDirection) -> None:
         """Open incremental search from the current cursor location."""
+        self._open_prompt_search(direction, None)
+
+    def _open_prompt_search(
+        self, direction: SearchDirection, operator: Any | None
+    ) -> None:
+        """Shared opener for plain and operator prompt searches."""
         self._clear_insert_g_prefix()
         self._search_active = True
         self._search_direction = direction
@@ -103,6 +112,8 @@ class PromptSearchMixin(_MixinBase):
         self._search_origin_cursor = self.cursor_location
         self._search_origin_offset = self._absolute_offset(self.cursor_location)
         self._search_current_selection = None
+        self._search_operator = operator
+        self._search_operator_preview = None
 
         self._pending_keys = ""
         self._pending_count = None
@@ -151,6 +162,11 @@ class PromptSearchMixin(_MixinBase):
 
     def _update_prompt_search_preview(self) -> None:
         """Recompute matches, move the preview cursor, and refresh highlights."""
+        if getattr(self, "_search_operator", None) is not None:
+            update = getattr(self, "_update_prompt_search_operator_preview", None)
+            if callable(update):
+                update()
+            return
         query = self._search_query
         if not query:
             self.cursor_location = self._search_origin_cursor
@@ -184,6 +200,11 @@ class PromptSearchMixin(_MixinBase):
 
     def _confirm_prompt_search(self) -> None:
         """Close search, keeping the preview cursor and recording the query."""
+        if getattr(self, "_search_operator", None) is not None:
+            confirm = getattr(self, "_confirm_prompt_search_operator", None)
+            if callable(confirm):
+                confirm()
+            return
         if self._search_query and self._search_current_selection is not None:
             bar = self._find_prompt_bar()
             record = (
@@ -269,12 +290,17 @@ class PromptSearchMixin(_MixinBase):
 
     def _cancel_prompt_search(self) -> None:
         """Close search, restoring the cursor and clearing highlights."""
+        had_operator = getattr(self, "_search_operator", None) is not None
         self.cursor_location = self._search_origin_cursor
         self._search_active = False
         self._search_query = ""
         self._search_current_selection = None
+        self._search_operator = None
+        self._search_operator_preview = None
         self._clear_search_highlights()
         self._hide_prompt_search_command_line()
+        if had_operator:
+            self._mutation_key_buffer.clear()
         self._update_count_display()
 
     def _clear_prompt_search(self, *, clear_highlights: bool = False) -> None:
@@ -283,6 +309,8 @@ class PromptSearchMixin(_MixinBase):
             self._search_active = False
             self._search_query = ""
             self._search_current_selection = None
+            self._search_operator = None
+            self._search_operator_preview = None
             self._hide_prompt_search_command_line()
         if clear_highlights:
             self._clear_search_highlights()
@@ -298,6 +326,7 @@ class PromptSearchMixin(_MixinBase):
             direction=self._search_direction,
             query=self._search_query,
             readout=getattr(self, "_search_readout", None),
+            operator=getattr(self, "_search_operator_preview", None),
         )
 
     def _hide_prompt_search_command_line(self) -> None:

@@ -23,7 +23,7 @@ from textual.widgets import TextArea
 
 from sase.ace.tui.widgets._line_rendering import LineRenderingMixin
 from sase.ace.tui.widgets._vim_normal import VimNormalModeMixin
-from sase.ace.tui.widgets._vim_normal_state import VisualMutation
+from sase.ace.tui.widgets._vim_normal_state import SearchMotionMutation, VisualMutation
 from sase.ace.tui.widgets._vim_registers import VimRegister
 from sase.ace.tui.widgets._vim_search import SearchDirection
 
@@ -89,6 +89,7 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
         self._last_mutation_count: int = 1
         self._last_mutation_insert: str | None = None
         self._last_visual_mutation: VisualMutation | None = None
+        self._last_search_motion_mutation: SearchMotionMutation | None = None
         self._dot_insert_capture_offset: int | None = None
         self._replaying_dot: bool = False
         self._last_char_search: tuple[str, str] | None = None
@@ -361,6 +362,24 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
 
     def _start_prompt_search(self, direction: SearchDirection) -> None:
         """Open the host's incremental search (``/`` / ``?``). Default: inert."""
+
+    def _start_prompt_search_operator(
+        self, direction: SearchDirection, operator: str, count: int
+    ) -> bool:
+        """Open an operator search motion. Default: inert (returns False)."""
+        return False
+
+    def _operate_to_search_register(
+        self, operator: str, count: int, *, reverse: bool
+    ) -> bool:
+        """Operate to the shared search register. Default: inert (False)."""
+        return False
+
+    def _replay_search_motion_mutation(
+        self, mutation: SearchMotionMutation, count: int, has_count: bool
+    ) -> None:
+        """Replay an operator search motion. Default: no-op."""
+        return None
 
     def _repeat_prompt_search(
         self,

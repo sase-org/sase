@@ -36,6 +36,10 @@ class VimNormalMotionsMixin(VimNormalPendingMixin):
             count: int = 1,
         ) -> bool: ...
 
+        def _operate_to_search_register(
+            self, operator: str, count: int, *, reverse: bool
+        ) -> bool: ...
+
         def _search_word_under_cursor(
             self,
             *,
@@ -282,8 +286,15 @@ class VimNormalMotionsMixin(VimNormalPendingMixin):
 
         if key in ("n", "N"):
             if self._pending_operator:
-                self._pending_operator = ""
-                self._pending_operator_count = 1
+                op_info = self._consume_pending_operator(count)
+                if op_info is not None:
+                    op, eff = op_info
+                    handled = self._operate_to_search_register(
+                        op, eff, reverse=key == "N"
+                    )
+                    if not handled:
+                        self._mutation_key_buffer.clear()
+                    return True
                 self._update_count_display()
             return self._repeat_prompt_search(reverse=key == "N", count=count)
 

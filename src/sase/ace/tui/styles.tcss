@@ -4153,6 +4153,18 @@ PromptInputBar #prompt-search-command.hidden {
     display: none;
 }
 
+PromptInputBar #prompt-search-command.operator-destructive {
+    border: round $error;
+}
+
+PromptInputBar #prompt-search-command.operator-yank {
+    border: round $success;
+}
+
+PromptInputBar #prompt-search-command.operator-transform {
+    border: round $secondary;
+}
+
 PromptInputBar #frontmatter-rows {
     /* Keep max-height in sync with _ROWS_MAX_HEIGHT. */
     width: 100%;

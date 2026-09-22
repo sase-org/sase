@@ -5,12 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from rich.cells import cell_len
 from rich.text import Text
 from textual.widgets import Static
 
 from sase.ace.tui.widgets._prompt_search_readout import (
     PromptSearchReadout,
+    SearchOperatorPalette,
     format_search_count_segment,
+    search_operator_palette,
     stack_match_position,
 )
 from sase.ace.tui.widgets._vim_search import (
@@ -379,6 +382,7 @@ class PromptInputBarSearchMixin(_MixinBase):
         direction: SearchDirection,
         query: str,
         readout: PromptSearchReadout | None,
+        operator: Any | None = None,
     ) -> None:
         """Render and reveal the search command line."""
         try:
@@ -386,13 +390,39 @@ class PromptInputBarSearchMixin(_MixinBase):
         except Exception:
             return
 
-        panel.border_title = "search"
-        panel.border_subtitle = Text("[enter] accept  [esc/^c] cancel", no_wrap=True)
+        if operator is None:
+            panel.border_title = "search"
+            panel.border_subtitle = Text(
+                "[enter] accept  [esc/^c] cancel", no_wrap=True
+            )
+            panel.remove_class("operator-destructive")
+            panel.remove_class("operator-yank")
+            panel.remove_class("operator-transform")
+        else:
+            verb = str(getattr(operator, "verb", "operate"))
+            if direction == "forward":
+                panel.border_title = f"{verb} to match"
+            else:
+                panel.border_title = f"{verb} back to match"
+            panel.border_subtitle = Text(
+                f"[enter] {verb}  [esc/^c] cancel", no_wrap=True
+            )
+            panel.remove_class("operator-destructive")
+            panel.remove_class("operator-yank")
+            panel.remove_class("operator-transform")
+            family = str(getattr(operator, "family", "transform"))
+            if family == "destructive":
+                panel.add_class("operator-destructive")
+            elif family == "yank":
+                panel.add_class("operator-yank")
+            else:
+                panel.add_class("operator-transform")
         panel.update(
             self._render_search_command_line(
                 direction=direction,
                 query=query,
                 readout=readout,
+                operator=operator,
             )
         )
         panel.remove_class("hidden")
@@ -417,6 +447,9 @@ class PromptInputBarSearchMixin(_MixinBase):
         panel.update("")
         panel.border_title = ""
         panel.border_subtitle = ""
+        panel.remove_class("operator-destructive")
+        panel.remove_class("operator-yank")
+        panel.remove_class("operator-transform")
         panel.add_class("hidden")
         self._search_command_visible = False
         self._search_command_line_count = 0
@@ -429,22 +462,98 @@ class PromptInputBarSearchMixin(_MixinBase):
         direction: SearchDirection,
         query: str,
         readout: PromptSearchReadout | None,
+        operator: Any | None = None,
     ) -> Text:
         width = max(0, int(getattr(self.size, "width", 0)) - 4)
-        current_index = (
-            readout.ordinal - 1
-            if readout is not None and readout.ordinal is not None
-            else None
-        )
-        total = readout.total if readout is not None else 0
+        if operator is None:
+            current_index = (
+                readout.ordinal - 1
+                if readout is not None and readout.ordinal is not None
+                else None
+            )
+            total = readout.total if readout is not None else 0
+            return render_search_command_line(
+                direction=direction,
+                query=query,
+                current_index=current_index,
+                total=total,
+                width=width,
+                status=self._search_command_status(query, readout),
+            )
+        prefix = self._operator_command_prefix(operator)
+        status = self._operator_command_status(operator, prefix, query, width)
+        # The operator status already carries the pane-local count; suppress the
+        # renderer's own count so it never duplicates or overrides it. An empty
+        # Text (rather than None) also suppresses the renderer's own
+        # "pattern not found" fallback when degradation drops the status.
+        status_arg = status if status is not None else Text(no_wrap=True)
         return render_search_command_line(
             direction=direction,
             query=query,
-            current_index=current_index,
-            total=total,
+            current_index=None,
+            total=0,
             width=width,
-            status=self._search_command_status(query, readout),
+            status=status_arg,
+            prefix=prefix,
         )
+
+    def _operator_command_prefix(self, operator: Any) -> Text | None:
+        """Return the operator chip drawn before the search sigil."""
+        op = str(getattr(operator, "operator", ""))
+        if not op:
+            return None
+        count = int(getattr(operator, "count", 1) or 1)
+        family = str(getattr(operator, "family", "transform"))
+        try:
+            variables = self.app.theme_variables
+        except Exception:
+            variables = None
+        palette: SearchOperatorPalette = search_operator_palette(family, variables)
+        text = Text(no_wrap=True, overflow="crop")
+        label = f"{count}{op}" if count > 1 else op
+        text.append(f"{label} ", palette.chip)
+        return text
+
+    def _operator_command_status(
+        self, operator: Any, prefix: Text | None, query: str, width: int
+    ) -> Text | None:
+        """Compose the operator status with narrow-width degradation."""
+        effect = getattr(operator, "effect", None)
+        miss = getattr(operator, "miss", None)
+        ordinal = getattr(operator, "ordinal", None)
+        total = int(getattr(operator, "total", 0) or 0)
+        family = str(getattr(operator, "family", "transform"))
+        try:
+            variables = self.app.theme_variables
+        except Exception:
+            variables = None
+        sigil = "?" if getattr(operator, "direction", "forward") == "reverse" else "/"
+        prefix_plain = prefix.plain if prefix is not None else ""
+        left_len = cell_len(f"{prefix_plain}{sigil}{query} ")
+        gap = 2
+        if effect:
+            palette: SearchOperatorPalette = search_operator_palette(family, variables)
+            full = Text(no_wrap=True, overflow="crop")
+            full.append(str(effect), palette.effect)
+            count = format_search_count_segment(ordinal, total, variables=variables)
+            if count.plain:
+                full.append_text(count)
+            if not width or left_len + cell_len(full.plain) + gap <= width:
+                return full
+            count_only = format_search_count_segment(
+                ordinal, total, variables=variables
+            )
+            if count_only.plain and (
+                not width or left_len + cell_len(count_only.plain) + gap <= width
+            ):
+                return count_only
+            return None
+        if miss:
+            text = Text(str(miss), style="dim", no_wrap=True)
+            if not width or left_len + cell_len(text.plain) + gap <= width:
+                return text
+            return None
+        return None
 
     def _search_command_status(
         self,

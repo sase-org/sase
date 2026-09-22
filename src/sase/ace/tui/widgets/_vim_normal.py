@@ -23,6 +23,9 @@ class VimNormalModeMixin(VimNormalEditingMixin):
         def _jump_to_definition_under_cursor(self) -> None: ...
         def _preview_token_under_cursor(self) -> None: ...
         def _start_prompt_search(self, direction: SearchDirection) -> None: ...
+        def _start_prompt_search_operator(
+            self, direction: SearchDirection, operator: str, count: int
+        ) -> bool: ...
 
     def _can_start_prompt_search_from_normal_key(self) -> bool:
         """Return whether ``/`` / ``?`` may open prompt search right now.
@@ -36,10 +39,27 @@ class VimNormalModeMixin(VimNormalEditingMixin):
           surround/replace prefix, etc. that consumes the next key as data, so
           ``dt/`` deletes up to the literal ``/`` rather than opening search.
         - ``_pending_operator`` is mid-composition (``d``/``c``/``y``/...); the
-          next key belongs to that operator, not to a fresh search.
+          next key belongs to that operator -- either an operator search motion
+          (``d/``, ``d?``) handled just below, or a plain motion -- not to a
+          fresh search.
         - ``_count_prefix`` is buffering a count that still awaits its command.
         """
         return not (self._pending_keys or self._pending_operator or self._count_prefix)
+
+    def _start_operator_search_from_normal_key(
+        self, direction: SearchDirection
+    ) -> bool:
+        """Start an operator search motion, returning whether the host owns it."""
+        op = self._pending_operator
+        try:
+            motion_count = int(self._count_prefix) if self._count_prefix else 1
+        except ValueError:
+            motion_count = 1
+        total = max(1, self._pending_operator_count) * max(1, motion_count)
+        start = getattr(self, "_start_prompt_search_operator", None)
+        if not callable(start):
+            return False
+        return bool(start(direction, op, total))
 
     def _handle_normal_mode_key(self, event: Key) -> bool:
         """Handle a key event in NORMAL mode. Returns True if handled.
@@ -58,6 +78,17 @@ class VimNormalModeMixin(VimNormalEditingMixin):
             )
             self._start_prompt_search(direction)
             return True
+
+        if (
+            (key in {"/", "?"} or event.key in {"slash", "question_mark"})
+            and self._pending_operator
+            and not self._pending_keys
+        ):
+            operator_direction: SearchDirection = (
+                "reverse" if key == "?" or event.key == "question_mark" else "forward"
+            )
+            if self._start_operator_search_from_normal_key(operator_direction):
+                return True
 
         if key == "K" and self._can_start_prompt_search_from_normal_key():
             self._preview_token_under_cursor()

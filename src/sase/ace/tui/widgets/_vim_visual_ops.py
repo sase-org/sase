@@ -72,6 +72,7 @@ class VimVisualOperatorMixin(VimVisualStateMixin):
         self._last_mutation_keys = []
         self._last_mutation_count = 1
         self._last_mutation_insert = None
+        self._last_search_motion_mutation = None
         self._mutation_key_buffer.clear()
 
     def _queue_visual_surround(self) -> None:

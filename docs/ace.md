@@ -5840,6 +5840,8 @@ order, with the existing wrap toasts when the traversal crosses the top or botto
 selected text. The pill's number is always stack-global and follows the highlighted
 match, even if you move the cursor away afterward. It disappears with the highlights:
 `Esc`, entering INSERT, edits, pane switches, and starting a new search all clear it.
+See [Operator + Search](#operator-search) for operating up to a match with `d/`, `d?`,
+`dn`, and `dN`.
 
 On narrow terminals, the bottom border keeps the cursor readout first. The mode hints
 truncate or drop before the search pill; then the pill drops its query segment and keeps
@@ -7057,6 +7059,46 @@ Text objects compose with `d`, `c`, and `y`.
 | `ip` / `ap`          | Inner / a paragraph; `ap` includes adjacent blank lines |
 | `ae`                 | Entire buffer                                           |
 
+#### Operator + Search
+
+Any operator followed by `/` or `?` acts up to a search match: `d/foo<Enter>` deletes
+from the cursor up to, but not including, the next `foo`, and `d?foo<Enter>` deletes
+back to the previous one. It works with `d`, `c`, `y`, `gu`, `gU`, `g~`, `>`, `<`, and
+`ys` (the delimiter follows).
+
+| Key                          | Action                                             |
+| ---------------------------- | -------------------------------------------------- |
+| `{op}/{pat}<Enter>`          | Operate forward up to the match                    |
+| `{op}?{pat}<Enter>`          | Operate backward back to the match                 |
+| `{op}n` / `{op}N`            | Operate to the next / previous shared-search match |
+| `2{op}/{pat}`, `{op}2/{pat}` | Count selects the N-th match (operator × motion)   |
+
+While you type, the exact region is tinted in the operator's color: red with
+strikethrough for `d`/`c`, green for `y`, and the theme's secondary color for the
+transform family. A backward `d?foo` shows the gold landing match struck through (it
+will be deleted), while a forward `d/foo` leaves it intact. The panel says in words what
+Enter will do, such as `delete 42 chars · 3 lines`, plus the pane-local count (for
+example `2/3`).
+
+The motion never wraps and stays inside the active pane: `d/` only reaches forward and
+`d?` only reaches backward. A match starting exactly at the cursor is skipped. When
+there is no target, Enter changes nothing and reports `pattern not found`,
+`no match after cursor · 2 before` (or `no match before cursor · 2 after`), or
+`only 1 match after cursor` when a count asks for too many. `Esc` or `Ctrl+C` restores
+everything.
+
+The motion is exclusive, with Vim's column-0 adjustment: when the range ends at column 0
+of a later row, it becomes linewise if the start is at or before the first non-blank
+column (for example deleting whole lines), and otherwise stops at the end of the
+previous row. Matching is the same smartcase literal matching `/` uses, and a successful
+operator search records the query so `n` / `N` continue from it.
+
+`.` repeats the same operator, query, direction, and count from the current cursor; a
+count on `.` replaces the recorded count, and `c` replays its inserted text. One `u`
+restores the whole edit. Not supported: regex, `/e` offsets, empty `d/<Enter>` reusing
+the last pattern (it cancels), counted plain `3/`, VISUAL `/`, `d*`/`d#`/`gn`,
+cross-pane operators, and wrapscan for operators.
+
 #### Other Commands
 
 | Key         | Action                                                                                                |
@@ -7085,7 +7127,7 @@ Text objects compose with `d`, `c`, and `y`.
 | `J`         | Join current line with next, removing a pulled-up prompt `- ` or `<N>.` marker (supports count: `5J`) |
 | `K`         | Preview the xprompt, workflow, skill, file, glossary term, repo name, or plain word under the cursor  |
 | `Ctrl+]`    | Jump to the xprompt/workflow/skill/glossary definition, file, or repo checkout under the cursor       |
-| `/` / `?`   | Search forward / backward in the current prompt pane                                                  |
+| `/` / `?`   | Search forward / backward in the current prompt pane; after an operator, acts up to the match         |
 | `n` / `N`   | Repeat the last confirmed search in its original / opposite direction                                 |
 | `*` / `#`   | Search forward / backward for the whole word under the cursor                                         |
 | `g*` / `g#` | Like `*` / `#`, but also matches the word as a substring                                              |

@@ -14,7 +14,10 @@ from sase.ace.tui.widgets._jinja_highlight import (
     _MAX_OVERLAY_BYTES,
     _MAX_OVERLAY_LINES,
 )
-from sase.ace.tui.widgets._prompt_search_readout import PromptSearchReadout
+from sase.ace.tui.widgets._prompt_search_readout import (
+    PromptSearchReadout,
+    search_operator_palette,
+)
 from sase.ace.tui.widgets._vim_search import (
     SearchDirection,
     SearchSelection,
@@ -49,6 +52,7 @@ class SearchHighlightMixin(_MixinBase):
         self._search_match_spans: tuple[SearchSpan, ...] = ()
         self._search_current_match_index: int | None = None
         self._search_readout: PromptSearchReadout | None = None
+        self._search_operator_region: tuple[int, int, str] | None = None
         super().__init__(*args, **kwargs)
 
     def on_mount(self) -> None:
@@ -74,7 +78,7 @@ class SearchHighlightMixin(_MixinBase):
 
     def _build_highlight_map(self) -> None:
         super()._build_highlight_map()
-        if not self._search_match_spans:
+        if not self._search_match_spans and self._search_operator_region is None:
             return
 
         text = self.text
@@ -83,10 +87,38 @@ class SearchHighlightMixin(_MixinBase):
         if text.count("\n") > _MAX_OVERLAY_LINES:
             return
 
+        region = self._search_operator_region
+        if region is not None:
+            start, end, style_name = region
+            if end > start:
+                self._append_highlight_span(start, end, style_name)
+
         current = self._search_current_match_index
         for index, (start, end) in enumerate(self._search_match_spans):
             style_name = "search.current" if index == current else "search.match"
             self._append_highlight_span(start, end, style_name)
+
+    def _set_search_operator_region(
+        self,
+        start: int,
+        end: int,
+        family: str,
+        *,
+        refresh: bool = True,
+    ) -> None:
+        """Paint the operator-search preview region for *family*."""
+        if end <= start:
+            self._search_operator_region = None
+        else:
+            if family == "destructive":
+                style_name = "search.operator.destructive"
+            elif family == "yank":
+                style_name = "search.operator.yank"
+            else:
+                style_name = "search.operator.transform"
+            self._search_operator_region = (max(0, start), max(0, end), style_name)
+        if refresh:
+            self._refresh_search_overlay()
 
     def _set_search_highlights(
         self,
@@ -145,6 +177,7 @@ class SearchHighlightMixin(_MixinBase):
         self._search_match_spans = ()
         self._search_current_match_index = None
         self._search_readout = None
+        self._search_operator_region = None
         if refresh:
             self._refresh_search_overlay()
         if previous_readout is not None:
@@ -169,6 +202,10 @@ class SearchHighlightMixin(_MixinBase):
         base = self._resolve_search_base_theme(active_name)
         syntax_styles = dict(base.syntax_styles)
         app_theme = self.app.current_theme
+        try:
+            variables = self.app.theme_variables
+        except Exception:
+            variables = None
         syntax_styles.update(
             {
                 "search.match": Style(
@@ -181,6 +218,15 @@ class SearchHighlightMixin(_MixinBase):
                     bgcolor=app_theme.warning,
                     bold=True,
                 ),
+                "search.operator.destructive": search_operator_palette(
+                    "destructive", variables
+                ).region,
+                "search.operator.yank": search_operator_palette(
+                    "yank", variables
+                ).region,
+                "search.operator.transform": search_operator_palette(
+                    "transform", variables
+                ).region,
             }
         )
         theme = dataclasses.replace(

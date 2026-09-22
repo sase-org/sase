@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, NamedTuple
 
 from textual.events import Key
@@ -10,6 +11,8 @@ from sase.ace.tui.widgets._vim_registers import VimRegister, VimRegisterKind
 
 if TYPE_CHECKING:
     from textual.widgets import TextArea as _MixinBase
+
+    from sase.ace.tui.widgets._vim_search import SearchDirection
 else:
     _MixinBase = object
 
@@ -22,6 +25,16 @@ class VisualMutation(NamedTuple):
     size: int
     units: int
     delimiter: str | None = None
+
+
+@dataclass(frozen=True)
+class SearchMotionMutation:
+    """A repeatable operator + search-motion mutation."""
+
+    operator: str
+    count: int
+    query: str
+    direction: SearchDirection
 
 
 class VimNormalStateMixin(_MixinBase):
@@ -51,10 +64,15 @@ class VimNormalStateMixin(_MixinBase):
         _last_mutation_count: int
         _last_mutation_insert: str | None
         _last_visual_mutation: VisualMutation | None
+        _last_search_motion_mutation: SearchMotionMutation | None
         _dot_insert_capture_offset: int | None
         _replaying_dot: bool
         _last_char_search: tuple[str, str] | None
         _vim_register: VimRegister
+
+        def _replay_search_motion_mutation(
+            self, mutation: SearchMotionMutation, count: int, has_count: bool
+        ) -> None: ...
 
         def _update_vim_mode_display(self, indicator: str = "") -> None: ...
 
@@ -198,6 +216,7 @@ class VimNormalStateMixin(_MixinBase):
             self._last_mutation_count = max(1, self._mutation_count)
             self._last_mutation_insert = None
             self._last_visual_mutation = None
+            self._last_search_motion_mutation = None
         self._mutation_key_buffer.clear()
         self._mutation_count = 1
 
@@ -322,6 +341,11 @@ class VimNormalStateMixin(_MixinBase):
 
     def _replay_dot(self, count: int, has_count: bool) -> None:
         """Replay the last recorded mutation with vim count-override semantics."""
+        if self._last_search_motion_mutation is not None:
+            self._replay_search_motion_mutation(
+                self._last_search_motion_mutation, count, has_count
+            )
+            return
         if self._last_visual_mutation is not None:
             self._replay_visual_dot(count, has_count)
             return

@@ -54,6 +54,8 @@ PROMPT_INPUT_SECTION: tuple[str, list[tuple[str, str]]] = (
         ("n / N", "Repeat prompt search fwd/rev"),
         ("* / #", "Search word under cursor"),
         ("g* / g#", "... as substring"),
+        ("d/ / d? + Enter", "Operate up to a search match"),
+        ("dn / dN", "Operate to next/prev match"),
         ("Enter / Esc", "Confirm / cancel prompt search"),
         ("gf / Ctrl+G f", "Format current prompt"),
         ("gG / Ctrl+G G", "Glossary panel"),
