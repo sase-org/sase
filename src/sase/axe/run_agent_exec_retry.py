@@ -404,6 +404,8 @@ def handle_workflow_error(
                 ctx.update_target,
                 backup_suffix="ace",
                 project_basename=ctx.project_name,
+                self_heal=ctx.workspace_num > 1,
+                workspace_num=ctx.workspace_num,
             )
         os.chdir(ctx.workspace_dir)
         os.environ["SASE_ACTIVE_PROJECT_DIR"] = ctx.workspace_dir
@@ -453,6 +455,8 @@ def handle_workflow_error(
                 ctx.update_target,
                 backup_suffix="ace",
                 project_basename=ctx.project_name,
+                self_heal=ctx.workspace_num > 1,
+                workspace_num=ctx.workspace_num,
             )
         os.chdir(ctx.workspace_dir)
         os.environ["SASE_ACTIVE_PROJECT_DIR"] = ctx.workspace_dir

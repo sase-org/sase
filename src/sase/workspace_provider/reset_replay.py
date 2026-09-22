@@ -36,7 +36,11 @@ from sase.workspace_provider.ownership import (
     OperationContext,
     WorkspaceOwnershipError,
 )
-from sase.workspace_provider.utils import get_default_branch, non_interactive_git_env
+from sase.workspace_provider.utils import (
+    abort_in_progress_git_operations,
+    get_default_branch,
+    non_interactive_git_env,
+)
 
 DEFAULT_MAX_ATTEMPTS = 3
 
@@ -239,31 +243,21 @@ def _reset_leased_checkout(
 
 def _abort_in_progress_operations(repo_root: Path) -> None:
     git_dir_result = _run_git(["rev-parse", "--git-dir"], repo_root)
-    if git_dir_result.returncode != 0:
+    if git_dir_result.returncode != 0 or not git_dir_result.stdout.strip():
         raise _ResetFailure(
             f"could not resolve the Git directory: {_git_error(git_dir_result)}"
         )
     git_dir = Path(git_dir_result.stdout.strip())
     if not git_dir.is_absolute():
         git_dir = repo_root / git_dir
-    if (git_dir / "rebase-merge").exists() or (git_dir / "rebase-apply").exists():
-        aborted = _run_git(["rebase", "--abort"], repo_root)
-        if aborted.returncode != 0:
-            raise _ResetFailure(
-                f"could not abort the stale rebase: {_git_error(aborted)}"
-            )
-    if (git_dir / "MERGE_HEAD").exists():
-        aborted = _run_git(["merge", "--abort"], repo_root)
-        if aborted.returncode != 0:
-            raise _ResetFailure(
-                f"could not abort the stale merge: {_git_error(aborted)}"
-            )
-    if (git_dir / "CHERRY_PICK_HEAD").exists():
-        aborted = _run_git(["cherry-pick", "--abort"], repo_root)
-        if aborted.returncode != 0:
-            raise _ResetFailure(
-                f"could not abort the stale cherry-pick: {_git_error(aborted)}"
-            )
+
+    def _run(argv: list[str]) -> tuple[int, str]:
+        result = _run_git(argv[1:], repo_root)
+        return result.returncode, _git_error(result)
+
+    error = abort_in_progress_git_operations(repo_root, git_dir, _run)
+    if error is not None:
+        raise _ResetFailure(f"could not abort in-progress git operations: {error}")
 
 
 def _resolve_upstream(repo_root: Path) -> str:

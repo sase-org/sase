@@ -7,8 +7,9 @@ names from that module rather than depending on this one directly.
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 from urllib.parse import unquote, urlparse
@@ -248,3 +249,124 @@ def get_default_branch(workspace_dir: str) -> str:
         except Exception:
             pass
     return "origin/main"
+
+
+#: Git-dir-relative paths that mark an in-progress git operation, with labels.
+#: ``rebase-apply`` is shared by ``git am`` and the ``--apply`` rebase backend;
+#: it is labeled ``am`` and its abort sequence covers both commands.
+GIT_IN_PROGRESS_OPERATION_PATHS: tuple[tuple[str, str], ...] = (
+    ("rebase-merge", "rebase"),
+    ("rebase-apply", "am"),
+    ("MERGE_HEAD", "merge"),
+    ("CHERRY_PICK_HEAD", "cherry-pick"),
+    ("REVERT_HEAD", "revert"),
+    ("BISECT_LOG", "bisect"),
+    ("BISECT_EXPECTED_REV", "bisect"),
+    ("BISECT_START", "bisect"),
+    ("sequencer", "sequencer"),
+)
+
+#: Abort/quit command sequences per marker path. Each entry lists argv lists
+#: (without the leading ``git``) tried in order until one succeeds; failures
+#: are tolerated because the marker cleanup and hard reset below finish the
+#: job. ``git merge`` has no ``--quit`` variant, so a failed merge abort falls
+#: through to marker removal.
+_OPERATION_ABORT_SEQUENCE: tuple[tuple[str, tuple[list[str], ...]], ...] = (
+    ("rebase-merge", (["rebase", "--abort"], ["rebase", "--quit"])),
+    (
+        "rebase-apply",
+        (
+            ["rebase", "--abort"],
+            ["am", "--abort"],
+            ["rebase", "--quit"],
+            ["am", "--quit"],
+        ),
+    ),
+    ("MERGE_HEAD", (["merge", "--abort"],)),
+    (
+        "CHERRY_PICK_HEAD",
+        (["cherry-pick", "--abort"], ["cherry-pick", "--quit"]),
+    ),
+    ("REVERT_HEAD", (["revert", "--abort"], ["revert", "--quit"])),
+    ("BISECT_LOG", (["bisect", "reset"],)),
+    ("BISECT_EXPECTED_REV", (["bisect", "reset"],)),
+    ("BISECT_START", (["bisect", "reset"],)),
+    ("sequencer", (["cherry-pick", "--quit"], ["revert", "--quit"])),
+)
+
+
+def in_progress_git_operations(git_dir: Path) -> list[str]:
+    """Return the labels of in-progress git operations marked in *git_dir*.
+
+    Labels follow :data:`GIT_IN_PROGRESS_OPERATION_PATHS`, deduplicated with
+    the table order preserved. Never raises: an unreadable git dir reports no
+    operations.
+    """
+    try:
+        present = [
+            label
+            for relative, label in GIT_IN_PROGRESS_OPERATION_PATHS
+            if (git_dir / relative).exists()
+        ]
+    except OSError:
+        return []
+    return list(dict.fromkeys(present))
+
+
+def abort_in_progress_git_operations(
+    repo_root: Path,
+    git_dir: Path,
+    run: Callable[[list[str]], tuple[int, str]],
+) -> str | None:
+    """Abort every in-progress git operation in *repo_root*.
+
+    Runs each present marker's abort sequence (falling back to the ``--quit``
+    variant), removes leftover known marker paths, and finishes with
+    ``git reset --hard HEAD``. Returns ``None`` when no operation was in
+    progress or every marker is gone, else a short error summary. Never
+    raises: a failing *run* callback counts as a failed command.
+    """
+    present = [
+        relative
+        for relative, _ in GIT_IN_PROGRESS_OPERATION_PATHS
+        if _exists(git_dir / relative)
+    ]
+    if not present:
+        return None
+    for relative in dict.fromkeys(present):
+        for argv in dict(_OPERATION_ABORT_SEQUENCE).get(relative, ()):
+            code, _ = _safe_run(run, ["git", *argv])
+            if code == 0:
+                break
+    for relative, _ in GIT_IN_PROGRESS_OPERATION_PATHS:
+        target = git_dir / relative
+        try:
+            if target.is_dir() and not target.is_symlink():
+                shutil.rmtree(target)
+            elif target.exists() or os.path.lexists(target):
+                target.unlink()
+        except OSError:
+            pass
+    code, detail = _safe_run(run, ["git", "reset", "--hard", "HEAD"])
+    if code != 0:
+        return f"git reset --hard HEAD failed: {detail or 'unknown error'}"
+    remaining = in_progress_git_operations(git_dir)
+    if remaining:
+        return "in-progress git operations remain after abort: " + ", ".join(remaining)
+    return None
+
+
+def _exists(path: Path) -> bool:
+    try:
+        return path.exists()
+    except OSError:
+        return False
+
+
+def _safe_run(
+    run: Callable[[list[str]], tuple[int, str]], argv: list[str]
+) -> tuple[int, str]:
+    try:
+        return run(argv)
+    except Exception as exc:  # noqa: BLE001 - abort must never raise.
+        return 1, str(exc)

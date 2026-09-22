@@ -461,11 +461,18 @@ def _bundle_refs(
             refs.extend(
                 line.strip() for line in result.stdout.splitlines() if line.strip()
             )
+    temp_refs: list[str] = []
     branch_result = _git(repo_root, "symbolic-ref", "-q", "HEAD")
     if branch_result.returncode != 0 and head.returncode == 0 and head.stdout.strip():
-        # Detached HEAD holding commits no branch contains: bundle it by SHA.
-        refs.append(head.stdout.strip())
-    temp_refs: list[str] = []
+        # Detached HEAD holding commits no branch contains: bundle it through
+        # a temporary ref, since `git bundle create` refuses a bare SHA with
+        # "Refusing to create empty bundle".
+        ref = "refs/sase/rescue-tmp/detached-head"
+        created = _git(repo_root, "update-ref", ref, head.stdout.strip())
+        if created.returncode == 0:
+            temp_refs.append(ref)
+        else:
+            refs.append(head.stdout.strip())
     for index, sha in enumerate(stash_shas):
         ref = f"refs/sase/rescue-tmp/stash-{index}"
         created = _git(repo_root, "update-ref", ref, sha)

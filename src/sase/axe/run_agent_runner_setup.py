@@ -150,6 +150,8 @@ def prepare_workspace_if_needed(
             update_target,
             backup_suffix="ace",
             project_basename=project_name,
+            self_heal=workspace_num > 1,
+            workspace_num=workspace_num,
         )
     except WorkspacePreparationError as exc:
         print(f"Workspace preparation failed: {exc.reason}", file=sys.stderr)
@@ -240,6 +242,8 @@ def prepare_linked_repo_workspaces_if_needed(
                 cl_name,
                 VCS_DEFAULT_REVISION,
                 backup_suffix=f"linked-{name}",
+                self_heal=repo.workspace_num > 1,
+                workspace_num=repo.workspace_num,
             )
         except WorkspacePreparationError as exc:
             print(

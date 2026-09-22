@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
 
     from ._types import (
+        CheckoutInspection,
         IssueListState,
         IssueState,
         IssueWire,
@@ -328,6 +329,49 @@ class VCSPluginManager(VCSProvider):
 
     def abort_sync(self, cwd: str) -> tuple[bool, str | None]:
         return self._call_or_raise("vcs_abort_sync", cwd=cwd)
+
+    def inspect_checkout(self, cwd: str) -> "CheckoutInspection":
+        result = self._pm.hook.vcs_inspect_checkout(cwd=cwd)
+        if result is None:
+            raise NotImplementedError(
+                "inspect_checkout is not supported by this VCS provider"
+            )
+        return result  # type: ignore[return-value]
+
+    def in_progress_operations(self, cwd: str) -> list[str]:
+        result = self._pm.hook.vcs_in_progress_operations(cwd=cwd)
+        if result is None:
+            raise NotImplementedError(
+                "in_progress_operations is not supported by this VCS provider"
+            )
+        return result  # type: ignore[return-value]
+
+    def abort_in_progress_operations(self, cwd: str) -> tuple[bool, str | None]:
+        return self._call_or_raise("vcs_abort_in_progress_operations", cwd=cwd)
+
+    def force_checkout(self, revision: str, cwd: str) -> tuple[bool, str | None]:
+        return self._call_or_raise("vcs_force_checkout", revision=revision, cwd=cwd)
+
+    def recreate_branch_from_remote(
+        self, branch: str, remote_ref: str, cwd: str
+    ) -> tuple[bool, str | None]:
+        return self._call_or_raise(
+            "vcs_recreate_branch_from_remote",
+            branch=branch,
+            remote_ref=remote_ref,
+            cwd=cwd,
+        )
+
+    def fetch_origin(self, cwd: str) -> tuple[bool, str | None]:
+        return self._call_or_raise("vcs_fetch_origin", cwd=cwd)
+
+    def rebase_onto(self, remote_ref: str, cwd: str) -> tuple[bool, str | None]:
+        return self._call_or_raise("vcs_rebase_onto", remote_ref=remote_ref, cwd=cwd)
+
+    def reset_to_remote(self, remote_ref: str, cwd: str) -> tuple[bool, str | None]:
+        return self._call_or_raise(
+            "vcs_reset_to_remote", remote_ref=remote_ref, cwd=cwd
+        )
 
     # --- Optional issue-tracker operations ---
 

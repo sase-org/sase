@@ -231,7 +231,11 @@ def test_prepare_linked_repo_workspaces_uses_default_revision_sentinel(
     assert calls == [
         (
             ("/repos/sase-core_7", "feature", VCS_DEFAULT_REVISION),
-            {"backup_suffix": "linked-core"},
+            {
+                "backup_suffix": "linked-core",
+                "self_heal": True,
+                "workspace_num": 7,
+            },
         )
     ]
 

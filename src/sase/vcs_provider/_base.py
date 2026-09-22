@@ -8,6 +8,7 @@ if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
 
     from ._types import (
+        CheckoutInspection,
         IssueListState,
         IssueState,
         IssueWire,
@@ -357,6 +358,52 @@ class VCSProvider(ABC):
     def abort_sync(self, cwd: str) -> tuple[bool, str | None]:
         """Abort a sync/rebase in progress and restore the previous state."""
         raise NotImplementedError("abort_sync is not supported by this VCS provider")
+
+    def inspect_checkout(self, cwd: str) -> "CheckoutInspection":
+        """Snapshot a checkout's heal-relevant state for the self-heal ladder."""
+        raise NotImplementedError(
+            "inspect_checkout is not supported by this VCS provider"
+        )
+
+    def in_progress_operations(self, cwd: str) -> list[str]:
+        """Return labels of in-progress operations (rebase, merge, ...)."""
+        raise NotImplementedError(
+            "in_progress_operations is not supported by this VCS provider"
+        )
+
+    def abort_in_progress_operations(self, cwd: str) -> tuple[bool, str | None]:
+        """Abort every in-progress operation and hard-reset to HEAD."""
+        raise NotImplementedError(
+            "abort_in_progress_operations is not supported by this VCS provider"
+        )
+
+    def force_checkout(self, revision: str, cwd: str) -> tuple[bool, str | None]:
+        """Check out *revision*, discarding worktree changes (``checkout -f``)."""
+        raise NotImplementedError(
+            "force_checkout is not supported by this VCS provider"
+        )
+
+    def recreate_branch_from_remote(
+        self, branch: str, remote_ref: str, cwd: str
+    ) -> tuple[bool, str | None]:
+        """Recreate *branch* at *remote_ref* (``checkout -B``)."""
+        raise NotImplementedError(
+            "recreate_branch_from_remote is not supported by this VCS provider"
+        )
+
+    def fetch_origin(self, cwd: str) -> tuple[bool, str | None]:
+        """Fetch ``origin`` without rebasing, so fetch failures stay distinct."""
+        raise NotImplementedError("fetch_origin is not supported by this VCS provider")
+
+    def rebase_onto(self, remote_ref: str, cwd: str) -> tuple[bool, str | None]:
+        """Rebase the current branch onto *remote_ref*."""
+        raise NotImplementedError("rebase_onto is not supported by this VCS provider")
+
+    def reset_to_remote(self, remote_ref: str, cwd: str) -> tuple[bool, str | None]:
+        """Hard-reset the current branch to *remote_ref*."""
+        raise NotImplementedError(
+            "reset_to_remote is not supported by this VCS provider"
+        )
 
     # --- Optional issue-tracker operations ---
 

@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from sase.core.vcs_log_wire import VcsCommitWire
 
     from ._types import (
+        CheckoutInspection,
         IssueListState,
         IssueState,
         IssueWire,
@@ -194,6 +195,38 @@ class VCSHookSpec:
 
     @hookspec(firstresult=True)
     def vcs_abort_sync(self, cwd: str) -> tuple[bool, str | None]: ...
+
+    # --- Self-heal operations (git-backed providers) ---
+
+    @hookspec(firstresult=True)
+    def vcs_inspect_checkout(self, cwd: str) -> "CheckoutInspection": ...
+
+    @hookspec(firstresult=True)
+    def vcs_in_progress_operations(self, cwd: str) -> list[str]: ...
+
+    @hookspec(firstresult=True)
+    def vcs_abort_in_progress_operations(self, cwd: str) -> tuple[bool, str | None]: ...
+
+    @hookspec(firstresult=True)
+    def vcs_force_checkout(
+        self, revision: str, cwd: str
+    ) -> tuple[bool, str | None]: ...
+
+    @hookspec(firstresult=True)
+    def vcs_recreate_branch_from_remote(
+        self, branch: str, remote_ref: str, cwd: str
+    ) -> tuple[bool, str | None]: ...
+
+    @hookspec(firstresult=True)
+    def vcs_fetch_origin(self, cwd: str) -> tuple[bool, str | None]: ...
+
+    @hookspec(firstresult=True)
+    def vcs_rebase_onto(self, remote_ref: str, cwd: str) -> tuple[bool, str | None]: ...
+
+    @hookspec(firstresult=True)
+    def vcs_reset_to_remote(
+        self, remote_ref: str, cwd: str
+    ) -> tuple[bool, str | None]: ...
 
     # --- Optional issue-tracker operations ---
 

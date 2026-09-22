@@ -21,7 +21,10 @@ from sase.workspace_provider._utils_checkout import (
     set_workspace_dir,
 )
 from sase.workspace_provider._utils_git import (
+    GIT_IN_PROGRESS_OPERATION_PATHS,
+    abort_in_progress_git_operations,
     get_default_branch,
+    in_progress_git_operations,
     non_interactive_git_env,
 )
 from sase.workspace_provider._utils_origin import (
@@ -44,8 +47,10 @@ class ProjectProviderMismatchError(ValueError):
 
 # Re-export Path for convenience (used by callers that need projects_base)
 __all__ = [
+    "GIT_IN_PROGRESS_OPERATION_PATHS",
     "Path",
     "ProjectProviderMismatchError",
+    "abort_in_progress_git_operations",
     "ensure_git_clone_at",
     "ensure_workspace_checkout",
     "classify_alternate_state",
@@ -54,6 +59,7 @@ __all__ = [
     "fsck_connectivity",
     "git_object_dir",
     "get_default_branch",
+    "in_progress_git_operations",
     "non_interactive_git_env",
     "parse_bare_repo_dir",
     "parse_workspace_dir",

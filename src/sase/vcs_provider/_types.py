@@ -76,3 +76,22 @@ class CommandOutput:
     def success(self) -> bool:
         """Whether the command succeeded (returncode == 0)."""
         return self.returncode == 0
+
+
+@dataclass(frozen=True)
+class CheckoutInspection:
+    """Provider-neutral snapshot of a checkout's heal-relevant state.
+
+    Returned by :meth:`VCSProvider.inspect_checkout` for the self-heal
+    ladder: in-progress operation labels, unmerged paths, the attached branch
+    (``None`` when detached), HEAD, whether the worktree is dirty, and whether
+    a detached HEAD holds commits no local branch or tag contains. Tuple
+    collections keep the frozen record immutable like :class:`IssueWire`.
+    """
+
+    operations: tuple[str, ...] = ()
+    unmerged_paths: tuple[str, ...] = ()
+    branch: str | None = None
+    head: str | None = None
+    dirty: bool = False
+    detached_orphan: bool = False
