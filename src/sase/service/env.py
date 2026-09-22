@@ -52,6 +52,10 @@ def capture_service_environment(
     environment = os.environ if environ is None else environ
     names = set(_allowed_provider_env_names(metadata_payload))
     names.update(("PATH", "SASE_FEATURE_FLAGS"))
+    # Managed-root overrides honored by sase.core.paths: without them the
+    # service reaper falls back to ~/.sase/tmp while launched agents write
+    # into $SASE_TMPDIR, and the real root is never reaped (sase-15q).
+    names.update(("SASE_TMPDIR", "SASE_HOME"))
     if mobile_credential := _mobile_gateway_credential_env():
         names.add(mobile_credential)
 

@@ -33,7 +33,7 @@ repository preparation cannot copy them into ``sase/repos/`` checkouts.
 
 import os
 import re
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from datetime import datetime
 from pathlib import Path
 
@@ -90,6 +90,25 @@ def managed_tmpdir_root() -> Path:
     return _unsandboxed_managed_tmpdir_root()
 
 
+def managed_tmpdir_root_for_env(environ: Mapping[str, str]) -> Path:
+    """Resolve the managed temp root for an explicit environment mapping.
+
+    Mirrors :func:`_unsandboxed_managed_tmpdir_root` without touching
+    ``os.environ`` or the pytest sandbox, so the service layer can compare the
+    root an interactive shell gives agents against the root a captured service
+    environment gives the reaper. ``SASE_TMPDIR`` wins; otherwise the root is
+    ``tmp`` under ``SASE_HOME`` (``~/.sase`` by default).
+    """
+    sase_tmpdir = environ.get("SASE_TMPDIR")
+    if sase_tmpdir:
+        return Path(sase_tmpdir).expanduser()
+    sase_home_value = environ.get("SASE_HOME")
+    base = (
+        Path(sase_home_value).expanduser() if sase_home_value else Path.home() / ".sase"
+    )
+    return base / "tmp"
+
+
 def _unsandboxed_managed_tmpdir_root() -> Path:
     """Return the managed temp root production uses, ignoring pytest sandboxing.
 
@@ -97,10 +116,7 @@ def _unsandboxed_managed_tmpdir_root() -> Path:
     developer's real root from inside a pytest process — where
     :func:`get_sase_managed_tmpdir` deliberately resolves somewhere else.
     """
-    sase_tmpdir = os.environ.get("SASE_TMPDIR")
-    if sase_tmpdir:
-        return Path(sase_tmpdir).expanduser()
-    return sase_subdir("tmp")
+    return managed_tmpdir_root_for_env(os.environ)
 
 
 def sase_home() -> Path:

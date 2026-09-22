@@ -145,6 +145,9 @@ def test_managed_tmp_reap_emits_noop_summary(
     assert "managed_tmp_reap:" in out
     assert "removed=0" in out
     assert "reason=nothing_stale" in out
+    # Even a no-op names the root it scanned, so a stale-root miss is visible.
+    assert "nothing stale under" in out
+    assert str(managed_root) in out
     result = json.loads(result_path.read_text(encoding="utf-8"))
     assert result["status"] == "no_op"
     assert result["reason"] == "nothing_stale"

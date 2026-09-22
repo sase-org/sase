@@ -144,3 +144,46 @@ def test_default_runner_override_allows_isolated_lifecycle_test(
     run.assert_called_once()
     assert result.returncode == 0
     assert result.stdout == "ok\n"
+
+
+def test_readiness_warns_when_shell_and_captured_tmp_roots_differ(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A stale capture reaps the wrong root; doctor must name both roots."""
+    _stub_non_ssh_readiness(monkeypatch)
+    monkeypatch.setenv("SASE_TMPDIR", "/shell/cache/sase/tmp")
+    monkeypatch.delenv("SASE_HOME", raising=False)
+
+    warnings = _readiness_warnings({"PATH": "/captured/bin"})
+
+    joined = "\n".join(warnings)
+    assert "managed tmp root differs" in joined
+    assert "/shell/cache/sase/tmp" in joined
+    assert "sase service init --yes" in joined
+
+
+def test_readiness_warns_when_shell_and_captured_home_roots_differ(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_non_ssh_readiness(monkeypatch)
+    monkeypatch.setenv("SASE_HOME", "/shell/.sase")
+    monkeypatch.delenv("SASE_TMPDIR", raising=False)
+
+    warnings = _readiness_warnings({"PATH": "/captured/bin"})
+
+    assert any("managed tmp root differs" in warning for warning in warnings)
+
+
+def test_readiness_stays_quiet_when_tmp_roots_agree(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _stub_non_ssh_readiness(monkeypatch)
+    monkeypatch.setenv("SASE_TMPDIR", "/shared/sase/tmp")
+    monkeypatch.delenv("SASE_HOME", raising=False)
+
+    assert (
+        _readiness_warnings(
+            {"PATH": "/captured/bin", "SASE_TMPDIR": "/shared/sase/tmp"}
+        )
+        == ()
+    )

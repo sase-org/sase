@@ -499,7 +499,30 @@ def _readiness_warnings(env: Mapping[str, str]) -> tuple[str, ...]:
         warnings.append(
             "SASE_FEATURE_FLAGS differ between the shell and captured service environment"
         )
+    warnings.extend(_managed_tmpdir_root_warnings(env))
     return tuple(warnings)
+
+
+def _managed_tmpdir_root_warnings(env: Mapping[str, str]) -> tuple[str, ...]:
+    """Warn when the service reaper would scan a different root than agents use.
+
+    Agents resolve their scratch root from this shell's ``SASE_TMPDIR`` /
+    ``SASE_HOME`` while the service host resolves its from the captured
+    environment. When those roots differ, per-run cargo targets land outside
+    the reaped root (sase-15q).
+    """
+    from sase.core.paths import managed_tmpdir_root_for_env
+
+    shell_root = managed_tmpdir_root_for_env(os.environ)
+    captured_root = managed_tmpdir_root_for_env(env)
+    if shell_root == captured_root:
+        return ()
+    return (
+        f"managed tmp root differs between this shell ({shell_root}) and the "
+        f"captured service environment ({captured_root}); the service reaper "
+        "scans the captured root, so run `sase service init --yes` to refresh "
+        "the capture",
+    )
 
 
 __all__ = [

@@ -220,3 +220,29 @@ def test_cargo_stray_scan_shares_a_bounded_listing_budget(tmp_path: Path) -> Non
 
     assert truncated is True
     assert visited <= 2
+
+
+def test_managed_tmp_rows_counts_cargo_targets_under_effective_root(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """Disk-pressure attribution must see cargo-targets where agents write it.
+
+    The inventory resolves its root through ``managed_tmpdir_root`` — the same
+    ``$SASE_TMPDIR``-honoring resolution the launcher uses — so per-run cargo
+    targets are owned by the reaper instead of surfacing as stray or top-owner
+    noise (sase-15q).
+    """
+    from sase.core.disk_footprint_inventory import managed_tmp_rows
+
+    effective = tmp_path / "effective-tmp"
+    _write(effective / "cargo-targets" / "agent-ws0" / "build.o", "build")
+    monkeypatch.setattr(
+        "sase.core.disk_footprint_inventory.managed_tmpdir_root",
+        lambda: effective,
+    )
+
+    rows = managed_tmp_rows(tree_size_fn=lambda _path: 5)
+
+    by_name = {row.name: row for row in rows}
+    assert by_name["cargo-targets"].owner == "managed_tmp_reaper"
+    assert Path(by_name["cargo-targets"].path) == effective / "cargo-targets"

@@ -135,6 +135,11 @@ def _darwin_home(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def _stub_non_ssh_readiness(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
+    # Readiness compares the interactive shell's managed-tmp root against the
+    # captured one, so an ambient SASE_TMPDIR/SASE_HOME (every agent shell has
+    # one) would otherwise leak a genuine mismatch warning into these tests.
+    monkeypatch.delenv("SASE_TMPDIR", raising=False)
+    monkeypatch.delenv("SASE_HOME", raising=False)
     monkeypatch.setattr(
         "sase.service.platform.collect_agent_cli_statuses", lambda **_k: ()
     )

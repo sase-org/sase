@@ -412,3 +412,23 @@ def test_load_service_environment_applies_live_agent(
         assert "SSH_AUTH_SOCK" in applied
         assert "SSH_AGENT_PID" in applied
         assert os.environ["PATH"] == "/captured/bin"
+
+
+def test_capture_service_environment_keeps_managed_root_overrides(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The service reaper must see the same SASE_TMPDIR agents launch with."""
+    monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+
+    captured = capture_service_environment(
+        environ={
+            "PATH": os.defpath,
+            "SASE_TMPDIR": "/cache/sase/tmp",
+            "SASE_HOME": "/alt/.sase",
+        },
+        metadata_payload={},
+    )
+
+    assert captured.values["SASE_TMPDIR"] == "/cache/sase/tmp"
+    assert captured.values["SASE_HOME"] == "/alt/.sase"
+    assert captured.redacted_values["SASE_TMPDIR"] == "[captured]"

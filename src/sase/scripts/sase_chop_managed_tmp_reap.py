@@ -6,11 +6,16 @@ path: the first pass over a long-neglected root walks tens of thousands of
 entries, which must never sit in front of a TUI startup or a CLI command.
 """
 
+from __future__ import annotations
+
+from pathlib import Path
+
 from sase.chops.builtin import BuiltinChopRuntime, builtin_chop, run_builtin_chop
 from sase.chops.sdk import ChopResultBuilder
 from sase.core import managed_tmp_reaper as _managed_tmp_reaper
 from sase.core.disk_pressure import filesystem_pressure_policy
 from sase.core.managed_tmp_reaper import reap_managed_tmpdir
+from sase.core.paths import sase_home
 
 
 @builtin_chop("managed_tmp_reap")
@@ -39,8 +44,11 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
         and result.pressure_effective_min_age_seconds is not None
         else None
     )
-    if result.removed:
-        runtime.log(result.describe(), "cyan")
+    # Always name the scanned root: a `nothing_stale` result over the wrong
+    # root is exactly the sase-15q failure mode.
+    runtime.log(result.describe(), "cyan")
+    if warning := _unmanaged_default_root_warning(root):
+        runtime.log.warning(warning)
     return runtime.emit_summary(
         {
             "scanned": result.scanned,
@@ -72,6 +80,38 @@ def _run(runtime: BuiltinChopRuntime) -> ChopResultBuilder:
             "incomplete_observations": result.incomplete_observations,
         },
         reason="nothing_stale" if not result.removed else None,
+    )
+
+
+def _unmanaged_default_root_warning(
+    root: Path,
+    *,
+    default_root: Path | None = None,
+) -> str | None:
+    """Warn when the ``SASE_HOME``-based default root holds entries outside *root*.
+
+    *root* is the effective root the reaper just scanned (``$SASE_TMPDIR``
+    when set). When the default root differs and still holds entries, some
+    writer is using the default root and its output is never reaped.
+    """
+    default = sase_home() / "tmp" if default_root is None else default_root
+    try:
+        if default.resolve() == root.resolve():
+            return None
+    except OSError:
+        return None
+    try:
+        entries = sum(1 for _entry in default.iterdir())
+    except OSError:
+        return None
+    if not entries:
+        return None
+    noun = "entry" if entries == 1 else "entries"
+    return (
+        f"managed tmp reaper scans {root} but the default root {default} "
+        f"holds {entries} {noun} outside it; align SASE_TMPDIR between "
+        "launched agents and the service host, then refresh the capture "
+        "with `sase service init --yes`"
     )
 
 
