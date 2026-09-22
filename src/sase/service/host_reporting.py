@@ -27,13 +27,52 @@ from sase.service.status import (
 from sase.service.restart import ServiceRestartDecision
 
 
+def empty_service_config() -> ServiceConfigComposition:
+    """Return a synthetic empty composition for the no-last-good degraded tick.
+
+    The snapshot still needs a config wire to build from; the host error
+    carries the real failure, so an empty proc set is the honest fallback.
+    """
+    return ServiceConfigComposition(
+        schema_version=1,
+        fatal=False,
+        procs=(),
+        diagnostics=(),
+        ignored_layers=(),
+    )
+
+
 def write_current_host_status(
     host: object,
     config: ServiceConfigComposition | None = None,
     state: ServiceStateSnapshot | None = None,
+    *,
+    config_error: str | None = None,
 ) -> None:
-    """Write a snapshot from a host's current private runtime records."""
-    composition = load_service_config() if config is None else config
+    """Write a snapshot from a host's current private runtime records.
+
+    A passed composition is used as-is and never reloaded. When no
+    composition is passed, the host's last-known-good composition is
+    preferred so a fatal config cannot freeze the snapshot; only when the
+    host has never loaded a good composition is the config reloaded (and,
+    when that also fails, an empty composition is used so the snapshot
+    stays fresh and carries the error).
+    """
+    if config_error is None:
+        config_error = getattr(host, "_config_error", None)
+    if config is not None:
+        composition = config
+    else:
+        last_good = getattr(host, "_last_good_config", None)
+        if last_good is not None:
+            composition = last_good
+        else:
+            try:
+                composition = load_service_config()
+            except Exception as exc:  # noqa: BLE001 - degraded snapshot must exist.
+                if config_error is None:
+                    config_error = str(exc)
+                composition = empty_service_config()
     state_snapshot = read_service_state() if state is None else state
     _write_host_status(
         composition,
@@ -45,6 +84,7 @@ def write_current_host_status(
         pending_restarts=host._pending,  # type: ignore[attr-defined]
         last_exits=host._last_exits,  # type: ignore[attr-defined]
         restart_decisions=host._restart_decisions,  # type: ignore[attr-defined]
+        config_error=config_error,
     )
 
 
@@ -59,6 +99,7 @@ def _write_host_status(
     pending_restarts: Mapping[str, PendingRestart],
     last_exits: Mapping[str, ServiceProcLastExit],
     restart_decisions: Mapping[str, ServiceRestartDecision],
+    config_error: str | None = None,
 ) -> None:
     observations = [
         _observation(name, running, last_exits, restart_decisions)
@@ -88,6 +129,7 @@ def _write_host_status(
                 mode="foreground",
                 unit=unit,
                 sase_version=package_version(),
+                error=config_error,
             ),
             lock_held=True,
             pid_alive=True,

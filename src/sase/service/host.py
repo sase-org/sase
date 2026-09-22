@@ -35,7 +35,10 @@ from sase.service.control import utc_timestamp
 from sase.service.host_lifecycle import run_host
 from sase.service.host_models import PendingRestart as _PendingRestart
 from sase.service.host_models import RunningProc as _RunningProc
-from sase.service.host_reporting import write_current_host_status
+from sase.service.host_reporting import (
+    empty_service_config,
+    write_current_host_status,
+)
 from sase.service.host_support import (
     entry_env as _entry_env,
     entry_launch as _entry_launch,
@@ -87,6 +90,8 @@ class _ServiceHost:
         self._started_at = time.time()
         self._unit = os.environ.get("SASE_SERVICE_UNIT") or None
         self._warned_service_marker_dropped = False
+        self._last_good_config: ServiceConfigComposition | None = None
+        self._config_error: str | None = None
 
     def run(self) -> int:
         """Run the foreground host until SIGTERM, SIGINT, or KeyboardInterrupt."""
@@ -107,26 +112,68 @@ class _ServiceHost:
         )
 
     def _reconcile_once(self) -> None:
-        error: str | None = None
+        heartbeat_error: str | None = None
+        config: ServiceConfigComposition | None
         try:
-            config = load_service_config()
-            state = read_service_state()
-            self._observe_exits(config, state)
-            self._reconcile_desired(config, state)
-            write_current_host_status(self, config, state)
-        except Exception as exc:  # noqa: BLE001 - long-lived host must keep running.
-            error = str(exc)
             try:
-                write_current_host_status(self)
-            except Exception:
-                pass
-            print(f"sase service host reconcile error: {exc}", file=sys.stderr)
+                config = load_service_config()
+                self._last_good_config = config
+                self._config_error = None
+            except Exception as exc:  # noqa: BLE001 - degraded host keeps supervising.
+                heartbeat_error = str(exc)
+                self._config_error = heartbeat_error
+                config = self._last_good_config
+                print(
+                    f"sase service host config error: {exc} "
+                    "— supervising last-known-good config",
+                    file=sys.stderr,
+                )
+            try:
+                state = read_service_state()
+            except Exception as exc:  # noqa: BLE001 - host must keep heartbeating.
+                if heartbeat_error is None:
+                    heartbeat_error = str(exc)
+                print(f"sase service host reconcile error: {exc}", file=sys.stderr)
+                return
+            if config is None:
+                try:
+                    self._observe_exits(None, state)
+                    write_current_host_status(
+                        self,
+                        empty_service_config(),
+                        state,
+                        config_error=heartbeat_error,
+                    )
+                except Exception as exc:  # noqa: BLE001 - host must keep running.
+                    if heartbeat_error is None:
+                        heartbeat_error = str(exc)
+                    print(f"sase service host reconcile error: {exc}", file=sys.stderr)
+                return
+            try:
+                self._observe_exits(config, state)
+                self._reconcile_desired(config, state)
+                write_current_host_status(
+                    self, config, state, config_error=heartbeat_error
+                )
+            except Exception as exc:  # noqa: BLE001 - host must keep running.
+                if heartbeat_error is None:
+                    heartbeat_error = str(exc)
+                try:
+                    write_current_host_status(
+                        self, config, state, config_error=heartbeat_error
+                    )
+                except Exception:
+                    pass
+                print(f"sase service host reconcile error: {exc}", file=sys.stderr)
         finally:
-            self._record_heartbeat(error=error)
+            try:
+                self._record_heartbeat(error=heartbeat_error)
+            except Exception:  # noqa: BLE001 - heartbeat must not kill the host.
+                pass
 
     def _observe_exits(
         self,
-        config: ServiceConfigComposition,
+        config: ServiceConfigComposition | None,
         state: ServiceStateSnapshot,
     ) -> None:
         for name, running in list(self._children.items()):
@@ -142,8 +189,8 @@ class _ServiceHost:
         running: _RunningProc,
         return_code: int,
         *,
-        config: ServiceConfigComposition,
-        state: ServiceStateSnapshot,
+        config: ServiceConfigComposition | None,
+        state: ServiceStateSnapshot | None,
     ) -> None:
         exit_code = return_code if return_code >= 0 else None
         signum = -return_code if return_code < 0 else None
@@ -201,8 +248,12 @@ class _ServiceHost:
         self._restart_history[name] = decision.history
         self._restart_decisions[name] = decision
         if decision.action == "restart" and decision.restart_at is not None:
-            current = config.get(name)
-            if current is not None and self._desired_running(current, state):
+            current = config.get(name) if config is not None else running.entry
+            if (
+                current is not None
+                and state is not None
+                and self._desired_running(current, state)
+            ):
                 self._pending[name] = _PendingRestart(
                     entry=current,
                     signature=_entry_signature(current),
@@ -227,7 +278,7 @@ class _ServiceHost:
                 or not self._desired_running(entry, state)
                 or _entry_signature(entry) != running.signature
             ):
-                self._stop_child(name, running)
+                self._stop_child(name, running, config, state)
                 self._children.pop(name, None)
                 self._pending.pop(name, None)
 
@@ -335,7 +386,7 @@ class _ServiceHost:
         if action == "restart":
             stopped = self._children.pop(name, None)
             if stopped is not None:
-                self._stop_child(name, stopped)
+                self._stop_child(name, stopped, None, state)
         self._launch(entry, history=ServiceRestartHistory())
         self._pending.pop(name, None)
         child = self._children.get(name)
@@ -576,7 +627,13 @@ class _ServiceHost:
                 last_exit=last_exit,
             )
 
-    def _stop_child(self, name: str, running: _RunningProc) -> None:
+    def _stop_child(
+        self,
+        name: str,
+        running: _RunningProc,
+        config: ServiceConfigComposition | None = None,
+        state: ServiceStateSnapshot | None = None,
+    ) -> None:
         running.stop_requested = True
         sig = _signal_number(running.entry.stop_signal)
         pid = running.process.pid
@@ -610,13 +667,17 @@ class _ServiceHost:
                 pass
         return_code = running.process.poll()
         if return_code is not None:
-            state = read_service_state()
-            config = load_service_config()
             self._settle_exit(name, running, return_code, config=config, state=state)
 
     def _stop_all_children(self) -> None:
         for name, running in list(self._children.items()):
-            self._stop_child(name, running)
+            try:
+                self._stop_child(name, running, None, None)
+            except Exception as exc:  # noqa: BLE001 - shutdown stops every child.
+                print(
+                    f"sase service host stop error for {name!r}: {exc}",
+                    file=sys.stderr,
+                )
         self._children.clear()
         self._pending.clear()
 

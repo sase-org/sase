@@ -62,6 +62,7 @@ from sase.service.state import (
     record_service_stop,
     request_service_proc,
 )
+from sase.service.status import read_service_status
 
 _SLEEPER = (sys.executable, "-c", "import time; time.sleep(30)")
 _FAIL_FAST = (sys.executable, "-c", "import sys; sys.exit(1)")
@@ -831,3 +832,115 @@ def test_second_request_while_pending_is_consumed_exactly_once(
         # The completed request is never consumed again.
         host._reconcile_desired(cell["composition"], read_service_state())
         assert host._children["mu"].process.pid == new_pid
+
+
+def test_config_outage_keeps_last_good_and_publishes_error(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A raising composition leaves children running and publishes the error."""
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    cell: dict[str, ServiceConfigComposition] = {
+        "composition": _compose({"alpha": _layer_spec(_SLEEPER)})
+    }
+    with _service_host(monkeypatch, lambda: cell["composition"]) as host:
+        host._reconcile_once()
+        assert _wait_for(lambda: "alpha" in host._children)
+        alpha_pid = host._children["alpha"].process.pid
+        baseline = read_service_status()
+        assert baseline is not None
+        assert baseline.host.error is None
+        assert read_service_state().state.host is not None
+        assert read_service_state().state.host.error is None  # type: ignore[union-attr]
+
+        def _raise() -> ServiceConfigComposition:
+            raise RuntimeError("boom config")
+
+        monkeypatch.setattr("sase.service.host.load_service_config", _raise)
+        host._reconcile_once()
+
+        assert "alpha" in host._children
+        assert host._children["alpha"].process.pid == alpha_pid
+        assert is_process_running(alpha_pid)
+        assert host._config_error is not None and "boom config" in host._config_error
+        host_record = read_service_state().state.host
+        assert host_record is not None
+        assert host_record.error is not None and "boom config" in host_record.error
+        snapshot = read_service_status()
+        assert snapshot is not None
+        assert snapshot.host.error is not None and "boom config" in snapshot.host.error
+        assert snapshot.generated_at >= baseline.generated_at
+
+        monkeypatch.setattr(
+            "sase.service.host.load_service_config", lambda: cell["composition"]
+        )
+        host._reconcile_once()
+        assert host._config_error is None
+        assert host._last_good_config is not None
+        recovered = read_service_state().state.host
+        assert recovered is not None and recovered.error is None
+        recovered_snapshot = read_service_status()
+        assert recovered_snapshot is not None and recovered_snapshot.host.error is None
+        assert host._children["alpha"].process.pid == alpha_pid
+
+
+def test_exit_during_config_outage_settles_and_restarts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A child that exits while the config raises is settled per its entry."""
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    cell: dict[str, ServiceConfigComposition] = {
+        "composition": _compose({"epsilon": _layer_spec(_FAIL_FAST)})
+    }
+    with _service_host(monkeypatch, lambda: cell["composition"]) as host:
+        host._reconcile_once()
+        assert _wait_for(lambda: _child_exited(host, "epsilon"), timeout=15)
+
+        def _raise() -> ServiceConfigComposition:
+            raise RuntimeError("boom config during exit")
+
+        monkeypatch.setattr("sase.service.host.load_service_config", _raise)
+        host._reconcile_once()
+
+        assert "epsilon" not in host._children
+        assert "epsilon" in host._pending
+        assert "epsilon" in host._last_exits
+        assert host._pending["epsilon"].entry.name == "epsilon"
+        assert host._config_error is not None
+        assert "boom config during exit" in host._config_error
+        snapshot = read_service_status()
+        assert snapshot is not None
+        assert snapshot.host.error is not None
+        assert "boom config during exit" in snapshot.host.error
+
+        host._pending["epsilon"].restart_at = time.time() - 1
+        host._reconcile_once()
+        assert _wait_for(lambda: "epsilon" in host._children, timeout=15)
+
+
+def test_bad_config_at_startup_writes_degraded_snapshot(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """No last-good at startup still heartbeats and writes a fresh snapshot."""
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+
+    def _raise() -> ServiceConfigComposition:
+        raise RuntimeError("startup boom")
+
+    with _service_host(monkeypatch, _raise) as host:
+        assert not host._children
+        host._reconcile_once()
+
+        assert host._last_good_config is None
+        assert host._config_error is not None
+        assert "startup boom" in host._config_error
+        host_record = read_service_state().state.host
+        assert host_record is not None
+        assert host_record.error is not None and "startup boom" in host_record.error
+        snapshot = read_service_status()
+        assert snapshot is not None
+        assert snapshot.procs == ()
+        assert snapshot.host.error is not None
+        assert "startup boom" in snapshot.host.error
