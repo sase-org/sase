@@ -49,11 +49,16 @@ def run_init_service(args: argparse.Namespace) -> int:
                 ),
             ),
         )
-    result = apply_service_init(force=bool(getattr(args, "force", False)))
+    result = apply_service_init(
+        force=bool(getattr(args, "force", False)),
+        allow_agent_env=bool(getattr(args, "allow_agent_env", False)),
+    )
     if not result.ok:
         print(result.message, file=sys.stderr)
         for blocker in result.plan.blockers if result.plan is not None else ():
             print(f"- {blocker}", file=sys.stderr)
+        if "allow-agent-env" in result.message:
+            return 2
         return 1
     print(result.message)
     return 0

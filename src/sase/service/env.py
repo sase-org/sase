@@ -25,6 +25,21 @@ _REDACTED = "[captured]"
 _SSH_AUTH_SOCK_ENV = "SSH_AUTH_SOCK"
 _SSH_AGENT_PID_ENV = "SSH_AGENT_PID"
 
+CAPTURED_BASE_ENV_NAMES: tuple[str, ...] = ("PATH", "SASE_HOME", "SASE_TMPDIR")
+"""Static names always captured for the service host.
+
+Provider credential names and the configured mobile-gateway credential are
+added per shell. ``SASE_FEATURE_FLAGS`` is deliberately absent: the host
+applies the captured file with ``override_existing=True`` and outlives every
+flag change, so a captured flag snapshot would freeze the launching shell's
+flags into the host and every agent it spawns.
+"""
+
+VOLATILE_ENV_NAMES: frozenset[str] = frozenset({_SSH_AUTH_SOCK_ENV, _SSH_AGENT_PID_ENV})
+"""Keys ignored by the currency check; the host drops a dead socket at start."""
+
+_EPHEMERAL_WORKSPACE_RE = re.compile(r"^sase_\d+$")
+
 
 @dataclass(frozen=True)
 class _CapturedServiceEnvironment:
@@ -51,11 +66,10 @@ def capture_service_environment(
     """Capture only the environment variables the platform host is allowed to use."""
     environment = os.environ if environ is None else environ
     names = set(_allowed_provider_env_names(metadata_payload))
-    names.update(("PATH", "SASE_FEATURE_FLAGS"))
     # Managed-root overrides honored by sase.core.paths: without them the
     # service reaper falls back to ~/.sase/tmp while launched agents write
     # into $SASE_TMPDIR, and the real root is never reaped (sase-15q).
-    names.update(("SASE_TMPDIR", "SASE_HOME"))
+    names.update(CAPTURED_BASE_ENV_NAMES)
     if mobile_credential := _mobile_gateway_credential_env():
         names.add(mobile_credential)
 
@@ -196,8 +210,55 @@ def environment_files_match(
     actual: Mapping[str, str],
     desired: Mapping[str, str],
 ) -> bool:
-    """Return True when two captured service env maps are exactly equal."""
-    return dict(actual) == dict(desired)
+    """Return True when two captured service env maps agree on what matters.
+
+    Volatile SSH handles are ignored, and ``PATH`` is compared after
+    normalization (empty and duplicate entries stripped, trailing slashes
+    removed, ephemeral ``sase_<N>`` workspace entries dropped). Every other
+    key still compares exactly, so a real credential or root change rewrites
+    the file.
+    """
+    actual_rest = {
+        name: value
+        for name, value in dict(actual).items()
+        if name not in VOLATILE_ENV_NAMES
+    }
+    desired_rest = {
+        name: value
+        for name, value in dict(desired).items()
+        if name not in VOLATILE_ENV_NAMES
+    }
+    actual_path = _normalize_path_for_comparison(actual_rest.pop("PATH", None))
+    desired_path = _normalize_path_for_comparison(desired_rest.pop("PATH", None))
+    return actual_rest == desired_rest and actual_path == desired_path
+
+
+def _normalize_path_for_comparison(value: str | None) -> tuple[str, ...]:
+    """Normalize a PATH value for the currency check."""
+    if value is None:
+        return ()
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for raw in str(value).split(os.pathsep):
+        if not raw:
+            continue
+        entry = raw.rstrip("/") or "/"
+        if _is_ephemeral_workspace_path(entry):
+            continue
+        if entry in seen:
+            continue
+        seen.add(entry)
+        normalized.append(entry)
+    return tuple(normalized)
+
+
+def _is_ephemeral_workspace_path(entry: str) -> bool:
+    """Return True when a PATH entry lives inside a numbered workspace clone."""
+    try:
+        parts = Path(entry).parts
+    except Exception:
+        return False
+    return any(_EPHEMERAL_WORKSPACE_RE.fullmatch(part) for part in parts)
 
 
 def _allowed_provider_env_names(
@@ -278,7 +339,9 @@ def _validate_env_name(name: str) -> None:
 
 
 __all__ = [
+    "CAPTURED_BASE_ENV_NAMES",
     "ServiceEnvironmentError",
+    "VOLATILE_ENV_NAMES",
     "capture_service_environment",
     "environment_files_match",
     "load_service_environment",

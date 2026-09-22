@@ -4053,11 +4053,12 @@ cleared on the next host boot, while restart clears it after a bounded stop. Use
 
 `sase service init --yes` installs an idempotent user unit (`sase.service` under
 `systemd --user` on Linux, `sh.sase.service` as a macOS LaunchAgent), captures only the
-allow-listed provider credentials, `PATH`, `SASE_FEATURE_FLAGS`, and configured mobile
-credential environment variable into a mode-`0600` file, retires legacy gateway/AXE
-units, enables the unit, and starts it. Planning and diffs redact every captured value.
-Linux warns when user linger is off because the service may then stop at logout. See
-[`sase service`](cli.md#sase-service) for lifecycle commands.
+allow-listed provider credentials, `PATH`, `SASE_TMPDIR`, `SASE_HOME`, and configured
+mobile credential environment variable into a mode-`0600` file, retires legacy
+gateway/AXE units, enables the unit, and starts it. `SASE_FEATURE_FLAGS` is never
+captured: the host resolves flags from saved state. Planning and diffs redact every
+captured value. Linux warns when user linger is off because the service may then stop at
+logout. See [`sase service`](cli.md#sase-service) for lifecycle commands.
 
 Source: `src/sase/default_config.yml`, `src/sase/config/sase.schema.json`,
 `src/sase/service/config.py`, `src/sase/service/platform.py`

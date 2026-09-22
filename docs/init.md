@@ -209,6 +209,18 @@ unit identity and therefore requires `--force`; the command prints the resulting
 home-scoped identity before applying it. Use `sase service uninstall` with the same
 preview, check, diff, force, and confirmation model to remove the managed unit.
 
+Currency compares only what the host depends on. `SSH_AUTH_SOCK` and `SSH_AGENT_PID` are
+ignored, and `PATH` is normalized before comparison: empty and duplicate entries are
+stripped, trailing slashes are removed, and ephemeral `sase_<N>` workspace entries are
+dropped. A real credential, root, or `PATH` change still rewrites the file.
+
+`init --yes` refuses an agent shell. When the calling shell sets `SASE_AGENT` or
+`SASE_AGENT_NAME`, or its `PATH` contains an ephemeral workspace entry, apply exits 2
+and names a login shell as the fix. Pass `-a/--allow-agent-env` (on both
+`sase service init` and the `sase init service` alias) to capture deliberately.
+`--check` and `--diff` stay available everywhere; only the capture-and-write path is
+guarded.
+
 The captured environment includes the SSH agent handle (`SSH_AUTH_SOCK`, plus
 `SSH_AGENT_PID` when present) whenever it names a live socket. That is a convenience,
 not a durable credential: an agent socket captured from a login shell

@@ -296,6 +296,13 @@ def register_init_parser(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     service_parser.add_argument(
+        "-a",
+        "--allow-agent-env",
+        action="store_true",
+        default=argparse.SUPPRESS,
+        help="Capture this shell's environment even from an agent shell or ephemeral workspace",
+    )
+    service_parser.add_argument(
         "-c",
         "--check",
         action="store_true",

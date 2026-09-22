@@ -11,8 +11,10 @@ from pathlib import Path
 import pytest
 
 from sase.service.env import (
+    CAPTURED_BASE_ENV_NAMES,
     ServiceEnvironmentError,
     capture_service_environment,
+    environment_files_match,
     load_service_environment,
     parse_service_environment_text,
     read_service_environment,
@@ -432,3 +434,71 @@ def test_capture_service_environment_keeps_managed_root_overrides(
     assert captured.values["SASE_TMPDIR"] == "/cache/sase/tmp"
     assert captured.values["SASE_HOME"] == "/alt/.sase"
     assert captured.redacted_values["SASE_TMPDIR"] == "[captured]"
+
+
+def test_capture_service_environment_never_captures_feature_flags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A captured flag snapshot would freeze the launching shell into the host."""
+    monkeypatch.setattr("sase.service.env._mobile_gateway_credential_env", lambda: None)
+
+    assert set(CAPTURED_BASE_ENV_NAMES) == {"PATH", "SASE_HOME", "SASE_TMPDIR"}
+    assert "SASE_FEATURE_FLAGS" not in CAPTURED_BASE_ENV_NAMES
+
+    captured = capture_service_environment(
+        environ={
+            "PATH": os.defpath,
+            "SASE_FEATURE_FLAGS": '{"typed_launch_units": true}',
+        },
+        metadata_payload={},
+    )
+
+    assert "SASE_FEATURE_FLAGS" not in captured.values
+
+
+def test_environment_files_match_ignores_volatile_ssh_handles() -> None:
+    actual = {
+        "PATH": "/usr/bin:/bin",
+        "SSH_AUTH_SOCK": "/tmp/ssh-old/agent.1",
+        "SSH_AGENT_PID": "111",
+    }
+    desired = {
+        "PATH": "/usr/bin:/bin",
+        "SSH_AUTH_SOCK": "/tmp/ssh-new/agent.2",
+        "SSH_AGENT_PID": "222",
+    }
+
+    assert environment_files_match(actual, desired) is True
+    assert environment_files_match(desired, actual) is True
+
+
+def test_environment_files_match_normalizes_path() -> None:
+    actual = {"PATH": "/usr/bin:/bin"}
+    desired = {"PATH": "/usr/bin/:/bin::/usr/bin"}
+
+    assert environment_files_match(actual, desired) is True
+
+
+def test_environment_files_match_ignores_ephemeral_workspace_entries() -> None:
+    actual = {"PATH": "/usr/bin:/bin"}
+    desired = {
+        "PATH": "/usr/bin:/home/user/.local/state/sase/workspaces/sase-org/sase/sase_40/.venv/bin:/bin",
+    }
+
+    assert environment_files_match(actual, desired) is True
+
+
+def test_environment_files_match_reports_real_changes() -> None:
+    assert (
+        environment_files_match(
+            {"PATH": "/usr/bin:/bin"}, {"PATH": "/usr/bin:/other/bin"}
+        )
+        is False
+    )
+    assert (
+        environment_files_match(
+            {"PATH": "/usr/bin", "OPENAI_API_KEY": "old"},
+            {"PATH": "/usr/bin", "OPENAI_API_KEY": "new"},
+        )
+        is False
+    )

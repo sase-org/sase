@@ -15,6 +15,7 @@ from sase.service.paths import service_state_path
 from sase.service.platform import (
     DECLINED_MARKER,
     CommandResult,
+    agent_env_refusal_reason,
     apply_service_init,
     apply_service_uninstall,
     build_native_definition,
@@ -228,3 +229,80 @@ def test_env_file_mode_is_0600_after_apply(
     )
     env_path = sase_home / "service" / "env"
     assert (env_path.stat().st_mode & 0o777) == 0o600
+
+
+def test_apply_service_init_refuses_agent_context_without_override(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _linux_home(tmp_path, monkeypatch)
+    runner = _LinuxManager()
+
+    refused = apply_service_init(
+        runner=runner,
+        environ={"PATH": "/bin", "SASE_AGENT": "1"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
+
+    assert refused.ok is False
+    assert "login shell" in refused.message
+    assert "allow-agent-env" in refused.message
+    assert ("systemctl", "--user", "daemon-reload") not in runner.calls
+    assert ("systemctl", "--user", "enable", "sase.service") not in runner.calls
+    assert ("systemctl", "--user", "start", "sase.service") not in runner.calls
+
+    by_name = apply_service_init(
+        runner=_LinuxManager(),
+        environ={"PATH": "/bin", "SASE_AGENT_NAME": "sase-16g.6"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
+    assert by_name.ok is False
+    assert "allow-agent-env" in by_name.message
+
+
+def test_apply_service_init_refuses_ephemeral_workspace_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _linux_home(tmp_path, monkeypatch)
+
+    ephemeral_path = "/usr/bin:/home/user/work/sase_40/.venv/bin:/bin"
+    assert agent_env_refusal_reason({"PATH": ephemeral_path}) is not None
+    assert agent_env_refusal_reason({"PATH": "/usr/bin:/bin"}) is None
+
+    refused = apply_service_init(
+        runner=_LinuxManager(),
+        environ={"PATH": ephemeral_path},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
+    assert refused.ok is False
+    assert "allow-agent-env" in refused.message
+
+
+def test_apply_service_init_allow_agent_env_overrides_refusal(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _linux_home(tmp_path, monkeypatch)
+
+    result = apply_service_init(
+        runner=_LinuxManager(),
+        environ={"PATH": "/bin", "SASE_AGENT": "1"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+        allow_agent_env=True,
+    )
+    assert result.ok is True
+
+
+def test_service_init_plan_stays_available_from_agent_shell(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _linux_home(tmp_path, monkeypatch)
+
+    plan = service_init_plan(
+        runner=_Runner(),
+        environ={"PATH": "/bin", "SASE_AGENT": "1"},
+        executable_resolver=lambda: str(_exe(tmp_path)),
+    )
+    assert plan.status in {"needs_attention", "current", "blocked"}

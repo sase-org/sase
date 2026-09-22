@@ -27,7 +27,9 @@ def register_service_parser(subparsers: argparse._SubParsersAction) -> None:
         "init",
         help="Install or check the native service-host unit",
     )
-    _add_check_diff_force_yes(init_parser, include_force=True)
+    _add_check_diff_force_yes(
+        init_parser, include_force=True, include_allow_agent_env=True
+    )
 
     logs_parser = service_sub.add_parser(
         "logs",
@@ -239,7 +241,18 @@ def _add_check_diff_force_yes(
     *,
     include_force: bool,
     force_help: str | None = None,
+    include_allow_agent_env: bool = False,
 ) -> None:
+    if include_allow_agent_env:
+        parser.add_argument(
+            "-a",
+            "--allow-agent-env",
+            action="store_true",
+            help=(
+                "Capture this shell's environment even from an agent shell "
+                "or ephemeral workspace"
+            ),
+        )
     parser.add_argument(
         "-c",
         "--check",

@@ -112,11 +112,16 @@ def _handle_service_status(args: argparse.Namespace) -> int:
 
 def _handle_service_init(args: argparse.Namespace) -> int:
     force = bool(getattr(args, "force", False))
+    allow_agent_env = bool(getattr(args, "allow_agent_env", False))
     if bool(getattr(args, "yes", False)):
-        result = apply_service_init(force=force)
+        result = apply_service_init(force=force, allow_agent_env=allow_agent_env)
         _print_platform_plan(result.plan, show_diff=False)
         print(result.message)
-        return 0 if result.ok else 1
+        if result.ok:
+            return 0
+        if "allow-agent-env" in result.message:
+            return 2
+        return 1
     plan = service_init_plan(force=force)
     _print_platform_plan(plan, show_diff=bool(getattr(args, "diff", False)))
     if bool(getattr(args, "check", False)):

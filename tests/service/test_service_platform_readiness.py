@@ -34,7 +34,6 @@ def test_readiness_warnings_omit_secrets_and_compare_paths(
     binary.write_text("#!/bin/sh\n", encoding="utf-8")
     binary.chmod(0o755)
     monkeypatch.setenv("PATH", str(live_bin))
-    monkeypatch.setenv("SASE_FEATURE_FLAGS", '{"typed_launch_units": true}')
     monkeypatch.setattr(
         "sase.service.platform.collect_agent_cli_statuses",
         lambda **_k: (
@@ -59,7 +58,7 @@ def test_readiness_warnings_omit_secrets_and_compare_paths(
     assert "super-secret-token" not in joined
     assert "interactive PATH" in joined
     assert "mobile gateway" in joined
-    assert "SASE_FEATURE_FLAGS differ" in joined
+    assert "SASE_FEATURE_FLAGS" not in joined
 
 
 def test_readiness_warnings_leave_ssh_to_the_capture(

@@ -200,12 +200,66 @@ def _service_init_plan_inner(
     )
 
 
+def agent_env_refusal_reason(
+    environ: Mapping[str, str] | None = None,
+) -> str | None:
+    """Return why ``init --yes`` must not capture this shell, if it must not.
+
+    Refuses an agent context (``SASE_AGENT`` or ``SASE_AGENT_NAME``) and any
+    shell whose ``PATH`` contains an ephemeral ``sase_<N>`` workspace entry.
+    When *environ* is given it is the shell being captured; otherwise the
+    calling process environment applies. Planning stays available everywhere;
+    only the capture-and-write path is guarded.
+    """
+    effective: Mapping[str, str] = os.environ if environ is None else environ
+    try:
+        if effective.get("SASE_AGENT") or effective.get("SASE_AGENT_NAME"):
+            return (
+                "refusing to capture an agent shell's environment: "
+                "run `sase service init --yes` from a login shell instead, "
+                "or pass -a/--allow-agent-env to capture this environment "
+                "deliberately"
+            )
+    except Exception:
+        pass
+    try:
+        path_value = effective.get("PATH", "")
+    except Exception:
+        return None
+    if _path_contains_ephemeral_workspace(str(path_value)):
+        return (
+            "refusing to capture an ephemeral workspace environment: "
+            "run `sase service init --yes` from a login shell instead, "
+            "or pass -a/--allow-agent-env to capture this environment "
+            "deliberately"
+        )
+    return None
+
+
+def _path_contains_ephemeral_workspace(path_value: str) -> bool:
+    """Return True when any PATH entry lives inside a ``sase_<N>`` workspace."""
+    import re
+
+    ephemeral = re.compile(r"^sase_\d+$")
+    for raw in path_value.split(os.pathsep):
+        if not raw:
+            continue
+        try:
+            parts = Path(raw).parts
+        except Exception:
+            continue
+        if any(ephemeral.fullmatch(part) for part in parts):
+            return True
+    return False
+
+
 def apply_service_init(
     *,
     force: bool = False,
     runner: CommandRunner | None = None,
     environ: Mapping[str, str] | None = None,
     executable_resolver: Callable[[], str | None] | None = None,
+    allow_agent_env: bool = False,
 ) -> ServicePlatformApplyResult:
     """Install or update the native platform unit idempotently."""
     plan = service_init_plan(
@@ -214,6 +268,15 @@ def apply_service_init(
         environ=environ,
         executable_resolver=executable_resolver,
     )
+    if not allow_agent_env:
+        refusal = agent_env_refusal_reason(environ)
+        if refusal is not None:
+            return ServicePlatformApplyResult(
+                ok=False,
+                changed=False,
+                message=refusal,
+                plan=plan,
+            )
     if plan.blockers:
         return ServicePlatformApplyResult(
             ok=False,
@@ -493,12 +556,6 @@ def _readiness_warnings(env: Mapping[str, str]) -> tuple[str, ...]:
             warnings.append(
                 "configured mobile gateway executable is not available to the captured service PATH"
             )
-    interactive_flags = os.environ.get("SASE_FEATURE_FLAGS")
-    captured_flags = env.get("SASE_FEATURE_FLAGS")
-    if interactive_flags and interactive_flags != captured_flags:
-        warnings.append(
-            "SASE_FEATURE_FLAGS differ between the shell and captured service environment"
-        )
     warnings.extend(_managed_tmpdir_root_warnings(env))
     return tuple(warnings)
 
@@ -533,6 +590,7 @@ __all__ = [
     "SERVICE_LIFECYCLE_TEST_OVERRIDE_ENV",
     "ServicePlatformApplyResult",
     "ServicePlatformPlan",
+    "agent_env_refusal_reason",
     "apply_service_init",
     "apply_service_uninstall",
     "build_native_definition",

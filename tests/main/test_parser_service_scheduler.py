@@ -76,29 +76,36 @@ def test_service_proc_run_parser_carries_transient_options() -> None:
 
 
 def test_service_init_and_uninstall_parser_flags() -> None:
-    init_args = create_parser().parse_args(["service", "init", "-c", "-d", "-f", "-y"])
+    init_args = create_parser().parse_args(
+        ["service", "init", "-a", "-c", "-d", "-f", "-y"]
+    )
     uninstall_args = create_parser().parse_args(
         ["service", "uninstall", "-c", "-d", "-f", "-y"]
     )
-    alias_args = create_parser().parse_args(["init", "service", "-c", "-d", "-f"])
+    alias_args = create_parser().parse_args(["init", "service", "-a", "-c", "-d", "-f"])
 
     assert init_args.check is True
     assert init_args.diff is True
     assert init_args.force is True
     assert init_args.yes is True
+    assert init_args.allow_agent_env is True
     assert uninstall_args.check is True
     assert uninstall_args.diff is True
     assert uninstall_args.force is True
     assert uninstall_args.yes is True
+    assert getattr(uninstall_args, "allow_agent_env", False) is False
     assert alias_args.init_subcommand == "service"
     assert alias_args.check is True
     assert alias_args.diff is True
     assert alias_args.force is True
+    assert alias_args.allow_agent_env is True
     uninstall_help = parser_for(("sase", "service", "uninstall")).format_help()
     assert "-f, --force" in uninstall_help
     assert "-c, --check" in uninstall_help
     assert "-d, --diff" in uninstall_help
     assert "-y, --yes" in uninstall_help
+    init_help = parser_for(("sase", "service", "init")).format_help()
+    assert "-a, --allow-agent-env" in init_help
 
 
 def test_scheduler_help_lists_sorted_subcommands() -> None:
@@ -300,3 +307,54 @@ def test_service_uninstall_handler_threads_force(
     assert exit_info.value.code == 0
     assert captured["force"] is True
     assert "uninstalled sase.service" in capsys.readouterr().out
+
+
+def test_service_init_handler_threads_allow_agent_env(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_apply(
+        *, force: bool = False, allow_agent_env: bool = False, **_kwargs: object
+    ) -> object:
+        captured["force"] = force
+        captured["allow_agent_env"] = allow_agent_env
+        return SimpleNamespace(
+            ok=True,
+            changed=True,
+            message="installed sase.service",
+            plan=None,
+        )
+
+    monkeypatch.setattr("sase.main.service_handler.apply_service_init", fake_apply)
+
+    with pytest.raises(SystemExit) as exit_info:
+        handle_service_command(parse_sase_args(["service", "init", "-y", "-a"]))
+
+    assert exit_info.value.code == 0
+    assert captured["allow_agent_env"] is True
+
+
+def test_service_init_yes_agent_refusal_exits_2(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def fake_refused(**_kwargs: object) -> object:
+        return SimpleNamespace(
+            ok=False,
+            changed=False,
+            message=(
+                "refusing to capture an agent shell's environment: run "
+                "`sase service init --yes` from a login shell instead, or pass "
+                "-a/--allow-agent-env to capture this environment deliberately"
+            ),
+            plan=None,
+        )
+
+    monkeypatch.setattr("sase.main.service_handler.apply_service_init", fake_refused)
+
+    with pytest.raises(SystemExit) as exit_info:
+        handle_service_command(parse_sase_args(["service", "init", "--yes"]))
+
+    assert exit_info.value.code == 2
