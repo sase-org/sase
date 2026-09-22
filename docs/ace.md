@@ -1317,6 +1317,7 @@ a warning rather than landing somewhere stale.
 | `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                           |
 | `v`                 | View files (hint mode; annotates clan/family containers in place)                                               |
 | `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                               |
+| `d`                 | Expand / collapse the agent header panel (sticky identity header above the metadata panel)                      |
 | `V`                 | Open the focused agent's metadata as a sectioned document in the pager (see below)                              |
 | `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                                 |
 | `W`                 | Prepare a prompt that waits for the selected agent/family, clan, or named tribe; marks produce `%w:a,b,c`       |
@@ -5042,16 +5043,16 @@ first reverse jump selects the final title. From the final title, `Ctrl+J` jumps
 document top and another press selects the first title; from the first title, `Ctrl+K`
 jumps to the document top and another press selects the final title. Both directions
 share one cursor. Each selected title is aligned with the first visible metadata row,
-including a short final section, while the top waypoint reveals any ordinary header
-fields before the first title. Only rendered ALL-CAPS underlined section titles
-participate; matching text inside prompts or replies does not. Numbered roster rows
-(`FAMILY SHELLS`, clan/tribe `MEMBERS`, `NEIGHBORS`) and, within a family container's
-`SASE CONTEXT` region, its lane sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`,
-`GLOSSARY`, `SKILLS`, `WORKSPACES`) are fold anchors, not titles — `za`/`zA` still reach
-them when they own the viewport's top row, but they are never `Ctrl+J`/`Ctrl+K` stops.
-The shortcuts continue to target the metadata pane when a file or LLM Calls pane is also
-visible, and changing agents or entering/leaving a pinned attempt view resets the
-cursor.
+including a short final section, while the top waypoint reveals the top of the scrolling
+body before the first title (identity fields live in the sticky header panel above).
+Only rendered ALL-CAPS underlined section titles participate; matching text inside
+prompts or replies does not. Numbered roster rows (`FAMILY SHELLS`, clan/tribe
+`MEMBERS`, `NEIGHBORS`) and, within a family container's `SASE CONTEXT` region, its lane
+sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`, `WORKSPACES`)
+are fold anchors, not titles — `za`/`zA` still reach them when they own the viewport's
+top row, but they are never `Ctrl+J`/`Ctrl+K` stops. The shortcuts continue to target
+the metadata pane when a file or LLM Calls pane is also visible, and changing agents or
+entering/leaving a pinned attempt view resets the cursor.
 
 - **Agent details**: Name, status, model, provider, Patch association, and
   chronologically sorted timestamps:
@@ -5078,17 +5079,31 @@ cursor.
   indented under its aggregate row. `Ctrl+J` / `Ctrl+K` navigate the rendered section
   headings, and pressing the row's number jumps to that member in the Agents list. At
   most 100 members receive numbers.
-- **FAMILY**: Shown when a real multi-member family root is selected. The cyan heading
-  and cyan `Name:` value match the family row's identity block. The line is header
-  chrome, not a `Ctrl+J` title; the first navigable section remains `FAMILY SHELLS` (or
-  the next rendered title if that roster is absent). On a family container, its
-  `SASE CONTEXT` heading is the navigable title for that region; its per-lane
-  sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`,
-  `WORKSPACES`) stay fold anchors only, same as `FAMILY SHELLS` roster rows.
+- **FAMILY**: Shown when a real multi-member family root is selected. The cyan kind
+  label renders as the header panel title and the cyan `Name:` value matches the family
+  row's identity block. The title is header chrome, not a `Ctrl+J` title; the first
+  navigable section remains `FAMILY SHELLS` (or the next rendered title if that roster
+  is absent). On a family container, its `SASE CONTEXT` heading is the navigable title
+  for that region; its per-lane sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`,
+  `GLOSSARY`, `SKILLS`, `WORKSPACES`) stay fold anchors only, same as `FAMILY SHELLS`
+  roster rows.
 - **AGENT SHELL**: Shown when a standalone sase agent or family member row is selected.
-  The gold heading and gold `Name:` value match the list-row name annotation. The line
-  is header chrome, not a `Ctrl+J` title. Monitor members and workflow step children
-  (`bash` / `python` / `parallel`) do not get this heading.
+  The gold kind label renders as the header panel title and the gold `Name:` value
+  matches the list-row name annotation. The title is header chrome, not a `Ctrl+J`
+  title. Monitor members and workflow step children (`bash` / `python` / `parallel`) do
+  not get this heading.
+- **Header panel**: The selected node's identity header (every field from the kind line
+  through Timestamps, plus Fold where present) renders in its own always-visible panel
+  above the scrolling metadata document whenever the metadata panel is shown. The panel
+  is collapsed to two concise rows by default — who and how on row 1, what and state on
+  row 2 — and `d` expands it to the full field list (or collapses it back). The kind
+  label moves into the panel's border title in the node's accent color, and the border
+  subtitle shows what `d` will do (`d more` / `d less`). The panel is hidden for clan
+  rows, "No agent selected", and the file/LLM Calls-only layout. Collapsed/expanded
+  state is per session and holds across row moves, tribe focus, and layout changes.
+  While file-hint markers (`[N]`) are visible the panel renders expanded so every hint
+  stays selectable. Metadata search (`,/`) covers the scrolling body only, since header
+  fields stay on screen.
 - **SASE CONTEXT / BEAD**: Shown for epic phase workers and task workers. For an epic
   phase worker, the lane is limited to its selected phase. Its fields are `Phase Title`,
   `Description`, `Size`, `Epic Plan`, and `Epic Title`, in that order. The phase title

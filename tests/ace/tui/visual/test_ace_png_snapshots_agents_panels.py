@@ -23,6 +23,7 @@ from sase.ace.tui.widgets import (
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    prompt_header_and_body_text,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -139,7 +140,7 @@ def _assert_collapsed_panel_summary(page: AcePage) -> None:
     snapshot = page.app._focused_tribe_summary()
     assert snapshot is not None
     assert snapshot.label == "† @job"
-    rendered = prompt.content.plain
+    rendered = prompt_header_and_body_text(prompt)
     assert "TRIBE\n" in rendered
     assert "Name: † @job" in rendered
     assert "Panel:" not in rendered
@@ -151,7 +152,8 @@ def _assert_collapsed_panel_summary(page: AcePage) -> None:
     assert "view: tribe" in info._build_display_text().plain
     assert "[view: tribe]" not in info._build_display_text().plain
     svg = page.export_svg(title="ACE collapsed summary assertion")
-    assert "Name:" in svg
+    assert "TRIBE" in svg
+    assert "@job" in svg
     assert "Patch:" not in svg
 
 
@@ -422,7 +424,7 @@ async def test_agents_collapsed_panel_png_snapshot(
         snapshot = page.app._focused_tribe_summary()
         assert snapshot is not None
         assert snapshot.label == "⌂ @default"
-        assert "Name: ⌂ @default" in prompt.content.plain
+        assert "Name: ⌂ @default" in prompt_header_and_body_text(prompt)
 
         await page.press("h")
         await page.wait_for(lambda _screen: page.app._panel_group.focused_key == "keep")

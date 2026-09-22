@@ -15,6 +15,12 @@ from sase.ace.tui.models.agent_tribe_summary import (
 from sase.ace.tui.widgets._agent_detail_panels import DetailPanelMode
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
+from sase.ace.tui.widgets.renderable_text import renderable_to_text
+
+
+def _header_and_body_text(prompt: AgentPromptPanel) -> str:
+    """Join the detached header panel and the scrolling body text."""
+    return renderable_to_text(prompt.inline_document_renderable()) or ""
 
 
 def _agent() -> Agent:
@@ -64,8 +70,9 @@ async def test_tribe_document_invalidates_agent_render_and_uses_prompt_scroll() 
             None,
         )
         prompt = detail.query_one("#agent-prompt-panel", AgentPromptPanel)
-        assert "TRIBE\nName: @focus" in prompt.content.plain
-        assert "summary_agent" in prompt.content.plain
+        combined = _header_and_body_text(prompt)
+        assert "TRIBE\nName: @focus" in combined
+        assert "summary_agent" in combined
         route_owner = SimpleNamespace(query_one=lambda *_args: detail)
         assert (
             BasicNavigationMixin._get_agent_detail_scroll_id(route_owner)

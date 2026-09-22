@@ -372,7 +372,8 @@ async def test_panel_sink_receives_identity_before_digest_return() -> None:
     async with app.run_test(size=(60, 20)):
         panel = app.query_one("#agent-prompt-panel", AgentPromptPanel)
         received: list[IdentityHeader | None] = []
-        assert panel.detaches_identity_header is False
+        # AgentDetail attaches its header-panel sink on mount.
+        assert panel.detaches_identity_header is True
         panel.attach_identity_header_sink(received.append)
         assert panel.detaches_identity_header is True
 

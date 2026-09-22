@@ -22,6 +22,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_family_panel_fixtures import 
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     pin_agents_visual_now,
+    prompt_header_and_body_text,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -283,12 +284,15 @@ async def test_family_panel_shells_monitor_metadata_png_snapshot(
         jump_map = page.app._member_jump_maps[container.identity]
         assert [target.number for target in jump_map.targets] == ["0", "1", "2"]
         assert jump_map.targets[2].member_identity == monitor.identity
-        assert_page_svg_contains(page, "Shells:")
+        assert_page_svg_contains(page, "3 shells")
         assert_page_svg_contains(page, "⚙")
-        assert_page_svg_contains(page, "why")
-        assert_page_svg_contains(page, "Full-suite")
-        assert_page_svg_contains(page, "verification")
         assert_page_svg_contains(page, "FAMILY SHELLS")
+        combined = prompt_header_and_body_text(
+            page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        )
+        # At assertion width the monitor lane shows its command; at panel
+        # width it wraps to the "why" reason continuation instead.
+        assert "just check-full --include visual" in combined
         ace_png_visual.assert_page_png(
             page,
             "agents_family_panel_shells_monitor_120x40",
@@ -353,7 +357,7 @@ async def test_family_conversation_monitor_phase_png_snapshot(
         assert panel.active_section_identity == "agent-reply"
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "MONITOR")
-        assert_page_svg_contains(page, "just check-full")
+        assert_page_svg_contains(page, "AGENT REPLY")
         panel = page.app.query_one("#agent-list-panel", AgentList)
         assert "⚙1" in Text.from_markup(panel.border_title).plain
         ace_png_visual.assert_page_png(

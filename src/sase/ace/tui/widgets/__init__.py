@@ -8,6 +8,7 @@ from typing import Any
 _LAZY_EXPORTS = {
     "ActiveXPromptArgHint": (".xprompt_arg_assist", "ActiveXPromptArgHint"),
     "AgentDetail": (".agent_detail", "AgentDetail"),
+    "AgentHeaderPanel": (".agent_header_panel", "AgentHeaderPanel"),
     "AgentInfoPanel": (".agent_info_panel", "AgentInfoPanel"),
     "AgentLoadIndicator": (".agent_load_indicator", "AgentLoadIndicator"),
     "AgentsFilterBar": (".agents_filter_bar", "AgentsFilterBar"),
@@ -123,6 +124,7 @@ _LAZY_EXPORTS = {
 
 __all__ = [
     "AgentDetail",
+    "AgentHeaderPanel",
     "AgentInfoPanel",
     "AgentLoadIndicator",
     "AgentsFilterBar",

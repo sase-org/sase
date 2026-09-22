@@ -10,8 +10,10 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import AttemptRecord
 from sase.ace.tui.models.agent_loader import _apply_status_overrides
+from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    prompt_header_and_body_text,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -62,7 +64,7 @@ async def test_retry_countdown_png_snapshot(
         await wait_for_svg_contains(page, "RETRYING (9s)")
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "RETRYING (9s)")
-        assert_page_svg_contains(page, "Retries:")
+        assert_page_svg_contains(page, "↻ 1/3")
         assert_page_svg_contains(page, "1/3")
         ace_png_visual.assert_page_png(
             page,
@@ -93,12 +95,19 @@ async def test_running_fallback_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents_tab(page, agent_count=1)
 
-        await wait_for_svg_contains(page, "claude-sonnet-4-5")
+        # The retry chip renders its count and "fallback" as adjacent spans,
+        # so wait on the single-span count prefix and assert the joined chip
+        # plus the fallback model from the header-and-body text.
+        await wait_for_svg_contains(page, "↻ 2/2")
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "RUNNING")
         assert_page_svg_contains(page, "↻2▸sonnet")
-        assert_page_svg_contains(page, "Fallback:")
-        assert_page_svg_contains(page, "claude-sonnet-4-5")
+        assert_page_svg_contains(page, "↻ 2/2")
+        combined = prompt_header_and_body_text(
+            page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        )
+        assert "Fallback:" in combined
+        assert "claude-sonnet-4-5" in combined
         ace_png_visual.assert_page_png(
             page,
             "agents_retry_running_fallback_120x40",
@@ -191,7 +200,7 @@ async def test_retries_exhausted_png_snapshot(
         await wait_for_svg_contains(page, "3/3")
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "FAILED")
-        assert_page_svg_contains(page, "Retries:")
+        assert_page_svg_contains(page, "↻ 3/3")
         assert_page_svg_contains(page, "3/3")
         ace_png_visual.assert_page_png(
             page,
@@ -239,13 +248,16 @@ async def test_selected_retry_metadata_png_snapshot(
     async with AcePage(query='"visual"', patches=patches()) as page:
         await _open_agents_tab(page, agent_count=1)
 
-        await wait_for_svg_contains(page, "Attempt 1")
+        await wait_for_svg_contains(page, "↻ 1/3")
         await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "Retries:")
+        combined = prompt_header_and_body_text(
+            page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        )
+        assert "Attempt 1" in combined
+        assert "failed:" in combined
+        assert "Fallback:" in combined
+        assert_page_svg_contains(page, "↻ 1/3")
         assert_page_svg_contains(page, "1/3")
-        assert_page_svg_contains(page, "Attempt 1")
-        assert_page_svg_contains(page, "failed:")
-        assert_page_svg_contains(page, "Fallback:")
         ace_png_visual.assert_page_png(
             page,
             "agents_retry_selected_detail_120x40",

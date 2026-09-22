@@ -99,7 +99,7 @@ async def test_real_fakey_retry_countdown_png_snapshot(
             await wait_for_svg_contains(page, "RETRYING (9s)")
             await wait_for_visual_idle(page)
             assert_page_svg_contains(page, "RETRYING (9s)")
-            assert_page_svg_contains(page, "Retries:")
+            assert_page_svg_contains(page, "↻ 1/1")
             assert_page_svg_contains(page, "1/1")
             ace_png_visual.assert_page_png(
                 page,
@@ -153,7 +153,7 @@ async def test_real_loader_plan_family_retry_countdown_png_snapshot(
         await wait_for_svg_contains(page, "RETRYING (9s)")
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "RETRYING (9s)")
-        assert_page_svg_contains(page, "Retries:")
+        assert_page_svg_contains(page, "↻ 2/3")
         assert_page_svg_contains(page, "2/3")
         ace_png_visual.assert_page_png(
             page,
@@ -214,7 +214,7 @@ async def test_real_fakey_running_fallback_png_snapshot(
             await wait_for_visual_idle(page)
             assert_page_svg_contains(page, "RUNNING")
             assert_page_svg_contains(page, "↻1▸fakey")
-            assert_page_svg_contains(page, "Fallback:")
+            assert_page_svg_contains(page, "fallback")
             assert_page_svg_contains(page, "fakey-small")
             ace_png_visual.assert_page_png(
                 page,

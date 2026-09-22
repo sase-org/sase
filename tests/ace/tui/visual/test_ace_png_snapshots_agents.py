@@ -15,7 +15,6 @@ from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 from sase.ace.tui.widgets.agent_load_indicator import AgentLoadIndicator
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
-from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
     capacity_budget_accent_agents,
     output_variable_family_agents,
@@ -29,6 +28,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     assert_page_svg_styled_text_contains,
     pin_agents_visual_now,
+    prompt_header_and_body_text,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     agents,
@@ -167,11 +167,9 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
         assert_page_svg_contains(page, "drain-barrier")
         assert_page_svg_contains(page, "global-cap")
         assert_page_svg_contains(page, "dependency-wait")
-        assert_page_svg_contains(page, "Queue:")
-        assert_page_svg_contains(page, "of 2")
-        assert_page_svg_contains(page, "at the front")
+        assert_page_svg_contains(page, "Queue #1/2")
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
-        prompt_text = renderable_to_text(prompt.content) or ""
+        prompt_text = prompt_header_and_body_text(prompt) or ""
         assert "Queue: #1 of 2 · at the front" in prompt_text
         assert "QUEUE · 2 waiting · 0.0/10.0 capacity" in prompt_text
         info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
@@ -213,7 +211,7 @@ async def test_reserved_tribe_wait_row_png_snapshot(
         assert_page_svg_contains(page, "WAITING")
         assert_page_svg_contains(page, "!")
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
-        prompt_text = renderable_to_text(prompt.content) or ""
+        prompt_text = prompt_header_and_body_text(prompt) or ""
         assert "Wait: [tribes] @default ! (reserved - never resolves)" in prompt_text
         assert "(next launch)" not in prompt_text
         ace_png_visual.assert_page_png(
@@ -253,7 +251,7 @@ async def test_runner_slot_queue_window_png_snapshot(
         assert selected.agent_name == "queue-middle"
         assert selected.runner_slot_queue_position == 6
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
-        prompt_text = renderable_to_text(prompt.content) or ""
+        prompt_text = prompt_header_and_body_text(prompt) or ""
         assert "5 ahead" in prompt_text
         assert "QUEUE · 9 waiting · 0.0/10.0 capacity" in prompt_text
         assert "c0" in prompt_text
@@ -312,7 +310,7 @@ async def test_weighted_runner_capacity_png_snapshots(
         assert selected.runner_slot_queue_size == 2
         assert selected.runner_occupied_capacity == 3.0
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
-        prompt_text = renderable_to_text(prompt.content) or ""
+        prompt_text = prompt_header_and_body_text(prompt) or ""
         assert "Weight: 0.25 capacity units" in prompt_text
         assert "QUEUE · 2 waiting · 2 parked · 3.0/3.0 capacity" in prompt_text
         assert "needs 0.25" in prompt_text
@@ -388,7 +386,7 @@ async def test_capacity_budget_accent_png_snapshot(
         selected = page.app._agents[page.app.current_idx]
         assert selected.agent_name == "capacity-gold"
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
-        prompt_text = renderable_to_text(prompt.content) or ""
+        prompt_text = prompt_header_and_body_text(prompt) or ""
         assert "Capacity: 100 capacity units" in prompt_text
 
 

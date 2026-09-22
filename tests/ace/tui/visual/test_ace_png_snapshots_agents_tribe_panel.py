@@ -15,9 +15,11 @@ from sase.ace.tui.models._agent_tree import agent_fold_key
 from sase.ace.tui.models.agent import Agent, AgentType
 from sase.ace.tui.models.tribe_display import TRIBE_IDENTITY_FALLBACK_COLOR
 from sase.ace.tui.widgets import KeybindingFooter
+from sase.ace.tui.widgets.prompt_panel._identity_header import find_identity_header
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     pin_agents_visual_now,
+    prompt_header_and_body_text,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -276,22 +278,26 @@ async def test_tribe_panel_display_config_png_snapshot(
         )
         await wait_for_visual_idle(page)
         prompt = page.app.query_one("#agent-prompt-panel")
-        assert "Name: ▲ @epic" in prompt.content.plain
+        combined = prompt_header_and_body_text(prompt)
+        assert "Name: ▲ @epic" in combined
         assert (
             "Epic phase-worker clans from sase bead work, one member per phase "
-            "of an approved plan." in " ".join(prompt.content.plain.split())
+            "of an approved plan." in " ".join(combined.split())
         )
-        assert prompt.content.plain.index("Fold: ") < prompt.content.plain.index(
+        assert combined.index("Fold: ") < combined.index(
             "Epic phase-worker clans from sase bead work"
         )
-        assert "Description: " not in prompt.content.plain
+        assert "Description: " not in combined
+        identity = find_identity_header(prompt.content)
+        assert identity is not None
+        assert isinstance(identity.expanded, Text)
         _assert_title_identity_color(
-            prompt.content,
+            identity.expanded,
             text="▲ ",
             color="#AF87FF",
         )
         _assert_title_identity_color(
-            prompt.content,
+            identity.expanded,
             text="@epic",
             color="#AF87FF",
         )

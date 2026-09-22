@@ -91,6 +91,9 @@ class AgentDetailPanelMixin(Static):
     def _active_metadata_scroll(self) -> VerticalScroll:
         raise NotImplementedError
 
+    def _sync_header_visibility(self) -> None:
+        raise NotImplementedError
+
     def update_display(
         self, agent: Agent, stale_threshold_seconds: int = 10
     ) -> None: ...
@@ -114,6 +117,7 @@ class AgentDetailPanelMixin(Static):
         llm_calls_scroll.add_class("hidden")
         self._clear_detail_layout_classes()
         prompt_scroll.add_class("expanded")
+        self._sync_header_visibility()
 
     @property
     def panel_mode_label(self) -> str:
@@ -182,11 +186,13 @@ class AgentDetailPanelMixin(Static):
         else:
             prompt_scroll.remove_class("hidden")
             search_scroll.add_class("hidden")
+        self._sync_header_visibility()
 
     def _hide_metadata_scrolls(self) -> None:
         """Hide both metadata scroll variants."""
         self.query_one("#agent-prompt-scroll", VerticalScroll).add_class("hidden")
         self.query_one("#agent-search-scroll", VerticalScroll).add_class("hidden")
+        self._sync_header_visibility()
 
     def _selected_secondary_mode(self) -> DetailPanelMode:
         """Return the selected secondary content mode, normalizing legacy INFO."""
@@ -246,6 +252,7 @@ class AgentDetailPanelMixin(Static):
                 prompt_scroll.add_class("layout-equal")
                 secondary_scroll.add_class("layout-equal")
         self._update_panel_indicators()
+        self._sync_header_visibility()
 
     def set_panel_mode(
         self,

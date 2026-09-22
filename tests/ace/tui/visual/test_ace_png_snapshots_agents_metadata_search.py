@@ -9,7 +9,9 @@ from textual.widgets import Static
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
-from sase.ace.tui.widgets.renderable_text import renderable_to_text
+from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
+    prompt_header_and_body_text,
+)
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
     patch_startup_loaders,
@@ -40,12 +42,13 @@ async def test_agents_metadata_search_typing_and_committed_png_snapshots(
         await page.expect_state("agent_count", 1)
         panel = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
         await page.wait_for(
-            lambda _state: (
-                "zoom.snapshot.agent" in (renderable_to_text(panel.content) or "")
-            ),
+            lambda _state: "zoom.snapshot.agent" in prompt_header_and_body_text(panel),
         )
 
-        await page.press("comma", "slash", "z", "o", "o", "m")
+        # The sticky header keeps identity fields out of the search corpus,
+        # so search a body term ("prompt" hits the section title and the
+        # empty notice) rather than the detached agent name.
+        await page.press("comma", "slash", "p", "r", "o", "m", "p", "t")
         await page.wait_for(
             lambda _state: (
                 page.app._agent_metadata_search.mode == "typing"

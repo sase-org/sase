@@ -92,8 +92,11 @@ class AgentDetail(AgentDetailPanelMixin, Static):
 
     def compose(self) -> ComposeResult:
         """Compose the two-panel layout (prompt and file)."""
+        from .agent_header_panel import AgentHeaderPanel
+
         AgentPromptPanel = _agent_prompt_panel_type()
         with Vertical(id="agent-detail-layout"):
+            yield AgentHeaderPanel(id="agent-header-panel", classes="hidden")
             with VerticalScroll(id="agent-prompt-scroll", classes="expanded"):
                 yield AgentPromptPanel(id="agent-prompt-panel")
             with VerticalScroll(id="agent-search-scroll", classes="hidden"):
@@ -119,6 +122,99 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             )
         return None
 
+    def on_mount(self) -> None:
+        """Attach the prompt panel's identity sink to the header panel."""
+        try:
+            prompt_panel = self.query_one(
+                "#agent-prompt-panel", _agent_prompt_panel_type()
+            )
+        except Exception:
+            return
+        try:
+            prompt_panel.attach_identity_header_sink(self._on_identity_header)
+        except Exception:
+            pass
+        self._sync_header_visibility()
+
+    def _header_panel_or_none(self) -> Any | None:
+        """Return the header panel when mounted, else None."""
+        try:
+            from .agent_header_panel import AgentHeaderPanel
+
+            return self.query_one("#agent-header-panel", AgentHeaderPanel)
+        except Exception:
+            return None
+
+    def _on_identity_header(self, header: Any | None) -> None:
+        """Show the published identity, then sync header visibility."""
+        panel = self._header_panel_or_none()
+        if panel is None:
+            return
+        try:
+            panel.show_identity(header)
+        except Exception:
+            pass
+        self._sync_header_visibility()
+
+    def _sync_header_visibility(self) -> None:
+        """Hide the header unless metadata is visible with an identity."""
+        panel = self._header_panel_or_none()
+        if panel is None:
+            return
+        try:
+            visible = bool(self.is_metadata_visible()) and bool(panel.has_identity)
+        except Exception:
+            visible = False
+        try:
+            if visible:
+                panel.remove_class("hidden")
+            else:
+                panel.add_class("hidden")
+        except Exception:
+            pass
+
+    def header_toggle_available(self) -> bool:
+        """Return whether the header panel can be toggled."""
+        panel = self._header_panel_or_none()
+        if panel is None:
+            return False
+        try:
+            return bool(panel.has_identity) and not panel.has_class("hidden")
+        except Exception:
+            return False
+
+    def toggle_header_expanded(self) -> bool:
+        """Flip the header panel state and keep a bottom pin in place."""
+        panel = self._header_panel_or_none()
+        if panel is None:
+            return False
+        try:
+            expanded = bool(panel.toggle_expanded())
+        except Exception:
+            return False
+        try:
+            prompt_panel = self.query_one(
+                "#agent-prompt-panel", _agent_prompt_panel_type()
+            )
+            if bool(getattr(prompt_panel, "is_pinned_to_bottom", False)):
+                reschedule = getattr(prompt_panel, "_schedule_bottom_pin_reapply", None)
+                if callable(reschedule):
+                    reschedule()
+        except Exception:
+            pass
+        return expanded
+
+    def on_agent_metadata_identity_changed(
+        self, message: AgentMetadataIdentityChanged
+    ) -> None:
+        """Reset the header scroll when the metadata document identity changes."""
+        panel = self._header_panel_or_none()
+        if panel is not None:
+            try:
+                panel.scroll_to(y=0, animate=False)
+            except Exception:
+                pass
+
     def _active_metadata_scroll(self) -> VerticalScroll:
         """Return the search overlay or the native prompt scroll."""
         search_scroll = self.query_one("#agent-search-scroll", VerticalScroll)
@@ -129,6 +225,12 @@ class AgentDetail(AgentDetailPanelMixin, Static):
     def _publish_metadata_identity_change(self, previous: object | None) -> None:
         current = self.metadata_identity
         if current != previous:
+            panel = self._header_panel_or_none()
+            if panel is not None:
+                try:
+                    panel.scroll_to(y=0, animate=False)
+                except Exception:
+                    pass
             self.post_message(AgentMetadataIdentityChanged(current))
 
     def update_display(
@@ -159,6 +261,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
                 attempt_number=attempt_number,
             )
         self._publish_metadata_identity_change(previous_identity)
+        self._sync_header_visibility()
 
     def update_display_immediate(
         self,
@@ -187,6 +290,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             prompt_panel.attempt_pinned_number = attempt_number
             prompt_panel.update_header_only(agent)
         self._publish_metadata_identity_change(previous_identity)
+        self._sync_header_visibility()
 
     def _update_display_impl(
         self,
@@ -404,6 +508,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
             )
         result = prompt_panel.update_display_with_hints(agent)
         self._publish_metadata_identity_change(previous_identity)
+        self._sync_header_visibility()
         return result
 
     def hint_document_is_current(self, agent: Agent) -> bool:
@@ -465,6 +570,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         file_scroll.border_title = ""
         file_scroll.border_subtitle = ""
         self._publish_metadata_identity_change(previous_identity)
+        self._sync_header_visibility()
 
     def show_tribe_summary(
         self,
@@ -491,6 +597,7 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._has_llm_calls_content = False
         prompt_scroll.border_subtitle = ""
         self._publish_metadata_identity_change(previous_identity)
+        self._sync_header_visibility()
 
     def refresh_current_file(self, agent: Agent) -> None:
         """Force refresh the file for the given agent.

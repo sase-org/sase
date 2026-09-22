@@ -14,10 +14,10 @@ import pytest
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets import AgentDetail, AgentInfoPanel
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
-from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     pin_agents_visual_now,
+    prompt_header_and_body_text,
 )
 from tests.ace.tui.visual._ace_agents_proc_shell_png_fixtures import (
     PROC_SHELL_VISUAL_NOW,
@@ -132,7 +132,7 @@ async def test_agents_proc_shell_detail_png_snapshot(
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
         assert detail._current_agent is not None
         assert detail._current_agent.is_proc_shell
-        rendered = renderable_to_text(prompt.content)
+        rendered = prompt_header_and_body_text(prompt)
         assert "PROC SHELL" in rendered
         assert "COMMAND" in rendered
         assert "SAFE PREVIEW" not in rendered

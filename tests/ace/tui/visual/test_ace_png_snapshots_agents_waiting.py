@@ -8,10 +8,12 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent import Agent, AgentType
+from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     assert_page_svg_styled_text_contains,
     choose_agent_metadata_view,
+    prompt_header_and_body_text,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_zoom_fixtures import (
     wait_for_zoom_content,
@@ -153,8 +155,13 @@ async def test_agents_waiting_single_bead_labels_png_snapshot(
                 "WAITING ○ sase-alpha.pipeline.review.12",
             )
             assert_page_svg_styled_text_contains(page, "WAITING ▶1 ◐1")
-            assert_page_svg_contains(page, "Wait:")
-            assert_page_svg_contains(page, "[beads]")
+            assert_page_svg_contains(page, "⏳")
+            combined = prompt_header_and_body_text(
+                page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+            )
+            assert "Wait:" in combined
+            assert "[beads]" in combined
+            assert "sase-yz" in combined
             assert_page_svg_contains(page, "sase-yz")
             ace_png_visual.assert_page_png(
                 page,
@@ -228,12 +235,16 @@ async def test_agents_waiting_missing_target_row_png_snapshot(
             assert_page_svg_styled_text_contains(page, "?1 ○1")
             assert_page_svg_styled_text_contains(page, "▶1")
             assert_page_svg_styled_text_contains(page, "◐1")
-            assert_page_svg_contains(page, "Wait:")
-            assert_page_svg_contains(page, "[agents]")
-            assert_page_svg_contains(page, "[beads]")
-            assert_page_svg_contains(page, "coder")
-            assert_page_svg_contains(page, "builder")
-            assert_page_svg_contains(page, "reviewer")
+            assert_page_svg_contains(page, "⏳")
+            combined = prompt_header_and_body_text(
+                page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+            )
+            assert "Wait:" in combined
+            assert "[agents]" in combined
+            assert "[beads]" in combined
+            assert "coder" in combined
+            assert "builder" in combined
+            assert "reviewer" in combined
             assert_page_svg_contains(page, "✓")
             assert_page_svg_contains(page, "▶")
             assert_page_svg_contains(page, "✗")
@@ -265,10 +276,14 @@ async def test_agents_waiting_tribe_target_png_snapshot(
         await wait_for_visual_idle(page)
 
         assert_page_svg_contains(page, "WAITING")
-        assert_page_svg_contains(page, "Wait:")
-        assert_page_svg_contains(page, "[tribes]")
-        assert_page_svg_contains(page, "@epic")
-        assert_page_svg_contains(page, "epic.builder")
+        assert_page_svg_contains(page, "⏳")
+        combined = prompt_header_and_body_text(
+            page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        )
+        assert "Wait:" in combined
+        assert "[tribes]" in combined
+        assert "@epic" in combined
+        assert "epic.builder" in combined
         assert_page_svg_contains(page, "▶")
         assert "WAITING ?" not in page.export_svg(title="tribe wait assertion")
         ace_png_visual.assert_page_png(

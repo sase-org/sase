@@ -239,8 +239,9 @@ class AgentPanelDetailMixin:
         from ...widgets.prompt_panel import AgentPromptPanel
 
         prompt_panel = agent_detail.query_one("#agent-prompt-panel", AgentPromptPanel)
+        seed_renderable = prompt_panel.inline_document_renderable()
         return ZoomPanelSeed(
-            metadata_renderable=getattr(prompt_panel, "content", None),
+            metadata_renderable=seed_renderable,
             metadata_subtitle=self._zoom_border_subtitle(
                 agent_detail, "#agent-prompt-scroll"
             ),
@@ -296,7 +297,7 @@ class AgentPanelDetailMixin:
             int(cast(ToolDetailLevel | int, raw_llm_calls_detail_level))
         )
         return ZoomPanelSeed(
-            metadata_renderable=getattr(prompt_panel, "content", None),
+            metadata_renderable=prompt_panel.inline_document_renderable(),
             file_renderable=getattr(file_panel, "content", None),
             llm_calls_renderable=getattr(llm_calls_panel, "content", None),
             metadata_subtitle=self._zoom_border_subtitle(

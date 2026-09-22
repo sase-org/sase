@@ -153,6 +153,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 ),
                 (d(a.open_artifact_files), "Artifact files (or marked set)"),
                 (d(a.toggle_attempt_view), "Toggle attempt history view"),
+                (d(a.toggle_agent_header), "Expand / collapse agent header"),
                 (
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",
                     "Next / prev commit/link/file",

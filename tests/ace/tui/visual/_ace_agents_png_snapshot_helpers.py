@@ -93,6 +93,21 @@ def assert_page_svg_contains(page: AcePage, text: str) -> None:
     assert text in svg_plain
 
 
+def page_svg_text(page: AcePage, *, title: str = "ACE visual assertion") -> str:
+    """Return decoded text content from a fresh SVG export."""
+    return _page_svg_text(page.export_svg(title=title))
+
+
+def prompt_header_and_body_text(prompt: object) -> str:
+    """Join the sticky header panel and the scrolling body for assertions."""
+    from sase.ace.tui.widgets.renderable_text import renderable_to_text
+
+    inline = getattr(prompt, "inline_document_renderable", None)
+    if callable(inline):
+        return renderable_to_text(inline()) or ""
+    return renderable_to_text(getattr(prompt, "content", None)) or ""
+
+
 def _page_svg_text(svg: str) -> str:
     """Return decoded text content from the exported SVG."""
     root = ElementTree.fromstring(svg)

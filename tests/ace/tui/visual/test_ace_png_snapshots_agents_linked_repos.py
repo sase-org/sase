@@ -22,6 +22,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_header_summary import (
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
     assert_page_svg_styled_text_contains,
+    page_svg_text,
     reveal_agent_file_view,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
@@ -257,7 +258,20 @@ async def test_agents_commit_messages_panel_png_snapshot(
         await wait_for_visual_idle(page)
         await _wait_for_commit_delta_summary(page, agent)
         await reveal_agent_file_view(page)
-        for _ in range(6):
+        # The sticky header panel shrinks the body viewport, so scroll
+        # until every asserted row is visible instead of a fixed count.
+        targets = (
+            "Deltas:",
+            "agent_deltas.py",
+            "file_panel.py",
+            "sase-core",
+            "files [1/3]",
+            "primary_001.diff",
+        )
+        for _ in range(14):
+            visible = page_svg_text(page, title="ACE commit deltas scroll check")
+            if all(target in visible for target in targets):
+                break
             await page.press("ctrl+f")
             await wait_for_visual_idle(page)
 

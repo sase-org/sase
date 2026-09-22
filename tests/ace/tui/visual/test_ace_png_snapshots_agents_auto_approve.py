@@ -242,9 +242,9 @@ async def test_agents_auto_approve_metadata_png_snapshots(
                 lambda idx=idx: page.app.current_idx == idx,
                 description=f"selected auto-approve agent index {idx}",
             )
-            await wait_for_svg_contains(page, "Auto:")
+            await wait_for_svg_contains(page, token)
             await wait_for_visual_idle(page)
-            assert_page_svg_contains(page, "Auto:")
+            assert_page_svg_contains(page, token)
             assert_page_svg_styled_text_contains(page, token)
 
             ace_png_visual.assert_page_png(
@@ -299,7 +299,12 @@ async def test_agents_auto_approve_xprompts_metadata_png_snapshot(
         await page.press("shift+tab")
         await page.expect_state("tab", "agents")
         await page.expect_state("agent_count", 1)
-        await wait_for_svg_contains(page, "Xprompts:")
+        await wait_for_svg_contains(page, "⌘")
+        await wait_for_visual_idle(page)
+
+        # The collapsed header shows chips; expand to assert the full
+        # Auto:/Model:/Xprompts: field order in the golden.
+        await page.press("d")
         await wait_for_visual_idle(page)
 
         svg = page.export_svg(title="ACE auto/xprompts metadata")

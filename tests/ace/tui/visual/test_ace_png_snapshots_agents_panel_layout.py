@@ -273,11 +273,16 @@ async def test_agents_equal_file_layout_png_snapshot(
             lambda: detail.detail_layout_mode is DetailLayoutMode.EQUAL,
             description="equal detail layout",
         )
+        # The sticky header takes auto height above the metadata scroll, so
+        # an odd remaining height splits one row unevenly between the frs.
         await wait_for_state(
             page,
             lambda: (
-                detail.query_one("#agent-prompt-scroll").region.height
-                == detail.query_one("#agent-file-scroll").region.height
+                abs(
+                    detail.query_one("#agent-prompt-scroll").region.height
+                    - detail.query_one("#agent-file-scroll").region.height
+                )
+                <= 1
             ),
             description="equal visible scroll heights",
         )

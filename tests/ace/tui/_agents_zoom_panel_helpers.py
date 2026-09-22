@@ -60,6 +60,10 @@ class _FakePanel:
     def __init__(self, content: object) -> None:
         self.content = content
 
+    def inline_document_renderable(self) -> object:
+        """Mirror the prompt panel seam: no identity, so just the body."""
+        return self.content
+
 
 class _FakeScroll:
     def __init__(self, subtitle: object = "") -> None:

@@ -10,13 +10,16 @@ from textual.containers import VerticalScroll
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.models.agent_family_members import concrete_family_shell_rows
+from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from tests.ace.tui.visual._ace_agents_png_snapshot_family_panel_fixtures import (
     _gate_family_agents,
     _selected_gate_agent,
 )
 from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_contains,
+    page_svg_text,
     pin_agents_visual_now,
+    prompt_header_and_body_text,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -68,11 +71,14 @@ async def test_family_gate_shells_png_snapshots(
             "answered",
             "failed",
         ]
-        assert_page_svg_contains(page, "Shells:")
-        assert_page_svg_contains(page, "pending")
-        assert_page_svg_contains(page, "settling")
-        assert_page_svg_contains(page, "answered")
-        assert_page_svg_contains(page, "failed")
+        assert_page_svg_contains(page, "6 shells")
+        combined = prompt_header_and_body_text(
+            page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        )
+        assert "pending" in combined
+        assert "settling" in combined
+        assert "answered" in combined
+        assert "failed" in combined
         ace_png_visual.assert_page_png(
             page,
             "agents_family_panel_shells_gate_120x40",
@@ -140,6 +146,14 @@ async def test_selected_gate_shell_output_png_snapshot(
         scroll = page.query_one_widget("#agent-prompt-scroll", VerticalScroll)
         scroll.scroll_to(y=16, animate=False, immediate=True)
         await wait_for_visual_idle(page)
+        # The sticky header shrinks the body viewport, so keep scrolling
+        # until the gate output rows are visible instead of a fixed offset.
+        for _ in range(14):
+            visible = page_svg_text(page, title="ACE gate output scroll check")
+            if "gate output line 01" in visible and "truncated" in visible:
+                break
+            scroll.scroll_relative(y=4, animate=False)
+            await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "gate output line 01")
         assert_page_svg_contains(page, "truncated")
         ace_png_visual.assert_page_png(
