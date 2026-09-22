@@ -427,9 +427,12 @@ def _git_core_repo(path: Path) -> Path:
     repo = path / "sase-core"
     crate = repo / "crates" / "sase_core_py"
     crate.mkdir(parents=True)
+    core_crate = repo / "crates" / "sase_core" / "src"
+    core_crate.mkdir(parents=True)
     (repo / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
     (repo / "Cargo.lock").write_text("version = 3\n", encoding="utf-8")
     (crate / "lib.rs").write_text("// binding\n", encoding="utf-8")
+    (core_crate / "lib.rs").write_text("// core\n", encoding="utf-8")
     _git(repo, "init", "-q")
     _git(repo, "config", "user.email", "test@example.com")
     _git(repo, "config", "user.name", "Test")
@@ -500,6 +503,38 @@ def test_dirty_edit_under_crates_sets_core_source_stale_bit(
     (env["sase_core_dir"] / "crates" / "sase_core_py" / "lib.rs").write_text(
         "// binding v2\n", encoding="utf-8"
     )
+    namespace = _core_check_namespace(env, cache_file=tmp_path / "cache.json")
+
+    assert tool["_validate"](namespace) == CORE_SOURCE_STALE
+
+
+def test_dirty_edit_under_sase_core_crate_sets_core_source_stale_bit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SASE_CORE_WHEEL", raising=False)
+    tool = _load_tool()
+    env = _source_check_env(tmp_path)
+    _stub_core_validators_ok(tool, tmp_path)
+    _stamp_venv(env["venv_dir"], env["sase_core_dir"])
+    (env["sase_core_dir"] / "crates" / "sase_core" / "src" / "lib.rs").write_text(
+        "// core v2\n", encoding="utf-8"
+    )
+    namespace = _core_check_namespace(env, cache_file=tmp_path / "cache.json")
+
+    assert tool["_validate"](namespace) == CORE_SOURCE_STALE
+
+
+def test_untracked_file_under_sase_core_crate_sets_core_source_stale_bit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SASE_CORE_WHEEL", raising=False)
+    tool = _load_tool()
+    env = _source_check_env(tmp_path)
+    _stub_core_validators_ok(tool, tmp_path)
+    _stamp_venv(env["venv_dir"], env["sase_core_dir"])
+    (
+        env["sase_core_dir"] / "crates" / "sase_core" / "src" / "new_module.rs"
+    ).write_text("// new\n", encoding="utf-8")
     namespace = _core_check_namespace(env, cache_file=tmp_path / "cache.json")
 
     assert tool["_validate"](namespace) == CORE_SOURCE_STALE

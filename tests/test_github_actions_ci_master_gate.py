@@ -8,6 +8,12 @@ loaders live in ``tests/_github_actions_ci_helpers.py``.
 
 from __future__ import annotations
 
+import os
+import shutil
+import stat
+import subprocess
+from pathlib import Path
+
 import pytest
 
 from tests._github_actions_ci_helpers import REPO_ROOT
@@ -306,6 +312,164 @@ def test_core_pin_ratchet_apply_tolerates_exit_two() -> None:
     # Exit 2 (ratchet applied) is tolerated; any other nonzero still fails.
     assert "-eq 2" in window or "-ne 2" in window
     assert "exit" in window
+
+
+# --------------------------------------------------------------------------
+# core-pin-ratchet.yml behavior (executes the real step script)
+# --------------------------------------------------------------------------
+
+_RATCHET_NEW_SHA = "0123456789abcdef0123456789abcdef01234567"
+_RATCHET_OLD_SHA = "f" * 40
+
+
+def _ratchet_step_run_text() -> str:
+    job = _load_core_pin_ratchet_workflow()["jobs"]["ratchet"]
+    step = next(s for s in job["steps"] if s.get("name") == "Propose a core pin bump")
+    return str(step["run"]).replace("${{ github.repository }}", "owner/repo")
+
+
+def _write_stub(path: Path, contents: str) -> None:
+    path.write_text(contents, encoding="utf-8")
+    path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+def _run_ratchet_step(
+    tmp_path: Path,
+    *,
+    check_rc: int,
+    apply_rc: int,
+    branch_exists_rc: int,
+) -> tuple[int, str, str, str]:
+    if shutil.which("bash") is None:
+        pytest.skip("bash is not available")
+    run_text = _ratchet_step_run_text()
+    assert "github.repository" not in run_text
+
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "sase-core-revision.txt").write_text(
+        _RATCHET_OLD_SHA + "\n", encoding="utf-8"
+    )
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    python_log = tmp_path / "python-argv.log"
+    git_log = tmp_path / "git-argv.log"
+    gh_log = tmp_path / "gh-argv.log"
+    python_log.write_text("", encoding="utf-8")
+    git_log.write_text("", encoding="utf-8")
+    gh_log.write_text("", encoding="utf-8")
+
+    _write_stub(
+        bin_dir / "python3",
+        "#!/bin/sh\n"
+        'echo "$*" >> "$PYTHON_LOG"\n'
+        'case " $* " in\n'
+        '  *" --check "*) exit "$CHECK_RC";;\n'
+        "esac\n"
+        "printf '%s' \"$NEW_SHA\" > sase-core-revision.txt\n"
+        'exit "$APPLY_RC"\n',
+    )
+    _write_stub(
+        bin_dir / "git",
+        '#!/bin/sh\necho "$*" >> "$GIT_LOG"\nexit 0\n',
+    )
+    _write_stub(
+        bin_dir / "gh",
+        "#!/bin/sh\n"
+        'echo "$*" >> "$GH_LOG"\n'
+        'if [ "$1" = "api" ]; then exit "$BRANCH_EXISTS_RC"; fi\n'
+        "exit 0\n",
+    )
+
+    env = os.environ.copy()
+    env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
+    env["CHECK_RC"] = str(check_rc)
+    env["APPLY_RC"] = str(apply_rc)
+    env["BRANCH_EXISTS_RC"] = str(branch_exists_rc)
+    env["NEW_SHA"] = _RATCHET_NEW_SHA
+    env["PYTHON_LOG"] = str(python_log)
+    env["GIT_LOG"] = str(git_log)
+    env["GH_LOG"] = str(gh_log)
+
+    completed = subprocess.run(
+        ["bash", "-c", run_text],
+        cwd=work,
+        env=env,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    return (
+        completed.returncode,
+        python_log.read_text(encoding="utf-8"),
+        git_log.read_text(encoding="utf-8"),
+        gh_log.read_text(encoding="utf-8"),
+    )
+
+
+def test_core_pin_ratchet_step_pending_bump_pushes_and_opens_pr(
+    tmp_path: Path,
+) -> None:
+    code, _python_argv, git_argv, gh_argv = _run_ratchet_step(
+        tmp_path, check_rc=2, apply_rc=2, branch_exists_rc=1
+    )
+    branch = f"core-pin-ratchet-{_RATCHET_NEW_SHA[:12]}"
+
+    assert code == 0
+    assert f"push origin {branch}" in git_argv
+    assert "pr create" in gh_argv
+    assert branch in gh_argv
+
+
+def test_core_pin_ratchet_step_up_to_date_makes_no_push_or_pr(
+    tmp_path: Path,
+) -> None:
+    code, python_argv, git_argv, gh_argv = _run_ratchet_step(
+        tmp_path, check_rc=0, apply_rc=2, branch_exists_rc=1
+    )
+
+    assert code == 0
+    assert "--check" in python_argv
+    assert git_argv == ""
+    assert "pr create" not in gh_argv
+
+
+def test_core_pin_ratchet_step_check_failure_aborts_before_apply(
+    tmp_path: Path,
+) -> None:
+    code, python_argv, git_argv, gh_argv = _run_ratchet_step(
+        tmp_path, check_rc=3, apply_rc=2, branch_exists_rc=1
+    )
+
+    assert code == 3
+    assert "--check" in python_argv
+    assert "push" not in git_argv
+    assert "pr create" not in gh_argv
+
+
+def test_core_pin_ratchet_step_apply_failure_aborts_before_push(
+    tmp_path: Path,
+) -> None:
+    code, _python_argv, git_argv, gh_argv = _run_ratchet_step(
+        tmp_path, check_rc=2, apply_rc=3, branch_exists_rc=1
+    )
+
+    assert code == 3
+    assert "push" not in git_argv
+    assert "pr create" not in gh_argv
+
+
+def test_core_pin_ratchet_step_existing_branch_skips_push(
+    tmp_path: Path,
+) -> None:
+    code, _python_argv, git_argv, gh_argv = _run_ratchet_step(
+        tmp_path, check_rc=2, apply_rc=2, branch_exists_rc=0
+    )
+
+    assert code == 0
+    assert "push" not in git_argv
+    assert "pr create" not in gh_argv
 
 
 # --------------------------------------------------------------------------

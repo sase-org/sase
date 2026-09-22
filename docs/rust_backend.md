@@ -356,8 +356,8 @@ to a published wheel during dependency resolution, and `sase update` rebuilds th
 editable extension from the checkout whenever it finds a published wheel installed in a
 dev environment. Every build also records the source it built from in
 `.venv/.sase-core-rs-source.json`, so `just check` rebuilds the extension automatically
-when the linked sase-core source (HEAD plus local edits under the Rust crate inputs) has
-changed since that build.
+when the linked sase-core source (HEAD plus uncommitted edits under `crates/`,
+`Cargo.toml`, `Cargo.lock` and `rust-toolchain.toml`) has changed since that build.
 
 #### Changing sase-core from a sase workspace
 
@@ -434,7 +434,9 @@ Updates panel.
 
 A measured feature-unified
 `cargo build --release -p sase_core_py -p sase_xprompt_lsp --features sase_core_py/extension-module`
-still left `maturin develop --release` rebuilding the PyO3 crate through maturin's
+(sase-core has since removed that crate feature in 1d129cd; wheel builds now pass
+`pyo3/extension-module` through maturin's `features`, so do not copy this command) still
+left `maturin develop --release` rebuilding the PyO3 crate through maturin's
 `cargo rustc` path, so the dev-update recipe uses the fallback design from the
 fast-update plan: separate target directories for the Python extension and LSP builds.
 

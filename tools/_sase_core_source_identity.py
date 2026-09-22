@@ -3,11 +3,13 @@
 
 A dev extension is fresh only when it was built from the checkout's current
 source. The identity is ``git rev-parse HEAD`` plus a digest of uncommitted
-and untracked changes under :data:`INPUT_PATHS` — the same crate input paths
-``tools/sase_core_wheel_cache`` hashes for its clean-tree cache key. Both the
+and untracked changes under :data:`INPUT_PATHS` — the whole Rust build input
+(workspace manifests plus every crate under ``crates/``). Both the
 ``rust-install`` stamp writer (Justfile) and the ``core-source`` freshness
 check in ``tools/validate_test_environment`` share this module so the path
 list and the identity computation cannot drift apart.
+``tools/sase_core_wheel_cache`` imports the same constant for its clean-tree
+cache key (additionally requiring a clean checkout).
 
 Only git plumbing is used and ``target/`` is never hashed: untracked files
 come from ``git status``, which never reports gitignored build output.
@@ -24,10 +26,11 @@ from collections.abc import Mapping
 from pathlib import Path
 
 
-#: Crate input paths whose content identifies a sase-core source tree.
-#: Shared with ``tools/sase_core_wheel_cache`` (clean-tree cache key) and
-#: the dev-extension freshness stamp (this module's identity).
-INPUT_PATHS = ("Cargo.toml", "Cargo.lock", "crates/sase_core_py")
+#: Whole Rust build input paths whose content identifies a sase-core tree.
+#: Shared with ``tools/sase_core_wheel_cache`` (clean-tree cache key); the
+#: freshness identity covers this whole list while the cache additionally
+#: requires a clean checkout and guards on ``crates/sase_core_py/``.
+INPUT_PATHS = ("Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "crates")
 
 #: Venv-relative stamp recording the source identity an extension was built
 #: from. Written by the ``rust-install`` Justfile recipe only after a
