@@ -11,13 +11,21 @@ from pathlib import Path
 import time
 import uuid
 
+from collections.abc import Callable
+
 from tests.ace.tui.visual._visual_capture_paths import atomic_write_text
 from tests.ace.tui.visual._visual_maintenance_types import (
     CACHE_RELATIVE,
     LOCK_FILENAME,
+    MaintenanceHooks,
     OverlappingRunError,
     RUNS_DIRNAME,
 )
+
+
+DEFAULT_LOCK_TIMEOUT_SECONDS = 2 * 60 * 60
+DEFAULT_LOCK_POLL_INTERVAL_SECONDS = 1.0
+LOCK_NOTICE_INTERVAL_SECONDS = 60.0
 
 
 def cache_root(repo_root: Path) -> Path:
@@ -58,22 +66,61 @@ class MaintenanceLock:
         self.path = path
         self._fd: int | None = None
 
-    def acquire(self, *, run_id: str) -> None:
+    def acquire(
+        self,
+        *,
+        run_id: str,
+        timeout_seconds: float | None = None,
+        poll_interval_seconds: float | None = None,
+        sleep: Callable[[float], None] | None = None,
+        monotonic: Callable[[], float] | None = None,
+    ) -> None:
+        """Acquire the lock, waiting (bounded) while another run holds it."""
+        timeout = (
+            DEFAULT_LOCK_TIMEOUT_SECONDS
+            if timeout_seconds is None
+            else max(0.0, float(timeout_seconds))
+        )
+        poll = (
+            DEFAULT_LOCK_POLL_INTERVAL_SECONDS
+            if poll_interval_seconds is None
+            else max(0.0, float(poll_interval_seconds))
+        )
+        sleep_fn = time.sleep if sleep is None else sleep
+        clock = time.monotonic if monotonic is None else monotonic
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o644)
-        try:
-            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
+        deadline = clock() + timeout
+        waiting = False
+        last_notice = 0.0
+        while True:
+            fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o644)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except BlockingIOError:
+                os.close(fd)
+            else:
+                self._fd = fd
+                _write_holder(fd, run_id=run_id)
+                return
             holder = _read_holder(self.path)
-            os.close(fd)
-            detail = f" ({holder})" if holder else ""
-            raise OverlappingRunError(
-                "another fix-tui-screenshots run holds the maintenance lock"
-                f"{detail}; wait for it to finish rather than overwriting "
-                "its scratch directory"
-            ) from exc
-        self._fd = fd
-        _write_holder(fd, run_id=run_id)
+            now = clock()
+            if now >= deadline:
+                detail = f" ({holder})" if holder else ""
+                raise OverlappingRunError(
+                    "another fix-tui-screenshots run holds the maintenance lock"
+                    f"{detail}; gave up waiting after {timeout:g}s "
+                    "rather than overwriting its scratch directory"
+                )
+            if not waiting or now - last_notice >= LOCK_NOTICE_INTERVAL_SECONDS:
+                detail = f"held by {holder}" if holder else "held by another run"
+                print(
+                    "waiting for the maintenance lock "
+                    f"({detail}); will wait up to {timeout:g}s",
+                    flush=True,
+                )
+                waiting = True
+                last_notice = now
+            sleep_fn(min(poll, max(0.0, deadline - now)))
 
     def release(self) -> None:
         fd = self._fd
@@ -88,11 +135,28 @@ class MaintenanceLock:
 
 @contextmanager
 def exclusive_maintenance_lock(
-    repo_root: Path, *, run_id: str
+    repo_root: Path,
+    *,
+    run_id: str,
+    hooks: MaintenanceHooks | None = None,
+    timeout_seconds: float | None = None,
+    poll_interval_seconds: float | None = None,
+    sleep: Callable[[float], None] | None = None,
+    monotonic: Callable[[], float] | None = None,
 ) -> Iterator[MaintenanceLock]:
-    """Acquire the checkout-local lock or refuse an overlapping run."""
+    """Acquire the checkout-local lock, waiting (bounded) on overlap."""
+    if timeout_seconds is None and hooks is not None:
+        timeout_seconds = hooks.lock_timeout_seconds
+    if poll_interval_seconds is None and hooks is not None:
+        poll_interval_seconds = hooks.lock_poll_interval_seconds
     held = MaintenanceLock(lock_path(repo_root))
-    held.acquire(run_id=run_id)
+    held.acquire(
+        run_id=run_id,
+        timeout_seconds=timeout_seconds,
+        poll_interval_seconds=poll_interval_seconds,
+        sleep=sleep,
+        monotonic=monotonic,
+    )
     try:
         yield held
     finally:

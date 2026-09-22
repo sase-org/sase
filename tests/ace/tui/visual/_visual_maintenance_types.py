@@ -98,6 +98,8 @@ class MaintenanceHooks:
     is_ci: Callable[[Mapping[str, str]], bool] | None = None
     platform_system: Callable[[], str] | None = None
     renderer_identity: Callable[[], dict[str, Any]] | None = None
+    lock_timeout_seconds: float | None = None
+    lock_poll_interval_seconds: float | None = None
 
 
 @dataclass(frozen=True)
@@ -109,6 +111,7 @@ class MaintenanceRequest:
     scope: str
     scope_reasons: tuple[str, ...]
     argv: tuple[str, ...]
+    workers: int | None = None
 
 
 @dataclass(frozen=True)

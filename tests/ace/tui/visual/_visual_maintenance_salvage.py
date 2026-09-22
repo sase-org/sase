@@ -193,8 +193,11 @@ class _UpdateRun:
             scope=self.request.scope,
             pytest_args=self.request.pytest_args,
             log_path=self.run_dir / "capture.log",
+            workers=self.request.workers,
         )
-        self._note_attempt("capture", self.run_id, self.capture_dir, "capture", None)
+        self._note_attempt(
+            "capture", self.run_id, self.capture_dir, "capture", self.request.workers
+        )
         inventory = _load_if_present(self.capture_dir / "inventory.json")
         if _has_no_usable_inventory(inventory):
             if self.child_exit == 5:
@@ -397,13 +400,14 @@ class _UpdateRun:
             scope=self.request.scope,
             pytest_args=self.request.pytest_args,
             log_path=retry_log,
+            workers=self.request.workers,
         )
         self._note_attempt(
             "capture-retry",
             f"{self.run_id}-retry",
             retry_dir,
             "capture-retry",
-            None,
+            self.request.workers,
         )
         retry_inventory = _load_if_present(retry_dir / "inventory.json")
         if _has_no_usable_inventory(retry_inventory):
@@ -430,7 +434,11 @@ class _UpdateRun:
             recover_log = self.run_dir / f"recover-{attempt}.log"
             log_key = f"recover-{attempt}"
             self.logs[log_key] = posix_relative(recover_log, self.repo_root)
-            workers = 1 if len(remaining) <= SERIAL_RECOVERY_NODE_LIMIT else None
+            workers = (
+                1
+                if len(remaining) <= SERIAL_RECOVERY_NODE_LIMIT
+                else self.request.workers
+            )
             recover_run_id = f"{self.run_id}-recover-{attempt}"
             self.child_exit = run_pytest(
                 self.hooks,

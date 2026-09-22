@@ -2,12 +2,16 @@
 
 from __future__ import annotations
 
+import dataclasses
+import fcntl
 import importlib.util
 from importlib.machinery import SourceFileLoader
 import json
+import os
 from pathlib import Path
-import subprocess
 import sys
+import threading
+import time
 from types import ModuleType
 
 import pytest
@@ -156,6 +160,89 @@ def test_resolve_scope_treats_last_failed_as_targeted() -> None:
     scope, reasons = resolve_scope(["--lf"])
     assert scope == "targeted"
     assert reasons == ("cli_selectors",)
+
+
+def test_numprocesses_long_form_sets_workers() -> None:
+    request = parse_command(["--", "--numprocesses", "4"])
+    assert request.workers == 4
+    assert request.pytest_args == ()
+    assert request.scope == "full"
+    assert request.scope_reasons == ()
+
+
+def test_n_short_forms_set_workers() -> None:
+    assert parse_command(["--", "-n", "8"]).workers == 8
+    assert parse_command(["--", "-n8"]).workers == 8
+    assert parse_command(["--", "--numprocesses=8"]).workers == 8
+
+
+def test_n_value_is_not_a_selector() -> None:
+    request = parse_command(["--", "-n", "2"])
+    assert request.workers == 2
+    assert request.pytest_args == ()
+    assert request.scope == "full"
+    assert request.scope_reasons == ()
+
+
+def test_n_with_path_keeps_targeted_scope() -> None:
+    request = parse_command(["--", "-n", "4", "tests/ace/tui/visual/test_a.py"])
+    assert request.workers == 4
+    assert request.pytest_args == ("tests/ace/tui/visual/test_a.py",)
+    assert request.scope == "targeted"
+
+
+def test_n_auto_uses_governed_default(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    request = parse_command(["--", "-n", "auto"])
+    assert request.workers is None
+    assert request.pytest_args == ()
+    assert "governed default" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["--", "-n", "0"],
+        ["--", "-n", "-2"],
+        ["--", "-n", "foo"],
+        ["--", "-n"],
+        ["--", "--numprocesses="],
+    ],
+)
+def test_n_invalid_is_usage(args: list[str]) -> None:
+    with pytest.raises(UsageError, match="SASE_PYTEST_WORKERS"):
+        parse_command(args)
+
+
+def test_pytest_addopts_n_rejected() -> None:
+    with pytest.raises(UsageError, match="SASE_PYTEST_WORKERS"):
+        parse_command([], environ={"PYTEST_ADDOPTS": "-n 4"})
+
+
+def test_workers_request_reaches_runner(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    red = make_png(1, 1)
+    write_golden(tmp_path, "ace", "keep.png", red)
+    write_golden(tmp_path, "pager", "keep.png", red)
+    commit_all(tmp_path)
+    runner = FakeRunner(
+        captures=[
+            ScriptedCapture(ACE_NODE, "keep", "ace", red),
+            ScriptedCapture(PAGER_NODE, "keep", "pager", red),
+        ],
+        repo_root=tmp_path,
+    )
+    code = main(
+        ["--", "-n", "3"],
+        repo_root=tmp_path,
+        hooks=silent_hooks(runner),
+        environ={},
+    )
+    assert code == EXIT_SUCCESS
+    assert runner.calls
+    assert runner.calls[0]["workers"] == 3
+    assert runner.calls[0]["pytest_args"] == ()
 
 
 def test_parser_only_exposes_check_and_help() -> None:
@@ -336,36 +423,102 @@ def test_renderer_preflight_failure_is_usage(tmp_path: Path) -> None:
     assert code == EXIT_USAGE
 
 
-def test_overlapping_run_refuses_without_overwriting_scratch(tmp_path: Path) -> None:
+def _hold_maintenance_lock(
+    lock_file: Path,
+    ready: threading.Event,
+    release: threading.Event,
+) -> None:
+    """Hold an exclusive flock on *lock_file* until *release* is set."""
+    lock_file.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(lock_file, os.O_RDWR | os.O_CREAT, 0o644)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        lock_file.write_text("pid=holder\n", encoding="utf-8")
+        ready.set()
+        assert release.wait(timeout=60)
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
+def _fast_lock_hooks(runner: FakeRunner, **overrides: object) -> MaintenanceHooks:
+    base = silent_hooks(runner)
+    return dataclasses.replace(
+        base,
+        lock_poll_interval_seconds=0.05,
+        **overrides,  # type: ignore[arg-type]
+    )
+
+
+def test_lock_waits_then_proceeds_after_release(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     init_repo(tmp_path)
     red = make_png(1, 1)
     write_golden(tmp_path, "ace", "keep.png", red)
     write_golden(tmp_path, "pager", "keep.png", red)
     commit_all(tmp_path)
-    holder = subprocess.Popen(
-        [
-            sys.executable,
-            "-c",
-            (
-                "import fcntl, os, sys, time\n"
-                "from pathlib import Path\n"
-                "path = Path(sys.argv[1])\n"
-                "path.parent.mkdir(parents=True, exist_ok=True)\n"
-                "fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)\n"
-                "fcntl.flock(fd, fcntl.LOCK_EX)\n"
-                "path.write_text('pid=holder\\n', encoding='utf-8')\n"
-                "print('locked', flush=True)\n"
-                "time.sleep(30)\n"
-            ),
-            str(tmp_path / ".pytest_cache/sase-visual/maintenance.lock"),
-        ],
-        stdout=subprocess.PIPE,
-        text=True,
+    ready = threading.Event()
+    release = threading.Event()
+    holder = threading.Thread(
+        target=_hold_maintenance_lock,
+        args=(tmp_path / ".pytest_cache/sase-visual/maintenance.lock", ready, release),
+        daemon=True,
     )
+    holder.start()
     try:
-        assert holder.stdout is not None
-        line = holder.stdout.readline()
-        assert "locked" in line
+        assert ready.wait(timeout=10)
+        runner = FakeRunner(
+            captures=[
+                ScriptedCapture(ACE_NODE, "keep", "ace", red),
+                ScriptedCapture(PAGER_NODE, "keep", "pager", red),
+            ],
+            repo_root=tmp_path,
+        )
+        result: dict[str, int] = {}
+
+        def run() -> None:
+            result["code"] = main(
+                ["--check"],
+                repo_root=tmp_path,
+                hooks=_fast_lock_hooks(runner),
+                environ={},
+            )
+
+        agent = threading.Thread(target=run, daemon=True)
+        agent.start()
+        time.sleep(0.5)  # sase-test-wait: let the runner thread block on the held lock
+        release.set()
+        agent.join(timeout=30)
+        assert not agent.is_alive()
+        assert result["code"] == EXIT_SUCCESS
+        assert runner.calls != []
+        assert "waiting for the maintenance lock" in capsys.readouterr().out
+    finally:
+        release.set()
+        holder.join(timeout=10)
+
+
+def test_lock_timeout_refuses_without_overwriting_scratch(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    init_repo(tmp_path)
+    red = make_png(1, 1)
+    write_golden(tmp_path, "ace", "keep.png", red)
+    write_golden(tmp_path, "pager", "keep.png", red)
+    commit_all(tmp_path)
+    ready = threading.Event()
+    release = threading.Event()
+    holder = threading.Thread(
+        target=_hold_maintenance_lock,
+        args=(tmp_path / ".pytest_cache/sase-visual/maintenance.lock", ready, release),
+        daemon=True,
+    )
+    holder.start()
+    try:
+        assert ready.wait(timeout=10)
         runner = FakeRunner(
             captures=[
                 ScriptedCapture(ACE_NODE, "keep", "ace", red),
@@ -376,14 +529,18 @@ def test_overlapping_run_refuses_without_overwriting_scratch(tmp_path: Path) -> 
         code = main(
             ["--check"],
             repo_root=tmp_path,
-            hooks=silent_hooks(runner),
+            hooks=_fast_lock_hooks(runner, lock_timeout_seconds=0.3),
             environ={},
         )
         assert code == EXIT_USAGE
         assert runner.calls == []
+        assert not (tmp_path / ".pytest_cache/sase-visual/runs").exists()
+        captured = capsys.readouterr()
+        assert "waiting for the maintenance lock" in captured.out
+        assert "gave up waiting" in captured.err
     finally:
-        holder.terminate()
-        holder.wait(timeout=10)
+        release.set()
+        holder.join(timeout=10)
 
 
 def test_check_mode_leaves_git_index_and_mtimes_on_drift(tmp_path: Path) -> None:

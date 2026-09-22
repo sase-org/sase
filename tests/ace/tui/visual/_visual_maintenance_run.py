@@ -133,7 +133,7 @@ def run_maintenance(
 ) -> int:
     """Execute one locked maintenance run."""
     run_id = new_run_id()
-    with exclusive_maintenance_lock(repo_root, run_id=run_id):
+    with exclusive_maintenance_lock(repo_root, run_id=run_id, hooks=hooks):
         recover_unfinished_journals(
             cache_root(repo_root),
             repo_root,
@@ -252,6 +252,7 @@ def _run_locked_check(
             scope=request.scope,
             pytest_args=request.pytest_args,
             log_path=run_dir / "capture.log",
+            workers=request.workers,
         )
         inventory_path = capture_dir / "inventory.json"
         if not inventory_path.is_file():
