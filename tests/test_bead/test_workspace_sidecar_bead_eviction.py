@@ -11,7 +11,7 @@ import pytest
 from sase.axe import runner_workspace_sidecar as workspace_module
 from sase.axe.runner_workspace import prepare_launch_workspace_repos
 from sase.axe.runner_workspace_beads import _workspace_bead_store_dirs
-from sase.axe.runner_workspace_prepare import _WorkspaceBeadEvictionRefused
+from sase.axe.runner_workspace_prepare import _protect_unpushed_sidecar_commits
 from sase.axe.runner_workspace_sidecar import _workspace_sidecar_repo_roots
 from sase.bead.model import IssueType
 from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
@@ -21,6 +21,79 @@ from .sync_conflict_regression_helpers import _clone, _commit, _git
 from .sync_test_helpers import init_git_repo
 
 _WORKSPACE_NUM = 7
+
+
+@pytest.fixture(autouse=True)
+def _clear_publication_memo():
+    workspace_module._FAILED_PUBLICATIONS.clear()
+    yield
+    workspace_module._FAILED_PUBLICATIONS.clear()
+
+
+def _redirect_state(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> tuple[Path, list[tuple[object, ...]]]:
+    """Point SASE_HOME and notifications at tmp; return home and sent notes."""
+    home = tmp_path / "sase-home"
+    monkeypatch.setenv("SASE_HOME", str(home))
+    notified: list[tuple[object, ...]] = []
+    monkeypatch.setattr(
+        "sase.notifications.notify_workflow_complete",
+        lambda *args, **kwargs: notified.append((*args, kwargs)),
+    )
+    return home, notified
+
+
+def _rescue_bundles(home: Path) -> list[Path]:
+    root = home / "rescue"
+    if not root.is_dir():
+        return []
+    return sorted(root.glob("*/*/local-commits.bundle"))
+
+
+def _rescue_entries(home: Path) -> list[Path]:
+    root = home / "rescue"
+    if not root.is_dir():
+        return []
+    return sorted(
+        entry
+        for month in root.iterdir()
+        if month.is_dir()
+        for entry in month.iterdir()
+        if entry.is_dir()
+    )
+
+
+def _bundle_holds_sha(bundle: Path, sha: str, tmp_path: Path, base: Path) -> bool:
+    """Fetch the bundle into a clone of *base* and prove *sha* is restorable."""
+    heads = subprocess.run(
+        ["git", "bundle", "list-heads", str(bundle)],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    if sha not in heads:
+        return False
+    probe = tmp_path / f"probe-{bundle.parent.name}"
+    subprocess.run(
+        ["git", "clone", "-q", str(base), str(probe)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "fetch", str(bundle), "refs/*:refs/sase/rescued/x/*"],
+        cwd=probe,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return (
+        subprocess.run(
+            ["git", "cat-file", "-e", sha], cwd=probe, capture_output=True
+        ).returncode
+        == 0
+    )
 
 
 def _seed_workspace_sidecar_beads(tmp_path: Path) -> tuple[Path, Path, str]:
@@ -149,20 +222,6 @@ def _remote_file(remote: Path, relpath: str, *, ref: str = "main") -> str:
     return _git(remote, "show", f"{ref}:{relpath}").stdout
 
 
-def _recovery_refs(repo: Path) -> list[tuple[str, str]]:
-    listing = _git(
-        repo,
-        "for-each-ref",
-        "--format=%(refname)%00%(objectname)",
-        "refs/sase/recovery/",
-    ).stdout
-    return [
-        (line.split("\0")[0], line.split("\0")[1])
-        for line in listing.splitlines()
-        if line.strip()
-    ]
-
-
 def _record_clone(clones: list[tuple[str, int, bool]]):
     def ensure_workspace_sdd_clone(
         workspace_dir: str, workspace_num: int, *, strict: bool = False
@@ -173,7 +232,7 @@ def _record_clone(clones: list[tuple[str, int, bool]]):
 
 
 def _fail_publish(sync_log: Path, attempts: list[Path]):
-    def publish(beads_dir: Path) -> SimpleNamespace:
+    def publish(beads_dir: Path, **kwargs: object) -> SimpleNamespace:
         attempts.append(beads_dir)
         return SimpleNamespace(
             pushed=False,
@@ -190,8 +249,8 @@ def test_eviction_quarantines_unborn_head_sidecar_and_reclones(
 ) -> None:
     workspace, plans, _remote = _seed_workspace_sidecar_repo(tmp_path)
     _damage_sidecar_unborn_head(plans)
+    home, notified = _redirect_state(tmp_path, monkeypatch)
     clones: list[tuple[str, int, bool]] = []
-    notified: list[tuple[object, ...]] = []
 
     def recreate_plans_sidecar(
         workspace_dir: str, workspace_num: int, *, strict: bool = False
@@ -205,53 +264,55 @@ def test_eviction_quarantines_unborn_head_sidecar_and_reclones(
         "sase.sdd.store.ensure_workspace_sdd_clone",
         recreate_plans_sidecar,
     )
-    monkeypatch.setattr(
-        "sase.notifications.notify_workflow_complete",
-        lambda *args, **kwargs: notified.append((*args, kwargs)),
-    )
 
     cloned_sidecars = prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
 
     assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
     assert cloned_sidecars == {str(plans.resolve())}
     assert (plans / ".git").is_dir()
-    quarantined = sorted((workspace / ".sase" / "sidecar-quarantine").glob("plans-*"))
-    assert len(quarantined) == 1
-    assert (quarantined[0] / ".git").is_dir()
+    # The damaged clone was quarantined into the durable rescue store outside
+    # the workspace — never into the workspace itself — and eviction proceeded.
+    assert not (workspace / ".sase" / "sidecar-quarantine").exists()
+    entries = _rescue_entries(home)
+    assert len(entries) == 1
+    quarantined = entries[0] / "quarantined-clone"
+    assert (quarantined / ".git").is_dir()
     assert len(notified) == 1
-    sender, _cl_name, success, notes, kwargs = notified[0]
-    assert sender == "sidecar-protection"
-    assert success is False
-    assert any("Quarantined damaged sidecar" in note for note in notes)
-    assert any(str(quarantined[0]) in note for note in notes)
-    assert kwargs["extra_files"] == [str(quarantined[0])]
+    sender, _cl_name, _success, notes, kwargs = notified[0]
+    assert sender == "workspace-rescue"
+    assert any("quarantin" in note for note in notes)
+    assert any(str(entries[0]) in note for note in notes)
+    assert kwargs["extra_files"] == [str(entries[0])]
 
 
-def test_eviction_refuses_when_damaged_sidecar_quarantine_fails(
+def test_eviction_proceeds_when_damaged_sidecar_quarantine_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     workspace, plans, _remote = _seed_workspace_sidecar_repo(tmp_path)
     _damage_sidecar_unborn_head(plans)
+    _home, notified = _redirect_state(tmp_path, monkeypatch)
     clones: list[tuple[str, int, bool]] = []
     monkeypatch.setattr(
-        "sase.axe.runner_workspace_sidecar._quarantine_damaged_sidecar_repo",
-        lambda _repo: (None, "injected quarantine failure"),
+        "sase.workspace_provider.rescue.quarantine_directory",
+        lambda *_args, **_kwargs: None,
     )
     monkeypatch.setattr(
         "sase.sdd.store.ensure_workspace_sdd_clone",
         _record_clone(clones),
     )
 
-    with pytest.raises(_WorkspaceBeadEvictionRefused):
-        prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+    prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
 
-    assert clones == []
-    assert (plans / ".git").is_dir()
+    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
     stderr = capsys.readouterr().err
-    assert "quarantine failed" in stderr
-    assert "injected quarantine failure" in stderr
+    assert "may lose local commits" in stderr
+    assert "proceeding with eviction" in stderr
+    assert len(notified) == 1
+    sender, _cl_name, success, _notes, _kwargs = notified[0]
+    assert sender == "workspace-rescue"
+    assert success is False
 
 
 def test_eviction_publishes_unpushed_plans_sidecar_commit(
@@ -381,14 +442,14 @@ def test_eviction_retries_when_remote_writer_wins_after_first_integration(
     assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
 
 
-def test_eviction_stops_within_bound_when_remote_keeps_advancing(
+def test_eviction_rescues_when_remote_keeps_advancing(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     workspace, plans, remote = _seed_workspace_sidecar_repo(tmp_path)
     _commit_unpushed_sidecar_file(plans)
-    local_path = plans / "202609" / "rollout.md"
+    home, notified = _redirect_state(tmp_path, monkeypatch)
     clones: list[tuple[str, int, bool]] = []
     push_calls = 0
     actual_push = workspace_module._run_sidecar_push
@@ -415,21 +476,46 @@ def test_eviction_stops_within_bound_when_remote_keeps_advancing(
         _record_clone(clones),
     )
 
-    with pytest.raises(_WorkspaceBeadEvictionRefused):
-        prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+    prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
 
+    # The push policy still stops within its bound, but the launch no longer
+    # fails: the local work is rescued and eviction proceeds. (Integration
+    # rebased the commit, so the bundle holds the rebased HEAD carrying the
+    # local file, not the original SHA.)
     assert push_calls == 3
-    assert clones == []
-    assert (plans / ".git").is_dir()
-    assert local_path.read_text(encoding="utf-8") == "# Plan\n"
-    refs = _recovery_refs(plans)
-    assert len(refs) == 1
+    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
+    bundles = _rescue_bundles(home)
+    assert len(bundles) == 1
+    probe = tmp_path / "probe-rescued"
+    subprocess.run(
+        ["git", "clone", "-q", str(remote), str(probe)],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        ["git", "fetch", str(bundles[0]), "refs/*:refs/sase/rescued/x/*"],
+        cwd=probe,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    rescued = subprocess.run(
+        ["git", "show", "refs/sase/rescued/x/heads/main:202609/rollout.md"],
+        cwd=probe,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
+    assert rescued == "# Plan\n"
     stderr = capsys.readouterr().err
     assert "retry limit is exhausted" in stderr
-    assert refs[0][0] in stderr
+    assert str(bundles[0].parent) in stderr
+    assert len(notified) == 1
+    assert notified[0][0] == "workspace-rescue"
 
 
-def test_eviction_preserves_sidecar_when_rebase_conflicts(
+def test_eviction_rescues_sidecar_when_rebase_conflicts(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
@@ -448,22 +534,25 @@ def test_eviction_preserves_sidecar_when_rebase_conflicts(
         "# remote\n",
         "edit remote readme",
     )
+    home, notified = _redirect_state(tmp_path, monkeypatch)
     clones: list[tuple[str, int, bool]] = []
     monkeypatch.setattr(
         "sase.sdd.store.ensure_workspace_sdd_clone",
         _record_clone(clones),
     )
 
-    with pytest.raises(_WorkspaceBeadEvictionRefused):
-        prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+    prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
 
-    assert clones == []
-    assert (plans / ".git").is_dir()
-    assert _git(plans, "rev-parse", "HEAD").stdout.strip() == local_commit
-    assert not (plans / ".git" / "rebase-merge").exists()
-    assert not (plans / ".git" / "rebase-apply").exists()
-    assert _recovery_refs(plans)
+    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
+    # The conflicting commit was never published, but it survives in the
+    # rescue bundle instead of failing the launch.
+    assert _git(remote, "rev-parse", "refs/heads/main").stdout.strip() != local_commit
+    bundles = _rescue_bundles(home)
+    assert len(bundles) == 1
+    assert _bundle_holds_sha(bundles[0], local_commit, tmp_path, remote)
     assert "git rebase failed" in capsys.readouterr().err
+    assert len(notified) == 1
+    assert notified[0][0] == "workspace-rescue"
 
 
 def test_eviction_uses_configured_non_origin_upstream(
@@ -496,15 +585,15 @@ def test_eviction_uses_configured_non_origin_upstream(
     assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
 
 
-def test_eviction_refuses_to_trash_unpublished_plans_sidecar_commit(
+def test_eviction_rescues_unpublished_plans_sidecar_commit(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     workspace, plans, remote = _seed_workspace_sidecar_repo(tmp_path)
     local_commit = _commit_unpushed_sidecar_file(plans)
+    home, notified = _redirect_state(tmp_path, monkeypatch)
     clones: list[tuple[str, int, bool]] = []
-    notified: list[tuple[object, ...]] = []
 
     monkeypatch.setattr(
         "sase.axe.runner_workspace_sidecar._run_sidecar_push",
@@ -519,42 +608,35 @@ def test_eviction_refuses_to_trash_unpublished_plans_sidecar_commit(
         "sase.sdd.store.ensure_workspace_sdd_clone",
         _record_clone(clones),
     )
-    monkeypatch.setattr(
-        "sase.notifications.notify_workflow_complete",
-        lambda *args, **kwargs: notified.append((*args, kwargs)),
-    )
 
-    with pytest.raises(_WorkspaceBeadEvictionRefused):
-        prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+    prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
 
-    assert clones == []
-    assert not (workspace / ".sase" / "trash").exists()
-    assert (plans / ".git").is_dir()
-    assert _git(plans, "rev-parse", "HEAD").stdout.strip() == local_commit
+    # Eviction proceeds: the unpublished commit survives in a restorable
+    # rescue bundle instead of failing the launch.
+    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
     assert _git(remote, "rev-parse", "refs/heads/main").stdout.strip() != local_commit
-    refs = _recovery_refs(plans)
-    assert len(refs) == 1
-    assert refs[0][1] == local_commit
+    bundles = _rescue_bundles(home)
+    assert len(bundles) == 1
+    assert _bundle_holds_sha(bundles[0], local_commit, tmp_path, remote)
     stderr = capsys.readouterr().err
-    assert refs[0][0] in stderr
+    assert str(bundles[0].parent) in stderr
     assert "injected sidecar push failure" in stderr
     assert len(notified) == 1
-    sender, cl_name, success, notes, kwargs = notified[0]
-    assert sender == "sidecar-protection"
-    assert cl_name == ""
-    assert success is False
-    assert any("Failed to publish sidecar" in note for note in notes)
-    assert any(refs[0][0] in note for note in notes)
-    assert kwargs["extra_files"] == [str(plans.resolve())]
+    sender, _cl_name, _success, notes, kwargs = notified[0]
+    assert sender == "workspace-rescue"
+    assert any(str(bundles[0].parent) in note for note in notes)
+    assert kwargs["extra_files"] == [str(bundles[0].parent)]
 
 
-def test_eviction_refuses_to_trash_unpublished_sidecar_bead_commits(
+def test_eviction_rescues_unpublished_sidecar_bead_commits(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     workspace, sidecar, phase_id = _seed_workspace_sidecar_beads(tmp_path)
     local_commit = _commit_unpushed_claim(sidecar, phase_id)
+    home, notified = _redirect_state(tmp_path, monkeypatch)
+    beads_remote = tmp_path / "beads-remote.git"
 
     sync_attempts: list[Path] = []
     clones: list[tuple[str, int, bool]] = []
@@ -567,21 +649,18 @@ def test_eviction_refuses_to_trash_unpublished_sidecar_bead_commits(
         _record_clone(clones),
     )
 
-    with pytest.raises(_WorkspaceBeadEvictionRefused):
-        prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+    prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
 
+    # Exactly one publication attempt, then rescue and eviction proceed.
     assert sync_attempts == [sidecar]
-    # The clone that holds the only copy of the close is neither trashed nor
-    # replaced, and its commit stays reachable through a recovery ref.
-    assert clones == []
-    assert not (workspace / ".sase" / "trash").exists()
-    assert (sidecar / ".git").is_dir()
-    assert _git(sidecar, "rev-parse", "HEAD").stdout.strip() == local_commit
-    assert unpushed_bead_commit_count(sidecar, sidecar) == 1
-    refs = _recovery_refs(sidecar)
-    assert len(refs) == 1
-    assert refs[0][1] == local_commit
-    assert refs[0][0] in capsys.readouterr().err
+    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
+    assert not (workspace / "sase" / "repos").exists()
+    bundles = _rescue_bundles(home)
+    assert len(bundles) == 1
+    assert _bundle_holds_sha(bundles[0], local_commit, tmp_path, beads_remote)
+    assert str(bundles[0].parent) in capsys.readouterr().err
+    assert len(notified) == 1
+    assert notified[0][0] == "workspace-rescue"
 
 
 def test_eviction_proceeds_for_a_fully_published_sidecar_bead_clone(
@@ -648,3 +727,143 @@ def test_workspace_sidecar_repo_roots_finds_direct_git_roles(
         plans.resolve(),
         research.resolve(),
     ]
+
+
+def test_launch_publishes_once_and_rescues_once_for_wedged_bead_store(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Incident regression: tolerant prep plus eviction publish exactly once."""
+    workspace, sidecar, phase_id = _seed_workspace_sidecar_beads(tmp_path)
+    local_commit = _commit_unpushed_claim(sidecar, phase_id)
+    home, notified = _redirect_state(tmp_path, monkeypatch)
+
+    sync_attempts: list[Path] = []
+    clones: list[tuple[str, int, bool]] = []
+
+    def fail_publish_once(beads_dir: Path, **kwargs: object) -> object:
+        sync_attempts.append(beads_dir)
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            pushed=False,
+            error=(
+                "semantic conflict resolution failed: validation: cannot merge "
+                "non-append-only bead event stream"
+            ),
+            log_path=tmp_path / "failed-sync.log",
+        )
+
+    monkeypatch.setattr("sase.bead.sync.push_bead_work_launch", fail_publish_once)
+    monkeypatch.setattr(
+        "sase.sdd.store.ensure_workspace_sdd_clone",
+        _record_clone(clones),
+    )
+
+    # The ordinary preparation pass attempts publication and warns; the
+    # launch eviction pass must not re-publish at the same HEAD.
+    assert _protect_unpushed_sidecar_commits(str(workspace))
+    prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+
+    assert sync_attempts == [sidecar]
+    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
+    assert len(_rescue_entries(home)) == 1
+    bundles = _rescue_bundles(home)
+    assert len(bundles) == 1
+    assert _bundle_holds_sha(
+        bundles[0], local_commit, tmp_path, tmp_path / "beads-remote.git"
+    )
+    assert len(notified) == 1
+    assert notified[0][0] == "workspace-rescue"
+
+
+def test_generic_pass_skips_bead_roots_handled_by_bead_pass(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, sidecar, phase_id = _seed_workspace_sidecar_beads(tmp_path)
+    _commit_unpushed_claim(sidecar, phase_id)
+    _git(sidecar, "push")
+    assert unpushed_bead_commit_count(sidecar, sidecar) == 0
+    _redirect_state(tmp_path, monkeypatch)
+
+    sync_attempts: list[Path] = []
+    generic_pushes: list[Path] = []
+    clones: list[tuple[str, int, bool]] = []
+    monkeypatch.setattr(
+        "sase.bead.sync.push_bead_work_launch",
+        _fail_publish(tmp_path / "unused-sync.log", sync_attempts),
+    )
+    monkeypatch.setattr(
+        "sase.axe.runner_workspace_sidecar._run_sidecar_push",
+        lambda repo: (
+            generic_pushes.append(repo)
+            or subprocess.CompletedProcess(["git", "push"], 0, stdout="", stderr="")
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.ensure_workspace_sdd_clone",
+        _record_clone(clones),
+    )
+
+    prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+
+    # Nothing was unpublished, so neither pass touches the bead store — and
+    # the plain-git generic path never republishes a bead root it was told
+    # the bead pass already handled.
+    assert sync_attempts == []
+    assert generic_pushes == []
+    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
+
+
+def test_eviction_rescues_when_bead_count_is_unknown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, sidecar, phase_id = _seed_workspace_sidecar_beads(tmp_path)
+    _commit_unpushed_claim(sidecar, phase_id)
+    _git(sidecar, "push")
+    home, notified = _redirect_state(tmp_path, monkeypatch)
+    clones: list[tuple[str, int, bool]] = []
+    monkeypatch.setattr(
+        "sase.bead.sync.unpushed_bead_commit_count_result",
+        lambda _repo, _beads: (0, "injected git failure"),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.ensure_workspace_sdd_clone",
+        _record_clone(clones),
+    )
+
+    prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+
+    # Unknown is not zero: the store is rescued, never silently evicted.
+    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
+    assert len(_rescue_entries(home)) == 1
+    assert len(notified) == 1
+    assert notified[0][0] == "workspace-rescue"
+
+
+def test_eviction_rescues_when_sidecar_count_is_unknown(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workspace, plans, _remote = _seed_workspace_sidecar_repo(tmp_path)
+    home, notified = _redirect_state(tmp_path, monkeypatch)
+    clones: list[tuple[str, int, bool]] = []
+    monkeypatch.setattr(
+        "sase.axe.runner_workspace_sidecar._unpushed_sidecar_commit_count",
+        lambda _repo: workspace_module._SidecarCommitCountResult(
+            count=0, error="injected git failure", damaged=False
+        ),
+    )
+    monkeypatch.setattr(
+        "sase.sdd.store.ensure_workspace_sdd_clone",
+        _record_clone(clones),
+    )
+
+    prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
+
+    assert clones == [(str(workspace), _WORKSPACE_NUM, True)]
+    assert len(_rescue_entries(home)) == 1
+    assert len(notified) == 1
+    assert notified[0][0] == "workspace-rescue"

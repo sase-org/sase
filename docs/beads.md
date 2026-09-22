@@ -1042,18 +1042,20 @@ Two other surfaces enforce the same invariant:
   success. The failure is raised at the finalizer's return points, so the agent's own
   commit passes still run first — aborting earlier would strand uncommitted code in the
   workspace in order to report a bead problem.
-- **Launch-time workspace preparation** refuses to evict a numbered workspace (`#2` and
-  above) whose sidecar bead-store clones hold unpublished canonical commits. It
-  publishes synchronously first; if commits remain it retains a recovery ref under
-  `refs/sase/recovery/` in the store's own repository and fails the launch rather than
-  renaming `sase/repos` into the workspace's `.sase/trash`. The printed refusal names
-  both the ref and the store repository, so the commits are recoverable by hand with
-  `git -C <store-repo> log <ref>` and a push of that ref's history. The guard
-  understands the sidecar layouts — `sase/repos/beads` for a split clone root and
-  `sase/repos/plans/beads` for a combined sidecar — in addition to `<repo_root>/beads`
-  and in-tree stores. Ordinary (non-launch) workspace preparation warns and proceeds
-  instead of refusing; only a store whose recovery ref could not be written stops it
-  too.
+- **Launch-time workspace preparation** rescues and evicts a numbered workspace (`#2`
+  and above) whose sidecar bead-store clones hold unpublished canonical commits. It
+  publishes synchronously first (one attempt per store per launch, with a bounded wait
+  for a busy sync worker); anything still unpublished is rescued to the durable rescue
+  store outside the workspace — a git bundle of the local-only commits, a binary
+  worktree patch, and a `manifest.json` with restore commands
+  (`git fetch <bundle> 'refs/*:refs/sase/rescued/<stamp>/*'`,
+  `git apply --index <patch>`) — plus a recovery ref under `refs/sase/recovery/` in the
+  store's own repository, and exactly one inbox notification. Eviction then proceeds; a
+  launch never fails because of leftover state. The guard understands the sidecar
+  layouts — `sase/repos/beads` for a split clone root and `sase/repos/plans/beads` for a
+  combined sidecar — in addition to `<repo_root>/beads` and in-tree stores. Ordinary
+  (non-launch) workspace preparation warns and proceeds instead of rescuing; only a
+  store whose recovery ref could not be written stops it too.
 
 #### Duplicate Bead IDs
 

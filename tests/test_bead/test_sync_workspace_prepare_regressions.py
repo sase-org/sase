@@ -63,7 +63,7 @@ def test_prepare_workspace_rescues_unpushed_bead_commits_before_sidecar_reset(
     sync_log = tmp_path / "failed-sync.log"
     sync_attempts: list[Path] = []
 
-    def fail_publish(beads_dir: Path) -> SimpleNamespace:
+    def fail_publish(beads_dir: Path, **kwargs: object) -> SimpleNamespace:
         sync_attempts.append(beads_dir)
         return SimpleNamespace(
             pushed=False,

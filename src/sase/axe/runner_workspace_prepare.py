@@ -18,10 +18,6 @@ from sase.vcs_provider import get_vcs_provider
 logger = logging.getLogger(__name__)
 
 
-class _WorkspaceBeadEvictionRefused(RuntimeError):
-    """Raised when eviction would destroy unpublished sidecar commits."""
-
-
 class WorkspacePreparationError(RuntimeError):
     """Raised when workspace preparation fails, carrying the underlying reason.
 
@@ -154,7 +150,7 @@ def _prepare_workspace_locked(
     if not _protect_unpushed_sidecar_commits(workspace_dir):
         raise WorkspacePreparationError(
             "sidecar repos hold unpublished commits that could not be published "
-            "or rescued before workspace cleanup (see diagnostics above)",
+            "before workspace cleanup (see diagnostics above)",
             step="sidecar-protection",
             workspace_dir=workspace_dir,
         )
@@ -266,26 +262,29 @@ def _agents_sidecar_sync_guard(workspace_dir: str) -> Generator[bool, None, None
 def _protect_unpushed_sidecar_commits(
     workspace_dir: str,
     *,
-    refuse_on_unpublished: bool = False,
+    evicting: bool = False,
+    workspace_num: int = 1,
 ) -> bool:
     """Publish or rescue local sidecar commits before workspace preparation resets.
 
     Every direct sidecar clone under ``sase/repos/<role>`` is checked. Bead
     stores keep the specialized semantic-sync path, while other sidecar roles
-    use a cheap upstream-ahead probe and direct push. When
-    *refuse_on_unpublished* is set, an unpublishable sidecar fails preparation
-    outright instead of warning and proceeding; the caller is about to destroy
-    the clone that holds the only copy.
+    use a cheap upstream-ahead probe and direct push. When *evicting*, the
+    caller is about to destroy the clones that hold the only copies, so
+    unpublishable state is rescued to the durable rescue store outside the
+    workspace and eviction always proceeds instead of failing the launch.
     """
     workspace_root = Path(workspace_dir).expanduser().resolve()
-    beads_ok, unsafe_generic_roots = protect_workspace_bead_stores(
+    beads_ok, handled_bead_roots = protect_workspace_bead_stores(
         workspace_root,
-        refuse_on_unpublished=refuse_on_unpublished,
+        evicting=evicting,
+        workspace_num=workspace_num,
     )
     sidecar_ok = protect_sidecar_repos(
         workspace_root,
-        refuse_on_unpublished=refuse_on_unpublished,
-        skip_roots=unsafe_generic_roots,
+        evicting=evicting,
+        workspace_num=workspace_num,
+        skip_roots=handled_bead_roots,
     )
     return beads_ok and sidecar_ok
 
@@ -300,21 +299,18 @@ def prepare_launch_workspace_repos(
     this launch, so later linked-repo setup can reuse them without another
     materialization or synchronization pass.
 
-    Raises:
-        _WorkspaceBeadEvictionRefused: when a sidecar clone holds commits that
-            could not be published. Eviction would delete the only copy of
-            those commits, so the launch fails instead.
+    Launch-time sidecar protection publishes once, rescues unpublishable
+    state to the durable rescue store outside the workspace, and always
+    proceeds with eviction: leftover state from an earlier run never fails a
+    new launch.
     """
     from sase.linked_repos import clear_workspace_repos
 
     # Only numbered workspaces evict sidecars; the primary checkout's clones
     # survive ``clear_workspace_repos`` untouched.
-    if workspace_num > 1 and not _protect_unpushed_sidecar_commits(
-        workspace_dir, refuse_on_unpublished=True
-    ):
-        raise _WorkspaceBeadEvictionRefused(
-            "refusing to evict workspace sidecar repos: at least one sidecar "
-            "holds unpublished commits (see diagnostics above)"
+    if workspace_num > 1:
+        _protect_unpushed_sidecar_commits(
+            workspace_dir, evicting=True, workspace_num=workspace_num
         )
 
     clear_workspace_repos(workspace_dir, workspace_num)

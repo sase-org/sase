@@ -322,6 +322,16 @@ per pass that are older than 30 days **and** whose protected history is already
 reachable from a remote-tracking ref. Fresh snapshots and snapshots protecting unpushed
 commits are retained.
 
+Agent launches into numbered workspaces rescue before they evict. When a sidecar clone
+holds commits that could not be published, the launch pins the in-clone recovery ref
+above and additionally copies the local-only commits and worktree into the durable
+rescue store outside the workspace (`~/.sase/projects/<project>/rescue/<YYYYMM>/`,
+falling back to `~/.sase/rescue/`), then proceeds with eviction instead of failing. Each
+rescue entry holds a `local-commits.bundle`, a `worktree.patch`, and a `manifest.json`
+whose `restore` commands recover by hand:
+`git fetch <bundle> 'refs/*:refs/sase/rescued/<stamp>/*'` followed by
+`git apply --index <patch>`.
+
 When an upstream-present sidecar integration reaches a repeatable failure such as
 unsupported conflicts or failed recovery, SASE records a per-clone failure marker.
 Further pulls are suppressed for the machine-recovery cooldown instead of retrying the

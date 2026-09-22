@@ -221,10 +221,26 @@ def bead_sync_diagnostics(
 
 def unpushed_bead_commit_count(repo_root: Path, beads_dir: Path) -> int:
     """Count local-only commits that touch canonical bead state."""
+    count, _error = unpushed_bead_commit_count_result(repo_root, beads_dir)
+    return count
+
+
+def unpushed_bead_commit_count_result(
+    repo_root: Path, beads_dir: Path
+) -> tuple[int, str | None]:
+    """Count local-only bead commits, distinguishing "unknown" from zero.
+
+    Returns ``(count, error)`` where a non-``None`` *error* means the count
+    could not be determined (a git failure or unparseable output). Launch-time
+    protection treats "unknown" as rescue-before-evict instead of silently
+    assuming nothing needs rescue. Other callers that rely on the historical
+    fail-open-to-zero semantics should keep using
+    :func:`unpushed_bead_commit_count`.
+    """
     try:
         rel_beads = _relative_pathspec(beads_dir, repo_root)
     except ValueError:
-        return 0
+        return 0, f"bead store {beads_dir} is outside repository {repo_root}"
     result = subprocess.run(
         [
             "git",
@@ -240,11 +256,15 @@ def unpushed_bead_commit_count(repo_root: Path, beads_dir: Path) -> int:
         check=False,
     )
     if result.returncode != 0:
-        return 0
+        detail = (result.stderr or result.stdout or "").strip()
+        return 0, (
+            "could not count unpublished bead commits: "
+            f"{detail or f'exit code {result.returncode}'}"
+        )
     try:
-        return int(result.stdout.strip())
+        return int(result.stdout.strip()), None
     except ValueError:
-        return 0
+        return 0, f"git rev-list returned a non-integer count: {result.stdout!r}"
 
 
 def git_state_path_for_checkout(repo_root: Path, name: str) -> Path:

@@ -598,13 +598,18 @@ pass.
 
 Preparing a numbered workspace (`#2` and above) for a launch evicts everything under its
 `sase/repos/` directory — the sidecar and linked-repo clones — which would otherwise
-carry stale state into the new run. That eviction is blocked when a sidecar bead store
-in the workspace holds canonical bead commits that were never pushed: deleting the clone
-would delete the only copy of them. Preparation pushes those commits synchronously
-first, and only if commits still remain does it stop: it writes a `refs/sase/recovery/`
-ref inside the store's own repository, prints that ref, and fails the launch instead of
-proceeding. See [Publication Verification](beads.md#publication-verification) for the
-invariant this protects and how to recover the retained commits by hand.
+carry stale state into the new run. Leftover state from an earlier run never fails a new
+launch: preparation publishes each sidecar once, then rescues anything still unpublished
+to the durable rescue store outside the workspace
+(`~/.sase/projects/<project>/rescue/<YYYYMM>/`, falling back to `~/.sase/rescue/`) and
+always proceeds with eviction. Each rescue pins a `refs/sase/recovery/` ref inside the
+store's own repository, writes a git bundle of the local-only commits plus a binary
+worktree patch and a `manifest.json` with copy-pasteable restore commands
+(`git fetch <bundle> 'refs/*:refs/sase/rescued/<stamp>/*'`,
+`git apply --index <patch>`), and sends one inbox notification naming the rescue dir.
+Entries older than 30 days (7 days for quarantined whole-clone copies) are reaped. See
+[Publication Verification](beads.md#publication-verification) for the invariant this
+protects and how to restore rescued commits by hand.
 
 `migrate --to xdg-state` is opt-in. Existing adjacent checkouts are left in place until
 the command is invoked. With `--symlink-transition` it leaves a `<primary>_<num>`

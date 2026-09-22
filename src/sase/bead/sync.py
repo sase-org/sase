@@ -230,6 +230,13 @@ def unpushed_bead_commit_count(repo_root: Path, beads_dir: Path) -> int:
     return _sync_diagnostics.unpushed_bead_commit_count(repo_root, beads_dir)
 
 
+def unpushed_bead_commit_count_result(
+    repo_root: Path, beads_dir: Path
+) -> tuple[int, str | None]:
+    """Count local-only bead commits, distinguishing "unknown" from zero."""
+    return _sync_diagnostics.unpushed_bead_commit_count_result(repo_root, beads_dir)
+
+
 _managed_sync_log_diagnostics = _sync_logs.managed_sync_log_diagnostics
 _recent_bead_sync_log_paths = _sync_logs.recent_bead_sync_log_paths
 _parse_sync_log_outcome = _sync_logs.parse_sync_log_outcome
