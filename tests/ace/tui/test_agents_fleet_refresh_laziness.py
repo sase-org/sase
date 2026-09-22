@@ -113,9 +113,7 @@ def _remote_row(
     )
 
 
-def test_unified_agents_status_text_labels_scope_and_staleness(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_agents_fleet_problem_text_reports_only_actionable_problems() -> None:
     app = _FleetRefreshHarness(mode="focus")
     app._agents_fleet_loading = False
     app._agents = [
@@ -152,11 +150,12 @@ def test_unified_agents_status_text_labels_scope_and_staleness(
             },
         ),
     )
-    monkeypatch.setattr(fleet_mod, "get_machine_name", lambda: "athena")
 
-    assert app._unified_agents_status_text() == (
-        "here: athena · 2 active · 2 needs you · 2 machines · mac unknown"
-    )
+    assert app._agents_fleet_problem_text() == "mac unknown"
+
+    app._agents_fleet_projection = FleetRowsProjection(configured_host_count=2)
+    app._agents_fleet_last_error = None
+    assert app._agents_fleet_problem_text() == ""
 
 
 @pytest.mark.asyncio
@@ -344,7 +343,7 @@ async def test_fleet_refresh_preserves_feed_issues_with_config_diagnostics(
     assert projection.host_feed_issues[0].diagnostic == "invalid_envelope"
     assert app._agents_fleet_rows == []
     assert "apollo: feed invalid: invalid_envelope (cached 5h ago)" in (
-        app._unified_agents_status_text()
+        app._agents_fleet_problem_text()
     )
 
 

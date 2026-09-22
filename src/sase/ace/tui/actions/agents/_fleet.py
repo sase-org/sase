@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING
 
-from sase.config import get_machine_name
 from sase.dispatch.federation import (
     FederationConfig,
     FederationConfigError,
@@ -27,10 +26,6 @@ from ._fleet_common import (
     _AGENTS_SUBTABS,
     _FLEET_CATALOG_MAX_PAGES,
     _FLEET_CATALOG_PAGE_LIMIT,
-    agent_counts_as_active,
-    local_machine_label,
-    unified_attention_count,
-    unified_diagnostic_text,
 )
 from ._fleet_dispatch_launches import AgentFleetDispatchLaunchMixin
 from ._fleet_follow import (
@@ -45,12 +40,8 @@ if TYPE_CHECKING:
     from ...app import AgentsSubTab
     from ...models import Agent
 
-_agent_counts_as_active = agent_counts_as_active
 _load_reconciled_follow_snapshot = load_reconciled_follow_snapshot
-_local_machine_label = local_machine_label
 _reconcile_followed_batch_family_promotions = reconcile_followed_batch_family_promotions
-_unified_attention_count = unified_attention_count
-_unified_diagnostic_text = unified_diagnostic_text
 
 
 class AgentFleetMixin(
@@ -93,14 +84,9 @@ __all__ = [
     "_AGENTS_SUBTABS",
     "_FLEET_CATALOG_MAX_PAGES",
     "_FLEET_CATALOG_PAGE_LIMIT",
-    "_agent_counts_as_active",
     "_load_reconciled_follow_snapshot",
-    "_local_machine_label",
     "_reconcile_followed_batch_family_promotions",
-    "_unified_attention_count",
-    "_unified_diagnostic_text",
     "build_federation_facade",
-    "get_machine_name",
     "load_federation_config",
     "load_follow_snapshot",
     "promote_family_follow",

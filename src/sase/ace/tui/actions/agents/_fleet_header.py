@@ -8,10 +8,7 @@ from textual.widgets import Static
 
 from ...models.fleet_agents import FleetRowsProjection
 from ._fleet_common import (
-    agent_counts_as_active,
     host_feed_issue_text,
-    local_machine_label,
-    unified_attention_count,
     unified_diagnostic_text,
 )
 
@@ -32,43 +29,25 @@ class AgentFleetHeaderMixin:
         except Exception:
             return
 
-        if not self._fleet_mode_available() and not getattr(  # type: ignore[attr-defined]
-            self,
-            "_agents_fleet_loading",
-            False,
-        ):
+        if not self._fleet_mode_available():  # type: ignore[attr-defined]
+            header.add_class("hidden")
+            return
+        text = self._agents_fleet_problem_text()
+        if not text:
             header.add_class("hidden")
             return
         header.remove_class("hidden")
-        status.update(self._unified_agents_status_text())
+        status.update(text)
 
-    def _unified_agents_status_text(self) -> str:
-        prefix = f"here: {local_machine_label()}"
-        if getattr(self, "_agents_fleet_loading", False):
-            return f"{prefix} · loading machines..."
+    def _agents_fleet_problem_text(self) -> str:
         error = getattr(self, "_agents_fleet_last_error", None)
         if error:
-            return f"{prefix} · {error}"
+            return str(error)
         projection = getattr(self, "_agents_fleet_projection", FleetRowsProjection())
-        rows = list(
-            getattr(self, "_agents", [])
-        ) or self._agents_source_for_current_mode(  # type: ignore[attr-defined]
-            list(getattr(self, "_agents_local_with_children", []))
-        )
-        active_count = sum(1 for agent in rows if agent_counts_as_active(agent))
-        attention_count = unified_attention_count(rows)
-        host_count = projection.configured_host_count
-        parts = [prefix, f"{active_count} active"]
-        if attention_count:
-            parts.append(f"{attention_count} needs you")
-        if host_count:
-            suffix = "machine" if host_count == 1 else "machines"
-            parts.append(f"{host_count} {suffix}")
+        parts: list[str] = []
         diagnostic_text = unified_diagnostic_text(projection)
         if diagnostic_text:
             parts.append(diagnostic_text)
-        elif projection.partial:
-            parts.append("partial")
         host_issue_text = host_feed_issue_text(projection)
         if host_issue_text:
             parts.append(host_issue_text)

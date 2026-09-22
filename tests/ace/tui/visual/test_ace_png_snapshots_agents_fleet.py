@@ -51,7 +51,6 @@ def _patch_fleet_refresh(
     facade: OfflineFleetFacade | None = None,
     config_error: str | None = None,
 ) -> None:
-    monkeypatch.setattr(fleet_mod, "get_machine_name", lambda: "athena")
     if config_error is None:
         monkeypatch.setattr(
             fleet_mod,
@@ -230,7 +229,7 @@ async def test_agents_fleet_followed_partial_offline_png_snapshot(
         assert_page_svg_contains(page, "apollo")
         assert_page_svg_contains(page, "mac")
         assert_page_svg_styled_text_absent(page, "here visual-plan")
-        assert_page_svg_contains(page, "2 machines")
+        assert_page_svg_contains(page, "2 machine issues")
         assert_page_svg_contains(page, "offline")
         assert_page_svg_contains(page, "stale")
         ace_png_visual.assert_page_png(
@@ -286,22 +285,12 @@ async def test_agents_fleet_state_strip_png_snapshots(
         await wait_for_visual_idle(page)
 
         assert not page.query_one_widget("#agents-view").has_class("-onboarding-active")
-        assert_page_svg_contains(page, "here: athena")
-        assert_page_svg_contains(page, "0 active")
+        assert page.query_one_widget("#agents-header").has_class("hidden")
+        assert_page_svg_styled_text_absent(page, "here: athena")
         ace_png_visual.assert_page_png(
             page,
             "agents_fleet_loaded_zero_results_120x40",
             title="ACE agents Fleet loaded zero results",
-        )
-
-        page.app._agents_fleet_loading = True
-        page.app._update_agents_header()
-        await wait_for_visual_idle(page)
-        assert_page_svg_contains(page, "loading machines")
-        ace_png_visual.assert_page_png(
-            page,
-            "agents_fleet_loading_120x40",
-            title="ACE agents Fleet loading",
         )
 
         page.app._agents_fleet_loading = False
@@ -310,7 +299,9 @@ async def test_agents_fleet_state_strip_png_snapshots(
             generation=page.app._agents_fleet_refresh_generation,
         )
         await wait_for_visual_idle(page)
+        assert not page.query_one_widget("#agents-header").has_class("hidden")
         assert_page_svg_contains(page, "fleet config unavailable")
+        assert_page_svg_styled_text_absent(page, "here: athena")
         ace_png_visual.assert_page_png(
             page,
             "agents_fleet_unavailable_120x40",
