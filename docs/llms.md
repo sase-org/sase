@@ -2281,7 +2281,9 @@ remaining capacity is strictly below 20%. Claude's observed weekly
 `weekly:claude-fable-5` window has no bundled entry, so the generic threshold governs it
 and the header shows it only when it runs low. Muse's 5-hour `session` window is hidden
 from the header by default (`indicator.providers.muse.windows.session: never`) but
-remains in `sase usage list` and Providers · Usage. Use `always`, `never`, or
+remains in `sase usage list` and Providers · Usage. Antigravity's `gemini-weekly` window
+is a weekly all-model window and always shows; its `gemini-5h`, `3p-weekly`, and `3p-5h`
+windows follow the generic 20% threshold. Use `always`, `never`, or
 `{below_remaining_percent: N}` policies. Exact provider window keys are stable selectors
 and can be found in `sase usage list --json` at `windows[].key`; shortened labels in the
 header are not configuration selectors. Set the exact Fable key to `always` to restore

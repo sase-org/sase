@@ -237,6 +237,7 @@ sase update            # update sase + all plugins
 sase update -n         # dry run: preview the uv or dev-update plan, change nothing
 sase update -q         # quiet: print only a one-line summary
 sase update -j         # stable machine-readable JSON
+sase update -v         # stream full output of every step (git, uv, cargo)
 sase update -t dev     # switch the install to dev (editable) mode; see below
 sase update -t pypi    # switch the install back to managed PyPI mode
 ```

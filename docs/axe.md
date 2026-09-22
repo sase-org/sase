@@ -1578,13 +1578,16 @@ routine/job tree.
 Under the host the scheduler's cgroup is `sase.service`, not a `.scope`.
 
 Long-lived work that SASE detaches — agent runners, proc supervisors, monitor
-supervisors, and typed launch-admission coordinators — escapes into its own transient
-scope (for example `sase-agent-*`, `sase-proc-*`, or `sase-monitor-*`) whenever the
-launching process already runs inside a SASE-owned systemd unit (`sase.service` or
-another `sase-*` scope or service), so stopping or restarting the scheduler or a SASE
-service does not tear down the agents and procs it launched. Outside a SASE-owned unit,
-children keep the ordinary new-session detach; on macOS they always detach into a new
-session. Set `SASE_DETACH_SCOPE_DISABLE=1` to turn off the child escape.
+supervisors, typed launch-admission coordinators, the scheduler's hook, checks, mentor,
+and workflow (CRS, fix-hook, summarize) runners, the file-hook batch runner, the async
+bead sync worker, and the chat-install worker — escapes into its own transient scope
+(for example `sase-agent-*`, `sase-proc-*`, `sase-monitor-*`, `sase-hook-*`, or
+`sase-mentor-*`) whenever the launching process already runs inside a SASE-owned systemd
+unit (`sase.service` or another `sase-*` scope or service), so stopping or restarting
+the scheduler or a SASE service does not tear down the agents and procs it launched.
+Outside a SASE-owned unit, children keep the ordinary new-session detach; on macOS they
+always detach into a new session. Set `SASE_DETACH_SCOPE_DISABLE=1` to turn off the
+child escape.
 
 ## sase's TUI Integration
 
@@ -1602,12 +1605,14 @@ top-level `scheduler` service proc alongside any other configured services:
   job and identifies the all-instances effect.
 - Start/stop/restart the selected service proc (`x` / `r`), enable/disable it on this
   machine (`!e`), and runner counts
-- The `SVC` footer pill shows the service host status: RUNNING, STOPPED, STARTING,
-  STOPPING, or RESTARTING
+- The `SVC` footer pill shows service health: a teal `N/M` running/desired service-proc
+  count, or a red `!` when the host is stopped or a counted proc is unhealthy (see
+  [Service Health Pill](ace.md#service-health-pill))
 
 Select the top-level scheduler row before pressing `x` or `r`; those keys intentionally
 do nothing on its nested routines and jobs. `!x` starts or stops the whole service host.
-The RESTARTING indicator appears when `sase tui --restart-service` (`--restart-axe`,
-`-R`) is used — the host restarts in the background while the TUI starts up normally.
+Until the first service-status snapshot loads, the pill shows legacy host-state labels;
+the RESTARTING label appears when `sase tui --restart-service` (`--restart-axe`, `-R`)
+is used — the host restarts in the background while the TUI starts up normally.
 
 See [`docs/ace.md`](ace.md) for the full Services tab keybinding reference.

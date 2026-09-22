@@ -531,6 +531,14 @@ pointer to `sase workspace repair`, leaving the checkout and any uncommitted wor
 instead of deleting and recloning it. This holds whether or not sharing is enabled.
 Preview the fix with `sase workspace repair -n`.
 
+When preparation fails, the error names the workspace, the failing step (`clean`,
+`checkout`, `sync`, `sidecar-protection`, or `agents-sync-guard`), and the underlying
+git or guard message, in the form
+`Failed to prepare workspace <dir> during <step>: <reason>`. Agent runs record the same
+reason in the run log (`Workspace preparation failed: …`, or
+`Linked repo '<name>' workspace preparation failed: …`), and `sase workspace open`
+prints it to stderr.
+
 `sase workspace compact -n` previews eligible existing checkouts and reports local
 object bytes without changing Git config or objects. Pass one or more workspace numbers
 to restrict the operation to those registered checkouts, and `-j/--json` for a

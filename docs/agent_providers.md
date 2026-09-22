@@ -147,7 +147,7 @@ known updates" forever.
 SASE always launches agent runs with `MUSE_NO_AUTO_UPDATE=1` so Muse cannot swap its own
 binary mid-run; update it through `sase agent-cli` instead.
 
-### Subscription usage
+### Subscription usage { #muse-subscription-usage }
 
 Muse collects [subscription usage](#subscription-usage) — its 5-hour session window and
 its weekly window — through a local probe against `muse serve` (Muse's MSP session
@@ -267,18 +267,18 @@ SASE doctor hint: run `agy` and complete the login/trust onboarding.
 Alternatively, Antigravity honors `GEMINI_API_KEY` and `GOOGLE_API_KEY` — see the
 canonical docs for details.
 
-### Subscription usage
+### Subscription usage { #agy-subscription-usage }
 
 Antigravity collects [subscription usage](#subscription-usage) — its Gemini weekly and
 5-hour windows plus the Claude/GPT weekly and 5-hour windows — through a local `/usage`
 probe. The probe makes **no model call and spends no tokens**: it runs
-`agy -p /usage --output-format json --mode plan --sandbox` in print mode with stdin
-closed, which answers without starting an agent turn. It requires `agy >= 1.1.11` (older
-builds would run `/usage` as a real paid turn, so the collector refuses them). A
-logged-out CLI prints `Authentication required…` to stderr and then blocks on an OAuth
-paste prompt; the collector watches stderr and returns logged-out promptly instead of
-waiting out the deadline. Its log file stays in the probe's managed temp dir rather than
-`~/.gemini/…`, and auto-update is disabled for the probe spawn.
+`agy -p /usage --output-format json --mode plan --sandbox --print-timeout 15s` in print
+mode with stdin closed, which answers without starting an agent turn. It requires
+`agy >= 1.1.11` (older builds would run `/usage` as a real paid turn, so the collector
+refuses them). A logged-out CLI prints `Authentication required…` to stderr and then
+blocks on an OAuth paste prompt; the collector watches stderr and returns logged-out
+promptly instead of waiting out the deadline. Its log file stays in the probe's managed
+temp dir rather than `~/.gemini/…`, and auto-update is disabled for the probe spawn.
 
 The probe runs on the normal background cadence
 (`llm_provider.usage_metrics.refresh_seconds`), costs about three to five seconds of

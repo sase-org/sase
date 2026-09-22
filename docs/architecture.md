@@ -128,8 +128,9 @@ proc on the host.
 
 On Linux, when detached work starts inside a SASE-owned systemd unit or scope (such as
 `sase.service` or another `sase-*` scope or service), agent runners, launch-admission
-coordinators, proc supervisors, and monitor supervisors move into their own transient
-user scopes, so restarting that service does not kill them.
+coordinators, proc and monitor supervisors, the scheduler's hook/checks/mentor/workflow
+runners, file-hook batch runners, the bead sync worker, and the chat-install worker move
+into their own transient user scopes, so restarting that service does not kill them.
 `SASE_DETACH_SCOPE_DISABLE=1` turns this off.
 
 ## Agent, Monitor, and Gate Shells

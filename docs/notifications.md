@@ -395,11 +395,12 @@ and the intermediate post-approval handoff remain silent. Task triage, stale-cle
 questions, launch/custom/HITL/sudo gates, errors, agent completions, and ordinary
 notifications retain their arrival bell. Priority actions include `PlanApproval`,
 `EpicApproval`, `UserQuestion`, `LaunchApproval`, `TaskTriage`, `BeadSnooze`,
-`FlagTriage`, `BeadStaleCleanup`, `PluginsRequired`, `JumpToMentorReview`, and
-`RemoteAttention`.
+`FlagTriage`, `BeadStaleCleanup`, `PluginsRequired`, `GateExecutionFailed`,
+`JumpToMentorReview`, and `RemoteAttention`.
 
-Snooze expiry is an explicit reminder chosen by the user and remains audible for every
-notification class, including a snoozed tale or epic review.
+Snooze expiry is an explicit reminder chosen by the user and, by default, remains
+audible for every notification class, including a snoozed tale or epic review. A
+delivery rule that matches the resurfaced row still applies to it.
 
 Every toast and arrival sound described here is the default. `ace.notification_rules`
 overrides either per notification; see [Delivery Rules](#delivery-rules).
@@ -519,11 +520,13 @@ first audio player found on `PATH`:
 | Linux    | `paplay`, `aplay`, `ffplay -nodisp -autoexit` |
 
 A missing file, a missing player, a player that fails or hangs, or an unsupported
-platform never interrupts the poll: the announcement is simply silent. Playback runs on
-a worker thread, so it cannot stall the TUI. A sound file also plays detached from the
-poll that triggered it — a long chime never holds up the notification tick or the agent
-refresh behind it — and only one file plays at a time, so notifications arriving faster
-than the file is long cannot stack up players.
+platform never interrupts the poll: the announcement is simply silent. A player that
+runs longer than 30 seconds is stopped. `bell` rings through tmux only: when sase's TUI
+is not running inside a tmux pane (`$TMUX_PANE` unset), `bell` is silent. Playback runs
+on a worker thread, so it cannot stall the TUI. A sound file also plays detached from
+the poll that triggered it — a long chime never holds up the notification tick or the
+agent refresh behind it — and only one file plays at a time, so notifications arriving
+faster than the file is long cannot stack up players.
 
 Each poll announces **at most one sound**. It is the resolved sound of the first new
 notification, in activity order, whose sound is not `none`; if every arriving row
@@ -805,9 +808,12 @@ approvals and user questions remain explicit response workflows and are not auto
 merely by selection.
 
 Unread state on the Agents tab is projected from the active user-agent completion
-notifications in the store rather than written as separate per-row state — when the
-underlying notification is dismissed (per-row selection, response modal, or any other
-path) the row's unread marker clears on the next refresh. A host-owned settlement
+notifications in the store, plus any active host-owned settlement notification
+(`epic-launch` or `monitor-settlement`) that names the row's exact
+`(cl_name, raw_suffix)`, rather than written as separate per-row state. A terminal row
+whose family settles is therefore flagged unread until that notification is dismissed;
+when the underlying notification is dismissed (per-row selection, response modal, or any
+other path) the row's unread marker clears on the next refresh. A host-owned settlement
 notification that names an exact agent row's `(cl_name, raw_suffix)` is acknowledged
 with that row — read, dismissed, or marked — exactly like the row's completion
 notification. Manually toggling a row unread with `U` overrides this projection locally
@@ -1504,6 +1510,19 @@ gate retry modal.
   preparation.
 - `restart` re-runs the selected commands.
 - `cancel` settles the gate without a follow-up.
+
+In sase's TUI, pressing `Enter` on a `GateExecutionFailed` row opens a
+`Gate execution failed: <stage>` dialog listing the completed and failed options:
+
+| Key         | Action                                                              |
+| ----------- | ------------------------------------------------------------------- |
+| `r`         | Resume after the failed step                                        |
+| `R`         | Re-run the selected commands (only when the stage allows a restart) |
+| `c`         | Cancel the gate (`command` and `terminal_prepare` stages only)      |
+| `e`         | Open the error report in `$EDITOR`                                  |
+| `Esc` / `q` | Close without acting                                                |
+
+When no recovery action applies, `Enter` opens the error report directly.
 
 A recorded failed outcome, or an execution owner that is provably dead, makes the
 receipt supersedable, so a different answer or a cancel is accepted.

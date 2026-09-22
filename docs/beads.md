@@ -1724,6 +1724,14 @@ one block. If one ID in a batch is missing, the beads that resolved still print 
 after output or the pager exits, stderr gets one `Error: issue not found: <id>` line per
 miss and the command exits 1.
 
+Run inside a SASE agent, `show` also appends one machine-local row per shown bead to
+`~/.sase/projects/<project>/bead_views.jsonl`. These rows surface as the weaker `viewed`
+verb in [`sase bead touched`](#sase-bead-touched-agent) and the Agents-tab `Beads:`
+rows. They are never audited, never promoted to `read`, and never recorded for
+interactive (non-agent) use or when `SASE_BEAD_SKIP_VIEW_LOG=1`. The log is not synced,
+so another machine's agent views are not visible here. Use
+[`sase bead read`](#sase-bead-read-id-id2) when the consultation should be audited.
+
 An ID ending in `..` expands to that bead plus its direct children in one argv token:
 `sase bead show sase-tt..` is exactly
 `sase bead show sase-tt sase-tt.1 sase-tt.2 ... sase-tt.8`. Expansion is not recursive —
@@ -2027,6 +2035,30 @@ sase bead touched 0oa -v read -j
 | `-j, --json`      | Machine-readable rows with `actors` and `read_reasons` |
 | `-l, --limit N`   | Maximum beads to print; `0` means unlimited            |
 | `-v, --verb VERB` | Only show beads with this verb (repeatable)            |
+
+An agent with no touched beads prints `No beads touched by <agent>.`
+
+Each row leads with one glyph for its strongest verb, shared with the Agents-tab
+`Beads:` rows:
+
+| Glyph | Verb(s)                                                              |
+| ----- | -------------------------------------------------------------------- |
+| `✚`   | `created`                                                            |
+| `✓`   | `closed`                                                             |
+| `↻`   | `reopened`                                                           |
+| `✎`   | `updated`, `noted`, `ready`, `snoozed`, `dep`, `linked`, `ref`, `+1` |
+| `←`   | `read`                                                               |
+| `◇`   | `viewed` only (also an `own`-only panel row)                         |
+| `⌫`   | `removed`                                                            |
+
+Durable verbs come from a derived per-project touch index
+(`~/.sase/projects/<project>/agent_bead_touches.json`) that is rebuilt from the bead
+event streams after every bead mutation, after `sase bead sync`, and by the periodic
+artifact-link backfill job. Reading it never refreshes it, so rows reflect the last
+refresh, and a missing index lists no durable verbs. Run
+`sase doctor -C beads.touch_index` to check it: a fresh or not-yet-built index reports
+OK, and a stale or wrong-schema index warns with the changed and vanished streams. Any
+`sase bead` mutation refreshes it.
 
 ### `sase bead update <id> [<id2> ...]`
 
