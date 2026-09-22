@@ -274,8 +274,11 @@ ways to give the host an unattended credential:
 
    It is fully unattended, survives reboots and logout, and needs no agent. Verify it
    without any agent:
-   `env -u SSH_AUTH_SOCK -u SSH_AGENT_PID ssh -o BatchMode=yes -T git@github.com`. A key
-   protected by a passphrase cannot serve here, because nothing can type the passphrase.
+   `env -u SSH_AUTH_SOCK -u SSH_AGENT_PID ssh -o BatchMode=yes -T git@github.com`. Then
+   run `ssh -T git@github.com` from a login shell whose agent holds your other keys: it
+   must greet your account (`Hi <login>!`), not a repository (`Hi <owner>/<repo>!`). A
+   key protected by a passphrase cannot serve here, because nothing can type the
+   passphrase.
 
    When `~/.ssh/config` is shared across machines, guard the identity so machines
    without the key are unaffected. Insert this directly after the existing
@@ -286,6 +289,7 @@ ways to give the host an unattended credential:
    # No-op on machines without the key.
    Match originalhost github.com exec "test -r %d/.ssh/id_sase_service"
      IdentityFile ~/.ssh/id_sase_service
+     IdentitiesOnly yes
    ```
 
 2. **Load a key into the systemd user agent (interim).** Run
