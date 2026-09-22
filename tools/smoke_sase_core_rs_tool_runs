@@ -20,6 +20,7 @@ TOOL_RUN_BINDINGS = (
     "tool_run_begin",
     "tool_run_append_event",
     "tool_run_finish",
+    "tool_run_observe",
     "tool_run_reconcile",
     "tool_run_list",
     "tool_run_show",
@@ -80,6 +81,34 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
         if run.get("state") != "running":
             raise RuntimeError(f"expected running begin, got {started!r}")
         run_id = run["run_id"]
+        observed = module.tool_run_observe(
+            store_path,
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "child_pid": 4242,
+                "child_pgid": 4242,
+                "child_process_start_identity": "boot-1:12345",
+            },
+            1_000,
+        )
+        if observed.get("replayed") is not False:
+            raise RuntimeError(f"first observe must not replay: {observed!r}")
+        if observed["run"].get("child_pgid") != 4242:
+            raise RuntimeError(f"observe did not persist pgid: {observed!r}")
+        replayed = module.tool_run_observe(
+            store_path,
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "child_pid": 4242,
+                "child_pgid": 4242,
+                "child_process_start_identity": "boot-1:12345",
+            },
+            1_000,
+        )
+        if replayed.get("replayed") is not True:
+            raise RuntimeError(f"repeat observe must replay: {replayed!r}")
         finished = module.tool_run_finish(
             store_path,
             {
@@ -94,6 +123,10 @@ def validate_round_trip(module: ModuleType) -> dict[str, Any]:
         )
         if finished["run"].get("state") != "succeeded":
             raise RuntimeError(f"unexpected finish: {finished!r}")
+        if finished["run"].get("child_pgid") != 4242:
+            raise RuntimeError(
+                f"finish dropped observed child facts: {finished!r}"
+            )
         listed = module.tool_run_list(
             store_path,
             {"schema_version": 1, "limit": 10, "project": "sase"},

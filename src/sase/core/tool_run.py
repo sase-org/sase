@@ -95,6 +95,27 @@ def tool_run_finish(
     )
 
 
+def tool_run_observe(
+    request: Mapping[str, Any],
+    *,
+    store_path: str | None = None,
+    busy_timeout_ms: int = 250,
+) -> dict[str, Any]:
+    """Persist a running run's child pid, pgid, and process-start identity.
+
+    Called once after a successful spawn, before the output pumps start, so
+    a run killed seconds later still records a reapable group.
+    """
+
+    return dict(
+        require_rust_binding("tool_run_observe")(
+            store_path or str(tool_run_store_path()),
+            dict(request),
+            busy_timeout_ms,
+        )
+    )
+
+
 def tool_run_reconcile(
     request: Mapping[str, Any],
     *,
@@ -216,6 +237,7 @@ __all__ = [
     "tool_run_finish",
     "tool_run_list",
     "tool_run_normalize_definition",
+    "tool_run_observe",
     "tool_run_reconcile",
     "tool_run_retention_apply",
     "tool_run_retention_preview",

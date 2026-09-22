@@ -9,6 +9,8 @@ from sase.core.tool_run import (
     tool_run_begin,
     tool_run_finish,
     tool_run_list,
+    tool_run_observe,
+    tool_run_reconcile,
     tool_run_show,
     tool_run_store_stats,
     tool_run_unknown_evidence,
@@ -78,3 +80,82 @@ def test_adapter_round_trip_and_unknown_evidence(tmp_path: Path) -> None:
     assert stats["run_count"] == 1
     assert shown["run"]["logs"]["has_private_argv"] is False
     assert "private_argv" not in shown["run"]
+
+
+def test_observe_persists_child_facts_and_reconcile_authorizes_reap(
+    tmp_path: Path,
+) -> None:
+    store = str(tmp_path / "tools" / "runs.sqlite")
+    started = tool_run_begin(
+        {
+            "schema_version": 1,
+            "tool_name": "check",
+            "definition": {
+                "schema_version": 1,
+                "name": "check",
+                "argv": ["just", "check"],
+                "description": "check",
+                "stages": "run_silent",
+                "inputs": ["Justfile"],
+                "env": [],
+                "args": "deny",
+                "fingerprint": {"repos": [], "toolchain": {}},
+            },
+            "display_argv": ["just", "check"],
+            "project": "sase",
+            "now_ts": 10,
+            "commit_running": True,
+        },
+        store_path=store,
+    )
+    run_id = started["run"]["run_id"]
+    observed = tool_run_observe(
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "child_pid": 4242,
+            "child_pgid": 4242,
+            "child_process_start_identity": "boot-1:12345",
+        },
+        store_path=store,
+    )
+    assert observed["replayed"] is False
+    assert observed["run"]["child_pgid"] == 4242
+    assert observed["run"]["child_process_start_identity"] == "boot-1:12345"
+    replayed = tool_run_observe(
+        {
+            "schema_version": 1,
+            "run_id": run_id,
+            "child_pid": 4242,
+            "child_pgid": 4242,
+            "child_process_start_identity": "boot-1:12345",
+        },
+        store_path=store,
+    )
+    assert replayed["replayed"] is True
+
+    reconciled = tool_run_reconcile(
+        {
+            "schema_version": 1,
+            "facts": [
+                {
+                    "run_id": run_id,
+                    "wrapper_pid": 4242,
+                    "boot_id": "boot-other",
+                    "process_start_identity": "start-1",
+                    "observation": "dead",
+                    "reason": "runner gone",
+                }
+            ],
+            "now_ts": 11,
+        },
+        store_path=store,
+    )
+    assert reconciled["marked_lost"] == [run_id]
+    assert reconciled["reap_candidates"] == [
+        {
+            "run_id": run_id,
+            "pgid": 4242,
+            "child_process_start_identity": "boot-1:12345",
+        }
+    ]

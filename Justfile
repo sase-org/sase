@@ -360,10 +360,12 @@ _lint-patch-stitch-terminology: _setup
     {{ venv_bin }}/python tools/audit_patch_stitch_terminology --repo-root . --allow-missing-linked-repos
 
 # Check for unused Python definitions (private, extracted for per-stage wrapping).
+# sase-16h(tool_run_observe): phase sase-16h.3 consumes the observe adapter; remove this entry there.
 _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-16h(tool_run_observe)' \
         --epic-symbol 'sase-16j.3(GateNotificationIndex)' \
         {{ args }}
 
