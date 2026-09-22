@@ -71,6 +71,7 @@ def init_late_startup_state(
     self._axe_chop_snapshots = {}
     self._axe_lumberjack_snapshots = {}
     self._service_status = None
+    self._service_status_error = None
     self._service_log_tails = {}
     self._service_tailed_names = set()
     from .axe_display._read_cache import AxeStatusReadCache

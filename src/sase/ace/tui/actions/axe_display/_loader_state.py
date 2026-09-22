@@ -82,6 +82,7 @@ class AxeLoaderState:
     _axe_lumberjack_snapshots: dict[str, LumberjackSnapshot]
     # Service-host snapshot caches populated by the async collector.
     _service_status: ServiceStatusSnapshot | None
+    _service_status_error: str | None
     _service_log_tails: dict[str, str]
     _service_tailed_names: set[str]
     _axe_status_read_cache: Any

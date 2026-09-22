@@ -5,11 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from pathlib import Path
 from typing import Any, NoReturn
 
 from rich.console import Console
 from rich.table import Table
+from rich.text import Text
 
 from sase.procs import ProcSubmitError
 from sase.procs.oneshot import submit_oneshot
@@ -96,13 +98,24 @@ def _handle_service_status(args: argparse.Namespace) -> int:
     console.print(f"[bold]Service host:[/bold] {snapshot.host.summary}")
     if snapshot.host.platform_unit:
         console.print(f"[dim]Native unit:[/dim] {snapshot.host.platform_unit}")
+    if snapshot.host.error:
+        console.print(f"[bold red]Host error:[/bold red] {snapshot.host.error}")
     table = Table(title="Service procs")
     table.add_column("Name")
     table.add_column("Desired")
     table.add_column("State")
+    table.add_column("Restarts")
+    table.add_column("Last exit")
     table.add_column("Summary")
     for proc in snapshot.procs:
-        table.add_row(proc.name, proc.desired, proc.state, proc.summary)
+        table.add_row(
+            proc.name,
+            proc.desired,
+            _proc_state_text(proc),
+            str(proc.restarts),
+            _last_exit_cell(proc),
+            proc.summary,
+        )
     console.print(table)
     for diagnostic in snapshot.diagnostics:
         console.print(f"[yellow]{diagnostic}[/yellow]")
@@ -230,13 +243,17 @@ def _handle_proc_list(args: argparse.Namespace) -> int:
     table.add_column("Enabled")
     table.add_column("Desired")
     table.add_column("State")
+    table.add_column("Restarts")
+    table.add_column("Last exit")
     table.add_column("Summary")
     for proc in snapshot.procs:
         table.add_row(
             proc.name,
             proc.enablement.summary,
             proc.desired,
-            proc.state,
+            _proc_state_text(proc),
+            str(proc.restarts),
+            _last_exit_cell(proc),
             proc.summary,
         )
     Console().print(table)
@@ -259,7 +276,31 @@ def handle_service_proc_show(args: argparse.Namespace) -> int:
     console.print(f"  source: {proc.source} ({proc.declared_by})")
     console.print(f"  enabled: {proc.enablement.summary}")
     console.print(f"  desired: {proc.desired}")
-    console.print(f"  state: {proc.state}")
+    console.print(_proc_state_line(proc))
+    if proc.description:
+        console.print(f"  description: {proc.description}")
+    if proc.started_at is not None:
+        console.print(
+            f"  uptime: {_format_duration(time.time() - proc.started_at)}"
+            f" (pid {proc.pid})"
+            if proc.pid is not None
+            else f"  uptime: {_format_duration(time.time() - proc.started_at)}"
+        )
+    elif proc.pid is not None:
+        console.print(f"  pid: {proc.pid}")
+    console.print(f"  restarts: {proc.restarts}")
+    last_exit = _format_last_exit(proc)
+    if last_exit is not None:
+        console.print(f"  last exit: {last_exit}")
+    restart_reason = _restart_reason_text(proc)
+    if restart_reason is not None:
+        console.print(f"  restart: {restart_reason}")
+    stop_provenance = _stop_provenance_text(proc)
+    if stop_provenance is not None:
+        console.print(f"  stopped by: {stop_provenance}")
+    pending_request = _pending_request_text(proc)
+    if pending_request is not None:
+        console.print(f"  request: {pending_request}")
     if proc.launcher_summary:
         console.print(f"  launcher: {proc.launcher_summary}")
     if proc.log_path:
@@ -267,6 +308,120 @@ def handle_service_proc_show(args: argparse.Namespace) -> int:
     if proc.unavailable_reason:
         console.print(f"  unavailable: {proc.unavailable_reason}")
     return 0
+
+
+def _proc_state_text(proc: Any) -> Text:
+    """Return the proc state colored by the shared severity vocabulary."""
+    from sase.ace.tui._service_severity import proc_clean_exit, service_proc_style
+
+    style = service_proc_style(
+        proc.state,
+        proc.desired,
+        available=getattr(proc, "available", True),
+        enabled=getattr(getattr(proc, "enablement", None), "enabled", True),
+        clean_exit=proc_clean_exit(proc),
+    )
+    return Text(proc.state, style=style)
+
+
+def _proc_state_line(proc: Any) -> Text:
+    """Return the ``state:`` line for ``proc show`` with shared coloring."""
+    line = Text("  state: ")
+    line.append_text(_proc_state_text(proc))
+    return line
+
+
+def _last_exit_cell(proc: Any) -> str:
+    """Return the compact last-exit cell for the proc tables (``—`` when none)."""
+    last_exit = getattr(proc, "last_exit", None)
+    if last_exit is None:
+        return "—"
+    if getattr(last_exit, "spawn_error", None):
+        return "spawn error"
+    if getattr(last_exit, "signal", None) is not None:
+        return f"signal {last_exit.signal}"
+    if getattr(last_exit, "exit_code", None) is not None:
+        return f"exit {last_exit.exit_code}"
+    return "—"
+
+
+def _format_last_exit(proc: Any) -> str | None:
+    """Return the verbose last-exit line for ``proc show`` (None when none)."""
+    last_exit = getattr(proc, "last_exit", None)
+    if last_exit is None:
+        return None
+    parts: list[str] = []
+    if getattr(last_exit, "spawn_error", None):
+        parts.append(str(last_exit.spawn_error))
+    elif getattr(last_exit, "signal", None) is not None:
+        parts.append(f"signal {last_exit.signal}")
+    elif getattr(last_exit, "exit_code", None) is not None:
+        parts.append(f"exit {last_exit.exit_code}")
+    else:
+        return None
+    if getattr(last_exit, "finished_at", None) is not None:
+        parts.append(f"at {_format_epoch(last_exit.finished_at)}")
+    return " ".join(parts)
+
+
+def _format_epoch(value: float) -> str:
+    from sase.core.time import format_local
+
+    return format_local(value, default=str(value))
+
+
+def _format_duration(seconds: float) -> str:
+    total = max(0, int(seconds))
+    for unit, size in (("d", 86400), ("h", 3600), ("m", 60)):
+        if total >= size:
+            return f"{total // size}{unit}"
+    return f"{total}s"
+
+
+def _restart_reason_text(proc: Any) -> str | None:
+    restart = getattr(proc, "restart", None)
+    reason: Any = None
+    if isinstance(restart, dict):
+        reason = restart.get("reason")
+    elif restart is not None:
+        reason = getattr(restart, "reason", None)
+    return str(reason) if reason else None
+
+
+def _stop_provenance_text(proc: Any) -> str | None:
+    stop = getattr(proc, "stop", None)
+    if stop is None:
+        return None
+    if isinstance(stop, dict):
+        by, reason = stop.get("stopped_by"), stop.get("reason")
+    else:
+        by, reason = getattr(stop, "stopped_by", None), getattr(stop, "reason", None)
+    if by and reason:
+        return f"{by} ({reason})"
+    if by or reason:
+        return str(by or reason)
+    return None
+
+
+def _pending_request_text(proc: Any) -> str | None:
+    request = getattr(proc, "request", None)
+    if request is None:
+        return None
+    if isinstance(request, dict):
+        action = request.get("action", "?")
+        generation = request.get("generation", "?")
+        completed = request.get("completed_generation")
+    else:
+        action = getattr(request, "action", "?")
+        generation = getattr(request, "generation", "?")
+        completed = getattr(request, "completed_generation", None)
+    try:
+        pending = completed is None or int(completed) < int(generation)
+    except (TypeError, ValueError):
+        pending = True
+    if not pending:
+        return None
+    return f"{action} #{generation} pending"
 
 
 def _handle_proc_enablement(args: argparse.Namespace, *, enabled: bool) -> int:

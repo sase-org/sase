@@ -15,7 +15,7 @@ from sase.service.paths import service_state_path
 from sase.service.platform import (
     DECLINED_MARKER,
     CommandResult,
-    agent_env_refusal_reason,
+    _agent_env_refusal_reason,
     apply_service_init,
     apply_service_uninstall,
     build_native_definition,
@@ -267,8 +267,8 @@ def test_apply_service_init_refuses_ephemeral_workspace_path(
     _linux_home(tmp_path, monkeypatch)
 
     ephemeral_path = "/usr/bin:/home/user/work/sase_40/.venv/bin:/bin"
-    assert agent_env_refusal_reason({"PATH": ephemeral_path}) is not None
-    assert agent_env_refusal_reason({"PATH": "/usr/bin:/bin"}) is None
+    assert _agent_env_refusal_reason({"PATH": ephemeral_path}) is not None
+    assert _agent_env_refusal_reason({"PATH": "/usr/bin:/bin"}) is None
 
     refused = apply_service_init(
         runner=_LinuxManager(),

@@ -200,7 +200,7 @@ def _service_init_plan_inner(
     )
 
 
-def agent_env_refusal_reason(
+def _agent_env_refusal_reason(
     environ: Mapping[str, str] | None = None,
 ) -> str | None:
     """Return why ``init --yes`` must not capture this shell, if it must not.
@@ -269,7 +269,7 @@ def apply_service_init(
         executable_resolver=executable_resolver,
     )
     if not allow_agent_env:
-        refusal = agent_env_refusal_reason(environ)
+        refusal = _agent_env_refusal_reason(environ)
         if refusal is not None:
             return ServicePlatformApplyResult(
                 ok=False,
@@ -590,7 +590,6 @@ __all__ = [
     "SERVICE_LIFECYCLE_TEST_OVERRIDE_ENV",
     "ServicePlatformApplyResult",
     "ServicePlatformPlan",
-    "agent_env_refusal_reason",
     "apply_service_init",
     "apply_service_uninstall",
     "build_native_definition",

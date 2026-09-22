@@ -53,20 +53,18 @@ def _overview_layout(width: int | None) -> _OverviewLayout:
     )
 
 
-def _service_state_style(state: str) -> str:
+def _service_state_style(state: str, desired: str | None = None) -> str:
     """Return a compact display style for a service state token."""
-    if state == "running":
-        return "bold green"
-    if state in {"failed", "error"}:
-        return "bold red"
-    if state in {"disabled", "unavailable"}:
-        return "dim"
-    return "#FFD700"
+    from .._service_severity import service_proc_style
+
+    return service_proc_style(state, desired)
 
 
 def _service_host_style(state: str) -> str:
     """Return the display style for a service host state."""
-    return "bold green" if state == "running" else _service_state_style(state)
+    from .._service_severity import service_host_style
+
+    return service_host_style(state)
 
 
 def _format_epoch(value: float) -> str:
@@ -162,6 +160,58 @@ def _render_overrun_advisory(text: Text, chops: list[ChopSnapshot]) -> None:
         "  Raise `interval` or move the job into its own routine.\n",
         style="dim",
     )
+
+
+def _service_restart_reason(proc: ServiceStatusProc) -> str | None:
+    """Return the restart decision's human reason for a proc row, if any."""
+    restart = getattr(proc, "restart", None)
+    if isinstance(restart, dict):
+        reason = restart.get("reason")
+    elif restart is not None:
+        reason = getattr(restart, "reason", None)
+    else:
+        reason = None
+    return str(reason) if reason else None
+
+
+def _service_stop_provenance(proc: ServiceStatusProc) -> str | None:
+    """Return ``stopped_by`` plus ``reason`` for a proc row, if any."""
+    stop = getattr(proc, "stop", None)
+    if stop is None:
+        return None
+    if isinstance(stop, dict):
+        by = stop.get("stopped_by")
+        reason = stop.get("reason")
+    else:
+        by = getattr(stop, "stopped_by", None)
+        reason = getattr(stop, "reason", None)
+    if not by and not reason:
+        return None
+    if by and reason:
+        return f"{by} ({reason})"
+    return str(by or reason)
+
+
+def _service_pending_request(proc: ServiceStatusProc) -> str | None:
+    """Return a one-line pending start/restart request for a proc row, if any."""
+    request = getattr(proc, "request", None)
+    if request is None:
+        return None
+    if isinstance(request, dict):
+        action = request.get("action", "?")
+        generation = request.get("generation", "?")
+        completed = request.get("completed_generation")
+    else:
+        action = getattr(request, "action", "?")
+        generation = getattr(request, "generation", "?")
+        completed = getattr(request, "completed_generation", None)
+    try:
+        pending = completed is None or int(completed) < int(generation)
+    except (TypeError, ValueError):
+        pending = True
+    if not pending:
+        return None
+    return f"{action} #{generation} pending"
 
 
 class AxeOutputSection(Static):
@@ -291,6 +341,10 @@ class AxeOutputSection(Static):
                 text.append("    PID: ", style="bold #87D7FF")
                 text.append(str(snapshot.host.pid), style="#FF87D7")
             text.append("\n")
+            if snapshot.host.error:
+                text.append("  Host error: ", style="bold #87D7FF")
+                text.append(snapshot.host.error, style="bold red")
+                text.append("\n")
 
         if proc is None:
             text.append(
@@ -300,7 +354,11 @@ class AxeOutputSection(Static):
             return
 
         rows: list[tuple[str, str, str]] = [
-            ("State", proc.state, _service_state_style(proc.state)),
+            (
+                "State",
+                proc.summary or proc.state,
+                _service_state_style(proc.state, proc.desired),
+            ),
             ("Desired", proc.desired, "#00D7AF"),
             (
                 "Enabled",
@@ -316,8 +374,16 @@ class AxeOutputSection(Static):
             rows.append(("PID", str(proc.pid), "#FF87D7"))
         if proc.started_at is not None:
             rows.append(("Started", _format_epoch(proc.started_at), "#87D7FF"))
-        if proc.restarts:
-            rows.append(("Restarts", str(proc.restarts), "#FFD700"))
+        rows.append(("Restarts", str(proc.restarts), "#FFD700"))
+        restart_reason = _service_restart_reason(proc)
+        if restart_reason:
+            rows.append(("Restart", restart_reason, "#FFAF5F"))
+        stop_provenance = _service_stop_provenance(proc)
+        if stop_provenance:
+            rows.append(("Stopped by", stop_provenance, "dim"))
+        pending_request = _service_pending_request(proc)
+        if pending_request:
+            rows.append(("Request", pending_request, "#00D7AF"))
         if proc.log_path:
             rows.append(("Log", proc.log_path, "dim"))
 

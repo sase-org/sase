@@ -99,6 +99,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             service_snapshot = getattr(self, "_service_status", None)
             axe_info.update_host_chrome(
                 None if service_snapshot is None else service_snapshot.host,
+                status_error=getattr(self, "_service_status_error", None),
             )
             if self._axe_current_view == "axe":
                 service_selection = self._axe_service_selection
@@ -375,6 +376,7 @@ class AxeDisplayRenderMixin(AxeDisplayLoadersMixin):
             service_snapshot = getattr(self, "_service_status", None)
             axe_info.update_host_chrome(
                 None if service_snapshot is None else service_snapshot.host,
+                status_error=getattr(self, "_service_status_error", None),
             )
             if self._axe_current_view == "axe":
                 service_selection = self._axe_service_selection

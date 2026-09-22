@@ -166,6 +166,7 @@ class AxeCollectedData:
         default_factory=frozenset
     )
     service_status: ServiceStatusSnapshot | None = None
+    service_status_error: str | None = None
     service_log_tails: dict[str, str] = dataclasses.field(default_factory=dict)
     tailed_service_names: frozenset[str] = dataclasses.field(default_factory=frozenset)
     stats: AxeCollectorStats = dataclasses.field(default_factory=AxeCollectorStats)
@@ -338,6 +339,7 @@ def _collect_axe_status_data_impl(
     read_cache.begin_tick()
 
     service_status: ServiceStatusSnapshot | None = None
+    service_status_error: str | None = None
     service_log_tails: dict[str, str] = {}
     tailed_service_names: frozenset[str] = frozenset()
     try:
@@ -348,6 +350,14 @@ def _collect_axe_status_data_impl(
         trace_event(
             "axe.collect.service_status.unavailable",
             error_type=type(exc).__name__,
+        )
+        detail = str(exc).strip().splitlines()[0] if str(exc).strip() else ""
+        if len(detail) > 120:
+            detail = detail[:119] + "…"
+        service_status_error = (
+            f"service status unavailable: {detail}"
+            if detail
+            else "service status unavailable"
         )
 
     axe_running = service_status is not None and service_status.host.state in {
@@ -545,6 +555,7 @@ def _collect_axe_status_data_impl(
         include_full_snapshots=include_full_snapshots,
         tailed_chop_keys=tailed_chop_keys,
         service_status=service_status,
+        service_status_error=service_status_error,
         service_log_tails=service_log_tails,
         tailed_service_names=tailed_service_names,
         stats=stats,

@@ -291,16 +291,25 @@ class AxeStatusSection(Static):
         text.append("]", style="dim")
 
         if proc is not None:
+            from .._service_severity import (
+                proc_clean_exit as _proc_clean_exit,
+            )
+            from .._service_severity import (
+                service_proc_style as _shared_proc_style,
+            )
+
             text.append("  │  ", style="dim")
             text.append("State: ", style="bold #87D7FF")
-            state_style = (
-                "bold green"
-                if proc.state == "running"
-                else "bold red"
-                if proc.state in {"failed", "error"}
-                else "#FFD700"
+            text.append(
+                proc.summary or proc.state,
+                style=_shared_proc_style(
+                    proc.state,
+                    proc.desired,
+                    available=getattr(proc, "available", True),
+                    enabled=getattr(getattr(proc, "enablement", None), "enabled", True),
+                    clean_exit=_proc_clean_exit(proc),
+                ),
             )
-            text.append(proc.state, style=state_style)
 
             text.append("  │  ", style="dim")
             text.append("Desired: ", style="bold #87D7FF")
@@ -316,24 +325,28 @@ class AxeStatusSection(Static):
                 text.append("PID: ", style="bold #87D7FF")
                 text.append(str(proc.pid), style="#FF87D7")
 
-            if proc.started_at is not None and proc.state == "running":
+            if proc.started_at is not None:
                 text.append("  │  ", style="dim")
                 text.append("Runtime: ", style="bold #87D7FF")
                 text.append(_format_epoch_runtime(proc.started_at), style="#00D7AF")
 
-            if proc.restarts:
-                text.append("  │  ", style="dim")
-                text.append("Restarts: ", style="bold #87D7FF")
-                text.append(str(proc.restarts), style="#FFD700")
+            text.append("  │  ", style="dim")
+            text.append("Restarts: ", style="bold #87D7FF")
+            text.append(str(proc.restarts), style="#FFD700")
         else:
             text.append("  │  ", style="dim")
             text.append("status unavailable", style="dim italic")
 
         if host is not None:
+            from .._service_severity import service_host_style as _host_style
+
             text.append("  │  ", style="dim")
             text.append("Host: ", style="bold #87D7FF")
-            host_style = "bold green" if host.state == "running" else "dim"
-            text.append(host.state, style=host_style)
+            text.append(host.state, style=_host_style(host.state))
+            if getattr(host, "error", None):
+                text.append("  │  ", style="dim")
+                text.append("Host error: ", style="bold #87D7FF")
+                text.append(str(host.error), style="bold red")
 
         if self._countdown > 0:
             text.append("  │  ", style="dim")

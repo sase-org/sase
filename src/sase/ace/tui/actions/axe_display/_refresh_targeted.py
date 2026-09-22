@@ -150,6 +150,7 @@ class AxeRefreshTargetedMixin(AxeRefreshFullMixin):
 
             snapshot, tail = await asyncio.to_thread(_read_service)
             self._service_status = snapshot
+            self._service_status_error = None
             self._service_log_tails[name] = tail
             tailed = getattr(self, "_service_tailed_names", None)
             if tailed is None:

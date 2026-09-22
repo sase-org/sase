@@ -2847,11 +2847,15 @@ daemon procs. Project-local `sase.yml` service entries are intentionally ignored
 
 Once service status has loaded, the info panel leads with a host clause:
 `Services · host ● running 4d · sase.service` while the host runs (uptime in its largest
-unit when known, then the installed native service unit or `detached`), or
-`Services · host ○ stopped · press !x to start` for any other host state, including a
-host that is still starting or whose heartbeat is stale. Disabled rows carry an inline
-provenance chip (`disabled here` for a local override, `disabled by <layer>` otherwise),
-and unavailable rows show `unavailable: <reason>`.
+unit when known, then the installed native service unit or `detached`),
+`Services · host ○ starting` while the host is still starting (not a failure),
+`Services · host ○ stale · press !x to start` when the heartbeat is stale, or
+`Services · host ○ stopped · press !x to start` when the host is down. A host config
+error renders inline (`! <error>`), and an unreadable snapshot renders its short reason
+in the header. Disabled rows carry an inline provenance chip (`disabled here` for a
+local override, `disabled by <layer>` otherwise), unavailable rows show
+`unavailable: <reason>`, and other non-running rows carry the core's human summary (for
+example `crash-looping (3)`) plus the restart count (`· 5r`) whatever the state.
 
 On a selected top-level service proc, `x` starts or stops it, `r` restarts it, and `!e`
 enables or disables it on this machine. Those actions are no-ops when no service proc is
@@ -2860,7 +2864,8 @@ routine. Use `!x` to start or stop the service host itself. The `SVC` footer pil
 the running/desired service-proc count (`N/M`), or a red `!` when the host or a service
 proc is unhealthy (see [Service Health Pill](#service-health-pill)). The right-hand
 panel shows the selected proc's effective command, current and desired state, restart
-policy, dependencies, last exit, and output tail.
+policy, dependencies, last exit, restart decision reason, stop provenance, any pending
+start/restart request, and output tail, plus the host config error when one is set.
 
 The canonical tab id is `services` (`axe` is still accepted as a legacy alias, for
 example `sase tui -t axe`). Configuration keys such as `ace.axe_description_expanded`
@@ -4843,23 +4848,31 @@ service host it describes.
 
 #### Service Health Pill
 
-Once the first service-status snapshot loads, the `SVC` pill summarizes service health:
+Once the first service-status snapshot loads, the `SVC` pill summarizes service health.
+Proc states use the wire vocabulary the core emits (`running`, `unavailable`,
+`disabled`, `stopped`, `crash_loop`, `backoff`, `exited`): `crash_loop` and `backoff`
+are failures, `exited` is a failure while desired state is running (a clean give-up
+reads as a warning), `unavailable` is a warning, and `disabled` or an operator-stopped
+proc is muted rather than a failure.
 
-| Pill      | Color | Description                                                                                                                      |
-| --------- | ----- | -------------------------------------------------------------------------------------------------------------------------------- |
-| **`N/M`** | Teal  | Healthy: `N` of the `M` counted service procs are running (enabled procs whose desired state is running or that are unavailable) |
-| **`!`**   | Red   | Unhealthy: the service host is not running, or a counted proc is unavailable, failed, or not running when it should be           |
+| Pill      | Color  | Description                                                                                                                      |
+| --------- | ------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| **`N/M`** | Teal   | Healthy: `N` of the `M` counted service procs are running (enabled procs whose desired state is running or that are unavailable) |
+| **`!`**   | Red    | Unhealthy: the service host is stopped or stale, or a counted proc is unavailable, crash-looping, backing off, or exited         |
+| **`?`**   | Yellow | Unknown: no service-status snapshot could be read (`service status unavailable`)                                                 |
 
 When health is unhealthy, sase's TUI also raises a `Services unhealthy: <reason>`
-warning toast (for example `host stopped` or `gateway unavailable`), and raises it again
-whenever the underlying service status changes while health stays unhealthy. Any host
-state other than running — including starting — is reported as `host stopped`.
+warning toast (for example `host stopped`, `host stale`, or `gateway unavailable`), and
+raises it again whenever the underlying service status changes while health stays
+unhealthy. A host that is still `starting` is not a failure; a host whose heartbeat is
+`stale` is a failure distinct from `stopped`.
 
 The health pill replaces the host-state labels below as soon as the first status load
-finishes, even when no snapshot could be read (the pill then shows a teal `0/0`). The
-labels are therefore only visible briefly at startup, between the startup stopwatch
-retiring and the first status load; `-R` / `--restart-service` restarts the host after
-that load, so the pill keeps showing health rather than RESTARTING:
+finishes. When no snapshot could be read the pill shows a yellow `?` (unknown) instead
+of a healthy count. The labels are therefore only visible briefly at startup, between
+the startup stopwatch retiring and the first status load; `-R` / `--restart-service`
+restarts the host after that load, so the pill keeps showing health rather than
+RESTARTING:
 
 | Status         | Color         | Description                      |
 | -------------- | ------------- | -------------------------------- |

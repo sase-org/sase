@@ -52,6 +52,7 @@ class AxeInfoPanel(Static):
         self._content_width = 0
         self._host: ServiceStatusHost | None = None
         self._host_start_hint = "!x"
+        self._service_status_error: str | None = None
 
     @property
     def content_width(self) -> int:
@@ -68,25 +69,43 @@ class AxeInfoPanel(Static):
         host: "ServiceStatusHost | None",
         *,
         start_hint: str = "!x",
+        status_error: str | None = None,
     ) -> None:
         """Set the always-on service-host clause."""
         self._host = host
         self._host_start_hint = start_hint
+        self._service_status_error = status_error
         self._update_display()
 
     def _append_host_chrome(self, text: Text) -> None:
         host = self._host
         text.append("Services", style="bold #00D7AF")
         text.append(" · host ", style="dim")
-        if host is not None and host.state == "running":
+        state = host.state if host is not None else None
+        if state == "running":
             text.append("● running", style="bold green")
-            if host.started_at is not None:
+            if host is not None and host.started_at is not None:
                 uptime = format_uptime(time.time() - host.started_at)
                 text.append(f" {uptime}", style="dim")
-            text.append(f" · {host.platform_unit or 'detached'}", style="dim")
+            text.append(
+                f" · {host.platform_unit if host and host.platform_unit else 'detached'}",
+                style="dim",
+            )
+        elif state == "starting":
+            text.append("○ starting", style="bold #FFD700")
+        elif state == "stale":
+            text.append("○ stale", style="bold red")
+            text.append(f" · press {self._host_start_hint} to start", style="dim")
         else:
             text.append("○ stopped", style="bold red")
             text.append(f" · press {self._host_start_hint} to start", style="dim")
+        if host is not None and getattr(host, "error", None):
+            text.append(" · ", style="dim")
+            text.append(f"! {host.error}", style="bold red")
+        status_error = getattr(self, "_service_status_error", None)
+        if status_error:
+            text.append(" · ", style="dim")
+            text.append(status_error, style="#FFAF5F")
         text.append("  ", style="")
 
     def set_loading(self, loading: bool) -> None:
@@ -232,15 +251,21 @@ class AxeInfoPanel(Static):
                 )
             proc = self._service_proc
             if proc is not None:
+                from .._service_severity import proc_clean_exit, service_proc_style
+
                 text.append(" ", style="")
-                state_style = (
-                    "bold green"
-                    if proc.state == "running"
-                    else "bold red"
-                    if proc.state in {"failed", "error"}
-                    else "dim"
+                text.append(
+                    proc.state,
+                    style=service_proc_style(
+                        proc.state,
+                        proc.desired,
+                        available=getattr(proc, "available", True),
+                        enabled=getattr(
+                            getattr(proc, "enablement", None), "enabled", True
+                        ),
+                        clean_exit=proc_clean_exit(proc),
+                    ),
                 )
-                text.append(proc.state, style=state_style)
             text.append("  ", style="")
         elif self._chop_mode:
             text.append(

@@ -206,7 +206,9 @@ class KeybindingStatusMixin:
             )
         elif self._service_health is not None:
             health = self._service_health
-            if health.healthy:
+            if not health.known:
+                text.append(" ? ", style="bold black on #FFAF5F")
+            elif health.healthy:
                 text.append(
                     f" {health.running}/{health.desired} ",
                     style=f"bold black on {_SERVICE_TEAL}",

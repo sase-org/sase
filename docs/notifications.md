@@ -560,25 +560,26 @@ than one group of six.
 
 The following events generate notifications:
 
-| Sender                         | Event                                                                                                                                           |
-| ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| `plan` / `epic`                | A tale or epic plan is ready for user review and approval                                                                                       |
-| `bead`                         | A task bead needs triage, a snoozed task woke, a due `flag` task bead needs `FlagTriage`, or stale uncorroborated tasks need `BeadStaleCleanup` |
-| `plugin`                       | A project's required plugins are missing; the gate offers to install them                                                                       |
-| `launch`                       | A running agent requested a new agent launch for approval                                                                                       |
-| `question`                     | An agent is asking the user a question (via `/sase_questions`)                                                                                  |
-| `sudo`                         | An agent requested reviewed privileged execution (via `sase sudo request`); see [Sudo Requests](sudo.md)                                        |
-| `custom`                       | A `sase gate create` custom gate is waiting for review, unless its `presentation.sender` names another sender                                   |
-| `hitl`                         | A workflow HITL step is waiting for user input                                                                                                  |
-| `sync`                         | A sync operation completed for a Patch                                                                                                          |
-| `axe`                          | Hourly error digest summarizing recent axe errors                                                                                               |
-| `file-hooks`                   | A configured per-file hook completed or failed, or a producer-side dispatch failure before a command ran                                        |
-| `mentors`                      | All mentors finished for a Patch entry (or none matched)                                                                                        |
-| `wait_checks`                  | A `%wait` dependency ended in a terminal state that can never satisfy the waiter                                                                |
-| `gate`                         | A gate shell's follow-up handoff failed; the notes name the failed stage and the resume command                                                 |
-| `agent_hold`                   | A `%hold` or `sase agent hold` admission hold was armed or released                                                                             |
-| `runner_slot_admission`        | A held agent and the agent holding it are blocking each other (hold deadlock)                                                                   |
-| Workflow-specific sender label | Workflow completion (success or failure)                                                                                                        |
+| Sender                         | Event                                                                                                                                                                                                |
+| ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `plan` / `epic`                | A tale or epic plan is ready for user review and approval                                                                                                                                            |
+| `bead`                         | A task bead needs triage, a snoozed task woke, a due `flag` task bead needs `FlagTriage`, or stale uncorroborated tasks need `BeadStaleCleanup`                                                      |
+| `plugin`                       | A project's required plugins are missing; the gate offers to install them                                                                                                                            |
+| `launch`                       | A running agent requested a new agent launch for approval                                                                                                                                            |
+| `question`                     | An agent is asking the user a question (via `/sase_questions`)                                                                                                                                       |
+| `sudo`                         | An agent requested reviewed privileged execution (via `sase sudo request`); see [Sudo Requests](sudo.md)                                                                                             |
+| `custom`                       | A `sase gate create` custom gate is waiting for review, unless its `presentation.sender` names another sender                                                                                        |
+| `hitl`                         | A workflow HITL step is waiting for user input                                                                                                                                                       |
+| `sync`                         | A sync operation completed for a Patch                                                                                                                                                               |
+| `axe`                          | Hourly error digest summarizing recent axe errors                                                                                                                                                    |
+| `service`                      | A desired-running service proc entered crash-loop or the restart policy gave up on it; the notes name the reason, restart count, log path, and the reviving `sase service proc start <name>` command |
+| `file-hooks`                   | A configured per-file hook completed or failed, or a producer-side dispatch failure before a command ran                                                                                             |
+| `mentors`                      | All mentors finished for a Patch entry (or none matched)                                                                                                                                             |
+| `wait_checks`                  | A `%wait` dependency ended in a terminal state that can never satisfy the waiter                                                                                                                     |
+| `gate`                         | A gate shell's follow-up handoff failed; the notes name the failed stage and the resume command                                                                                                      |
+| `agent_hold`                   | A `%hold` or `sase agent hold` admission hold was armed or released                                                                                                                                  |
+| `runner_slot_admission`        | A held agent and the agent holding it are blocking each other (hold deadlock)                                                                                                                        |
+| Workflow-specific sender label | Workflow completion (success or failure)                                                                                                                                                             |
 
 ### Task Triage Notification
 

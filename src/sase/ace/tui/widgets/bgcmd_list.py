@@ -546,20 +546,16 @@ def _service_proc_marker(proc: Any) -> tuple[str, str]:
     """Return the one-character service-proc status marker and style."""
     if proc is None:
         return ("·", "dim")
-    if not getattr(proc, "available", True):
-        return ("?", _SERVICE_WARN_STYLE)
+    from .._service_severity import proc_clean_exit, service_proc_marker
+
     enablement = getattr(proc, "enablement", None)
-    if enablement is not None and not getattr(enablement, "enabled", True):
-        return ("-", "dim")
-    state = getattr(proc, "state", "")
-    if state == "running":
-        return ("*", "bold green")
-    if state in {"failed", "error"}:
-        return ("!", "bold red")
-    desired = getattr(proc, "desired", "")
-    if desired == "running":
-        return ("~", "bold #00D7AF")
-    return ("·", "dim")
+    return service_proc_marker(
+        getattr(proc, "state", ""),
+        getattr(proc, "desired", ""),
+        available=getattr(proc, "available", True),
+        enabled=True if enablement is None else getattr(enablement, "enabled", True),
+        clean_exit=proc_clean_exit(proc),
+    )
 
 
 _SERVICE_CHIP_MAX_WIDTH = 32
@@ -581,6 +577,8 @@ def _service_enablement_chip(enablement: "ServiceEnablement") -> str | None:
 
 def _service_proc_chip(proc: Any) -> tuple[str, str] | None:
     """Return a short service-proc state chip, or None when redundant."""
+    from .._service_severity import proc_clean_exit, service_proc_style
+
     if not getattr(proc, "available", True):
         reason = getattr(proc, "unavailable_reason", None)
         text = f"unavailable: {reason}" if reason else "unavailable"
@@ -593,15 +591,27 @@ def _service_proc_chip(proc: Any) -> tuple[str, str] | None:
         if disabled_text is not None:
             return (disabled_text, _SERVICE_DISABLED_STYLE)
     state = getattr(proc, "state", "")
+    desired = getattr(proc, "desired", "")
+    style = service_proc_style(
+        state,
+        desired,
+        available=True,
+        enabled=True,
+        clean_exit=proc_clean_exit(proc),
+    )
+    restarts = int(getattr(proc, "restarts", 0) or 0)
+    restarts_suffix = f" · {restarts}r" if restarts > 0 else ""
     if state == "running":
-        restarts = int(getattr(proc, "restarts", 0) or 0)
-        if restarts > 0:
-            return (f"{restarts}r", "dim")
-        return None
-    if state:
-        style = "bold red" if state in {"failed", "error"} else "dim"
-        return (state, style)
-    return None
+        if not restarts_suffix:
+            return None
+        return (f"{restarts}r", "dim")
+    summary = getattr(proc, "summary", "") or state
+    if not summary:
+        return (f"{restarts}r", "dim") if restarts_suffix else None
+    text = f"{summary}{restarts_suffix}"
+    if len(text) > _SERVICE_CHIP_MAX_WIDTH:
+        text = text[: _SERVICE_CHIP_MAX_WIDTH - 1] + "…"
+    return (text, style)
 
 
 def _oneshot_failed(info: BackgroundCommandInfo | None) -> bool:

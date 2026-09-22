@@ -82,11 +82,54 @@ def test_health_host_down_is_unhealthy() -> None:
 
 def test_health_failed_proc_names_offender() -> None:
     health = derive_service_health(
-        _snap(_proc("a"), _proc("telegram_receiver", state="failed"))
+        _snap(_proc("a"), _proc("telegram_receiver", state="crash_loop"))
     )
     assert not health.healthy
-    assert health.summary == "telegram_receiver failed"
+    assert health.summary == "telegram_receiver crash_loop"
     assert (health.running, health.desired) == (1, 2)
+
+
+def test_health_backoff_proc_is_unhealthy() -> None:
+    health = derive_service_health(_snap(_proc("a", state="backoff")))
+    assert not health.healthy
+    assert health.summary == "a backoff"
+
+
+def test_health_exited_desired_running_is_unhealthy() -> None:
+    health = derive_service_health(_snap(_proc("a", state="exited")))
+    assert not health.healthy
+    assert health.summary == "a exited"
+
+
+def test_health_exited_clean_give_up_is_warning() -> None:
+    proc = _proc("a", state="exited")
+    proc.restart = {"clean_exit": True, "reason": "gave up after 3 tries"}
+    health = derive_service_health(_snap(proc))
+    assert not health.healthy
+    assert health.summary == "a exited"
+
+
+def test_health_exited_not_desired_is_muted() -> None:
+    health = derive_service_health(_snap(_proc("a", state="exited", desired="stopped")))
+    assert health.healthy
+
+
+def test_health_stopped_not_desired_is_muted() -> None:
+    health = derive_service_health(
+        _snap(_proc("a", state="stopped", desired="stopped"))
+    )
+    assert health.healthy
+
+
+def test_health_host_stale_is_unhealthy() -> None:
+    health = derive_service_health(_snap(_proc("a"), host="stale"))
+    assert not health.healthy
+    assert health.summary == "host stale"
+
+
+def test_health_host_starting_is_not_a_failure() -> None:
+    health = derive_service_health(_snap(_proc("a"), host="starting"))
+    assert health.healthy
 
 
 def test_health_unavailable_is_counted_and_unhealthy() -> None:
@@ -97,9 +140,20 @@ def test_health_unavailable_is_counted_and_unhealthy() -> None:
     assert not health.healthy
 
 
-def test_health_no_snapshot_is_healthy_empty() -> None:
+def test_health_no_snapshot_is_unknown() -> None:
     health = derive_service_health(None)
-    assert (health.running, health.desired, health.healthy) == (0, 0, True)
+    assert (health.running, health.desired, health.healthy) == (0, 0, False)
+    assert health.known is False
+    assert health.summary == "service status unavailable"
+
+
+def test_footer_unknown_pill_is_warning() -> None:
+    footer = _footer()
+    footer.set_service_health(derive_service_health(None))
+    text = str(footer._get_status_text())
+    assert "SVC" in text
+    assert "?" in text
+    assert "!" not in text
 
 
 # --- footer ----------------------------------------------------------------
@@ -140,7 +194,9 @@ def test_footer_signature_changes_with_health() -> None:
     footer = _footer()
     footer.set_service_health(derive_service_health(_snap(_proc("a"))))
     before = footer._status_signature()
-    footer.set_service_health(derive_service_health(_snap(_proc("a", state="failed"))))
+    footer.set_service_health(
+        derive_service_health(_snap(_proc("a", state="crash_loop")))
+    )
     assert footer._status_signature() != before
 
 
@@ -194,6 +250,28 @@ def test_chrome_stopped_and_loading() -> None:
     panel.update_host_chrome(_host())
     panel._loading = True
     assert "host" not in _panel_text(panel)
+
+
+def test_chrome_stale_and_starting_are_distinct() -> None:
+    panel = _Panel()
+    panel.update_host_chrome(SimpleNamespace(state="stale"))  # type: ignore[arg-type]
+    assert "stale" in _panel_text(panel)
+    panel.update_host_chrome(SimpleNamespace(state="starting"))  # type: ignore[arg-type]
+    out = _panel_text(panel)
+    assert "starting" in out
+    assert "press !x to start" not in out
+
+
+def test_chrome_shows_host_and_status_errors() -> None:
+    panel = _Panel()
+    panel.update_host_chrome(
+        SimpleNamespace(
+            state="running", started_at=None, platform_unit=None, error="bad overlay"
+        )  # type: ignore[arg-type]
+    )
+    assert "bad overlay" in _panel_text(panel)
+    panel.update_host_chrome(_host(), status_error="service status unavailable: boom")
+    assert "boom" in _panel_text(panel)
 
 
 # --- gear ------------------------------------------------------------------
@@ -261,6 +339,21 @@ def test_proc_chip_states() -> None:
         "unavailable: no bin"
     )
     assert _service_proc_chip(_proc(available=False))[0] == "unavailable"  # type: ignore[index]
+
+
+def test_proc_chip_shows_summary_and_restarts_in_any_state() -> None:
+    from sase.ace.tui.widgets.bgcmd_list import _service_proc_marker
+
+    proc = _proc(state="crash_loop")
+    proc.summary = "crash-looping (3)"
+    proc.restarts = 5
+    chip = _service_proc_chip(proc)
+    assert chip is not None
+    assert "crash-looping" in chip[0] and "5r" in chip[0]
+    assert chip[1] == "bold red"
+    assert _service_proc_marker(_proc(state="crash_loop")) == ("!", "bold red")
+    assert _service_proc_marker(_proc(state="backoff")) == ("!", "bold red")
+    assert _service_proc_marker(_proc(state="exited")) == ("!", "bold red")
 
 
 # --- surface token ---------------------------------------------------------

@@ -233,17 +233,26 @@ configured proc as JSON and exits `0` while the host is running or starting, oth
 `1`. When a native unit is installed, lifecycle commands use that platform manager;
 otherwise `start` uses the detached host path.
 
-`sase service proc list` and `show NAME` expose effective configuration, machine
-enablement, desired state, runtime state, source, launcher, and log path. `start NAME`
-and `restart NAME` record a durable request that the host consumes, then wait for the
-host to confirm it: a restart prints
-`service proc scheduler restarted: pid OLD -> pid NEW` and exits non-zero when the host
-cannot confirm, the request is not desired, or the host is not running. `-n/--no-wait`
-returns as soon as the request is recorded and `-t/--timeout SECONDS` bounds the wait
-(default: the proc's stop timeout plus 10 seconds, at least 15). `stop NAME` stops the
-proc until the next boot; `enable NAME` and `disable NAME` persist a machine-local
-override. `logs NAME` prints that proc's bounded log. A configured proc that is invalid
-remains visible as unavailable rather than preventing unrelated entries from running.
+`sase service status` prints the host summary (plus the host config error when one is
+set) and a proc table with `Restarts` and `Last exit` columns; the proc `State` column
+is colored by the same severity vocabulary as the Services tab (`crash_loop` and
+`backoff` fail, `exited` fails while desired running, `unavailable` warns, `disabled`
+and operator-stopped are muted).
+
+`sase service proc list` carries the same `Restarts` and `Last exit` columns and
+additionally exposes effective configuration, machine enablement, desired state, runtime
+state, source, launcher, and log path. `show NAME` reports uptime, the restart count,
+the last exit and when, the current restart decision reason, stop provenance, the
+description, and any pending start/restart request. `start NAME` and `restart NAME`
+record a durable request that the host consumes, then wait for the host to confirm it: a
+restart prints `service proc scheduler restarted: pid OLD -> pid NEW` and exits non-zero
+when the host cannot confirm, the request is not desired, or the host is not running.
+`-n/--no-wait` returns as soon as the request is recorded and `-t/--timeout SECONDS`
+bounds the wait (default: the proc's stop timeout plus 10 seconds, at least 15).
+`stop NAME` stops the proc until the next boot; `enable NAME` and `disable NAME` persist
+a machine-local override. `logs NAME` prints that proc's bounded log. A configured proc
+that is invalid remains visible as unavailable rather than preventing unrelated entries
+from running.
 
 `sase service proc run -- COMMAND...` submits a transient oneshot through the durable
 proc service. It does not add the command to daemon desired state and the host never

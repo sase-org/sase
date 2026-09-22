@@ -115,6 +115,7 @@ class AxeRefreshCollectMixin(AxeDisplayItemsMixin):
 
         self._axe_degraded_status = data.degraded_status
         self._service_status = data.service_status
+        self._service_status_error = data.service_status_error
 
         # Apply lumberjack names
         self._axe_lumberjack_names = data.lumberjack_names
