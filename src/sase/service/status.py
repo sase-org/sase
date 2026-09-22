@@ -24,6 +24,7 @@ from sase.service.state import (
     ServiceEnablementOverride,
     ServiceHostRecord,
     ServiceMarker,
+    ServiceProcRequest,
     ServiceState,
     ServiceStateSnapshot,
     ServiceStop,
@@ -294,12 +295,14 @@ class ServiceStatusProc:
     launcher_summary: str | None = None
     unavailable_reason: str | None = None
     stop: ServiceStop | None = None
+    request: ServiceProcRequest | None = None
 
     @classmethod
     def from_wire(cls, payload: Mapping[str, Any]) -> ServiceStatusProc:
         last_exit = payload.get("last_exit")
         reported = payload.get("reported")
         stop = payload.get("stop")
+        request = payload.get("request")
         return cls(
             name=str(payload["name"]),
             description=payload.get("description"),
@@ -325,6 +328,7 @@ class ServiceStatusProc:
             unavailable_reason=payload.get("unavailable_reason"),
             enablement=ServiceEnablement.from_wire(payload["enablement"]),
             stop=ServiceStop.from_wire(stop) if stop else None,
+            request=ServiceProcRequest.from_wire(request) if request else None,
             desired=str(payload["desired"]),
             state=str(payload["state"]),
             summary=str(payload["summary"]),
@@ -365,6 +369,8 @@ class ServiceStatusProc:
             payload["unavailable_reason"] = self.unavailable_reason
         if self.stop is not None:
             payload["stop"] = _stop_to_wire(self.stop)
+        if self.request is not None:
+            payload["request"] = self.request.to_wire()
         return payload
 
 
@@ -556,6 +562,7 @@ def _service_state_to_wire(state: ServiceState) -> dict[str, Any]:
             name: _marker_to_wire(value) for name, value in state.markers.items()
         },
         "host": None if state.host is None else state.host.to_wire(),
+        "requests": {name: value.to_wire() for name, value in state.requests.items()},
     }
     return payload
 

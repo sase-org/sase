@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -96,7 +97,12 @@ def test_upgrade_quiet_prints_one_line(tmp_path: Path) -> None:
     )
 
 
-def test_managed_upgrade_restarts_scheduler_when_changed(tmp_path: Path) -> None:
+def test_managed_upgrade_restarts_scheduler_when_changed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.main.update_restart as update_restart_mod
+
     restart_calls = 0
 
     def _restart(*, reason: str | None = None) -> ServiceProcActionOutcome:
@@ -109,7 +115,22 @@ def test_managed_upgrade_restarts_scheduler_when_changed(tmp_path: Path) -> None
             mutations=(),
             nudged=True,
             message="requested service proc scheduler restart",
+            generation=9,
         )
+
+    row = SimpleNamespace(name="scheduler", pid=111)
+    monkeypatch.setattr(
+        update_restart_mod,
+        "current_service_status",
+        lambda: SimpleNamespace(procs=[row]),
+    )
+    monkeypatch.setattr(
+        update_restart_mod,
+        "wait_for_service_proc_request",
+        lambda name, generation, *, timeout, poll=0.2: SimpleNamespace(
+            outcome="restarted", pid=222, error=None
+        ),
+    )
 
     out = _console()
     code = handle_update_command(
@@ -125,7 +146,53 @@ def test_managed_upgrade_restarts_scheduler_when_changed(tmp_path: Path) -> None
 
     assert code == 0
     assert restart_calls == 1
-    assert "requested service proc scheduler restart" in _text(out)
+    assert "service proc scheduler restarted: pid 111 -> pid 222" in _text(out)
+
+
+def test_managed_upgrade_reports_unconfirmed_restart_as_warning(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import sase.main.update_restart as update_restart_mod
+
+    def _restart(*, reason: str | None = None) -> ServiceProcActionOutcome:
+        return ServiceProcActionOutcome(
+            action="restart",
+            name="scheduler",
+            mutations=(),
+            nudged=True,
+            message="requested service proc scheduler restart",
+            generation=9,
+        )
+
+    row = SimpleNamespace(name="scheduler", pid=111)
+    monkeypatch.setattr(
+        update_restart_mod,
+        "current_service_status",
+        lambda: SimpleNamespace(procs=[row]),
+    )
+    monkeypatch.setattr(
+        update_restart_mod,
+        "wait_for_service_proc_request",
+        lambda name, generation, *, timeout, poll=0.2: None,
+    )
+
+    out = _console()
+    code = handle_update_command(
+        _args(),
+        console=out,
+        probe_fn=lambda: _install(tmp_path),
+        run_fn=lambda _argv: parse_uv_output(_UPGRADE_OUTPUT),
+        scheduler_running_fn=lambda: True,
+        restart_scheduler_fn=_restart,
+        version_fn=_versions,
+        clock=lambda: 0.0,
+    )
+
+    assert code == 0
+    text = _text(out)
+    assert "did not confirm within" in text
+    assert "requested service proc scheduler restart" in text
 
 
 def test_managed_upgrade_restart_never_touches_axe_daemon(
@@ -141,7 +208,7 @@ def test_managed_upgrade_restart_never_touches_axe_daemon(
     requests: list[tuple[tuple[object, ...], dict[str, object]]] = []
 
     def _restart(
-        name: str, *, actor: str, reason: str | None = None, delay: float = 0.5
+        name: str, *, actor: str, reason: str | None = None
     ) -> ServiceProcActionOutcome:
         requests.append(((name,), {"actor": actor, "reason": reason}))
         return ServiceProcActionOutcome(

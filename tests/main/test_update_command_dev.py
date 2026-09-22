@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -35,6 +36,26 @@ from tests.main.update_command_helpers import (
     _text,
     _versions,
 )
+
+
+@pytest.fixture(autouse=True)
+def _confirmed_scheduler_restart(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Confirm injected scheduler restarts without a live service host."""
+    import sase.main.update_restart as update_restart_mod
+
+    row = SimpleNamespace(name="scheduler", pid=111)
+    monkeypatch.setattr(
+        update_restart_mod,
+        "current_service_status",
+        lambda: SimpleNamespace(procs=[row]),
+    )
+    monkeypatch.setattr(
+        update_restart_mod,
+        "wait_for_service_proc_request",
+        lambda name, generation, *, timeout, poll=0.2: SimpleNamespace(
+            outcome="restarted", pid=222, error=None
+        ),
+    )
 
 
 def test_dev_update_runs_backend_and_restarts_scheduler(
@@ -75,6 +96,7 @@ def test_dev_update_runs_backend_and_restarts_scheduler(
             mutations=(),
             nudged=True,
             message="requested service proc scheduler restart",
+            generation=9,
         )
 
     clock = iter([0.0, 2.0])
@@ -104,14 +126,14 @@ def test_dev_update_runs_backend_and_restarts_scheduler(
     text = _text(out)
     assert "SASE Dev Update" in text
     assert "0.6.1+1.gaaaaaaaaa \u2192 0.6.1+2.gbbbbbbbbb" in text
-    assert "requested service proc scheduler restart" in text
+    assert "service proc scheduler restarted: pid 111 -> pid 222" in text
     journal_payload = json.loads(journal_path.read_text(encoding="utf-8"))
     assert journal_payload["result"]["status"] == "updated"
     assert journal_payload["plan"]["packages"][0]["name"] == "sase"
     assert journal_payload["restart"]["status"] == "restarted"
     assert (
         journal_payload["restart"]["message"]
-        == "requested service proc scheduler restart"
+        == "service proc scheduler restarted: pid 111 -> pid 222"
     )
 
 
@@ -146,6 +168,7 @@ def test_dev_update_json_includes_dev_outcomes_and_restart(
             mutations=(),
             nudged=True,
             message="requested service proc scheduler restart",
+            generation=9,
         ),
         version_fn=_versions,
         clock=lambda: 0.0,
@@ -182,7 +205,7 @@ def test_dev_update_json_includes_dev_outcomes_and_restart(
     assert payload["dev"]["packages"][0]["status"] == "updated"
     assert payload["restart"] == {
         "attempted": True,
-        "message": "requested service proc scheduler restart",
+        "message": "service proc scheduler restarted: pid 111 -> pid 222",
         "reason": None,
         "status": "restarted",
     }

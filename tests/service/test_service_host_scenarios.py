@@ -60,6 +60,7 @@ from sase.service.state import (
     read_service_state,
     record_service_host,
     record_service_stop,
+    request_service_proc,
 )
 
 _SLEEPER = (sys.executable, "-c", "import time; time.sleep(30)")
@@ -685,3 +686,148 @@ def test_host_start_survives_a_oneshot_settle_error(
     host_lifecycle._settle_orphaned_oneshots_at_startup()
 
     assert "oneshot settle error: proc store unreadable" in capsys.readouterr().err
+
+
+def test_proc_restart_request_replaces_child_and_completes_generation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A restart request is a confirmed transition to a new pid."""
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    cell: dict[str, ServiceConfigComposition] = {
+        "composition": _compose({"theta": _layer_spec(_SLEEPER)})
+    }
+    with _service_host(monkeypatch, lambda: cell["composition"]) as host:
+        host._reconcile_once()
+        assert _wait_for(lambda: "theta" in host._children)
+        old_pid = host._children["theta"].process.pid
+
+        request_service_proc("theta", "restart", actor="pytest-restartgen")
+        host._reconcile_desired(cell["composition"], read_service_state())
+
+        assert "theta" in host._children
+        new_pid = host._children["theta"].process.pid
+        assert new_pid != old_pid
+        assert not is_process_running(old_pid)
+
+        stored = read_service_state().state.requests["theta"]
+        assert stored.generation == 1
+        assert stored.completed_generation == 1
+        assert stored.outcome == "restarted"
+        assert stored.pid == new_pid
+
+        # A second tick consumes nothing new: the pid is stable.
+        host._reconcile_desired(cell["composition"], read_service_state())
+        assert host._children["theta"].process.pid == new_pid
+        assert read_service_state().state.requests["theta"].completed_generation == 1
+
+
+def test_proc_start_request_launches_stopped_proc_and_completes(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A start request on a stopped proc launches it and completes."""
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    cell: dict[str, ServiceConfigComposition] = {
+        "composition": _compose({"iota": _layer_spec(_SLEEPER)})
+    }
+    with _service_host(monkeypatch, lambda: cell["composition"]) as host:
+        host._reconcile_once()
+        assert _wait_for(lambda: "iota" in host._children)
+        first_pid = host._children["iota"].process.pid
+
+        record_service_stop("iota", actor="pytest-restartgen")
+        host._reconcile_once()
+        assert "iota" not in host._children
+        assert not is_process_running(first_pid)
+
+        request_service_proc("iota", "start", actor="pytest-restartgen")
+        host._reconcile_desired(cell["composition"], read_service_state())
+
+        assert _wait_for(lambda: "iota" in host._children)
+        assert host._children["iota"].process.pid != first_pid
+
+        stored = read_service_state().state.requests["iota"]
+        assert stored.completed_generation == stored.generation
+        assert stored.outcome == "started"
+        assert stored.pid == host._children["iota"].process.pid
+
+
+def test_proc_start_request_on_live_child_completes_already_running(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A start request for a live child launches nothing new."""
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    cell: dict[str, ServiceConfigComposition] = {
+        "composition": _compose({"kappa": _layer_spec(_SLEEPER)})
+    }
+    with _service_host(monkeypatch, lambda: cell["composition"]) as host:
+        host._reconcile_once()
+        assert _wait_for(lambda: "kappa" in host._children)
+        live_pid = host._children["kappa"].process.pid
+
+        request_service_proc("kappa", "start", actor="pytest-restartgen")
+        host._reconcile_desired(cell["composition"], read_service_state())
+
+        assert host._children["kappa"].process.pid == live_pid
+
+        stored = read_service_state().state.requests["kappa"]
+        assert stored.completed_generation == stored.generation
+        assert stored.outcome == "already_running"
+        assert stored.pid == live_pid
+
+
+def test_proc_request_for_disabled_proc_completes_not_desired(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """A request for a disabled proc completes without launching."""
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    cell: dict[str, ServiceConfigComposition] = {
+        "composition": _compose({"lambda": _layer_spec(_SLEEPER, enabled=False)})
+    }
+    with _service_host(monkeypatch, lambda: cell["composition"]) as host:
+        request_service_proc("lambda", "start", actor="pytest-restartgen")
+        host._reconcile_desired(cell["composition"], read_service_state())
+
+        assert "lambda" not in host._children
+
+        stored = read_service_state().state.requests["lambda"]
+        assert stored.completed_generation == stored.generation
+        assert stored.outcome == "not_desired"
+        assert stored.error is not None and "disabled" in stored.error
+
+
+def test_second_request_while_pending_is_consumed_exactly_once(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Two requests before one tick consume the latest generation once."""
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
+    cell: dict[str, ServiceConfigComposition] = {
+        "composition": _compose({"mu": _layer_spec(_SLEEPER)})
+    }
+    with _service_host(monkeypatch, lambda: cell["composition"]) as host:
+        host._reconcile_once()
+        assert _wait_for(lambda: "mu" in host._children)
+        old_pid = host._children["mu"].process.pid
+
+        request_service_proc("mu", "restart", actor="pytest-restartgen")
+        request_service_proc("mu", "restart", actor="pytest-restartgen")
+        assert read_service_state().state.requests["mu"].generation == 2
+
+        host._reconcile_desired(cell["composition"], read_service_state())
+
+        assert "mu" in host._children
+        new_pid = host._children["mu"].process.pid
+        assert new_pid != old_pid
+
+        stored = read_service_state().state.requests["mu"]
+        assert stored.generation == 2
+        assert stored.completed_generation == 2
+        assert stored.outcome == "restarted"
+
+        # The completed request is never consumed again.
+        host._reconcile_desired(cell["composition"], read_service_state())
+        assert host._children["mu"].process.pid == new_pid

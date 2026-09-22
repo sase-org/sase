@@ -50,17 +50,16 @@ def _run_foreground_scheduler(args: argparse.Namespace) -> int:
 
 
 def _handle_service_scheduler(subcommand: str, args: argparse.Namespace) -> int:
-    from sase.main.service_handler import handle_service_proc_show
-    from sase.service.actions import (
-        restart_service_proc,
-        start_service_proc,
-        stop_service_proc,
+    from sase.main.service_handler import (
+        handle_service_proc_restart,
+        handle_service_proc_show,
+        handle_service_proc_start,
     )
+    from sase.service.actions import stop_service_proc
 
     if subcommand == "start":
-        outcome = start_service_proc("scheduler", actor="cli")
-        print(outcome.message)
-        return 0
+        args.name = "scheduler"
+        return handle_service_proc_start(args)
     if subcommand == "status":
         args.name = "scheduler"
         return handle_service_proc_show(args)
@@ -69,14 +68,8 @@ def _handle_service_scheduler(subcommand: str, args: argparse.Namespace) -> int:
         print(outcome.message)
         return 0
     if subcommand == "restart":
-        outcome = restart_service_proc(
-            "scheduler",
-            actor="cli",
-            reason="scheduler restart",
-            delay=0.0,
-        )
-        print(outcome.message)
-        return 0
+        args.name = "scheduler"
+        return handle_service_proc_restart(args)
     print("Usage: sase scheduler {restart,run,start,status,stop}", file=sys.stderr)
     return 2
 

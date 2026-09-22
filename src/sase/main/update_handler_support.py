@@ -159,7 +159,7 @@ def finish_restart_step(progress: UpdateProgress, restart: RestartInfo) -> None:
     """Finish the restart step without failing the update on restart issues."""
     if restart.status == "restarted":
         progress.finish(RESTART_STEP_ID, "done", detail=_restart_detail(restart))
-    elif restart.status == "failed":
+    elif restart.status in ("failed", "unconfirmed"):
         progress.finish(RESTART_STEP_ID, "warned", detail=_restart_detail(restart))
     else:
         progress.finish(RESTART_STEP_ID, "skipped", detail=_restart_detail(restart))

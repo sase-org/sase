@@ -336,6 +336,180 @@ def test_service_init_handler_threads_allow_agent_env(
     assert captured["allow_agent_env"] is True
 
 
+def _proc_request_seams(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    old_pid: int | None = 111,
+    generation: int | None = 4,
+    nudged: bool = True,
+    completed: Any | None = None,
+    stop_timeout: float = 0.5,
+) -> dict[str, Any]:
+    """Stub the proc start/restart confirmation seams; return the spies."""
+    import sase.main.service_handler as service_handler
+
+    calls: dict[str, Any] = {"wait": []}
+    entry = SimpleNamespace(name="scheduler", stop_timeout_seconds=stop_timeout)
+    config = SimpleNamespace(get=lambda name: entry)
+    monkeypatch.setattr(service_handler, "load_service_config", lambda: config)
+    row = SimpleNamespace(name="scheduler", pid=old_pid)
+    snapshot = SimpleNamespace(procs=[row])
+    monkeypatch.setattr(service_handler, "current_service_status", lambda: snapshot)
+
+    def _outcome(
+        name: str, *, actor: str, reason: str | None = None
+    ) -> SimpleNamespace:
+        action = "restart" if reason == "restart" else "start"
+        return SimpleNamespace(
+            action=action,
+            name=name,
+            mutations=(),
+            nudged=nudged,
+            message=f"requested service proc {name} {action}",
+            generation=generation,
+        )
+
+    monkeypatch.setattr(service_handler, "restart_service_proc", _outcome)
+    monkeypatch.setattr(service_handler, "start_service_proc", _outcome)
+
+    def _wait(name: str, gen: int, *, timeout: float, poll: float = 0.2) -> Any:
+        calls["wait"].append((name, gen, timeout))
+        return completed
+
+    monkeypatch.setattr(service_handler, "wait_for_service_proc_request", _wait)
+    return calls
+
+
+def _completed(
+    *, outcome: str = "restarted", pid: int | None = 222, error: str | None = None
+) -> SimpleNamespace:
+    return SimpleNamespace(outcome=outcome, pid=pid, error=error)
+
+
+def test_service_proc_restart_waits_and_prints_pid_transition(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls = _proc_request_seams(monkeypatch, completed=_completed())
+
+    with pytest.raises(SystemExit) as exit_info:
+        handle_service_command(
+            parse_sase_args(["service", "proc", "restart", "scheduler"])
+        )
+
+    assert exit_info.value.code == 0
+    assert "service proc scheduler restarted: pid 111 -> pid 222" in (
+        capsys.readouterr().out
+    )
+    assert calls["wait"] == [("scheduler", 4, 15.0)]
+
+
+def test_service_proc_start_no_wait_returns_without_waiting(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls = _proc_request_seams(monkeypatch, completed=_completed())
+
+    with pytest.raises(SystemExit) as exit_info:
+        handle_service_command(
+            parse_sase_args(["service", "proc", "start", "scheduler", "--no-wait"])
+        )
+
+    assert exit_info.value.code == 0
+    assert "requested service proc scheduler start" in capsys.readouterr().out
+    assert calls["wait"] == []
+
+
+def test_service_proc_restart_timeout_exits_1(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _proc_request_seams(monkeypatch, completed=None)
+
+    with pytest.raises(SystemExit) as exit_info:
+        handle_service_command(
+            parse_sase_args(["service", "proc", "restart", "scheduler", "-t", "0.5"])
+        )
+
+    assert exit_info.value.code == 1
+    assert "did not confirm within 0.5s" in capsys.readouterr().err
+
+
+def test_service_proc_restart_host_down_exits_1_without_waiting(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    calls = _proc_request_seams(monkeypatch, nudged=False, completed=_completed())
+
+    with pytest.raises(SystemExit) as exit_info:
+        handle_service_command(
+            parse_sase_args(["service", "proc", "restart", "scheduler"])
+        )
+
+    assert exit_info.value.code == 1
+    assert "not running" in capsys.readouterr().err
+    assert calls["wait"] == []
+
+
+def test_service_proc_restart_not_desired_exits_1(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _proc_request_seams(
+        monkeypatch,
+        completed=_completed(outcome="not_desired", pid=None, error="is disabled"),
+    )
+
+    with pytest.raises(SystemExit) as exit_info:
+        handle_service_command(
+            parse_sase_args(["service", "proc", "restart", "scheduler"])
+        )
+
+    assert exit_info.value.code == 1
+    assert "is disabled" in capsys.readouterr().err
+
+
+def test_service_proc_restart_delay_flag_is_gone_and_wait_flags_parse() -> None:
+    parser = create_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["service", "proc", "restart", "scheduler", "--delay", "1"])
+    with pytest.raises(SystemExit):
+        parser.parse_args(["service", "proc", "restart", "scheduler", "-d", "1"])
+
+    restart_args = parser.parse_args(["service", "proc", "restart", "scheduler"])
+    assert restart_args.no_wait is False
+    assert restart_args.timeout is None
+    assert (
+        parser.parse_args(
+            ["service", "proc", "restart", "scheduler", "-n", "-t", "3"]
+        ).timeout
+        == 3.0
+    )
+    start_args = parser.parse_args(["service", "proc", "start", "scheduler", "-n"])
+    assert start_args.no_wait is True
+    scheduler_args = parser.parse_args(["scheduler", "restart", "--no-wait"])
+    assert scheduler_args.no_wait is True
+    scheduler_start = parser.parse_args(["scheduler", "start", "-t", "7"])
+    assert scheduler_start.timeout == 7.0
+
+
+def test_scheduler_restart_routes_through_confirmed_transition(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from sase.main.scheduler_handler import handle_scheduler_command
+
+    _proc_request_seams(monkeypatch, completed=_completed())
+
+    with pytest.raises(SystemExit) as exit_info:
+        handle_scheduler_command(parse_sase_args(["scheduler", "restart"]))
+
+    assert exit_info.value.code == 0
+    assert "service proc scheduler restarted: pid 111 -> pid 222" in (
+        capsys.readouterr().out
+    )
+
+
 def test_service_init_yes_agent_refusal_exits_2(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

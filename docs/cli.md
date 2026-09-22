@@ -235,8 +235,13 @@ otherwise `start` uses the detached host path.
 
 `sase service proc list` and `show NAME` expose effective configuration, machine
 enablement, desired state, runtime state, source, launcher, and log path. `start NAME`
-clears this boot's stop marker; `stop NAME` stops it until the next boot; `restart NAME`
-performs both operations; `enable NAME` and `disable NAME` persist a machine-local
+and `restart NAME` record a durable request that the host consumes, then wait for the
+host to confirm it: a restart prints
+`service proc scheduler restarted: pid OLD -> pid NEW` and exits non-zero when the host
+cannot confirm, the request is not desired, or the host is not running. `-n/--no-wait`
+returns as soon as the request is recorded and `-t/--timeout SECONDS` bounds the wait
+(default: the proc's stop timeout plus 10 seconds, at least 15). `stop NAME` stops the
+proc until the next boot; `enable NAME` and `disable NAME` persist a machine-local
 override. `logs NAME` prints that proc's bounded log. A configured proc that is invalid
 remains visible as unavailable rather than preventing unrelated entries from running.
 

@@ -24,14 +24,15 @@ def register_scheduler_parser(subparsers: argparse._SubParsersAction) -> None:
         metavar="{restart,run,start,status,stop}",
     )
 
-    scheduler_sub.add_parser(
+    restart_parser = scheduler_sub.add_parser(
         "restart",
         help="Ask the service host to restart the scheduler proc",
         description=(
             "Ask the service host to stop and start the `scheduler` service "
-            "proc. Returns once the request is recorded."
+            "proc. Waits for the host to confirm the new pid."
         ),
     )
+    _add_proc_wait_options(restart_parser)
 
     run_parser = scheduler_sub.add_parser(
         "run",
@@ -39,14 +40,15 @@ def register_scheduler_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     _add_scheduler_overrides(run_parser)
 
-    scheduler_sub.add_parser(
+    start_parser = scheduler_sub.add_parser(
         "start",
         help="Ask the service host to start the scheduler proc",
         description=(
             "Ask the service host to start the `scheduler` service proc. "
-            "Returns once the request is recorded."
+            "Waits for the host to confirm."
         ),
     )
+    _add_proc_wait_options(start_parser)
 
     status_parser = scheduler_sub.add_parser(
         "status",
@@ -91,6 +93,23 @@ def _add_scheduler_overrides(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=None,
         help="Zombie detection timeout in seconds (default: config value)",
+    )
+
+
+def _add_proc_wait_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-n",
+        "--no-wait",
+        action="store_true",
+        help="Return as soon as the request is recorded",
+    )
+    parser.add_argument(
+        "-t",
+        "--timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help="How long to wait for the host to confirm (default: derived from the proc's stop timeout)",
     )
 
 

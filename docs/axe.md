@@ -134,7 +134,7 @@ storage.
 sase scheduler start
 sase scheduler stop
 
-# Ask the host to stop and start the scheduler proc; returns once recorded
+# Ask the host to stop and start the scheduler proc; waits for the new pid
 sase scheduler restart
 
 # Show the scheduler service proc's status
@@ -184,9 +184,11 @@ Use these related commands according to intent:
 
 - `sase scheduler status` is the read-only first look at the scheduler proc.
 - `sase scheduler restart` is the explicit operator action: it asks the host to stop and
-  start the proc and returns once the request is recorded. When the scheduler is down
-  unexpectedly, recovery is the service host's `Restart=on-failure` plus `sase doctor`;
-  see [Supervision and Recovery](#supervision-and-recovery).
+  start the proc and waits for the host to confirm the new pid, printing
+  `pid OLD -> pid NEW`. `-n/--no-wait` returns once the request is recorded and
+  `-t/--timeout SECONDS` bounds the wait. When the scheduler is down unexpectedly,
+  recovery is the service host's `Restart=on-failure` plus `sase doctor`; see
+  [Supervision and Recovery](#supervision-and-recovery).
 - `sase doctor --deep` runs broader, slower diagnostics when the status evidence needs
   deeper investigation.
 - `sase axe maintenance status` remains the compatibility/debugging view of only the

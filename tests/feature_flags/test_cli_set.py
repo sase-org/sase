@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from rich.console import Console
@@ -43,6 +44,7 @@ def _scheduler_restart(*, reason: str | None = None) -> ServiceProcActionOutcome
         mutations=(),
         nudged=True,
         message="requested service proc scheduler restart",
+        generation=9,
     )
 
 
@@ -78,6 +80,26 @@ def _clean_flag_process(monkeypatch: pytest.MonkeyPatch) -> None:
     reset_process_feature_flags()
     yield
     reset_process_feature_flags()
+
+
+@pytest.fixture(autouse=True)
+def _confirmed_scheduler_restart(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Confirm injected scheduler restarts without a live service host."""
+    import sase.main.update_restart as update_restart_mod
+
+    row = SimpleNamespace(name="scheduler", pid=111)
+    monkeypatch.setattr(
+        update_restart_mod,
+        "current_service_status",
+        lambda: SimpleNamespace(procs=[row]),
+    )
+    monkeypatch.setattr(
+        update_restart_mod,
+        "wait_for_service_proc_request",
+        lambda name, generation, *, timeout, poll=0.2: SimpleNamespace(
+            outcome="restarted", pid=222, error=None
+        ),
+    )
 
 
 def test_enable_persists_and_reports_skipped_axe() -> None:
@@ -132,7 +154,7 @@ def test_disable_then_repeat_is_idempotent_and_retries_scheduler() -> None:
     assert "previous saved:  —" in out
     assert "previous saved:  off" in out
     assert "disabled" in out
-    assert "requested service proc scheduler restart" in out
+    assert "service proc scheduler restarted: pid 111 -> pid 222" in out
     assert APPLY_SAVED_FEATURE_FLAG in out
     assert "load the updated code" not in out
 
@@ -242,7 +264,10 @@ def test_json_idempotent_repeat_retries_restart(
     assert payload["mutation"]["changed"] is False
     assert payload["mutation"]["previous_saved"] is True
     assert payload["restart"]["status"] == "restarted"
-    assert payload["restart"]["message"] == "requested service proc scheduler restart"
+    assert (
+        payload["restart"]["message"]
+        == "service proc scheduler restarted: pid 111 -> pid 222"
+    )
 
 
 def test_restart_failure_keeps_saved_preference_and_is_partial_success(

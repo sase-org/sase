@@ -53,6 +53,75 @@ class ServiceStop:
 
 
 @dataclass(frozen=True)
+class ServiceProcRequest:
+    """Durable per-proc start/restart request consumed by the service host."""
+
+    generation: int
+    action: str
+    requested_at: float
+    requested_by: str
+    reason: str | None = None
+    completed_generation: int | None = None
+    completed_at: float | None = None
+    completed_by: str | None = None
+    pid: int | None = None
+    outcome: str | None = None
+    error: str | None = None
+
+    @classmethod
+    def from_wire(cls, payload: Mapping[str, Any]) -> ServiceProcRequest:
+        completed_generation = payload.get("completed_generation")
+        completed_at = payload.get("completed_at")
+        pid = payload.get("pid")
+        return cls(
+            generation=int(payload["generation"]),
+            action=str(payload["action"]),
+            requested_at=float(payload["requested_at"]),
+            requested_by=str(payload["requested_by"]),
+            reason=payload.get("reason"),
+            completed_generation=(
+                None if completed_generation is None else int(completed_generation)
+            ),
+            completed_at=None if completed_at is None else float(completed_at),
+            completed_by=payload.get("completed_by"),
+            pid=None if pid is None else int(pid),
+            outcome=payload.get("outcome"),
+            error=payload.get("error"),
+        )
+
+    @property
+    def completed(self) -> bool:
+        """Return whether the host confirmed this generation."""
+        return (
+            self.completed_generation is not None
+            and self.completed_generation >= self.generation
+        )
+
+    def to_wire(self) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "generation": self.generation,
+            "action": self.action,
+            "requested_at": self.requested_at,
+            "requested_by": self.requested_by,
+        }
+        if self.reason is not None:
+            payload["reason"] = self.reason
+        if self.completed_generation is not None:
+            payload["completed_generation"] = self.completed_generation
+        if self.completed_at is not None:
+            payload["completed_at"] = self.completed_at
+        if self.completed_by is not None:
+            payload["completed_by"] = self.completed_by
+        if self.pid is not None:
+            payload["pid"] = self.pid
+        if self.outcome is not None:
+            payload["outcome"] = self.outcome
+        if self.error is not None:
+            payload["error"] = self.error
+        return payload
+
+
+@dataclass(frozen=True)
 class ServiceMarker:
     """Small service-host coordination marker."""
 
@@ -124,6 +193,7 @@ class ServiceState:
     stops: dict[str, ServiceStop] = dataclass_field(default_factory=dict)
     markers: dict[str, ServiceMarker] = dataclass_field(default_factory=dict)
     host: ServiceHostRecord | None = None
+    requests: dict[str, ServiceProcRequest] = dataclass_field(default_factory=dict)
 
     @classmethod
     def from_wire(cls, payload: Mapping[str, Any]) -> ServiceState:
@@ -143,6 +213,10 @@ class ServiceState:
                 for name, value in payload.get("markers", {}).items()
             },
             host=ServiceHostRecord.from_wire(host) if host else None,
+            requests={
+                str(name): ServiceProcRequest.from_wire(value)
+                for name, value in payload.get("requests", {}).items()
+            },
         )
 
 
@@ -243,6 +317,57 @@ def clear_service_stop(
     )
 
 
+def request_service_proc(
+    name: str,
+    action: str,
+    actor: str,
+    *,
+    reason: str | None = None,
+    sase_home: str | PathLike[str] | None = None,
+    boot_id: str | None | Any = _UNSET,
+    now: float | None = None,
+) -> ServiceStateMutationOutcome:
+    """Record a durable start/restart request for *name* at a new generation."""
+    mutation: dict[str, Any] = {
+        "op": "request_proc",
+        "name": name,
+        "action": action,
+        "actor": actor,
+    }
+    if reason is not None:
+        mutation["reason"] = reason
+    return _mutate(mutation, sase_home=sase_home, boot_id=boot_id, now=now)
+
+
+def complete_service_proc_request(
+    name: str,
+    generation: int,
+    *,
+    pid: int | None = None,
+    outcome: str | None = None,
+    error: str | None = None,
+    actor: str | None = None,
+    sase_home: str | PathLike[str] | None = None,
+    boot_id: str | None | Any = _UNSET,
+    now: float | None = None,
+) -> ServiceStateMutationOutcome:
+    """Record the host's confirmation of one proc-request generation."""
+    mutation: dict[str, Any] = {
+        "op": "complete_proc_request",
+        "name": name,
+        "generation": generation,
+    }
+    if pid is not None:
+        mutation["pid"] = pid
+    if outcome is not None:
+        mutation["outcome"] = outcome
+    if error is not None:
+        mutation["error"] = error
+    if actor is not None:
+        mutation["completed_by"] = actor
+    return _mutate(mutation, sase_home=sase_home, boot_id=boot_id, now=now)
+
+
 def set_service_marker(
     key: str,
     actor: str,
@@ -338,6 +463,7 @@ __all__ = [
     "ServiceEnablementOverride",
     "ServiceHostRecord",
     "ServiceMarker",
+    "ServiceProcRequest",
     "ServiceState",
     "ServiceStateMutationOutcome",
     "ServiceStateSnapshot",
@@ -345,9 +471,11 @@ __all__ = [
     "clear_service_host",
     "clear_service_marker",
     "clear_service_stop",
+    "complete_service_proc_request",
     "read_service_state",
     "record_service_host",
     "record_service_stop",
+    "request_service_proc",
     "set_service_enablement",
     "set_service_marker",
 ]

@@ -144,17 +144,10 @@ def _add_service_proc_parser(service_sub: argparse._SubParsersAction) -> None:
 
     restart_parser = proc_sub.add_parser(
         "restart",
-        help="Stop, clear the boot stop, and nudge a service proc",
+        help="Ask the service host to restart a service proc",
     )
     restart_parser.add_argument("name", metavar="NAME")
-    restart_parser.add_argument(
-        "-d",
-        "--delay",
-        type=float,
-        default=0.5,
-        metavar="SECONDS",
-        help="Pause between stop and start requests (default: 0.5)",
-    )
+    _add_proc_wait_options(restart_parser)
 
     run_parser = proc_sub.add_parser(
         "run",
@@ -216,15 +209,33 @@ def _add_service_proc_parser(service_sub: argparse._SubParsersAction) -> None:
 
     start_parser = proc_sub.add_parser(
         "start",
-        help="Clear this boot's stop marker and nudge a service proc",
+        help="Ask the service host to start a service proc",
     )
     start_parser.add_argument("name", metavar="NAME")
+    _add_proc_wait_options(start_parser)
 
     stop_parser = proc_sub.add_parser(
         "stop",
         help="Stop a service proc until the next boot",
     )
     stop_parser.add_argument("name", metavar="NAME")
+
+
+def _add_proc_wait_options(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-n",
+        "--no-wait",
+        action="store_true",
+        help="Return as soon as the request is recorded",
+    )
+    parser.add_argument(
+        "-t",
+        "--timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help="How long to wait for the host to confirm (default: derived from the proc's stop timeout)",
+    )
 
 
 def _add_json_flag(parser: argparse.ArgumentParser) -> None:

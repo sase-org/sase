@@ -9,9 +9,11 @@ from typing import Literal
 from sase.service.config import ServiceProcConfig, load_service_config
 from sase.service.control import nudge_service_host
 from sase.service.state import (
+    ServiceProcRequest,
     ServiceStateMutationOutcome,
-    clear_service_stop,
+    read_service_state,
     record_service_stop,
+    request_service_proc,
     set_service_enablement,
 )
 
@@ -31,6 +33,7 @@ class ServiceProcActionOutcome:
     mutations: tuple[ServiceStateMutationOutcome, ...]
     nudged: bool
     message: str
+    generation: int | None = None
 
     @property
     def changed(self) -> bool:
@@ -44,12 +47,12 @@ def start_service_proc(
     actor: str,
     reason: str | None = None,
 ) -> ServiceProcActionOutcome:
-    """Clear a boot-scoped stop marker and nudge the service host."""
-    del actor
+    """Record a durable start request and nudge the service host."""
     entry = _configured_proc(name, command="start")
     _require_startable(entry, command="start")
-    mutation = clear_service_stop(name)
+    mutation = request_service_proc(name, "start", actor, reason=reason)
     nudged = nudge_service_host()
+    generation = _request_generation(mutation, name)
     detail = f" ({reason})" if reason else ""
     return ServiceProcActionOutcome(
         action="start",
@@ -57,6 +60,7 @@ def start_service_proc(
         mutations=(mutation,),
         nudged=nudged,
         message=f"requested service proc {name} start{detail}",
+        generation=generation,
     )
 
 
@@ -84,24 +88,56 @@ def restart_service_proc(
     *,
     actor: str,
     reason: str | None = None,
-    delay: float = 0.5,
 ) -> ServiceProcActionOutcome:
-    """Request stop, briefly settle, clear the stop marker, and nudge both sides."""
+    """Record a durable restart request and nudge the service host."""
     entry = _configured_proc(name, command="restart")
     _require_startable(entry, command="restart")
-    stop = record_service_stop(name, actor, reason=reason)
-    first_nudge = nudge_service_host()
-    if delay > 0:
-        time.sleep(delay)
-    start = clear_service_stop(name)
-    second_nudge = nudge_service_host()
+    mutation = request_service_proc(name, "restart", actor, reason=reason)
+    nudged = nudge_service_host()
+    generation = _request_generation(mutation, name)
     return ServiceProcActionOutcome(
         action="restart",
         name=name,
-        mutations=(stop, start),
-        nudged=first_nudge or second_nudge,
+        mutations=(mutation,),
+        nudged=nudged,
         message=f"requested service proc {name} restart",
+        generation=generation,
     )
+
+
+def wait_for_service_proc_request(
+    name: str,
+    generation: int,
+    *,
+    timeout: float,
+    poll: float = 0.2,
+) -> ServiceProcRequest | None:
+    """Poll state until the host confirms *generation*, or return None on timeout.
+
+    Transient state reads never raise; they are retried until *timeout*.
+    """
+    deadline = time.monotonic() + max(0.0, timeout)
+    while True:
+        try:
+            snapshot = read_service_state()
+        except Exception:  # noqa: BLE001 - a transient read must not fail the wait.
+            snapshot = None
+        if snapshot is not None:
+            request = snapshot.state.requests.get(name)
+            if (
+                request is not None
+                and request.generation == generation
+                and request.completed
+            ):
+                return request
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(max(0.0, poll))
+
+
+def _request_generation(mutation: ServiceStateMutationOutcome, name: str) -> int | None:
+    request = mutation.snapshot.state.requests.get(name)
+    return request.generation if request is not None else None
 
 
 def enable_service_proc(
@@ -169,4 +205,5 @@ __all__ = [
     "restart_service_proc",
     "start_service_proc",
     "stop_service_proc",
+    "wait_for_service_proc_request",
 ]

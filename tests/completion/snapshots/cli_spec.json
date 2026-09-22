@@ -12643,7 +12643,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "adb65047a514922f",
+            "description_digest": "ec43eff56a10e3e7",
             "hidden": false,
             "mutex_groups": [],
             "name": "service",
@@ -12657,6 +12657,18 @@
                 "strings": [
                   "-h",
                   "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "allow_agent_env",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-a",
+                  "--allow-agent-env"
                 ],
                 "takes_value": false
               },
@@ -23406,7 +23418,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "215b5a2237f13b84",
+            "description_digest": "32b7ac6e12b9fe42",
             "hidden": false,
             "mutex_groups": [],
             "name": "restart",
@@ -23422,6 +23434,30 @@
                   "--help"
                 ],
                 "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "no_wait",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--no-wait"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--timeout"
+                ],
+                "takes_value": true
               }
             ],
             "path": [
@@ -23510,7 +23546,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "de3e93bdee2f9ecc",
+            "description_digest": "44889adb4c6dbfa2",
             "hidden": false,
             "mutex_groups": [],
             "name": "start",
@@ -23526,6 +23562,30 @@
                   "--help"
                 ],
                 "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "no_wait",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-n",
+                  "--no-wait"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "timeout",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-t",
+                  "--timeout"
+                ],
+                "takes_value": true
               }
             ],
             "path": [
@@ -23813,7 +23873,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "3370d44d3faffb20",
+            "description_digest": "39524dd978d8e97b",
             "hidden": false,
             "mutex_groups": [],
             "name": "init",
@@ -23827,6 +23887,18 @@
                 "strings": [
                   "-h",
                   "--help"
+                ],
+                "takes_value": false
+              },
+              {
+                "choices": null,
+                "dest": "allow_agent_env",
+                "hidden": false,
+                "kind": null,
+                "repeatable": false,
+                "strings": [
+                  "-a",
+                  "--allow-agent-env"
                 ],
                 "takes_value": false
               },
@@ -24123,7 +24195,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "5082eb97861a0a99",
+                "description_digest": "c3be5032b8c47681",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "restart",
@@ -24142,13 +24214,25 @@
                   },
                   {
                     "choices": null,
-                    "dest": "delay",
+                    "dest": "no_wait",
                     "hidden": false,
                     "kind": null,
                     "repeatable": false,
                     "strings": [
-                      "-d",
-                      "--delay"
+                      "-n",
+                      "--no-wait"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "timeout",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-t",
+                      "--timeout"
                     ],
                     "takes_value": true
                   }
@@ -24321,7 +24405,7 @@
               {
                 "aliases": [],
                 "default_child": null,
-                "description_digest": "d3617b9b23dda6a2",
+                "description_digest": "6064b3419fec2c72",
                 "hidden": false,
                 "mutex_groups": [],
                 "name": "start",
@@ -24337,6 +24421,30 @@
                       "--help"
                     ],
                     "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "no_wait",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-n",
+                      "--no-wait"
+                    ],
+                    "takes_value": false
+                  },
+                  {
+                    "choices": null,
+                    "dest": "timeout",
+                    "hidden": false,
+                    "kind": null,
+                    "repeatable": false,
+                    "strings": [
+                      "-t",
+                      "--timeout"
+                    ],
+                    "takes_value": true
                   }
                 ],
                 "path": [

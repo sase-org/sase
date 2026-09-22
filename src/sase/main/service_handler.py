@@ -27,11 +27,13 @@ from sase.service.env import load_service_environment
 from sase.service.paths import service_host_log_path, service_proc_output_log_path
 from sase.service.actions import (
     ServiceProcActionError,
+    ServiceProcActionOutcome,
     disable_service_proc,
     enable_service_proc,
     restart_service_proc,
     start_service_proc,
     stop_service_proc,
+    wait_for_service_proc_request,
 )
 from sase.service.platform import (
     ServicePlatformPlan,
@@ -193,13 +195,13 @@ def _handle_service_proc(args: argparse.Namespace) -> int:
     if subcommand == "logs":
         return _handle_proc_logs(args)
     if subcommand == "restart":
-        return _handle_proc_restart(args)
+        return handle_service_proc_restart(args)
     if subcommand == "run":
         return _handle_proc_run(args)
     if subcommand == "show":
         return handle_service_proc_show(args)
     if subcommand == "start":
-        return _handle_proc_start(args)
+        return handle_service_proc_start(args)
     if subcommand == "stop":
         return _handle_proc_stop(args)
     print(
@@ -275,11 +277,12 @@ def _handle_proc_enablement(args: argparse.Namespace, *, enabled: bool) -> int:
     return 0 if outcome.changed else 0
 
 
-def _handle_proc_start(args: argparse.Namespace) -> int:
+def handle_service_proc_start(args: argparse.Namespace) -> int:
     name = str(args.name)
+    entry = _proc_config_entry(name, command="start")
+    old_pid = _proc_current_pid(name)
     outcome = start_service_proc(name, actor="cli")
-    print(outcome.message)
-    return 0
+    return _confirm_proc_request(args, entry, name, old_pid, outcome)
 
 
 def _handle_proc_stop(args: argparse.Namespace) -> int:
@@ -289,16 +292,96 @@ def _handle_proc_stop(args: argparse.Namespace) -> int:
     return 0
 
 
-def _handle_proc_restart(args: argparse.Namespace) -> int:
+def handle_service_proc_restart(args: argparse.Namespace) -> int:
     name = str(args.name)
-    outcome = restart_service_proc(
-        name,
-        actor="cli",
-        reason="restart",
-        delay=float(getattr(args, "delay", 0.5)),
+    entry = _proc_config_entry(name, command="restart")
+    old_pid = _proc_current_pid(name)
+    outcome = restart_service_proc(name, actor="cli", reason="restart")
+    return _confirm_proc_request(args, entry, name, old_pid, outcome)
+
+
+def _proc_config_entry(name: str, *, command: str = "") -> Any:
+    del command
+    return load_service_config().get(name)
+
+
+def _proc_current_pid(name: str) -> int | None:
+    try:
+        snapshot = current_service_status()
+    except Exception:  # noqa: BLE001 - a stale snapshot must not fail the request.
+        return None
+    row = next((proc for proc in snapshot.procs if proc.name == name), None)
+    return row.pid if row is not None else None
+
+
+def _confirm_proc_request(
+    args: argparse.Namespace,
+    entry: Any,
+    name: str,
+    old_pid: int | None,
+    outcome: ServiceProcActionOutcome,
+) -> int:
+    if outcome.generation is None:
+        print(outcome.message)
+        return 0
+    if bool(getattr(args, "no_wait", False)):
+        print(outcome.message)
+        if not outcome.nudged:
+            print(
+                f"warning: the service host is not running; generation "
+                f"{outcome.generation} will be honored when it starts",
+                file=sys.stderr,
+            )
+        return 0
+    if not outcome.nudged:
+        print(
+            f"sase service proc {outcome.action}: the service host is not running; "
+            f"generation {outcome.generation} was recorded but cannot be confirmed",
+            file=sys.stderr,
+        )
+        return 1
+    timeout = getattr(args, "timeout", None)
+    if timeout is None:
+        stop_timeout = entry.stop_timeout_seconds if entry is not None else 5.0
+        timeout = max(15.0, stop_timeout + 10.0)
+    completed = wait_for_service_proc_request(
+        name, outcome.generation, timeout=float(timeout)
     )
-    print(outcome.message)
-    return 0
+    if completed is None:
+        print(
+            f"requested; the service host did not confirm within {_format_timeout(timeout)}",
+            file=sys.stderr,
+        )
+        return 1
+    return _report_proc_confirmation(outcome.action, name, old_pid, completed)
+
+
+def _report_proc_confirmation(
+    action: str, name: str, old_pid: int | None, completed: Any
+) -> int:
+    result = completed.outcome
+    if result in ("restarted", "started", "already_running"):
+        print(_confirmation_message(action, name, old_pid, completed))
+        return 0
+    detail = completed.error or f"the service host reported {result!r}"
+    print(f"sase service proc {action} {name}: {detail}", file=sys.stderr)
+    return 1
+
+
+def _confirmation_message(
+    action: str, name: str, old_pid: int | None, completed: Any
+) -> str:
+    if completed.outcome == "already_running":
+        return f"already running: pid {completed.pid}"
+    if action == "restart" and old_pid is not None:
+        return f"service proc {name} restarted: pid {old_pid} -> pid {completed.pid}"
+    if action == "restart":
+        return f"service proc {name} restarted: pid {completed.pid}"
+    return f"service proc {name} started: pid {completed.pid}"
+
+
+def _format_timeout(timeout: float) -> str:
+    return f"{timeout:g}s"
 
 
 def _handle_proc_logs(args: argparse.Namespace) -> int:
@@ -367,4 +450,9 @@ def _run_command(args: argparse.Namespace) -> list[str]:
     return command
 
 
-__all__ = ["handle_service_command", "handle_service_proc_show"]
+__all__ = [
+    "handle_service_command",
+    "handle_service_proc_restart",
+    "handle_service_proc_show",
+    "handle_service_proc_start",
+]

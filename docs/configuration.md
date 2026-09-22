@@ -5313,9 +5313,9 @@ Bare `sase service` defaults to `status`, and bare `sase service proc` defaults 
 | `sase service proc list`                | `-j, --json`                                                            | List effective enablement, desired state, runtime state, and summary.                                 |
 | `sase service proc show NAME`           | `-j, --json`                                                            | Show source, launcher, effective enablement, state, and log path.                                     |
 | `sase service proc logs NAME`           | `-n, --lines N`                                                         | Print one proc's bounded output log (default 200 lines).                                              |
-| `sase service proc start NAME`          | -                                                                       | Clear the boot-scoped stop marker and nudge the host.                                                 |
+| `sase service proc start NAME`          | `-n/--no-wait`, `-t/--timeout SECONDS`                                  | Record a start request the host confirms; prints the pid.                                             |
 | `sase service proc stop NAME`           | -                                                                       | Stop the proc until the next host boot.                                                               |
-| `sase service proc restart NAME`        | `-d, --delay SECONDS`                                                   | Stop, wait (default 0.5 seconds), clear the stop marker, and nudge the host.                          |
+| `sase service proc restart NAME`        | `-n/--no-wait`, `-t/--timeout SECONDS`                                  | Record a restart request the host confirms; prints `pid OLD -> pid NEW`.                              |
 | `sase service proc enable/disable NAME` | -                                                                       | Persist a machine-local enabled or disabled override.                                                 |
 | `sase service proc run -- COMMAND...`   | `-c/--cwd`, `-j/--json`, `-l/--label`, `-p/--project`, `-w/--workspace` | Submit a transient durable oneshot that is never added to daemon desired state.                       |
 
@@ -5349,9 +5349,10 @@ escapes. `-j, --json` emits the proc record. See
 
 ### `sase axe start`
 
-Asks the service host to start the `scheduler` service proc and returns once the request
-is recorded. It takes no flags. The `-q`, `-H`, `-A`, and `-z` overrides live on
-`sase scheduler run` (and `sase axe routine run`), not on `start`.
+Asks the service host to start the `scheduler` service proc and waits for the host to
+confirm. `-n/--no-wait` returns once the request is recorded; `-t/--timeout SECONDS`
+bounds the wait. The `-q`, `-H`, `-A`, and `-z` overrides live on `sase scheduler run`
+(and `sase axe routine run`), not on `start`.
 
 ### `sase axe stop`
 
@@ -5360,8 +5361,9 @@ is recorded. It takes no flags.
 
 ### `sase axe restart`
 
-Asks the service host to stop and start the `scheduler` service proc and returns once
-the request is recorded. It takes no flags.
+Asks the service host to stop and start the `scheduler` service proc and waits for the
+host to confirm the new pid. `-n/--no-wait` returns once the request is recorded;
+`-t/--timeout SECONDS` bounds the wait.
 
 ### `sase axe maintenance`
 

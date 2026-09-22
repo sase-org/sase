@@ -45,6 +45,7 @@ RestartStatus = Literal[
     "skipped_no_change",
     "skipped_not_running",
     "restarted",
+    "unconfirmed",
     "failed",
 ]
 

@@ -16,8 +16,13 @@ from sase.service.actions import (
     ServiceProcActionError,
     ServiceProcActionOutcome,
     restart_service_proc,
+    wait_for_service_proc_request,
 )
 from sase.service.config import ServiceConfigError
+from sase.service.control import current_service_status
+
+#: How long ``sase update`` waits for the host to confirm a scheduler restart.
+_RESTART_CONFIRM_TIMEOUT_SECONDS = 25.0
 
 
 def restart_skipped(*, changed: bool) -> RestartInfo:
@@ -48,6 +53,7 @@ def restart_after_update(
     scheduler_running_fn: SchedulerRunningFn = is_axe_running,
     restart_scheduler_fn: RestartSchedulerFn = restart_scheduler_service_proc,
     source: str = "sase update",
+    timeout: float = _RESTART_CONFIRM_TIMEOUT_SECONDS,
 ) -> RestartInfo:
     if not changed:
         return restart_skipped(changed=False)
@@ -62,6 +68,7 @@ def restart_after_update(
     if not scheduler_running:
         return restart_skipped(changed=True)
 
+    old_pid = _current_scheduler_pid()
     try:
         outcome = restart_scheduler_fn(reason=source)
     except (ServiceProcActionError, ServiceConfigError) as exc:
@@ -70,10 +77,59 @@ def restart_after_update(
             status="failed",
             message=str(exc),
         )
+    return _confirm_scheduler_restart(outcome, old_pid=old_pid, timeout=timeout)
+
+
+def _current_scheduler_pid() -> int | None:
+    try:
+        snapshot = current_service_status()
+    except Exception:  # noqa: BLE001 - update succeeded; report restart only.
+        return None
+    row = next((proc for proc in snapshot.procs if proc.name == "scheduler"), None)
+    return row.pid if row is not None else None
+
+
+def _confirm_scheduler_restart(
+    outcome: ServiceProcActionOutcome,
+    *,
+    old_pid: int | None,
+    timeout: float,
+) -> RestartInfo:
+    if outcome.generation is None or not outcome.nudged:
+        return RestartInfo(
+            attempted=True,
+            status="unconfirmed",
+            message=outcome.message,
+        )
+    completed = wait_for_service_proc_request(
+        outcome.name, outcome.generation, timeout=timeout
+    )
+    if completed is None:
+        return RestartInfo(
+            attempted=True,
+            status="unconfirmed",
+            message=(
+                f"{outcome.message} (generation {outcome.generation}); the service "
+                f"host did not confirm within {timeout:g}s"
+            ),
+        )
+    if completed.outcome not in ("restarted", "started", "already_running"):
+        return RestartInfo(
+            attempted=True,
+            status="failed",
+            message=completed.error
+            or f"scheduler restart reported {completed.outcome!r}",
+        )
+    if old_pid is not None and completed.pid is not None:
+        message = (
+            f"service proc scheduler restarted: pid {old_pid} -> pid {completed.pid}"
+        )
+    else:
+        message = outcome.message
     return RestartInfo(
         attempted=True,
         status="restarted",
-        message=outcome.message,
+        message=message,
     )
 
 
