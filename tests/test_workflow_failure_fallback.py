@@ -114,6 +114,7 @@ def test_filesystem_failed_workflow_uses_last_40_output_lines(
     assert "output line 10" in entry.error_message
     assert "output line 09" not in entry.error_message
     assert entry.error_message.endswith("output line 49")
+    assert entry.error_is_synthetic is True
 
 
 def test_snapshot_failed_workflow_names_missing_output_path(
@@ -134,8 +135,10 @@ def test_snapshot_failed_workflow_names_missing_output_path(
     assert "No runner output was available" in entries[0].error_message
     assert str(missing_log) in entries[0].error_message
     assert entries[0].output_path == str(missing_log)
+    assert entries[0].error_is_synthetic is True
     assert agents[0].error_message == entries[0].error_message
     assert agents[0].output_path == str(missing_log)
+    assert agents[0].error_is_synthetic is True
 
 
 def test_recorded_workflow_error_is_not_replaced(tmp_path: Path) -> None:
@@ -159,6 +162,7 @@ def test_recorded_workflow_error_is_not_replaced(tmp_path: Path) -> None:
 
     assert entries[0].error_message == "recorded failure"
     assert entries[0].output_path == str(log_path)
+    assert entries[0].error_is_synthetic is False
 
 
 def test_output_tail_cache_hits_for_unchanged_file(tmp_path: Path) -> None:

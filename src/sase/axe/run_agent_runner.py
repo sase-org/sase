@@ -272,6 +272,15 @@ def _record_completion(state: RunnerRunState) -> None:
 
 def main() -> None:
     """Run agent workflow and release workspace on completion."""
+    # The runner's stdout shares one output file with stderr. Line-buffer
+    # stdout from the start so the file interleaves both streams in order
+    # instead of flushing all of stdout at exit.
+    reconfigure = getattr(sys.stdout, "reconfigure", None)
+    if callable(reconfigure):
+        try:
+            reconfigure(line_buffering=True)
+        except (ValueError, OSError):
+            pass
     from sase.feature_flags import install_process_feature_flags
 
     install_process_feature_flags()

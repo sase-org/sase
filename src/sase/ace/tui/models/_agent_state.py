@@ -154,6 +154,11 @@ class AgentState:
     # Error message for failed agents (from HookStatusLine.suffix)
     error_message: str | None = None
 
+    # True when error_message is the synthesized runner-failure fallback
+    # rather than a recorded error. A recorded error from done.json beats a
+    # synthetic one during RUNNING<->WORKFLOW dedup.
+    error_is_synthetic: bool = False
+
     # Full traceback string for failed agents
     error_traceback: str | None = None
 

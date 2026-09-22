@@ -144,6 +144,7 @@ def load_workflow_states_from_snapshot(
                     break
 
         output_path: str | None = None
+        error_is_synthetic = False
         if display_status == "FAILED":
             recorded_output_path = (
                 record.agent_meta.output_path if record.agent_meta is not None else None
@@ -161,6 +162,7 @@ def load_workflow_states_from_snapshot(
                 )
                 error_message = fallback.error_message
                 output_path = fallback.output_path
+                error_is_synthetic = True
 
         entries.append(
             WorkflowEntry(
@@ -180,6 +182,7 @@ def load_workflow_states_from_snapshot(
                 diff_path=diff_path,
                 error_message=error_message,
                 error_traceback=error_traceback,
+                error_is_synthetic=error_is_synthetic,
                 output_path=output_path,
                 activity=wf_state.activity,
             )
@@ -268,6 +271,7 @@ def load_workflow_agents_from_snapshot(
             archived_plan_path=plan_path,
             error_message=entry.error_message,
             error_traceback=entry.error_traceback,
+            error_is_synthetic=entry.error_is_synthetic,
             output_path=entry.output_path,
             activity=entry.activity,
             step_output=step_output,

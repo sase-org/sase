@@ -337,6 +337,16 @@ def finalize_runner_shutdown(
                 f"Warning: Failed to release waiting bead claim: {e}", file=sys.stderr
             )
 
+    # Flush buffered stdio first so the completion marker appended below
+    # stays last in the shared runner output file.
+    try:
+        sys.stdout.flush()
+    except (AttributeError, ValueError, OSError):
+        pass
+    try:
+        sys.stderr.flush()
+    except (AttributeError, ValueError, OSError):
+        pass
     try:
         with open(context.output_path, "a") as f:
             f.write("\n=== AGENT_RUN_COMPLETE ===\n")

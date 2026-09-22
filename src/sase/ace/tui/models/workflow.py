@@ -39,6 +39,11 @@ class WorkflowEntry:
     diff_path: str | None = None
     error_message: str | None = None
     error_traceback: str | None = None
+    # True when error_message is the synthesized "Runner exited without
+    # recording an error" fallback rather than a recorded error. Lets the
+    # RUNNING<->WORKFLOW dedup prefer a done.json recorded error over it
+    # without string-matching the message text.
+    error_is_synthetic: bool = False
     output_path: str | None = None
     activity: str | None = None
 

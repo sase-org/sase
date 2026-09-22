@@ -411,8 +411,15 @@ def dedup_running_vs_workflow(agents: list[Agent]) -> list[Agent]:
                 matched.llm_provider = agent.llm_provider
             if matched.vcs_provider is None and agent.vcs_provider is not None:
                 matched.vcs_provider = agent.vcs_provider
-            if matched.error_message is None and agent.error_message is not None:
+            # A recorded error (e.g. from done.json) beats the synthesized
+            # "Runner exited without recording an error" fallback. The
+            # fallback is marked with error_is_synthetic at load time, so
+            # this prefers real errors without string-matching the text.
+            if agent.error_message is not None and (
+                matched.error_message is None or matched.error_is_synthetic
+            ):
                 matched.error_message = agent.error_message
+                matched.error_is_synthetic = agent.error_is_synthetic
             if matched.error_traceback is None and agent.error_traceback is not None:
                 matched.error_traceback = agent.error_traceback
             if not matched.extra_files and agent.extra_files:
