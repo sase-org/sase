@@ -128,6 +128,59 @@ twin and shares the same cases.
 A `--keep` directory holds one `world-*` subdirectory per case group. Inspect one with
 `SASE_HOME=<kept>/world-NAME/sase-home HOME=<kept>/world-NAME/user-home sase tool runs -a`.
 
+## Guarded recipes
+
+`check` and `check-full` are guarded: run as a SASE agent, `just check` refuses unless
+it runs inside `sase tool run check` for that project root, or with an explicit bypass.
+`test` and `install` are never guarded. The guard is a guardrail against habit, not a
+security boundary.
+
+```bash
+sase tool run check                                # the wrapped form agents use
+SASE_TOOL_BYPASS='<why>' just check                # run raw on purpose; the value is the reason
+```
+
+### The environment contract
+
+Three variables decide everything, and the decision is makeable without starting a
+`sase` process — the override exists precisely for when `sase` is broken. Any repo can
+implement this table from scratch (linked-repo catalogs do exactly that):
+
+| Variable                 | Set by                           | Meaning                                                                       |
+| ------------------------ | -------------------------------- | ----------------------------------------------------------------------------- |
+| `SASE_AGENT`             | the agent runner (already)       | this process tree is a SASE agent's own shell                                 |
+| `SASE_TOOL_NAME`         | **new:** `sase tool run`, always | the tree is inside `sase tool run <name>`, or `ad-hoc`                        |
+| `SASE_TOOL_PROJECT_ROOT` | **new:** `sase tool run`, always | the resolved project root the named run executes in; empty for an ad-hoc run  |
+| `SASE_TOOL_BYPASS`       | **new:** an agent or human       | run raw on purpose; any non-empty value bypasses, and the value is the reason |
+
+`SASE_TOOL_NAME` is exported whether or not recording succeeded: recording stays
+fail-open, so a guard keyed on the run id would refuse the child of a fail-open
+`sase tool run check` and tell the agent to run the command it is already running.
+
+`SASE_TOOL_PROJECT_ROOT` exists so a wrapper marker from one checkout cannot satisfy
+another checkout's guard: the guard requires the name _and_ the root to match. Ad-hoc
+runs (`SASE_TOOL_NAME=ad-hoc`, empty root) never match a guarded recipe's name.
+
+### The guard rule
+
+An agent may run a guarded recipe only from inside `sase tool run <that tool>` for
+_that_ project root, or with an explicit bypass. The match is strict:
+`sase tool run -- sh -c 'just install && just check'` does not satisfy the `check`
+guard, because the named identity is what run history, fingerprints, and receipts key
+on.
+
+The guard is `tools/require_tool_run`, a dependency-free POSIX `sh` script wired as the
+**first** `just` dependency of each guarded recipe, ahead of `_setup`. It refuses — it
+does not redirect — printing the wrapped form and the bypass form and exiting 2:
+
+- `SASE_AGENT` unset (humans, CI, finalizers, monitors, procs): allowed, silently.
+- `SASE_TOOL_NAME` equals the tool _and_ `SASE_TOOL_PROJECT_ROOT` is the recipe's own
+  root: allowed, silently.
+- `SASE_TOOL_BYPASS` non-empty: allowed, with one stderr line naming the reason.
+- `sase` not on `PATH` at all: allowed with one stderr line — fail open, since there is
+  no wrapped form to print.
+- Otherwise: refused with the wrapped and bypass forms on stderr, exit 2.
+
 ## Measuring adoption
 
 ```bash
@@ -136,7 +189,10 @@ tools/tool_adoption_report -d 7 -j
 
 The read-only report pairs each agent's normalized LLM tool-call records (per file, by
 `tool_use_id`), classifies heavy (>=20 s) `just check` / `just check-full` invocations
-as wrapped in `sase tool run` or raw, and reports count and wall-time shares with their
-denominators. Unpaired, negative, over-six-hour, truncated, and ambiguous (pipelines,
-multi-command) records are counted, not guessed. It does not read the ToolRun ledger, so
-ledger counts and recording errors are separate coverage signals.
+as wrapped in `sase tool run`, raw, or bypassed (`SASE_TOOL_BYPASS=... just check`), and
+reports count and wall-time shares with their denominators. It also counts refusals: an
+exit-2 raw call carrying the guard marker, followed by a wrapped call. Each call is
+filtered by its own timestamp rather than its file's modification time, so a window
+cannot mix in older calls. Unpaired, negative, over-six-hour, truncated, undated, and
+ambiguous (pipelines, multi-command) records are counted, not guessed. It does not read
+the ToolRun ledger, so ledger counts and recording errors are separate coverage signals.

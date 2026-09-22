@@ -7,7 +7,14 @@ aliases:
 summary:
   The sase tool control plane lands its ToolRun record first; prediction and admission
   only ever consume a corpus that already exists.
+metadata:
+  status: superseded-in-part
+  superseded_by: decisions/guarded-recipes
 ---
+
+> _Superseded in part:_ the "bypass is measured, not enforced" cost clause is retired
+> for guarded recipes — a raw agent invocation is now refused, and bypass stays explicit
+> and measured. See [[decisions/guarded-recipes]]. The rest of this record stands.
 
 **Claim.** An expensive command becomes a named tool whose every run is durably recorded
 — fingerprint, per-stage timings, host load samples — before anything predicts its

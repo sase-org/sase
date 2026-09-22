@@ -674,7 +674,14 @@ selection-backtest *args: _setup (_header "selection-backtest")
 # so `print_scoped_summary` runs as a separate step right after it returns —
 # outside that captured region — and reads the selection manifest `test-scoped`
 # just finished writing to show what the run decided either way.
-check: _setup
+#
+# Agents must run guarded tools through `sase tool run` (docs/tool.md).
+# The guard is the first dependency, ahead of `_setup`, so a refusal costs
+# milliseconds rather than a dependency sync.
+_require-tool-run name:
+    @tools/require_tool_run {{ name }}
+
+check: (_require-tool-run "check") _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
     @tools/run_silent "lint (keep-sorted)" just lint-keep-sorted
@@ -700,7 +707,7 @@ check: _setup
 # visible. CI does not run this recipe; the dedicated visual-test job uses
 # `just fix-tui-screenshots --check`. A direct CI invocation refuses at the
 # update stage.
-check-full: _setup
+check-full: (_require-tool-run "check-full") _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
     @tools/run_silent "lint (keep-sorted)" just lint-keep-sorted

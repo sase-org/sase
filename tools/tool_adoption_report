@@ -3,8 +3,11 @@
 
 Reads normalized ``tool_calls.jsonl`` files under the SASE projects directory,
 pairs ToolUse/ToolResult rows within each file by ``tool_use_id`` (never across
-files), and classifies catalog commands as wrapped (``sase tool run``) or raw.
-Nothing is executed or written. Heavy means a duration of at least 20 seconds.
+files), and classifies catalog commands as wrapped (``sase tool run``), raw,
+or bypassed (``SASE_TOOL_BYPASS=... just check``). Refusals count raw calls
+the recipe guard turned away (exit 2) that a wrapped call later complied
+with. Nothing is executed or written. Heavy means a duration of at least 20
+seconds.
 """
 
 from __future__ import annotations
@@ -26,6 +29,10 @@ _SHELLS = {"sh", "bash", "zsh", "dash"}
 _SAFE_SINKS = {"tail", "head", "cat", "tee"}
 _REDIRECT = re.compile(r"^\d*>&?\d*$|^&>")
 _OPERATORS = ("&&", "||", ";", "\n")
+_ENV_ASSIGN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*$")
+# Marker printed by tools/require_tool_run on the refusal path; paired with
+# an exit code of 2 it identifies a guard refusal (not some other failure).
+_REFUSAL_MARKER = "refusing raw"
 
 
 def _parse_ts(value: object) -> datetime | None:
@@ -79,8 +86,28 @@ def _classify_tokens(tokens: list[str]) -> str | None:
     return None
 
 
+def _strip_bypass_prefix(argv: list[str]) -> tuple[list[str], str | None]:
+    """Strip leading ``NAME=value`` words when one bypasses the recipe guard.
+
+    Returns the remaining argv plus the bypass reason, or the original argv
+    and None when no leading ``SASE_TOOL_BYPASS=<reason>`` is present. Other
+    env-prefixed commands (``FOO=1 just check``) keep their old ``other``
+    classification: only an explicit bypass changes the class.
+    """
+    rest = list(argv)
+    reason: str | None = None
+    while rest and _ENV_ASSIGN.match(rest[0]):
+        name, _, value = rest[0].partition("=")
+        if name == "SASE_TOOL_BYPASS" and value:
+            reason = value
+        rest.pop(0)
+    if reason is None:
+        return argv, None
+    return rest, reason
+
+
 def classify(summary: dict[str, Any]) -> str:
-    """Return wrapped, raw, ambiguous, or other for one Bash-like call."""
+    """Return wrapped, raw, bypassed, ambiguous, or other for one call."""
     argv = _command_argv(summary)
     if argv is None:
         return "other"
@@ -90,9 +117,8 @@ def classify(summary: dict[str, Any]) -> str:
             argv = shlex.split(script, posix=True)
         except ValueError:
             return "ambiguous" if "just check" in script else "other"
-        text = script
-    else:
-        text = " ".join(argv)
+    argv, bypass = _strip_bypass_prefix(argv)
+    text = " ".join(argv)
     if any(op in text for op in _OPERATORS):
         return "ambiguous" if re.search(r"just check|tool run check", text) else "other"
     if "|" in argv:
@@ -101,7 +127,10 @@ def classify(summary: dict[str, Any]) -> str:
             argv = head
         else:
             return "ambiguous" if re.search(r"just check|tool run check", text) else "other"
-    return _classify_tokens(argv) or "other"
+    kind = _classify_tokens(argv) or "other"
+    if bypass and kind == "raw":
+        return "bypassed"
+    return kind
 
 
 def _split_pipe(argv: list[str]) -> list[list[str]]:
@@ -130,11 +159,33 @@ def _read_records(path: Path) -> list[dict[str, Any]]:
     return records
 
 
-def _pair_file(records: list[dict[str, Any]], stats: Counter[str]) -> list[tuple[str, int]]:
-    """Return (classification, duration_ms) for catalog-relevant calls."""
+def _is_refusal(result: dict[str, Any]) -> bool:
+    """Return True when a raw call's result carries the guard's refusal."""
+    summary = result.get("tool_response_summary")
+    if not isinstance(summary, dict):
+        return False
+    exit_code = summary.get("exit_code")
+    if exit_code not in (2, "2"):
+        return False
+    return _REFUSAL_MARKER in json.dumps(summary)
+
+
+def _pair_file(
+    records: list[dict[str, Any]],
+    stats: Counter[str],
+    cutoff: datetime,
+) -> tuple[list[tuple[str, int]], int]:
+    """Pair ToolUse/ToolResult rows and count guard refusals.
+
+    Returns ((classification, duration_ms) for catalog-relevant calls in the
+    window, refusals). Each call is filtered by its own ``recorded_at``, so a
+    window cannot mix in older calls from a recently touched file. A refusal
+    is an exit-2 raw call carrying the guard marker that a wrapped call in
+    the same file later complied with; refusals settle in milliseconds, so
+    they are counted regardless of the heavy threshold.
+    """
     uses: dict[str, dict[str, Any]] = {}
     results: dict[str, dict[str, Any]] = {}
-    out: list[tuple[str, int]] = []
     for row in records:
         if row.get("tool_name") not in (None, "Bash", "shell", "exec_command"):
             continue
@@ -147,9 +198,17 @@ def _pair_file(records: list[dict[str, Any]], stats: Counter[str]) -> list[tuple
         elif row.get("duration_ms") is not None and isinstance(row.get("tool_input_summary"), dict):
             uses[ident or f"row{len(uses)}"] = row
             results.setdefault(ident or f"row{len(uses) - 1}", row)
+    calls: list[dict[str, Any]] = []
     for ident, use in uses.items():
         kind = classify(use.get("tool_input_summary") or {})
         if kind == "other":
+            continue
+        stamped = _parse_ts(use.get("recorded_at"))
+        if stamped is None:
+            stats["undated"] += 1
+            continue
+        if stamped < cutoff:
+            stats["outside_window"] += 1
             continue
         result = results.get(ident)
         if result is None:
@@ -157,8 +216,8 @@ def _pair_file(records: list[dict[str, Any]], stats: Counter[str]) -> list[tuple
             continue
         duration = result.get("duration_ms")
         if not isinstance(duration, int) or duration <= 0:
-            start, end = _parse_ts(use.get("recorded_at")), _parse_ts(result.get("recorded_at"))
-            if start is None or end is None:
+            start, end = stamped, _parse_ts(result.get("recorded_at"))
+            if end is None:
                 stats["unpaired"] += 1
                 continue
             duration = int((end - start).total_seconds() * 1000)
@@ -170,8 +229,25 @@ def _pair_file(records: list[dict[str, Any]], stats: Counter[str]) -> list[tuple
             continue
         if "truncated" in json.dumps(result.get("tool_response_summary", {}))[:400].lower():
             stats["truncated_output"] += 1
-        out.append((kind, duration))
-    return out
+        calls.append(
+            {
+                "kind": kind,
+                "at": stamped,
+                "duration_ms": duration,
+                "refused": kind == "raw" and _is_refusal(result),
+            }
+        )
+    out = [(str(call["kind"]), int(call["duration_ms"])) for call in calls]
+    refusals = sum(
+        1
+        for call in calls
+        if call["refused"]
+        and any(
+            other["kind"] == "wrapped" and other["at"] >= call["at"]
+            for other in calls
+        )
+    )
+    return out, refusals
 
 
 def build_report(root: Path, days: int) -> dict[str, Any]:
@@ -180,14 +256,17 @@ def build_report(root: Path, days: int) -> dict[str, Any]:
     count: Counter[str] = Counter()
     wall: Counter[str] = Counter()
     files = 0
+    refusals = 0
     for path in root.glob("*/artifacts/**/tool_calls.jsonl"):
         try:
-            if datetime.fromtimestamp(path.stat().st_mtime, UTC) < cutoff:
+            if not path.is_file():
                 continue
         except OSError:
             continue
         files += 1
-        for kind, duration in _pair_file(_read_records(path), stats):
+        pairs, file_refusals = _pair_file(_read_records(path), stats, cutoff)
+        refusals += file_refusals
+        for kind, duration in pairs:
             if duration < _HEAVY_MS:
                 stats["light_excluded"] += 1
                 continue
@@ -196,23 +275,41 @@ def build_report(root: Path, days: int) -> dict[str, Any]:
     classifiable = wall["wrapped"] + wall["raw"]
     classifiable_n = count["wrapped"] + count["raw"]
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "window_days": days,
         "files_read": files,
         "heavy_threshold_seconds": _HEAVY_MS // 1000,
-        "counts": {k: count[k] for k in ("wrapped", "raw", "ambiguous")},
-        "wall_ms": {k: wall[k] for k in ("wrapped", "raw", "ambiguous")},
+        "counts": {
+            k: count[k] for k in ("wrapped", "raw", "bypassed", "ambiguous")
+        },
+        "wall_ms": {
+            k: wall[k] for k in ("wrapped", "raw", "bypassed", "ambiguous")
+        },
         "wall_share_wrapped": wall["wrapped"] / classifiable if classifiable else None,
         "count_share_wrapped": count["wrapped"] / classifiable_n if classifiable_n else None,
+        "refusals": refusals,
         "denominator": {"classifiable_heavy_wall_ms": classifiable, "classifiable_heavy_calls": classifiable_n},
         "exclusions": {
             k: stats[k]
-            for k in ("unpaired", "negative", "over_six_hours", "truncated_output", "light_excluded")
+            for k in (
+                "unpaired",
+                "negative",
+                "over_six_hours",
+                "truncated_output",
+                "light_excluded",
+                "undated",
+                "outside_window",
+            )
         },
         "coverage": (
             "Agent LLM tool-call records only; ToolRun ledger counts and recording "
-            "errors are separate signals. Ambiguous pipelines/multicommands are "
-            "excluded from the share. Outer monitor-start calls are not child runtime."
+            "errors are separate signals. Each call is filtered by its own "
+            "recorded_at, so a window cannot mix in older calls from a recently "
+            "touched file. Ambiguous pipelines/multicommands are excluded from "
+            "the share, as are bypassed (explicit SASE_TOOL_BYPASS) calls. "
+            "Refusals are exit-2 raw calls carrying the recipe-guard marker "
+            "that a later wrapped call complied with. Outer monitor-start calls "
+            "are not child runtime."
         ),
     }
 
@@ -237,6 +334,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  heavy (>={report['heavy_threshold_seconds']}s) calls: {report['counts']}")
     print(f"  wrapped wall share: {_fmt_share(report['wall_share_wrapped'])}")
     print(f"  wrapped count share: {_fmt_share(report['count_share_wrapped'])}")
+    print(f"  guard refusals complied with: {report['refusals']}")
     print(f"  exclusions: {report['exclusions']}")
     print(f"  note: {report['coverage']}")
     return 0

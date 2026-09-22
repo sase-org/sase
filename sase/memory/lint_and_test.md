@@ -65,8 +65,9 @@ compact output; `-q` forces it, `-T N` keeps N failure lines (default 200), `-v`
 streams, and `sase tool show RUN -l` replays the full retained output. Inside a verify
 monitor, wrap the command: `-- sase tool run check-full`. Prepared-completion `-f`
 monitors still use the raw `just check` / `just check-full` command, whose exact-command
-contract is separate. If `sase tool` is unavailable (stale install), run the raw `just`
-command and record `sase update` as the remedy; never bypass binding validation or
+contract is separate. If `sase tool` is unavailable (stale install), run
+`SASE_TOOL_BYPASS='<why>' just check` (or `check-full` where that command is explicitly
+requested) and record `sase update` as the remedy; never bypass binding validation or
 re-run a child whose result is uncertain. See [[glossary:tool-catalog]].
 
 Before handing `just check` or `just check-full` to a verify monitor, run `just fix`

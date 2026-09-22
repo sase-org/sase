@@ -202,8 +202,21 @@ MANIFEST_PATH = ROOT / "tests" / "contract_manifest.txt"
 # 48.38 s, but the host was at load average ~21, so treat those as inflated rather
 # than as a regression. The next candidate should displace an entry rather than add
 # one.
-_MANIFEST_ENTRY_BUDGET = 67
-_MEASURED_SERIAL_COST = "39.43 serial seconds across 67 entries"
+#
+# Re-curated to 68 on 2026-09-22 (sase-16h.4) for `test_require_tool_run.py`,
+# the guard for the dependency-free `tools/require_tool_run` script and the
+# Justfile wiring that makes it the first dependency of `check`/`check-full`.
+# Like the other admitted `tools/` script guards, the script is not a node in
+# the import graph, so a change that touches only it contributes no seeds,
+# `RULE_CONTRACT_SET_ONLY` fires, and the contract set is the only
+# scoped-selection coverage; the wiring half pins the exact invariant no
+# import edge can express. The file measured 2.96 s standalone (17 tests),
+# for an estimated 42.39 serial seconds across the refreshed 68-entry set
+# (39.43 s prior estimate plus the added file). One direct run of the whole
+# set under the command above measured 44.03 s on this host. The next
+# candidate should displace an entry rather than add one.
+_MANIFEST_ENTRY_BUDGET = 68
+_MEASURED_SERIAL_COST = "44.03 serial seconds across 68 entries"
 
 
 def _load_refresh_tool() -> ModuleType:

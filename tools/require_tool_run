@@ -1,0 +1,60 @@
+#!/bin/sh
+# Guard a Just recipe so SASE agents only run it through `sase tool run`.
+#
+# Usage: tools/require_tool_run <tool-name>
+#
+# Wired as the first dependency of each guarded recipe (see `check` and
+# `check-full` in the Justfile), ahead of `_setup`, so a refusal costs
+# milliseconds rather than a dependency sync. Contract: docs/tool.md
+# ("Guarded recipes" table). Deliberately dependency-free POSIX `sh`: this
+# must never start `sase`, because the override exists precisely for when
+# `sase` is broken, and because every human and CI `just check` would
+# otherwise pay a startup cost for logic that needs three variables.
+#
+# An agent may run a guarded recipe only from inside `sase tool run <that
+# tool>` for that project root, or with an explicit bypass. This is a
+# guardrail against habit, not a security boundary: `env -u SASE_AGENT`
+# defeats it, and the bypass is deliberately easier and more visible.
+set -u
+
+tool=${1:-}
+if [ -z "$tool" ]; then
+    printf 'sase: usage: tools/require_tool_run <tool-name>\n' >&2
+    exit 2
+fi
+
+# Humans, CI, finalizers, monitors, and procs run raw: only an agent's own
+# shell carries SASE_AGENT.
+if [ -z "${SASE_AGENT:-}" ]; then
+    exit 0
+fi
+
+# Inside `sase tool run <this tool>` for this project root. SASE_TOOL_NAME
+# is exported whether or not recording succeeded, so the child of a
+# fail-open run is still allowed. Ad-hoc runs export SASE_TOOL_NAME=ad-hoc
+# with an empty root and can never match a guarded recipe's name.
+if [ "${SASE_TOOL_NAME:-}" = "$tool" ] && [ "${SASE_TOOL_PROJECT_ROOT:-}" = "$(pwd -P)" ]; then
+    exit 0
+fi
+
+# Explicit bypass: any non-empty value runs raw on purpose, and the value
+# is the reason. Keep the notice to one line even if the reason is not.
+if [ -n "${SASE_TOOL_BYPASS:-}" ]; then
+    nl='
+'
+    reason=${SASE_TOOL_BYPASS%%"$nl"*}
+    printf 'sase: bypassing the tool-run guard (SASE_TOOL_BYPASS=%s).\n' "$reason" >&2
+    exit 0
+fi
+
+# Fail open without `sase`: when the wrapper is unavailable there is no
+# wrapped form to print, so allow the raw run and say why.
+if ! command -v sase >/dev/null 2>&1; then
+    printf 'sase: allowing raw `just %s`: `sase` is not on PATH.\n' "$tool" >&2
+    exit 0
+fi
+
+printf 'sase: refusing raw `just %s` in an agent shell (SASE_AGENT is set and SASE_TOOL_NAME names a different tool or root).\n' "$tool" >&2
+printf 'sase: run `sase tool run %s` instead.\n' "$tool" >&2
+printf 'sase: or run `SASE_TOOL_BYPASS='"'"'<reason>'"'"' just %s` to bypass with a named reason.\n' "$tool" >&2
+exit 2

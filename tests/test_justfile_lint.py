@@ -444,8 +444,8 @@ _CHECK_GATE_LINES = (
 def test_check_and_check_full_recipes_exist() -> None:
     justfile = (ROOT / "Justfile").read_text()
 
-    assert "\ncheck: _setup\n" in justfile
-    assert "\ncheck-full: _setup\n" in justfile
+    assert '\ncheck: (_require-tool-run "check") _setup\n' in justfile
+    assert '\ncheck-full: (_require-tool-run "check-full") _setup\n' in justfile
 
 
 def test_check_ends_in_the_scoped_test_lane() -> None:
