@@ -3712,11 +3712,11 @@ while retaining model/family distinctions; tooltips (`scope: family: 3p`) and
 provider did not expose exact applicability. The name, percentage, and reset countdown
 share the window's ten-step remaining-capacity color, from red (nearly exhausted) to
 blue (nearly full), except an exact `0%` highlights the window's whole value run — its
-name, rejection marker, percentage, and reset countdown together — with the inverted red
-style. Provider icons, middle dots, provider gaps, and outer padding keep their normal
-surfaces; a non-zero window's name and rejected marker do too. Structural punctuation is
-neutral, normal weight in both themes. Which windows appear, and at what remaining
-percentage, is fully configurable through
+name, percentage, and reset countdown together — with the inverted red style. Provider
+icons, middle dots, provider gaps, and outer padding keep their normal surfaces; a
+non-zero window's name and rejected marker do too. Structural punctuation is neutral,
+normal weight in both themes. Which windows appear, and at what remaining percentage, is
+fully configurable through
 [`llm_provider.usage_metrics.indicator`](configuration.md#llm_providerusage_metrics).
 
 Stale or unknown-age numeric observations render with neutral text and disclose their
@@ -3724,9 +3724,12 @@ freshness in the tooltip instead of adding a visible marker. `<1%` remains a low
 nonzero reading on the normal badge surface. `?% 0h0m↻` means the window's reset has
 passed and sase's TUI is awaiting a new observation, retaining the last known percentage
 only in the tooltip. A bare `?` in the countdown position means the provider never
-reported a reset time. `!` marks a vendor-rejected window. Collector failures no longer
-add a header warning glyph; selected failing windows keep collector-failure prose in the
-tooltip, and model picker hints keep their own separate `⚠ usage failing` identity.
+reported a reset time. `!` marks a vendor-rejected window that still shows remaining
+capacity. An exact `0%` window never shows it, because the inverted red run already
+signals exhaustion, so every provider's exhausted window looks the same whether or not
+its vendor reports a rejection. Collector failures no longer add a header warning glyph;
+selected failing windows keep collector-failure prose in the tooltip, and model picker
+hints keep their own separate `⚠ usage failing` identity.
 
 Provider groups always render in provider-name order. Within a provider, the default
 weekly all-model window is first, followed by additional windows by window key.

@@ -235,7 +235,7 @@ def test_exact_zero_percent_uses_inverted_value_style(dark: bool) -> None:
 
 
 @pytest.mark.parametrize("dark", [True, False])
-def test_named_and_rejected_zero_run_forms_one_inverted_block(
+def test_named_rejected_zero_run_omits_marker_in_one_inverted_block(
     dark: bool,
 ) -> None:
     entry = _entry(
@@ -250,10 +250,10 @@ def test_named_and_rejected_zero_run_forms_one_inverted_block(
     segment = build_usage_indicator_segment(_groups(entry, dark=dark), dark=dark)
     exhausted_color = usage_percent_color(0, dark=dark)
 
-    assert segment.plain.strip() == "🚀 grok-preview ! 0% 3d4h"
+    assert segment.plain.strip() == "🚀 grok-preview 0% 3d4h"
     start, end = _assert_style_run(
         segment,
-        "grok-preview ! 0% 3d4h",
+        "grok-preview 0% 3d4h",
         Style.parse(usage_zero_value_style(dark=dark)),
     )
 
@@ -261,6 +261,31 @@ def test_named_and_rejected_zero_run_forms_one_inverted_block(
         adjacent_style = _style_at_offset(segment, offset)
         assert adjacent_style.bgcolor is not None
         assert adjacent_style.bgcolor.get_truecolor().hex != exhausted_color.lower()
+
+
+@pytest.mark.parametrize("dark", [True, False])
+def test_rejected_zero_renders_identically_to_allowed_zero(dark: bool) -> None:
+    rejected = _entry(
+        provider="codex",
+        remaining_percent=0.0,
+        vendor_state="rejected",
+        display_attention="rejected",
+    )
+    allowed = _entry(
+        provider="codex",
+        remaining_percent=0.0,
+        vendor_state="allowed",
+    )
+    rejected_segment = build_usage_indicator_segment(
+        _groups(rejected, dark=dark), dark=dark
+    )
+    allowed_segment = build_usage_indicator_segment(
+        _groups(allowed, dark=dark), dark=dark
+    )
+
+    assert "!" not in rejected_segment.plain
+    assert rejected_segment.plain == allowed_segment.plain
+    assert rejected_segment.spans == allowed_segment.spans
 
 
 @pytest.mark.parametrize("dark", [True, False])
@@ -325,7 +350,7 @@ def test_zero_and_healthy_windows_stay_separated_by_normal_divider(
                 vendor_state="rejected",
                 display_attention="rejected",
             ),
-            "🚀 ! 0% 3d4h",
+            "🚀 0% 3d4h",
             "0%",
             True,
             id="rejected-zero",

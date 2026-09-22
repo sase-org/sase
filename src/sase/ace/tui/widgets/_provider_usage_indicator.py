@@ -318,17 +318,14 @@ def _entry_fragment(
     value_style = usage_value_style(value_color, dark=dark)
 
     text = Text("", style=base_style)
-    rejected = _optional_text(entry.get("vendor_state")) == "rejected"
     if percent_text == "0%":
         zero_style = usage_zero_value_style(dark=dark)
         if name:
             text.append(name, style=zero_style)
             text.append(" ", style=zero_style)
-        if rejected:
-            text.append("!", style=zero_style)
-            text.append(" ", style=zero_style)
         text.append(f"{percent_text} {countdown_text}", style=zero_style)
     else:
+        rejected = _optional_text(entry.get("vendor_state")) == "rejected"
         if name:
             text.append(name, style=value_style)
             text.append(" ", style=value_style if not rejected else base_style)
