@@ -70,6 +70,11 @@ contract is separate. If `sase tool` is unavailable (stale install), run
 requested) and record `sase update` as the remedy; never bypass binding validation or
 re-run a child whose result is uncertain. See [[glossary:tool-catalog]].
 
+`sase tool run check` is the wrapped form in the linked repos too: `sase-core`,
+`sase-telegram`, `sase-github`, and `sase-research-artifacts` each carry their own
+`check` catalog entry and recipe guard, so run the wrapped form from inside that
+checkout and a raw agent `just check` there is refused just like here.
+
 Before handing `just check` or `just check-full` to a verify monitor, run `just fix`
 inline first (or at minimum `just fmt`); it takes seconds and prevents common avoidable
 formatting and keep-sorted monitor failures.
