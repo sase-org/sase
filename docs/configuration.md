@@ -3378,8 +3378,13 @@ file_hooks:
     filters:
       projects: [sase]
       sidecars: [research]
-      path_globs: ["20*/**/*.md", "!20*/*/*__*.md"]
-      agent_name_globs: ["!research.*.cld", "!research.*.cdx"]
+      path_globs: ["20*/**/*.md", "!20*/*__*.md", "!20*/*/*__*.md"]
+      agent_name_globs:
+        - "!research.*.cdx"
+        - "!research.*.cld"
+        - "!research.*.grk"
+        - "!research.*.mus"
+        - "!research.*.gem"
       ops: [ADD]
       producers: [commit, sdd, finalizer]
     timeout: 120s
