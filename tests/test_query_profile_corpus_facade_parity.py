@@ -1,25 +1,14 @@
-"""Rust-routed corpus facade: parity with the Python reference evaluator."""
+"""Rust-routed corpus facade: evaluation parity with the Python reference."""
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 import pytest
 
-from sase.ace.query.profile_evaluator import (
-    coerce_artifact_query_rows,
-    coerce_artifact_query_rows_with_wire,
-)
 from sase.ace.query.profile_reference import (
     canonical_query_for_profile,
     evaluate_query_many_for_profile,
-    parse_query_for_profile,
 )
-from sase.ace.query_profile import (
-    ArtifactQuerySchema,
-    QueryFieldSpec,
-    compile_query_profile,
-)
+from sase.ace.query_profile import compile_query_profile
 from sase.ace.query_profile.profiles import (
     beads_query_schema,
     files_query_schema,
@@ -29,152 +18,15 @@ from sase.ace.query_profile.profiles import (
     stitches_query_schema,
 )
 from sase.core.query_profile_corpus_facade import (
-    ArtifactQueryCacheKey,
-    _canonicalize_artifact_query,
-    _parse_artifact_query,
     compile_artifact_query_index,
     evaluate_artifact_query_many,
 )
-
-_BEADS_ROWS = [
-    {
-        "stable_id": "open-task",
-        "fields": {
-            "type": "task",
-            "status": "open",
-            "project": "sase",
-            "assignee": "Alice Smith",
-            "title": "Load filter profile",
-            "body": "Reference evaluator",
-        },
-    },
-    {
-        "stable_id": "closed-phase",
-        "fields": {
-            "type": "phase",
-            "status": "closed",
-            "project": "sase",
-            "assignee": "Bob",
-            "title": "Load filter profile",
-            "body": "Reference evaluator",
-        },
-    },
-    {
-        "stable_id": "open-plan",
-        "fields": {
-            "type": "plan",
-            "status": "open",
-            "project": "sase",
-            "assignee": "Carol",
-            "title": "Unrelated",
-            "body": "Reference evaluator",
-        },
-    },
-]
-
-
-def test_compile_index_and_evaluate_matches_expected_rows() -> None:
-    profile = compile_query_profile(beads_query_schema())
-    index = compile_artifact_query_index(
-        pane_id="beads",
-        generation=1,
-        profile=profile,
-        entries=_BEADS_ROWS,
-    )
-    assert len(index) == 3
-    assert index.row_ids == ("open-task", "closed-phase", "open-plan")
-
-    result = evaluate_artifact_query_many(
-        "type:task type:phase -status:closed load", index
-    )
-    assert result.matched_row_ids == ("open-task",)
-    assert result.cache_key == ArtifactQueryCacheKey(
-        pane_id="beads",
-        generation=1,
-        profile_digest=profile.digest,
-        canonical_query=canonical_query_for_profile(
-            "type:task type:phase -status:closed load", profile
-        ),
-    )
-
-
-def test_observed_facets_report_distinct_filterable_values() -> None:
-    profile = compile_query_profile(beads_query_schema())
-    index = compile_artifact_query_index(
-        pane_id="beads",
-        generation=1,
-        profile=profile,
-        entries=_BEADS_ROWS,
-    )
-    assert index.facets["type"] == ("phase", "plan", "task")
-    assert index.facets["status"] == ("closed", "open")
-    # Non-filterable (search-only) fields never appear in facets.
-    assert "title" not in index.facets
-    assert "body" not in index.facets
-
-
-def test_coerce_rows_with_wire_preserves_rust_row_wire_shape() -> None:
-    profile = compile_query_profile(beads_query_schema())
-    entries = [
-        {
-            "stable_id": "open-task",
-            "fields": {
-                "type": "task",
-                "status": ("open", "blocked"),
-                "project": ("gh_sase-org__sase", "sase"),
-                "title": "Load filter profile",
-            },
-            "searchable_text": "Load filter profile",
-            "predicates": ("running_agent",),
-        }
-    ]
-
-    rows, wire_rows = coerce_artifact_query_rows_with_wire(profile, entries)
-
-    assert rows == coerce_artifact_query_rows(profile, entries)
-    assert wire_rows == [
-        {
-            "fields": {
-                "type": ["task"],
-                "status": ["open", "blocked"],
-                "project": ["gh_sase-org__sase", "sase"],
-                "title": ["Load filter profile"],
-            },
-            "searchable_text": "Load filter profile",
-            "predicates": {
-                "error_suffix": False,
-                "running_agent": True,
-                "running_process": False,
-            },
-        }
-    ]
-
-
-def test_cache_key_is_sensitive_to_generation_profile_and_query() -> None:
-    profile = compile_query_profile(beads_query_schema())
-    index = compile_artifact_query_index(
-        pane_id="beads", generation=1, profile=profile, entries=_BEADS_ROWS
-    )
-    a = evaluate_artifact_query_many("status:open", index)
-    b = evaluate_artifact_query_many("status:closed", index)
-    assert a.cache_key != b.cache_key
-
-    other_generation = compile_artifact_query_index(
-        pane_id="beads", generation=2, profile=profile, entries=_BEADS_ROWS
-    )
-    c = evaluate_artifact_query_many("status:open", other_generation)
-    assert a.cache_key != c.cache_key
-    assert a.matched_row_ids == c.matched_row_ids
-
-
-def test_stale_index_validation_raises_on_row_count_mismatch() -> None:
-    profile = compile_query_profile(beads_query_schema())
-    index = compile_artifact_query_index(
-        pane_id="beads", generation=1, profile=profile, entries=_BEADS_ROWS
-    )
-    stale = replace(index, row_ids=(*index.row_ids, "phantom"))
-    with pytest.raises(ValueError, match="stale query index"):
-        evaluate_artifact_query_many("status:open", stale)
+from tests._query_profile_corpus_facade_helpers import (
+    _BEADS_ROWS,
+    _boolean_value_query_schema,
+    _bounds_query_schema,
+    _flags_query_schema,
+)
 
 
 @pytest.mark.parametrize(
@@ -388,154 +240,6 @@ def test_path_filter_matches_by_substring_through_rust(schema_builder) -> None:
     assert evaluate_artifact_query_many(
         "-path:multi_cli_orchestration_vs_sase", index
     ).matched_row_ids == ("other",)
-
-
-@pytest.mark.parametrize(
-    "query",
-    ['"example"', "%w", "name:example", "!!", "+sase"],
-)
-def test_parse_and_canonicalize_through_rust_match_python_reference(
-    query: str,
-) -> None:
-    profile = compile_query_profile(patches_query_schema())
-    assert _parse_artifact_query(query, profile) == parse_query_for_profile(
-        query, profile
-    )
-    assert _canonicalize_artifact_query(query, profile) == canonical_query_for_profile(
-        query, profile
-    )
-
-
-@pytest.mark.parametrize(
-    ("query", "flat"),
-    [("status:open", True), ("kind:file", False)],
-)
-def test_flat_parse_and_canonicalize_through_rust_match_python_reference(
-    query: str,
-    flat: bool,
-) -> None:
-    profile = compile_query_profile(
-        beads_query_schema() if flat else files_query_schema()
-    )
-    assert _parse_artifact_query(query, profile) == parse_query_for_profile(
-        query, profile
-    )
-    assert _canonicalize_artifact_query(query, profile) == canonical_query_for_profile(
-        query, profile
-    )
-
-
-def _flags_query_schema() -> ArtifactQuerySchema:
-    return ArtifactQuerySchema(
-        pane_id="flags",
-        boolean=False,
-        fields=(
-            QueryFieldSpec(key="flag", value_kind="bool", negatable=True),
-            QueryFieldSpec(key="title", filterable=False, searchable=True),
-        ),
-    )
-
-
-def _bounds_query_schema() -> ArtifactQuerySchema:
-    return ArtifactQuerySchema(
-        pane_id="bounds",
-        boolean=False,
-        fields=(
-            QueryFieldSpec(key="after", value_kind="date"),
-            QueryFieldSpec(key="before", value_kind="date"),
-            QueryFieldSpec(key="since", value_kind="date"),
-            QueryFieldSpec(key="until", value_kind="date"),
-            QueryFieldSpec(key="created", value_kind="date"),
-            QueryFieldSpec(key="min", value_kind="int"),
-            QueryFieldSpec(key="max", value_kind="int"),
-            QueryFieldSpec(key="exit", value_kind="int"),
-        ),
-    )
-
-
-def _boolean_value_query_schema() -> ArtifactQuerySchema:
-    return ArtifactQuerySchema(
-        pane_id="values",
-        boolean=True,
-        fields=(
-            QueryFieldSpec(key="name", exact_match=True, searchable=True),
-            QueryFieldSpec(key="family", exact_match=True),
-            QueryFieldSpec(key="since", value_kind="date"),
-            QueryFieldSpec(key="until", value_kind="date"),
-            QueryFieldSpec(key="min", value_kind="int"),
-            QueryFieldSpec(key="attempt", value_kind="int"),
-            QueryFieldSpec(key="body", filterable=False, searchable=True),
-        ),
-    )
-
-
-@pytest.mark.parametrize(
-    ("schema_builder", "query"),
-    [
-        (stitches_query_schema, "sidecar"),
-        (stitches_query_schema, '"sidecar"'),
-        (stitches_query_schema, '-"sidecar"'),
-        (stitches_query_schema, "sidecar:true"),
-        (_flags_query_schema, "flag"),
-        (_flags_query_schema, "-flag"),
-        (_flags_query_schema, '"flag"'),
-        (_flags_query_schema, '-"flag"'),
-        (_bounds_query_schema, "min:5m"),
-        (_bounds_query_schema, "max:2h"),
-        (_bounds_query_schema, "min:300"),
-        (_bounds_query_schema, "exit:300"),
-    ],
-)
-def test_flat_bare_flag_and_bound_key_parse_and_canonicalize_match_python(
-    schema_builder,
-    query: str,
-) -> None:
-    profile = compile_query_profile(schema_builder())
-    assert _parse_artifact_query(query, profile) == parse_query_for_profile(
-        query, profile
-    )
-    assert _canonicalize_artifact_query(query, profile) == canonical_query_for_profile(
-        query, profile
-    )
-
-
-def test_flat_duration_pair_canonicalizes_through_rust_like_python() -> None:
-    """AND operand order still follows each parser's emission walk, so parse
-    trees can disagree while the cache-key canonical form stays identical.
-    """
-
-    profile = compile_query_profile(_bounds_query_schema())
-    query = "min:30s max:2h"
-    assert _canonicalize_artifact_query(query, profile) == canonical_query_for_profile(
-        query, profile
-    )
-
-
-@pytest.mark.parametrize(
-    ("query", "canonical"),
-    [
-        ("name:sase-r8.9.land", "name:sase-r8.9.land"),
-        ("name:0b4", "name:0b4"),
-        ("name:001--2", "name:001--2"),
-        ("family:research.12", "family:research.12"),
-        ("min:5m", "min:300"),
-        ("attempt:002", "attempt:2"),
-        ("9lives", '"9lives"'),
-    ],
-)
-def test_boolean_widened_values_parse_and_canonicalize_through_rust_like_python(
-    query: str, canonical: str
-) -> None:
-    profile = compile_query_profile(_boolean_value_query_schema())
-
-    assert canonical_query_for_profile(query, profile) == canonical
-    assert _parse_artifact_query(query, profile) == parse_query_for_profile(
-        query, profile
-    )
-    assert _canonicalize_artifact_query(query, profile) == canonical
-    assert _canonicalize_artifact_query(query, profile) == canonical_query_for_profile(
-        query, profile
-    )
 
 
 def test_boolean_date_values_evaluate_through_python_canonical_rust_route() -> None:
