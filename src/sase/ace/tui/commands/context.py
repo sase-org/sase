@@ -178,11 +178,8 @@ def _header_toggle_available(app: AceApp) -> bool:  # type: ignore[no-untyped-de
         panel = app.query_one("#agent-detail-panel", AgentDetail)
     except Exception:
         return False
-    toggle_available = getattr(panel, "header_toggle_available", None)
-    if not callable(toggle_available):
-        return False
     try:
-        return bool(toggle_available())
+        return bool(panel.header_toggle_available())
     except Exception:
         return False
 

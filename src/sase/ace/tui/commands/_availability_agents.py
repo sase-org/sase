@@ -208,8 +208,7 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         return bool(getattr(agent, "attempt_history", None))
 
     # toggle_agent_header needs the header panel (visible metadata with an
-    # identity). The toggle method lands with the panel phase; until then
-    # the command stays hidden.
+    # identity).
     if spec.id == "app.toggle_agent_header":
         return bool(ctx.header_toggle_available)
 

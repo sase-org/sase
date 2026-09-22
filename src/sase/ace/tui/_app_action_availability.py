@@ -226,13 +226,10 @@ def check_app_action(
             detail = app.query_one("#agent-detail-panel", AgentDetail)
         except Exception:
             return False
-        toggle_available = getattr(detail, "header_toggle_available", None)
-        if not callable(toggle_available):
-            # The header panel lands in a later phase; until then the key
-            # stays a no-op so the other `d` bindings keep their tabs.
-            return False
+        # Unavailable while the header panel is hidden, so `d` stays a no-op
+        # and the tab-gated `d` bindings on other tabs keep the key.
         try:
-            return bool(toggle_available())
+            return bool(detail.header_toggle_available())
         except Exception:
             return False
     if action == "show_diff" and app.current_tab != ARTIFACTS_TAB:

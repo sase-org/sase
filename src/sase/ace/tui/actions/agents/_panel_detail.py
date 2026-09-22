@@ -435,9 +435,7 @@ class AgentPanelDetailMixin:
         from ...widgets import AgentDetail
 
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
-        toggle = getattr(agent_detail, "toggle_header_expanded", None)
-        if callable(toggle):
-            toggle()
+        agent_detail.toggle_header_expanded()
 
     def action_toggle_thinking(self) -> None:
         """Retired app action; open the Agent view picker instead."""
