@@ -59,6 +59,21 @@ duplicate log and records the owner id and parent run instead. An inherited moni
 proc id whose owner has already settled (agents launched by a monitored epic launch
 inherit that id) is stale: it owns nothing and is not recorded.
 
+## Stream fidelity
+
+The child gets a single merged pipe (stdout and stderr into one stream, one pump)
+whenever a single target receives both streams: when an enclosing owner holds the output
+(monitor logs, `2>&1` tails), or when the wrapper's own fds 1 and 2 name the same device
+and inode. Only the merged mode preserves the child's stdout/stderr interleaving; two
+pipes pumped on two threads regroup output by stream. Inline compact mode (`-q`, or the
+agent default) retains separate stdout and stderr logs and therefore keeps two pipes
+even when the wrapper's fds share a target.
+
+Merged runs retain the interleaved bytes in the stdout log; the stderr log stays empty.
+`sase tool show RUN -l` replays each retained file to its own stream and claims no total
+order between two retained streams: order across stdout and stderr is meaningful only
+for merged runs.
+
 ## History and retention
 
 `sase tool runs` filters by `-t` tool, `-s` state, `-A` agent, `-a` all projects, and

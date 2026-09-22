@@ -239,8 +239,10 @@ def test_monitor_owner_skips_stdout_logs(
     code = _run("--", "sh", "-c", "printf out; printf err >&2")
     captured = capsys.readouterr()
     assert code == 0
-    assert captured.out == "out"
-    assert "err" in captured.err
+    # Owner mode merges both child streams into one pipe: everything passes
+    # through once, on stdout, in write order.
+    assert captured.out == "outerr"
+    assert "err" not in captured.err
     run = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]
     assert run["owner_kind"] == "monitor"
     assert run["owner_id"] == "mon-owner"

@@ -11,6 +11,8 @@ import sys
 import time
 from typing import Any
 
+from sase.core.process_identity import process_identity_token
+from sase.core.tool_run import tool_run_observe
 from sase.telemetry.metrics import (
     TOOL_RUN_ATTEMPTS,
     TOOL_RUN_RECORDING_ERRORS,
@@ -26,6 +28,7 @@ from sase.tool.executor_display import (
 from sase.tool.executor_process import (
     child_env,
     settle_wait_code,
+    should_merge_streams,
     spawn_child,
     spawn_diagnostic,
     spawn_exit_code,
@@ -94,7 +97,10 @@ def execute_tool_run(request: ToolRunCliRequest) -> int:
         verbose=request.verbose,
         owns_output=ownership.owns_output,
     )
-    reconcile_unsettled_tool_runs()
+    # The executor owns the run lifecycle, so it also reaps identity-matched
+    # survivors of lost runs. Read-only store paths (``tool runs``/``show``)
+    # reconcile without reaping and never signal.
+    reconcile_unsettled_tool_runs(reap_orphans=True)
 
     signals = SignalState()
     previous_int = signal.signal(signal.SIGINT, signals.handler)
@@ -193,9 +199,17 @@ def _execute_resolved(
         events_path=events_path,
         resolved=resolved,
     )
+    has_owner = ownership.owner_kind is not None
+    merged = should_merge_streams(owns_output=ownership.owns_output, compact=compact)
     started = time.monotonic()
     try:
-        proc = spawn_child(resolved.argv, cwd=resolved.cwd, env=child_env_map)
+        proc = spawn_child(
+            resolved.argv,
+            cwd=resolved.cwd,
+            env=child_env_map,
+            start_new_session=not has_owner,
+            merged_streams=merged,
+        )
     except OSError as exc:
         exit_code = spawn_exit_code(exc)
         diagnostic = spawn_diagnostic(exc, resolved.argv)
@@ -221,6 +235,8 @@ def _execute_resolved(
     except OSError:
         child_pgid = proc.pid
     signals.bind_pgid(child_pgid)
+    if recorded:
+        _observe_spawned_child(run_id, child_pid=child_pid, child_pgid=child_pgid)
 
     policy = log_policy()
     budget = RunLogBudget(int(policy.get("run_log_max_bytes") or 0))
@@ -268,6 +284,19 @@ def _execute_resolved(
         if not compact:
             write_display(sys.stderr, chunk)
 
+    def on_merged(chunk: bytes) -> None:
+        # One pipe carries both child streams in write order. Retain the
+        # interleaved bytes in the stdout log (the stderr log stays empty)
+        # and pass them through once, to stdout: both wrapper fds name the
+        # same target whenever this mode is selected.
+        nonlocal log_failed
+        if stdout_sink is not None:
+            stdout_sink.write(chunk)
+            if stdout_sink.failed:
+                log_failed = True
+        if not compact:
+            write_display(sys.stdout, chunk)
+
     if durable_id:
         write_display(sys.stderr, f"sase tool run {durable_id}\n".encode())
 
@@ -282,8 +311,10 @@ def _execute_resolved(
         for line in ingestor.tick():
             write_display(sys.stderr, f"{line}\n".encode())
 
-    pumps = start_output_pumps(proc, on_stdout, on_stderr)
-    wait_code = wait_child(proc, signals, on_tick=on_tick)
+    # With a merged pipe proc.stderr is None, so the second callback is never
+    # invoked and a single pump drains the child's write order.
+    pumps = start_output_pumps(proc, on_merged if merged else on_stdout, on_stderr)
+    wait_code = wait_child(proc, signals, on_tick=on_tick, escalate=not has_owner)
     for pump in pumps:
         pump.join(timeout=5.0)
     if stdout_sink is not None:
@@ -341,6 +372,34 @@ def _execute_resolved(
             truncation=truncation,
         )
     return exit_code
+
+
+def _observe_spawned_child(run_id: str, *, child_pid: int, child_pgid: int) -> None:
+    """Persist the child's pid, pgid, and start identity right after spawn.
+
+    Child facts used to reach the ledger only through ``finish_tool_run``, so
+    a run killed seconds later settled ``lost`` with no reapable group.
+    Recording stays fail-open: an observe failure warns at most once and never
+    changes the child's result.
+    """
+
+    try:
+        identity = process_identity_token(child_pid)
+    except Exception:  # noqa: BLE001 - identity is best-effort metadata.
+        identity = ""
+    try:
+        tool_run_observe(
+            {
+                "schema_version": 1,
+                "run_id": run_id,
+                "child_pid": child_pid,
+                "child_pgid": child_pgid,
+                "child_process_start_identity": identity or None,
+            }
+        )
+    except Exception as exc:  # noqa: BLE001 - never change the child result.
+        warn_once(f"sase: child facts not recorded ({exc})")
+        inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="observe")
 
 
 __all__ = ["ToolRunCliRequest", "execute_tool_run"]

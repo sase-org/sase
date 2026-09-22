@@ -161,6 +161,7 @@ def _replay_tool_files(
 ) -> int:
     missing: list[str] = []
     truncated = _output_truncation(run)
+    replayed: list[str] = []
     for label, raw in (("stdout", stdout_path), ("stderr", stderr_path)):
         if not raw:
             continue
@@ -168,10 +169,22 @@ def _replay_tool_files(
         if not path.is_file():
             missing.append(f"{label} log missing: {path}")
             continue
+        try:
+            empty = path.stat().st_size == 0
+        except OSError:
+            empty = False
         if path.with_name(f"{path.name}.1").exists():
             truncated.append(f"{label} retained log was rotated/truncated")
         dest = sys.stdout if label == "stdout" else sys.stderr
         replay_retained_bytes(path, partial(_write_bytes, dest))
+        if not empty:
+            replayed.append(label)
+    if replayed == ["stdout", "stderr"]:
+        print(
+            "sase: no total order between the retained stdout and stderr "
+            "streams; order across them is not the child's write order",
+            file=sys.stderr,
+        )
     for message in (*truncated, *missing):
         print(f"sase: {message}", file=sys.stderr)
     return 0
