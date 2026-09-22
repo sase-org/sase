@@ -12,6 +12,10 @@ def plans_query_schema() -> ArtifactQuerySchema:
     None of ``kind``/``status``/``tier`` are enum-validated today (unlike
     the equivalent Beads keys), so they compile as plain strings even though
     the filter bar offers static completion hints for them.
+
+    ``path`` matches by substring so that ``path:<fragment>`` finds a
+    document by any part of its path, while identity reveal's full-path
+    query still names the row.
     """
 
     string_fields = tuple(
@@ -19,7 +23,7 @@ def plans_query_schema() -> ArtifactQuerySchema:
             key=key,
             repeatable=True,
             negatable=True,
-            exact_match=True,
+            exact_match=key != "path",
             searchable=key == "path",
             hint=hint,
         )

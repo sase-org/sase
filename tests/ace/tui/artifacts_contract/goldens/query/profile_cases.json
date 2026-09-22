@@ -282,6 +282,10 @@
         "-project:other migration": {
           "canonical": "-project:other migration",
           "matches": ["plan-proposal"]
+        },
+        "path:plans/": {
+          "canonical": "path:plans/",
+          "matches": ["plan-proposal", "plan-active"]
         }
       },
       "errors": {

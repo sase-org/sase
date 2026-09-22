@@ -50,6 +50,7 @@ def test_provider_query_schema_derives_fields_from_the_notes_fixture() -> None:
 def test_provider_query_schema_handles_missing_and_malformed_specs() -> None:
     empty = compile_query_profile(provider_query_schema("empty", None))
     assert {item.key for item in empty.fields} == {"path"}
+    assert empty.field("path").exact_match is False
     assert compile_query_profile(provider_query_schema("empty", {})).identity_field == (
         "path"
     )

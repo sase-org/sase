@@ -52,10 +52,12 @@ def provider_query_schema(
                 )
             )
     if not any(item.key == "path" for item in fields):
+        # Substring filter: ``path:<fragment>`` finds a document by any part
+        # of its path, while identity reveal's full-identity query still
+        # names the row.
         fields.append(
             QueryFieldSpec(
                 key="path",
-                exact_match=True,
                 searchable=True,
                 negatable=True,
                 hint="document path or provider identity",

@@ -24,6 +24,7 @@ from sase.ace.query_profile.profiles import (
     beads_query_schema,
     files_query_schema,
     patches_query_schema,
+    plans_query_schema,
     provider_query_schema,
     stitches_query_schema,
 )
@@ -354,6 +355,39 @@ def test_provider_profile_index_matches_python_reference() -> None:
         True,
         False,
     ]
+
+
+@pytest.mark.parametrize(
+    "schema_builder",
+    [plans_query_schema, lambda: provider_query_schema("research", None)],
+)
+def test_path_filter_matches_by_substring_through_rust(schema_builder) -> None:
+    """``path:<fragment>`` finds a document by any part of its path."""
+
+    profile = compile_query_profile(schema_builder())
+    assert profile.field("path").exact_match is False
+    full_path = (
+        "/home/bryan/x/sase--research/reports/2026/multi_cli_orchestration_vs_sase.md"
+    )
+    rows = [
+        {"stable_id": "target", "fields": {"path": full_path}},
+        {"stable_id": "other", "fields": {"path": "/home/bryan/x/notes/todo.md"}},
+    ]
+    index = compile_artifact_query_index(
+        pane_id=profile.pane_id, generation=1, profile=profile, entries=rows
+    )
+    assert evaluate_artifact_query_many(
+        "path:multi_cli_orchestration_vs_sase", index
+    ).matched_row_ids == ("target",)
+    assert evaluate_artifact_query_many("path:MULTI_CLI", index).matched_row_ids == (
+        "target",
+    )
+    assert evaluate_artifact_query_many(
+        f'path:"{full_path}"', index
+    ).matched_row_ids == ("target",)
+    assert evaluate_artifact_query_many(
+        "-path:multi_cli_orchestration_vs_sase", index
+    ).matched_row_ids == ("other",)
 
 
 @pytest.mark.parametrize(

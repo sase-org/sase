@@ -54,4 +54,5 @@ def test_plans_profile_search_only_fields_match_the_free_text_hint() -> None:
     assert profile.free_text_hint == "title, body, path (AND)"
     assert profile.identity_field == "path"
     assert profile.field("path").filterable is True
-    assert profile.field("path").exact_match is True
+    assert profile.field("path").exact_match is False
+    assert profile.field("kind").exact_match is True
