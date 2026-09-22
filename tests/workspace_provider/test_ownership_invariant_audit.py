@@ -1,7 +1,7 @@
 """End-to-end ownership invariant audit and regression gates (sase-mq.7/mq.8).
 
 Phases 1-6 unit-test their own primitives in isolation (see
-``test_workspace_ownership.py``, ``test_workspace_lease.py``,
+``test_workspace_ownership.py``, ``test_workspace_lease_acquire.py``,
 ``test_reset_replay.py``, ``tests/test_bead/test_background_store.py``, and
 ``tests/test_sidecar_auto_sync.py``). Plan approval/archive, epic launch,
 task launch, and external-issue-mirror flows also have focused unit coverage;
