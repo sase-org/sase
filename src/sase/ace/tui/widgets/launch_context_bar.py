@@ -15,6 +15,9 @@ Visual grammar, left to right (``·`` separates the two groups)::
     Compact:  opus@high · +sase
     No proj:  model: opus@high
 
+On the Agents row only, a leading ``load: <load>/<capacity>`` gauge (an
+Agents-row-only :class:`AgentLoadIndicator`) precedes this cluster.
+
 ``model:`` / ``project:`` are dim micro-labels naming the launch default and
 the current project (never a sentence like "new agents ... in +sase": the
 current project seeds filters and preselects the ``+`` picker row, it is not
@@ -37,6 +40,7 @@ from textual.events import Resize
 from textual.widgets import Static
 
 from .agent_info_panel import AgentInfoPanel
+from .agent_load_indicator import AgentLoadIndicator
 from .artifacts.split_badge import ArtifactsSplitBadge
 from .axe_info_panel import AxeInfoPanel
 from .current_project_indicator import CurrentProjectIndicator
@@ -297,7 +301,7 @@ class LaunchContextBar(Horizontal):
 
 
 class AgentInfoRow(Horizontal):
-    """Agents status row: the info panel plus the launch-context cluster."""
+    """Agents status row: the info panel plus the load gauge and cluster."""
 
     def on_resize(self, _event: Resize) -> None:
         """Refit the cluster density when the row gains or loses cells."""
@@ -305,15 +309,22 @@ class AgentInfoRow(Horizontal):
         self.fit_launch_context_bar()
 
     def fit_launch_context_bar(self) -> None:
-        """Pick the cluster density from the cells free beside the panel."""
+        """Pick the gauge and cluster density from the cells free beside the panel."""
 
         try:
             panel = self.query_one("#agent-info-panel", AgentInfoPanel)
+            load = self.query_one("#agent-load-indicator", AgentLoadIndicator)
             bar = self.query_one(LaunchContextBar)
         except Exception:  # noqa: BLE001 - pre-compose fit is a no-op.
             return
         free = self.region.width - panel.content_width - 2 - _MIN_GAP_CELLS
-        bar.refresh_density(max(0, free))
+        density = _choose_launch_context_density(
+            max(0, free),
+            full_cells=load.full_cells + bar.full_cells,
+            compact_cells=load.compact_cells + bar.compact_cells,
+        )
+        bar.set_density(density)
+        load.set_density(density)
 
 
 class AxeInfoRow(Horizontal):

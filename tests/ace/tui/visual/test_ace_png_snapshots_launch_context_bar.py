@@ -15,7 +15,12 @@ from textual.widgets import Static
 
 import sase.ace.tui.widgets.launch_context_source as launch_context_source
 from sase.ace.testing import AcePage
-from sase.ace.tui.widgets import LaunchContextBar, LLMOverrideIndicator
+from sase.ace.tui.models.agent_runner_slots import RunnerCapacitySnapshot
+from sase.ace.tui.widgets import (
+    AgentLoadIndicator,
+    LaunchContextBar,
+    LLMOverrideIndicator,
+)
 from sase.llm_provider.model_launch_settings import (
     LaunchModelSettingSnapshot,
     launch_model_setting_override_key,
@@ -288,4 +293,49 @@ async def test_launch_context_bar_full_density_png_snapshot(
             page,
             "launch_context_bar_full_density_160x40",
             title="ACE launch-context cluster full density at 160 columns",
+        )
+
+
+async def test_launch_context_bar_agents_full_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=agents())
+    pin_agents_visual_now(monkeypatch, datetime(2026, 7, 12, 12, 3, 0))
+    quiet_top_bar(monkeypatch)
+    _pin_launch_default(monkeypatch)
+
+    async with AcePage(
+        query='"visual"',
+        patches=patches(),
+        size=(160, 40),
+    ) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        await _wait_for_cluster(page, "launch-context-bar-agents", pill="opus-5@high")
+        page.app._agent_runner_capacity = RunnerCapacitySnapshot(
+            effective_limit=10.0,
+            occupied_capacity=7.0,
+        )
+        page.app._update_agents_info_panel()
+        load = page.app.query_one("#agent-load-indicator", AgentLoadIndicator)
+        await wait_for_state(
+            page,
+            lambda: "7/10" in load.render().plain,
+            description="pinned runner load gauge 7/10",
+        )
+        bar = page.app.query_one("#launch-context-bar-agents", LaunchContextBar)
+        await wait_for_state(
+            page,
+            lambda: bar.density == "full" and load.density == "full",
+            description="full right-side density at 160 columns",
+        )
+        await wait_for_visual_idle(page)
+
+        ace_png_visual.assert_page_png(
+            page,
+            "launch_context_bar_agents_full_160x40",
+            title="ACE Agents status row full density with load gauge at 160 columns",
         )

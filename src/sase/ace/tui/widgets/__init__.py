@@ -9,6 +9,7 @@ _LAZY_EXPORTS = {
     "ActiveXPromptArgHint": (".xprompt_arg_assist", "ActiveXPromptArgHint"),
     "AgentDetail": (".agent_detail", "AgentDetail"),
     "AgentInfoPanel": (".agent_info_panel", "AgentInfoPanel"),
+    "AgentLoadIndicator": (".agent_load_indicator", "AgentLoadIndicator"),
     "AgentsFilterBar": (".agents_filter_bar", "AgentsFilterBar"),
     "AgentList": (".agent_list", "AgentList"),
     "AgentOnboarding": (".agent_onboarding", "AgentOnboarding"),
@@ -123,6 +124,7 @@ _LAZY_EXPORTS = {
 __all__ = [
     "AgentDetail",
     "AgentInfoPanel",
+    "AgentLoadIndicator",
     "AgentsFilterBar",
     "AgentLLMCallsPanel",
     "ToolDetailLevel",

@@ -20,12 +20,11 @@ from sase.ace.tui.models._fold_filter import filter_agents_by_fold_state
 from sase.ace.tui.models.agent import Agent as TuiAgent
 from sase.ace.tui.models.agent import AgentType
 from sase.ace.tui.models.agent_runner_slots import (
-    format_capacity_value,
     format_queue_weight_badge_value,
     refresh_runner_slot_context,
 )
 from sase.ace.tui.models.fold_state import FoldStateManager
-from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
+from sase.ace.tui.widgets.agent_load_indicator import _build_agent_load_text
 from sase.ace.tui.widgets.prompt_panel._agent_queue_section import (
     _queue_entry_capacity_detail,
 )
@@ -282,22 +281,15 @@ def test_capacity_header_renders_shared_snapshot_numbers() -> None:
     tui_agents = [_tui_agent(spec) for spec in _LOCAL_SPECS]
     snapshot = refresh_runner_slot_context(tui_agents, effective_limit=_LIMIT)
 
-    panel = AgentInfoPanel()
-    panel._runner_limit = snapshot.effective_limit
-    panel._runner_occupied_capacity = snapshot.occupied_capacity
-    panel._runner_queue_count = snapshot.queued_count
-    captured: list[str] = []
-    with patch.object(
-        panel, "update", lambda text, **_kwargs: captured.append(text.plain)
-    ):
-        panel._update_display()
-
-    expected = (
-        f"{format_capacity_value(snapshot.occupied_capacity)}/"
-        f"{format_capacity_value(snapshot.effective_limit)}"
+    gauge = _build_agent_load_text(
+        snapshot.effective_limit,
+        snapshot.occupied_capacity,
+        dark=True,
+        density="full",
     )
-    assert expected == "0.75/1.0"
-    assert expected in captured[-1]
+
+    assert "0.75/1" in gauge.plain
+    assert "0.75/1.0" not in gauge.plain
 
 
 def test_queue_detail_and_badges_match_blockers_from_shared_snapshot() -> None:

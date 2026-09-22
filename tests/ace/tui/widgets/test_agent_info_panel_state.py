@@ -7,6 +7,7 @@ from unittest.mock import patch
 from rich.text import Text
 
 from ._agent_info_panel_helpers import (
+    DEFAULT_REFRESH_KEY,
     AgentInfoPanel,
     collect_text,
     stable_state_kwargs,
@@ -26,7 +27,7 @@ def test_update_state_renders_supplied_sase_agent_count_unchanged() -> None:
 
     plain = collect_text(panel)
 
-    assert plain.startswith("4  2.0/10.0 [3 running · 3 done]")
+    assert plain.startswith("4 [3 running · 3 done]")
 
 
 def test_update_countdown_only_passes_layout_false() -> None:
@@ -69,8 +70,8 @@ def test_update_countdown_only_uses_cached_template() -> None:
     assert len(calls) == 1
     assert calls[0]["layout"] is False
     plain = calls[0]["text"].plain  # type: ignore[union-attr]
-    assert "auto-refresh in 4s" in plain
-    assert "auto-refresh in 5s" not in plain
+    assert f"refresh: 4s ({DEFAULT_REFRESH_KEY})" in plain
+    assert f"refresh: 5s ({DEFAULT_REFRESH_KEY})" not in plain
 
 
 def test_update_countdown_only_returns_early_when_unchanged() -> None:

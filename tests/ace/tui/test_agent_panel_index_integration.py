@@ -307,8 +307,19 @@ class _RecordingInfoPanel:
 
 def _run_info_panel(bare: _Bare) -> _RecordingInfoPanel:
     """Drive ``_update_agents_info_panel`` against a recording info-panel stub."""
+    from textual.css.query import NoMatches
+
     info_panel = _RecordingInfoPanel()
-    bare.query_one = lambda _selector, _type=None: info_panel  # type: ignore[attr-defined]
+
+    def _query_one(selector: str, _type: Any = None) -> Any:
+        # Only the info panel exists on this bare harness; anything else
+        # (the load gauge, the detail panel) behaves as an unmatched query,
+        # which the update path tolerates the same way as the live tree.
+        if selector == "#agent-info-panel":
+            return info_panel
+        raise NoMatches()
+
+    bare.query_one = _query_one  # type: ignore[attr-defined]
     bare._update_agents_info_panel()
     return info_panel
 

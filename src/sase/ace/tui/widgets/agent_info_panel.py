@@ -3,7 +3,6 @@
 from typing import Any
 
 from rich.cells import cell_len
-from rich.style import Style
 from rich.text import Text
 from textual.events import Click
 from textual.message import Message
@@ -12,24 +11,18 @@ from textual.widgets import Static
 from ..agent_count_chip import AGENT_COUNT_CHIP_QUEUED_STYLE
 from ..keymaps import KeymapRegistry, key_display_name, load_keymap_registry
 from ..keymaps.key_validation import is_unbound_key
-from ..models.agent_runner_slots import format_capacity_value
+
+_ELEMENT_SEPARATOR = " · "
 
 
 class AgentInfoPanel(Static):
-    """Top bar showing agent metrics and auto-refresh countdown."""
+    """Top bar showing agent metrics and refresh countdown."""
 
     class FilterClicked(Message):
         """The rendered filter-query segment was clicked; open the editor."""
 
     _TOTAL_COUNT_STYLE = "bold #FFFFFF"
     _PROC_SHELL_BADGE_STYLE = "bold #5FD7FF"
-    # Keep the neutral denominator in its own Rich span while matching adjacent
-    # dim labels.  The explicit non-bold flag prevents modal overlays from
-    # coalescing those spans and perturbing neighboring glyph antialiasing.
-    _NEUTRAL_RUNNER_LIMIT_STYLE = Style(
-        bold=False,
-        dim=True,
-    )
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize the info panel."""
@@ -45,8 +38,6 @@ class AgentInfoPanel(Static):
         self._read_count = 0
         self._sase_agent_count = 0
         self._proc_shell_count = 0
-        self._runner_limit = 0.0
-        self._runner_occupied_capacity: float | None = None
         self._runner_queue_count = 0
         self._countdown = 0
         self._interval = 0
@@ -151,22 +142,15 @@ class AgentInfoPanel(Static):
         """Update the countdown display.
 
         Args:
-            countdown: Seconds remaining until auto-refresh.
+            countdown: Seconds remaining until refresh.
             interval: Total refresh interval in seconds.
         """
         self._countdown = countdown
         self._interval = interval
         self._update_display()
 
-    def update_runner_capacity(
-        self,
-        effective_limit: float,
-        queue_count: int,
-        occupied_capacity: float | None = None,
-    ) -> None:
-        """Update the cached global user-agent runner capacity snapshot."""
-        self._runner_limit = effective_limit
-        self._runner_occupied_capacity = occupied_capacity
+    def update_runner_queue_count(self, queue_count: int) -> None:
+        """Update the cached runner-capacity queue count."""
         self._runner_queue_count = queue_count
         self._update_display()
 
@@ -248,8 +232,6 @@ class AgentInfoPanel(Static):
         search_query_rich: Text | None = None,
         search_query_match_count: tuple[int, int] | None = None,
         search_query_partial_history: bool = False,
-        runner_limit: float = 0.0,
-        runner_occupied_capacity: float | None = None,
         runner_queue_count: int = 0,
     ) -> None:
         """Batch all logical info-panel state into one render.
@@ -271,8 +253,6 @@ class AgentInfoPanel(Static):
             read,
             sase_agent_count,
             proc_shell_count,
-            runner_limit,
-            runner_occupied_capacity,
             runner_queue_count,
             view_mode,
             view_picker_available,
@@ -295,8 +275,6 @@ class AgentInfoPanel(Static):
             self._read_count,
             self._sase_agent_count,
             self._proc_shell_count,
-            self._runner_limit,
-            self._runner_occupied_capacity,
             self._runner_queue_count,
             self._view_mode,
             self._view_picker_available,
@@ -328,8 +306,6 @@ class AgentInfoPanel(Static):
             self._read_count,
             self._sase_agent_count,
             self._proc_shell_count,
-            self._runner_limit,
-            self._runner_occupied_capacity,
             self._runner_queue_count,
             self._view_mode,
             self._view_picker_available,
@@ -413,38 +389,12 @@ class AgentInfoPanel(Static):
             ("read", self._read_count),
         ]
 
-    def _runner_capacity_style(self) -> str | Style:
-        """Return the occupied-capacity style for the current pressure."""
-        limit = self._runner_limit
-        occupied = self._runner_occupied_capacity
-        if occupied is None or limit <= 0:
-            return self._NEUTRAL_RUNNER_LIMIT_STYLE
-        if occupied >= limit:
-            return "bold #FF5F5F"
-        if occupied / limit >= 0.75:
-            return "bold #FF8700"
-        if occupied / limit >= 0.5:
-            return "bold #FFD700"
-        return self._NEUTRAL_RUNNER_LIMIT_STYLE
-
-    def _append_capacity_prefix(self, text: Text) -> None:
-        """Append global weighted runner capacity before visible counts."""
-        text.append("  ")
-        if self._runner_limit <= 0:
-            text.append("—/—", style=self._NEUTRAL_RUNNER_LIMIT_STYLE)
-            return
-        text.append(
-            format_capacity_value(self._runner_occupied_capacity),
-            style=self._runner_capacity_style(),
-        )
-        text.append("/", style="dim")
-        text.append(
-            format_capacity_value(self._runner_limit),
-            style=self._NEUTRAL_RUNNER_LIMIT_STYLE,
-        )
+    def _append_separator(self, text: Text) -> None:
+        """Append the dim dot separating top-level row elements."""
+        text.append(_ELEMENT_SEPARATOR, style="dim")
 
     def _append_status_strip(self, text: Text) -> None:
-        """Append the consolidated visible status and runner-capacity strip."""
+        """Append the consolidated visible status strip."""
         text.append(" [", style="dim")
         text.append(str(self._running_count), style=self._COUNT_STYLES["running"])
         text.append(" running", style="dim")
@@ -484,12 +434,11 @@ class AgentInfoPanel(Static):
         text.append(f"{self._sase_agent_count}", style=self._TOTAL_COUNT_STYLE)
         if self._proc_shell_count:
             text.append(" agents", style="dim")
-        self._append_capacity_prefix(text)
         self._append_status_strip(text)
         self._append_proc_shell_badge(text)
         self._search_query_click_span = None
         if self._search_query_rich is not None:
-            text.append("   ")
+            self._append_separator(text)
             text.append("filter: ", style="dim italic")
             click_start = text.cell_len
             text.append_text(self._search_query_rich)
@@ -500,7 +449,7 @@ class AgentInfoPanel(Static):
                 text.append(f"  {matched}/{loaded}", style="dim")
             self._search_query_click_span = (click_start, text.cell_len)
         elif self._search_query:
-            text.append("   ")
+            self._append_separator(text)
             text.append("filter: ", style="dim italic")
             text.append(self._search_query, style="bold #FFD700")
             if self._search_query_seeded:
@@ -511,8 +460,7 @@ class AgentInfoPanel(Static):
                 style="dim italic",
             )
         if self._view_mode:
-            text.append("   ")
-            text.append("[", style="dim")
+            self._append_separator(text)
             text.append("view: ", style="dim")
             style = self._VIEW_MODE_STYLES.get(self._view_mode, "dim")
             text.append(self._view_mode, style=style)
@@ -520,10 +468,8 @@ class AgentInfoPanel(Static):
             if self._view_picker_available and not is_unbound_key(view_key):
                 key = key_display_name(view_key)
                 text.append(f" ({key})", style="dim")
-            text.append("]", style="dim")
         grouping_label = self._grouping_mode or "by project"
-        text.append("   ")
-        text.append("[", style="dim")
+        self._append_separator(text)
         text.append("group: ", style="dim")
         text.append(
             grouping_label,
@@ -533,14 +479,16 @@ class AgentInfoPanel(Static):
         if not is_unbound_key(grouping_key):
             key = key_display_name(grouping_key)
             text.append(f" ({key})", style="dim")
-        text.append("]", style="dim")
         if self._interval > 0:
-            text.append("   ")
-            text.append("(auto-refresh in ", style="dim")
+            self._append_separator(text)
+            text.append("refresh: ", style="dim")
             countdown_start = len(text.plain)
             text.append(f"{self._countdown}s", style="bold #FFD700")
             self._countdown_text_span = (countdown_start, len(text.plain))
-            text.append(")", style="dim")
+            refresh_key = self._registry.app.agents_refresh
+            if not is_unbound_key(refresh_key):
+                key = key_display_name(refresh_key)
+                text.append(f" ({key})", style="dim")
         else:
             self._countdown_text_span = None
         return text

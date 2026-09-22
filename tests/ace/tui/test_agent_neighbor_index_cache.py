@@ -224,11 +224,24 @@ def test_agents_info_panel_update_skips_neighbor_count() -> None:
     info_panel = _InfoPanel()
     detail_panel = _DetailPanel()
 
+    class _LoadGauge:
+        calls: list[tuple[float, float | None]]
+
+        def __init__(self) -> None:
+            self.calls = []
+
+        def update_load(self, limit: float, occupied: float | None) -> None:
+            self.calls.append((limit, occupied))
+
+    load_gauge = _LoadGauge()
+
     def _query_one(selector: str, _type: Any = None) -> Any:
         if selector == "#agent-info-panel":
             return info_panel
         if selector == "#agent-detail-panel":
             return detail_panel
+        if selector == "#agent-load-indicator":
+            return load_gauge
         raise AssertionError(selector)
 
     app.query_one = _query_one  # type: ignore[attr-defined]
@@ -237,7 +250,8 @@ def test_agents_info_panel_update_skips_neighbor_count() -> None:
     app._update_agents_info_panel()
 
     assert "neighbor_count" not in info_panel.kwargs
-    assert info_panel.kwargs["runner_limit"] == 10
+    assert "runner_limit" not in info_panel.kwargs
     assert info_panel.kwargs["runner_queue_count"] == 2
     assert "runner_slots_in_use" not in info_panel.kwargs
+    assert load_gauge.calls == [(10, None), (10, None)]
     assert app.visible_walk_count == 0

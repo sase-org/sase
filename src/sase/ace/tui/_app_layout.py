@@ -20,6 +20,7 @@ from .widgets import (
     AgentInfoPanel,
     AgentInfoRow,
     AgentList,
+    AgentLoadIndicator,
     AgentsFilterBar,
     AliasOverridesIndicator,
     ArtifactsView,
@@ -111,6 +112,7 @@ class AppLayoutMixin:
             with Vertical(id="agents-view", classes=agents_classes):
                 with AgentInfoRow(id="agent-info-row"):
                     yield AgentInfoPanel(id="agent-info-panel")
+                    yield AgentLoadIndicator(id="agent-load-indicator")
                     yield LaunchContextBar(id="launch-context-bar-agents")
                 yield AgentsFilterBar(
                     id="agents-filter-bar",

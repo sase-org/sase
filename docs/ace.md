@@ -2276,32 +2276,39 @@ ordering. A status change can therefore move a row between subgroups while keepi
 under the same machine. As in the other nonstandard modes, project and Patch grouping
 levels disappear and this mode keeps an independent fold registry.
 
-The active grouping strategy is also surfaced in the Agents tab header via a
-`[group: <label> (o)]` badge so the current session mode is always visible after the
-cycle toast fades. After the first scan, the header starts with the visible sase-agent
-total `N`. One standalone agent or one sequential family is one sase agent, regardless
-of whether the family is folded. A rootless clan container contributes no sase agent
-itself; each direct clan member contributes one, and a direct member that is a
-sequential family still contributes only one. A hidden top-level `STARTING` agent
-contributes one sase agent even though it is not selectable yet. Grouping mode, tribe
-ownership, and fold state do not change this projection.
+The active grouping strategy is also surfaced in the Agents tab header via an
+unbracketed `group: <label> (o)` element so the current session mode is always visible
+after the cycle toast fades. Top-level header elements are joined by a dim `·`
+separator: the leading counts group, an optional `filter:` element, an optional `view:`
+element, the always-visible `group:` element, and an optional `refresh: <N>s (r)`
+countdown. Only the agent status counts keep square brackets. After the first scan, the
+header starts with the visible sase-agent total `N`. One standalone agent or one
+sequential family is one sase agent, regardless of whether the family is folded. A
+rootless clan container contributes no sase agent itself; each direct clan member
+contributes one, and a direct member that is a sequential family still contributes only
+one. A hidden top-level `STARTING` agent contributes one sase agent even though it is
+not selectable yet. Grouping mode, tribe ownership, and fold state do not change this
+projection.
 
-The sase-agent total is followed by an always-visible global capacity prefix in the form
-`C/L` immediately before the status strip: `C` is occupied runner capacity units and `L`
-is the current effective `max_running_agents` budget (temporary override first,
-configured value second). Normal agents claim `1.0`; non-default `%queue(weight=...)` /
-`%q(w=...)` launches claim their authored capacity units. If the capacity snapshot is
-unavailable, sase's TUI renders an explicit unknown value such as `—/—` instead of
-deriving a fake value from visible rows. Capacity belongs to the machine running this
-sase's TUI session and does not change when the Agents list is searched, folded,
-filtered by tribe/project, or focused on remote rows. Rows from other enrolled machines
-never add to this machine's `C`, although they still show their own machine's capacity
-and weight badges (described under **Queued** below). The visible running count and the
-global queued count remain in the following status strip, for example
-`8.0/10.0 [8 running · 1 queued]`. Capacity pressure is carried by the `C/L` prefix,
-escalating from dim through gold at half the limit, orange at three quarters, and red
-when occupied capacity reaches or exceeds the limit. The running count keeps its stable
-green count style. A nonzero queue count is cornflower blue.
+Runner load lives at the right of the row as a labeled `load: <load>/<capacity>` gauge,
+just before the model/project cluster, followed by a `·` separator. `<load>` is occupied
+runner capacity units and `<capacity>` is the current effective `max_running_agents`
+budget (temporary override first, configured value second). Normal agents claim `1.0`;
+non-default `%queue(weight=...)` / `%q(w=...)` launches claim their authored capacity
+units. Both numbers render as integers when possible (`7/10`, not `7.0/10.0`), trimming
+to 2 decimals otherwise. If the capacity snapshot is unavailable, sase's TUI renders
+`—/—` instead of deriving a fake value from visible rows; when only the occupied value
+is unknown it renders `—/<cap>`. Capacity belongs to the machine running this sase's TUI
+session and does not change when the Agents list is searched, folded, filtered by
+tribe/project, or focused on remote rows. Rows from other enrolled machines never add to
+this machine's load, although they still show their own machine's capacity and weight
+badges (described under **Queued** below). The visible running count and the global
+queued count remain in the status strip, for example `8 [8 running · 1 queued]` with
+`load: 8/10` at the right. The gauge shares the usage-window ten-step color gradient,
+keyed on free-capacity percent, so a given color means the same headroom in both places;
+at or over capacity it becomes the inverted red chip, exactly as an exhausted `0%` usage
+window. In compact density the `load:` label drops, leaving `8/10`. The running count
+keeps its stable green count style. A nonzero queue count is cornflower blue.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with

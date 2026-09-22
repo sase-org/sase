@@ -244,6 +244,33 @@ async def test_row_fit_picks_density_from_free_cells() -> None:
         assert bar.density == "compact"
 
 
+async def test_agents_row_fit_shares_density_between_gauge_and_bar() -> None:
+    from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
+    from sase.ace.tui.widgets.agent_load_indicator import AgentLoadIndicator
+    from sase.ace.tui.widgets.launch_context_bar import AgentInfoRow
+    from sase.ace.tui.widgets.launch_context_bar import _MIN_GAP_CELLS
+
+    async with AcePage(size=(120, 40), initial_tab="agents") as page:
+        page.app.refresh(layout=True)
+        await page.app.wait_for_refresh()
+        row = page.query_one_widget("#agent-info-row", AgentInfoRow)
+        await page.wait_for(lambda _state: row.region.width > 0)
+        panel = row.query_one("#agent-info-panel", AgentInfoPanel)
+        load = row.query_one("#agent-load-indicator", AgentLoadIndicator)
+        bar = row.query_one(LaunchContextBar)
+        assert row.region.width > 0
+
+        panel._content_width = 10
+        row.fit_launch_context_bar()
+        assert bar.density == "full"
+        assert load.density == "full"
+
+        panel._content_width = row.region.width - 2 - _MIN_GAP_CELLS - bar.full_cells
+        row.fit_launch_context_bar()
+        assert bar.density == "compact"
+        assert load.density == "compact"
+
+
 def test_model_tooltip_calm_names_directives_and_config_surface() -> None:
     indicator = LLMOverrideIndicator()
     indicator._cached_default = ("claude", "opus")

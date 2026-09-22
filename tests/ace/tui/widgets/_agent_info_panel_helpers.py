@@ -59,6 +59,9 @@ def style_at_plain_index(text: Text, index: int) -> str:
     return matching[-1]
 
 
+DEFAULT_REFRESH_KEY = key_display_name(load_keymap_registry({}).app.agents_refresh)
+
+
 def stable_state_kwargs(**overrides: object) -> dict[str, object]:
     """Default kwargs for ``AgentInfoPanel.update_state``."""
     base: dict[str, object] = {
@@ -77,8 +80,6 @@ def stable_state_kwargs(**overrides: object) -> dict[str, object]:
         "view_mode": "",
         "grouping_mode": "by project",
         "search_query": "",
-        "runner_limit": 10,
-        "runner_occupied_capacity": 2.0,
         "runner_queue_count": 0,
     }
     base.update(overrides)

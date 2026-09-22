@@ -66,9 +66,13 @@ def _assert_procs_are_top_level_rows(page: AcePage) -> None:
 
 def _assert_info_header_proc_badge(page: AcePage) -> None:
     info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
-    header = info._build_display_text().plain.split("   [view:", 1)[0]
+    header = (
+        info._build_display_text()
+        .plain.split(" · group:", 1)[0]
+        .split(" · view:", 1)[0]
+    )
 
-    assert header == "2 agents  0.0/10.0 [1 running · 1 waiting] ⚙7"
+    assert header == "2 agents [1 running · 1 waiting] ⚙7"
     assert header.index("]") < header.index("⚙7")
     assert "procs" not in header
     assert "agents ·" not in header

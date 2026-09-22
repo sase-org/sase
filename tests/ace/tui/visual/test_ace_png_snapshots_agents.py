@@ -13,6 +13,7 @@ import pytest
 
 from sase.ace.testing import AcePage
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
+from sase.ace.tui.widgets.agent_load_indicator import AgentLoadIndicator
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
 from sase.ace.tui.widgets.renderable_text import renderable_to_text
 from tests.ace.tui.visual._ace_agents_png_snapshot_fixtures import (
@@ -175,8 +176,10 @@ async def test_runner_slot_wait_rows_and_queue_detail_png_snapshot(
         assert "QUEUE · 2 waiting · 0.0/10.0 capacity" in prompt_text
         info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
         assert info._build_display_text().plain.startswith(
-            "3  0.0/10.0 [0 running · 2 queued · 1 waiting]"
+            "3 [0 running · 2 queued · 1 waiting]"
         )
+        load = page.app.query_one("#agent-load-indicator", AgentLoadIndicator)
+        assert "0/10" in load.render().plain
         ace_png_visual.assert_page_png(
             page,
             "agents_runner_slot_waits_120x40",
@@ -283,7 +286,7 @@ async def test_weighted_runner_capacity_png_snapshots(
         assert_page_svg_contains(page, "default-capacity")
         assert_page_svg_contains(page, "light-queue")
         assert_page_svg_contains(page, "heavy-queue")
-        assert_page_svg_styled_text_contains(page, "3.0/3.0")
+        assert_page_svg_styled_text_contains(page, "3/3")
         assert_page_svg_styled_text_contains(page, "w2")
         assert_page_svg_styled_text_contains(page, "w0.25")
         ace_png_visual.assert_page_png(
@@ -349,8 +352,20 @@ async def test_capacity_budget_accent_png_snapshot(
         await page.expect_state("tab", "agents")
         await wait_for_visual_idle(page)
 
-        info_panel = page.app.query_one(AgentInfoPanel)
-        assert info_panel._runner_capacity_style() == "bold #FF5F5F"
+        load = page.app.query_one("#agent-load-indicator", AgentLoadIndicator)
+        rendered = load.render()
+        assert "2/1" in rendered.plain
+        start = rendered.plain.index("2/1")
+        covering = [
+            span
+            for span in rendered.spans
+            if span.start <= start and span.end >= start + len("2/1")
+        ]
+        assert len(covering) == 1
+        # Over capacity paints the inverted chip (background set), never a
+        # foreground wash. Exact chip colors are pinned by the unit tests and
+        # this golden itself.
+        assert covering[0].style.background is not None
 
         assert_page_svg_styled_text_contains(page, "c1")
         assert_page_svg_styled_text_contains(page, "c100")

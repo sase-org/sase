@@ -163,7 +163,7 @@ class AgentInfoDisplayMixin:
     def _update_agents_info_panel_impl(self) -> None:
         from textual.css.query import NoMatches
 
-        from ...widgets import AgentDetail, AgentInfoPanel
+        from ...widgets import AgentDetail, AgentInfoPanel, AgentLoadIndicator
 
         try:
             agent_info_panel = self.query_one("#agent-info-panel", AgentInfoPanel)  # type: ignore[attr-defined]
@@ -210,6 +210,17 @@ class AgentInfoDisplayMixin:
         runner_capacity = getattr(
             self, "_agent_runner_capacity", _NEUTRAL_RUNNER_CAPACITY
         )
+        try:
+            agent_load_indicator = self.query_one(  # type: ignore[attr-defined]
+                "#agent-load-indicator", AgentLoadIndicator
+            )
+        except NoMatches:
+            log.debug("agents load indicator update skipped: widget tree unavailable")
+        else:
+            agent_load_indicator.update_load(
+                runner_capacity.effective_limit,
+                runner_capacity.occupied_capacity,
+            )
         display_query, query_rich, match_count = self._agents_info_panel_query_display()
         load_state = getattr(self, "_agent_load_state", None)
         query_partial_history = bool(getattr(load_state, "query_incomplete", False))
@@ -243,22 +254,16 @@ class AgentInfoDisplayMixin:
                 grouping_mode=grouping_mode,
                 view_mode=view_mode,
                 view_picker_available=view_picker_available,
-                runner_limit=runner_capacity.effective_limit,
-                runner_occupied_capacity=runner_capacity.occupied_capacity,
                 runner_queue_count=runner_capacity.queued_count,
             )
             return
 
         agent_info_panel.update_position(position, selectable_total)
-        update_runner_capacity = getattr(
-            agent_info_panel, "update_runner_capacity", None
+        update_runner_queue_count = getattr(
+            agent_info_panel, "update_runner_queue_count", None
         )
-        if callable(update_runner_capacity):
-            update_runner_capacity(
-                runner_capacity.effective_limit,
-                runner_capacity.queued_count,
-                runner_capacity.occupied_capacity,
-            )
+        if callable(update_runner_queue_count):
+            update_runner_queue_count(runner_capacity.queued_count)
         update_count_kwargs: dict[str, int] = {"starting": starting_count}
         if "proc_shells" in signature(agent_info_panel.update_agent_counts).parameters:
             update_count_kwargs["proc_shells"] = proc_shell_count

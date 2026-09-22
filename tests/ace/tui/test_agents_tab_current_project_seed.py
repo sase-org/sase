@@ -205,7 +205,6 @@ def test_update_state_rebuilds_when_seeded_flag_changes() -> None:
         "grouping_mode": "by project",
         "search_query": "project:sase",
         "search_query_seeded": False,
-        "runner_limit": 10,
         "runner_queue_count": 0,
     }
     with patch.object(panel, "update"):

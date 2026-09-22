@@ -148,7 +148,8 @@ def _assert_collapsed_panel_summary(page: AcePage) -> None:
     assert "TRIBE MEMBERS · 2" in rendered
     assert "visual.collapse.primary.with.a.deliberately.wide.row" in rendered
     assert info._view_mode == "tribe"
-    assert "[view: tribe]" in info._build_display_text().plain
+    assert "view: tribe" in info._build_display_text().plain
+    assert "[view: tribe]" not in info._build_display_text().plain
     svg = page.export_svg(title="ACE collapsed summary assertion")
     assert "Name:" in svg
     assert "Patch:" not in svg

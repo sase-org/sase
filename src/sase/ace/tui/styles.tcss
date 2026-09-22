@@ -3758,6 +3758,12 @@ HintInputBar #hint-escape-hint {
     width: 1fr;
 }
 
+#agent-info-row #agent-load-indicator {
+    width: auto;
+    height: 1;
+    background: $surface;
+}
+
 #agent-info-panel {
     height: auto;
     max-height: 1;

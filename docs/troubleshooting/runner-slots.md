@@ -10,12 +10,12 @@ replaces the global budget for that launch's own admission decision: occupied we
 load plus the candidate's own weight must fit within the authored positive-integer
 budget.
 
-sase's TUI Agents header summarizes the same global capacity state as `C/L` before the
-status strip, for example `8.0/10.0 [8 running · 1 queued]`: occupied capacity units,
-effective limit, and live waiters at the runner-capacity admission gate. The effective
-value is an active machine-wide override from `~/.sase/max_running_agents_override.json`
-first and merged configuration second. The queued count includes implicit-cap waits and
-authored `capacity=` waits.
+sase's TUI Agents header summarizes the same global capacity state as `load: 8/10` at
+the right of the row, with `8 [8 running · 1 queued]` on the left: occupied capacity
+units, effective limit, and live waiters at the runner-capacity admission gate. The
+effective value is an active machine-wide override from
+`~/.sase/max_running_agents_override.json` first and merged configuration second. The
+queued count includes implicit-cap waits and authored `capacity=` waits.
 
 Admission starts the first waiter that fits its own admission budget, ordered by lower
 numeric `%queue(priority=N)` first and then first-in, first-out within the same

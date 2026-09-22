@@ -63,9 +63,7 @@ async def test_queued_clan_counts_png_snapshot(
         assert "Status: QUEUED [Q2]" in prompt.content.plain
         assert "Status: QUEUED #" not in prompt.content.plain
         info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
-        assert info._build_display_text().plain.startswith(
-            "2  0.0/10.0 [0 running · 2 queued]"
-        )
+        assert info._build_display_text().plain.startswith("2 [0 running · 2 queued]")
         status_group_keys = [
             entry.group.group_key
             for entry in build_agent_tree(

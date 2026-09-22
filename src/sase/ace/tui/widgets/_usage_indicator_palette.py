@@ -10,7 +10,8 @@ palette clears a minimum of approximately 5.00:1 (dark) and 4.66:1 (light);
 the neutral text color clears approximately 8.06:1 (dark) and 5.89:1
 (light). The gradient conveys diminishing capacity without treating a
 healthy 100% window as an alarm; fresh numeric windows use this scale, while
-uncertain (stale/unknown-age) data uses neutral styling instead.
+uncertain (stale/unknown-age) data uses neutral styling instead. The Agents
+row's load gauge shares this palette, keyed on free-capacity percent.
 """
 
 from __future__ import annotations
