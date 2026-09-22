@@ -10,7 +10,7 @@ import subprocess
 import time
 from typing import TYPE_CHECKING
 
-from sase.sdd._store_types import SddMaterializationError
+from sase.sdd._store_types import SddIntegrationError
 
 if TYPE_CHECKING:
     from sase.sdd._repository_recovery_markers import FailedIntegrationCooldown
@@ -40,8 +40,9 @@ def pull_sdd_clone(
     from sase.sdd._repository_transaction import SddIntegrationStatus
 
     cooldown_seconds = machine_recovery_cooldown_seconds()
+    beads_dir = _sidecar_clone_bead_store_dir(workspace_sdd)
     cooldown = None
-    if not _has_unpushed_bead_commits(workspace_sdd):
+    if not _has_unpushed_bead_commits(workspace_sdd, beads_dir):
         cooldown = admit_failed_integration_cooldown(
             workspace_sdd,
             cooldown_seconds=cooldown_seconds,
@@ -80,7 +81,7 @@ def pull_sdd_clone(
     lock_factory = _lock_factory_for_deadline(deadline)
     outcome = integrate_machine_managed_sdd_repository(
         workspace_sdd,
-        beads_dir=(workspace_sdd / "beads"),
+        beads_dir=beads_dir,
         op_prefix="sdd.clone",
         git_runner=git_runner,
         lock_factory=lock_factory,
@@ -131,22 +132,28 @@ def pull_sdd_clone(
     if strict and outcome.status not in {
         SddIntegrationStatus.REMOTE_UNAVAILABLE,
     }:
-        raise SddMaterializationError(detail)
+        raise SddIntegrationError(detail)
     return False
 
 
-def _has_unpushed_bead_commits(workspace_sdd: Path) -> bool:
+def _sidecar_clone_bead_store_dir(clone_root: Path) -> Path | None:
+    """Return the bead store for a sidecar clone from its actual layout."""
+    from sase.bead.conflict_resolver_paths import resolve_beads_dir
+
+    try:
+        return resolve_beads_dir(clone_root)
+    except Exception:
+        return None
+
+
+def _has_unpushed_bead_commits(workspace_sdd: Path, beads_dir: Path | None) -> bool:
     """Keep unpublished bead history out of failed-integration cooldown."""
+    if beads_dir is None:
+        return False
     try:
         from sase.bead.sync import unpushed_bead_commit_count
 
-        return (
-            unpushed_bead_commit_count(
-                workspace_sdd,
-                workspace_sdd / "beads",
-            )
-            > 0
-        )
+        return unpushed_bead_commit_count(workspace_sdd, beads_dir) > 0
     except Exception:
         # Cooldown is only an optimization. If the safety probe cannot tell,
         # attempt integration instead of parking potentially unpublished work.

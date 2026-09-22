@@ -53,6 +53,10 @@ class SddMaterializationError(RuntimeError):
     """Raised when provider-owned separate-repo storage cannot be materialized."""
 
 
+class SddIntegrationError(SddMaterializationError):
+    """Raised when an existing sidecar clone fails remote integration."""
+
+
 class SddTransientMaterializationError(SddMaterializationError):
     """Raised when materialization failed for a retryable transport reason."""
 

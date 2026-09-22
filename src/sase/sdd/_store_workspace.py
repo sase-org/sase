@@ -12,6 +12,7 @@ from sase.sdd._store_records import is_materialized_record, read_sdd_store_recor
 from sase.sdd._store_resolution import resolve_sdd_store
 from sase.sdd._store_types import (
     SDD_STORAGE_SEPARATE_REPO,
+    SddIntegrationError,
     SddMaterializationError,
     SddStore,
 )
@@ -208,13 +209,33 @@ def ensure_beads_sidecar_clone(
             )
         except Exception as exc:
             detail = str(exc) or type(exc).__name__
+            hint = (
+                ""
+                if _is_integration_failure(exc)
+                else " Verify that the repository exists "
+                "and your Git credentials can read it."
+            )
             raise SddMaterializationError(
                 "could not materialize beads sidecar repository "
                 f"{record.beads.repo} from {record.beads.remote_url} at "
-                f"{clone_dir}: {detail}. Verify that the repository exists "
-                "and your Git credentials can read it."
+                f"{clone_dir}: {detail}.{hint}"
             ) from exc
         return clone_dir
+
+
+def _is_integration_failure(exc: BaseException) -> bool:
+    """Return whether *exc* came from sidecar integration, not access."""
+    from sase.sdd._repository_health import SddRepositoryHealthError
+
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, (SddIntegrationError, SddRepositoryHealthError)):
+            return True
+        cause = current.__cause__ or current.__context__
+        current = cause if isinstance(cause, BaseException) else None
+    return False
 
 
 def _inherited_sdd_record_owner_anchor(
