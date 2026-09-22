@@ -5,6 +5,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Literal
 
 _PROBE_TIMEOUT_SECONDS = 2
@@ -15,6 +16,20 @@ _GIT_REMOTE_LOGIN = "git@github.com"
 SshAgentState = Literal["ready", "empty", "unreachable"]
 SshAgentScope = Literal["captured", "effective"]
 GitRemoteReadiness = Literal["ready", "denied", "unknown"]
+
+
+def is_live_ssh_agent_socket(sock: str | None) -> bool:
+    """Return True when ``sock`` names a live agent socket.
+
+    Shared by capture and host-start loading so both agree on what "live"
+    means. A missing or empty path is not live.
+    """
+    if not sock:
+        return False
+    try:
+        return Path(sock).is_socket()
+    except OSError:
+        return False
 
 
 def _probe_ssh_agent(env: Mapping[str, str]) -> SshAgentState | None:
@@ -95,6 +110,7 @@ def ssh_agent_readiness_warnings(
     env: Mapping[str, str],
     *,
     scope: SshAgentScope = "captured",
+    ignored_stale_sock: str | None = None,
 ) -> list[str]:
     """Warn when ``env`` cannot authenticate to the git remote.
 
@@ -108,7 +124,7 @@ def ssh_agent_readiness_warnings(
     """
     if probe_git_remote_auth(env) != "denied":
         return []
-    detail = _agent_detail(env, scope)
+    detail = _agent_detail(env, scope, ignored_stale_sock)
     if scope == "effective":
         return [
             "the service host's effective environment is refused by the git "
@@ -124,43 +140,69 @@ def ssh_agent_readiness_warnings(
     ]
 
 
-def _agent_detail(env: Mapping[str, str], scope: SshAgentScope) -> str:
+def _agent_detail(
+    env: Mapping[str, str],
+    scope: SshAgentScope,
+    ignored_stale_sock: str | None = None,
+) -> str:
     """Describe the agent in ``env`` for a refused credential; advisory only."""
     sock = env.get("SSH_AUTH_SOCK")
     if not sock:
         if scope == "effective":
-            return (
+            base = (
                 "neither the captured environment nor the platform manager "
                 "provides an SSH agent (SSH_AUTH_SOCK) and no configured "
                 "IdentityFile was accepted"
             )
-        return (
-            "no SSH agent (SSH_AUTH_SOCK) is captured and no configured "
-            "IdentityFile was accepted"
-        )
-    try:
-        state = _probe_ssh_agent(env)
-    except Exception:
-        state = None
-    if state == "empty":
-        return (
-            f"the SSH agent at {sock} is reachable but holds no identities, "
-            "and no configured IdentityFile was accepted"
-        )
-    if state == "unreachable":
-        return (
-            f"the SSH agent at {sock} is unreachable, and no configured "
-            "IdentityFile was accepted"
-        )
-    if state == "ready":
-        return f"the SSH agent at {sock} holds identities, but the remote accepted none"
-    return f"the SSH agent at {sock} could not be inspected"
+        else:
+            base = (
+                "no SSH agent (SSH_AUTH_SOCK) is captured and no configured "
+                "IdentityFile was accepted"
+            )
+    else:
+        try:
+            state = _probe_ssh_agent(env)
+        except Exception:
+            state = None
+        if state == "empty":
+            base = (
+                f"the SSH agent at {sock} is reachable but holds no identities, "
+                "and no configured IdentityFile was accepted"
+            )
+        elif state == "unreachable":
+            base = (
+                f"the SSH agent at {sock} is unreachable, and no configured "
+                "IdentityFile was accepted"
+            )
+        elif state == "ready":
+            base = (
+                f"the SSH agent at {sock} holds identities, "
+                "but the remote accepted none"
+            )
+        else:
+            base = f"the SSH agent at {sock} could not be inspected"
+    if scope == "effective" and ignored_stale_sock:
+        if sock:
+            prefix = (
+                f"the captured SSH agent at {ignored_stale_sock} no longer "
+                "exists, so the host uses the platform manager's agent at "
+                f"{sock}; "
+            )
+        else:
+            prefix = (
+                f"the captured SSH agent at {ignored_stale_sock} no longer "
+                "exists, so the host ignores it and the platform manager "
+                "provides no agent; "
+            )
+        return prefix + base
+    return base
 
 
 __all__ = [
     "GitRemoteReadiness",
     "SshAgentScope",
     "SshAgentState",
+    "is_live_ssh_agent_socket",
     "probe_git_remote_auth",
     "ssh_agent_readiness_warnings",
 ]

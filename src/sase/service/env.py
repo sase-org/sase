@@ -15,7 +15,10 @@ from typing import Any
 from sase.core.paths import sase_home as _sase_home
 from sase.llm_provider import registry as llm_registry
 from sase.service.paths import service_env_path
-from sase.service.ssh_agent import ssh_agent_readiness_warnings
+from sase.service.ssh_agent import (
+    is_live_ssh_agent_socket,
+    ssh_agent_readiness_warnings,
+)
 
 _ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _REDACTED = "[captured]"
@@ -159,6 +162,10 @@ def load_service_environment(
     ``override_existing`` is true; this keeps non-foreground commands from
     surprising the caller while allowing the platform foreground host to load
     its exact captured contract.
+
+    A captured ``SSH_AUTH_SOCK`` that is no longer a live socket is ignored,
+    together with the captured ``SSH_AGENT_PID``. The host then keeps whatever
+    agent the platform manager provided.
     """
     explicit_path = os.environ.get("SASE_SERVICE_ENV")
     path = (
@@ -167,6 +174,12 @@ def load_service_environment(
         else service_env_path(_sase_home() if sase_home is None else sase_home)
     )
     values = read_service_environment(path=path)
+    if not is_live_ssh_agent_socket(values.get(_SSH_AUTH_SOCK_ENV)):
+        values = {
+            name: value
+            for name, value in values.items()
+            if name not in (_SSH_AUTH_SOCK_ENV, _SSH_AGENT_PID_ENV)
+        }
     applied: list[str] = []
     for name, value in values.items():
         if override_existing or name not in os.environ:
@@ -235,11 +248,7 @@ def _capture_ssh_agent(
     sock = environment.get(_SSH_AUTH_SOCK_ENV)
     stale: str | None = None
     if sock:
-        try:
-            live = Path(sock).is_socket()
-        except OSError:
-            live = False
-        if live:
+        if is_live_ssh_agent_socket(sock):
             values[_SSH_AUTH_SOCK_ENV] = str(sock)
             # Systemd- and keyring-provided agents have no PID; that is fine.
             if agent_pid := environment.get(_SSH_AGENT_PID_ENV):

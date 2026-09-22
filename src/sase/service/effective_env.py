@@ -13,9 +13,13 @@ from pathlib import Path
 from typing import Protocol
 
 from sase.service.env import read_service_environment
-from sase.service.ssh_agent import ssh_agent_readiness_warnings
+from sase.service.ssh_agent import (
+    is_live_ssh_agent_socket,
+    ssh_agent_readiness_warnings,
+)
 
 _SSH_AUTH_SOCK_ENV = "SSH_AUTH_SOCK"
+_SSH_AGENT_PID_ENV = "SSH_AGENT_PID"
 
 
 class _CommandOutput(Protocol):
@@ -39,13 +43,43 @@ def _effective_service_environment(
     Mirrors how the host boots: it loads ``env_path`` over ``os.environ`` with
     ``override_existing=True``, and ``os.environ`` starts as the platform
     manager's environment. A missing or malformed file contributes nothing.
+    A persisted agent socket that is no longer live is ignored, so the
+    manager's agent applies.
     """
     values = _inherited_environment(platform_kind, runner)
     try:
-        values.update(read_service_environment(path=env_path))
+        persisted = read_service_environment(path=env_path)
     except (OSError, ValueError):
-        pass
+        return values
+    if not is_live_ssh_agent_socket(persisted.get(_SSH_AUTH_SOCK_ENV)):
+        persisted = {
+            name: value
+            for name, value in persisted.items()
+            if name not in (_SSH_AUTH_SOCK_ENV, _SSH_AGENT_PID_ENV)
+        }
+    values.update(persisted)
     return values
+
+
+def effective_service_environment(
+    *,
+    platform_kind: str,
+    env_path: Path,
+    runner: Callable[[Sequence[str]], _CommandOutput],
+) -> dict[str, str]:
+    """Public wrapper for the host's effective environment."""
+    return _effective_service_environment(
+        platform_kind=platform_kind, env_path=env_path, runner=runner
+    )
+
+
+def inherited_environment(
+    *,
+    platform_kind: str,
+    runner: Callable[[Sequence[str]], _CommandOutput],
+) -> dict[str, str]:
+    """Public wrapper for the manager's inherited environment."""
+    return _inherited_environment(platform_kind, runner)
 
 
 def effective_ssh_agent_warnings(
@@ -67,7 +101,17 @@ def effective_ssh_agent_warnings(
     )
     if effective.get(_SSH_AUTH_SOCK_ENV) == desired_env.get(_SSH_AUTH_SOCK_ENV):
         return []
-    return ssh_agent_readiness_warnings(effective, scope="effective")
+    try:
+        persisted = read_service_environment(path=env_path)
+    except (OSError, ValueError):
+        persisted = {}
+    ignored: str | None = None
+    stale = persisted.get(_SSH_AUTH_SOCK_ENV)
+    if stale and not is_live_ssh_agent_socket(stale):
+        ignored = stale
+    return ssh_agent_readiness_warnings(
+        effective, scope="effective", ignored_stale_sock=ignored
+    )
 
 
 def _inherited_environment(
@@ -107,4 +151,8 @@ def _parse_show_environment(text: str) -> dict[str, str]:
     return values
 
 
-__all__ = ["effective_ssh_agent_warnings"]
+__all__ = [
+    "effective_service_environment",
+    "effective_ssh_agent_warnings",
+    "inherited_environment",
+]

@@ -5,10 +5,16 @@ from __future__ import annotations
 import getpass
 import os
 import platform
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
+from pathlib import Path
 
 from sase.agent_clis.operations import collect_agent_cli_statuses
-from sase.service.effective_env import effective_ssh_agent_warnings
+from sase.service import ssh_agent as ssh_agent_module
+from sase.service.effective_env import (
+    effective_service_environment,
+    effective_ssh_agent_warnings,
+    inherited_environment,
+)
 from sase.service.env import (
     capture_service_environment,
     render_service_environment,
@@ -16,6 +22,7 @@ from sase.service.env import (
 )
 from sase.service.executable import service_launcher_warnings
 from sase.service.platform_definition import (
+    StableExecutable,
     build_native_definition,
     control_installed_service,
     inspect_native_service,
@@ -64,6 +71,45 @@ def service_init_plan(
         force=force,
         executable_resolver=executable_resolver,
     )
+    original_probe = ssh_agent_module.probe_git_remote_auth
+    probe_cache: dict[tuple[str | None, str | None, str | None], str] = {}
+
+    def _cached_probe(env: Mapping[str, str]) -> str:
+        key = (
+            env.get("SSH_AUTH_SOCK"),
+            env.get("SSH_AGENT_PID"),
+            env.get("PATH"),
+        )
+        if key not in probe_cache:
+            probe_cache[key] = original_probe(env)
+        return probe_cache[key]
+
+    ssh_agent_module.probe_git_remote_auth = _cached_probe  # type: ignore[assignment]
+    try:
+        return _service_init_plan_inner(
+            force=force,
+            runner=runner,
+            environ=environ,
+            executable_resolver=executable_resolver,
+            definition=definition,
+            initial_blockers=initial_blockers,
+            executable=executable,
+        )
+    finally:
+        ssh_agent_module.probe_git_remote_auth = original_probe  # type: ignore[assignment]
+
+
+def _service_init_plan_inner(
+    *,
+    force: bool,
+    runner: CommandRunner | None,
+    environ: Mapping[str, str] | None,
+    executable_resolver: Callable[[], str | None] | None,
+    definition: NativeServiceDefinition,
+    initial_blockers: Sequence[str],
+    executable: StableExecutable,
+) -> ServicePlatformPlan:
+    """Plan body running with a per-call git-remote probe cache."""
     capture = capture_service_environment(
         environ=environ,
         force_sase_home=definition.sase_home if definition.alternate_home else None,
@@ -107,6 +153,7 @@ def service_init_plan(
         )
     warnings.extend(_readiness_warnings(desired_env))
     warnings.extend(service_launcher_warnings(desired_env))
+    active_runner = default_runner if runner is None else runner
     if inspection.definition_exists:
         # The capture above answers "what will init write"; this answers "what
         # would the installed host see", which a healthy caller shell cannot mask.
@@ -115,9 +162,18 @@ def service_init_plan(
                 platform_kind=definition.platform,
                 env_path=definition.env_path,
                 desired_env=desired_env,
-                runner=default_runner if runner is None else runner,
+                runner=active_runner,
             )
         )
+    warnings.extend(
+        _ssh_durability_warnings(
+            desired_env=desired_env,
+            platform_kind=definition.platform,
+            env_path=definition.env_path,
+            definition_exists=inspection.definition_exists,
+            runner=active_runner,
+        )
+    )
 
     diff = combined_diff(
         definition.definition_path,
@@ -296,6 +352,110 @@ def apply_service_uninstall(
         message=f"uninstalled {definition.identity}",
         plan=plan,
     )
+
+
+def _ssh_durability_warnings(
+    *,
+    desired_env: Mapping[str, str],
+    platform_kind: str,
+    env_path: Path,
+    definition_exists: bool,
+    runner: CommandRunner,
+) -> list[str]:
+    """Warn when the only accepted credential is a login-session agent.
+
+    Checks the environment init is about to capture, and the effective
+    environment when the unit is installed and it names a different agent.
+    Warns only when the checked agent answers ``ready``, its manager fallback
+    answers ``denied``, and the checked socket is not the manager's own.
+    Never raises: durability reporting is advisory.
+    """
+    try:
+        return list(
+            _ssh_durability_warnings_inner(
+                desired_env=desired_env,
+                platform_kind=platform_kind,
+                env_path=env_path,
+                definition_exists=definition_exists,
+                runner=runner,
+            )
+        )
+    except Exception:
+        return []
+
+
+def _ssh_durability_warnings_inner(
+    *,
+    desired_env: Mapping[str, str],
+    platform_kind: str,
+    env_path: Path,
+    definition_exists: bool,
+    runner: CommandRunner,
+) -> list[str]:
+    try:
+        inherited = inherited_environment(platform_kind=platform_kind, runner=runner)
+    except Exception:
+        inherited = {}
+    manager_sock = inherited.get("SSH_AUTH_SOCK")
+    to_check: list[tuple[str, Mapping[str, str]]] = [("captured", desired_env)]
+    if definition_exists:
+        try:
+            effective = effective_service_environment(
+                platform_kind=platform_kind, env_path=env_path, runner=runner
+            )
+        except Exception:
+            effective = {}
+        if effective.get("SSH_AUTH_SOCK") != desired_env.get("SSH_AUTH_SOCK"):
+            to_check.append(("effective", effective))
+    warnings: list[str] = []
+    for scope, env in to_check:
+        sock = env.get("SSH_AUTH_SOCK")
+        if not sock:
+            continue
+        if sock == manager_sock:
+            continue
+        try:
+            primary = ssh_agent_module.probe_git_remote_auth(env)
+        except Exception:
+            continue
+        if primary != "ready":
+            continue
+        fallback = dict(env)
+        if manager_sock:
+            fallback["SSH_AUTH_SOCK"] = manager_sock
+            fallback.pop("SSH_AGENT_PID", None)
+            fallback_desc = f"the platform manager's agent at {manager_sock}"
+        else:
+            fallback.pop("SSH_AUTH_SOCK", None)
+            fallback.pop("SSH_AGENT_PID", None)
+            fallback_desc = "no agent"
+        try:
+            fallback_answer = ssh_agent_module.probe_git_remote_auth(fallback)
+        except Exception:
+            continue
+        if fallback_answer != "denied":
+            continue
+        if scope == "captured":
+            warnings.append(
+                f"captured service environment would lose its GitHub credential "
+                f"after a reboot or logout: the service host's only accepted "
+                f"credential is the SSH agent at {sock}, which belongs to a "
+                f"login session, not the platform manager. After a reboot or "
+                f"logout the host falls back to {fallback_desc}, which the git "
+                f"remote refuses; see docs/init.md to give the host an "
+                f"unattended credential"
+            )
+        else:
+            warnings.append(
+                f"the service host's effective environment would lose its GitHub "
+                f"credential after a reboot or logout: the service host's only "
+                f"accepted credential is the SSH agent at {sock}, which belongs "
+                f"to a login session, not the platform manager. After a reboot "
+                f"or logout the host falls back to {fallback_desc}, which the "
+                f"git remote refuses; see docs/init.md to give the host an "
+                f"unattended credential"
+            )
+    return warnings
 
 
 def _readiness_warnings(env: Mapping[str, str]) -> tuple[str, ...]:

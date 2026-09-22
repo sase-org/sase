@@ -212,11 +212,12 @@ preview, check, diff, force, and confirmation model to remove the managed unit.
 The captured environment includes the SSH agent handle (`SSH_AUTH_SOCK`, plus
 `SSH_AGENT_PID` when present) whenever it names a live socket. That is a convenience,
 not a durable credential: an agent socket captured from a login shell
-(`/tmp/ssh-*/agent.*`) belongs to that session and dies with it. The host then silently
-falls back to whichever agent your platform manager gives every unit, and on Linux that
-is the systemd user manager's `SSH_AUTH_SOCK`, often a live but empty socket. Do not
-count on a captured login-shell socket to keep host-owned git work, such as plan
-archival from a Telegram approval, authenticated across a reboot or a new login session.
+(`/tmp/ssh-*/agent.*`) belongs to that session and dies with it. At host start, a
+captured agent socket that no longer exists is ignored and the manager's agent applies —
+on Linux that is the systemd user manager's `SSH_AUTH_SOCK`, often a live but empty
+socket. A captured login-shell socket is still not a durable credential. Do not count on
+it to keep host-owned git work, such as plan archival from a Telegram approval,
+authenticated across a reboot or a new login session.
 
 Readiness is decided by the git remote, not by what an agent holds.
 `sase service init --check`, `sase service status`, and plan approvals each ask the
@@ -228,6 +229,16 @@ failure. `sase service status` (and `sase service init --check` for an installed
 reports on both the environment `init` is about to capture and the _effective_ one: the
 captured file overlaid on what the manager hands the unit. A working credential in your
 own shell cannot mask a refused one in the service.
+
+Durability is a separate warning. When the checked environment authenticates through a
+login-session agent but the same environment without that agent is refused,
+`sase service init`, `--check`, `sase service status`, and the doctor check warn that
+the service host's only accepted credential is that login-session agent. After a reboot
+or logout the host falls back to the manager's agent (or no agent), which the git remote
+refuses. The warning names the login-session socket and the fallback, points here for an
+unattended credential, and reports captured and effective scopes separately. It stays
+silent when either probe is unknown, when the agent already is the manager's, and when
+an `IdentityFile` lets the fallback authenticate.
 
 A plan approval that archives the plan (the `commit` option) runs the same check before
 the decision is accepted. If the remote refuses the credential, the answer is refused
@@ -257,14 +268,27 @@ ways to give the host an unattended credential:
    ```
 
    It is fully unattended, survives reboots and logout, and needs no agent. Verify it
-   against the agent the service actually sees, which may be empty:
-   `SSH_AUTH_SOCK=<the reported socket> ssh -T git@github.com`. A key protected by a
-   passphrase cannot serve here, because nothing can type the passphrase.
+   without any agent:
+   `env -u SSH_AUTH_SOCK -u SSH_AGENT_PID ssh -o BatchMode=yes -T git@github.com`. A key
+   protected by a passphrase cannot serve here, because nothing can type the passphrase.
+
+   When `~/.ssh/config` is shared across machines, guard the identity so machines
+   without the key are unaffected. Insert this directly after the existing
+   `Host github.com` block instead of editing that block:
+
+   ```
+   # SASE service host unattended GitHub credential (sase docs/init.md).
+   # No-op on machines without the key.
+   Match originalhost github.com exec "test -r %d/.ssh/id_sase_service"
+     IdentityFile ~/.ssh/id_sase_service
+   ```
 
 2. **Load a key into the systemd user agent (interim).** Run
    `SSH_AUTH_SOCK=<the reported socket> ssh-add <your private key>`, using the socket
    the service host inherits rather than your shell's. It survives logout when lingering
-   is enabled, but not a reboot, and needs your passphrase once per boot.
+   is enabled, but not a reboot, and needs your passphrase once per boot. After a reboot
+   you only need to `ssh-add` into the manager's agent again; a stale capture no longer
+   masks it.
 
 After either, run `sase service init` and `sase service restart`, and confirm
 `sase service status` reports no SSH warning.

@@ -348,3 +348,67 @@ def test_load_service_environment_override_existing_only_when_requested(
     applied = load_service_environment(override_existing=True)
     assert os.environ["PATH"] == "/captured/bin"
     assert "PATH" in applied
+
+
+def test_load_service_environment_ignores_stale_agent_in_both_modes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "env"
+    stale = tmp_path / "gone.sock"
+    write_service_environment(
+        {
+            "PATH": "/captured/bin",
+            "EXTRA": "1",
+            "SSH_AUTH_SOCK": str(stale),
+            "SSH_AGENT_PID": "9999",
+        },
+        path=path,
+    )
+    monkeypatch.setenv("SASE_SERVICE_ENV", str(path))
+    monkeypatch.setenv("SSH_AUTH_SOCK", "/manager/agent.sock")
+    monkeypatch.setenv("SSH_AGENT_PID", "1111")
+    monkeypatch.setenv("PATH", "/manager/bin")
+
+    applied = load_service_environment(override_existing=True)
+    assert os.environ["SSH_AUTH_SOCK"] == "/manager/agent.sock"
+    assert os.environ["SSH_AGENT_PID"] == "1111"
+    assert "SSH_AUTH_SOCK" not in applied
+    assert "SSH_AGENT_PID" not in applied
+    assert os.environ["PATH"] == "/captured/bin"
+    assert "PATH" in applied
+    assert os.environ["EXTRA"] == "1"
+    assert "EXTRA" in applied
+
+    monkeypatch.setenv("SSH_AUTH_SOCK", "/manager/agent.sock")
+    applied = load_service_environment(override_existing=False)
+    assert os.environ["SSH_AUTH_SOCK"] == "/manager/agent.sock"
+    assert "SSH_AUTH_SOCK" not in applied
+    assert "SSH_AGENT_PID" not in applied
+
+
+def test_load_service_environment_applies_live_agent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _live_socket(tmp_path / "agent.sock") as sock:
+        path = tmp_path / "env"
+        write_service_environment(
+            {
+                "PATH": "/captured/bin",
+                "SSH_AUTH_SOCK": str(sock),
+                "SSH_AGENT_PID": "4242",
+            },
+            path=path,
+        )
+        monkeypatch.setenv("SASE_SERVICE_ENV", str(path))
+        monkeypatch.setenv("SSH_AUTH_SOCK", "/old.sock")
+        monkeypatch.setenv("SSH_AGENT_PID", "1111")
+        monkeypatch.setenv("PATH", "/old/bin")
+
+        applied = load_service_environment(override_existing=True)
+        assert os.environ["SSH_AUTH_SOCK"] == str(sock)
+        assert os.environ["SSH_AGENT_PID"] == "4242"
+        assert "SSH_AUTH_SOCK" in applied
+        assert "SSH_AGENT_PID" in applied
+        assert os.environ["PATH"] == "/captured/bin"
