@@ -11,9 +11,10 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timezone, UTC
+from datetime import datetime, UTC
 from typing import TYPE_CHECKING, Any, Literal
 
+from sase.core.time import local_now, parse_local
 from sase.gate_shell.state import gate_state_is_terminal
 from sase.gate_shell.status import gate_status_pair, gate_status_style
 from sase.notification_gates.registry import adapter_for_action
@@ -257,15 +258,9 @@ def _gate_badge(status: str | None, age_seconds: float | None) -> str | None:
 
 
 def _notification_age_seconds(notification: Notification) -> float | None:
-    raw = (notification.timestamp or "").strip()
-    if not raw:
+    parsed = parse_local(notification.timestamp)
+    if parsed is None:
         return None
-    try:
-        parsed = datetime.fromisoformat(raw)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=UTC)
     delta = datetime.now(UTC) - parsed
     return max(0.0, delta.total_seconds())
 
@@ -274,10 +269,7 @@ def _row_age_seconds(row: Agent) -> float | None:
     start = getattr(row, "start_time", None)
     if not isinstance(start, datetime):
         return None
-    if start.tzinfo is None:
-        now = datetime.now()
-    else:
-        now = datetime.now(UTC)
+    now = local_now() if start.tzinfo is None else datetime.now(UTC)
     try:
         return max(0.0, (now - start).total_seconds())
     except TypeError:
@@ -840,13 +832,16 @@ def enter_action_label_for_targets(
 ) -> str | None:
     """Return the footer hint for Enter given resolved targets.
 
-    One target renders its lowercase label; several render
-    ``choose action``; none renders no hint.
+    One target renders its lowercase label (a lone Patch keeps the
+    historical ``go to PR`` hint); several render ``choose action``; none
+    renders no hint.
     """
     if not targets:
         return None
     if len(targets) >= 2:
         return "choose action"
+    if targets[0].kind == "patch":
+        return "go to PR"
     return targets[0].label.lower()
 
 

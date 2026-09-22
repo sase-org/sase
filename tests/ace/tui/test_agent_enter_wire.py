@@ -196,7 +196,7 @@ def test_enter_action_label_for_targets() -> None:
         patch_lookup=lambda _name: None,
     )
     assert len(resolution.targets) == 1
-    assert enter_action_label_for_targets(resolution.targets) == "go to patch"
+    assert enter_action_label_for_targets(resolution.targets) == "go to PR"
 
 
 def test_footer_enter_hint_primary_and_secondary() -> None:
@@ -225,7 +225,7 @@ def test_footer_enter_hint_primary_and_secondary() -> None:
     footer.set_keymap_registry(reg)
     assert reg.app.jump_to_agent_patch == "f9"
     bindings = footer._compute_agent_bindings(
-        agent, can_jump_to_patch=True, enter_action_label="go to patch"
+        agent, can_jump_to_patch=True, enter_action_label="go to PR"
     )
     assert (footer._kd("jump_to_agent_patch"), "go to PR") in bindings
 

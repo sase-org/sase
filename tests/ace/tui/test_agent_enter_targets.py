@@ -636,9 +636,6 @@ class _EnterApp(AgentEnterActionMixin):
         self.stored_snapshots.append(snapshot)
         self._notification_snapshot_cache = snapshot
 
-    def call_from_thread(self, callback: Any, *args: Any) -> None:
-        callback(*args)
-
 
 def test_executor_runs_patch_target(
     monkeypatch: pytest.MonkeyPatch,

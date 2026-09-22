@@ -196,20 +196,14 @@ class AgentEnterActionMixin:
                 )
             except Exception:
                 result = None
-            invoker = getattr(self, "call_from_thread", None)
             detail = (
                 result.value.notification
                 if result is not None and result.value.notification is not None
                 else None
             )
-
-            def _finish() -> None:
-                self._finish_agent_enter_gate_load(target, agent_identity, detail)
-
-            if callable(invoker):
-                invoker(_finish)
-            else:
-                _finish()
+            # The awaited thread hop resumes on the app loop, so finish
+            # inline (``call_from_thread`` rejects the app's own thread).
+            self._finish_agent_enter_gate_load(target, agent_identity, detail)
 
         task = spawn_pump_free_task(
             self,
@@ -277,16 +271,9 @@ class AgentEnterActionMixin:
             except Exception as exc:
                 self.notify(f"Couldn't load notifications: {exc}", severity="warning")  # type: ignore[attr-defined]
                 return
-
-            def _store_and_continue() -> None:
-                self._set_notification_snapshot_cache(snapshot)  # type: ignore[attr-defined]
-                then()
-
-            invoker = getattr(self, "call_from_thread", None)
-            if callable(invoker):
-                invoker(_store_and_continue)
-            else:
-                _store_and_continue()
+            # Back on the app loop after the thread hop: store and continue.
+            self._set_notification_snapshot_cache(snapshot)  # type: ignore[attr-defined]
+            then()
 
         from ...util.pump_tasks import spawn_pump_free_task
 

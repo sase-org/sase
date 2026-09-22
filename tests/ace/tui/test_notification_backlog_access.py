@@ -410,3 +410,48 @@ async def test_enter_keypress_dispatches_backlog_notification(
         await pilot.pause()
 
     assert dispatched == ["old-match"]
+
+
+class _ColdCacheEnterApp(_EnterKeypressApp):
+    """Enter before the first notification poll populated the cache."""
+
+    def __init__(self, agent: Agent, notifications: list[Notification]) -> None:
+        super().__init__(agent, notifications)
+        self._cold_snapshot = self._notification_snapshot_cache
+        self._notification_snapshot_cache = None
+
+    def _read_notification_snapshot_from_provider(self) -> Any:
+        return self._cold_snapshot
+
+    def _set_notification_snapshot_cache(self, snapshot: Any) -> None:
+        self._notification_snapshot_cache = snapshot
+
+
+async def test_enter_keypress_with_cold_snapshot_cache_dispatches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    agent = replace(
+        make_agent(name="target", status="PLAN", raw_suffix="20260918010101"),
+        agent_name="target-agent",
+    )
+    notifications = [
+        _notification(
+            "old-match",
+            offset=1,
+            action="PlanApproval",
+            action_data=_matching_action_data(agent),
+        ),
+    ]
+    dispatched: list[str] = []
+    monkeypatch.setattr(
+        "sase.ace.tui.actions.agents._notification_actions.handle_plan_approval",
+        lambda _app, notification: dispatched.append(notification.id),
+    )
+
+    async with _ColdCacheEnterApp(agent, notifications).run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        for _ in range(5):
+            await pilot.pause(0.05)
+
+    assert dispatched == ["old-match"]
