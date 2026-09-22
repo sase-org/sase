@@ -16,12 +16,12 @@ from sase.main.init_project_scope import InitProjectInventory
 from sase.main.init_registry import InitCommandSpec
 from tests.main.init_onboarding_helpers import (
     _args,
+    _batch_target,
     _changed_action,
     _plan,
     _reject_prompt,
     _spec,
 )
-from tests.main.test_init_onboarding_all import _target
 
 
 def _payload(capsys: pytest.CaptureFixture[str]) -> dict[str, object]:
@@ -208,8 +208,8 @@ def test_json_batch_named_projects_and_unavailable(
     original = tmp_path / "original"
     original.mkdir()
     monkeypatch.chdir(original)
-    alpha = _target(tmp_path, "alpha", display_name="Alpha")
-    missing = _target(
+    alpha = _batch_target(tmp_path, "alpha", display_name="Alpha")
+    missing = _batch_target(
         tmp_path,
         "missing",
         display_name="Missing",

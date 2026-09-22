@@ -7,6 +7,7 @@ from io import StringIO
 from pathlib import Path
 
 from sase.main.init_plan import InitAction, InitPlan
+from sase.main.init_project_scope import InitProjectTarget
 from sase.main.init_registry import InitCommandScope, InitCommandSpec
 
 
@@ -87,3 +88,25 @@ def _spec(
 
 def _reject_prompt(prompt: str) -> str:
     raise AssertionError(f"unexpected prompt: {prompt}")
+
+
+def _batch_target(
+    tmp_path: Path,
+    name: str,
+    *,
+    display_name: str | None = None,
+    unavailable: str | None = None,
+    warnings: tuple[str, ...] = (),
+) -> InitProjectTarget:
+    workspace = tmp_path / name
+    workspace.mkdir()
+    project_file = tmp_path / f"{name}.sase"
+    project_file.write_text("NAME: test\n", encoding="utf-8")
+    return InitProjectTarget(
+        project_name=name,
+        display_name=display_name or name,
+        project_file=project_file,
+        workspace_dir=workspace,
+        warnings=warnings,
+        unavailable_reason=unavailable,
+    )
