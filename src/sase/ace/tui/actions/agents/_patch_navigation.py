@@ -22,7 +22,9 @@ class AgentPatchNavigationMixin:
         """Resolve the effective Patch name for navigation.
 
         For workflow step children, looks up the parent workflow's cl_name
-        (since children have step_name as cl_name, not a real Patch).
+        (since children have step_name as cl_name, not a real Patch). A
+        child of a project-level workflow resolves to the same Patch its
+        parent workflow row would resolve to (its meta Patch name, if any).
         For project agents, checks meta output variables.
         For all others, uses agent.cl_name directly.
 
@@ -49,7 +51,11 @@ class AgentPatchNavigationMixin:
         return cl_name
 
     def _resolve_workflow_child_cl_name(self, agent: Agent) -> str | None:
-        """Resolve cl_name for a workflow step child by finding its parent."""
+        """Resolve cl_name for a workflow step child by finding its parent.
+
+        A child of a project-level workflow resolves to the same Patch its
+        parent workflow row would resolve to (its meta Patch name, if any).
+        """
         for candidate in self._agents_with_children:
             if candidate.is_workflow_child:
                 continue
@@ -57,6 +63,10 @@ class AgentPatchNavigationMixin:
                 continue
             if candidate.workflow != agent.parent_workflow:
                 continue
+            if candidate.is_project_agent:
+                from ._notification_actions import get_meta_patch_name
+
+                return get_meta_patch_name(candidate)
             return candidate.cl_name
 
         # Parent not in list - read workflow_state.json directly
@@ -64,14 +74,22 @@ class AgentPatchNavigationMixin:
 
     @staticmethod
     def _read_workflow_state_cl_name(agent: Agent) -> str | None:
-        """Read cl_name from workflow_state.json for a workflow child."""
+        """Read cl_name from workflow_state.json for a workflow child.
+
+        A project-level workflow (whose cl_name equals the child's project
+        name) is not a Patch, so this returns None for that case.
+        """
         import json
         from pathlib import Path
 
         if not agent.parent_workflow or not agent.raw_suffix:
             return None
 
+        if not agent.project_file:
+            return None
         project_name = Path(agent.project_file).parent.name
+        if not project_name:
+            return None
         base_workflow = (
             agent.parent_workflow.split("/")[-1]
             if "/" in agent.parent_workflow
@@ -89,7 +107,10 @@ class AgentPatchNavigationMixin:
         try:
             with open(state_file, encoding="utf-8") as f:
                 data = json.load(f)
-            return data.get("context", {}).get("cl_name")
+            cl_name = data.get("context", {}).get("cl_name")
+            if cl_name == project_name:
+                return None
+            return cl_name
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             return None
 

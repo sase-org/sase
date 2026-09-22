@@ -14,6 +14,7 @@ from sase.ace.tui.actions.agents._agent_enter_action import AgentEnterActionMixi
 from sase.ace.tui.actions.agents._agent_enter_targets import (
     AgentEnterResolution,
     PatchSummary,
+    enter_action_label_for_targets,
     gate_target_label,
     build_gate_notification_index,
     resolve_agent_enter_targets,
@@ -425,6 +426,61 @@ def test_container_falls_back_to_newest_member_patch() -> None:
     resolution = _resolve(root)
     assert resolution.targets[-1].key == "patch:member-patch"
     assert resolution.targets[-1].project_file == member.project_file
+
+
+def test_project_level_plan_family_container_resolves_gate_only() -> None:
+    """Enter on a project-level plan family goes straight to its gate.
+
+    The concrete planner step is a workflow step child of a project-level
+    workflow, so the real Patch resolver must map it to None (not the
+    project name); otherwise the container would also gain a phantom
+    ``Go to Patch`` target and Enter would show a chooser.
+    """
+    suffix = "20260918010101"
+    workflow = "tmp_plan"
+    container = replace(
+        make_agent(name="demo", raw_suffix=suffix),
+        agent_type=AgentType.WORKFLOW,
+        workflow=workflow,
+        agent_family_role="root",
+        agent_family="fam",
+        agent_name="starter",
+        plan_chain_root=True,
+    )
+    assert container.is_project_agent
+    planner = replace(
+        make_agent(name="run_agent", raw_suffix="20260918010202"),
+        agent_type=AgentType.WORKFLOW,
+        workflow=workflow,
+        parent_workflow=workflow,
+        parent_timestamp=suffix,
+        step_type="agent",
+    )
+    gate = _gate_row("010101", kind="plan", start_status="TALE")
+    container = replace(container, runtime_children=[planner], followup_agents=[gate])
+    planner.family_container = container
+    gate.family_container = container
+
+    class _PatchApp(AgentPatchNavigationMixin):
+        _agents_with_children: list[Agent] = []
+
+    app = _PatchApp()
+    app._agents_with_children = [container, planner, gate]
+    # The planner step reaches the roster through the workflow-child branch.
+    assert app._resolve_agent_cl_name(planner) is None
+
+    index = build_gate_notification_index([])
+    resolution = resolve_agent_enter_targets(
+        container,
+        gate_notifications=index,
+        patch_name_for=app._resolve_agent_cl_name,
+        patch_lookup=_summary_lookup,
+    )
+    assert len(resolution.targets) == 1
+    [target] = resolution.targets
+    assert target.kind == "gate"
+    assert target.label == "Review tale plan"
+    assert enter_action_label_for_targets(resolution.targets) != "choose action"
 
 
 def test_ordering_gates_newest_first_patch_last() -> None:

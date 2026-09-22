@@ -171,6 +171,102 @@ class TestWorkflowChildResolution:
         app = FakeApp(agents_with_children=[parent, child])
         assert app._resolve_agent_cl_name(child) is None
 
+    def test_child_of_project_level_workflow_resolves_to_none(self) -> None:
+        """Child of a project-level workflow (no meta Patch) yields None."""
+        parent = _make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="myproj",
+            workflow="my_workflow",
+            raw_suffix="20240101142345",
+        )
+        child = _make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="run_agent",
+            workflow="my_workflow",
+            raw_suffix="20240101142345",
+            parent_workflow="my_workflow",
+            parent_timestamp="20240101142345",
+            step_name="run_agent",
+        )
+        app = FakeApp(agents_with_children=[parent, child])
+        assert app._resolve_agent_cl_name(child) is None
+
+    def test_child_of_project_level_workflow_with_meta_patch(self) -> None:
+        """Child resolves to the parent workflow's meta Patch when present."""
+        parent = _make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="myproj",
+            workflow="my_workflow",
+            raw_suffix="20240101142345",
+            step_output={"meta_patch": "new_feature"},
+        )
+        child = _make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="run_agent",
+            workflow="my_workflow",
+            raw_suffix="20240101142345",
+            parent_workflow="my_workflow",
+            parent_timestamp="20240101142345",
+            step_name="run_agent",
+        )
+        app = FakeApp(agents_with_children=[parent, child])
+        assert app._resolve_agent_cl_name(child) == "new_feature"
+
+    def test_child_fallback_project_level_workflow_state_resolves_to_none(
+        self, tmp_path: Path
+    ) -> None:
+        """workflow_state.json cl_name equal to the project name yields None."""
+        child = _make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="make_changes",
+            workflow="deploy",
+            raw_suffix="20240101142345",
+            parent_workflow="deploy",
+            parent_timestamp="20240101142345",
+            project_file=str(tmp_path / "projects" / "myproj" / "myproj.sase"),
+            step_name="make_changes",
+        )
+
+        wf_dir = (
+            tmp_path
+            / "projects"
+            / "myproj"
+            / "artifacts"
+            / "workflow-deploy"
+            / "20240101142345"
+        )
+        wf_dir.mkdir(parents=True)
+        (wf_dir / "workflow_state.json").write_text(
+            json.dumps({"context": {"cl_name": "myproj"}}),
+            encoding="utf-8",
+        )
+
+        app = FakeApp(agents_with_children=[])  # No parent in list
+
+        with patch.dict("os.environ", {"SASE_HOME": str(tmp_path)}):
+            assert app._resolve_agent_cl_name(child) is None
+
+    def test_action_notifies_for_child_of_project_level_workflow(self) -> None:
+        """Jump-to-Patch on such a child warns instead of navigating."""
+        parent = _make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="myproj",
+            workflow="my_workflow",
+            raw_suffix="20240101142345",
+        )
+        child = _make_agent(
+            agent_type=AgentType.WORKFLOW,
+            cl_name="run_agent",
+            workflow="my_workflow",
+            raw_suffix="20240101142345",
+            parent_workflow="my_workflow",
+            parent_timestamp="20240101142345",
+            step_name="run_agent",
+        )
+        app = FakeApp(agents=[child], agents_with_children=[parent, child])
+        app.action_jump_to_agent_patch()
+        assert any("No Patch" in msg for msg, _ in app._notifications)
+
 
 # ---------------------------------------------------------------------------
 # FM2: Project agent without meta shows notification
