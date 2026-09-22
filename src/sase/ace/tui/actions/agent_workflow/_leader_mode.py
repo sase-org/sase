@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sase.agent.status_buckets import agent_is_asking
-
 from ..agents._unread_state import BulkUnreadToggleOutcome
 from ..refresh_panel import FULL_HISTORY_MIGRATION_BANNER, refresh_panel_enabled
 from ._types import TabName
@@ -251,13 +249,6 @@ class LeaderModeMixin:
             self._refresh_current_tab()  # type: ignore[attr-defined]
             return True
 
-        if key == leader_keys["jump_to_notification"]:
-            LeaderModeMixin._remember_leader_key(self, key, remember=remember)
-            if self.current_tab == "agents":
-                self._jump_to_agent_notification()  # type: ignore[attr-defined]
-            self._refresh_current_tab()  # type: ignore[attr-defined]
-            return True
-
         if key == leader_keys["capture_agents_repro"]:
             LeaderModeMixin._remember_leader_key(self, key, remember=remember)
             if self.current_tab == "agents":
@@ -420,7 +411,6 @@ class LeaderModeMixin:
                     if has_mentor_results:
                         break
 
-        has_notification = False
         has_unread_completed_agent = False
         has_bulk_read_undo = False
         has_stopped_agent = False
@@ -433,7 +423,6 @@ class LeaderModeMixin:
 
             agent = self._get_selected_agent()  # type: ignore[attr-defined]
             if agent is not None:
-                has_notification = agent_is_asking(agent.status)
                 has_revertable_agent = is_revertable_agent_status(agent.status)
             has_unread_completed_agent = self._has_unread_completed_agent()  # type: ignore[attr-defined]
             has_bulk_read_undo = self._has_bulk_read_undo_available()  # type: ignore[attr-defined]
@@ -446,7 +435,6 @@ class LeaderModeMixin:
             footer.update_leader_bindings(
                 current_tab=current_tab,
                 has_comments=has_comments,
-                has_notification=has_notification,
                 has_mentor_results=has_mentor_results,
                 has_unread_completed_agent=has_unread_completed_agent,
                 has_bulk_read_undo_available=has_bulk_read_undo,

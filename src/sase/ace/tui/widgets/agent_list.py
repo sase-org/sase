@@ -53,7 +53,7 @@ class AgentList(OptionList, inherit_bindings=False):
     """List widget showing agents."""
 
     # Override OptionList.BINDINGS to exclude the enter -> select binding.
-    # This lets the App-level enter -> jump_to_agent_patch binding fire instead.
+    # This lets the App-level enter -> act_on_agent binding fire instead.
     BINDINGS = [
         Binding("down", "cursor_down", "Down", show=False),
         Binding("end", "last", "Last", show=False),

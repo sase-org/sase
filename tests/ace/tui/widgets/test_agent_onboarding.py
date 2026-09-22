@@ -58,7 +58,7 @@ def test_agent_onboarding_inspect_card_uses_active_keymap_registry() -> None:
                     "next_patch": "f1",
                     "prev_patch": "f2",
                     "edit_spec": "f3",
-                    "jump_to_agent_patch": "f4",
+                    "act_on_agent": "f4",
                     "open_artifact_files": "f5",
                 }
             }
@@ -74,7 +74,7 @@ def test_agent_onboarding_inspect_card_uses_active_keymap_registry() -> None:
     assert "Watch a running agent live" in inspect_text
     assert "when it finishes, review its transcript" in inspect_text
     assert "open a finished agent's chat transcript" in inspect_text
-    assert "jump to the PR it produced" in inspect_text
+    assert "review a pending gate or jump to the agent's PR" in inspect_text
     assert "browse artifact files" in inspect_text
 
 

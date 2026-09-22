@@ -728,7 +728,10 @@ ace:
       start_agent_from_patch: "space"
       start_last_vcs_xprompt_in_editor: "ctrl+g"
       restore_prompt_stash: "at"
-      jump_to_agent_patch: "enter"
+      # Enter reviews the selected agent's pending gate, jumps to its Patch,
+      # or opens the action chooser when both apply.
+      act_on_agent: "enter"
+      jump_to_agent_patch: "unbound"
       edit_panel: "E"
       show_agent_run_log: "V"
       # Tab-disjoint with show_agent_run_log: Agents uses V to open the
@@ -932,7 +935,6 @@ ace:
           kill_and_edit_last: "X"
           clear_comments: "c"
           open_prompt_stash: "at"
-          jump_to_notification: "n"
           prompt_history: "full_stop"
           prompt_history_edit_first: "ctrl+g"
           prompt_history_cancelled: "greater_than_sign"

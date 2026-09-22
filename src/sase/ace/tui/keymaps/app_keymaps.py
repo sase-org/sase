@@ -145,6 +145,7 @@ class AppKeymaps:
     start_agent_from_patch: str
     start_last_vcs_xprompt_in_editor: str
     restore_prompt_stash: str
+    act_on_agent: str
     jump_to_agent_patch: str
     edit_panel: str
     show_agent_run_log: str

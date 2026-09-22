@@ -43,6 +43,7 @@ class KeybindingModesMixin:
             *,
             completed_count: int = 0,
             can_jump_to_patch: bool = False,
+            enter_action_label: str | None = None,
             marked_count: int = 0,
             attempt_pinned: bool = False,
             panel_focused: bool = False,
@@ -129,6 +130,7 @@ class KeybindingModesMixin:
         *,
         completed_count: int = 0,
         can_jump_to_patch: bool = False,
+        enter_action_label: str | None = None,
         marked_count: int = 0,
         attempt_pinned: bool = False,
         panel_focused: bool = False,
@@ -162,6 +164,7 @@ class KeybindingModesMixin:
             agent,
             completed_count=completed_count,
             can_jump_to_patch=can_jump_to_patch,
+            enter_action_label=enter_action_label,
             marked_count=marked_count,
             attempt_pinned=attempt_pinned,
             panel_focused=panel_focused,
@@ -340,7 +343,6 @@ class KeybindingModesMixin:
         *,
         current_tab: str = "artifacts",
         has_comments: bool = False,
-        has_notification: bool = False,
         has_mentor_results: bool = False,
         has_unread_completed_agent: bool = False,
         has_bulk_read_undo_available: bool = False,
@@ -354,7 +356,6 @@ class KeybindingModesMixin:
         Args:
             current_tab: The currently active tab name.
             has_comments: Whether the selected Patch has a COMMENTS field.
-            has_notification: Whether the selected agent has a pending notification.
             has_mentor_results: Whether the selected Patch has mentor results.
             has_unread_completed_agent: Whether any completed agent is unread.
             has_bulk_read_undo_available: Whether the last bulk read can be undone.
@@ -443,8 +444,6 @@ class KeybindingModesMixin:
                 bindings.append((k("kill_and_edit_last"), "kill & edit last"))
             bindings.append((k("capture_agents_repro"), "capture repro"))
             bindings.append((k("toggle_agents_repro_checks"), "repro checks"))
-            if has_notification:
-                bindings.append((k("jump_to_notification"), "notification"))
         bindings.append((k("models_panel"), "Launch settings"))
         bindings.append((k("update_sase"), "update panel"))
         bindings.append((k("update_everything"), "update everything"))

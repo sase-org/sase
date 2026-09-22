@@ -103,6 +103,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
         (
             "Agent Actions",
             [
+                (d(a.act_on_agent), "Review gate / go to Patch"),
                 (d(a.start_custom_agent), "Run custom agent"),
                 (
                     d(a.start_agent_from_patch),
@@ -370,10 +371,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (
                     key_sequence_display(lm.prefix, sk(lm.keys, "open_prompt_stash")),
                     "Open stashed prompts panel",
-                ),
-                (
-                    f"{d(lm.prefix)}{d(sk(lm.keys, 'jump_to_notification'))}",
-                    "Jump to any agent notification",
                 ),
                 (
                     f"{d(lm.prefix)}{d(sk(lm.keys, 'capture_agents_repro'))}",

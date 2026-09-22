@@ -241,6 +241,13 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("stash", "restore", "pop"),
     ),
     (
+        "act_on_agent",
+        "Act on agent (gate or Patch)",
+        "Agents",
+        AGENTS_ONLY,
+        ("review gate", "open gate", "go to patch", "notification"),
+    ),
+    (
         "jump_to_agent_patch",
         "Jump to agent's Patch",
         "Agents",

@@ -31,6 +31,7 @@ _REQUIRES_AGENT: frozenset[str] = frozenset(
         "app.rename_cl",
         "app.toggle_attempt_view",
         "app.toggle_agent_unread",
+        "app.act_on_agent",
         "app.jump_to_agent_patch",
         "app.view_agent_metadata",
     }
@@ -216,6 +217,10 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.jump_to_agent_patch":
         return agent is not None and ctx.can_jump_to_patch
 
+    # act_on_agent needs at least one Enter target (gate or Patch).
+    if spec.id == "app.act_on_agent":
+        return agent is not None and ctx.agent_enter_available
+
     # accept_proposal on agents tab -> answer/approve, only when status fits.
     if spec.id == "app.accept_proposal":
         if agent is None:
@@ -288,9 +293,6 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
 
     if spec.id == "leader.jump_to_next_stopped_agent":
         return ctx.stopped_agent_count > 0
-
-    if spec.id == "leader.jump_to_notification":
-        return agent is not None
 
     if spec.id == "leader.kill_and_edit":
         # ,x is contextual: it acts on the marked set when marks exist

@@ -1,10 +1,9 @@
-"""Executor for AgentEnterTargets (phase ``resolve``).
+"""Executor and context-aware Enter action for AgentEnterTargets.
 
 Wires the pure resolver in :mod:`._agent_enter_targets` to the live app:
 the cached notification snapshot index, ``_resolve_agent_cl_name``, and the
-in-memory Patch lookup. The ``wire`` phase adds ``action_act_on_agent`` on
-top of :meth:`AgentEnterActionMixin._agent_enter_resolution` and
-:meth:`AgentEnterActionMixin._run_agent_enter_target`.
+in-memory Patch lookup, plus the ``act_on_agent`` app action that dispatches
+through the chooser modal.
 """
 
 from __future__ import annotations
@@ -16,8 +15,10 @@ from typing import TYPE_CHECKING, Any
 from sase.gate_shell.naming import short_gate_shell_id
 
 from ._agent_enter_targets import (
+    NO_TARGET_EMPTY_MESSAGE,
     AgentEnterResolution,
     AgentEnterTarget,
+    GateNotificationIndex,
     PatchSummary,
     build_gate_notification_index,
     empty_gate_notification_index,
@@ -60,6 +61,7 @@ class AgentEnterActionMixin:
     def _agent_enter_resolution(self: Any, agent: Agent) -> AgentEnterResolution:
         """Resolve Enter targets for *agent* from in-memory state only."""
         snapshot = getattr(self, "_notification_snapshot_cache", None)
+        index: GateNotificationIndex
         if snapshot is None:
             index = empty_gate_notification_index()
         else:
@@ -298,6 +300,137 @@ class AgentEnterActionMixin:
             # No running loop (synchronous test doubles): continue with the
             # empty index rather than dropping the action.
             then()
+
+    def action_act_on_agent(self: Any) -> None:
+        """Run context-aware Enter for the selected Agents-tab row."""
+        if getattr(self, "current_tab", None) != "agents":
+            return
+        if getattr(self, "_current_group_key", None) is not None:
+            return
+        getter = getattr(self, "_get_selected_agent", None)
+        if not callable(getter):
+            return
+        try:
+            selected = getter()
+        except Exception:
+            return
+        if selected is None:
+            return
+
+        def _then() -> None:
+            try:
+                current = getter()
+            except Exception:
+                current = None
+            target = current if current is not None else selected
+            try:
+                resolution = self._agent_enter_resolution(target)
+            except Exception:
+                return
+            self._dispatch_agent_enter_resolution(target, resolution)
+
+        self._ensure_agent_enter_snapshot(_then)
+
+    def _dispatch_agent_enter_resolution(
+        self: Any, agent: Any, resolution: AgentEnterResolution
+    ) -> None:
+        """Toast, run, or offer the chooser for one Enter resolution."""
+        targets = resolution.targets
+        if not targets:
+            self.notify(  # type: ignore[attr-defined]
+                resolution.empty_message or NO_TARGET_EMPTY_MESSAGE,
+                severity="warning",
+            )
+            return
+        identity = getattr(agent, "identity", None)
+        if not isinstance(identity, tuple):
+            fallback = targets[0].row_identity
+            identity = fallback if isinstance(fallback, tuple) else ()
+        if len(targets) == 1:
+            self._run_agent_enter_target(targets[0], agent_identity=identity)
+            return
+        choices = tuple(_choice_for_enter_target(item) for item in targets)
+        title = (
+            f"Act on {resolution.scope_title}"
+            if resolution.scope_title
+            else "Act on agent"
+        )
+
+        def _on_choice(result_key: str | None) -> None:
+            if result_key is None:
+                return
+            current = self._agent_enter_agent(identity)
+            if current is None:
+                self.notify("Agent is no longer visible", severity="warning")  # type: ignore[attr-defined]
+                return
+            try:
+                fresh = self._agent_enter_resolution(current)
+            except Exception:
+                return
+            for candidate in fresh.targets:
+                if candidate.key == result_key:
+                    current_identity = getattr(current, "identity", identity)
+                    if not isinstance(current_identity, tuple):
+                        current_identity = identity
+                    self._run_agent_enter_target(
+                        candidate, agent_identity=current_identity
+                    )
+                    return
+            self.notify(  # type: ignore[attr-defined]
+                "That action is no longer available",
+                severity="warning",
+            )
+
+        from ...modals.agent_action_chooser_modal import AgentActionChooserModal
+
+        self.push_screen(  # type: ignore[attr-defined]
+            AgentActionChooserModal(choices, title=title),
+            _on_choice,
+        )
+
+
+def _split_enter_badge(
+    badge: str | None,
+) -> tuple[str | None, str | None]:
+    """Split a combined ``STATUS · age`` badge into its parts."""
+    if not badge:
+        return (None, None)
+    if " · " in badge:
+        head, tail = badge.split(" · ", 1)
+        return (head.strip() or None, tail.strip() or None)
+    return (badge, None)
+
+
+def _choice_for_enter_target(target: AgentEnterTarget):  # type: ignore[no-untyped-def]
+    """Map one Enter target to its chooser view model."""
+    from ...modals.agent_action_chooser_modal import AgentActionChoice
+    from sase.gate_shell.state import GATE_GLYPH
+
+    if target.kind == "patch":
+        return AgentActionChoice(
+            result=target.key,
+            section="patch",
+            label=target.label,
+            detail=target.detail,
+            glyph="⎇",
+            glyph_style=target.badge_style or "",
+            badge=target.badge,
+            badge_style=target.badge_style,
+            age=None,
+        )
+    badge, age = _split_enter_badge(target.badge)
+    style = target.badge_style or ""
+    return AgentActionChoice(
+        result=target.key,
+        section="gate",
+        label=target.label,
+        detail=target.detail,
+        glyph=GATE_GLYPH,
+        glyph_style=style,
+        badge=badge,
+        badge_style=target.badge_style,
+        age=age,
+    )
 
 
 __all__ = ["AgentEnterActionMixin"]

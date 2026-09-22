@@ -228,6 +228,7 @@ class CommandContext:
     runner_count: int = 0
     can_jump_to_patch: bool = False
     can_jump_to_changespec: InitVar[bool | None] = None  # legacy compatibility alias
+    agent_enter_available: bool = False
     attempt_pinned: bool = False
     header_toggle_available: bool = False
     panel_focused: bool = False

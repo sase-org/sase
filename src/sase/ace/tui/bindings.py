@@ -267,8 +267,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("ctrl+n", "next_agent_file", "Next File", show=False),
     Binding("ctrl+p", "prev_agent_file", "Prev File", show=False),
     Binding("E", "edit_panel", "Edit Panel / Job Output", show=False),
-    # Jump to Patch from agent (agents tab)
-    Binding("enter", "jump_to_agent_patch", "Go to Patch", show=False),
+    # Context-aware Enter: review gate, jump to Patch, or choose (agents tab)
+    Binding("enter", "act_on_agent", "Act on agent", show=False),
     Binding("V", "show_agent_run_log", "Agent Run Log", show=False),
     Binding("V", "view_agent_metadata", "Agent Metadata", show=False),
     Binding("ctrl+l", "dismiss_toasts", "Dismiss Toasts", show=False),

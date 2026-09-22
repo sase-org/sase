@@ -16,6 +16,8 @@ from sase.agent.status_buckets import AUTO_APPROVE_ELIGIBLE_STATUSES
 from sase.gate_shell.state import gate_state_is_terminal
 from sase.procs import ACTIVE_PROC_STATUSES
 
+from ..keymaps.key_validation import is_unbound_key
+
 from .._artifact_tab_model import DEFAULT_ARTIFACTS_RELATIONS_COLLAPSED
 from ...patch import Patch
 from ...hooks import get_failed_hooks_file_path
@@ -122,6 +124,7 @@ class KeybindingBindingsMixin:
         *,
         completed_count: int = 0,
         can_jump_to_patch: bool = False,
+        enter_action_label: str | None = None,
         marked_count: int = 0,
         attempt_pinned: bool = False,
         panel_focused: bool = False,
@@ -499,9 +502,17 @@ class KeybindingBindingsMixin:
                 bindings.append((self._kd("start_tmux_mode"), "tmux"))
             bindings.append((self._kd("open_tmux"), "tmux (primary)"))
 
-        # Jump to PR (only when resolution logic found a valid Patch)
+        # Context-aware Enter (primary hint from the resolver).
+        if enter_action_label:
+            bindings.append((self._kd("act_on_agent"), enter_action_label))
+        # Direct Patch jump only when rebound to a real key.
         if can_jump_to_patch:
-            bindings.append((self._kd("jump_to_agent_patch"), "go to PR"))
+            try:
+                configured = self._kr().app.jump_to_agent_patch  # type: ignore[attr-defined]
+            except Exception:
+                configured = "unbound"
+            if not is_unbound_key(configured):
+                bindings.append((self._kd("jump_to_agent_patch"), "go to PR"))
 
         if has_artifact_files and marked_count == 0:
             bindings.append((self._kd("open_artifact_files"), "artifact files"))

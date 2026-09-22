@@ -122,6 +122,29 @@ def _can_jump_to_patch(app: AceApp, agent) -> bool:  # type: ignore[no-untyped-d
         return False
 
 
+def _agent_enter_available(app: AceApp, agent) -> bool:  # type: ignore[no-untyped-def]
+    """Return whether Enter has at least one target for *agent*.
+
+    In-memory resolver only (safe for palette context paths). A focused
+    group banner is a silent no-op, so it reports unavailable.
+    """
+    if agent is None:
+        return False
+    if getattr(app, "_current_group_key", None) is not None:
+        return False
+    resolver = getattr(app, "_agent_enter_resolution", None)
+    if not callable(resolver):
+        return False
+    try:
+        resolution = resolver(agent)
+    except Exception:
+        return False
+    try:
+        return bool(resolution.targets)
+    except Exception:
+        return False
+
+
 def _file_panel_visible(app: AceApp) -> bool:  # type: ignore[no-untyped-def]
     if app.current_tab != "agents":
         return False
@@ -277,6 +300,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
     stopped = _stopped_agent_count(app) if tab == "agents" else 0
     unread_completed = _unread_completed_agent_count(app) if tab == "agents" else 0
     can_jump = _can_jump_to_patch(app, agent) if tab == "agents" else False
+    enter_available = _agent_enter_available(app, agent) if tab == "agents" else False
     attempt_pinned = (
         app.current_attempt_number is not None if tab == "agents" else False
     )
@@ -331,6 +355,7 @@ def extract_command_context(app: AceApp) -> CommandContext:  # type: ignore[no-u
         has_live_launch_record=_has_live_launch_record(app),
         runner_count=_runner_count(app),
         can_jump_to_patch=can_jump,
+        agent_enter_available=enter_available,
         attempt_pinned=attempt_pinned,
         header_toggle_available=_header_toggle_available(app),
         panel_focused=panel_focused,

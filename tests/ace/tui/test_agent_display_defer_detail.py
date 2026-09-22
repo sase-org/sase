@@ -191,7 +191,7 @@ def test_refresh_list_without_defer_updates_detail_immediately() -> None:
     assert app._pending_callback is None
 
 
-def test_leader_footer_refresh_preserves_plan_notification_binding() -> None:
+def test_leader_footer_refresh_omits_retired_notification_binding() -> None:
     app = _FakeApp()
     app._leader_mode_active = True
     app._agents[0].status = "PLAN"
@@ -201,10 +201,10 @@ def test_leader_footer_refresh_preserves_plan_notification_binding() -> None:
     )
 
     assert app.footer_widget.leader_binding_calls[-1]["current_tab"] == "agents"
-    assert app.footer_widget.leader_binding_calls[-1]["has_notification"] is True
+    assert "has_notification" not in app.footer_widget.leader_binding_calls[-1]
 
 
-def test_leader_footer_refresh_clears_non_notification_binding() -> None:
+def test_leader_footer_refresh_still_omits_notification_for_running() -> None:
     app = _FakeApp()
     app._leader_mode_active = True
     app._agents[0].status = "RUNNING"
@@ -213,7 +213,7 @@ def test_leader_footer_refresh_clears_non_notification_binding() -> None:
         _DetailWidget(), app.footer_widget, app._get_selected_agent()
     )
 
-    assert app.footer_widget.leader_binding_calls[-1]["has_notification"] is False
+    assert "has_notification" not in app.footer_widget.leader_binding_calls[-1]
 
 
 def test_leader_footer_refresh_keeps_unread_and_stopped_flags() -> None:

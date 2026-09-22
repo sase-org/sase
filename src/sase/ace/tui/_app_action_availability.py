@@ -91,7 +91,9 @@ def check_app_action(
     # underlying filtered list must not bulk-stop remote rows while the user
     # is typing or returning from the launch-target picker.
     if _prompt_input_owns_keys(app) and (
-        action in _AGENT_FLEET_ACTIONS or action in _LOCAL_AGENT_ROW_ACTIONS
+        action in _AGENT_FLEET_ACTIONS
+        or action in _LOCAL_AGENT_ROW_ACTIONS
+        or action == "act_on_agent"
     ):
         return False
     if action in _AGENT_FLEET_ACTIONS:

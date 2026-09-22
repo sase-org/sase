@@ -72,7 +72,6 @@ _LEADER_LABELS: dict[str, str] = {
     "prompt_history_edit_first": "Edit first prompt history entry",
     "prompt_history_cancelled": "Prompt history (cancelled)",
     "agent_run_log": "Agent run log",
-    "jump_to_notification": "Jump to notification",
     "models_panel": "Config > Launch",
     # Back-compat: a user keymap may still bind the pre-rename action id.
     "temporary_llm_override": "Config > Launch",
@@ -120,7 +119,6 @@ _LEADER_TABS: dict[str, tuple[CommandTab, ...]] = {
     "full_history_refresh": AGENTS_ONLY,
     "mark_all_unread_done_agents_read": AGENTS_ONLY,
     "clear_comments": CL_ONLY,
-    "jump_to_notification": AGENTS_ONLY,
     "agent_from_cl": CL_AGENTS,
     "capture_agents_repro": AGENTS_ONLY,
     "toggle_agents_repro_checks": AGENTS_ONLY,

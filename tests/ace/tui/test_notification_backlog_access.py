@@ -4,13 +4,14 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from textual.app import App, ComposeResult
-from textual.widgets import Static
+from textual.binding import Binding
 
-from sase.ace.tui.actions.agent_workflow._leader_mode import LeaderModeMixin
+from sase.ace.tui.actions.agents._agent_enter_action import AgentEnterActionMixin
 from sase.ace.tui.actions.agents._notification_modal_flow import (
     AgentNotificationModalMixin,
 )
@@ -22,7 +23,6 @@ from sase.ace.tui.actions.agents._notification_provider_direct import (
     direct_unread_notification_page,
     notification_snapshot_from_direct,
 )
-from sase.ace.tui.keymaps import load_keymap_registry
 from sase.ace.tui.modals.notification_modal import NotificationModal
 from sase.ace.tui.modals.notification_modal_tags import GATES_TAB_KEY
 from sase.ace.tui.models.agent import Agent
@@ -303,33 +303,6 @@ def test_notification_modal_gets_complete_tabs_beyond_indicator_budget(
     ]
 
 
-class _ShortcutApp(AgentNotificationModalMixin, AgentNotificationProviderMixin):
-    def __init__(self, agent: Agent) -> None:
-        self._agents = [agent]
-        self._agents_with_children = [agent]
-        self.current_idx = 0
-        self.hide_non_run_agents = False
-        self._hidden_count = 0
-        self.refresh_count = 0
-        self.pending_reads = 0
-        self.marker_opened = False
-
-    def _get_selected_agent(self) -> Agent | None:
-        return self._agents[self.current_idx] if self._agents else None
-
-    def _read_notification_pending_actions_from_provider(self) -> object:
-        self.pending_reads += 1
-        return object()
-
-    def _refresh_notification_count(self) -> None:
-        self.refresh_count += 1
-
-    def _open_question_modal_from_marker(self, agent: Agent) -> bool:
-        del agent
-        self.marker_opened = True
-        return True
-
-
 def _matching_action_data(agent: Agent) -> dict[str, str]:
     assert agent.raw_suffix is not None
     return {
@@ -340,193 +313,100 @@ def _matching_action_data(agent: Agent) -> dict[str, str]:
     }
 
 
-@pytest.mark.parametrize(
-    ("action", "status", "handler_name"),
-    [
-        ("PlanApproval", "PLAN", "handle_plan_approval"),
-        ("EpicApproval", "EPIC", "handle_plan_approval"),
-        ("UserQuestion", "QUESTION", "handle_user_question"),
-    ],
-)
-def test_agent_notification_shortcut_finds_older_matching_action(
-    notification_home,
-    monkeypatch: pytest.MonkeyPatch,
-    action: str,
-    status: str,
-    handler_name: str,
-) -> None:
-    del notification_home
-    agent = replace(
-        make_agent(name="target", status=status, raw_suffix="20260918010101"),
-        agent_name="target-agent",
-    )
-    _append_notifications(
-        [
-            *[
-                _notification(f"newer-{index}", offset=500 + index, tags=["done"])
-                for index in range(120)
-            ],
-            _notification(
-                "near-nonmatch",
-                offset=400,
-                action=action,
-                action_data={
-                    **_matching_action_data(agent),
-                    "agent_timestamp": "20260918020202",
-                },
-            ),
-            _notification(
-                "old-match",
-                offset=1,
-                action=action,
-                action_data=_matching_action_data(agent),
-            ),
-        ]
-    )
-    app = _ShortcutApp(agent)
-    dispatched: list[str] = []
-    monkeypatch.setattr(
-        f"sase.ace.tui.actions.agents._notification_actions.{handler_name}",
-        lambda _app, notification: dispatched.append(notification.id),
-    )
-
-    app._jump_to_agent_notification()
-
-    assert dispatched == ["old-match"]
-    assert app.pending_reads == 1
-    assert app.refresh_count == 1
-
-
-def test_agent_notification_shortcut_ignores_unrelated_agent(
-    notification_home,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    del notification_home
-    selected = replace(
-        make_agent(name="selected", status="PLAN", raw_suffix="20260918010101"),
-        agent_name="selected-agent",
-    )
-    other = replace(
-        make_agent(name="other", status="PLAN", raw_suffix="20260918020202"),
-        agent_name="other-agent",
-    )
-    _append_notifications(
-        [
-            *[
-                _notification(f"newer-{index}", offset=500 + index, tags=["done"])
-                for index in range(120)
-            ],
-            _notification(
-                "old-other",
-                offset=1,
-                action="PlanApproval",
-                action_data=_matching_action_data(other),
-            ),
-        ]
-    )
-    dispatched: list[str] = []
-    monkeypatch.setattr(
-        "sase.ace.tui.actions.agents._notification_actions.handle_plan_approval",
-        lambda _app, notification: dispatched.append(notification.id),
-    )
-
-    _ShortcutApp(selected)._jump_to_agent_notification()
-
-    assert dispatched == []
-
-
-def test_question_shortcut_uses_marker_fallback_when_no_notification(
-    notification_home,
-) -> None:
-    del notification_home
-    agent = make_agent(name="target", status="QUESTION", raw_suffix="20260918010101")
-    app = _ShortcutApp(agent)
-
-    app._jump_to_agent_notification()
-
-    assert app.marker_opened is True
-    assert app.refresh_count == 1
-
-
-class _ShortcutKeypressApp(
+class _EnterKeypressApp(
     App[None],
-    AgentNotificationModalMixin,
+    AgentEnterActionMixin,
     AgentNotificationProviderMixin,
-    LeaderModeMixin,
 ):
-    ENABLE_COMMAND_PALETTE = False
-    BINDINGS = [("comma", "start_leader_mode", "Leader")]
+    """Minimal Textual app proving Enter opens a backlog gate notification."""
 
-    def __init__(self, agent: Agent) -> None:
+    ENABLE_COMMAND_PALETTE = False
+    BINDINGS = [Binding("enter", "act_on_agent", show=False)]
+
+    def __init__(self, agent: Agent, notifications: list[Notification]) -> None:
         super().__init__()
         self._agents = [agent]
         self._agents_with_children = [agent]
         self.current_idx = 0
         self.current_tab = "agents"
-        self.hide_non_run_agents = False
-        self._hidden_count = 0
-        self._leader_mode_active = False
-        self._last_leader_key: str | None = None
-        self._keymap_registry = load_keymap_registry({})
-        self.refresh_count = 0
-        self.pending_reads = 0
-        self.current_tab_refresh_count = 0
+        self._current_group_key = None
+        self._notification_snapshot_cache: Any = SimpleNamespace(
+            notifications=list(notifications)
+        )
+        self.patches: list[Any] = []
+        self.refreshes = 0
 
     def compose(self) -> ComposeResult:
-        yield Static("ready")
+        from sase.ace.tui.widgets.agent_list import AgentList
 
-    def on_key(self, event) -> None:  # type: ignore[no-untyped-def]
-        if self._leader_mode_active and self._handle_leader_key(event.key):
-            event.prevent_default()
-            event.stop()
+        yield AgentList(id="agent-list")
 
-    def _update_leader_footer(self, *, current_tab: str) -> None:
-        del current_tab
+    def on_mount(self) -> None:
+        from sase.ace.tui.widgets.agent_list import AgentList
 
-    def _refresh_current_tab(self) -> None:
-        self.current_tab_refresh_count += 1
+        agent_list = self.query_one(AgentList)
+        agent_list.update_list(list(self._agents), current_idx=0)
+        agent_list.focus()
 
     def _get_selected_agent(self) -> Agent | None:
         return self._agents[self.current_idx] if self._agents else None
 
+    def _resolve_agent_cl_name(self, agent: Agent) -> str | None:
+        # Gate-only for this backlog test: suppress the Patch target.
+        del agent
+        return None
+
+    def _agent_by_identity(self, identity: tuple[object, ...]) -> Agent | None:
+        for agent in self._agents:
+            if agent.identity == identity:
+                return agent
+        return None
+
+    def _open_question_modal_from_marker(self, agent: Agent) -> bool:
+        del agent
+        return False
+
+    def _answer_workflow_hitl(self, agent: Agent) -> None:
+        del agent
+
+    def _answer_remote_attention_for(self, agent: Any) -> None:
+        del agent
+
+    def _schedule_notification_snapshot_refresh(self) -> None:
+        self.refreshes += 1
+
     def _read_notification_pending_actions_from_provider(self) -> object:
-        self.pending_reads += 1
         return object()
 
-    def _refresh_notification_count(self) -> None:
-        self.refresh_count += 1
 
-
-async def test_leader_keypress_dispatches_backlog_notification(
-    notification_home,
+async def test_enter_keypress_dispatches_backlog_notification(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    del notification_home
     agent = replace(
         make_agent(name="target", status="PLAN", raw_suffix="20260918010101"),
         agent_name="target-agent",
     )
-    _append_notifications(
-        [
-            *[
-                _notification(f"newer-{index}", offset=500 + index, tags=["done"])
-                for index in range(120)
-            ],
-            _notification(
-                "old-match",
-                offset=1,
-                action="PlanApproval",
-                action_data=_matching_action_data(agent),
-            ),
-        ]
-    )
+    notifications = [
+        *[
+            _notification(f"newer-{index}", offset=500 + index, tags=["done"])
+            for index in range(120)
+        ],
+        _notification(
+            "old-match",
+            offset=1,
+            action="PlanApproval",
+            action_data=_matching_action_data(agent),
+        ),
+    ]
     dispatched: list[str] = []
     monkeypatch.setattr(
         "sase.ace.tui.actions.agents._notification_actions.handle_plan_approval",
         lambda _app, notification: dispatched.append(notification.id),
     )
 
-    async with _ShortcutKeypressApp(agent).run_test() as pilot:
-        await pilot.press("comma", "n")
+    async with _EnterKeypressApp(agent, notifications).run_test() as pilot:
+        await pilot.pause()
+        await pilot.press("enter")
+        await pilot.pause()
 
     assert dispatched == ["old-match"]

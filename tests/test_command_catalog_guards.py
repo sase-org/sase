@@ -142,8 +142,10 @@ def test_leader_mode_dataclass_default_matches_default_config_yml() -> None:
     if refresh_panel_enabled():
         expected_leader_ids.discard("leader.full_history_refresh")
     assert catalog_dataclass_ids == expected_leader_ids
-    # ``jump_to_notification`` was the historical drift offender.
-    assert "leader.jump_to_notification" in catalog_dataclass_ids
+    # ``jump_to_notification`` was retired: Enter (``app.act_on_agent``) now
+    # opens an agent's pending gate, so no leader command may reintroduce it.
+    assert "leader.jump_to_notification" not in catalog_dataclass_ids
+    assert "app.act_on_agent" in {c.id for c in build_command_catalog(reg_dataclass)}
 
 
 # ---------------------------------------------------------------------------

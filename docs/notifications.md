@@ -367,10 +367,9 @@ means:
   described in the tooltip.
 
 The chip budget is display-only. It does not limit the notification modal dataset, tab
-counts, or the Agents `,n` shortcut. On the Agents tab, `,n` searches the complete
-unread dataset for the selected agent's plan, epic, or question notification, so older
-pending agent decisions remain reachable regardless of indicator overflow or backlog
-size.
+counts, or the Agents `Enter` action. On the Agents tab, `Enter` searches the complete
+unread dataset for the selected agent's pending gate (every gate kind), so older pending
+agent decisions remain reachable regardless of indicator overflow or backlog size.
 
 Hovering the indicator opens a tooltip briefing: a header count of unread rows (snoozed
 and muted rows are informational and excluded from that header count) followed by one

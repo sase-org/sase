@@ -189,4 +189,5 @@ def test_mounted_prompt_disables_remote_stop_and_row_enter() -> None:
 
     assert check_app_action(prompt_open, "kill_agent", (), allow) is False
     assert check_app_action(prompt_open, "jump_to_agent_patch", (), allow) is False
+    assert check_app_action(prompt_open, "act_on_agent", (), allow) is False
     assert check_app_action(prompt_closed, "kill_agent", (), allow) is True

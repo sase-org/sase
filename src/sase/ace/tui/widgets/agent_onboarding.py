@@ -265,8 +265,8 @@ class AgentOnboarding(VerticalScroll):
         text = Text()
         append_section_heading(text, "Read what happened", accent=_AGENTS_ACCENT)
         text.append(
-            "Watch a running agent live; when it finishes, review its transcript "
-            "or jump to its PR.",
+            "Watch a running agent live; when it finishes, review its transcript, "
+            "pending gate, or PR.",
             style="dim",
         )
         text.append("\n")
@@ -277,8 +277,8 @@ class AgentOnboarding(VerticalScroll):
         append_keycap(text, key_display_name(app.edit_spec))
         text.append("open a finished agent's chat transcript in your editor.")
         text.append("\n")
-        append_keycap(text, key_display_name(app.jump_to_agent_patch))
-        text.append("jump to the PR it produced.")
+        append_keycap(text, key_display_name(app.act_on_agent))
+        text.append("review a pending gate or jump to the agent's PR.")
         append_keycap(text, key_display_name(app.open_artifact_files))
         text.append("browse artifact files.")
         return text

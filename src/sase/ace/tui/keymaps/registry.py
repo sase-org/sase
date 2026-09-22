@@ -171,6 +171,11 @@ _RELOCATED_LEADER_KEYS: dict[str, str] = {
         "agent panel layout now lives under ace.keymaps.app.choose_agent_grouping, "
         "then local picker key 'o'"
     ),
+    "jump_to_notification": (
+        "Ignoring stale leader_mode.keys.jump_to_notification; "
+        "open an agent's pending gate with ace.keymaps.app.act_on_agent (Enter) "
+        "on the Agents tab"
+    ),
 }
 
 

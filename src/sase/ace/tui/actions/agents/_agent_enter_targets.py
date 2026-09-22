@@ -835,6 +835,21 @@ def resolve_agent_enter_targets(
     )
 
 
+def enter_action_label_for_targets(
+    targets: tuple[AgentEnterTarget, ...] | list[AgentEnterTarget],
+) -> str | None:
+    """Return the footer hint for Enter given resolved targets.
+
+    One target renders its lowercase label; several render
+    ``choose action``; none renders no hint.
+    """
+    if not targets:
+        return None
+    if len(targets) >= 2:
+        return "choose action"
+    return targets[0].label.lower()
+
+
 __all__ = [
     "AgentEnterResolution",
     "AgentEnterTarget",
@@ -844,5 +859,6 @@ __all__ = [
     "PatchSummary",
     "build_gate_notification_index",
     "empty_gate_notification_index",
+    "enter_action_label_for_targets",
     "resolve_agent_enter_targets",
 ]

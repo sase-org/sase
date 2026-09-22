@@ -366,9 +366,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-16h(tool_run_observe)' \
-        --epic-symbol 'sase-16j.3(AgentActionChoice)' \
-        --epic-symbol 'sase-16j.3(AgentActionChooserModal)' \
-        --epic-symbol 'sase-16j.3(GateNotificationIndex)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

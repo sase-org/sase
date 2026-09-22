@@ -1326,7 +1326,7 @@ a warning rather than landing somewhere stale.
 | `u`                 | Clear all agent marks                                                                                           |
 | `x`                 | Kill / dismiss the agent, clan, or focused panel or group (or every marked agent); stop a monitor or proc       |
 | `X`                 | Open the cleanup panel for panel, all-panel, tribe, marked, group, or custom cleanup                            |
-| `Enter`             | Jump to PR (for agents with `meta_new_cl`/`meta_new_pr`)                                                        |
+| `Enter`             | Act on agent: review pending gate, go to Patch, or choose when both apply                                       |
 | `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                  |
 | `E`                 | Edit panel content in editor                                                                                    |
 | `t`                 | Open the focused agent's tmux target, or a workspace chooser (`m` marks many; a selector opens one)             |
@@ -1351,6 +1351,22 @@ marked. `q` / `Esc` cancel without opening anything.
 On Artifacts and Services, `r` still runs a Patch workflow or an Axe job/bgcmd, and `R`
 still opens the [Refresh panel](#refresh-panel) (or refreshes immediately when that
 panel is disabled). Only the Agents tab swaps those keys.
+
+#### Enter: act on an agent
+
+`Enter` on an Agents-tab row opens that agent node's pending gate (every gate kind,
+including sudo, launch, HITL, and custom gates), jumps to its Patch, or — when both
+apply — opens a one-keypress chooser. With no target it toasts
+`No pending gate or Patch for this agent` (or the scoped message for clans, settled
+gates, and banners). One target runs directly; two or more open
+`AgentActionChooserModal`. Gates come first, newest first, with the Patch last; the
+first row is the primary action, so `Enter` then `Enter` always opens the most urgent
+gate.
+
+Chooser keys: one gate uses `g`; several gates use `1`–`9` in display order with `g` as
+a hidden alias for the first; the Patch uses `p`. `Enter` selects the highlighted row
+(starting on the primary), `j`/`k` or `Up`/`Down` move, `Esc`/`q` cancel, mouse click
+selects, and other printable keys are swallowed.
 
 ### Forking Agents and Groups
 
@@ -2644,7 +2660,6 @@ clan. Help is not a leader command: press the app-level `?` to open the Help mod
 | `,j`       | Jump to the next unread completed agent, revealing a collapsed clan when needed, and mark it read                                              |
 | `,J`       | Jump to the next visible stopped/terminal agent, newest first, without changing unread state                                                   |
 | `,u`       | Mark all loaded unread completed agents as read; with none unread, restore the last bulk-read set to unread                                    |
-| `,n`       | Jump to agent notification (plan or question; auto-unhides if needed)                                                                          |
 | `,m`       | Open Launch Control (aliases, providers, tmux Agent; see [Launch Control](#launch-control))                                                    |
 | `,U`       | Open Update panel (SASE, providers)                                                                                                            |
 | `,E`       | Plan Everything from cached update snapshots and skip confirmation if runnable                                                                 |
@@ -4278,8 +4293,8 @@ state-file format.
 
 ## Notifications Modal
 
-Press `i` to open the notifications modal. The `,n` leader chord skips the modal and
-opens the pending plan or question for an agent directly. See
+Press `i` to open the notifications modal. On the Agents tab, `Enter` opens the selected
+agent's pending gate or Patch directly, without the modal. See
 [`docs/notifications.md`](notifications.md) for the full keybinding reference, modal
 tabs, priority/error/muted classification, and the per-notification snooze and mute
 affordances.
@@ -4804,7 +4819,8 @@ cancelled, or times out, so dismissing its notification does not dismiss the fam
 state. An answer settles it as `ANSWERED` and launches the next ordinary family member
 with the accumulated Q&A. That successor starts under the serial-family admission
 exemption and becomes the family's occupied slot; it does not enter the runner queue.
-The `,n` shortcut can reopen the live question even when no unread notification remains.
+The `Enter` shortcut can reopen the live question even when no unread notification
+remains.
 
 Approval labels are receipt-derived: they appear as soon as the accepted gate decision
 is durable, without waiting for the selected command or successor launch to finish. If

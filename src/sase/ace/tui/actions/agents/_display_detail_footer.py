@@ -5,8 +5,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from sase.agent.status_buckets import agent_is_asking
-
 from ...models.agent_hoods import agent_owns_sase_agent
 from ._display_helpers import TabName
 from ._panel_fold_intent import effective_panel_collapses
@@ -79,11 +77,6 @@ class AgentFooterDisplayMixin:
 
             footer_widget.update_leader_bindings(
                 current_tab="agents",
-                has_notification=(
-                    agent_is_asking(current_agent.status)
-                    if current_agent is not None
-                    else False
-                ),
                 has_unread_completed_agent=self._has_unread_completed_agent(),  # type: ignore[attr-defined]
                 has_bulk_read_undo_available=self._has_bulk_read_undo_available(),  # type: ignore[attr-defined]
                 has_stopped_agent=self._has_stopped_agent(),  # type: ignore[attr-defined]
@@ -108,6 +101,17 @@ class AgentFooterDisplayMixin:
                 if current_agent
                 else False
             )
+            enter_action_label: str | None = None
+            if current_agent is not None and self._current_group_key is None:  # type: ignore[attr-defined]
+                try:
+                    from ._agent_enter_targets import enter_action_label_for_targets
+
+                    resolution = self._agent_enter_resolution(current_agent)  # type: ignore[attr-defined]
+                    enter_action_label = enter_action_label_for_targets(
+                        resolution.targets
+                    )
+                except Exception:
+                    enter_action_label = None
             cached_artifacts = getattr(self, "_cached_artifact_files", None)
             if (
                 current_agent is not None
@@ -303,6 +307,7 @@ class AgentFooterDisplayMixin:
                 current_agent,
                 completed_count=completed_count,
                 can_jump_to_patch=can_jump,
+                enter_action_label=enter_action_label,
                 marked_count=len(self._marked_agents),
                 attempt_pinned=self.current_attempt_number is not None,
                 panel_focused=panel_focused,

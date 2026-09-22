@@ -4,10 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from sase.agent.status_buckets import agent_is_asking
 from sase.notification_gates.registry import PRIVILEGED_GATE_ACTIONS
-
-from ._notification_utils import refresh_notification_agent_from_cache
 
 if TYPE_CHECKING:
     from sase.notifications import Notification
@@ -21,86 +18,6 @@ class AgentNotificationModalMixin:
     def action_show_notifications(self: Any) -> None:
         """Show the notification modal with unread notifications."""
         self._show_notification_modal()
-
-    def _jump_to_agent_notification(self: Any) -> None:
-        """Directly trigger the action for the current agent's notification.
-
-        Finds the PlanApproval or UserQuestion notification matching the
-        currently selected agent and directly invokes its handler, skipping
-        the NotificationModal. If the target agent is hidden, auto-unhides
-        agents first.
-        """
-        agent: Agent | None = None
-        candidate = self._get_selected_agent()  # type: ignore[attr-defined]
-        if candidate is not None:
-            if agent_is_asking(candidate.status):
-                agent = candidate
-
-        if (
-            agent is None
-            and self.hide_non_run_agents  # type: ignore[attr-defined]
-            and self._hidden_count > 0  # type: ignore[attr-defined]
-        ):
-            # The reveal/restore scan only needs visible-filter changes; the
-            # cached ``_agents_with_children`` already holds the hidden rows,
-            # so the in-memory refilter is enough. Disk reconcile is deferred
-            # to a single async refresh after the scan completes.
-            self.hide_non_run_agents = False  # type: ignore[attr-defined]
-            self._refilter_agents()  # type: ignore[attr-defined]
-            for i, a in enumerate(self._agents):  # type: ignore[attr-defined]
-                if agent_is_asking(a.status):
-                    self.current_idx = i  # type: ignore[attr-defined]
-                    agent = a
-                    break
-            if agent is None:
-                self.hide_non_run_agents = True  # type: ignore[attr-defined]
-                self._refilter_agents()  # type: ignore[attr-defined]
-            elif not refresh_notification_agent_from_cache(self, agent=agent):
-                self._refilter_agents()  # type: ignore[attr-defined]
-
-        if agent is None:
-            return
-
-        from ._notification_navigation import agent_matches_notification_identity
-
-        page = self._read_unread_notification_page_from_provider()
-        unread = page.notifications
-
-        matched: Notification | None = None
-        for notification in unread:
-            if notification.action not in (
-                "PlanApproval",
-                "EpicApproval",
-                "UserQuestion",
-            ):
-                continue
-            if not agent_matches_notification_identity(agent, notification):
-                continue
-            matched = notification
-            break
-
-        if matched is None:
-            # Dismissed-notification fallback: pending_question.json is the
-            # authoritative source of a still-live UserQuestion request path.
-            if agent.status == "QUESTION" and self._open_question_modal_from_marker(
-                agent
-            ):
-                self._refresh_notification_count()
-            return
-
-        from ._notification_actions import handle_plan_approval, handle_user_question
-
-        if matched.action in {"PlanApproval", "EpicApproval"}:
-            self._read_notification_pending_actions_from_provider()
-            handle_plan_approval(self, matched)
-        elif matched.action == "UserQuestion":
-            self._read_notification_pending_actions_from_provider()
-            handle_user_question(self, matched)
-        else:
-            self._show_notification_modal()
-            return
-
-        self._refresh_notification_count()
 
     def _open_question_modal_from_marker(self: Any, agent: Agent) -> bool:
         """Open the UserQuestionModal for an agent whose notification was dismissed.
