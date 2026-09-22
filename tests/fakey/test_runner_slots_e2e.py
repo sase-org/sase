@@ -282,7 +282,7 @@ def test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit(
         expand_prompt_for_typed_launch(
             "#research_swarm("
             "prompt='weighted queue acceptance', "
-            "runners=1, priority=0, wait='upstream', should_generate_image=true"
+            "runners=1, priority=0, wait='upstream', image=true"
             ")"
         ),
         selected_project="sase",
@@ -303,15 +303,14 @@ def test_installed_research_swarm_quarter_weights_fill_one_fakey_capacity_unit(
         plan_typed_launch_units(
             expand_prompt_for_typed_launch(
                 "#research_swarm(prompt='weighted queue acceptance', runners=0, "
-                "should_generate_image=true)"
+                "image=true)"
             ),
             selected_project="sase",
         )
 
     capacity_plan = plan_typed_launch_units(
         expand_prompt_for_typed_launch(
-            "#research_swarm(prompt='weighted queue acceptance', "
-            "should_generate_image=true)"
+            "#research_swarm(prompt='weighted queue acceptance', image=true)"
         ),
         selected_project="sase",
     )
