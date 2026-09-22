@@ -54,7 +54,7 @@ MONITOR_ARGV_PREFIX: tuple[str, ...] = ("/bin/sh", "-c")
 MONITOR_FOLLOWUP_KIND = "monitor"
 
 
-def compile_monitor_argv(command: str) -> list[str]:
+def _compile_monitor_argv(command: str) -> list[str]:
     """Compile a monitor command string to explicit argv."""
     return [*MONITOR_ARGV_PREFIX, command]
 
@@ -72,7 +72,7 @@ def monitor_proc_argv(
     """
     if execution_argv:
         return [str(part) for part in execution_argv]
-    return compile_monitor_argv(command)
+    return _compile_monitor_argv(command)
 
 
 def proc_shell_owns(
@@ -517,7 +517,6 @@ __all__ = [
     "MONITOR_ARGV_PREFIX",
     "MONITOR_FOLLOWUP_KIND",
     "MONITOR_PROC_ORIGIN",
-    "compile_monitor_argv",
     "monitor_proc_argv",
     "overlay_proc_on_monitor",
     "proc_shell_owns",

@@ -5006,6 +5006,12 @@
       "description": "Detached monitor and continuation settings.",
       "additionalProperties": false,
       "properties": {
+        "tool_wrap": {
+          "type": "string",
+          "description": "Which monitors run their command inside `sase tool run`: `verify` wraps only -p/--profile verify monitors, `all` wraps every monitor, `off` wraps nothing.",
+          "enum": ["off", "verify", "all"],
+          "default": "verify"
+        },
         "evidence_limits": {
           "type": "object",
           "description": "Resource limits for evidence projected into monitor continuation prompts. Strict file/none policies still embed no raw output.",

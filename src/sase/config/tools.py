@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from sase.config.core import get_local_config_path, load_config_layers
@@ -98,6 +99,41 @@ def load_project_tool_catalog() -> ToolCatalog:
     """
     diagnostics = list(_non_project_tools_diagnostics())
     local_path = get_local_config_path()
+    return _load_catalog_from_path(local_path, diagnostics=diagnostics)
+
+
+def load_project_tool_catalog_at(start: Path | str | None) -> ToolCatalog:
+    """Load the ``tools:`` catalog for the project containing *start*.
+
+    Unlike :func:`load_project_tool_catalog` this resolves the project root
+    from *start* instead of the current working directory, so a monitor
+    started for another checkout resolves that checkout's catalog rather
+    than the starting agent's. Malformed catalogs raise
+    :class:`ToolCatalogError`; a missing root or config is an empty catalog.
+    """
+    from sase.content_layout import (
+        discover_project_root,
+        resolve_project_config_read_path,
+    )
+
+    root = discover_project_root(start)
+    if root is None:
+        return ToolCatalog(
+            project=tool_project_identity(),
+            path=None,
+            entries=(),
+            diagnostics=(),
+        )
+    try:
+        local_path = resolve_project_config_read_path(root)
+    except Exception as exc:
+        raise ToolCatalogError(f"{root}: {exc}") from exc
+    return _load_catalog_from_path(local_path, diagnostics=[])
+
+
+def _load_catalog_from_path(
+    local_path: Path | None, *, diagnostics: list[str]
+) -> ToolCatalog:
     project = tool_project_identity()
     if local_path is None:
         return ToolCatalog(
@@ -254,5 +290,6 @@ __all__ = [
     "ToolRunsConfigError",
     "get_tool_runs_config",
     "load_project_tool_catalog",
+    "load_project_tool_catalog_at",
     "tool_project_identity",
 ]

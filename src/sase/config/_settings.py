@@ -61,6 +61,8 @@ DEFAULT_MONITOR_SELECTED_DIAGNOSTICS_BYTES = 8 * 1024
 DEFAULT_MONITOR_FALLBACK_TAIL_BYTES = 4 * 1024
 DEFAULT_MONITOR_TOTAL_RAW_EXCERPT_BYTES = 12 * 1024
 DEFAULT_MONITOR_RAW_TAIL_LINES = 200
+DEFAULT_MONITOR_TOOL_WRAP = "verify"
+MONITOR_TOOL_WRAP_CHOICES = ("off", "verify", "all")
 
 
 def _merged_config() -> dict[str, Any]:
@@ -264,6 +266,25 @@ def get_pager_syntax() -> str:
     if value in {"auto", "never"}:
         return str(value)
     return DEFAULT_PAGER_SYNTAX
+
+
+def get_monitor_tool_wrap() -> str:
+    """Return the validated ``monitor.tool_wrap`` policy (``off|verify|all``).
+
+    Fails open to ``verify``, matching :func:`get_monitor_evidence_limits`:
+    a hand-edited config must never turn ``sase monitor start`` into a
+    traceback.
+    """
+    try:
+        monitor = _merged_config().get("monitor", {})
+    except Exception:  # noqa: BLE001 - monitor start should fail open.
+        return DEFAULT_MONITOR_TOOL_WRAP
+    if not isinstance(monitor, dict):
+        return DEFAULT_MONITOR_TOOL_WRAP
+    value = monitor.get("tool_wrap", DEFAULT_MONITOR_TOOL_WRAP)
+    if isinstance(value, str) and value.strip() in MONITOR_TOOL_WRAP_CHOICES:
+        return value.strip()
+    return DEFAULT_MONITOR_TOOL_WRAP
 
 
 def get_monitor_evidence_limits() -> dict[str, int]:

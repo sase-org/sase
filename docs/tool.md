@@ -181,6 +181,15 @@ does not redirect — printing the wrapped form and the bypass form and exiting 
   no wrapped form to print.
 - Otherwise: refused with the wrapped and bypass forms on stderr, exit 2.
 
+### Monitor wrapping
+
+The guard cannot see detached runs: monitor supervisors scrub agent identity on purpose.
+`verify`-profile monitors therefore wrap what they run — an exact catalog match upgrades
+to a named `sase tool run <name>`, anything else wraps ad-hoc — in the proc argv only,
+leaving the recorded command and `-f` completion bindings untouched. See
+[Monitors](monitors.md) (§"Tool-run wrapping") for the policy table and the
+`monitor.tool_wrap` config field.
+
 ## Measuring adoption
 
 ```bash

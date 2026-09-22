@@ -14,7 +14,7 @@ import pytest
 
 from sase.ace.hooks.processes import is_process_running
 from sase.monitor.models import MonitorRecord
-from sase.monitor.proc_adapter import compile_monitor_argv, monitor_proc_argv
+from sase.monitor.proc_adapter import _compile_monitor_argv, monitor_proc_argv
 from sase.monitor.start import StartMonitorRequest, start_monitor
 from sase.monitor.store import list_monitors, stop_monitor
 from sase.procs.models import COMMAND_PROC_KIND
@@ -109,7 +109,7 @@ def _start(
 
 
 def test_compile_monitor_argv_is_explicit_sh_c() -> None:
-    assert compile_monitor_argv("just check-full") == [
+    assert _compile_monitor_argv("just check-full") == [
         "/bin/sh",
         "-c",
         "just check-full",
@@ -121,7 +121,7 @@ def test_monitor_proc_argv_prefers_explicit_execution_argv() -> None:
     assert monitor_proc_argv("sase bead work plan.md", execution_argv=execution) == (
         execution
     )
-    assert monitor_proc_argv("just check-full") == compile_monitor_argv(
+    assert monitor_proc_argv("just check-full") == _compile_monitor_argv(
         "just check-full"
     )
 

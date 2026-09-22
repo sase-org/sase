@@ -964,6 +964,10 @@ ace:
           create: "c"
 
 monitor:
+  # Which monitors run their command inside `sase tool run` so the run is
+  # recorded: `verify` wraps only `-p/--profile verify` monitors, `all` wraps
+  # every monitor, `off` wraps nothing. Permanent config, not a feature flag.
+  tool_wrap: verify
   evidence_limits:
     selected_diagnostics_bytes: 8192
     fallback_tail_bytes: 4096

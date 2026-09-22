@@ -19,6 +19,7 @@ import shlex
 from dataclasses import replace
 from typing import Any
 
+from sase.config._settings import get_monitor_tool_wrap
 from sase.continuation_capture.rollout import (
     monitor_continuation_protocol_for_new_start,
     monitor_continuation_records_enabled,
@@ -41,7 +42,7 @@ from .handoff import (
     will_handoff_monitor_to_agent_runner,
     write_monitor_pending_marker,
 )
-from .logs import monitor_log_path
+from .logs import append_monitor_log_bytes, monitor_log_path
 from .member import create_monitor_member
 from .models import (
     MonitorAlreadyRunningError,
@@ -51,9 +52,8 @@ from .models import (
 from .proc_adapter import (
     MONITOR_FOLLOWUP_KIND,
     MONITOR_PROC_ORIGIN,
-    compile_monitor_argv,
-    monitor_proc_argv,
 )
+from .tool_wrap import format_unwrapped_log_line, resolve_monitor_tool_wrap
 from .request import (
     DEFAULT_REASON,
     DEFAULT_START_STATUS,
@@ -308,17 +308,23 @@ def _start_monitor_locked(
                 f"could not claim workspace for monitor: {claim_error}"
             )
 
+    proc_argv, unwrapped_reason = resolve_monitor_tool_wrap(
+        request.command,
+        request.execution_argv,
+        request.profile,
+        request.cwd,
+        get_monitor_tool_wrap(),
+    )
+    if unwrapped_reason is not None:
+        # The proc supervisor appends, so a pre-submit line stays first and
+        # the log explains why this monitor runs raw.
+        append_monitor_log_bytes(
+            log_path, format_unwrapped_log_line(unwrapped_reason).encode("utf-8")
+        )
     try:
         proc = submit_proc_request(
             ProcSubmitRequest(
-                argv=(
-                    monitor_proc_argv(
-                        request.command,
-                        execution_argv=request.execution_argv,
-                    )
-                    if request.execution_argv
-                    else compile_monitor_argv(request.command)
-                ),
+                argv=proc_argv,
                 command=(
                     shlex.split(request.command) if request.execution_argv else None
                 ),
