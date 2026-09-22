@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import os
+import shlex
 import sys
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from typing import Any
 
 from sase.agent.names._registry import name_registry_load_session
-from sase.bead.bead_views import record_bead_show_views
+from sase.bead.bead_views import SASE_BEAD_SKIP_VIEW_LOG
 from sase.bead.cli_common import created_cell, get_read_view, status_icon
 from sase.bead.cli_dep_render import resolve_color
 from sase.bead.cli_detail import (
@@ -269,8 +271,48 @@ def _issue_created_in_window(
 
 
 def handle_bead_show(args: argparse.Namespace) -> None:
-    """Show beads without recording an audited read."""
+    """Show beads for interactive human use; agents are refused to `read`."""
+    _refuse_agent_bead_show(args)
     _run_bead_view(args, audited_reason=None)
+
+
+def _refuse_agent_bead_show(
+    args: argparse.Namespace, argv: Sequence[str] | None = None
+) -> None:
+    """Refuse agent-run `sase bead show` with the matching `read` command.
+
+    Fires under exactly the condition that used to write a `viewed` row:
+    an agent identity is present and `SASE_BEAD_SKIP_VIEW_LOG` is not `"1"`.
+    Automation inside agents already sets that variable, and interactive
+    human use has no agent identity, so neither is affected.
+    """
+    from sase.bead.attribution import acting_agent_name
+
+    if os.environ.get(SASE_BEAD_SKIP_VIEW_LOG) == "1":
+        return
+    if not acting_agent_name():
+        return
+    tokens = list(argv) if argv is not None else sys.argv[1:]
+    tail: list[str] | None = None
+    try:
+        bead_index = tokens.index("bead")
+        show_index = tokens.index("show", bead_index + 1)
+        tail = tokens[show_index + 1 :]
+    except ValueError:
+        tail = None
+    if not tail:
+        tail = _show_ids(args)
+    suggestion = shlex.join(
+        ["sase", "bead", "read", *tail, "-r", "<why you need this bead>"]
+    )
+    print(
+        "Error: agents must read beads with `sase bead read`, which records why you read them:\n"
+        f"  {suggestion}\n"
+        "`sase bead read` accepts the same IDs and options as `sase bead show`; "
+        "`show` is the human command.",
+        file=sys.stderr,
+    )
+    sys.exit(2)
 
 
 def handle_bead_read(args: argparse.Namespace) -> None:
@@ -339,11 +381,6 @@ def _run_bead_view(args: argparse.Namespace, *, audited_reason: str | None) -> N
 
     if body:
         page_or_print(body, mode=pager_mode, document=pager_document)
-    if audited_reason is None and batch.entries:
-        # Machine-local viewed touch: recorded only when an agent identity
-        # is present, never into the audited artifact-read log. Best-effort
-        # and never raises, so show output is unaffected.
-        record_bead_show_views([str(entry.issue.id) for entry in batch.entries])
     for failure in batch.failures:
         print(f"Error: {failure.message}", file=sys.stderr)
     if batch.failures:

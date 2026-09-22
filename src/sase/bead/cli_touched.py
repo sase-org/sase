@@ -4,12 +4,12 @@ The reduction itself lives in ``sase-core`` and is surfaced through
 :mod:`sase.core.bead_touch_index_facade`; this module owns only the CLI
 presentation: per-bead folding, newest-touch-first ordering, verb-chip
 formatting, the shared glyph vocabulary, and the compact and JSON
-renderings. Durable index rows merge with the machine-local ``sase bead
-show`` view log and audited ``bead:`` artifact reads so the rows agree
-with the panel row for row for touched beads. ``read`` comes from
-``sase bead read`` / ``sase artifact read bead:`` with reasons, and
-automation never produces ``viewed``. The index is a derived
-cache, so a missing index lists nothing.
+renderings. Durable index rows merge with the legacy, no-longer-written
+``bead_views.jsonl`` view log and audited ``bead:`` artifact reads so the
+rows agree with the panel row for row for touched beads. ``read`` comes
+from ``sase bead read`` / ``sase artifact read bead:`` with reasons.
+Agents are refused at ``show``; ``viewed`` rows predate that guard. The
+index is a derived cache, so a missing index lists nothing.
 """
 
 from __future__ import annotations

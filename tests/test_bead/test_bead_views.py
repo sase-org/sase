@@ -1,7 +1,7 @@
-"""Tests for agent bead views (bead sase-14j.6).
+"""Tests for legacy agent bead views (bead sase-14j.6).
 
-``sase bead show`` records one machine-local row per shown bead only when an
-agent identity is present. The panel loader folds those rows behind the
+``bead_views.jsonl`` is no longer written — agents are refused at
+``sase bead show`` — but the panel loader still folds legacy rows behind the
 durable index facts as a weaker ``viewed`` signal that is never promoted to
 ``read`` and never touches the audited artifact-read log.
 """
@@ -15,7 +15,6 @@ from pathlib import Path
 import pytest
 
 import sase.ace.tui.bead_touches as bead_touches
-import sase.bead.bead_views as bead_views
 from sase.ace.tui.bead_touches import (
     _BeadTouchDisplayEvent,
     load_bead_touches_for_agent_context,
@@ -29,9 +28,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_context_common import MEMORY_GLYPH
 from sase.bead.bead_views import (
     BEAD_VIEW_LOG_SCHEMA_VERSION,
     BeadViewEvent,
-    bead_views_log_path,
     read_bead_view_events,
-    record_bead_show_views,
     view_touches_for_agent,
     views_to_touches,
 )
@@ -41,17 +38,10 @@ from sase.core.bead_touch_index_facade import (
     BeadTouchQuery,
     merge_view_touches,
 )
-from tests._conftest_environment import redirect_sase_home
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 
 _PROJECT = "gh_sase-org__sase"
 _AGENT = "owner.machine.alpha"
-
-
-def _stub_agent(monkeypatch: pytest.MonkeyPatch, name: str | None) -> None:
-    import sase.bead.attribution as attribution
-
-    monkeypatch.setattr(attribution, "acting_agent_name", lambda: name)
 
 
 def _view_row(bead_id: str, agent_name: str = _AGENT) -> dict[str, object]:
@@ -72,50 +62,6 @@ def _write_views_log(path: Path, rows: list[dict[str, object]]) -> None:
         for row in rows:
             json.dump(row, handle, sort_keys=True)
             handle.write("\n")
-
-
-# --- record ---------------------------------------------------------------
-
-
-def test_record_writes_nothing_without_agent_identity(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    _stub_agent(monkeypatch, None)
-
-    assert record_bead_show_views(["sase-14j.6"], project=_PROJECT) == 0
-    assert not bead_views_log_path(_PROJECT).exists()
-
-
-def test_record_appends_one_row_per_bead(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    _stub_agent(monkeypatch, _AGENT)
-
-    written = record_bead_show_views(
-        ["sase-14j.6", " sase-14j.5 ", "sase-14j.6", "   "], project=_PROJECT
-    )
-    assert written == 2
-
-    events = read_bead_view_events(log_path=bead_views_log_path(_PROJECT))
-    assert [event.bead_id for event in events] == ["sase-14j.6", "sase-14j.5"]
-    assert all(event.agent_name == _AGENT for event in events)
-    assert all(event.schema_version == BEAD_VIEW_LOG_SCHEMA_VERSION for event in events)
-
-
-def test_record_never_raises_on_write_failure(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    redirect_sase_home(monkeypatch, tmp_path / ".sase")
-    _stub_agent(monkeypatch, _AGENT)
-
-    def _boom(*args: object, **kwargs: object) -> object:
-        raise OSError("disk gone")
-
-    monkeypatch.setattr(bead_views, "locked_file", _boom)
-
-    assert record_bead_show_views(["sase-1"], project=_PROJECT) == 0
 
 
 # --- read -----------------------------------------------------------------

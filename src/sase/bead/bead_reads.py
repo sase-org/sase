@@ -3,9 +3,9 @@
 Reasoned reads go to the audited artifact-read log (``artifact_reads.jsonl``)
 as ``bead:<full-id>`` rows with an authored reason, so the panel and
 ``sase bead touched`` can surface them as the stronger ``read`` verb with
-its ``why``. Machine-local ``sase bead show`` views go to
-``bead_views.jsonl`` instead, where they stay a visibly weaker ``viewed``
-signal that automation never produces.
+its ``why``. Legacy machine-local ``sase bead show`` views in
+``bead_views.jsonl`` are no longer written — agents are refused at ``show``
+— but are still read for display as the weaker ``viewed`` signal.
 """
 
 from __future__ import annotations

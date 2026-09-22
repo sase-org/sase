@@ -1709,8 +1709,7 @@ Inside a SASE agent run with an identity, the command also queues one
 `agent:<name> -read-> bead:<id>` graph-edge row per bead; outside an agent run it prints
 the one-line "not recorded as a graph edge" note on stderr instead. Link queueing is
 best-effort: a failure prints `Error: could not record read link: ...` but the beads
-still print. `read` writes no `viewed` row, so it never double-counts as
-`read · viewed`.
+still print.
 
 ### `sase bead show <id> [<id2> ...]`
 
@@ -1724,12 +1723,15 @@ one block. If one ID in a batch is missing, the beads that resolved still print 
 after output or the pager exits, stderr gets one `Error: issue not found: <id>` line per
 miss and the command exits 1.
 
-Run inside a SASE agent, `show` also appends one machine-local row per shown bead to
-`~/.sase/projects/<project>/bead_views.jsonl`. These rows surface as the weaker `viewed`
-verb in [`sase bead touched`](#sase-bead-touched-agent) and the Agents-tab `Beads:`
-rows. They are never audited, never promoted to `read`, and never recorded for
-interactive (non-agent) use or when `SASE_BEAD_SKIP_VIEW_LOG=1`. The log is not synced,
-so another machine's agent views are not visible here. Use
+Run inside a SASE agent run with an identity (and without `SASE_BEAD_SKIP_VIEW_LOG=1`),
+`show` refuses before printing anything: it exits `2`, prints nothing to stdout, records
+no rows, and names the matching `sase bead read ... -r "<why>"` command on stderr.
+Automation running inside agents (symvision, flag checks, commit hooks) sets
+`SASE_BEAD_SKIP_VIEW_LOG=1`, so its `show` probes bypass the guard. `viewed` rows
+written to `~/.sase/projects/<project>/bead_views.jsonl` before this guard still surface
+as the weaker `viewed` verb in [`sase bead touched`](#sase-bead-touched-agent) and the
+Agents-tab `Beads:` rows; the log is no longer written and is not synced, so another
+machine's agent views are not visible here. Use
 [`sase bead read`](#sase-bead-read-id-id2) when the consultation should be audited.
 
 An ID ending in `..` expands to that bead plus its direct children in one argv token:
@@ -2013,14 +2015,15 @@ provenance. Reads are not audited.
 ### `sase bead touched <agent>`
 
 List the beads one agent touched, newest touch first, one row per bead with verb chips,
-title, and relative age. Durable index rows merge with the machine-local
+title, and relative age. Durable index rows merge with the legacy, no-longer-written
 `sase bead show` view log (`viewed`) and audited `bead:` reads (`read`), matching the
 Agents-tab `Beads:` sub-section row for row for touched beads. `read` comes from
-`sase bead read` / `sase artifact read bead:` with reasons; automation running inside
-agents (symvision, flag checks, commit hooks) sets `SASE_BEAD_SKIP_VIEW_LOG=1` and never
-produces `viewed`. The CLI lists touched beads only; the panel also marks assigned but
-untouched beads `own`. A bead with read reasons prints one extra indented line with the
-newest reason (`  ↳ <reason>`); JSON rows carry `read_reasons`.
+`sase bead read` / `sase artifact read bead:` with reasons; agents are now refused at
+`show`, so `viewed` rows predate that guard. Automation running inside agents
+(symvision, flag checks, commit hooks) sets `SASE_BEAD_SKIP_VIEW_LOG=1` and bypasses the
+guard. The CLI lists touched beads only; the panel also marks assigned but untouched
+beads `own`. A bead with read reasons prints one extra indented line with the newest
+reason (`  ↳ <reason>`); JSON rows carry `read_reasons`.
 
 ```bash
 sase bead touched bbugyi200.athena.0oa

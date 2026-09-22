@@ -13,13 +13,14 @@ answers here rather than paying for freshness on the panel's clock. A
 missing, truncated, or unparseable index is a cache miss that returns no
 rows, never an error.
 
-The machine-local ``bead_views.jsonl`` log (one row per agent-attributed
-``sase bead show``) is folded in behind the durable index rows as
-``viewed``-only synthetic touches, so a bead an agent only peeked at still
-surfaces, ranked by its newest view, with the weakest glyph and no
-promotion to ``read``. The views file is small, append-only, and cached by
-its own mtime-and-size stat under the same throttle, keeping the j/k
-navigation hot path to stat calls on a cache hit.
+The legacy, no-longer-written ``bead_views.jsonl`` log (one row per
+agent-attributed ``sase bead show`` before agents were refused at ``show``)
+is folded in behind the durable index rows as ``viewed``-only synthetic
+touches, so a bead an agent only peeked at still surfaces, ranked by its
+newest view, with the weakest glyph and no promotion to ``read``. The views
+file is small, append-only, and cached by its own mtime-and-size stat under
+the same throttle, keeping the j/k navigation hot path to stat calls on a
+cache hit.
 """
 
 from __future__ import annotations

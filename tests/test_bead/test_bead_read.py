@@ -223,6 +223,7 @@ def test_read_writes_no_viewed_row_but_show_does(
 
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     monkeypatch.setattr(attribution, "acting_agent_name", lambda: "tester.host.0oa")
+    monkeypatch.delenv(SASE_BEAD_SKIP_VIEW_LOG, raising=False)
     from sase.main.init_memory.config import project_memory_name
     from sase.project_aliases import resolve_project_alias_ref
 
@@ -238,9 +239,13 @@ def test_read_writes_no_viewed_row_but_show_does(
     show_args = create_parser().parse_args(
         ["bead", "show", issue.id, "--no-links", "--pager", "never"]
     )
-    bead_cli.handle_bead_show(show_args)
-    capsys.readouterr()
-    assert bead_views_log_path(project).exists()
+    with pytest.raises(SystemExit) as excinfo:
+        bead_cli.handle_bead_show(show_args)
+    assert excinfo.value.code == 2
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert f"sase bead read {issue.id}" in captured.err
+    assert not bead_views_log_path(project).exists()
 
 
 def test_read_outside_agent_run_prints_not_recorded_note(
@@ -271,17 +276,28 @@ def test_bead_read_ref_accepts_bare_and_canonical_ids() -> None:
     assert bead_read_ref("bead:sase-64.1") == "bead:sase-64.1"
 
 
-def test_view_log_opt_out_writes_nothing(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+def test_view_log_opt_out_bypasses_agent_guard(
+    nested_store: dict,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     import sase.bead.attribution as attribution
-    from sase.bead.bead_views import record_bead_show_views
+    from sase.main.init_memory.config import project_memory_name
+    from sase.project_aliases import resolve_project_alias_ref
 
     redirect_sase_home(monkeypatch, tmp_path / ".sase")
     monkeypatch.setattr(attribution, "acting_agent_name", lambda: "tester.host.0oa")
     monkeypatch.setenv(SASE_BEAD_SKIP_VIEW_LOG, "1")
-    assert record_bead_show_views(["sase-1"], project="test-proj") == 0
-    assert not bead_views_log_path("test-proj").exists()
+    project = resolve_project_alias_ref(project_memory_name(Path.cwd()))
+    issue = nested_store["phase"]
+    show_args = create_parser().parse_args(
+        ["bead", "show", issue.id, "--no-links", "--pager", "never"]
+    )
+    bead_cli.handle_bead_show(show_args)
+    captured = capsys.readouterr()
+    assert captured.out != ""
+    assert not bead_views_log_path(project).exists()
 
 
 def test_sase_bead_wrapper_exports_view_log_opt_out() -> None:

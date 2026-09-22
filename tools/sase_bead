@@ -10,7 +10,7 @@ else
   sase_bin="sase"
 fi
 
-# Automation probes must not count as agent views (see SASE_BEAD_SKIP_VIEW_LOG in src/sase/bead/bead_views.py).
+# Automation probes run inside agents but must neither count as agent consultations nor trip the agent show guard (see SASE_BEAD_SKIP_VIEW_LOG in src/sase/bead/bead_views.py).
 export SASE_BEAD_SKIP_VIEW_LOG=1
 
 run_symvision_status_show() {

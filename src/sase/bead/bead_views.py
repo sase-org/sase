@@ -1,18 +1,15 @@
-"""Machine-local log of agent ``sase bead show`` views.
+"""Legacy machine-local log of agent ``sase bead show`` views.
 
-A view is not a bead event, so it cannot come from the stream reduction in
-``sase-core`` and must not be written into the audited artifact-read log,
-whose rows require an authored reason and carry link-recording weight.
-``sase bead show`` instead appends one small row per shown bead here, only
-when an agent identity is present, so interactive use pays nothing and the
-audited corpus stays clean. The panel and query layers merge these rows
-behind the durable mutation facts as a visibly weaker ``viewed`` signal
-that is never promoted to ``read``. Reasoned ``sase bead read`` rows live
-in the audited log instead and never touch this file.
+Agents are refused at ``show`` and told to run ``sase bead read`` instead,
+so ``bead_views.jsonl`` is no longer written. It is still read for display:
+the panel and query layers merge these legacy rows behind the durable
+mutation facts as a visibly weaker ``viewed`` signal that is never promoted
+to ``read``. Reasoned ``sase bead read`` rows live in the audited log
+instead and never touch this file.
 
-Automation running inside an agent environment (symvision, flag checks,
-commit hooks) sets ``SASE_BEAD_SKIP_VIEW_LOG=1`` so its ``show`` probes
-never count as views.
+``SASE_BEAD_SKIP_VIEW_LOG=1`` marks automation that runs inside an agent
+(symvision, flag checks, commit hooks), whose ``show`` probes neither count
+as agent consultations nor trip the agent guard.
 
 Limitation: this log is machine-local. A remote agent's views are not
 visible on this machine while its mutations (which sync through the bead
@@ -23,14 +20,11 @@ from __future__ import annotations
 
 import fcntl
 import json
-import logging
-import os
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from uuid import uuid4
 
 from sase.core.bead_touch_index_facade import BeadTouch, touch_matches_agent
 from sase.core.paths import sase_projects_dir
@@ -38,10 +32,10 @@ from sase.main.init_memory.config import project_memory_name
 from sase.memory.locks import locked_file
 from sase.project_aliases import resolve_project_alias_ref
 
-_logger = logging.getLogger(__name__)
-
 BEAD_VIEWS_FILENAME = "bead_views.jsonl"
 BEAD_VIEW_LOG_SCHEMA_VERSION = 1
+# Marks automation that runs inside an agent, whose ``show`` probes neither
+# count as agent consultations nor trip the agent guard.
 SASE_BEAD_SKIP_VIEW_LOG = "SASE_BEAD_SKIP_VIEW_LOG"
 
 
@@ -65,61 +59,6 @@ def bead_views_log_path(project: str | None = None, *, cwd: Path | None = None) 
         project or project_memory_name(cwd or Path.cwd())
     )
     return sase_projects_dir() / project_name / BEAD_VIEWS_FILENAME
-
-
-def record_bead_show_views(
-    bead_ids: Sequence[str],
-    *,
-    project: str | None = None,
-    cwd: Path | None = None,
-) -> int:
-    """Append one view row per bead id for the acting agent.
-
-    Returns the number of rows written. Writes nothing — not even an empty
-    file — when no agent identity is present, or when
-    ``SASE_BEAD_SKIP_VIEW_LOG=1`` opts automation out, so interactive
-    ``sase bead show`` use pays nothing. Best-effort and never raises: a
-    failure is debug-logged and the show output is unaffected.
-    """
-    from sase.bead.attribution import acting_agent_name
-
-    try:
-        if os.environ.get(SASE_BEAD_SKIP_VIEW_LOG) == "1":
-            return 0
-        agent_name = acting_agent_name()
-        if not agent_name:
-            return 0
-        cleaned = _clean_bead_ids(bead_ids)
-        if not cleaned:
-            return 0
-        cwd_path = (cwd or Path.cwd()).resolve(strict=False)
-        project_name = project or project_memory_name(cwd_path)
-        path = bead_views_log_path(project_name)
-        timestamp = _event_timestamp(datetime.now(tz=UTC))
-        rows = [
-            asdict(
-                BeadViewEvent(
-                    schema_version=BEAD_VIEW_LOG_SCHEMA_VERSION,
-                    id=uuid4().hex[:12],
-                    timestamp=timestamp,
-                    project=project_name,
-                    cwd=str(cwd_path),
-                    bead_id=bead_id,
-                    agent_name=agent_name,
-                )
-            )
-            for bead_id in cleaned
-        ]
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with locked_file(path.with_suffix(".lock"), fcntl.LOCK_EX):
-            with path.open("a", encoding="utf-8") as output_file:
-                for row in rows:
-                    json.dump(row, output_file, sort_keys=True)
-                    output_file.write("\n")
-        return len(rows)
-    except Exception as exc:
-        _logger.debug("Skipping bead view log write: %s", exc)
-        return 0
 
 
 def read_bead_view_events(
@@ -223,15 +162,6 @@ def view_touches_for_agent(
     ]
 
 
-def _clean_bead_ids(bead_ids: Sequence[str]) -> list[str]:
-    cleaned: list[str] = []
-    for bead_id in bead_ids:
-        text = (bead_id or "").strip()
-        if text and text not in cleaned:
-            cleaned.append(text)
-    return cleaned
-
-
 def _event_from_line(line: str) -> BeadViewEvent | None:
     try:
         data = json.loads(line)
@@ -281,19 +211,12 @@ def _parse_moment(value: str | None) -> datetime | None:
     return parsed
 
 
-def _event_timestamp(now: datetime) -> str:
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=UTC)
-    return now.astimezone(UTC).isoformat()
-
-
 __all__ = [
     "BEAD_VIEWS_FILENAME",
     "BEAD_VIEW_LOG_SCHEMA_VERSION",
     "BeadViewEvent",
     "bead_views_log_path",
     "read_bead_view_events",
-    "record_bead_show_views",
     "view_touches_for_agent",
     "views_to_touches",
 ]

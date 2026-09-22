@@ -445,9 +445,10 @@ def register_bead_show_parser(
             "is paged with color intact. DESCRIPTION, NOTES, link reasons, "
             "and +1 evidence prose wrap at "
             f"{default_wrap_width} columns by default without breaking URLs "
-            "or inline code spans. This is the unaudited human command; "
-            "agents consulting beads to do work must use `sase bead read` "
-            "instead."
+            "or inline code spans. This is the human command; inside a "
+            "SASE agent run it refuses with exit 2 and names the matching "
+            '`sase bead read ... -r "<why>"` command. Agents consulting '
+            "beads to do work must use `sase bead read` instead."
         ),
         epilog=(
             "Examples:\n"
@@ -491,7 +492,7 @@ def register_bead_read_parser(
             "agent-attributed read per resolved bead before printing. The "
             "output is identical to `sase bead show`. Agents consulting "
             "beads to do work must use this command, while `show` is the "
-            "unaudited human command."
+            "human command."
         ),
         epilog=(
             "Examples:\n"
