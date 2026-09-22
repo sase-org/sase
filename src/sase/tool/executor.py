@@ -2,30 +2,39 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass
-import errno
 import os
 from pathlib import Path
 import secrets
 import signal
-import subprocess
 import sys
-import threading
 import time
-from typing import Any, BinaryIO, TextIO
+from typing import Any
 
-from sase.config.tools import tool_project_identity
-from sase.core.process_identity import process_identity_token
-from sase.core.tool_run import tool_run_begin, tool_run_finish
-from sase.supervision.logs import pump_output
 from sase.telemetry.metrics import (
     TOOL_RUN_ATTEMPTS,
     TOOL_RUN_RECORDING_ERRORS,
     TOOL_RUN_SETTLEMENTS,
 )
 from sase.tool.argv import ResolvedToolArgv, ToolRunUsageError, resolve_run_argv
-from sase.tool.liveness import current_boot_id, reconcile_unsettled_tool_runs
+from sase.tool.executor_display import (
+    duration_ms_since,
+    warn_once,
+    write_display,
+    write_run_footer,
+)
+from sase.tool.executor_process import (
+    child_env,
+    settle_wait_code,
+    spawn_child,
+    spawn_diagnostic,
+    spawn_exit_code,
+    start_output_pumps,
+    wait_child,
+)
+from sase.tool.executor_recording import begin_tool_run, finish_tool_run
+from sase.tool.executor_signals import SignalState
+from sase.tool.liveness import reconcile_unsettled_tool_runs
 from sase.tool.logs import (
     BoundedLogSink,
     LogSinkError,
@@ -35,7 +44,7 @@ from sase.tool.logs import (
     record_truncation,
     truncation_diagnostics,
 )
-from sase.tool.observe import fingerprints_mutated, inc_tool_metric, observe_fingerprint
+from sase.tool.observe import inc_tool_metric, observe_fingerprint
 from sase.tool.ownership import (
     ToolRunOwnerConflict,
     ToolRunOwnership,
@@ -43,18 +52,10 @@ from sase.tool.ownership import (
     resolve_ownership,
 )
 from sase.tool.sample import LoadSampler
-from sase.tool.stage_protocol import (
-    StageIngestor,
-    format_unattributed_line,
-    unattributed_from_stages,
-)
+from sase.tool.stage_protocol import StageIngestor
 
 # tools/_run_silent_record.py appends JSONL; this executor only tails and ingests.
 
-_TOOL_RUN_ID_ENV = "SASE_TOOL_RUN_ID"
-_TOOL_RUN_EVENTS_ENV = "SASE_TOOL_RUN_EVENTS"
-_TERM_ESCALATE_SECONDS = 5.0
-_KILL_WAIT_SECONDS = 2.0
 _WARN_NOT_RECORDED = "sase: run not recorded"
 _WARN_INCOMPLETE = "sase: recording incomplete"
 
@@ -67,40 +68,6 @@ class ToolRunCliRequest:
     verbose: bool
     tail_lines: int
     words: tuple[str, ...]
-
-
-class _SignalState:
-    def __init__(self) -> None:
-        self.sigint = False
-        self.sigterm = False
-        self.pgid: int | None = None
-        self._forwarded: set[int] = set()
-        self._lock = threading.Lock()
-
-    def handler(self, signum: int, _frame: object) -> None:
-        with self._lock:
-            if signum == signal.SIGINT:
-                self.sigint = True
-            elif signum == signal.SIGTERM:
-                self.sigterm = True
-            self._forward_locked(signum)
-
-    def bind_pgid(self, pgid: int) -> None:
-        with self._lock:
-            self.pgid = pgid
-            if self.sigint:
-                self._forward_locked(signal.SIGINT)
-            if self.sigterm:
-                self._forward_locked(signal.SIGTERM)
-
-    def _forward_locked(self, signum: int) -> None:
-        if self.pgid is None or signum in self._forwarded:
-            return
-        self._forwarded.add(signum)
-        try:
-            os.killpg(self.pgid, signum)
-        except (ProcessLookupError, PermissionError, OSError):
-            pass
 
 
 def execute_tool_run(request: ToolRunCliRequest) -> int:
@@ -129,7 +96,7 @@ def execute_tool_run(request: ToolRunCliRequest) -> int:
     )
     reconcile_unsettled_tool_runs()
 
-    signals = _SignalState()
+    signals = SignalState()
     previous_int = signal.signal(signal.SIGINT, signals.handler)
     previous_term = signal.signal(signal.SIGTERM, signals.handler)
     try:
@@ -155,7 +122,7 @@ def _execute_resolved(
     resolved: ResolvedToolArgv,
     ownership: ToolRunOwnership,
     compact: bool,
-    signals: _SignalState,
+    signals: SignalState,
 ) -> int:
     run_id = secrets.token_hex(16)
     events_path: Path | None = None
@@ -168,15 +135,15 @@ def _execute_resolved(
         )
     except (OSError, LogSinkError) as exc:
         sink_warning = True
-        _warn_once(f"sase: retained-output sink unavailable ({exc}); using passthrough")
+        warn_once(f"sase: retained-output sink unavailable ({exc}); using passthrough")
         compact = False
 
     if compact and (stdout_path is None or stderr_path is None):
         if not sink_warning:
-            _warn_once("sase: retained-output sink unavailable; using passthrough")
+            warn_once("sase: retained-output sink unavailable; using passthrough")
         compact = False
 
-    recorded = _begin_run(
+    recorded = begin_tool_run(
         run_id,
         resolved=resolved,
         ownership=ownership,
@@ -186,7 +153,7 @@ def _execute_resolved(
     )
     durable_id = run_id if recorded else None
     if not recorded:
-        _warn_once(_WARN_NOT_RECORDED)
+        warn_once(_WARN_NOT_RECORDED)
         durable_id = None
         events_path = None
         stdout_path = None
@@ -202,7 +169,7 @@ def _execute_resolved(
 
     if signals.sigint or signals.sigterm:
         if recorded:
-            _finish_run(
+            finish_tool_run(
                 run_id,
                 state="interrupted" if signals.sigint else "signaled",
                 exit_code=130 if signals.sigint else 143,
@@ -220,25 +187,25 @@ def _execute_resolved(
             )
         return 130 if signals.sigint else 143
 
-    child_env = _child_env(
+    child_env_map = child_env(
         recorded=recorded, run_id=durable_id, events_path=events_path
     )
     started = time.monotonic()
     try:
-        proc = _spawn(resolved.argv, cwd=resolved.cwd, env=child_env)
+        proc = spawn_child(resolved.argv, cwd=resolved.cwd, env=child_env_map)
     except OSError as exc:
-        exit_code = _spawn_exit_code(exc)
-        diagnostic = _spawn_diagnostic(exc, resolved.argv)
+        exit_code = spawn_exit_code(exc)
+        diagnostic = spawn_diagnostic(exc, resolved.argv)
         if durable_id:
-            _write_display(sys.stderr, f"sase tool run {durable_id}\n".encode())
+            write_display(sys.stderr, f"sase tool run {durable_id}\n".encode())
         print(diagnostic, file=sys.stderr)
         if recorded:
-            _finish_run(
+            finish_tool_run(
                 run_id,
                 state="failed",
                 exit_code=exit_code,
                 diagnostics=[diagnostic],
-                duration_ms=_duration_ms(started),
+                duration_ms=duration_ms_since(started),
                 fingerprint_before=fingerprint_before,
                 fingerprint_after=observe_fingerprint(resolved),
             )
@@ -287,7 +254,7 @@ def _execute_resolved(
             if stdout_sink.failed:
                 log_failed = True
         if not compact:
-            _write_display(sys.stdout, chunk)
+            write_display(sys.stdout, chunk)
 
     def on_stderr(chunk: bytes) -> None:
         nonlocal log_failed
@@ -296,10 +263,10 @@ def _execute_resolved(
             if stderr_sink.failed:
                 log_failed = True
         if not compact:
-            _write_display(sys.stderr, chunk)
+            write_display(sys.stderr, chunk)
 
     if durable_id:
-        _write_display(sys.stderr, f"sase tool run {durable_id}\n".encode())
+        write_display(sys.stderr, f"sase tool run {durable_id}\n".encode())
 
     def on_tick() -> None:
         if sampler is not None:
@@ -310,17 +277,17 @@ def _execute_resolved(
         if ingestor is None:
             return
         for line in ingestor.tick():
-            _write_display(sys.stderr, f"{line}\n".encode())
+            write_display(sys.stderr, f"{line}\n".encode())
 
-    pumps = _start_pumps(proc, on_stdout, on_stderr)
-    wait_code = _wait_child(proc, signals, on_tick=on_tick)
+    pumps = start_output_pumps(proc, on_stdout, on_stderr)
+    wait_code = wait_child(proc, signals, on_tick=on_tick)
     for pump in pumps:
         pump.join(timeout=5.0)
     if stdout_sink is not None:
         stdout_sink.close()
     if stderr_sink is not None:
         stderr_sink.close()
-    duration_ms = _duration_ms(started)
+    duration_ms = duration_ms_since(started)
     ingest_diagnostics: list[str] = []
     if sampler is not None:
         before_failures = sampler.write_failures
@@ -330,18 +297,18 @@ def _execute_resolved(
             inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="sample")
     if ingestor is not None:
         for line in ingestor.flush():
-            _write_display(sys.stderr, f"{line}\n".encode())
+            write_display(sys.stderr, f"{line}\n".encode())
         ingest_diagnostics = list(ingestor.diagnostics)
     truncation = truncation_diagnostics(stdout_sink, stderr_sink, budget)
     if recorded:
         record_truncation(events_path, run_id, truncation)
     if log_failed and recorded:
-        _warn_once(_WARN_INCOMPLETE)
+        warn_once(_WARN_INCOMPLETE)
 
-    state, exit_code, signal_num, interruption = _settlement(wait_code, signals)
+    state, exit_code, signal_num, interruption = settle_wait_code(wait_code, signals)
     if recorded:
         fingerprint_after = observe_fingerprint(resolved)
-        finished = _finish_run(
+        finished = finish_tool_run(
             run_id,
             state=state,
             exit_code=exit_code,
@@ -355,10 +322,10 @@ def _execute_resolved(
             fingerprint_after=fingerprint_after,
         )
         if not finished:
-            _warn_once(_WARN_INCOMPLETE)
+            warn_once(_WARN_INCOMPLETE)
             inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="finish")
         inc_tool_metric(TOOL_RUN_SETTLEMENTS, state=state)
-        _write_footer(
+        write_run_footer(
             durable_id=durable_id,
             state=state,
             exit_code=exit_code,
@@ -371,340 +338,6 @@ def _execute_resolved(
             truncation=truncation,
         )
     return exit_code
-
-
-def _begin_run(
-    run_id: str,
-    *,
-    resolved: ResolvedToolArgv,
-    ownership: ToolRunOwnership,
-    events_path: Path | None,
-    stdout_path: Path | None,
-    stderr_path: Path | None,
-) -> bool:
-    wrapper_pid = os.getpid()
-    identity = process_identity_token(wrapper_pid)
-    boot_id, _, _ = identity.partition(":") if identity else ("", "", "")
-    request: dict[str, Any] = {
-        "schema_version": 1,
-        "run_id": run_id,
-        "definition": resolved.definition,
-        "extra_args": list(resolved.extra_args),
-        "display_argv": list(resolved.display_argv),
-        "project": _project_identity(),
-        "agent": (os.environ.get("SASE_AGENT_NAME") or "").strip() or None,
-        "workspace": (os.environ.get("SASE_WORKSPACE_NUM") or "").strip() or None,
-        "bead": (
-            (
-                os.environ.get("SASE_BEAD_ID") or os.environ.get("SASE_BEAD") or ""
-            ).strip()
-            or None
-        ),
-        "owner_kind": ownership.owner_kind,
-        "owner_id": ownership.owner_id,
-        "parent_run_id": ownership.parent_run_id,
-        "wrapper_pid": wrapper_pid,
-        "boot_id": boot_id or current_boot_id() or None,
-        "process_start_identity": identity or None,
-        "events_path": str(events_path) if events_path is not None else None,
-        "log_stdout_path": str(stdout_path) if stdout_path is not None else None,
-        "log_stderr_path": str(stderr_path) if stderr_path is not None else None,
-        "commit_running": True,
-    }
-    if resolved.tool_name:
-        request["tool_name"] = resolved.tool_name
-    if resolved.private_argv is not None:
-        request["private_argv"] = list(resolved.private_argv)
-    try:
-        started = tool_run_begin(request)
-    except Exception:  # noqa: BLE001 - recording failure is fail-open.
-        inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="begin")
-        return False
-    run = started.get("run") if isinstance(started, dict) else None
-    ok = isinstance(run, dict) and str(run.get("state") or "") == "running"
-    if not ok:
-        inc_tool_metric(TOOL_RUN_RECORDING_ERRORS, op="begin")
-    return ok
-
-
-def _finish_run(
-    run_id: str,
-    *,
-    state: str,
-    exit_code: int | None,
-    duration_ms: int | None,
-    signal_num: int | None = None,
-    interruption_reason: str | None = None,
-    child_pid: int | None = None,
-    child_pgid: int | None = None,
-    diagnostics: list[str] | None = None,
-    fingerprint_before: dict[str, Any] | None = None,
-    fingerprint_after: dict[str, Any] | None = None,
-) -> bool:
-    payload: dict[str, Any] = {
-        "schema_version": 1,
-        "run_id": run_id,
-        "state": state,
-        "exit_code": exit_code,
-        "duration_ms": duration_ms,
-    }
-    if signal_num is not None:
-        payload["signal"] = signal_num
-    if interruption_reason:
-        payload["interruption_reason"] = interruption_reason
-    if child_pid is not None:
-        payload["child_pid"] = child_pid
-    if child_pgid is not None:
-        payload["child_pgid"] = child_pgid
-    if diagnostics:
-        payload["diagnostics"] = diagnostics
-    if fingerprint_before is not None:
-        payload["fingerprint_before"] = fingerprint_before
-    if fingerprint_after is not None:
-        payload["fingerprint_after"] = fingerprint_after
-    mutated = fingerprints_mutated(fingerprint_before, fingerprint_after)
-    if mutated is not None:
-        payload["mutated_input"] = mutated
-    try:
-        tool_run_finish(payload)
-    except Exception:  # noqa: BLE001 - never change the child result.
-        return False
-    return True
-
-
-def _spawn(
-    argv: tuple[str, ...],
-    *,
-    cwd: str | None,
-    env: dict[str, str],
-) -> subprocess.Popen[bytes]:
-    return subprocess.Popen(
-        list(argv),
-        cwd=cwd,
-        env=env,
-        stdin=None,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        start_new_session=True,
-    )
-
-
-def _child_env(
-    *,
-    recorded: bool,
-    run_id: str | None,
-    events_path: Path | None,
-) -> dict[str, str]:
-    env = os.environ.copy()
-    if recorded and run_id:
-        env[_TOOL_RUN_ID_ENV] = run_id
-        if events_path is not None:
-            env[_TOOL_RUN_EVENTS_ENV] = str(events_path)
-        return env
-    env.pop(_TOOL_RUN_ID_ENV, None)
-    env.pop(_TOOL_RUN_EVENTS_ENV, None)
-    return env
-
-
-def _start_pumps(
-    proc: subprocess.Popen[bytes],
-    on_stdout: Callable[[bytes], None],
-    on_stderr: Callable[[bytes], None],
-) -> list[threading.Thread]:
-    threads: list[threading.Thread] = []
-    if proc.stdout is not None:
-        thread = threading.Thread(
-            target=_pump_child_stream,
-            args=(proc.stdout, on_stdout),
-            daemon=True,
-        )
-        thread.start()
-        threads.append(thread)
-    if proc.stderr is not None:
-        thread = threading.Thread(
-            target=_pump_child_stream,
-            args=(proc.stderr, on_stderr),
-            daemon=True,
-        )
-        thread.start()
-        threads.append(thread)
-    return threads
-
-
-def _pump_child_stream(stream: BinaryIO, callback: Callable[[bytes], None]) -> None:
-    # Signals must stay on the wrapper's main thread. A SIGTERM/SIGINT delivered
-    # to a pump thread would take the default terminate action and skip finish().
-    blocker = getattr(signal, "pthread_sigmask", None)
-    if blocker is not None:
-        blocker(signal.SIG_BLOCK, {signal.SIGINT, signal.SIGTERM})
-    pump_output(stream, callback)
-
-
-def _wait_child(
-    proc: subprocess.Popen[bytes],
-    signals: _SignalState,
-    *,
-    on_tick: Callable[[], None] | None = None,
-) -> int | None:
-    escalate_at: float | None = None
-    while True:
-        try:
-            return proc.wait(timeout=0.1)
-        except subprocess.TimeoutExpired:
-            if on_tick is not None:
-                try:
-                    on_tick()
-                except Exception:  # noqa: BLE001 - ingest cannot change the child.
-                    pass
-            if (signals.sigint or signals.sigterm) and escalate_at is None:
-                escalate_at = time.monotonic() + _TERM_ESCALATE_SECONDS
-            if escalate_at is not None and time.monotonic() >= escalate_at:
-                if signals.pgid is not None:
-                    try:
-                        os.killpg(signals.pgid, signal.SIGKILL)
-                    except (ProcessLookupError, PermissionError, OSError):
-                        pass
-                try:
-                    return proc.wait(timeout=_KILL_WAIT_SECONDS)
-                except subprocess.TimeoutExpired:
-                    return proc.poll()
-
-
-def _settlement(
-    wait_code: int | None, signals: _SignalState
-) -> tuple[str, int, int | None, str | None]:
-    if signals.sigint:
-        return "interrupted", 130, signal.SIGINT, "wrapper SIGINT"
-    if signals.sigterm:
-        return "signaled", 143, signal.SIGTERM, "wrapper SIGTERM"
-    if wait_code is None:
-        return "failed", 1, None, None
-    if wait_code < 0:
-        sig = -wait_code
-        return "signaled", 128 + sig, sig, None
-    if wait_code == 0:
-        return "succeeded", 0, None, None
-    return "failed", wait_code, None, None
-
-
-def _write_footer(
-    *,
-    durable_id: str | None,
-    state: str,
-    exit_code: int,
-    duration_ms: int,
-    compact: bool,
-    tail_lines: int,
-    stdout_sink: BoundedLogSink | None,
-    stderr_sink: BoundedLogSink | None,
-    stages: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
-    truncation: list[str] | None = None,
-) -> None:
-    dropped = 0
-    if stdout_sink is not None:
-        dropped += stdout_sink.dropped
-    if stderr_sink is not None:
-        dropped += stderr_sink.dropped
-    attribution = (
-        unattributed_from_stages(list(stages), duration_ms) if stages else None
-    )
-    if compact:
-        line = f"{state}"
-        if exit_code:
-            line += f"/{exit_code}"
-        line += f"  {duration_ms}ms\n"
-        _write_display(sys.stderr, line.encode())
-        if attribution is not None:
-            _write_display(
-                sys.stderr, f"{format_unattributed_line(attribution)}\n".encode()
-            )
-        if state != "succeeded" and tail_lines > 0:
-            tail = _compact_tail(stdout_sink, stderr_sink, tail_lines)
-            if tail:
-                _write_display(sys.stderr, tail.encode("utf-8", "replace"))
-                if not tail.endswith("\n"):
-                    _write_display(sys.stderr, b"\n")
-        for line in truncation or ():
-            _write_display(sys.stderr, f"{line}\n".encode())
-        if durable_id:
-            _write_display(
-                sys.stderr,
-                f"sase tool show {durable_id} -l\n".encode(),
-            )
-        return
-    extra = f"  dropped={dropped}B" if dropped else ""
-    _write_display(
-        sys.stderr,
-        f"{state}  exit={exit_code}  duration={duration_ms}ms{extra}\n".encode(),
-    )
-    if attribution is not None:
-        _write_display(
-            sys.stderr, f"{format_unattributed_line(attribution)}\n".encode()
-        )
-
-
-def _compact_tail(
-    stdout_sink: BoundedLogSink | None,
-    stderr_sink: BoundedLogSink | None,
-    tail_lines: int,
-) -> str:
-    parts: list[str] = []
-    if stdout_sink is not None:
-        parts.append(stdout_sink.tail_text(tail_lines))
-    if stderr_sink is not None:
-        parts.append(stderr_sink.tail_text(tail_lines))
-    combined = "".join(parts)
-    if not combined:
-        return ""
-    lines = combined.splitlines(keepends=True)
-    return "".join(lines[-tail_lines:])
-
-
-def _write_display(stream: TextIO, data: bytes) -> None:
-    buffer = getattr(stream, "buffer", None)
-    try:
-        if buffer is not None:
-            buffer.write(data)
-            buffer.flush()
-        else:
-            stream.write(data.decode("utf-8", "replace"))
-            stream.flush()
-    except OSError:
-        pass
-
-
-def _spawn_exit_code(exc: OSError) -> int:
-    if isinstance(exc, FileNotFoundError) or exc.errno == errno.ENOENT:
-        return 127
-    return 126
-
-
-def _spawn_diagnostic(exc: OSError, argv: tuple[str, ...]) -> str:
-    program = argv[0] if argv else ""
-    if isinstance(exc, FileNotFoundError) or exc.errno == errno.ENOENT:
-        return f"executable not found: {program}"
-    if exc.errno in {errno.EACCES, errno.EPERM, errno.EISDIR}:
-        return f"not executable: {program}"
-    return f"failed to launch {program}: {exc}"
-
-
-def _duration_ms(started: float) -> int:
-    return max(0, int((time.monotonic() - started) * 1000))
-
-
-def _project_identity() -> str:
-    try:
-        return tool_project_identity()
-    except Exception:  # noqa: BLE001 - attribution still works without a registry hit.
-        return (
-            os.environ.get("SASE_PROJECT")
-            or os.environ.get("SASE_PROJECT_NAME")
-            or "unknown"
-        ).strip() or "unknown"
-
-
-def _warn_once(message: str) -> None:
-    print(message, file=sys.stderr)
 
 
 __all__ = ["ToolRunCliRequest", "execute_tool_run"]
