@@ -85,7 +85,9 @@ class VisualCapturePlugin:
     def pytest_deselected(self, items: Sequence[pytest.Item]) -> None:
         if not self._runs_tests:
             return
-        self._deselected.extend(item.nodeid for item in items)
+        self._deselected.extend(
+            item.nodeid for item in items if _is_visual_deselection(item)
+        )
 
     def pytest_runtest_logreport(self, report: pytest.TestReport) -> None:
         if not self._runs_tests:
@@ -159,6 +161,21 @@ class VisualCapturePlugin:
             errors=tuple(self._worker_errors),
         )
         self.capture_session.write_worker_session(record)
+
+
+def _is_visual_deselection(item: pytest.Item) -> bool:
+    """Return whether a deselected item can still block a full inventory.
+
+    Items with no ``visual`` marker that also request neither PNG fixture
+    cannot produce a golden, so their marker-based deselection is expected
+    exclusion rather than incomplete inventory. Marked or PNG-fixture items
+    are still recorded so a mis-marked snapshot test blocks pruning instead
+    of getting its golden deleted.
+    """
+    if item.get_closest_marker("visual") is not None:
+        return True
+    fixturenames = getattr(item, "fixturenames", ())
+    return "ace_png_visual" in fixturenames or "pager_png_visual" in fixturenames
 
 
 def capture_session_from_config(

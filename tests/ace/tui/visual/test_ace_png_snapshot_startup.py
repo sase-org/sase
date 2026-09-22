@@ -15,6 +15,8 @@ from sase.ace.tui.actions._usage_refresh_fallback import UsageRefreshFallbackMix
 from sase.ace.tui.proc_observer import ProcObserver
 from tests.ace.tui.visual._ace_png_snapshot_startup import patch_startup_loaders
 
+pytestmark = pytest.mark.visual
+
 
 def test_patch_startup_loaders_neutralizes_usage_refresh_fallback(
     monkeypatch: pytest.MonkeyPatch,
