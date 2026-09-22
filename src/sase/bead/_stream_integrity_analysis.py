@@ -45,6 +45,14 @@ def analyze_stream_against_ancestor(
             rewrite_diagnosis=_describe_rewrite(ancestor_event, local_event),
         )
 
+    if _contains_all_ancestor_events(ancestor, local):
+        # Pure-reorder tolerance (mirrors sase-core's
+        # validate_append_only_branch): streams written by the old
+        # timestamp-sorting merge contain every ancestor event exactly once
+        # but in a different order. That is not a shrink, so wedged clones
+        # can integrate and publish their pending notes.
+        return _StreamAnalysis(kind="ok")
+
     missing_indexes, extras = _missing_and_extras(ancestor, local)
     if not missing_indexes:
         return _StreamAnalysis(kind="ok")
@@ -142,6 +150,28 @@ def _diff_paths(
         removed.extend(sub_removed)
         changed.extend(sub_changed)
     return added, removed, changed
+
+
+def _contains_all_ancestor_events(
+    ancestor: list[dict[str, Any]],
+    local: list[dict[str, Any]],
+) -> bool:
+    """Return whether *local* holds every ancestor event (multiset inclusion).
+
+    Order is ignored so a pure reorder of the ancestor stream — the shape the
+    old timestamp-sorting merge wrote — is not mistaken for a shrink. Genuine
+    additions in *local* are allowed; a missing ancestor event returns False.
+    Rewritten events are excluded by the caller's earlier rewrite check.
+    """
+    remaining = list(local)
+    for event in ancestor:
+        for index, candidate in enumerate(remaining):
+            if candidate == event:
+                del remaining[index]
+                break
+        else:
+            return False
+    return True
 
 
 def _missing_and_extras(

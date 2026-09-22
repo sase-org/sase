@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from sase.sdd._git import SddGitCommandTimeout
 from sase.sdd._repository_health import (
     format_git_error,
     health_error,
@@ -76,14 +77,18 @@ def integrate_sdd_repository_transaction(
 
     fetch_failure: str | None = None
     if fetch:
-        fetched = git_runner(
-            root,
-            ["fetch", "--prune", fetch_remote or "origin"],
-            op=f"{op_prefix}.fetch",
-            network=True,
-        )
-        if fetched.returncode != 0:
-            fetch_failure = format_git_error("git fetch failed", fetched)
+        try:
+            fetched = git_runner(
+                root,
+                ["fetch", "--prune", fetch_remote or "origin"],
+                op=f"{op_prefix}.fetch",
+                network=True,
+            )
+        except SddGitCommandTimeout as exc:
+            fetch_failure = f"git fetch timed out: {exc}"
+        else:
+            if fetched.returncode != 0:
+                fetch_failure = format_git_error("git fetch failed", fetched)
 
     with lock_factory(root) as acquired:
         if not acquired:
@@ -105,92 +110,114 @@ def integrate_sdd_repository_transaction(
                 error=f"could not inspect SDD repository {root}: {safe_git_error_text(exc)}",
             )
 
-        blockers = sdd_state_blockers(starting, expected_branch)
-        if blockers:
-            return SddIntegrationOutcome(
-                SddIntegrationStatus.UNRECOVERABLE,
-                error=health_error(root, blockers),
-            )
+        try:
+            blockers = sdd_state_blockers(starting, expected_branch)
+            if blockers:
+                return SddIntegrationOutcome(
+                    SddIntegrationStatus.UNRECOVERABLE,
+                    error=health_error(root, blockers),
+                )
 
-        if fetch_failure is not None:
-            return SddIntegrationOutcome(
-                SddIntegrationStatus.REMOTE_UNAVAILABLE,
-                error=fetch_failure,
-            )
+            if fetch_failure is not None:
+                return SddIntegrationOutcome(
+                    SddIntegrationStatus.REMOTE_UNAVAILABLE,
+                    error=fetch_failure,
+                )
 
-        upstream_result = git_runner(
-            root,
-            ["rev-parse", "--verify", upstream],
-            op=f"{op_prefix}.upstream",
-        )
-        if upstream_result.returncode != 0:
-            return SddIntegrationOutcome(SddIntegrationStatus.SUCCESS)
-
-        clean_error = tracked_changes_error(root, git_runner, op_prefix)
-        if clean_error is not None:
-            return SddIntegrationOutcome(
-                SddIntegrationStatus.LOCAL_CHANGES,
-                upstream_present=True,
-                error=clean_error,
-            )
-
-        ancestor = git_runner(
-            root,
-            ["merge-base", "--is-ancestor", upstream, "HEAD"],
-            op=f"{op_prefix}.ancestor",
-        )
-        if ancestor.returncode == 0:
-            return _successful_integration(
+            upstream_result = git_runner(
                 root,
-                starting,
-                git_runner,
+                ["rev-parse", "--verify", upstream],
+                op=f"{op_prefix}.upstream",
+            )
+            if upstream_result.returncode != 0:
+                return SddIntegrationOutcome(SddIntegrationStatus.SUCCESS)
+
+            clean_error = tracked_changes_error(root, git_runner, op_prefix)
+            if clean_error is not None:
+                return SddIntegrationOutcome(
+                    SddIntegrationStatus.LOCAL_CHANGES,
+                    upstream_present=True,
+                    error=clean_error,
+                )
+
+            ancestor = git_runner(
+                root,
+                ["merge-base", "--is-ancestor", upstream, "HEAD"],
+                op=f"{op_prefix}.ancestor",
+            )
+            if ancestor.returncode == 0:
+                return _successful_integration(
+                    root,
+                    starting,
+                    git_runner,
+                    beads_dir=beads_dir,
+                    upstream=upstream,
+                    upstream_present=True,
+                    integrated=False,
+                    repaired=False,
+                    resolved_files=(),
+                    op_prefix=op_prefix,
+                    event_logger=event_logger,
+                )
+            if ancestor.returncode != 1:
+                return SddIntegrationOutcome(
+                    SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS,
+                    upstream_present=True,
+                    restored=True,
+                    error=format_git_error("could not compare SDD histories", ancestor),
+                )
+
+            rebased = git_runner(
+                root,
+                ["rebase", upstream],
+                op=f"{op_prefix}.rebase",
+            )
+            if rebased.returncode == 0:
+                return _successful_integration(
+                    root,
+                    starting,
+                    git_runner,
+                    beads_dir=beads_dir,
+                    upstream=upstream,
+                    upstream_present=True,
+                    integrated=True,
+                    repaired=False,
+                    resolved_files=(),
+                    op_prefix=op_prefix,
+                    event_logger=event_logger,
+                )
+
+            return _repair_or_abort_rebase(
+                root,
                 beads_dir=beads_dir,
                 upstream=upstream,
-                upstream_present=True,
-                integrated=False,
-                repaired=False,
-                resolved_files=(),
+                starting=starting,
+                primary_failure=format_git_error("git rebase failed", rebased),
+                runner=git_runner,
                 op_prefix=op_prefix,
                 event_logger=event_logger,
             )
-        if ancestor.returncode != 1:
-            return SddIntegrationOutcome(
-                SddIntegrationStatus.ABORTED_UNSUPPORTED_CONFLICTS,
-                upstream_present=True,
-                restored=True,
-                error=format_git_error("could not compare SDD histories", ancestor),
-            )
-
-        rebased = git_runner(
-            root,
-            ["rebase", upstream],
-            op=f"{op_prefix}.rebase",
-        )
-        if rebased.returncode == 0:
-            return _successful_integration(
-                root,
-                starting,
-                git_runner,
-                beads_dir=beads_dir,
-                upstream=upstream,
-                upstream_present=True,
-                integrated=True,
-                repaired=False,
-                resolved_files=(),
-                op_prefix=op_prefix,
-                event_logger=event_logger,
-            )
-
-        return _repair_or_abort_rebase(
-            root,
-            beads_dir=beads_dir,
-            upstream=upstream,
-            starting=starting,
-            primary_failure=format_git_error("git rebase failed", rebased),
-            runner=git_runner,
-            op_prefix=op_prefix,
-            event_logger=event_logger,
-        )
+        except SddGitCommandTimeout as exc:
+            # A deadline timeout mid-rebase must not leave the checkout
+            # wedged: abort the in-progress operation and verify the rollback
+            # to the locked starting state, mirroring every other failure.
+            try:
+                return _abort_and_verify(
+                    root,
+                    starting=starting,
+                    primary_failure=f"git operation timed out: {exc}",
+                    runner=git_runner,
+                    op_prefix=op_prefix,
+                )
+            except SddGitCommandTimeout as abort_exc:
+                return SddIntegrationOutcome(
+                    SddIntegrationStatus.UNRECOVERABLE,
+                    upstream_present=True,
+                    error=(
+                        f"git operation timed out: {exc}; "
+                        f"rollback also timed out: {abort_exc}"
+                    ),
+                )
 
 
 def _repair_or_abort_rebase(
