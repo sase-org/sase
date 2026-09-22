@@ -10,16 +10,16 @@ of them.
 
 Visual grammar, left to right (``·`` separates the two groups)::
 
-    Full:     default opus@high · current +sase
-    Override: override opus@high 2h · current +sase
+    Full:     MODEL: opus@high · PROJECT: +sase
+    Override: override opus@high 2h · PROJECT: +sase
     Compact:  opus@high · +sase
-    No proj:  default opus@high
+    No proj:  MODEL: opus@high
 
-``default`` / ``current`` are dim micro-labels naming the launch default and
+``MODEL:`` / ``PROJECT:`` are dim micro-labels naming the launch default and
 the current project (never a sentence like "new agents ... in +sase": the
 current project seeds filters and preselects the ``+`` picker row, it is not
 silently applied to prompts). Chips render without their old top-bar pad
-spaces; the labels supply the spacing instead. The ``· current +sase`` group
+spaces; the labels supply the spacing instead. The ``· PROJECT: +sase`` group
 collapses to zero width when no project resolves or the project indicator is
 disabled. Density is chosen per host from the cells actually free on that row
 by :func:`_choose_launch_context_density`.
@@ -46,9 +46,9 @@ from .panel_tab_strip import PanelTabStrip
 
 LaunchContextDensity = Literal["full", "compact"]
 
-_MODEL_LABEL_CALM = "default"
+_MODEL_LABEL_CALM = "MODEL:"
 _MODEL_LABEL_OVERRIDE = "override"
-_PROJECT_LABEL = "current"
+_PROJECT_LABEL = "PROJECT:"
 
 _MODEL_LABEL_TOOLTIP_CALM = "The model new agents launch with by default."
 _MODEL_LABEL_TOOLTIP_OVERRIDE = "A temporary override is replacing the launch default."
