@@ -14,7 +14,7 @@ from sase.ace.tui.actions.agents._agent_enter_action import AgentEnterActionMixi
 from sase.ace.tui.actions.agents._agent_enter_targets import (
     AgentEnterResolution,
     PatchSummary,
-    _gate_target_label,
+    gate_target_label,
     build_gate_notification_index,
     resolve_agent_enter_targets,
 )
@@ -552,7 +552,7 @@ def test_gate_target_label_table(
     kind: str | None, pending_status: str | None, fallback: str | None, expected: str
 ) -> None:
     assert (
-        _gate_target_label(
+        gate_target_label(
             kind=kind, pending_status=pending_status, fallback_label=fallback
         )
         == expected
