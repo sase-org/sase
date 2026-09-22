@@ -126,6 +126,50 @@ def run_controller(artifacts: Path, provider: MagicMock | None = None) -> Invoke
     )
 
 
+def append_commit_result(
+    artifacts: Path,
+    repo: DirtyRepo,
+    *,
+    sha: str,
+    tree: str,
+) -> None:
+    existing = artifacts / "commit_results.json"
+    payload = (
+        json.loads(existing.read_text(encoding="utf-8")) if existing.exists() else []
+    )
+    payload.append(
+        {
+            "cwd": repo.path,
+            "result": "ok",
+            "commit_sha": sha,
+            "commit_tree": tree,
+        }
+    )
+    existing.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def submit_current_dirty(
+    artifacts: Path,
+    *,
+    message: str,
+    bead_action: str | None = None,
+    reverse_repositories: bool = False,
+) -> None:
+    publication = publish_final_context(artifacts_dir=str(artifacts))
+    manifest = deepcopy(publication.payload["manifest_template"])
+    repositories = manifest["payloads"][0]["payload"]["repositories"]
+    if reverse_repositories:
+        repositories.reverse()
+    for decision in repositories:
+        decision["action"] = "commit"
+        decision["message"] = message
+        if bead_action is not None:
+            decision["bead_action"] = bead_action
+        else:
+            decision.pop("bead_action", None)
+    submit_final_manifest(manifest, artifacts_dir=str(artifacts))
+
+
 def successful_stitch(
     artifacts: Path,
     dirty: dict[str, tuple[DirtyRepo, ...]],
