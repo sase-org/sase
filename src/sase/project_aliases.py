@@ -254,14 +254,28 @@ def find_project_ref_owner(
     ref: str,
     projects_root: Path | str | None = None,
 ) -> str | None:
-    """Return the project claiming *ref* as PROJECT_NAME or alias, if any."""
+    """Return the project claiming *ref* as PROJECT_NAME or alias, if any.
+
+    The comparison is case-insensitive. A case-variant of the reserved
+    ``home`` ref (``Home``, ``HOME``, ...) reports ``home`` as its owner so
+    write paths never mint a shadowing project; the exact ``home`` ref keeps
+    its historical behavior so first-use ``#git:home`` auto-init still works.
+    """
+    fold = ref.casefold()
     for record in _filtered_project_records(projects_root):
-        if record.project_name == ref:
+        if record.project_name.casefold() == fold:
+            if record.project_name != ref:
+                return record.project_name
             continue
-        if ref == normalize_project_name(record.display_name):
+        display_name = normalize_project_name(record.display_name)
+        if display_name is not None and display_name.casefold() == fold:
             return record.project_name
-        if ref in normalize_project_aliases(record.aliases):
+        if fold in {
+            alias.casefold() for alias in normalize_project_aliases(record.aliases)
+        }:
             return record.project_name
+    if fold == "home" and ref != "home":
+        return "home"
     return None
 
 

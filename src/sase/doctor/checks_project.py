@@ -150,7 +150,12 @@ def _check_junk_project_directories(context: DoctorContext) -> DiagnosticCheck:
 
 
 def _check_project_name_collisions(context: DoctorContext) -> DiagnosticCheck:
-    """Warn when a project directory key collides with another project's refs."""
+    """Warn when a project ref collides case-insensitively with another's.
+
+    Reports every key/name/alias conflict across VCS types, disabled
+    projects included and sibling specs excluded, plus claims on the
+    reserved ``home`` ref.
+    """
 
     projects_root = context.sase_home / "projects"
     try:
@@ -188,20 +193,15 @@ def _check_project_name_collisions(context: DoctorContext) -> DiagnosticCheck:
             },
         )
 
-    directory_keys = {record.project_name for record in records}
     records_by_name = {record.project_name: record for record in records}
-    collisions = [
-        conflict
-        for conflict in project_ref_conflicts_from_records(records)
-        if conflict.ref in directory_keys
-    ]
+    collisions = list(project_ref_conflicts_from_records(records))
     if not collisions:
         return DiagnosticCheck(
             id="project.name_collisions",
             group="project",
             status="OK",
             title="Project name collisions",
-            summary="no project directory key collides with another project's name or alias",
+            summary="no project key, name, or alias collides with another project's refs",
             data={
                 "projects_root": str(projects_root),
                 "projects_root_exists": projects_root.is_dir(),
@@ -223,8 +223,9 @@ def _check_project_name_collisions(context: DoctorContext) -> DiagnosticCheck:
         status="WARN",
         title="Project name collisions",
         summary=(
-            f"found {len(collisions)} project directory key(s) colliding with "
-            "another project's PROJECT_NAME or alias"
+            f"found {len(collisions)} project ref conflict(s): a directory key, "
+            "PROJECT_NAME, or alias identifies more than one project "
+            "(case-insensitive)"
         ),
         details=details,
         next_steps=next_steps,
@@ -247,6 +248,13 @@ def _collision_detail(
     occupant = records_by_name.get(conflict.occupant)
     auto_init = _occupant_is_auto_init_bare_git(occupant)
     auto_init_note = "; auto-init bare-git signature" if auto_init else ""
+    if conflict.occupant == "home":
+        return (
+            f"{conflict.ref}: {conflict.kind} of {conflict.claimant} "
+            f"({conflict.claimant_workspace_dir or 'no WORKSPACE_DIR'}) "
+            "claims the reserved system ref 'home'"
+            f"{auto_init_note}"
+        )
     return (
         f"{conflict.ref}: directory {conflict.occupant} "
         f"({conflict.occupant_workspace_dir or 'no WORKSPACE_DIR'}) "
@@ -257,9 +265,16 @@ def _collision_detail(
 
 
 def _collision_next_step(conflict: ProjectRefConflict) -> str:
+    if conflict.kind == "project alias":
+        return (
+            f"Run `sase project alias remove {conflict.claimant} "
+            f"{conflict.ref}` so {conflict.ref!r} resolves to "
+            f"{conflict.occupant!r}."
+        )
     return (
-        f"Quarantine the accidental project {conflict.occupant!r} so "
-        f"{conflict.ref!r} resolves to {conflict.claimant!r}."
+        f"Rename PROJECT_NAME {conflict.ref!r} for project "
+        f"{conflict.claimant!r} to a unique name so {conflict.ref!r} "
+        f"resolves to {conflict.occupant!r}."
     )
 
 

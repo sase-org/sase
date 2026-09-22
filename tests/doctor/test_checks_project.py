@@ -187,7 +187,8 @@ def test_project_name_collisions_warns_for_conflicting_setup(
     assert collision["claimant_workspace_dir"] == "/tmp/github/sase"
     assert collision["occupant_workspace_dir"] == f"{occupant_workspace}/"
     assert collision["occupant_is_auto_init_bare_git"] is True
-    assert "Quarantine the accidental project 'sase'" in check.next_steps[0]
+    assert "Rename PROJECT_NAME 'sase'" in check.next_steps[0]
+    assert "gh_org__sase" in check.next_steps[0]
 
 
 def test_project_name_collisions_is_clean_without_conflicts(
@@ -203,3 +204,31 @@ def test_project_name_collisions_is_clean_without_conflicts(
 
     assert check.status == "OK"
     assert check.data["collision_count"] == 0
+
+
+def test_project_name_collisions_reports_case_variant_alias_conflict(
+    monkeypatch, tmp_path: Path
+) -> None:
+    first = replace(
+        _record(tmp_path, name="alpha"),
+        aliases=["Widgets"],
+        archive_file=str(tmp_path / "alpha.archive"),
+    )
+    second = replace(
+        _record(tmp_path, name="beta"),
+        aliases=["widgets"],
+        archive_file=str(tmp_path / "beta.archive"),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_project.list_project_records",
+        lambda *_args, **_kwargs: [first, second],
+    )
+
+    check = _check_project_name_collisions(_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert check.data["collision_count"] == 1
+    collision = check.data["collisions"][0]
+    assert collision["claimant"] == "beta"
+    assert collision["occupant"] == "alpha"
+    assert "sase project alias remove beta" in check.next_steps[0]
