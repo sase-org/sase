@@ -151,6 +151,7 @@ def handle_open_command(
             path=external.path,
             reason=reason,
         )
+        _maybe_print_agents_hint(external.path, host_ctx=host_ctx)
         print(external.path)
         return 0
 
@@ -185,6 +186,7 @@ def handle_open_command(
         host_ctx=host_ctx,
         path=path,
     )
+    _maybe_print_agents_hint(path, host_ctx=host_ctx)
     print(path)
     return 0
 
@@ -223,6 +225,27 @@ def _print_linked_redirect_notice(
             "Warning: An external checkout of this repo also exists at "
             f"{collision_paths}. It was left untouched. Continue in the linked "
             "checkout printed on stdout; any work in the external copy remains there.",
+            file=sys.stderr,
+        )
+
+
+def _maybe_print_agents_hint(path: str, *, host_ctx: ProjectContext) -> None:
+    """Name an opened repo's AGENTS.md when one exists.
+
+    Stdout stays exactly the path; the hint goes to stderr so scripts that
+    capture stdout keep working. The caller's own checkout root gets no hint.
+    """
+    try:
+        if Path(path).resolve(strict=False) == Path(
+            host_ctx.primary_workspace_dir
+        ).resolve(strict=False):
+            return
+    except OSError:
+        return
+    if (Path(path) / "AGENTS.md").is_file():
+        print(
+            f"Read {path}/AGENTS.md before working in this repo; "
+            "it is not loaded automatically from here.",
             file=sys.stderr,
         )
 

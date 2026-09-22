@@ -359,6 +359,13 @@ dev environment. Every build also records the source it built from in
 when the linked sase-core source (HEAD plus local edits under the Rust crate inputs) has
 changed since that build.
 
+#### Changing sase-core from a sase workspace
+
+Open the linked checkout with `sase repo open sase-core -r "<why>"` and work in the
+printed path; the command names sase-core's `AGENTS.md` on stderr. Follow that guide's
+recipes for the edit, then move the pin so CI builds a core that has it: see
+[The CI source revision pin](#the-ci-source-revision-pin).
+
 #### Who owns the published version window
 
 The `sase-core-rs` requirement in `pyproject.toml` is owned by the
