@@ -68,11 +68,12 @@ def preflight_plan_archive_credential(selected_option_ids: Sequence[str]) -> Non
         "git_credential_denied",
         "git_remote",
         "the git remote rejected this host's SSH credential "
-        "(`Permission denied (publickey)`), so the approved plan cannot be "
+        "(`Permission denied (publickey)`, or a deploy key scoped to one other "
+        "repository was offered first), so the approved plan cannot be "
         "archived; the gate remains pending. Give the host an unattended "
-        "credential (a passphrase-less `IdentityFile` for `Host github.com`, or "
-        "a key loaded into the agent the service host inherits; see "
-        "docs/init.md), then answer again.",
+        "credential (a passphrase-less `IdentityFile` with `IdentitiesOnly yes` "
+        "for `Host github.com`, or a key loaded into the agent the service host "
+        "inherits; see docs/init.md), then answer again.",
     )
 
 

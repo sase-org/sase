@@ -222,7 +222,9 @@ authenticated across a reboot or a new login session.
 Readiness is decided by the git remote, not by what an agent holds.
 `sase service init --check`, `sase service status`, and plan approvals each ask the
 remote to authenticate (`ssh -o BatchMode=yes -T git@github.com`) using the environment
-in question, and only a `Permission denied (publickey)` answer warns. A host that
+in question, and only a refusal warns: `Permission denied (publickey)`, or a login that
+GitHub greets as a deploy key (`Hi <owner>/<repo>!`), which it scopes to that one
+repository so every other push fails with `denied to deploy key`. A host that
 authenticates by `IdentityFile` is healthy even though its agent is empty or absent, and
 a host that cannot reach the network is reported as unknown rather than as a credential
 failure. `sase service status` (and `sase service init --check` for an installed unit)
@@ -256,7 +258,10 @@ ways to give the host an unattended credential:
 
 1. **Dedicated passphrase-less key via `IdentityFile` (preferred).** Generate an ed25519
    key used only by the service host, add its public key to the GitHub account, and
-   point the `Host github.com` block of `~/.ssh/config` at it:
+   point the `Host github.com` block of `~/.ssh/config` at it, keeping
+   `IdentitiesOnly yes` (without it ssh offers every agent key before the file, and when
+   one is a deploy key for another repository GitHub accepts it at login and then
+   refuses every other repository with `Permission to <repo> denied to deploy key`):
 
    ```bash
    ssh-keygen -t ed25519 -N "" -C "sase-service@$(hostname)" -f ~/.ssh/id_sase_service

@@ -361,12 +361,31 @@ _GITHUB_AUTHENTICATED = (
     "shell access."
 )
 _GITHUB_DENIED = "git@ssh.github.com: Permission denied (publickey)."
+# A deploy key logs in, but GitHub scopes it to one repo: every other push is
+# refused with "Permission to <repo> denied to deploy key".
+_GITHUB_DEPLOY_KEY_AUTHENTICATED = (
+    "Hi bobs-org/bob! You've successfully authenticated, but GitHub does not "
+    "provide shell access."
+)
 
 
 @pytest.mark.parametrize(
     ("stderr", "exit_code", "expected"),
     [
         (_GITHUB_AUTHENTICATED, 1, "ready"),
+        (
+            "Hi octo-cat! You've successfully authenticated, but GitHub does not "
+            "provide shell access.",
+            1,
+            "ready",
+        ),
+        (_GITHUB_DEPLOY_KEY_AUTHENTICATED, 1, "denied"),
+        (
+            "Hi sase-org/sase--beads.v2! You've successfully authenticated, but "
+            "GitHub does not provide shell access.",
+            1,
+            "denied",
+        ),
         (_GITHUB_DENIED, 255, "denied"),
         ("git@github.com: Permission denied (publickey,password).", 255, "denied"),
         (

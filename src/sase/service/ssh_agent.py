@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from collections.abc import Mapping
@@ -12,6 +13,9 @@ _PROBE_TIMEOUT_SECONDS = 2
 _REMOTE_PROBE_TIMEOUT_SECONDS = 5
 _PROBE_ENV_NAMES = ("PATH", "SSH_AUTH_SOCK", "SSH_AGENT_PID")
 _GIT_REMOTE_LOGIN = "git@github.com"
+# GitHub greets a deploy key as ``Hi <owner>/<repo>!`` and a user key as
+# ``Hi <login>!``; matched against lowercased output.
+_DEPLOY_KEY_GREETING = re.compile(r"\bhi [\w.-]+/[\w.-]+!")
 
 SshAgentState = Literal["ready", "empty", "unreachable"]
 SshAgentScope = Literal["captured", "effective"]
@@ -70,7 +74,12 @@ def probe_git_remote_auth(env: Mapping[str, str]) -> GitRemoteReadiness:
     credential really applies: an agent identity, an ``IdentityFile``, or
     neither. GitHub answers a successful login with ``successfully
     authenticated`` (and exit status ``1``, since it grants no shell) and a
-    rejected one with ``Permission denied (publickey)``. Anything else
+    rejected one with ``Permission denied (publickey)``. A login greeted as
+    ``Hi <owner>/<repo>!`` used a deploy key and is ``denied`` too: ssh
+    presents the first key the remote accepts (agent keys go before any
+    ``IdentityFile`` unless ``IdentitiesOnly`` is set), and GitHub scopes a
+    deploy key to its one repository, so every other repo, sidecars included,
+    fails with ``Permission to <repo> denied to deploy key``. Anything else
     (timeout, DNS failure, no route, a missing ``ssh``) is ``unknown``, never
     ``denied``: an offline host is not a credential failure. This never raises.
     """
@@ -100,7 +109,7 @@ def probe_git_remote_auth(env: Mapping[str, str]) -> GitRemoteReadiness:
         return "unknown"
     output = f"{result.stdout or ''}\n{result.stderr or ''}".lower()
     if "successfully authenticated" in output:
-        return "ready"
+        return "denied" if _DEPLOY_KEY_GREETING.search(output) else "ready"
     if "permission denied (publickey" in output:
         return "denied"
     return "unknown"
