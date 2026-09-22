@@ -58,7 +58,7 @@ tests/test_suite_gate_scoped_integration.py::test_scoped_run_takes_no_token_whil
 # sase-11l.5.1.2.1: branch-local hold-launch fix changed the created_at
 # round-trip assertion to microsecond tolerance; focused rerun and just check
 # passed after the edit.
-# fixed-at: 2026-09-18T05:26:24Z tests/test_agent_hold_service.py::test_rebind_agent_hold_round_trips_and_keeps_created_at
+# fixed-at: 2026-09-18T05:26:24Z tests/test_agent_hold_service_lifecycle.py::test_rebind_agent_hold_round_trips_and_keeps_created_at
 # sase-11z: fixed by e17d4e0c0 (noted on the task), but stale pre-fix
 # workspaces recorded five later failures through 2026-09-16T19:02:08Z;
 # focused skill-source suite passed in this branch.

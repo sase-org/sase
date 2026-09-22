@@ -1,4 +1,4 @@
-"""Tests for the CLI/directive-facing agent-hold service in agent_hold_facade."""
+"""Tests for the agent-hold lifecycle (arm/release/rebind/expiry)."""
 
 from __future__ import annotations
 
@@ -11,19 +11,12 @@ from unittest.mock import patch
 import pytest
 
 from sase.core.agent_hold_facade import (
-    _AgentHoldServiceError,
     active_agent_hold_records,
     agent_armer_wire_for_artifacts,
     arm_agent_hold,
-    _capture_pending_targets,
-    current_armer_wire,
     find_agent_hold,
-    format_pending_capture,
-    format_stored_capture,
-    _hold_scope_wire,
     _hold_selectors_wire,
     list_current_agent_holds,
-    preview_pending_capture,
     rebind_agent_hold,
     release_agent_hold,
     resolve_hold_ttl_seconds,
@@ -32,226 +25,6 @@ from sase.core.agent_hold_facade import (
 from sase.notifications.store import load_notifications
 
 from tests._runner_slot_fixtures import artifact as make_artifact
-
-
-def test_hold_scope_wire_project_and_host() -> None:
-    assert _hold_scope_wire("project", project="proj") == {
-        "kind": "project",
-        "project": "proj",
-    }
-    assert _hold_scope_wire("host", project="proj") == {"kind": "host"}
-
-
-def test_hold_selectors_wire_normalizes_tribes_and_defaults() -> None:
-    selectors = _hold_selectors_wire(
-        names=["a.b--code"],
-        tribes=["@ops", "infra"],
-        hoods=["fi"],
-        future=True,
-        artifact_dirs=["/a/w1"],
-    )
-    assert selectors["artifact_dirs"] == ["/a/w1"]
-    assert selectors["names"] == ["a.b--code"]
-    assert selectors["families"] == []
-    assert selectors["clans"] == ["a.b--code"]
-    assert selectors["workflows"] == ["a.b--code"]
-    assert selectors["hoods"] == ["fi"]
-    assert selectors["tribes"] == ["infra", "ops"]
-    assert selectors["future"] is True
-
-
-def test_hold_selectors_wire_expands_family_names() -> None:
-    selectors = _hold_selectors_wire(names=["team"])
-    assert selectors["names"] == ["team"]
-    assert selectors["families"] == ["team"]
-    assert selectors["clans"] == ["team"]
-    assert selectors["workflows"] == ["team"]
-
-
-def test_hold_selectors_wire_defaults_are_empty() -> None:
-    selectors = _hold_selectors_wire()
-    assert selectors["artifact_dirs"] == []
-    assert selectors["names"] == []
-    assert selectors["families"] == []
-    assert selectors["clans"] == []
-    assert selectors["workflows"] == []
-    assert selectors["hoods"] == []
-    assert selectors["tribes"] == []
-    assert selectors["future"] is False
-
-
-def test_current_armer_wire_uses_agent_metadata_when_artifacts_dir_set(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    artifacts_dir = make_artifact(tmp_path, "20260910120000", 4242)
-    (artifacts_dir / "agent_meta.json").write_text(
-        json.dumps(
-            {
-                "pid": 4242,
-                "name": "worker.a--code",
-                "agent_family": "worker.a",
-                "agent_clan": "builders",
-            }
-        )
-    )
-
-    armer = current_armer_wire(env={"SASE_ARTIFACTS_DIR": str(artifacts_dir)})
-
-    assert armer["kind"] == "agent"
-    assert armer["key"] == "agent:worker.a--code"
-    assert armer["display"] == "worker.a--code"
-    assert armer["project"] == "proj"
-    assert armer["agent_name"] == "worker.a--code"
-    assert armer["family"] == "worker.a"
-    assert armer["clan"] == "builders"
-    assert armer["pid"] == 4242
-    assert armer["done_marker_path"] == str(artifacts_dir / "done.json")
-
-
-def test_current_armer_wire_raises_when_agent_meta_has_no_name(
-    tmp_path: Path,
-) -> None:
-    artifacts_dir = make_artifact(tmp_path, "20260910120001", 4242)
-    (artifacts_dir / "agent_meta.json").write_text(json.dumps({"pid": 4242}))
-
-    with pytest.raises(_AgentHoldServiceError):
-        current_armer_wire(env={"SASE_ARTIFACTS_DIR": str(artifacts_dir)})
-
-
-def test_agent_armer_wire_for_artifacts_uses_pid_fallback_when_meta_has_no_pid(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    artifacts_dir = make_artifact(tmp_path, "20260910120002", 4242)
-    (artifacts_dir / "agent_meta.json").write_text(
-        json.dumps({"name": "worker.a--code"})
-    )
-
-    armer = agent_armer_wire_for_artifacts(str(artifacts_dir), pid_fallback=9999)
-
-    assert armer["pid"] == 9999
-
-
-def test_agent_armer_wire_for_artifacts_prefers_meta_pid_over_fallback(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
-    artifacts_dir = make_artifact(tmp_path, "20260910120003", 4242)
-    (artifacts_dir / "agent_meta.json").write_text(
-        json.dumps({"pid": 4242, "name": "worker.a--code"})
-    )
-
-    armer = agent_armer_wire_for_artifacts(str(artifacts_dir), pid_fallback=9999)
-
-    assert armer["pid"] == 4242
-
-
-def test_current_armer_wire_falls_back_to_cli_kind_without_artifacts_dir() -> None:
-    with patch("sase.core.agent_hold_facade._project_for_cwd", return_value="scratch"):
-        armer = current_armer_wire(env={}, pid_override=4321)
-
-    assert armer["kind"] == "cli"
-    assert armer["pid"] == 4321
-    assert armer["key"].endswith(":4321")
-    assert armer["project"] == "scratch"
-
-
-def test_current_armer_wire_cli_kind_defaults_pid_to_parent_process() -> None:
-    with patch("sase.core.agent_hold_facade._project_for_cwd", return_value="scratch"):
-        armer = current_armer_wire(env={})
-
-    assert armer["pid"] == os.getppid()
-
-
-def test_project_for_cwd_raises_when_unresolvable() -> None:
-    with patch("sase.bead.project_name.infer_project_name_from_cwd", return_value=None):
-        with pytest.raises(_AgentHoldServiceError):
-            current_armer_wire(env={})
-
-
-def test_capture_pending_targets_buckets_waiting_queued_and_running() -> None:
-    entries = [
-        SimpleNamespace(status="WAITING", artifacts_dir="/a/w1"),
-        SimpleNamespace(status="WAITING", artifacts_dir="/a/w2"),
-        SimpleNamespace(status="QUEUED", artifacts_dir="/a/q1"),
-        SimpleNamespace(status="RUNNING", artifacts_dir="/a/r1"),
-        SimpleNamespace(status="STARTING", artifacts_dir="/a/s1"),
-    ]
-    with patch(
-        "sase.integrations.agent_list_entries.agent_list_entries",
-        return_value=entries,
-    ) as mock_entries:
-        capture = _capture_pending_targets(project="proj")
-
-    mock_entries.assert_called_once_with(project="proj")
-    assert capture.waiting_count == 2
-    assert capture.queued_count == 1
-    assert capture.skipped_running_count == 2
-    assert set(capture.artifact_dirs) == {"/a/w1", "/a/w2", "/a/q1"}
-
-
-def test_preview_pending_capture_host_scope_ignores_project() -> None:
-    entries = [
-        SimpleNamespace(status="WAITING", artifacts_dir="/a/w1"),
-        SimpleNamespace(status="QUEUED", artifacts_dir="/a/q1"),
-        SimpleNamespace(status="RUNNING", artifacts_dir="/a/r1"),
-    ]
-    with patch(
-        "sase.integrations.agent_list_entries.agent_list_entries",
-        return_value=entries,
-    ) as mock_entries:
-        capture = preview_pending_capture("host", project="proj")
-
-    mock_entries.assert_called_once_with(project=None)
-    assert capture is not None
-    assert capture.waiting_count == 1
-    assert capture.queued_count == 1
-    assert capture.skipped_running_count == 1
-
-
-def test_preview_pending_capture_project_scope_passes_project() -> None:
-    with patch(
-        "sase.integrations.agent_list_entries.agent_list_entries",
-        return_value=[],
-    ) as mock_entries:
-        preview_pending_capture("project", project="proj")
-
-    mock_entries.assert_called_once_with(project="proj")
-
-
-def test_preview_pending_capture_is_fail_soft() -> None:
-    with patch(
-        "sase.integrations.agent_list_entries.agent_list_entries",
-        side_effect=RuntimeError("boom"),
-    ):
-        assert preview_pending_capture("project", project="proj") is None
-
-
-def test_format_pending_capture_renders_counts() -> None:
-    with patch(
-        "sase.integrations.agent_list_entries.agent_list_entries",
-        return_value=[
-            SimpleNamespace(status="WAITING", artifacts_dir="/a/w1"),
-            SimpleNamespace(status="WAITING", artifacts_dir="/a/w2"),
-            SimpleNamespace(status="WAITING", artifacts_dir="/a/w3"),
-            SimpleNamespace(status="WAITING", artifacts_dir="/a/w4"),
-            SimpleNamespace(status="QUEUED", artifacts_dir="/a/q1"),
-            SimpleNamespace(status="QUEUED", artifacts_dir="/a/q2"),
-            SimpleNamespace(status="RUNNING", artifacts_dir="/a/r1"),
-            SimpleNamespace(status="RUNNING", artifacts_dir="/a/r2"),
-            SimpleNamespace(status="RUNNING", artifacts_dir="/a/r3"),
-        ],
-    ):
-        capture = preview_pending_capture("project", project="proj")
-
-    assert format_pending_capture(capture) == (
-        "captures 4 waiting + 2 queued; skips 3 running"
-    )
-
-
-def test_format_pending_capture_none_returns_none() -> None:
-    assert format_pending_capture(None) is None
 
 
 def test_arm_agent_hold_requires_at_least_one_selector(
@@ -586,70 +359,6 @@ def test_launch_hold_liveness_prunes_once_done_json_present(tmp_path: Path) -> N
     assert active_agent_hold_records() == []
 
 
-def test_capture_pending_targets_excludes_armer_kin(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        "sase.core.agent_hold_facade._project_for_cwd", lambda: "scratch"
-    )
-    armer = current_armer_wire(env={}, pid_override=4321)
-    armer["kind"] = "agent"
-    armer["agent_name"] = "holder.worker"
-    armer["family"] = "holder.worker"
-    armer["clan"] = "builders"
-    armer["key"] = "agent:holder.worker"
-    entries = [
-        SimpleNamespace(
-            status="WAITING",
-            artifacts_dir="/a/kin",
-            name="holder.worker",
-            agent_family="holder.worker",
-            agent_clan="builders",
-            project="scratch",
-            timestamp="20260910120000",
-        ),
-        SimpleNamespace(
-            status="WAITING",
-            artifacts_dir="/a/w1",
-            name="target.agent--code",
-            agent_family="target.agent",
-            agent_clan="ops",
-            project="scratch",
-            timestamp="20260910120001",
-        ),
-        SimpleNamespace(
-            status="QUEUED",
-            artifacts_dir="/a/q1",
-            name="other.agent--code",
-            agent_family="other.agent",
-            agent_clan="ops",
-            project="scratch",
-            timestamp="20260910120002",
-        ),
-        SimpleNamespace(
-            status="RUNNING",
-            artifacts_dir="/a/r1",
-            name="running.agent--code",
-            agent_family="running.agent",
-            agent_clan="ops",
-            project="scratch",
-            timestamp="20260910120003",
-        ),
-    ]
-    with patch(
-        "sase.integrations.agent_list_entries.agent_list_entries",
-        return_value=entries,
-    ):
-        capture = _capture_pending_targets(
-            project="scratch", armer=armer, scope="project"
-        )
-
-    assert capture.waiting_count == 1
-    assert capture.queued_count == 1
-    assert capture.skipped_running_count == 1
-    assert set(capture.artifact_dirs) == {"/a/w1", "/a/q1"}
-
-
 def test_rebind_preserves_stored_capture_summary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -675,22 +384,6 @@ def test_rebind_preserves_stored_capture_summary(
     assert (
         rebound["selectors"]["artifact_dirs"]
         == result.record["selectors"]["artifact_dirs"]
-    )
-
-
-def test_legacy_hold_renders_capture_as_not_recorded() -> None:
-    assert format_stored_capture({"armer": {"key": "legacy"}}) == "capture not recorded"
-    assert (
-        format_stored_capture(
-            {
-                "capture": {
-                    "waiting_count": 2,
-                    "queued_count": 1,
-                    "skipped_running_count": 4,
-                }
-            }
-        )
-        == "2 waiting + 1 queued; skipped 4 running"
     )
 
 
