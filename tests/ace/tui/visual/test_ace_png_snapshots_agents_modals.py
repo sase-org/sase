@@ -239,3 +239,74 @@ async def test_wait_modal_beads_focused_png_snapshot(
             "wait_modal_beads_focused_100x32",
             title="ACE wait modal beads focused",
         )
+
+
+async def test_agent_action_chooser_modal_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_startup_loaders(monkeypatch, agents=visual_agents())
+
+    async with AcePage(query='"visual"', patches=patches(), size=(120, 40)) as page:
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 3)
+        await wait_for_visual_idle(page)
+
+        from sase.ace.display_helpers import get_status_color
+        from sase.ace.tui.modals.agent_action_chooser_modal import (
+            AgentActionChoice,
+            AgentActionChooserModal,
+        )
+        from sase.gate_shell.state import GATE_GLYPH
+        from sase.gate_shell.status import gate_status_pair, gate_status_style
+
+        gate_style = gate_status_style(
+            gate_status_pair("TALE", None), gate_state="pending"
+        )
+        patch_color = get_status_color("Mailed")
+        page.app.push_screen(
+            AgentActionChooserModal(
+                (
+                    AgentActionChoice(
+                        result="gate:visual123",
+                        section="gate",
+                        label="Review tale plan",
+                        detail="sase_plan_enter_keymap.md",
+                        glyph=GATE_GLYPH,
+                        glyph_style=gate_style,
+                        badge="TALE",
+                        badge_style=gate_style,
+                        age="12m",
+                    ),
+                    AgentActionChoice(
+                        result="patch:visual",
+                        section="patch",
+                        label="Go to Patch",
+                        detail="foo enter keymap · PR #123",
+                        glyph="⎇",
+                        glyph_style=patch_color,
+                        badge="Mailed",
+                        badge_style=patch_color,
+                        age=None,
+                    ),
+                ),
+                title="Act on visual.plan",
+            )
+        )
+        await page.expect_modal("AgentActionChooserModal")
+        await wait_for_svg_contains(page, "Act on visual.plan")
+        await wait_for_visual_idle(page)
+
+        assert_page_svg_contains(page, "Act on visual.plan")
+        assert_page_svg_contains(page, "Review tale plan")
+        assert_page_svg_contains(page, "Go to Patch")
+        assert_page_svg_contains(page, "GATE")
+        assert_page_svg_contains(page, "PATCH")
+
+        ace_png_visual.assert_page_png(
+            page,
+            "agent_action_chooser_modal_120x40",
+            title="ACE agent action chooser modal",
+        )

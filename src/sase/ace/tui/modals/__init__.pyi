@@ -3,6 +3,10 @@
 from .add_property_modal import AddPropertyModal as AddPropertyModal
 from .add_xprompt_modal import AddXPromptModal as AddXPromptModal
 from .add_property_modal import AddableProperty as AddableProperty
+from .agent_action_chooser_modal import AgentActionChoice as AgentActionChoice
+from .agent_action_chooser_modal import (
+    AgentActionChooserModal as AgentActionChooserModal,
+)
 from .agent_cleanup_modal import AgentCleanupAction as AgentCleanupAction
 from .agent_cleanup_modal import AgentCleanupCustomModal as AgentCleanupCustomModal
 from .agent_cleanup_modal import AgentCleanupCustomResult as AgentCleanupCustomResult

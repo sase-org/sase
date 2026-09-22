@@ -6,6 +6,14 @@ _LAZY_EXPORTS = {
     "AddPropertyModal": (".add_property_modal", "AddPropertyModal"),
     "AddXPromptModal": (".add_xprompt_modal", "AddXPromptModal"),
     "AddableProperty": (".add_property_modal", "AddableProperty"),
+    "AgentActionChoice": (
+        ".agent_action_chooser_modal",
+        "AgentActionChoice",
+    ),
+    "AgentActionChooserModal": (
+        ".agent_action_chooser_modal",
+        "AgentActionChooserModal",
+    ),
     "AgentCleanupAction": (".agent_cleanup_modal", "AgentCleanupAction"),
     "AgentCleanupCustomModal": (".agent_cleanup_modal", "AgentCleanupCustomModal"),
     "AgentCleanupCustomResult": (".agent_cleanup_modal", "AgentCleanupCustomResult"),
