@@ -280,6 +280,34 @@ def test_core_pin_ratchet_uses_the_shared_tool_and_names_the_pin_file() -> None:
     assert "gh pr create" in run_text
 
 
+def test_core_pin_ratchet_apply_tolerates_exit_two() -> None:
+    """The apply path exits 2 after a successful write; the step must continue.
+
+    Regression test for sase-15v: a bare ``python3 tools/ratchet_core_revision``
+    under ``set -euo pipefail`` aborted the step on its exit 2 before
+    ``git push``/``gh pr create``, so the bot never opened a pin-bump PR.
+    """
+    job = _load_core_pin_ratchet_workflow()["jobs"]["ratchet"]
+    run_text = _job_run_text(job)
+    lines = run_text.splitlines()
+
+    apply_idx = next(
+        i
+        for i, line in enumerate(lines)
+        if "tools/ratchet_core_revision" in line and "--check" not in line
+    )
+    push_idx = next(i for i, line in enumerate(lines) if "git push" in line)
+    pr_idx = next(i for i, line in enumerate(lines) if "gh pr create" in line)
+    assert apply_idx < push_idx < pr_idx
+
+    # The apply invocation itself must not abort the step under `set -e`.
+    assert "||" in lines[apply_idx]
+    window = "\n".join(lines[apply_idx:push_idx])
+    # Exit 2 (ratchet applied) is tolerated; any other nonzero still fails.
+    assert "-eq 2" in window or "-ne 2" in window
+    assert "exit" in window
+
+
 # --------------------------------------------------------------------------
 # shard-timings-ratchet.yml
 # --------------------------------------------------------------------------

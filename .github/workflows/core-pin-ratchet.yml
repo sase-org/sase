@@ -41,7 +41,11 @@ jobs:
             exit "$status"
           fi
 
-          python3 tools/ratchet_core_revision
+          apply_status=0
+          python3 tools/ratchet_core_revision || apply_status=$?
+          if [ "$apply_status" -ne 0 ] && [ "$apply_status" -ne 2 ]; then
+            exit "$apply_status"
+          fi
           new_sha="$(tr -d '[:space:]' < sase-core-revision.txt)"
           branch="core-pin-ratchet-${new_sha:0:12}"
 
