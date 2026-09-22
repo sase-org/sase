@@ -140,6 +140,7 @@ class AgentHintRenderMixin:
         header_text, error_tb_syntax = build_header_text(
             agent,
             hint_state=header_hint_state,
+            detach_identity=getattr(self, "detaches_identity_header", False),
             summary=summary,
             agent_status_buckets=agent_status_buckets,
             clan_wait_member_statuses=clan_wait_member_statuses,
@@ -284,6 +285,7 @@ class AgentHintRenderMixin:
         clan_text, _error_tb_syntax = build_header_text(
             agent,
             hint_state=hint_state,
+            detach_identity=getattr(self, "detaches_identity_header", False),
             unread_agent_ids=getattr(app, "_unread_completed_agent_ids", set()),
             clan_snapshot=snapshot,
             clan_fold_level=fold_level,

@@ -22,14 +22,37 @@ from ...models.agent import Agent
 from ...llm_calls import SlowToolSource
 from ...llm_calls._constants import SLOW_TOOL_CALL_THRESHOLD_MS
 from ...util.lazy_syntax import lazy_renderable
+from ._agent_display_header_renderable import AgentHeaderRenderable
 from ._helpers import (
     WORKFLOW_VARIABLES_SECTION_LABEL,
     append_model_field,
     append_section_heading,
     project_display_label,
 )
+from ._identity_header import IdentityHeader, WORKFLOW_IDENTITY_COLOR
 from ._workflow_steps import format_workflow_steps_rich
 from ._workflow_types import WorkflowDetailSnapshot
+
+WORKFLOW_STATUS_STYLES: dict[str, str] = {
+    "RUNNING": "#87D7FF",
+    "QUEUED": "#5F87FF",
+    "WAITING": "#AF87FF",
+    "WAITING INPUT": "#FFAF5F",
+    "DONE": "#5FD75F",
+    "FAILED": "#FF5F5F",
+    "PLAN": "#FF87AF",
+    PENDING_TALE_STATUS: "#FF87AF",
+    PENDING_EPIC_STATUS: "#D787FF",
+    FEEDBACK_STATUS: "#FF5FD7",
+    PLAN_APPROVED_STATUS: "#00D7AF",
+    TALE_APPROVED_STATUS: "#00D7D7",
+    WORKING_PLAN_STATUS: "#00AF87",
+    WORKING_TALE_STATUS: "#00AFAF",
+    "PLAN REJECTED": "#D7AF5F",
+    "EPIC CREATED": "#5FD7AF",
+    "QUESTION": "#FFAF00",
+    "ANSWERED": "#5FD7FF",
+}
 
 
 def build_workflow_detail_renderable(
@@ -39,16 +62,21 @@ def build_workflow_detail_renderable(
     slow_tool_sources: tuple[SlowToolSource, ...] | None = None,
     slow_tool_call_threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
     render_prompt: Callable[[str], RenderableType] | None = None,
+    detach_identity: bool = False,
 ) -> Group:
     """Build the rich workflow-detail renderable from an existing snapshot."""
     header_text = Text()
-
-    # Header - WORKFLOW DETAILS
-    append_section_heading(header_text, "WORKFLOW DETAILS")
+    identity_text = Text()
+    if detach_identity:
+        fields_text = identity_text
+    else:
+        fields_text = header_text
+        # Header - WORKFLOW DETAILS
+        append_section_heading(header_text, "WORKFLOW DETAILS")
 
     # Workflow name (stored in workflow field)
-    header_text.append("Workflow: ", style="bold #87D7FF")
-    header_text.append(f"{agent.workflow or 'unknown'}\n", style="#AF87D7 bold")
+    fields_text.append("Workflow: ", style="bold #87D7FF")
+    fields_text.append(f"{agent.workflow or 'unknown'}\n", style="#AF87D7 bold")
 
     # Extract meta_* overrides from step outputs
     meta_project = None
@@ -62,26 +90,26 @@ def build_workflow_detail_renderable(
 
     # Project/Patch with meta_* priority
     if meta_project:
-        header_text.append("Project: ", style="bold #87D7FF")
-        header_text.append(
+        fields_text.append("Project: ", style="bold #87D7FF")
+        fields_text.append(
             f"{project_display_label(agent, meta_project)}\n", style="#00D7AF"
         )
     elif meta_patch:
-        header_text.append("Patch: ", style="bold #87D7FF")
-        header_text.append(f"{humanize_cl_name(str(meta_patch))}\n", style="#00D7AF")
+        fields_text.append("Patch: ", style="bold #87D7FF")
+        fields_text.append(f"{humanize_cl_name(str(meta_patch))}\n", style="#00D7AF")
     else:
-        header_text.append("Patch: ", style="bold #87D7FF")
-        header_text.append(f"{humanize_cl_name(agent.cl_name)}\n", style="#00D7AF")
+        fields_text.append("Patch: ", style="bold #87D7FF")
+        fields_text.append(f"{humanize_cl_name(agent.cl_name)}\n", style="#00D7AF")
 
     # Workspace (if available) - check meta_workspace first, then agent field
     workspace_num = meta_workspace or agent.workspace_num
     if workspace_num is not None:
-        header_text.append("Workspace: ", style="bold #87D7FF")
-        header_text.append(f"#{workspace_num}\n", style="#5FD7FF")
+        fields_text.append("Workspace: ", style="bold #87D7FF")
+        fields_text.append(f"#{workspace_num}\n", style="#5FD7FF")
 
     # Model (with provider-themed styling)
     append_model_field(
-        header_text,
+        fields_text,
         agent.model,
         agent.llm_provider,
         agent.reasoning_effort,
@@ -90,60 +118,46 @@ def build_workflow_detail_renderable(
 
     # VCS provider
     if agent.vcs_provider:
-        header_text.append("VCS: ", style="bold #87D7FF")
-        header_text.append(f"{agent.vcs_provider}\n", style="#5FD7AF")
+        fields_text.append("VCS: ", style="bold #87D7FF")
+        fields_text.append(f"{agent.vcs_provider}\n", style="#5FD7AF")
 
     # Status
-    header_text.append("Status: ", style="bold #87D7FF")
-    status_style = {
-        "RUNNING": "#87D7FF",
-        "QUEUED": "#5F87FF",
-        "WAITING": "#AF87FF",
-        "WAITING INPUT": "#FFAF5F",
-        "DONE": "#5FD75F",
-        "FAILED": "#FF5F5F",
-        "PLAN": "#FF87AF",
-        PENDING_TALE_STATUS: "#FF87AF",
-        PENDING_EPIC_STATUS: "#D787FF",
-        FEEDBACK_STATUS: "#FF5FD7",
-        PLAN_APPROVED_STATUS: "#00D7AF",
-        TALE_APPROVED_STATUS: "#00D7D7",
-        WORKING_PLAN_STATUS: "#00AF87",
-        WORKING_TALE_STATUS: "#00AFAF",
-        "PLAN REJECTED": "#D7AF5F",
-        "EPIC CREATED": "#5FD7AF",
-        "QUESTION": "#FFAF00",
-        "ANSWERED": "#5FD7FF",
-    }.get(agent.status, "#D7D7FF")
-    header_text.append(f"{agent.status}\n", style=status_style)
+    fields_text.append("Status: ", style="bold #87D7FF")
+    status_style = WORKFLOW_STATUS_STYLES.get(agent.status, "#D7D7FF")
+    fields_text.append(f"{agent.status}\n", style=status_style)
     if agent.activity:
-        header_text.append("Activity: ", style="bold #87D7FF")
-        header_text.append(f"{agent.activity}\n", style="bold #D7AF5F")
+        fields_text.append("Activity: ", style="bold #87D7FF")
+        fields_text.append(f"{agent.activity}\n", style="bold #D7AF5F")
 
     # Timestamp(s)
-    header_text.append("Timestamps: ", style="bold #87D7FF")
-    header_text.append(f"{agent.timestamps_display}\n", style="#D7D7FF")
+    fields_text.append("Timestamps: ", style="bold #87D7FF")
+    fields_text.append(f"{agent.timestamps_display}\n", style="#D7D7FF")
 
     # PID (if available)
     if agent.pid:
-        header_text.append("PID: ", style="bold #87D7FF")
-        header_text.append(f"{agent.pid}\n", style="#FF87D7 bold")
+        fields_text.append("PID: ", style="bold #87D7FF")
+        fields_text.append(f"{agent.pid}\n", style="#FF87D7 bold")
+
+    if detach_identity:
+        body_text = Text()
+    else:
+        body_text = header_text
 
     # Failed workflows always expose an ERROR section and raw-output breadcrumb.
     is_failed = agent.display_status == "FAILED"
     if agent.error_message or is_failed:
-        header_text.append("\n")
+        body_text.append("\n")
         append_section_heading(
-            header_text,
+            body_text,
             "ERROR",
             style="bold #FF5F5F underline",
             section_id="error",
         )
         error_message = agent.error_message or "Runner failed without error details."
-        header_text.append(f"{error_message}\n", style="bold #FF5F5F")
+        body_text.append(f"{error_message}\n", style="bold #FF5F5F")
     if agent.output_path and is_failed:
-        header_text.append("Output: ", style="bold #87D7FF")
-        header_text.append(f"{agent.output_path}\n", style="dim")
+        body_text.append("Output: ", style="bold #87D7FF")
+        body_text.append(f"{agent.output_path}\n", style="dim")
 
     # Compute traceback renderable for ERROR section
     error_tb_syntax: Syntax | None = None
@@ -158,26 +172,26 @@ def build_workflow_detail_renderable(
     # Meta fields aggregated from all step outputs
     meta_fields = snapshot.meta_fields
     if meta_fields:
-        header_text.append("\n")
+        body_text.append("\n")
         append_section_heading(
-            header_text,
+            body_text,
             WORKFLOW_VARIABLES_SECTION_LABEL,
         )
         for name, value in meta_fields:
-            header_text.append(f"{name}: ", style="bold #87D7FF")
-            header_text.append(f"{value}\n", style="#5FD75F")
+            body_text.append(f"{name}: ", style="bold #87D7FF")
+            body_text.append(f"{value}\n", style="#5FD75F")
 
     # Inputs (if available)
     inputs = snapshot.inputs
     if inputs:
-        header_text.append("\n")
-        append_section_heading(header_text, "INPUTS")
+        body_text.append("\n")
+        append_section_heading(body_text, "INPUTS")
         for key, value in inputs.items():
-            header_text.append(f"  {key}: ", style="bold #87D7FF")
+            body_text.append(f"  {key}: ", style="bold #87D7FF")
             if isinstance(value, str):
-                header_text.append(f'"{value}"\n', style="#5FD75F")
+                body_text.append(f'"{value}"\n', style="#5FD75F")
             else:
-                header_text.append(f"{value}\n", style="#5FD75F")
+                body_text.append(f"{value}\n", style="#5FD75F")
 
     if slow_tool_sources is not None:
         from ._agent_slow_tools import (
@@ -185,7 +199,7 @@ def build_workflow_detail_renderable(
         )
 
         append_slow_tool_calls_section_no_fold_owner(
-            header_text,
+            body_text,
             sources=slow_tool_sources,
             agent=agent,
             now=DateTime.now(),
@@ -201,7 +215,20 @@ def build_workflow_detail_renderable(
 
     # Load and format workflow steps from workflow_state.json
     steps_rich = workflow_steps_rich_from_snapshot(snapshot)
-    renderables: list[RenderableType] = [header_text]
+    renderables: list[RenderableType]
+    if detach_identity:
+        from ._identity_header_compact import build_workflow_compact_lines
+
+        identity = IdentityHeader(
+            kind_label="WORKFLOW",
+            accent=WORKFLOW_IDENTITY_COLOR,
+            expanded=identity_text,
+            compact=build_workflow_compact_lines(agent=agent),
+            has_hints=False,
+        )
+        renderables = [AgentHeaderRenderable(body_text, (), identity_header=identity)]
+    else:
+        renderables = [header_text]
     if error_tb_syntax:
         renderables.append(error_tb_syntax)
     renderables.append(steps_header)

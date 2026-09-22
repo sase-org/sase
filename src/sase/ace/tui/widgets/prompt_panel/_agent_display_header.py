@@ -49,13 +49,13 @@ from ._agent_display_header_metadata import (
 )
 from ._agent_display_header_renderable import AgentHeader, AgentHeaderRenderable
 from ._agent_display_state import DetailHeaderSummary, HeaderHintState
-from ._agent_shell_section import SHELL_SECTION_ID, ResponsiveShellSection
 from ._agent_output_variables import append_agent_output_variables_section
 from ._agent_page_section import (
     AGENT_PAGE_SECTION_ID,
     ResponsiveAgentPageSection,
 )
 from ._agent_plan_section import ResponsivePlanSection
+from ._agent_shell_section import SHELL_SECTION_ID, ResponsiveShellSection
 from ._agent_slow_tools_detail import ResponsiveSlowToolCallsSection
 from ._agent_wait_section import (
     WAIT_SECTION_ID,
@@ -68,6 +68,12 @@ from ._helpers import (
     append_major_section_divider,
     append_section_heading,
 )
+from ._identity_header import (
+    IdentityHeader,
+    identity_kind_for_agent,
+    strip_leading_document_chrome,
+)
+from ._identity_header_compact import build_agent_compact_lines
 
 if TYPE_CHECKING:
     from ...models._agent_clan_sections import ClanSectionSnapshot
@@ -96,6 +102,7 @@ def build_header_text(
     lane_neighbors: SaseAgentNeighborProjection | None = None,
     runner_capacity: RunnerCapacitySnapshot | None = None,
     member_jump_map_publisher: Callable[[MemberJumpMap], None] | None = None,
+    detach_identity: bool = False,
 ) -> tuple[AgentHeader, Syntax | None]:
     """Build the agent metadata section with trailing separator.
 
@@ -168,29 +175,61 @@ def build_header_text(
     queue_selection = runner_queue_selection(agent, runner_capacity)
 
     responsive_ranges: dict[str, tuple[int, int]] = {}
-    if agent.is_family_container_row:
-        append_kind_header(header_text, "FAMILY", FAMILY_IDENTITY_COLOR)
-    elif agent.is_proc_shell:
-        append_kind_header(header_text, "PROC SHELL", _PROC_SHELL_ROW_STYLE)
-    elif agent.is_agent_entry:
-        append_kind_header(header_text, "AGENT SHELL", _AGENT_NAME_ANNOTATION_STYLE)
-    metadata = append_agent_metadata_fields(
-        header_text,
-        agent,
-        cheap=cheap,
-        hint_state=hint_state,
-        summary=summary,
-        agent_status_buckets=agent_status_buckets,
-        # Keep this dependency supplied by the public module so existing
-        # callers can patch the cache boundary without touching internals.
-        cached_bead_display=cached_bead_display,
-        clan_wait_member_statuses=clan_wait_member_statuses,
-        tribe_wait_bindings=tribe_wait_bindings,
-        runner_queue_ahead_count=(
-            queue_selection.ahead_count if queue_selection is not None else None
-        ),
-        responsive_ranges=responsive_ranges,
-    )
+    kind_label = ""
+    kind_accent = ""
+    identity_text = Text()
+    identity_ranges: dict[str, tuple[int, int]] = {}
+    hint_counter_before = hint_state.hint_counter if hint_state is not None else None
+    if detach_identity:
+        kind_label, kind_accent = identity_kind_for_agent(agent)
+        metadata = append_agent_metadata_fields(
+            identity_text,
+            agent,
+            cheap=cheap,
+            hint_state=hint_state,
+            summary=summary,
+            agent_status_buckets=agent_status_buckets,
+            # Keep this dependency supplied by the public module so existing
+            # callers can patch the cache boundary without touching internals.
+            cached_bead_display=cached_bead_display,
+            clan_wait_member_statuses=clan_wait_member_statuses,
+            tribe_wait_bindings=tribe_wait_bindings,
+            runner_queue_ahead_count=(
+                queue_selection.ahead_count if queue_selection is not None else None
+            ),
+            responsive_ranges=identity_ranges,
+            detach_identity=True,
+        )
+        if family_fold_enabled:
+            append_fold_header_line(
+                identity_text,
+                level=resolved_lane_fold_level,
+                scale=FAMILY_FOLD_SCALE,
+            )
+    else:
+        if agent.is_family_container_row:
+            append_kind_header(header_text, "FAMILY", FAMILY_IDENTITY_COLOR)
+        elif agent.is_proc_shell:
+            append_kind_header(header_text, "PROC SHELL", _PROC_SHELL_ROW_STYLE)
+        elif agent.is_agent_entry:
+            append_kind_header(header_text, "AGENT SHELL", _AGENT_NAME_ANNOTATION_STYLE)
+        metadata = append_agent_metadata_fields(
+            header_text,
+            agent,
+            cheap=cheap,
+            hint_state=hint_state,
+            summary=summary,
+            agent_status_buckets=agent_status_buckets,
+            # Keep this dependency supplied by the public module so existing
+            # callers can patch the cache boundary without touching internals.
+            cached_bead_display=cached_bead_display,
+            clan_wait_member_statuses=clan_wait_member_statuses,
+            tribe_wait_bindings=tribe_wait_bindings,
+            runner_queue_ahead_count=(
+                queue_selection.ahead_count if queue_selection is not None else None
+            ),
+            responsive_ranges=responsive_ranges,
+        )
     meta_fields = metadata.meta_fields
     page_section = metadata.page_section
     wait_section = metadata.wait_section
@@ -198,7 +237,7 @@ def build_header_text(
 
     append_runner_queue_section(header_text, agent, queue_selection)
 
-    if family_fold_enabled:
+    if family_fold_enabled and not detach_identity:
         append_fold_header_line(
             header_text,
             level=resolved_lane_fold_level,
@@ -390,6 +429,104 @@ def build_header_text(
     header_text.append("\u2500" * 50 + "\n", style="dim")
     header_text.append("\n")
 
+    if detach_identity:
+        has_hints = (
+            hint_state is not None
+            and hint_counter_before is not None
+            and hint_state.hint_counter != hint_counter_before
+        )
+        identity_sections = _assemble_responsive_sections(
+            identity_ranges,
+            page_section,
+            wait_section,
+            shell_section,
+            None,
+            None,
+            None,
+        )
+        expanded: AgentHeader
+        if identity_sections:
+            expanded = AgentHeaderRenderable(identity_text, identity_sections)
+        else:
+            expanded = identity_text
+        identity = IdentityHeader(
+            kind_label=kind_label,
+            accent=kind_accent,
+            expanded=expanded,
+            compact=build_agent_compact_lines(
+                agent=agent,
+                summary=summary,
+                wait_section=wait_section,
+                shell_section=shell_section,
+                fold_level=resolved_lane_fold_level if family_fold_enabled else None,
+                fold_scale=FAMILY_FOLD_SCALE if family_fold_enabled else None,
+            ),
+            has_hints=has_hints,
+        )
+        body_text, removed_chars = strip_leading_document_chrome(header_text)
+        shifted_ranges = {
+            key: (max(0, start - removed_chars), max(0, end - removed_chars))
+            for key, (start, end) in responsive_ranges.items()
+        }
+        body_sections = _assemble_responsive_sections(
+            shifted_ranges,
+            None,
+            None,
+            None,
+            bead_section,
+            plan_section,
+            slow_tool_section,
+        )
+        return (
+            AgentHeaderRenderable(
+                body_text,
+                body_sections,
+                identity_header=identity,
+            ),
+            error_tb_syntax,
+        )
+    responsive_sections = _assemble_responsive_sections(
+        responsive_ranges,
+        page_section,
+        wait_section,
+        shell_section,
+        bead_section,
+        plan_section,
+        slow_tool_section,
+    )
+    if responsive_sections:
+        return (
+            AgentHeaderRenderable(
+                header_text,
+                responsive_sections,
+            ),
+            error_tb_syntax,
+        )
+    return header_text, error_tb_syntax
+
+
+def _assemble_responsive_sections(
+    responsive_ranges: dict[str, tuple[int, int]],
+    page_section: ResponsiveAgentPageSection | None,
+    wait_section: ResponsiveWaitSection | None,
+    shell_section: ResponsiveShellSection | None,
+    bead_section: ResponsiveBeadSection | None,
+    plan_section: ResponsivePlanSection | None,
+    slow_tool_section: ResponsiveSlowToolCallsSection | None,
+) -> tuple[
+    tuple[
+        int,
+        int,
+        ResponsiveAgentPageSection
+        | ResponsiveBeadSection
+        | ResponsiveShellSection
+        | ResponsivePlanSection
+        | ResponsiveSlowToolCallsSection
+        | ResponsiveWaitSection,
+    ],
+    ...,
+]:
+    """Order responsive ranges and sections into a renderable section map."""
     responsive_sections: list[
         tuple[
             int,
@@ -420,13 +557,5 @@ def build_header_text(
     if slow_tool_section is not None and "slow-tool-calls" in responsive_ranges:
         start, end = responsive_ranges["slow-tool-calls"]
         responsive_sections.append((start, end, slow_tool_section))
-    if responsive_sections:
-        responsive_sections.sort(key=lambda section: section[0])
-        return (
-            AgentHeaderRenderable(
-                header_text,
-                tuple(responsive_sections),
-            ),
-            error_tb_syntax,
-        )
-    return header_text, error_tb_syntax
+    responsive_sections.sort(key=lambda section: section[0])
+    return tuple(responsive_sections)

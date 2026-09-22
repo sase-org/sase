@@ -77,6 +77,7 @@ class WorkflowDisplayMixin:
                 slow_tool_sources=slow_tool_sources,
                 slow_tool_call_threshold_ms=slow_tool_call_threshold_ms,
                 render_prompt=self._workflow_prompt_renderer(agent),
+                detach_identity=getattr(self, "detaches_identity_header", False),
             )
         )
 
@@ -109,6 +110,7 @@ class WorkflowDisplayMixin:
         slow_tool_call_threshold_ms = slow_tool_call_threshold_ms_from_widget(self)
 
         render_prompt = self._workflow_prompt_renderer(agent)
+        detach_identity = bool(getattr(self, "detaches_identity_header", False))
 
         def render_task() -> Group:
             snapshot = _load_workflow_detail_snapshot(agent)
@@ -123,6 +125,7 @@ class WorkflowDisplayMixin:
                 slow_tool_sources=slow_tool_sources,
                 slow_tool_call_threshold_ms=slow_tool_call_threshold_ms,
                 render_prompt=render_prompt,
+                detach_identity=detach_identity,
             )
 
         self._workflow_detail_worker = self.run_worker(  # type: ignore[attr-defined]

@@ -33,6 +33,15 @@ def append_tribe_header(
     snapshot: AgentTribeSummarySnapshot,
     fold_level: FoldLevel,
 ) -> None:
+    append_tribe_identity(text, snapshot, fold_level)
+    append_tribe_description(text, snapshot)
+
+
+def append_tribe_identity(
+    text: Text,
+    snapshot: AgentTribeSummarySnapshot,
+    fold_level: FoldLevel,
+) -> None:
     append_kind_header(text, "TRIBE", TRIBE_IDENTITY_COLOR)
     text.append("Name: ", style=FIELD_LABEL_STYLE)
     text.append(
@@ -66,6 +75,12 @@ def append_tribe_header(
     text.append("Runtime: ", style=FIELD_LABEL_STYLE)
     text.append(f"{snapshot.runtime_span}\n", style="bold #BCBCBC")
     append_fold_header_line(text, level=fold_level, scale=TRIBE_FOLD_SCALE)
+
+
+def append_tribe_description(
+    text: Text,
+    snapshot: AgentTribeSummarySnapshot,
+) -> None:
     _append_description(text, snapshot)
 
 

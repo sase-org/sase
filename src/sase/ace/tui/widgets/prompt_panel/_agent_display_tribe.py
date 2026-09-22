@@ -14,7 +14,14 @@ from ._agent_display_tribe_common import (
     TRIBE_IDENTITY_COLOR as TRIBE_IDENTITY_COLOR,
     effective_level,
 )
-from ._agent_display_tribe_header import append_tribe_header
+from ._agent_display_tribe_header import (
+    append_tribe_description,
+    append_tribe_header,
+    append_tribe_identity,
+)
+from ._agent_display_header_renderable import AgentHeaderRenderable
+from ._identity_header import IdentityHeader
+from ._identity_header_compact import build_tribe_compact_lines
 from ._agent_display_tribe_roster import (
     entry_target_heading_suffix,
     tribe_roster_entries,
@@ -76,15 +83,63 @@ def build_tribe_detail_text(
     section_fold_overrides: Mapping[str, FoldLevel] | None = None,
     member_jump_map_publisher: Callable[[MemberJumpMap], None] | None = None,
     cheap: bool = False,
-) -> Text:
+    detach_identity: bool = False,
+) -> Text | AgentHeaderRenderable:
     """Build a fold-aware tribe document without filesystem access."""
     overrides = section_fold_overrides or {}
-    required = tribe_enrichment_sections_for_fold_state(fold_level, overrides)
+    if detach_identity:
+        identity_text = Text()
+        append_tribe_identity(identity_text, snapshot, fold_level)
+        body = Text()
+        append_tribe_description(body, snapshot)
+        if not cheap:
+            _append_tribe_body(
+                body,
+                snapshot,
+                section_snapshot,
+                fold_level,
+                overrides,
+                member_jump_map_publisher,
+            )
+        if cheap and not body.plain.strip():
+            body.append("⋯ loading…\n", style="dim")
+        identity = IdentityHeader(
+            kind_label="TRIBE",
+            accent=TRIBE_IDENTITY_COLOR,
+            expanded=identity_text,
+            compact=build_tribe_compact_lines(
+                snapshot=snapshot,
+                fold_level=fold_level,
+            ),
+            has_hints=False,
+        )
+        return AgentHeaderRenderable(body, (), identity_header=identity)
     text = Text()
     append_tribe_header(text, snapshot, fold_level)
     if cheap:
         return text
 
+    _append_tribe_body(
+        text,
+        snapshot,
+        section_snapshot,
+        fold_level,
+        overrides,
+        member_jump_map_publisher,
+    )
+    return text
+
+
+def _append_tribe_body(
+    text: Text,
+    snapshot: AgentTribeSummarySnapshot,
+    section_snapshot: TribeSectionSnapshot | None,
+    fold_level: FoldLevel,
+    overrides: Mapping[str, FoldLevel],
+    member_jump_map_publisher: Callable[[MemberJumpMap], None] | None,
+) -> None:
+    """Append the scrolling tribe sections after the identity header."""
+    required = tribe_enrichment_sections_for_fold_state(fold_level, overrides)
     append_attention(
         text,
         snapshot.attention,
@@ -149,7 +204,6 @@ def build_tribe_detail_text(
     )
     if _has_pending_enrichment(section_snapshot, required):
         append_scanning_tail(text)
-    return text
 
 
 __all__ = [

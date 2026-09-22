@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from rich.console import Group
 from textual import events
 from textual.containers import ScrollableContainer
 from textual.geometry import Size
@@ -18,6 +19,11 @@ from ._helpers import (
     extract_meta_fields,
     format_meta_key,
     load_xprompts_used,
+)
+from ._identity_header import (
+    IdentityHeader,
+    IdentityHeaderSink,
+    find_identity_header,
 )
 from ...util.renderable_digest import renderable_content_digest
 from ._section_navigation import (
@@ -57,6 +63,26 @@ class AgentPromptPanel(
     _pinned_to_bottom: bool = False
     _bottom_pin_reapply_scheduled: bool = False
     _bottom_pin_last_y: int = -1
+    _identity_header_sink: IdentityHeaderSink | None = None
+    _identity_last_published: IdentityHeader | None = None
+    _identity_last_content: Any = ""
+
+    def attach_identity_header_sink(self, sink: IdentityHeaderSink | None) -> None:
+        """Publish detached identity headers to ``sink`` on each update."""
+        self._identity_header_sink = sink
+
+    @property
+    def detaches_identity_header(self) -> bool:
+        """Whether builders should split the identity out of documents."""
+        return self._identity_header_sink is not None
+
+    def inline_document_renderable(self) -> Any:
+        """Return the current document with its identity inlined on top."""
+        identity = getattr(self, "_identity_last_published", None)
+        content = getattr(self, "_identity_last_content", "")
+        if identity is None:
+            return content
+        return Group(identity.inline_renderable(), content)
 
     def prepare_section_document(self, identity: object) -> None:
         """Set the logical metadata-document identity for cursor reconciliation."""
@@ -89,6 +115,11 @@ class AgentPromptPanel(
         rebuilds, and layout invalidation so idle refreshes of an unchanged
         prompt panel do not re-render.
         """
+        sink = getattr(self, "_identity_header_sink", None)
+        if sink is not None:
+            self._identity_last_published = find_identity_header(content)
+            self._identity_last_content = content
+            sink(self._identity_last_published)
         digest: str | None
         try:
             digest = renderable_content_digest(content)

@@ -276,6 +276,7 @@ class AgentDisplayRenderMixin(
                 clan_fold_level=fold_level,
                 clan_section_fold_overrides=fold_overrides,
                 member_jump_map_publisher=member_jump_map_publisher_for(app),
+                detach_identity=getattr(self, "detaches_identity_header", False),
             )
             self.update(header_text)  # type: ignore[attr-defined]
             return
@@ -283,7 +284,11 @@ class AgentDisplayRenderMixin(
         # Attempt-pinned view: render the selected prior attempt's full error
         # + prompt + captured reply; skip all other rendering paths.
         if self.attempt_pinned_number is not None:
-            self._render_attempt_pinned(agent, self.attempt_pinned_number)
+            self._render_attempt_pinned(
+                agent,
+                self.attempt_pinned_number,
+                getattr(self, "detaches_identity_header", False),
+            )
             return
 
         # Check if this is a top-level workflow agent that should display as workflow
@@ -335,6 +340,7 @@ class AgentDisplayRenderMixin(
         )
         header_text, error_tb_syntax = build_header_text(
             agent,
+            detach_identity=getattr(self, "detaches_identity_header", False),
             summary=summary,
             agent_status_buckets=agent_status_buckets,
             clan_wait_member_statuses=clan_wait_member_statuses,

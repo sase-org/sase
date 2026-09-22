@@ -519,6 +519,7 @@ def append_agent_metadata_fields(
     tribe_wait_bindings: Mapping[tuple[object, str], TribeWaitBinding] | None = None,
     runner_queue_ahead_count: int | None = None,
     responsive_ranges: MutableMapping[str, tuple[int, int]] | None = None,
+    detach_identity: bool = False,
 ) -> _AgentMetadataFields:
     """Append core metadata and return workflow fields plus responsive lanes."""
     page_section = _append_identity_fields(
@@ -549,7 +550,11 @@ def append_agent_metadata_fields(
     _append_auto_approve_field(text, agent)
     shell_section = _append_shell_or_model_fields(text, agent, responsive_ranges)
 
-    if not agent.is_proc_shell and not cheap and summary is not None:
+    if (
+        not agent.is_proc_shell
+        and summary is not None
+        and (not cheap or detach_identity)
+    ):
         from ._agent_xprompts import append_agent_xprompts_section
 
         project_key = (

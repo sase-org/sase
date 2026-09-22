@@ -61,7 +61,12 @@ def render_merged_attempt_history(
 class AgentAttemptDisplayMixin:
     """Attempt-pinned render path for AgentPromptPanel."""
 
-    def _render_attempt_pinned(self, agent: Agent, attempt_number: int) -> None:
+    def _render_attempt_pinned(
+        self,
+        agent: Agent,
+        attempt_number: int,
+        detach_identity: bool = False,
+    ) -> None:
         """Render the prompt panel pinned to a prior attempt.
 
         Shows the attempt banner (number, timestamp, outcome), the full
@@ -80,9 +85,29 @@ class AgentAttemptDisplayMixin:
             self.update(missing)  # type: ignore[attr-defined]
             return
 
-        renderables.append(
-            render_attempt_banner(record, total=len(agent.attempt_history))
-        )
+        banner: Any = render_attempt_banner(record, total=len(agent.attempt_history))
+        if detach_identity:
+            from ._agent_display_clan import panel_fold_state_from_widget
+            from ._agent_display_header import build_header_text
+            from ._agent_display_header_renderable import AgentHeaderRenderable
+            from ._agent_display_header_summary import (
+                get_cached_detail_header_summary,
+            )
+            from ._identity_header import find_identity_header
+
+            fold_level, fold_overrides = panel_fold_state_from_widget(self)
+            identity_document, _ = build_header_text(
+                agent,
+                cheap=True,
+                summary=get_cached_detail_header_summary(self, agent),
+                lane_fold_level=fold_level,
+                lane_section_fold_overrides=fold_overrides,
+                detach_identity=True,
+            )
+            identity = find_identity_header(identity_document)
+            if identity is not None:
+                banner = AgentHeaderRenderable(banner, (), identity_header=identity)
+        renderables.append(banner)
 
         if record.error_full.strip():
             renderables.append(lazy_renderable(record.error_full, "pytb"))

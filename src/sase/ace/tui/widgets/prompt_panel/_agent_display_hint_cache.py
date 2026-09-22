@@ -46,6 +46,7 @@ class AgentHintRenderCacheKey:
     cap_parameters: tuple[int, int]
     attempt_view_mode: str
     attempt_pinned_number: int | None
+    detaches_identity_header: bool = False
 
 
 @dataclass(frozen=True)
@@ -218,6 +219,9 @@ def agent_hint_render_cache_key(
         ),
         attempt_view_mode=str(getattr(widget, "attempt_view_mode", "merged")),
         attempt_pinned_number=getattr(widget, "attempt_pinned_number", None),
+        detaches_identity_header=bool(
+            getattr(widget, "detaches_identity_header", False)
+        ),
     )
 
 

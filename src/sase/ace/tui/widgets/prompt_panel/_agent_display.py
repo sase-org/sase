@@ -152,6 +152,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
                         else None
                     ),
                     cheap=cheap,
+                    detach_identity=getattr(self, "detaches_identity_header", False),
                 )
             )
             if not cheap:
@@ -254,6 +255,7 @@ class AgentDisplayMixin(AgentDisplayRenderMixin, AgentDisplayWorkerMixin):
             header_text, error_tb_syntax = build_header_text(
                 agent,
                 cheap=True,
+                detach_identity=getattr(self, "detaches_identity_header", False),
                 summary=immediate_detail_header_summary(self, agent),
                 agent_status_buckets=agent_status_buckets,
                 clan_wait_member_statuses=clan_wait_member_statuses,

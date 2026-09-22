@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 from rich.console import Console, ConsoleOptions, RenderResult
 from rich.style import StyleType
@@ -14,6 +14,9 @@ from ._agent_plan_section import ResponsivePlanSection
 from ._agent_shell_section import ResponsiveShellSection
 from ._agent_slow_tools_detail import ResponsiveSlowToolCallsSection
 from ._agent_wait_section import ResponsiveWaitSection
+
+if TYPE_CHECKING:
+    from ._identity_header import IdentityHeader
 
 type ResponsiveHeaderSection = (
     ResponsiveAgentPageSection
@@ -28,15 +31,28 @@ type ResponsiveHeaderSection = (
 class AgentHeaderRenderable:
     """Mutable logical header with retained responsive context sections."""
 
-    __slots__ = ("_sections", "_text")
+    __slots__ = ("_identity_header", "_sections", "_text")
 
     def __init__(
         self,
         text: Text,
         sections: tuple[tuple[int, int, ResponsiveHeaderSection], ...],
+        *,
+        identity_header: IdentityHeader | None = None,
     ) -> None:
         self._text = text
         self._sections = sections
+        self._identity_header = identity_header
+
+    @property
+    def identity_header(self) -> IdentityHeader | None:
+        """Return the identity detached from this document, if any."""
+        return self._identity_header
+
+    def with_identity_header(self, identity_header: IdentityHeader | None) -> Self:
+        """Attach an identity to this document and return it for chaining."""
+        self._identity_header = identity_header
+        return self
 
     @property
     def plain(self) -> str:
