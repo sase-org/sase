@@ -11,6 +11,7 @@ import pytest
 from rich.console import Console
 
 from sase.ace.tui.modals.notification_modal import NotificationModal
+from sase.ace.tui.modals.notification_modal_footer import NotificationHintFooter
 from sase.ace.tui.modals.notification_modal_question import (
     NotificationQuestionMixin,
 )
@@ -198,7 +199,9 @@ def test_display_file_dispatches_question_before_empty_attachment_state(
 def test_question_highlight_uses_answer_focused_footer(tmp_path: Path) -> None:
     notification = _notification(tmp_path)
     modal = NotificationModal([notification])
-    footer = MagicMock()
+    footer = NotificationHintFooter()
+    # A wide modal renders the full tier, so every question fragment shows.
+    footer._hint_width = 1000
     modal._get_highlighted_notification = (  # type: ignore[method-assign]
         lambda: notification
     )
@@ -206,7 +209,7 @@ def test_question_highlight_uses_answer_focused_footer(tmp_path: Path) -> None:
 
     modal._update_hint_footer()
 
-    hint = footer.update.call_args.args[0]
+    hint = str(footer.content)
     assert hint.startswith("Enter: answer")
     assert "C-d/C-u: scroll" in hint
     assert "copy path" not in hint
