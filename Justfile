@@ -127,8 +127,12 @@ _setup: _venv
     if [ $((validation_status & 1)) -ne 0 ]; then \
         printf "[setup] Note: the sase-core checkout is ahead of the published sase-core-rs window in pyproject.toml; dev installs build from {{ sase_core_dir }} regardless. This is normal — the release-branch reconciler ratchets the published window at release time, so no action is needed here.\n"; \
     fi; \
-    if [ $((validation_status & 2)) -ne 0 ]; then \
-        printf "[setup] Rebuilding stale or missing sase_core_rs from {{ sase_core_dir }} before Python dependency resolution.\n"; \
+    if [ $((validation_status & 34)) -ne 0 ]; then \
+        if [ $((validation_status & 32)) -ne 0 ]; then \
+            printf "[setup] Rebuilding sase_core_rs: linked sase-core source changed since the extension was built.\n"; \
+        else \
+            printf "[setup] Rebuilding stale or missing sase_core_rs from {{ sase_core_dir }} before Python dependency resolution.\n"; \
+        fi; \
         just --set venv_dir "{{ venv_dir }}" --set sase_core_dir "{{ sase_core_dir }}" rust-install "{{ venv_dir_abs }}"; \
         {{ venv_bin }}/python tools/validate_sase_core_rs --sase-core-dir "{{ sase_core_dir }}" || exit $?; \
     fi; \
@@ -922,7 +926,12 @@ rust-install VENV=venv_dir_abs: _venv
     # maturin's `cargo metadata` fetches deps; disabling HTTP/2 multiplexing
     # and raising the retry count makes the download resilient. Both are
     # overridable from the environment.
-    @cached_wheel="$("{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/sase_core_wheel_cache" lookup --sase-core-dir "{{ sase_core_dir }}" --python "{{ VENV }}/bin/python" || true)"; \
+    # Capture the source identity after the checkout refresh above and before
+    # the build below. It is written to the venv only after a successful
+    # install (wheel-cache hit or `maturin develop` alike), so an edit made
+    # during the build still reads as stale on the next check.
+    @source_identity="$("{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/_sase_core_source_identity.py" --sase-core-dir "{{ sase_core_dir }}")"; \
+    cached_wheel="$("{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/sase_core_wheel_cache" lookup --sase-core-dir "{{ sase_core_dir }}" --python "{{ VENV }}/bin/python" || true)"; \
     if [ -n "$cached_wheel" ]; then \
         printf "[rust-install] Installing cached sase_core_rs wheel from %s.\n" "$cached_wheel"; \
         uv pip install --python "{{ VENV }}/bin/python" --reinstall-package sase-core-rs "$cached_wheel"; \
@@ -943,6 +952,9 @@ rust-install VENV=venv_dir_abs: _venv
             exit "$build_status"; \
         fi; \
         "{{ VENV }}/bin/python" "{{ justfile_directory() }}/tools/sase_core_wheel_cache" store --sase-core-dir "{{ sase_core_dir }}" --python "{{ VENV }}/bin/python" --maturin "{{ VENV }}/bin/maturin" || true; \
+    fi; \
+    if [ -n "$source_identity" ]; then \
+        printf "%s\n" "$source_identity" > "{{ VENV }}/.sase-core-rs-source.json"; \
     fi
     # Keep the LSP server in lockstep with the extension: both are built
     # from the same sase-core checkout, and the ACE/LSP parity tests

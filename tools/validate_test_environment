@@ -15,6 +15,11 @@ from pathlib import Path
 from typing import Any
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import _sase_core_source_identity as core_source_identity  # noqa: E402
+
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CACHE_SCHEMA_VERSION = 2
 FORCE_ENV = "SASE_TEST_SETUP_FORCE_REVALIDATE"
@@ -23,6 +28,10 @@ CORE_BINDINGS_ERROR = 2
 DEPENDENCY_GROUP_ERROR = 4
 EDITABLE_METADATA_ERROR = 8
 CORE_VERSION_BEHIND_ERROR = 16
+#: The linked sase-core source moved on (new commit or local edit) since the
+#: venv's extension was built. Handled by the same Justfile rebuild block as
+#: ``CORE_BINDINGS_ERROR``.
+CORE_SOURCE_STALE = 32
 INTERNAL_ERROR = 64
 #: `tools/validate_sase_core_rs_version`'s `EXIT_BEHIND`. The two scripts run
 #: as separate subprocesses (no shared import), so this mirrors that constant
@@ -184,6 +193,32 @@ def _fingerprint_inputs(
     _update_file_stat(python_digest, "python", venv_dir / "bin/python")
     inputs["python"] = python_digest.hexdigest()
 
+    # The built-from identity of the linked checkout plus the stamp the venv
+    # was built from, so a Rust edit invalidates cached verdicts instead of
+    # letting a stale pass mask the change. Deliberately not in
+    # ``ENVIRONMENT_ESCALATING_INPUTS``: the rebuilt extension's ``extension``
+    # bucket already escalates the test selection.
+    source_digest = hashlib.sha256()
+    identity = core_source_identity.compute_identity(sase_core_dir)
+    if identity is None:
+        source_digest.update(b"<unavailable>\0")
+    else:
+        source_digest.update(
+            core_source_identity.identity_fingerprint(identity).encode()
+        )
+        source_digest.update(b"\0")
+    try:
+        stamp_bytes = core_source_identity.stamp_path(venv_dir).read_bytes()
+    except OSError:
+        stamp_bytes = b"<missing>"
+    source_digest.update(stamp_bytes)
+    source_digest.update(b"\0")
+    # A prebuilt wheel carries no source identity: toggling the variable must
+    # not reuse verdicts cached for the other mode.
+    source_digest.update(os.environ.get("SASE_CORE_WHEEL", "").encode())
+    source_digest.update(b"\0")
+    inputs["core-source"] = source_digest.hexdigest()
+
     return inputs
 
 
@@ -293,6 +328,39 @@ def _resolve_core_version_code(returncode: int) -> int:
     return CORE_VERSION_ERROR
 
 
+def _check_core_source(*, venv_dir: Path, sase_core_dir: Path) -> dict[str, Any]:
+    """Compare the linked checkout's identity with the venv's built-from stamp.
+
+    A missing or different stamp sets ``CORE_SOURCE_STALE`` so ``_setup``
+    rebuilds the dev extension. Skipped (code 0) when ``SASE_CORE_WHEEL``
+    supplies a prebuilt wheel, and when the current identity is uncomputable
+    (non-git checkout), where no stamp could ever match.
+    """
+    if os.environ.get("SASE_CORE_WHEEL"):
+        return {"code": 0, "stdout": "", "stderr": ""}
+    identity = core_source_identity.compute_identity(sase_core_dir)
+    if identity is None:
+        return {"code": 0, "stdout": "", "stderr": ""}
+    stamp = core_source_identity.read_stamp(venv_dir)
+    if (
+        stamp is not None
+        and stamp.get("head") == identity["head"]
+        and stamp.get("dirty") == identity["dirty"]
+    ):
+        return {"code": 0, "stdout": "", "stderr": ""}
+    if stamp is None:
+        reason = (
+            "[core-source] no built-from stamp for the linked sase-core "
+            "source; flagging an extension rebuild.\n"
+        )
+    else:
+        reason = (
+            "[core-source] linked sase-core source changed since the "
+            "extension was built; flagging an extension rebuild.\n"
+        )
+    return {"code": CORE_SOURCE_STALE, "stdout": "", "stderr": reason}
+
+
 def _emit_verdict(verdict: dict[str, Any]) -> None:
     sys.stdout.write(verdict["stdout"])
     sys.stderr.write(verdict["stderr"])
@@ -387,6 +455,19 @@ def _validate(namespace: argparse.Namespace) -> int:
             if verdict is None or verdict.get("code") not in valid_codes:
                 verdict = _run_validator(command, resolve_code)
                 verdicts[name] = verdict
+            _emit_verdict(verdict)
+            result |= verdict["code"]
+        if namespace.check_core:
+            verdict = None if force else verdicts.get("core-source")
+            if verdict is None or verdict.get("code") not in (
+                0,
+                CORE_SOURCE_STALE,
+            ):
+                verdict = _check_core_source(
+                    venv_dir=namespace.venv_dir,
+                    sase_core_dir=namespace.sase_core_dir,
+                )
+                verdicts["core-source"] = verdict
             _emit_verdict(verdict)
             result |= verdict["code"]
         _write_verdicts(cache_path, fingerprint, verdicts)

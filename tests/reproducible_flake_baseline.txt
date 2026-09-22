@@ -399,8 +399,13 @@ tests/pager/test_app_actions.py::test_y_then_label_copies_the_links_resolved_pat
 tests/test_agent_names_extract_metadata.py::TestExtractDirectivesMetadata::test_batch_predecessor_context_binds_bare_wait
 tests/test_agent_names_extract_metadata.py::TestExtractDirectivesMetadata::test_batch_predecessor_context_binds_local_xprompt_wait
 tests/test_agent_names_extract_metadata.py::TestExtractDirectivesMetadata::test_preserved_batch_predecessor_context_rebinds_refreshed_wait
-tests/test_check_sase_core_rs_bindings_tool.py::test_dev_extension_exposes_every_collected_name
 tests/test_xprompt_directive_contract.py::test_runtime_directive_vocabulary_matches_core_contract
+#
+# sase-165.5: the stale-extension flake is fixed at the root cause — `just
+# check` now rebuilds the dev extension when the linked sase-core source has
+# changed since the build (built-from stamp plus the core-source freshness
+# bit). Retires this node's failure evidence recorded at or before the fix.
+# fixed-at: 2026-09-22T13:25:12Z tests/test_check_sase_core_rs_bindings_tool.py::test_dev_extension_exposes_every_collected_name
 #
 # sase-zt.6.5.4.3 landing reconciliation: current collectable nodes promoted by
 # selection-health from historical full-run records and routed to filed owners by

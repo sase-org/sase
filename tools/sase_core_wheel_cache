@@ -21,8 +21,11 @@ from typing import Any
 CACHE_SCHEMA_VERSION = 1
 DEFAULT_MAX_BYTES = 4 * 1024 * 1024 * 1024
 DEFAULT_MAX_ENTRIES = 12
-INPUT_PATHS = ("Cargo.toml", "Cargo.lock", "crates/sase_core_py")
 MISS_EXIT = 1
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from _sase_core_source_identity import INPUT_PATHS  # noqa: E402
 
 
 class CacheUnavailable(RuntimeError):

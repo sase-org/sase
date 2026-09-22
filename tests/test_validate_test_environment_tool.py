@@ -12,15 +12,19 @@ from typing import Any
 
 import pytest
 
+from tests._test_selection_manifest import ENVIRONMENT_ESCALATING_INPUTS
+
 pytestmark = pytest.mark.contract
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools/validate_test_environment"
+IDENTITY_SCRIPT = ROOT / "tools/_sase_core_source_identity.py"
 FORCE_ENV = "SASE_TEST_SETUP_FORCE_REVALIDATE"
 DEPENDENCY_GROUP_ERROR = 4
 CORE_VERSION_ERROR = 1
 CORE_VERSION_BEHIND_ERROR = 16
 CORE_BINDINGS_ERROR = 2
+CORE_SOURCE_STALE = 32
 
 
 def _load_tool() -> dict[str, Any]:
@@ -403,6 +407,137 @@ def test_editable_extension_rebuild_invalidates_cached_core_binding_failure(
 
     assert failed == CORE_BINDINGS_ERROR
     assert rebuilt == 0
+
+
+def _load_identity_helper() -> dict[str, Any]:
+    return runpy.run_path(str(IDENTITY_SCRIPT), run_name="sase_core_source_identity")
+
+
+def _git(repo: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-C", str(repo), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _git_core_repo(path: Path) -> Path:
+    """A minimal git checkout shaped like the sase-core crate inputs."""
+    repo = path / "sase-core"
+    crate = repo / "crates" / "sase_core_py"
+    crate.mkdir(parents=True)
+    (repo / "Cargo.toml").write_text("[workspace]\n", encoding="utf-8")
+    (repo / "Cargo.lock").write_text("version = 3\n", encoding="utf-8")
+    (crate / "lib.rs").write_text("// binding\n", encoding="utf-8")
+    _git(repo, "init", "-q")
+    _git(repo, "config", "user.email", "test@example.com")
+    _git(repo, "config", "user.name", "Test")
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-qm", "initial")
+    return repo
+
+
+def _source_check_env(tmp_path: Path) -> dict[str, Path]:
+    env = _fingerprint_environment(tmp_path)
+    env["sase_core_dir"] = _git_core_repo(tmp_path)
+    return env
+
+
+def _stub_core_validators_ok(tool: dict[str, Any], tmp_path: Path) -> None:
+    tool["VALIDATOR_PATHS"]["core-version"] = _write_stub_validator(
+        tmp_path, "stub-core-version-ok", 0
+    )
+    tool["VALIDATOR_PATHS"]["core-bindings"] = _write_stub_validator(
+        tmp_path, "stub-core-bindings-ok", 0
+    )
+
+
+def _stamp_venv(venv_dir: Path, repo: Path) -> None:
+    helper = _load_identity_helper()
+    identity = helper["compute_identity"](repo)
+    assert identity is not None
+    (venv_dir / ".sase-core-rs-source.json").write_text(
+        helper["format_stamp"](identity), encoding="utf-8"
+    )
+
+
+def test_matching_stamp_sets_no_core_source_bit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SASE_CORE_WHEEL", raising=False)
+    tool = _load_tool()
+    env = _source_check_env(tmp_path)
+    _stub_core_validators_ok(tool, tmp_path)
+    _stamp_venv(env["venv_dir"], env["sase_core_dir"])
+    namespace = _core_check_namespace(env, cache_file=tmp_path / "cache.json")
+
+    assert tool["_validate"](namespace) == 0
+
+
+def test_new_commit_sets_core_source_stale_bit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SASE_CORE_WHEEL", raising=False)
+    tool = _load_tool()
+    env = _source_check_env(tmp_path)
+    _stub_core_validators_ok(tool, tmp_path)
+    _stamp_venv(env["venv_dir"], env["sase_core_dir"])
+    _git(env["sase_core_dir"], "commit", "-q", "--allow-empty", "-m", "second")
+    namespace = _core_check_namespace(env, cache_file=tmp_path / "cache.json")
+
+    assert tool["_validate"](namespace) == CORE_SOURCE_STALE
+
+
+def test_dirty_edit_under_crates_sets_core_source_stale_bit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SASE_CORE_WHEEL", raising=False)
+    tool = _load_tool()
+    env = _source_check_env(tmp_path)
+    _stub_core_validators_ok(tool, tmp_path)
+    _stamp_venv(env["venv_dir"], env["sase_core_dir"])
+    (env["sase_core_dir"] / "crates" / "sase_core_py" / "lib.rs").write_text(
+        "// binding v2\n", encoding="utf-8"
+    )
+    namespace = _core_check_namespace(env, cache_file=tmp_path / "cache.json")
+
+    assert tool["_validate"](namespace) == CORE_SOURCE_STALE
+
+
+def test_missing_stamp_sets_core_source_stale_bit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SASE_CORE_WHEEL", raising=False)
+    tool = _load_tool()
+    env = _source_check_env(tmp_path)
+    _stub_core_validators_ok(tool, tmp_path)
+    namespace = _core_check_namespace(env, cache_file=tmp_path / "cache.json")
+
+    assert tool["_validate"](namespace) == CORE_SOURCE_STALE
+
+
+def test_prebuilt_wheel_skips_core_source_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_CORE_WHEEL", "/tmp/fake/sase_core_rs-0.0.whl")
+    tool = _load_tool()
+    env = _source_check_env(tmp_path)
+    _stub_core_validators_ok(tool, tmp_path)
+    namespace = _core_check_namespace(env, cache_file=tmp_path / "cache.json")
+
+    assert tool["_validate"](namespace) == 0
+
+
+def test_core_source_bucket_is_recorded_but_not_escalating(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("SASE_CORE_WHEEL", raising=False)
+    tool = _load_tool()
+    env = _source_check_env(tmp_path)
+
+    assert "core-source" in tool["_fingerprint_inputs"](**env)
+    assert "core-source" not in ENVIRONMENT_ESCALATING_INPUTS
 
 
 def test_cache_written_at_old_schema_version_is_rejected(tmp_path: Path) -> None:

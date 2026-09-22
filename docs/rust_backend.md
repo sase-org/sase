@@ -354,7 +354,10 @@ window in `pyproject.toml` applies only to wheel-based installs: editable instal
 a uv override that lifts the window so the locally built extension is never downgraded
 to a published wheel during dependency resolution, and `sase update` rebuilds the
 editable extension from the checkout whenever it finds a published wheel installed in a
-dev environment.
+dev environment. Every build also records the source it built from in
+`.venv/.sase-core-rs-source.json`, so `just check` rebuilds the extension automatically
+when the linked sase-core source (HEAD plus local edits under the Rust crate inputs) has
+changed since that build.
 
 #### Who owns the published version window
 
