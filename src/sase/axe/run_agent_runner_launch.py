@@ -28,6 +28,7 @@ from sase.axe.run_agent_phases import (
 from sase.axe.run_agent_runner_bead import claim_bead_for_agent_launch
 from sase.axe.run_agent_runner_bootstrap import RunnerBootstrap
 from sase.axe.run_agent_runner_finalize import classify_exec_success
+from sase.axe.runner_workspace import WorkspacePreparationError
 from sase.axe.run_agent_runner_setup import (
     build_output_variable_namespaces,
     capture_sdd_base_sha,
@@ -46,6 +47,12 @@ from sase.sdd.store import SddTransientMaterializationError
 
 
 SETUP_MATERIALIZATION_FAILED_OUTCOME = "setup_materialization_failed"
+
+#: Final workspace-preparation failures (after self-heal and one
+#: re-creation attempt) tag the run with this outcome instead of holding the
+#: workspace: the agent never ran and anything valuable was rescued, so the
+#: workspace is released rather than held as a visible failed run.
+SETUP_WORKSPACE_FAILED_OUTCOME = "setup_workspace_failed"
 
 
 def _prepare_workspace_and_repos(
@@ -116,6 +123,22 @@ def _is_transient_materialization_failure(exc: BaseException) -> bool:
     current: BaseException | None = exc
     while current is not None:
         if isinstance(current, SddTransientMaterializationError):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
+
+
+def _is_workspace_preparation_failure(exc: BaseException) -> bool:
+    """Whether *exc* chains to a ``WorkspacePreparationError``.
+
+    Preparation wraps the error in ``RuntimeError`` (and linked-repo setup
+    wraps it again), so walk the chain. A match means self-heal already ran
+    and the one re-creation attempt already failed or was ineligible: this is
+    a final setup failure, and the workspace must be released, not held.
+    """
+    current: BaseException | None = exc
+    while current is not None:
+        if isinstance(current, WorkspacePreparationError):
             return True
         current = current.__cause__ or current.__context__
     return False
@@ -233,6 +256,8 @@ def launch_agent_run(state: RunnerRunState, bootstrap: RunnerBootstrap) -> None:
     except Exception as exc:
         if _is_transient_materialization_failure(exc):
             state.exec_outcome = SETUP_MATERIALIZATION_FAILED_OUTCOME
+        elif _is_workspace_preparation_failure(exc):
+            state.exec_outcome = SETUP_WORKSPACE_FAILED_OUTCOME
         raise
     _refresh_clan_summary(state, bootstrap)
 

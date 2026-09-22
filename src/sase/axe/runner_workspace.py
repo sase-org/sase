@@ -11,6 +11,7 @@ from .runner_workspace_prepare import (
     clear_stale_git_index_lock,
     prepare_launch_workspace_repos,
     prepare_workspace,
+    prepare_workspace_with_reclone,
 )
 
 __all__ = [
@@ -19,4 +20,5 @@ __all__ = [
     "git_index_lock_path",
     "prepare_launch_workspace_repos",
     "prepare_workspace",
+    "prepare_workspace_with_reclone",
 ]

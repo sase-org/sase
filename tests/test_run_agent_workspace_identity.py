@@ -20,6 +20,7 @@ from sase.axe.run_agent_workspace_identity import (
 from sase.axe.run_agent_runner_bootstrap import RunnerBootstrap
 from sase.axe.run_agent_runner_launch import launch_agent_run
 from sase.axe.run_agent_runner_state import RunnerRunState
+from sase.axe.runner_workspace import WorkspacePreparationError
 from sase.linked_repos import LinkedRepoResolution
 from sase.running_field import WorkspaceClaim, get_claimed_workspaces
 from sase.sdd.store import SddMaterializationError, SddTransientMaterializationError
@@ -296,6 +297,55 @@ def test_launch_agent_run_does_not_mark_permanent_setup_materialization_failure(
             side_effect=failure,
         ),
         pytest.raises(SddMaterializationError),
+    ):
+        launch_agent_run(state, bootstrap)
+
+    assert state.exec_outcome == ""
+
+
+def test_launch_agent_run_marks_final_setup_workspace_failure(
+    tmp_path: Path,
+) -> None:
+    """A final preparation failure releases the workspace instead of holding it."""
+    state = _launch_state(tmp_path)
+    bootstrap = _launch_bootstrap()
+    underlying = WorkspacePreparationError(
+        "self-heal postcondition failed: worktree is still dirty",
+        step="verify",
+        workspace_dir=str(tmp_path / "project"),
+        reclone_eligible=True,
+    )
+    failure = RuntimeError(
+        f"Failed to prepare workspace {tmp_path / 'project'}: {underlying.reason}"
+    )
+    failure.__cause__ = underlying
+
+    with (
+        patch(
+            "sase.axe.run_agent_runner_launch.prepare_workspace_if_needed",
+            side_effect=failure,
+        ),
+        patch("sase.axe.run_agent_runner_launch.run_execution_loop") as run_loop,
+        pytest.raises(RuntimeError),
+    ):
+        launch_agent_run(state, bootstrap)
+
+    assert state.exec_outcome == "setup_workspace_failed"
+    run_loop.assert_not_called()
+
+
+def test_launch_agent_run_does_not_mark_non_preparation_failure(
+    tmp_path: Path,
+) -> None:
+    state = _launch_state(tmp_path)
+    bootstrap = _launch_bootstrap()
+
+    with (
+        patch(
+            "sase.axe.run_agent_runner_launch.prepare_workspace_if_needed",
+            side_effect=ValueError("unexpected launcher bug"),
+        ),
+        pytest.raises(ValueError),
     ):
         launch_agent_run(state, bootstrap)
 

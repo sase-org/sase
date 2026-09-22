@@ -28,6 +28,7 @@ from sase.axe.runner_workspace import (
     WorkspacePreparationError,
     prepare_launch_workspace_repos,
     prepare_workspace,
+    prepare_workspace_with_reclone,
 )
 from sase.axe.agent_meta import write_agent_meta_atomic
 from sase.core.agent_artifact_index_lifecycle import (
@@ -142,16 +143,33 @@ def prepare_workspace_if_needed(
         artifacts_timestamp=artifacts_timestamp,
     )
 
+    def _reenter_recreated_workspace() -> None:
+        # The checkout was moved aside and re-materialized: the process cwd
+        # still points at the trashed directory, so chdir back in, re-apply
+        # cwd-derived environment, and re-check the occupancy claim before
+        # the second preparation pass touches the new checkout.
+        enter_agent_workspace(workspace_dir, workspace_num)
+        _guard_workspace_not_occupied(
+            checkout_dir=workspace_dir,
+            project_file=project_file,
+            workspace_num=workspace_num,
+            project_name=project_name,
+            workflow_name=workflow_name,
+            artifacts_timestamp=artifacts_timestamp,
+        )
+
     print("=== Preparing Workspace ===")
     try:
-        prepare_workspace(
-            workspace_dir,
-            cl_name,
-            update_target,
-            backup_suffix="ace",
-            project_basename=project_name,
-            self_heal=workspace_num > 1,
+        prepare_workspace_with_reclone(
+            prepare_workspace,
+            workspace_dir=workspace_dir,
             workspace_num=workspace_num,
+            cl_name=cl_name,
+            update_target=update_target,
+            project_basename=project_name,
+            backup_suffix="ace",
+            project_file=project_file,
+            after_recreate=_reenter_recreated_workspace,
         )
     except WorkspacePreparationError as exc:
         print(f"Workspace preparation failed: {exc.reason}", file=sys.stderr)
@@ -162,6 +180,68 @@ def prepare_workspace_if_needed(
     print("===========================")
     print()
     return fresh_sidecars
+
+
+def _raise_linked_repo_prep_error(
+    name: str, workspace_dir: str, exc: Exception
+) -> None:
+    """Report a linked-repo preparation failure as a launch setup error."""
+    reason = (
+        exc.reason
+        if isinstance(exc, WorkspacePreparationError)
+        else str(exc) or "unknown error"
+    )
+    print(
+        f"Linked repo {name!r} workspace preparation failed: {reason}",
+        file=sys.stderr,
+    )
+    raise RuntimeError(
+        f"Failed to prepare linked repo {name!r} workspace: {workspace_dir}: {reason}"
+    ) from exc
+
+
+def _recreate_linked_repo_clone(repo: Any, *, expected_remote_url: str | None) -> str:
+    """Rescue a retained linked-repo clone, move it aside, materialize fresh.
+
+    Only the failed clone is replaced; the parent workspace checkout is
+    untouched. Returns the re-materialized workspace directory.
+    """
+    from sase._linked_repo_workspaces import move_aside_for_background_delete
+    from sase.workspace_provider.rescue import rescue_git_repo
+
+    workspace_dir = str(repo.workspace_dir)
+    rescue_git_repo(
+        workspace_dir,
+        workspace_dir=workspace_dir,
+        workspace_num=repo.workspace_num,
+        label=f"linked-{repo.name}",
+        reason=(
+            "last-resort linked-repo re-creation: rescuing retained clone "
+            f"for {repo.name!r}"
+        ),
+        include_worktree=True,
+    )
+    try:
+        move_aside_for_background_delete(workspace_dir, tag="sase-reclone-trash")
+    except OSError as exc:
+        raise RuntimeError(
+            "could not move linked repo workspace aside for re-creation: "
+            f"{workspace_dir}: {exc}"
+        ) from exc
+    from sase.linked_repos import materialize_linked_repo_workspace
+
+    try:
+        return materialize_linked_repo_workspace(
+            primary_dir=repo.primary_dir,
+            workspace_dir=workspace_dir,
+            workspace_num=repo.workspace_num,
+            expected_remote_url=expected_remote_url,
+        )
+    except RuntimeError as exc:
+        raise RuntimeError(
+            f"Failed to re-create linked repo {repo.name!r} workspace: "
+            f"{workspace_dir}: {exc}"
+        ) from exc
 
 
 def prepare_linked_repo_workspaces_if_needed(
@@ -246,14 +326,37 @@ def prepare_linked_repo_workspaces_if_needed(
                 workspace_num=repo.workspace_num,
             )
         except WorkspacePreparationError as exc:
+            if not exc.reclone_eligible or repo.workspace_num <= 1:
+                _raise_linked_repo_prep_error(name, workspace_dir, exc)
             print(
-                f"Linked repo {name!r} workspace preparation failed: {exc.reason}",
-                file=sys.stderr,
+                f"Linked repo {name!r} workspace could not be repaired in "
+                f"place ({exc.reason}); re-creating it from its primary..."
             )
-            raise RuntimeError(
-                f"Failed to prepare linked repo {name!r} workspace: "
-                f"{workspace_dir}: {exc.reason}"
-            ) from exc
+            workspace_dir = _recreate_linked_repo_clone(
+                repo,
+                expected_remote_url=(
+                    repo.remote_url if repo.kind == "sidecar" else None
+                ),
+            )
+            _guard_workspace_not_occupied(
+                checkout_dir=primary_workspace_dir,
+                project_file=project_file,
+                workspace_num=workspace_num,
+                project_name=project_name,
+                workflow_name=workflow_name,
+                artifacts_timestamp=artifacts_timestamp,
+            )
+            try:
+                prepare_workspace(
+                    workspace_dir,
+                    cl_name,
+                    VCS_DEFAULT_REVISION,
+                    backup_suffix=f"linked-{name}",
+                    self_heal=repo.workspace_num > 1,
+                    workspace_num=repo.workspace_num,
+                )
+            except WorkspacePreparationError as retry_exc:
+                _raise_linked_repo_prep_error(name, workspace_dir, retry_exc)
     from sase.linked_repos import apply_linked_repo_env
 
     apply_linked_repo_env(os.environ, resolution)

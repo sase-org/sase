@@ -282,6 +282,22 @@ def _rescue_unpublished_sidecar_repo(
     else:
         recovery_note = f"retained at {recovery_ref}"
 
+    if not evicting:
+        # Ordinary preparation does not destroy the clone, so it warns and
+        # proceeds without writing a rescue entry. The launch-time eviction
+        # pass rescues exactly once.
+        held = (
+            f"{remaining} unpublished local sidecar commit(s)"
+            if remaining is not None
+            else "unverifiable sidecar state"
+        )
+        print(
+            f"Warning: retained {held} at {recovery_ref} before "
+            f"workspace cleanup; {detail}",
+            file=sys.stderr,
+        )
+        return True
+
     rescued = rescue_git_repo(
         repo_root,
         workspace_dir=workspace_dir,

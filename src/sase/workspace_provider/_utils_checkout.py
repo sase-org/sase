@@ -303,9 +303,7 @@ def ensure_git_clone_at(
                 except GitObjectSharingError as exc:
                     raise RuntimeError(str(exc)) from exc
             return target_checkout_dir
-        import shutil
-
-        shutil.rmtree(target_checkout_dir.rstrip("/"), ignore_errors=True)
+        _remove_corrupt_checkout(target_checkout_dir, workspace_num)
 
     if not os.path.isdir(primary_workspace_dir.rstrip("/")):
         raise RuntimeError(
@@ -414,6 +412,116 @@ def ensure_git_clone_at(
             raise RuntimeError(str(exc)) from exc
 
     return target_checkout_dir
+
+
+def _rescue_doomed_sidecars(target_checkout_dir: str, workspace_num: int) -> None:
+    """Bundle every sidecar clone under a doomed checkout into the rescue store.
+
+    Best-effort: an unreadable main checkout must never take unpublished
+    sidecar commits with it. Every rescue call is itself non-raising;
+    directory-listing failures simply mean there is nothing to rescue.
+    """
+    from sase.workspace_provider.rescue import rescue_git_repo
+
+    target = target_checkout_dir.rstrip("/") or target_checkout_dir
+    try:
+        repos_root = os.path.join(target, "sase", "repos")
+        roles = sorted(os.listdir(repos_root)) if os.path.isdir(repos_root) else []
+    except OSError:
+        return
+    for role in roles:
+        clone = os.path.join(repos_root, role)
+        if not os.path.isdir(os.path.join(clone, ".git")):
+            continue
+        rescue_git_repo(
+            clone,
+            workspace_dir=target,
+            workspace_num=workspace_num,
+            label=role,
+            reason=(
+                "workspace checkout failed git status and is being replaced; "
+                "rescuing sidecar clone before deletion"
+            ),
+            include_worktree=True,
+        )
+
+
+def _remove_corrupt_checkout(target_checkout_dir: str, workspace_num: int) -> None:
+    """Rescue sidecars, then move a corrupt checkout aside for deletion.
+
+    The move is a same-parent rename with background deletion, so replacing
+    a corrupt checkout never blocks on a large synchronous ``rmtree``. When
+    the rename fails, fall back to a synchronous ``rmtree`` so callers keep
+    today's clone-fresh recovery.
+    """
+    from sase._linked_repo_workspaces import move_aside_for_background_delete
+
+    _rescue_doomed_sidecars(target_checkout_dir, workspace_num)
+    target = target_checkout_dir.rstrip("/") or target_checkout_dir
+    try:
+        move_aside_for_background_delete(target, tag="sase-corrupt-trash")
+    except OSError:
+        import shutil
+
+        shutil.rmtree(target, ignore_errors=True)
+
+
+def recreate_managed_workspace(
+    workspace_dir: str,
+    workspace_num: int,
+    *,
+    project_file: str | None = None,
+    config: Mapping[str, Any] | None = None,
+    env: Mapping[str, str] | None = None,
+) -> str:
+    """Rescue and re-materialize a numbered managed checkout from the primary.
+
+    Last-resort recovery when in-place healing fails: the main checkout
+    (local branches, stashes, detached HEAD, worktree) and every
+    ``sase/repos/<role>`` sidecar clone are rescued to the durable rescue
+    store outside the workspace, the checkout is moved aside for background
+    deletion, and it is re-materialized through
+    :func:`ensure_workspace_checkout` so the store path policy, object
+    sharing, origin rewrite, registry record, checkout marker, and SDD clone
+    all follow the normal path.
+
+    Refuses ``workspace_num <= 1``: the primary checkout may hold the user's
+    own work and is never re-created.
+    """
+    from sase.workspace_provider.rescue import rescue_git_repo
+
+    if workspace_num <= 1:
+        raise RuntimeError(
+            "refusing to re-create the primary workspace checkout "
+            f"({workspace_dir}); numbered workspaces only"
+        )
+    checkout = workspace_dir.rstrip("/") or workspace_dir
+    rescue_git_repo(
+        checkout,
+        workspace_dir=checkout,
+        workspace_num=workspace_num,
+        label="checkout",
+        reason="last-resort workspace re-creation: rescuing main checkout",
+        include_worktree=True,
+    )
+    from sase.axe.runner_workspace_prepare import rescue_sidecars_before_eviction
+
+    rescue_sidecars_before_eviction(checkout, workspace_num=workspace_num)
+    from sase._linked_repo_workspaces import move_aside_for_background_delete
+
+    try:
+        move_aside_for_background_delete(checkout, tag="sase-reclone-trash")
+    except OSError as exc:
+        raise RuntimeError(
+            "could not move workspace checkout aside for re-creation: "
+            f"{checkout}: {exc}"
+        ) from exc
+    from sase.sdd._paths import get_primary_workspace_dir
+
+    primary = get_primary_workspace_dir(checkout, workspace_num)
+    return ensure_workspace_checkout(
+        primary, workspace_num, config=config, env=env, project_file=project_file
+    )
 
 
 def ensure_workspace_checkout(

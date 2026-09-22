@@ -46,7 +46,7 @@ for raw_path in sys.argv[1:]:
 """
 
 
-def _delete_paths_in_background(paths: Sequence[Path]) -> None:
+def delete_paths_in_background(paths: Sequence[Path]) -> None:
     """Best-effort delete *paths* outside the workspace-prep critical path."""
 
     if not paths:
@@ -76,6 +76,25 @@ def _delete_paths_in_background(paths: Sequence[Path]) -> None:
             _remove_path(path)
 
 
+def move_aside_for_background_delete(
+    path: str | Path, *, tag: str = "sase-trash"
+) -> Path | None:
+    """Rename *path* to a unique sibling and delete it in the background.
+
+    The same-parent rename keeps the move O(1) on one filesystem; the trash
+    sibling is removed outside the caller's critical path. Returns the trash
+    path, or ``None`` when *path* does not exist. Raises ``OSError`` when the
+    rename fails so the caller can fall back to a synchronous delete or fail.
+    """
+    target = Path(path)
+    if not os.path.lexists(target):
+        return None
+    trashed = target.parent / f"{target.name}.{tag}-{uuid.uuid4().hex[:12]}"
+    os.rename(target, trashed)
+    delete_paths_in_background([trashed])
+    return trashed
+
+
 def clear_workspace_repos(
     workspace_dir: str | Path,
     workspace_num: int,
@@ -95,18 +114,18 @@ def clear_workspace_repos(
     )
 
     if not os.path.lexists(repos_root):
-        _delete_paths_in_background(stale_trash)
+        delete_paths_in_background(stale_trash)
         return
 
     if not repos_root.is_dir() or repos_root.is_symlink():
         _remove_path(repos_root)
-        _delete_paths_in_background(stale_trash)
+        delete_paths_in_background(stale_trash)
         return
 
     trash_root.mkdir(parents=True, exist_ok=True)
     trashed_repos = trash_root / f"repos-{uuid.uuid4().hex}"
     os.rename(repos_root, trashed_repos)
-    _delete_paths_in_background([*stale_trash, trashed_repos])
+    delete_paths_in_background([*stale_trash, trashed_repos])
 
 
 def _linked_repo_clone_location(

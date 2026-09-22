@@ -34,6 +34,7 @@ _NON_HOLD_FAILURE_OUTCOMES = {
     "epic_approved",
     "epic_launch_failed",
     "setup_materialization_failed",
+    "setup_workspace_failed",
 }
 
 

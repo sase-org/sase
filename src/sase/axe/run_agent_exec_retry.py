@@ -14,7 +14,10 @@ from typing import TYPE_CHECKING, Literal
 from sase.axe.run_agent_exec_attempts import snapshot_attempt
 from sase.axe.run_agent_helpers import append_meta_list_field
 from sase.axe.runner_signals import was_killed
-from sase.axe.runner_workspace import prepare_workspace
+from sase.axe.runner_workspace import (
+    prepare_workspace,
+    prepare_workspace_with_reclone,
+)
 from sase.llm_provider.provider_disable import get_active_provider_disable
 from sase.llm_provider.gate_intent_guard import (
     GateIntentLostError,
@@ -42,6 +45,47 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _RetryAction = Literal["continue", "break", "raise"]
+
+
+def _reenter_recreated_retry_workspace(ctx: AgentExecContext) -> None:
+    """Chdir back into a re-created checkout and re-check the retry claim.
+
+    The checkout was moved aside and re-materialized: the process cwd still
+    points at the trashed directory, so chdir back in, re-apply
+    cwd-derived environment, and re-check occupancy before the second
+    preparation pass touches the new checkout.
+    """
+    _guard_retry_prep_not_occupied(ctx)
+    os.chdir(ctx.workspace_dir)
+    os.environ["SASE_ACTIVE_PROJECT_DIR"] = ctx.workspace_dir
+    from sase.sdd.env import set_sdd_dir_env
+
+    set_sdd_dir_env(
+        os.environ,
+        workspace_dir=ctx.workspace_dir,
+        workspace_num=ctx.workspace_num,
+    )
+
+
+def _retry_prepare_workspace(ctx: AgentExecContext) -> None:
+    """Re-prepare the checkout for a retry, re-creating it once if needed.
+
+    Shares the launch path's last-resort fallback: when in-place healing
+    fails with a re-creation-eligible error, the numbered checkout is rescued
+    and re-materialized from the primary before preparing once more.
+    """
+    _guard_retry_prep_not_occupied(ctx)
+    prepare_workspace_with_reclone(
+        prepare_workspace,
+        workspace_dir=ctx.workspace_dir,
+        workspace_num=ctx.workspace_num,
+        cl_name=ctx.cl_name,
+        update_target=ctx.update_target,
+        project_basename=ctx.project_name,
+        backup_suffix="ace",
+        project_file=ctx.project_file,
+        after_recreate=lambda: _reenter_recreated_retry_workspace(ctx),
+    )
 
 
 def _guard_retry_prep_not_occupied(ctx: AgentExecContext) -> None:
@@ -397,16 +441,7 @@ def handle_workflow_error(
             and not ctx.is_home_mode
             and not active_retry_cfg.preserve_workspace
         ):
-            _guard_retry_prep_not_occupied(ctx)
-            prepare_workspace(
-                ctx.workspace_dir,
-                ctx.cl_name,
-                ctx.update_target,
-                backup_suffix="ace",
-                project_basename=ctx.project_name,
-                self_heal=ctx.workspace_num > 1,
-                workspace_num=ctx.workspace_num,
-            )
+            _retry_prepare_workspace(ctx)
         os.chdir(ctx.workspace_dir)
         os.environ["SASE_ACTIVE_PROJECT_DIR"] = ctx.workspace_dir
         from sase.sdd.env import set_sdd_dir_env
@@ -448,16 +483,7 @@ def handle_workflow_error(
             and not ctx.is_home_mode
             and not active_retry_cfg.preserve_workspace
         ):
-            _guard_retry_prep_not_occupied(ctx)
-            prepare_workspace(
-                ctx.workspace_dir,
-                ctx.cl_name,
-                ctx.update_target,
-                backup_suffix="ace",
-                project_basename=ctx.project_name,
-                self_heal=ctx.workspace_num > 1,
-                workspace_num=ctx.workspace_num,
-            )
+            _retry_prepare_workspace(ctx)
         os.chdir(ctx.workspace_dir)
         os.environ["SASE_ACTIVE_PROJECT_DIR"] = ctx.workspace_dir
         from sase.sdd.env import set_sdd_dir_env

@@ -18,6 +18,7 @@ from sase.workspace_provider._utils_checkout import (
     ensure_workspace_checkout,
     parse_bare_repo_dir,
     parse_workspace_dir,
+    recreate_managed_workspace,
     set_workspace_dir,
 )
 from sase.workspace_provider._utils_git import (
@@ -63,6 +64,7 @@ __all__ = [
     "non_interactive_git_env",
     "parse_bare_repo_dir",
     "parse_workspace_dir",
+    "recreate_managed_workspace",
     "reconcile_managed_checkout_origin",
     "set_workspace_dir",
 ]
