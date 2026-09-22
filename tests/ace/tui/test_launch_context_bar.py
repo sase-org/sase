@@ -138,7 +138,7 @@ async def test_full_cluster_reads_label_chip_separator_label_chip() -> None:
         await page.pause()
 
         assert bar.density == "full"
-        assert _bar_plain(bar) == "MODEL: o3@high · PROJECT: +sase"
+        assert _bar_plain(bar) == "model: o3@high · project: +sase"
 
 
 async def test_compact_cluster_hides_both_labels() -> None:
@@ -162,8 +162,8 @@ async def test_empty_project_collapses_group_without_dangling_separator() -> Non
         project_label = bar.query_one("#launch-project-label", Static)
         assert separator.display is False
         assert project_label.display is False
-        assert _bar_plain(bar) == "MODEL: o3@high"
-        assert bar.full_cells == bar.compact_cells + len("MODEL: ")
+        assert _bar_plain(bar) == "model: o3@high"
+        assert bar.full_cells == bar.compact_cells + len("model: ")
 
 
 async def test_override_switches_model_label_and_marks_gold_lane() -> None:
@@ -198,7 +198,7 @@ async def test_calm_model_label_carries_default_tooltip() -> None:
         await page.pause()
 
         model_label = bar.query_one("#launch-model-label", Static)
-        assert model_label.render().plain == "MODEL: "
+        assert model_label.render().plain == "model: "
         assert not model_label.has_class("-override")
         assert model_label.tooltip == ("The model new agents launch with by default.")
         project_label = bar.query_one("#launch-project-label", Static)
