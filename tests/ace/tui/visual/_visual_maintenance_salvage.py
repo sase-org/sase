@@ -1,8 +1,8 @@
-"""Per-node salvage, recovery retries, and partial apply for update mode."""
+"""Update-mode orchestration with per-node salvage and partial apply."""
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -10,7 +10,6 @@ from typing import Any
 from tests.ace.tui.visual._visual_capture import (
     CaptureRecord,
     InventoryReport,
-    load_inventory,
 )
 from tests.ace.tui.visual._visual_maintenance_apply import apply_changes
 from tests.ace.tui.visual._visual_maintenance_baseline import (
@@ -20,8 +19,9 @@ from tests.ace.tui.visual._visual_maintenance_compare import (
     classify_selected_captures,
     preserve_expected_bytes,
 )
-from tests.ace.tui.visual._visual_maintenance_exec import run_pytest
-from tests.ace.tui.visual._visual_maintenance_verify import run_verify_agreement
+from tests.ace.tui.visual._visual_maintenance_exec import (
+    run_pytest,
+)
 from tests.ace.tui.visual._visual_maintenance_manifest import (
     build_manifest,
     failure_manifest,
@@ -30,31 +30,29 @@ from tests.ace.tui.visual._visual_maintenance_manifest import (
     publish_manifest_and_report,
     try_publish_failure_manifest,
 )
+from tests.ace.tui.visual._visual_maintenance_salvage_finalize import (
+    _SalvageFinalizeMixin,
+)
+from tests.ace.tui.visual._visual_maintenance_salvage_recovery import (
+    _SalvageRecoveryMixin,
+    _has_no_usable_inventory,
+    _load_if_present,
+)
 from tests.ace.tui.visual._visual_maintenance_trust import (
-    STALE_LEFT_BEHIND,
     derive_node_trust,
-    extract_failed_lines,
     filter_concurrent_edits,
-    protocol_error_skip,
-    pruning_gate,
-    split_protocol_errors,
     stale_records_for,
 )
 from tests.ace.tui.visual._visual_maintenance_types import (
     EXIT_FAILURE,
     EXIT_SUCCESS,
     JOURNAL_FILENAME,
-    KIND_CREATED,
-    KIND_UPDATED,
-    REASON_TEST_FAILED,
-    SKIP_KIND_NODE,
     STATUS_APPLIED,
     STATUS_CLEAN,
     STATUS_DRIFT,
     STATUS_FAILED,
     STATUS_INTERRUPTED,
     STATUS_PARTIAL,
-    STATUS_REFUSED,
     AttemptRecord,
     ChangeManifest,
     ChangeRecord,
@@ -66,19 +64,6 @@ from tests.ace.tui.visual._visual_maintenance_types import (
     UsageError,
     has_actionable_changes,
 )
-
-
-MAX_RECOVERY_ATTEMPTS = 2
-SERIAL_RECOVERY_NODE_LIMIT = 25
-
-RECOVERY_LOG_NAMES = (
-    "capture.log",
-    "capture-retry.log",
-    "recover-1.log",
-    "recover-2.log",
-)
-
-NO_TESTS_WARNING = "selection matched no visual tests; nothing was checked or updated"
 
 
 def run_update(
@@ -154,7 +139,7 @@ def run_update(
 
 
 @dataclass
-class _UpdateRun:
+class _UpdateRun(_SalvageRecoveryMixin, _SalvageFinalizeMixin):
     """Mutable state for one salvaging update-mode run."""
 
     request: MaintenanceRequest
@@ -327,270 +312,6 @@ class _UpdateRun:
             )
         )
 
-    def _finish_empty_selection(self) -> int:
-        selectors = " ".join(self.request.pytest_args) or self.request.scope
-        manifest = build_manifest(
-            self.request,
-            repo_root=self.repo_root,
-            run_id=self.run_id,
-            run_dir=self.run_dir,
-            capture_dir=self.capture_dir,
-            verify_dir=None,
-            baseline=self.baseline,
-            renderer=self.renderer,
-            changes=(),
-            status=STATUS_CLEAN,
-            exit_code=EXIT_SUCCESS,
-            child_exit_code=self.child_exit,
-            inventory_reasons=(),
-            errors=(),
-            logs=self.logs,
-            journal_relpath=None,
-            extra={
-                "full_inventory": False,
-                "pruning_allowed": False,
-                "complete": False,
-            },
-            warnings=(f"{NO_TESTS_WARNING} (selectors: {selectors})",),
-            skipped=(),
-            attempts=tuple(self.attempts),
-            pruning_skipped_reason=None,
-        )
-        publish_manifest_and_report(self.repo_root, self.run_dir, manifest)
-        print_summary(manifest)
-        return EXIT_SUCCESS
-
-    def _refuse_pytest_usage(self) -> None:
-        manifest = failure_manifest(
-            self.request,
-            repo_root=self.repo_root,
-            run_id=self.run_id,
-            run_dir=self.run_dir,
-            capture_dir=self.capture_dir,
-            verify_dir=None,
-            baseline=self.baseline,
-            renderer=self.renderer,
-            child_exit_code=self.child_exit,
-            logs=self.logs,
-            status=STATUS_REFUSED,
-            errors=(
-                "pytest reported a usage error (child exit 4); "
-                f"see {self.logs['capture']}",
-            ),
-            attempts=tuple(self.attempts),
-        )
-        try_publish_failure_manifest(self.repo_root, self.run_dir, manifest)
-        print_summary(manifest)
-        raise UsageError(
-            f"pytest reported a usage error (child exit 4); see {self.logs['capture']}"
-        )
-
-    def _retry_capture(self) -> InventoryReport:
-        retry_dir = self.run_dir / "capture-retry"
-        retry_dir.mkdir(parents=True, exist_ok=True)
-        retry_log = self.run_dir / "capture-retry.log"
-        self.logs["capture-retry"] = posix_relative(retry_log, self.repo_root)
-        self.child_exit = run_pytest(
-            self.hooks,
-            repo_root=self.repo_root,
-            capture_dir=retry_dir,
-            run_id=f"{self.run_id}-retry",
-            scope=self.request.scope,
-            pytest_args=self.request.pytest_args,
-            log_path=retry_log,
-            workers=self.request.workers,
-        )
-        self._note_attempt(
-            "capture-retry",
-            f"{self.run_id}-retry",
-            retry_dir,
-            "capture-retry",
-            self.request.workers,
-        )
-        retry_inventory = _load_if_present(retry_dir / "inventory.json")
-        if _has_no_usable_inventory(retry_inventory):
-            raise MaintenanceError(
-                "no usable capture inventory after retrying the capture pass; "
-                f"see {self.logs['capture']} and {self.logs['capture-retry']} "
-                f"(child_exit_code={self.child_exit})"
-            )
-        assert retry_inventory is not None
-        return retry_inventory
-
-    def _recover_nodes(
-        self,
-        recover: Sequence[str],
-    ) -> dict[str, tuple[tuple[CaptureRecord, ...], Path]]:
-        """Rerun recover-set nodes and return newly trusted candidates."""
-        recovered: dict[str, tuple[tuple[CaptureRecord, ...], Path]] = {}
-        remaining = list(recover)
-        for attempt in range(1, MAX_RECOVERY_ATTEMPTS + 1):
-            if not remaining:
-                break
-            recover_dir = self.run_dir / f"recover-{attempt}"
-            recover_dir.mkdir(parents=True, exist_ok=True)
-            recover_log = self.run_dir / f"recover-{attempt}.log"
-            log_key = f"recover-{attempt}"
-            self.logs[log_key] = posix_relative(recover_log, self.repo_root)
-            workers = (
-                1
-                if len(remaining) <= SERIAL_RECOVERY_NODE_LIMIT
-                else self.request.workers
-            )
-            recover_run_id = f"{self.run_id}-recover-{attempt}"
-            self.child_exit = run_pytest(
-                self.hooks,
-                repo_root=self.repo_root,
-                capture_dir=recover_dir,
-                run_id=recover_run_id,
-                scope="targeted",
-                pytest_args=tuple(remaining),
-                log_path=recover_log,
-                workers=workers,
-            )
-            self._note_attempt(log_key, recover_run_id, recover_dir, log_key, workers)
-            inventory = _load_if_present(recover_dir / "inventory.json")
-            if inventory is None:
-                continue
-            trusted, _ = derive_node_trust(inventory)
-            for node_id in remaining:
-                if node_id in trusted:
-                    recovered[node_id] = (
-                        tuple(
-                            record
-                            for record in inventory.captures
-                            if record.node_id == node_id
-                        ),
-                        recover_dir,
-                    )
-            remaining = [node_id for node_id in remaining if node_id not in trusted]
-        return recovered
-
-    def _ordered_candidates(
-        self,
-        inventory: InventoryReport,
-        recovered: Mapping[str, tuple[tuple[CaptureRecord, ...], Path]],
-    ) -> list[tuple[CaptureRecord, Path]]:
-        trusted, _ = derive_node_trust(inventory)
-        by_node: dict[str, list[tuple[CaptureRecord, Path]]] = {}
-        for record in inventory.captures:
-            if record.node_id in recovered or record.node_id not in trusted:
-                continue
-            by_node.setdefault(record.node_id, []).append((record, self.capture_dir))
-        for node_id, (records, source_dir) in recovered.items():
-            by_node[node_id] = [(item, source_dir) for item in records]
-        return [pair for node_id in sorted(by_node) for pair in by_node[node_id]]
-
-    def _node_skip(self, node_id: str) -> SkippedRecord:
-        evidence = sorted({record.log for record in self.attempts if record.log})
-        failed_lines = _failed_lines_for_node(node_id, self.run_dir)
-        detail = (
-            "test failed or was lost and never recovered "
-            f"after {len(self.attempts)} attempt(s); "
-            "existing goldens left untouched"
-        )
-        if failed_lines:
-            detail += f" ({'; '.join(failed_lines)})"
-        return SkippedRecord(
-            kind=SKIP_KIND_NODE,
-            node_id=node_id,
-            path=None,
-            reason=REASON_TEST_FAILED,
-            detail=detail,
-            evidence=tuple(evidence),
-            attempts=len(self.attempts),
-        )
-
-    def _handle_protocol_problems(
-        self,
-        inventory: InventoryReport,
-        changes: Sequence[ChangeRecord],
-        problems: Sequence[str],
-    ) -> None:
-        attributable, unattributable = split_protocol_errors(inventory.errors)
-        recovery_errors: list[str] = []
-        for attempt in range(1, MAX_RECOVERY_ATTEMPTS + 1):
-            recovery = _load_if_present(
-                self.run_dir / f"recover-{attempt}" / "inventory.json"
-            )
-            if recovery is None or not recovery.errors:
-                continue
-            recovery_errors.extend(recovery.errors)
-            extra_attr, extra_unattr = split_protocol_errors(recovery.errors)
-            for error_path, error_details in extra_attr.items():
-                attributable.setdefault(error_path, []).extend(error_details)
-            unattributable.extend(extra_unattr)
-        self.dropped_paths = set(attributable)
-        for path in sorted(attributable):
-            details = "; ".join(attributable[path])
-            self.skipped.append(
-                protocol_error_skip(
-                    path,
-                    f"capture protocol error; left untouched ({details})",
-                    evidence=_evidence_for_path(changes, path),
-                )
-            )
-        for problem in problems:
-            path, _, detail = problem.partition(":")
-            self.skipped.append(
-                protocol_error_skip(
-                    path.strip() or None,
-                    "candidate could not be classified; left untouched "
-                    f"({detail.strip()})",
-                )
-            )
-        if unattributable:
-            self.warnings.append(
-                "capture protocol errors cannot be attributed to one golden "
-                f"({'; '.join(sorted(set(unattributable))[:3])}); "
-                f"{STALE_LEFT_BEHIND}"
-            )
-        self.protocol_errors = list(inventory.errors) + recovery_errors
-
-    def _prune_allowed(
-        self,
-        inventory: InventoryReport,
-        trusted: frozenset[str],
-        ordered: Sequence[tuple[CaptureRecord, Path]],
-    ) -> bool:
-        allowed, reason = pruning_gate(
-            requested_scope=self.request.scope,
-            inventory=inventory,
-            trusted=trusted,
-            protocol_errors=self.protocol_errors,
-            trusted_records=[record for record, _ in ordered],
-            baseline=self.baseline,
-        )
-        self.prune_allowed = allowed
-        if not allowed and self.request.scope == "full":
-            self.pruning_skipped_reason = reason
-            self.warnings.append(reason or STALE_LEFT_BEHIND)
-        return allowed
-
-    def _verify(
-        self,
-        changes: Sequence[ChangeRecord],
-        ordered: Sequence[tuple[CaptureRecord, Path]],
-    ) -> tuple[ChangeRecord, ...]:
-        if not any(item.kind in {KIND_CREATED, KIND_UPDATED} for item in changes):
-            return tuple(changes)
-        result = run_verify_agreement(
-            hooks=self.hooks,
-            repo_root=self.repo_root,
-            run_id=self.run_id,
-            run_dir=self.run_dir,
-            baseline=self.baseline,
-            ordered=ordered,
-            changes=changes,
-        )
-        self.verify_dir = result.verify_dir
-        self.logs.update(result.logs)
-        self.attempts.extend(result.attempts)
-        self.skipped.extend(result.skipped)
-        self.warnings.extend(result.warnings)
-        self.verify_sources = dict(result.sources)
-        return result.changes
-
     def _apply(
         self,
         changes: Sequence[ChangeRecord],
@@ -670,39 +391,3 @@ class _UpdateRun:
                     atomic_write_bytes(merged / relpath, source.read_bytes())
                     seen.add(relpath)
         return merged
-
-
-def _load_if_present(path: Path) -> InventoryReport | None:
-    if not path.is_file():
-        return None
-    return load_inventory(path)
-
-
-def _has_no_usable_inventory(inventory: InventoryReport | None) -> bool:
-    if inventory is None:
-        return True
-    return not inventory.executed_visual_node_ids and not inventory.captures
-
-
-def _failed_lines_for_node(node_id: str, run_dir: Path) -> tuple[str, ...]:
-    for log_name in RECOVERY_LOG_NAMES:
-        matching = [
-            line for line in extract_failed_lines(run_dir / log_name) if node_id in line
-        ]
-        if matching:
-            return tuple(matching[:2])
-    for log_name in RECOVERY_LOG_NAMES:
-        lines = extract_failed_lines(run_dir / log_name)
-        if lines:
-            return tuple(lines[:1])
-    return ()
-
-
-def _evidence_for_path(
-    changes: Sequence[ChangeRecord],
-    path: str,
-) -> tuple[str, ...]:
-    for change in changes:
-        if change.path == path and change.candidate_png_relpath:
-            return (change.candidate_png_relpath,)
-    return ()
