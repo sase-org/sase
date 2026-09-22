@@ -48,14 +48,47 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         elif last != query:
             mounted.clear()
             self._session_sticky_query = query  # type: ignore[attr-defined]
+            backing = getattr(self, "_session_mounted_panel_backing", None)
+            if backing is not None:
+                backing.clear()
         return mounted
+
+    def _session_mounted_backing_map(
+        self,
+    ) -> dict[
+        tuple[AgentType, str, str | None], set[tuple[AgentType, str, str | None]]
+    ]:
+        """Return container identities mapped to their backing member identities.
+
+        The map unions every member set ever recorded under one committed
+        query and is cleared with the sticky store on query change, so a
+        synthetic clan container retires once all of its members are
+        authoritatively gone even though the container itself is never
+        dismissed.
+        """
+        # Route through the identity map so a committed-query change clears
+        # the backing alongside the store no matter which helper runs first.
+        self._session_mounted_identity_map()
+        backing = getattr(self, "_session_mounted_panel_backing", None)
+        if backing is None:
+            backing = {}
+            self._session_mounted_panel_backing = backing  # type: ignore[attr-defined]
+        return backing
 
     def _session_mounted_panel_key_set(self) -> set[PanelKey]:
         """Return a snapshot of mounted-this-session keys."""
         return set(self._session_mounted_identity_map())
 
-    def _remember_session_mounted_occupancy(self) -> None:
-        """Record the identities behind each key that has rendered occupancy."""
+    def _remember_session_mounted_occupancy(self) -> set[PanelKey]:
+        """Reconcile the session-sticky store against the rendered roster.
+
+        Records every rendered row under its current key, moves identities
+        rendered under a new key out of their old keys, then drops dismissed
+        identities (and clan containers whose backing members are all
+        dismissed) from keys with no rendered rows. Absence alone never
+        retires a key: an incomplete or bounded load is not proof a row is
+        gone. Returns the keys the reconcile retired.
+        """
         from ...models.agent_panels import (
             agent_is_rendered_in_agents_panel,
             normalize_panel_key,
@@ -63,11 +96,155 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         )
 
         mounted = self._session_mounted_identity_map()
+        backing = self._session_mounted_backing_map()
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
         keys = panel_key_per_agent(self._agents, merge_tribe_panels=merge_tribe_panels)
+        rendered_now: dict[tuple[AgentType, str, str | None], PanelKey] = {}
         for agent, key in zip(self._agents, keys, strict=True):
             if agent_is_rendered_in_agents_panel(agent):
-                mounted.setdefault(normalize_panel_key(key), set()).add(agent.identity)
+                norm = normalize_panel_key(key)
+                rendered_now[agent.identity] = norm
+                mounted.setdefault(norm, set()).add(agent.identity)
+        # A row rendered under a new key proves it left the old panel.
+        for identity, key in rendered_now.items():
+            for other in list(mounted):
+                if other != key:
+                    mounted[other].discard(identity)
+        self._record_session_mounted_backing(backing, set(rendered_now))
+        # Keys with rendered rows keep their mount regardless of the store.
+        return self._prune_session_mounted_gone(
+            set(getattr(self, "_dismissed_agents", ())),
+            skip_keys=set(rendered_now.values()),
+        )
+
+    def _record_session_mounted_backing(
+        self,
+        backing: dict[
+            tuple[AgentType, str, str | None], set[tuple[AgentType, str, str | None]]
+        ],
+        rendered: set[tuple[AgentType, str, str | None]],
+    ) -> None:
+        """Union loaded clan members under their rendered containers.
+
+        Builds the member index in one pass over the loaded roster, grouped
+        by parent fold key and clan name, so a sync never scans the roster
+        once per container. Only rendered containers gain backing: an
+        expanded clan's members keep their own key alive directly.
+        """
+        from ...models._agent_tree import agent_fold_key
+
+        roster = getattr(self, "_agents_with_children", None)
+        if roster is None:
+            roster = self._agents
+        by_parent: dict[str, set[tuple[AgentType, str, str | None]]] = {}
+        by_clan: dict[
+            str, set[tuple[tuple[AgentType, str, str | None], str | None]]
+        ] = {}
+        containers: list[Agent] = []
+        for agent in roster:
+            if agent.is_clan_container:
+                if agent.agent_clan and agent.identity in rendered:
+                    containers.append(agent)
+                continue
+            if agent.tree_parent_key:
+                by_parent.setdefault(agent.tree_parent_key, set()).add(agent.identity)
+            if agent.agent_clan:
+                by_clan.setdefault(agent.agent_clan, set()).add(
+                    (agent.identity, agent.agent_clan_generation)
+                )
+        for container in containers:
+            members: set[tuple[AgentType, str, str | None]] = set()
+            fold_key = agent_fold_key(container)
+            if fold_key is not None:
+                members.update(by_parent.get(fold_key, ()))
+            clan = container.agent_clan
+            generation = container.agent_clan_generation
+            if clan is not None:
+                for identity, candidate_generation in by_clan.get(clan, ()):
+                    if (
+                        generation is None
+                        or candidate_generation is None
+                        or candidate_generation == generation
+                    ):
+                        members.add(identity)
+            if members:
+                backing.setdefault(container.identity, set()).update(members)
+
+    def _prune_session_mounted_gone(
+        self,
+        gone: set[tuple[AgentType, str, str | None]],
+        *,
+        skip_keys: set[PanelKey] | None = None,
+    ) -> set[PanelKey]:
+        """Drop *gone* identities and fully-gone-backed containers.
+
+        A recorded clan container retires with its key once every backing
+        member is in *gone*, even though the container itself is never
+        dismissed. Keys in *skip_keys* keep their mount regardless of the
+        store. Returns the keys left empty.
+        """
+        mounted = self._session_mounted_identity_map()
+        backing = self._session_mounted_backing_map()
+        skipped = skip_keys or set()
+        retired: set[PanelKey] = set()
+        for key in list(mounted):
+            if key in skipped:
+                continue
+            remaining = mounted[key]
+            before = set(remaining)
+            remaining.difference_update(gone)
+            for identity in list(remaining):
+                members = backing.get(identity)
+                if members and members <= gone:
+                    remaining.discard(identity)
+            for identity in before - set(remaining):
+                backing.pop(identity, None)
+            if not remaining:
+                del mounted[key]
+                retired.add(key)
+        return retired
+
+    def _reconcile_session_mounted_for_apply(self, load_state: object) -> set[PanelKey]:
+        """Prune the sticky store against one authoritative complete roster.
+
+        Only a ``complete_history`` apply under the currently committed
+        query carries removal authority: bounded, delta, revalidate, and
+        other incomplete applies — including bounded ``has_more=False``
+        zeros — never prune, and neither does a complete roster published
+        for a query the user has already left. Rows from the fleet
+        projection stay in the mixed roster, so a local complete apply
+        never prunes them. Returns the keys that were retired.
+        """
+        if not getattr(load_state, "complete_history", False):
+            return set()
+        from ._loading_apply_history import history_query_key_for_load
+        from ...models.agent_live_query_engine import agents_history_query_key
+
+        if history_query_key_for_load(
+            self,
+            load_state,  # type: ignore[arg-type]
+        ) != agents_history_query_key(self._session_sticky_query_value()):
+            return set()
+        roster = getattr(self, "_agents_with_children", None)
+        if roster is None:
+            roster = self._agents
+        present = {agent.identity for agent in roster}
+        mounted = self._session_mounted_identity_map()
+        backing = self._session_mounted_backing_map()
+        gone = {
+            identity
+            for remaining in mounted.values()
+            for identity in remaining
+            if identity not in present
+        }
+        gone.update(
+            identity
+            for members in backing.values()
+            for identity in members
+            if identity not in present
+        )
+        gone.update(getattr(self, "_dismissed_agents", ()))
+        return self._prune_session_mounted_gone(gone)
 
     def _retire_session_mounted_identities(
         self, identities: Collection[tuple[AgentType, str, str | None]]
@@ -77,19 +254,20 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
         Only user-driven removals (dismiss, kill, proc-shell dismiss) call this.
         A tribe's agents merely being absent from the roster never retires its
         key: an incomplete or bounded load is not proof that a row is gone.
-        Returns the keys that were retired.
+        Clan containers retire through their backing: removing a clan's last
+        members retires the container identity in the same call. Returns the
+        keys that were retired.
         """
-        mounted = self._session_mounted_identity_map()
-        retired: set[PanelKey] = set()
-        for key in list(mounted):
-            remaining = mounted[key]
-            if remaining.isdisjoint(identities):
-                continue
-            remaining.difference_update(identities)
-            if not remaining:
-                del mounted[key]
-                retired.add(key)
-        return retired
+        removed = set(identities)
+        if removed:
+            mounted = self._session_mounted_identity_map()
+            # Seed backing for containers the store already tracks so an
+            # explicit member removal retires them without waiting for a sync.
+            self._record_session_mounted_backing(
+                self._session_mounted_backing_map(),
+                {identity for remaining in mounted.values() for identity in remaining},
+            )
+        return self._prune_session_mounted_gone(removed)
 
     def _widget_panel_keys(
         self,
@@ -157,8 +335,12 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
             collapsed_panel_keys=collapsed_keys,
         ).panel_keys
 
-    def _sync_panel_group(self) -> None:
-        """Recompute :attr:`_panel_group` from the current :attr:`_agents`."""
+    def _sync_panel_group(self) -> set[PanelKey]:
+        """Recompute :attr:`_panel_group` from the current :attr:`_agents`.
+
+        Returns the session-sticky keys the sync-time reconcile retired so
+        the display pass can unmount their widgets in the same refresh.
+        """
         from ...models.agent_panels import (
             AgentPanelGroup,
             agent_is_rendered_in_agents_panel,
@@ -168,7 +350,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
 
         prev_focused = self._panel_group.focused_key
         merge_tribe_panels = getattr(self, "_agent_panels_grouped", False)
-        self._remember_session_mounted_occupancy()
+        reconciled_retired = self._remember_session_mounted_occupancy()
         if merge_tribe_panels:
             self._panel_group = AgentPanelGroup.from_agents(
                 self._agents,
@@ -227,7 +409,7 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
                 selected_key == focused_key
                 and panel_index.local_idx_for(focused_key, self.current_idx) >= 0
             ):
-                return
+                return reconciled_retired
             focus_reset = focused_key != prev_focused
             parked = False
             if not focus_reset:
@@ -260,8 +442,9 @@ class PanelCollectionMixin(PanelRefreshStateMixin):
                     selected_key
                 )
                 self._expanded_panel_focus = False
-                return
+                return reconciled_retired
         self._snap_current_idx_to_focused_panel(keys_per_agent, focused_key)
+        return reconciled_retired
 
     def _snap_current_idx_to_focused_panel(
         self, keys_per_agent: list[PanelKey], focused_key: PanelKey

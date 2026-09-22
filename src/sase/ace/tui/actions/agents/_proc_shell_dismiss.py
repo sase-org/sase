@@ -76,12 +76,29 @@ class ProcShellDismissMixin:
         panels_retired = bool(callable(retire) and retire(removed))
         try_remove = getattr(self, "_try_remove_agent_rows", None)
         fast_path = callable(try_remove) and try_remove(removed)
+        # A clan member's monitor shell carries a tree parent link: removing
+        # it re-projects its clan, so the visible list must be rebuilt rather
+        # than filtered by identity (which would orphan the container).
+        clan_projection_changed = any(
+            agent.is_clan_container or agent.tree_parent_key for agent in targets
+        )
         self._agents_with_children = [
             agent
             for agent in self._agents_with_children
             if agent.identity not in removed
         ]
-        if fast_path:
+        if clan_projection_changed:
+            from ...models._agent_tree import project_clan_tree
+
+            self._agents_with_children = project_clan_tree(self._agents_with_children)
+            refilter = getattr(self, "_refilter_agents", None)
+            if callable(refilter):
+                refilter(prior_pos=prior_pos)
+            else:
+                self._agents = [
+                    agent for agent in self._agents if agent.identity not in removed
+                ]
+        elif fast_path:
             finish = getattr(self, "_apply_dismissal_in_memory_fast_finish", None)
             if callable(finish):
                 finish(removed, prior_pos=prior_pos, panels_retired=panels_retired)

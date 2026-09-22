@@ -364,6 +364,14 @@ class AgentLoadingApplyMixin(
         )
         self._fold_counts = fold_counts
 
+        # An authoritative complete-history roster retires sticky panels
+        # whose nodes are gone however they left; bounded and incomplete
+        # applies never carry that authority. Runs before the finalize that
+        # syncs panels so the same publication unmounts the widget.
+        reconcile_sticky = getattr(self, "_reconcile_session_mounted_for_apply", None)
+        if callable(reconcile_sticky):
+            reconcile_sticky(load_state)
+
         finalize_plan = self._select_finalize_plan(
             boundary.finalize,
             on_agents_tab=on_agents_tab,

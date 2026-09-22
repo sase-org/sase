@@ -138,12 +138,18 @@ class AgentDismissMemoryMixin:
             and self._try_remove_agent_rows(removed_identities)  # type: ignore[attr-defined]
         )
 
+        clan_projection_changed = any(
+            agent.identity in removed_identities
+            and (agent.is_clan_container or agent.tree_parent_key)
+            for agent in self._agents_with_children
+        )
+
         self._agents_with_children = [
             a
             for a in self._agents_with_children
             if a.identity not in removed_identities
         ]
-        if any(agent.is_clan_container or agent.tree_parent_key for agent in removed):
+        if clan_projection_changed:
             from ...models._agent_tree import project_clan_tree
 
             self._agents_with_children = project_clan_tree(self._agents_with_children)
@@ -157,6 +163,14 @@ class AgentDismissMemoryMixin:
         self._dismissed_agent_objects = trim_dismissed_agent_objects(
             self._dismissed_agent_objects
         )
+
+        if clan_projection_changed:
+            # A removed clan row re-projects its clan: filtering
+            # ``_agents`` by identity alone would orphan the synthetic
+            # container (or a partially emptied one). Rebuild both lists
+            # through the refilter pipeline instead, like the kill path.
+            self._refilter_agents(prior_pos=prior_pos)  # type: ignore[attr-defined]
+            return
 
         if fast_path:
             self._apply_dismissal_in_memory_fast_finish(

@@ -101,8 +101,13 @@ async def test_cleanup_panel_dismiss_completed_includes_clan_members(
         await wait_for_startup(page)
         assert page.app._panel_group.panel_keys == [None, "epic", "review"]
 
-        await page.press("J")
-        await page.wait_for(lambda _screen: page.app._panel_group.focused_key == "epic")
+        # Panel focus follows the selection, so startup may already sit on
+        # @epic; only step there when it does not.
+        if page.app._panel_group.focused_key != "epic":
+            await page.press("J")
+            await page.wait_for(
+                lambda _screen: page.app._panel_group.focused_key == "epic"
+            )
         initial_dismissed = set(page.app._dismissed_agents)
 
         await page.press("X")
@@ -159,8 +164,13 @@ async def test_cleanup_panel_kill_and_dismiss_includes_clan_members(
         await wait_for_startup(page)
         assert page.app._panel_group.panel_keys == [None, "epic", "review"]
 
-        await page.press("J")
-        await page.wait_for(lambda _screen: page.app._panel_group.focused_key == "epic")
+        # Panel focus follows the selection, so startup may already sit on
+        # @epic; only step there when it does not.
+        if page.app._panel_group.focused_key != "epic":
+            await page.press("J")
+            await page.wait_for(
+                lambda _screen: page.app._panel_group.focused_key == "epic"
+            )
         initial_dismissed = set(page.app._dismissed_agents)
         notifications: list[tuple[str, str]] = []
         monkeypatch.setattr(

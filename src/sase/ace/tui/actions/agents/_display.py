@@ -463,7 +463,7 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         prune = getattr(self, "_prune_stale_marked_agents", None)
         if callable(prune):
             prune()
-        self._sync_panel_group()
+        reconciled_retired = self._sync_panel_group() or set()
         self._snap_focus_after_agents_fold_restore()
 
         affected_keys = affected_panel_keys(
@@ -486,6 +486,12 @@ class AgentDisplayMixin(AgentNeighborMixin, PanelsMixin, DetailMixin):
         )
         if diff.has_collection_changes:
             panel_rebuild_keys.update(affected_keys)
+        if reconciled_retired:
+            # A key retired by the sync-time reconcile may belong to a panel
+            # that was already a zero-row strip: no diff entry names it, so
+            # name it for rebuild and let the widget sync unmount it in this
+            # frame (recorded as display_panel_remove) instead of lingering.
+            panel_rebuild_keys.update(reconciled_retired)
 
         removed_in_place = set(diff.removed_identities) - scope.rebuilt_removals
         if removed_in_place and not self._try_remove_agent_rows(removed_in_place):
