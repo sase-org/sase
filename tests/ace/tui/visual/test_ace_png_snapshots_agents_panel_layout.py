@@ -329,8 +329,12 @@ async def test_agents_file_only_layout_png_snapshot(
         )
         await wait_for_state(
             page,
-            lambda: detail.is_file_visible() and not detail.is_metadata_visible(),
-            description="only file detail visible",
+            lambda: (
+                detail.is_file_visible()
+                and not detail.is_metadata_visible()
+                and not detail.query_one("#agent-header-panel").has_class("hidden")
+            ),
+            description="only file detail visible with header",
         )
         await wait_for_visual_idle(page)
 

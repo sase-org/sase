@@ -10,7 +10,10 @@ from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll
 
 from sase.ace.tui._app_action_availability import check_app_action
-from sase.ace.tui.widgets._agent_detail_panels import DetailLayoutMode
+from sase.ace.tui.widgets._agent_detail_panels import (
+    DetailLayoutMode,
+    DetailPanelMode,
+)
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.agent_header_panel import AgentHeaderPanel
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
@@ -139,18 +142,43 @@ async def test_clan_selection_hides_header() -> None:
         assert detail.header_toggle_available() is False
 
 
-async def test_secondary_only_hides_header_and_split_keeps_it() -> None:
+async def test_secondary_only_keeps_header_visible_and_toggleable() -> None:
     app = _DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await _show_agent(detail, _solo(), pilot)
-        detail._has_file_content = True  # noqa: SLF001
         panel = _header_panel(detail)
 
+        detail._has_file_content = True  # noqa: SLF001
         assert detail.set_detail_layout(DetailLayoutMode.SECONDARY_ONLY) is True
         await pilot.pause()
-        assert panel.has_class("hidden")
-        assert detail.header_toggle_available() is False
+        assert not panel.has_class("hidden")
+        assert detail.header_toggle_available() is True
+        assert detail.is_metadata_visible() is False
+        file_scroll = detail.query_one("#agent-file-scroll", VerticalScroll)
+        assert file_scroll.region.y >= panel.region.bottom
+        assert file_scroll.region.bottom <= detail.region.bottom
+        assert detail.toggle_header_expanded() is True
+        await pilot.pause()
+        assert "Name:" in _header_text(panel)
+        assert file_scroll.region.bottom <= detail.region.bottom
+        assert detail.toggle_header_expanded() is False
+        await pilot.pause()
+
+        detail._panel_mode = DetailPanelMode.LLM_CALLS  # noqa: SLF001
+        detail._has_llm_calls_content = True  # noqa: SLF001
+        detail.set_detail_layout(DetailLayoutMode.SECONDARY_ONLY)
+        await pilot.pause()
+        assert not panel.has_class("hidden")
+        assert detail.header_toggle_available() is True
+        assert detail.is_metadata_visible() is False
+        llm_scroll = detail.query_one("#agent-llm-calls-scroll", VerticalScroll)
+        assert llm_scroll.region.y >= panel.region.bottom
+        assert llm_scroll.region.bottom <= detail.region.bottom
+        assert detail.toggle_header_expanded() is True
+        await pilot.pause()
+        assert "Name:" in _header_text(panel)
+        assert llm_scroll.region.bottom <= detail.region.bottom
 
         assert detail.set_detail_layout(DetailLayoutMode.METADATA_LARGER) is True
         await pilot.pause()
@@ -220,6 +248,11 @@ async def test_empty_state_hides_header() -> None:
         panel = _header_panel(detail)
         assert panel.has_class("hidden")
         assert detail.header_toggle_available() is False
+        detail._has_file_content = True  # noqa: SLF001
+        detail.set_detail_layout(DetailLayoutMode.SECONDARY_ONLY)
+        detail.show_empty()
+        await pilot.pause()
+        assert panel.has_class("hidden")
 
 
 def _fallback(_action: str, _parameters: tuple[object, ...]) -> bool:

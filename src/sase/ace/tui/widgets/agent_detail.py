@@ -157,12 +157,12 @@ class AgentDetail(AgentDetailPanelMixin, Static):
         self._sync_header_visibility()
 
     def _sync_header_visibility(self) -> None:
-        """Hide the header unless metadata is visible with an identity."""
+        """Hide the header unless the current document published an identity."""
         panel = self._header_panel_or_none()
         if panel is None:
             return
         try:
-            visible = bool(self.is_metadata_visible()) and bool(panel.has_identity)
+            visible = bool(panel.has_identity)
         except Exception:
             visible = False
         try:

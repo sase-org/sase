@@ -36,7 +36,9 @@ class DetailLayoutMode(Enum):
     METADATA_LARGER = "metadata_larger"  # Metadata 70% / File/LLM Calls 30%
     EQUAL = "equal"  # Metadata 50% / File/LLM Calls 50%
     SECONDARY_LARGER = "secondary_larger"  # Metadata 30% / File/LLM Calls 70%
-    SECONDARY_ONLY = "secondary_only"  # Metadata 0% / File/LLM Calls 100%
+    SECONDARY_ONLY = (
+        "secondary_only"  # Metadata 0% / File/LLM Calls 100% (below the sticky header)
+    )
 
 
 DETAIL_LAYOUT_CYCLE: Final[tuple[DetailLayoutMode, ...]] = (

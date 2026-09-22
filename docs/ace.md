@@ -1317,7 +1317,7 @@ a warning rather than landing somewhere stale.
 | `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                           |
 | `v`                 | View files (hint mode; annotates clan/family containers in place)                                               |
 | `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                               |
-| `d`                 | Expand / collapse the agent header panel (sticky identity header above the metadata panel)                      |
+| `d`                 | Expand / collapse the agent header panel (sticky identity header above the detail panels)                       |
 | `V`                 | Open the focused agent's metadata as a sectioned document in the pager (see below)                              |
 | `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                                 |
 | `W`                 | Prepare a prompt that waits for the selected agent/family, clan, or named tribe; marks produce `%w:a,b,c`       |
@@ -5008,12 +5008,12 @@ panels. A fresh session starts in metadata-only: File and LLM Calls stay hidden 
 the user selects a visible layout in this picker, even when that content is already
 available. Inside the picker, `f` shows the selected file, `t` shows the LLM Calls
 timeline, `[` shows metadata only, and `]` shows only the selected File or LLM Calls
-panel. `1` makes metadata larger, `=` makes metadata and the selected secondary panel
-equal height, and `2` makes the File/LLM Calls side larger. The picker-local `p` key
-moves to the next layout and `P` moves to the previous layout only within the circular
-split order metadata-larger -> equal -> secondary-larger -> metadata-larger. From either
-fullscreen endpoint, including the metadata-only default, both `p` and `P` return
-directly to equal split.
+panel with the sticky header panel staying above it. `1` makes metadata larger, `=`
+makes metadata and the selected secondary panel equal height, and `2` makes the File/LLM
+Calls side larger. The picker-local `p` key moves to the next layout and `P` moves to
+the previous layout only within the circular split order metadata-larger -> equal ->
+secondary-larger -> metadata-larger. From either fullscreen endpoint, including the
+metadata-only default, both `p` and `P` return directly to equal split.
 
 The layout choice is session-local and independent from the view mode: switching between
 file and LLM Calls keeps the same saved fullscreen or split layout. Split and
@@ -5094,16 +5094,16 @@ entering/leaving a pinned attempt view resets the cursor.
   not get this heading.
 - **Header panel**: The selected node's identity header (every field from the kind line
   through Timestamps, plus Fold where present) renders in its own always-visible panel
-  above the scrolling metadata document whenever the metadata panel is shown. The panel
-  is collapsed to two concise rows by default — who and how on row 1, what and state on
-  row 2 — and `d` expands it to the full field list (or collapses it back). The kind
-  label moves into the panel's border title in the node's accent color, and the border
-  subtitle shows what `d` will do (`d more` / `d less`). The panel is hidden for clan
-  rows, "No agent selected", and the file/LLM Calls-only layout. Collapsed/expanded
-  state is per session and holds across row moves, tribe focus, and layout changes.
-  While file-hint markers (`[N]`) are visible the panel renders expanded so every hint
-  stays selectable. Metadata search (`,/`) covers the scrolling body only, since header
-  fields stay on screen.
+  at the top of the detail column in every layout, including the file-only and LLM
+  Calls-only layouts, where it sits above the secondary panel. The panel is collapsed to
+  two concise rows by default — who and how on row 1, what and state on row 2 — and `d`
+  expands it to the full field list (or collapses it back). The kind label moves into
+  the panel's border title in the node's accent color, and the border subtitle shows
+  what `d` will do (`d more` / `d less`). The panel is hidden for clan rows and "No
+  agent selected". Collapsed/expanded state is per session and holds across row moves,
+  tribe focus, and layout changes. While file-hint markers (`[N]`) are visible the panel
+  renders expanded so every hint stays selectable. Metadata search (`,/`) covers the
+  scrolling body only, since header fields stay on screen.
 - **SASE CONTEXT / BEAD**: Shown for epic phase workers and task workers. For an epic
   phase worker, the lane is limited to its selected phase. Its fields are `Phase Title`,
   `Description`, `Size`, `Epic Plan`, and `Epic Title`, in that order. The phase title
