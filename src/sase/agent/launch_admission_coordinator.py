@@ -15,7 +15,11 @@ import sys
 import time
 from pathlib import Path
 
-from sase.agent.env_hygiene import scrub_agent_identity_env, scrub_chop_context_env
+from sase.agent.env_hygiene import (
+    scrub_agent_identity_env,
+    scrub_chop_context_env,
+    scrub_executor_ownership_env,
+)
 from sase.agent.launch_admission import (
     COORDINATOR_ENV,
     COORDINATOR_LOG_FILENAME,
@@ -43,6 +47,7 @@ def start_detached_coordinator(response_dir: Path) -> int:
     env = os.environ.copy()
     scrub_agent_identity_env(env)
     scrub_chop_context_env(env)
+    scrub_executor_ownership_env(env)
     env[COORDINATOR_ENV] = "1"
     log_path = root / COORDINATOR_LOG_FILENAME
     launch = detach_scope(

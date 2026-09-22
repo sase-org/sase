@@ -3,8 +3,10 @@
 from sase.agent.env_hygiene import (
     scrub_agent_identity_env,
     scrub_chop_context_env,
+    scrub_executor_ownership_env,
 )
 from sase.agent.launch_spawn import _remove_inherited_agent_identity_env
+from sase.agent.launch_spawn import _remove_inherited_executor_ownership_env
 from sase.agent.launch_spawn import _remove_inherited_sase_plan_env
 
 
@@ -61,6 +63,47 @@ def test_followup_spawn_keeps_bead_association_env() -> None:
         "SASE_PHASE_BEAD_ID": "sase-7z.5",
         "SASE_EPIC_BEAD_ID": "sase-7z",
     }
+
+
+def test_scrub_executor_ownership_env_removes_tool_monitor_proc() -> None:
+    env = {
+        "SASE_TOOL_RUN_ID": "run-1",
+        "SASE_TOOL_NAME": "check",
+        "SASE_TOOL_PROJECT_ROOT": "/repo",
+        "SASE_TOOL_RUN_AGENT": "starter",
+        "SASE_MONITOR_ID": "mon-1",
+        "SASE_MONITOR_ARTIFACTS_DIR": "/artifacts",
+        "SASE_PROC_ID": "proc-1",
+        "SASE_PROC_LOG_PATH": "/tmp/proc.log",
+        "SASE_AGENT": "keep",
+        "SASE_AGENT_NAME": "keep",
+        "OTHER": "keep",
+    }
+
+    scrub_executor_ownership_env(env)
+
+    assert env == {
+        "SASE_AGENT": "keep",
+        "SASE_AGENT_NAME": "keep",
+        "OTHER": "keep",
+    }
+
+
+def test_launch_spawn_drops_inherited_executor_ownership_env() -> None:
+    """A spawned agent is a new ownership root (fake agent launch)."""
+    env = {
+        "SASE_TOOL_RUN_ID": "run-1",
+        "SASE_TOOL_NAME": "check",
+        "SASE_MONITOR_ID": "mon-1",
+        "SASE_MONITOR_ARTIFACTS_DIR": "/artifacts",
+        "SASE_PROC_ID": "proc-1",
+        "SASE_AGENT_NAME": "parent-agent",
+        "OTHER": "keep",
+    }
+
+    _remove_inherited_executor_ownership_env(env)
+
+    assert env == {"SASE_AGENT_NAME": "parent-agent", "OTHER": "keep"}
 
 
 def test_launch_spawn_drops_ambient_sase_plan_env() -> None:

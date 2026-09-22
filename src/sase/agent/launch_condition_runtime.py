@@ -180,10 +180,15 @@ def _supervise_request(
     request_path = work_dir / REQUEST_FILENAME
     _write_private_json(request_path, request)
     env = os.environ.copy()
-    from sase.agent.env_hygiene import scrub_agent_identity_env, scrub_chop_context_env
+    from sase.agent.env_hygiene import (
+        scrub_agent_identity_env,
+        scrub_chop_context_env,
+        scrub_executor_ownership_env,
+    )
 
     scrub_agent_identity_env(env)
     scrub_chop_context_env(env)
+    scrub_executor_ownership_env(env)
     child = subprocess.Popen(
         [
             sys.executable,

@@ -47,6 +47,15 @@ def resolve_ownership(*, quiet: bool) -> ToolRunOwnership:
     parent_id = (os.environ.get(_PARENT_ENV) or "").strip() or None
     if parent_id and not _parent_exists(parent_id):
         parent_id = None
+    # An agent is a new ownership root. Monitor and proc supervisors scrub
+    # SASE_AGENT*, so SASE_AGENT alongside an owner id can only arrive
+    # through an agent launch that inherited its ancestor's ownership.
+    # _parent_exists checks existence rather than liveness, so an inherited
+    # SASE_TOOL_RUN_ID gets the same treatment.
+    if os.environ.get("SASE_AGENT"):
+        monitor_id = None
+        proc_id = None
+        parent_id = None
 
     owner_kind: str | None = None
     owner_id: str | None = None

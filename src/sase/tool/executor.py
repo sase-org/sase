@@ -188,7 +188,10 @@ def _execute_resolved(
         return 130 if signals.sigint else 143
 
     child_env_map = child_env(
-        recorded=recorded, run_id=durable_id, events_path=events_path
+        recorded=recorded,
+        run_id=durable_id,
+        events_path=events_path,
+        resolved=resolved,
     )
     started = time.monotonic()
     try:

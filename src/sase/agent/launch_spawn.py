@@ -60,6 +60,13 @@ def _remove_inherited_proc_operation_env(env: dict[str, str]) -> None:
     scrub_proc_operation_env(env)
 
 
+def _remove_inherited_executor_ownership_env(env: dict[str, str]) -> None:
+    """Drop ancestor executor ownership: an agent is a new ownership root."""
+    from sase.agent.env_hygiene import scrub_executor_ownership_env
+
+    scrub_executor_ownership_env(env)
+
+
 def _remove_inherited_multi_agent_prompt_env(env: dict[str, str]) -> None:
     """Drop stale multi-agent prompt file context inherited from a parent agent."""
     from sase.history.multi_agent_prompt import MULTI_AGENT_PROMPT_FILE_ENV
@@ -364,6 +371,7 @@ def spawn_agent_subprocess(
         _remove_inherited_agent_identity_env(subprocess_env)
         _remove_inherited_chop_context_env(subprocess_env)
         _remove_inherited_proc_operation_env(subprocess_env)
+        _remove_inherited_executor_ownership_env(subprocess_env)
         _remove_inherited_multi_agent_prompt_env(subprocess_env)
         _remove_inherited_swarm_xprompts_env(subprocess_env)
         _remove_inherited_sase_plan_env(subprocess_env)

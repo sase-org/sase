@@ -10,13 +10,19 @@ import signal
 import subprocess
 import threading
 import time
-from typing import BinaryIO
+from typing import TYPE_CHECKING, BinaryIO
 
 from sase.supervision.logs import pump_output
 from sase.tool.executor_signals import SignalState
 
+if TYPE_CHECKING:
+    from sase.tool.argv import ResolvedToolArgv
+
 TOOL_RUN_ID_ENV = "SASE_TOOL_RUN_ID"
 TOOL_RUN_EVENTS_ENV = "SASE_TOOL_RUN_EVENTS"
+TOOL_NAME_ENV = "SASE_TOOL_NAME"
+TOOL_PROJECT_ROOT_ENV = "SASE_TOOL_PROJECT_ROOT"
+TOOL_RUN_AGENT_ENV = "SASE_TOOL_RUN_AGENT"
 TERM_ESCALATE_SECONDS = 5.0
 KILL_WAIT_SECONDS = 2.0
 
@@ -43,8 +49,15 @@ def child_env(
     recorded: bool,
     run_id: str | None,
     events_path: Path | None,
+    resolved: ResolvedToolArgv,
 ) -> dict[str, str]:
     env = os.environ.copy()
+    if resolved.adhoc or not resolved.tool_name:
+        env[TOOL_NAME_ENV] = "ad-hoc"
+        env[TOOL_PROJECT_ROOT_ENV] = ""
+    else:
+        env[TOOL_NAME_ENV] = resolved.tool_name
+        env[TOOL_PROJECT_ROOT_ENV] = resolved.cwd or ""
     if recorded and run_id:
         env[TOOL_RUN_ID_ENV] = run_id
         if events_path is not None:
@@ -154,6 +167,9 @@ def spawn_diagnostic(exc: OSError, argv: tuple[str, ...]) -> str:
 __all__ = [
     "KILL_WAIT_SECONDS",
     "TERM_ESCALATE_SECONDS",
+    "TOOL_NAME_ENV",
+    "TOOL_PROJECT_ROOT_ENV",
+    "TOOL_RUN_AGENT_ENV",
     "TOOL_RUN_EVENTS_ENV",
     "TOOL_RUN_ID_ENV",
     "child_env",

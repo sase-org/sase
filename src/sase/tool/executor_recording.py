@@ -31,6 +31,9 @@ def begin_tool_run(
     wrapper_pid = os.getpid()
     identity = process_identity_token(wrapper_pid)
     boot_id, _, _ = identity.partition(":") if identity else ("", "", "")
+    agent = (os.environ.get("SASE_AGENT_NAME") or "").strip() or (
+        (os.environ.get("SASE_TOOL_RUN_AGENT") or "").strip() or None
+    )
     request: dict[str, Any] = {
         "schema_version": 1,
         "run_id": run_id,
@@ -38,7 +41,7 @@ def begin_tool_run(
         "extra_args": list(resolved.extra_args),
         "display_argv": list(resolved.display_argv),
         "project": _current_project_identity(),
-        "agent": (os.environ.get("SASE_AGENT_NAME") or "").strip() or None,
+        "agent": agent,
         "workspace": (os.environ.get("SASE_WORKSPACE_NUM") or "").strip() or None,
         "bead": (
             (

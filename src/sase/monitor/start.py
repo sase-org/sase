@@ -93,6 +93,19 @@ from .transaction import (
 )
 
 
+def _tool_run_agent_overlay(starter_agent: str | None) -> dict[str, str]:
+    """Return the attribution overlay carrying a monitor's starter agent.
+
+    Passed as ``SASE_TOOL_RUN_AGENT`` so a monitor-owned ``sase tool run``
+    records its starter without restoring ``SASE_AGENT*`` (which would flip
+    compact output back on inside an owner). Scrubbed at agent launch like
+    every other ``SASE_TOOL_*`` variable.
+    """
+    if starter_agent and starter_agent.strip():
+        return {"SASE_TOOL_RUN_AGENT": starter_agent.strip()}
+    return {}
+
+
 def start_monitor(request: StartMonitorRequest) -> MonitorRecord:
     """Start (or return the existing) monitor for *request*'s lane.
 
@@ -315,6 +328,7 @@ def _start_monitor_locked(
                     "SASE_MONITOR_DIAGNOSTICS_DIR": str(diagnostics_dir(artifacts_dir)),
                     MONITOR_ARTIFACTS_ENV: str(artifacts_dir),
                     "SASE_MONITOR_ID": monitor_id,
+                    **_tool_run_agent_overlay(lane_start.starter_agent),
                 },
                 origin=MONITOR_PROC_ORIGIN,
                 proc_id=monitor_id,
