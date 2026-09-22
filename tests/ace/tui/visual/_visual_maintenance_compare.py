@@ -62,6 +62,40 @@ def classify_captures(
     )
 
 
+def classify_selected_captures(
+    records: Sequence[tuple[CaptureRecord, Path]],
+    *,
+    baseline: GoldenBaseline,
+    repo_root: Path,
+) -> tuple[tuple[ChangeRecord, ...], tuple[str, ...]]:
+    """Classify trusted captures that may live in different capture dirs.
+
+    Each ``(record, source_dir)`` pair is compared against *baseline* with
+    the exact comparator. Records that cannot be classified (missing
+    candidate bytes, hash mismatch) are reported as ``path`` strings in
+    the second tuple element instead of raising, so update mode can skip
+    them with a warning. No stale records are produced here; the caller
+    decides about stale removal. Returns ``(changes, problems)`` with
+    changes sorted as in :func:`classify_captures`.
+    """
+    changes: list[ChangeRecord] = []
+    problems: list[str] = []
+    for record, source_dir in records:
+        try:
+            changes.append(
+                _classify_record(
+                    record,
+                    baseline=baseline,
+                    repo_root=repo_root,
+                    capture_dir=source_dir,
+                )
+            )
+        except MaintenanceError as error:
+            problems.append(f"{record.canonical_golden_path}: {error}")
+    changes.sort(key=lambda item: (item.kind, item.path, item.node_id or ""))
+    return tuple(changes), tuple(problems)
+
+
 def preserve_expected_bytes(
     run_dir: Path,
     changes: Sequence[ChangeRecord],

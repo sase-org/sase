@@ -26,13 +26,29 @@ from tests.ace.tui.visual._visual_maintenance_types import (
     STATUS_DRIFT,
     STATUS_FAILED,
     STATUS_REFUSED,
+    AttemptRecord,
     ChangeManifest,
     ChangeRecord,
     GoldenBaseline,
     MaintenanceError,
     MaintenanceRequest,
+    SkippedRecord,
     counts_from_changes,
 )
+
+
+def _format_skip(record: SkippedRecord) -> str:
+    """Render one skipped node or golden for the WARNING block."""
+    target = record.node_id or record.path or "unknown"
+    parts = [f"skipped {record.reason} {record.kind} {target}"]
+    if record.attempts:
+        parts.append(f"after {record.attempts} attempt(s)")
+    text = " ".join(parts)
+    if record.evidence:
+        text += f"; see {', '.join(record.evidence)}"
+    if record.detail:
+        text += f" ({record.detail})"
+    return text
 
 
 REPORT_DIRNAME = "report"
@@ -48,11 +64,24 @@ def print_summary(manifest: ChangeManifest, *, stream: Any | None = None) -> Non
     """Print a compact console summary including the manifest path."""
     out = sys.stdout if stream is None else stream
     counts = manifest.counts
+    if manifest.status in {STATUS_FAILED, STATUS_REFUSED} and manifest.errors:
+        for error in manifest.errors:
+            print(f"error: {error}", file=out)
     print(
         f"fix-tui-screenshots: {manifest.mode} {manifest.status}",
         file=out,
     )
     print(f"scope: {manifest.requested_scope}", file=out)
+    if manifest.warnings or manifest.skipped:
+        print("WARNING:", file=out)
+        for warning in manifest.warnings:
+            print(f"  {warning}", file=out)
+        for record in manifest.skipped:
+            print(f"  {_format_skip(record)}", file=out)
+        print(
+            "  Those goldens were left unchanged and are not known to be current.",
+            file=out,
+        )
     print(
         "counts: "
         f"created={counts.get(KIND_CREATED, 0)} "
@@ -61,6 +90,8 @@ def print_summary(manifest: ChangeManifest, *, stream: Any | None = None) -> Non
         f"stale={counts.get('stale', 0)}",
         file=out,
     )
+    if manifest.status in {STATUS_FAILED, STATUS_REFUSED}:
+        print("no goldens were changed", file=out)
     if manifest.dirty_before:
         print("dirty-before:", file=out)
         for path in manifest.dirty_before:
@@ -112,6 +143,10 @@ def build_manifest(
     logs: Mapping[str, str],
     journal_relpath: str | None,
     extra: Mapping[str, Any],
+    warnings: Sequence[str] = (),
+    skipped: Sequence[SkippedRecord] = (),
+    attempts: Sequence[AttemptRecord] = (),
+    pruning_skipped_reason: str | None = None,
 ) -> ChangeManifest:
     full_inventory = bool(extra.get("full_inventory", False))
     pruning_allowed = bool(extra.get("pruning_allowed", False))
@@ -154,6 +189,10 @@ def build_manifest(
         journal_path=journal_relpath,
         logs=dict(logs),
         git_index_fingerprint=baseline.git_index_fingerprint,
+        warnings=tuple(warnings),
+        skipped=tuple(skipped),
+        attempts=tuple(attempts),
+        pruning_skipped_reason=pruning_skipped_reason,
     )
 
 
@@ -171,6 +210,9 @@ def failure_manifest(
     logs: Mapping[str, str],
     status: str,
     errors: Sequence[str],
+    warnings: Sequence[str] = (),
+    skipped: Sequence[SkippedRecord] = (),
+    attempts: Sequence[AttemptRecord] = (),
 ) -> ChangeManifest:
     return build_manifest(
         request,
@@ -190,6 +232,9 @@ def failure_manifest(
         logs=logs,
         journal_relpath=None,
         extra={"full_inventory": False, "pruning_allowed": False, "complete": False},
+        warnings=warnings,
+        skipped=skipped,
+        attempts=attempts,
     )
 
 

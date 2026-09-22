@@ -89,6 +89,7 @@ class ManifestReport:
     run_summary: tuple[str, ...]
     contact_sheet_path: str | None
     metadata: dict[str, Any]
+    not_updated: tuple[Mapping[str, Any], ...] = ()
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
@@ -222,6 +223,7 @@ def write_outputs(
     html_empty_message: str = "No sase's TUI PNG snapshot failures were recorded.",
     run_summary: Sequence[str] = (),
     contact_sheet_path: str | None = None,
+    not_updated: Sequence[Mapping[str, Any]] = (),
 ) -> None:
     """Write the four report files into *output_dir*."""
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -233,6 +235,7 @@ def write_outputs(
             empty_message=html_empty_message,
             run_summary=run_summary,
             contact_sheet_path=contact_sheet_path,
+            not_updated=not_updated,
         )
     )
     (output_dir / SUMMARY_NAME).write_text(
@@ -243,6 +246,7 @@ def write_outputs(
             empty_message=empty_message,
             run_summary=run_summary,
             contact_sheet_path=contact_sheet_path,
+            not_updated=not_updated,
         )
     )
     (output_dir / ANNOTATIONS_NAME).write_text(
@@ -261,6 +265,7 @@ def render_html(
     empty_message: str = "No sase's TUI PNG snapshot failures were recorded.",
     run_summary: Sequence[str] = (),
     contact_sheet_path: str | None = None,
+    not_updated: Sequence[Mapping[str, Any]] = (),
 ) -> str:
     """Render the self-contained HTML report."""
     body_parts: list[str] = []
@@ -279,9 +284,45 @@ def render_html(
             body_parts.append(group_summary)
         for record in records:
             body_parts.append(_render_html_section(record, context=context))
+    not_updated_section = _render_not_updated_html(not_updated)
+    if not_updated_section:
+        body_parts.append(not_updated_section)
 
     body = "\n".join(body_parts)
     return _HTML_TEMPLATE.format(title=html.escape(title, quote=False), body=body)
+
+
+def _render_not_updated_html(
+    skipped: Sequence[Mapping[str, Any]],
+) -> str:
+    """Render the "Not updated" section for manifests with skip records."""
+    if not skipped:
+        return ""
+    items: list[str] = []
+    for entry in skipped:
+        if not isinstance(entry, Mapping):
+            continue
+        reason = html.escape(str(entry.get("reason", "?")), quote=False)
+        target = html.escape(
+            str(entry.get("node_id") or entry.get("path") or "?"), quote=False
+        )
+        detail = html.escape(str(entry.get("detail", "")), quote=False)
+        evidence = entry.get("evidence")
+        if isinstance(evidence, list) and evidence:
+            links = ", ".join(
+                html.escape(str(item), quote=False) for item in evidence[:3]
+            )
+            detail = f"{detail} (evidence: {links})" if detail else (
+                f"evidence: {links}"
+            )
+        items.append(f"<li>{reason} — {target}: {detail}</li>")
+    if not items:
+        return ""
+    return (
+        '<section class="not-updated"><h2>Not updated</h2>'
+        "<p>These goldens were left unchanged and are not known to be "
+        "current.</p><ul>" + "".join(items) + "</ul></section>"
+    )
 
 
 def _render_html_section(
@@ -499,6 +540,7 @@ def render_summary(
     empty_message: str = "No failures recorded.",
     run_summary: Sequence[str] = (),
     contact_sheet_path: str | None = None,
+    not_updated: Sequence[Mapping[str, Any]] = (),
 ) -> str:
     """Render the compact ``summary.md`` GitHub job summary."""
     lines: list[str] = [f"# {title}", ""]
@@ -508,9 +550,11 @@ def render_summary(
     if contact_sheet_path is not None:
         lines.append(f"Representative contact sheet: `{_md_text(contact_sheet_path)}`")
         lines.append("")
+    not_updated_lines = _not_updated_md_lines(not_updated)
     if not records:
         lines.append(empty_message)
         lines.append("")
+        lines.extend(not_updated_lines)
         return "\n".join(lines)
 
     lines.append(f"{len(records)} visual record(s).")
@@ -538,7 +582,35 @@ def render_summary(
             f"{diff} | {group} |"
         )
     lines.append("")
+    lines.extend(not_updated_lines)
     return "\n".join(lines)
+
+
+def _not_updated_md_lines(
+    skipped: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    """Render the "Not updated" markdown section for skip records."""
+    entries = [entry for entry in skipped if isinstance(entry, Mapping)]
+    if not entries:
+        return []
+    lines = ["## Not updated", ""]
+    lines.append(
+        "These goldens were left unchanged and are not known to be current."
+    )
+    lines.append("")
+    for entry in entries:
+        reason = _md_text(str(entry.get("reason", "?")))
+        target = _md_text(str(entry.get("node_id") or entry.get("path") or "?"))
+        detail = _md_text(str(entry.get("detail", "")))
+        evidence = entry.get("evidence")
+        if isinstance(evidence, list) and evidence:
+            links = ", ".join(f"`{_md_text(str(item))}`" for item in evidence[:3])
+            detail = f"{detail} (evidence: {links})" if detail else (
+                f"evidence: {links}"
+            )
+        lines.append(f"- {reason} — `{target}`: {detail}")
+    lines.append("")
+    return lines
 
 
 def _format_md_test(record: FailureRecord) -> str:
@@ -709,6 +781,7 @@ def write_outputs_from_manifest(
         html_empty_message=report.empty_message,
         run_summary=report.run_summary,
         contact_sheet_path=report.contact_sheet_path,
+        not_updated=report.not_updated,
     )
     return report.metadata
 
@@ -734,6 +807,12 @@ def load_manifest_report(
         root,
         contact_sheet_path=contact_sheet,
     )
+    skipped = raw.get("skipped")
+    not_updated = (
+        tuple(item for item in skipped if isinstance(item, Mapping))
+        if isinstance(skipped, list)
+        else ()
+    )
     return ManifestReport(
         records=tuple(records),
         title=MAINTENANCE_REPORT_TITLE,
@@ -741,6 +820,7 @@ def load_manifest_report(
         run_summary=_run_summary_lines(raw),
         contact_sheet_path=contact_sheet,
         metadata=metadata,
+        not_updated=not_updated,
     )
 
 
@@ -989,6 +1069,10 @@ def _manifest_report_metadata(
     *,
     contact_sheet_path: str | None,
 ) -> dict[str, Any]:
+    skipped_raw = manifest.get("skipped")
+    skipped_count = (
+        len(skipped_raw) if isinstance(skipped_raw, list) else 0
+    )
     groups: dict[str, list[FailureRecord]] = defaultdict(list)
     for record in records:
         if record.group_id is not None:
@@ -1001,6 +1085,7 @@ def _manifest_report_metadata(
         "manifest_jsonl": _path_ref(output_dir / MANIFEST_NAME, repo_root),
         "contact_sheet": contact_sheet_path,
         "record_count": len(records),
+        "skipped_count": skipped_count,
         "groups": [
             {
                 "id": group_id,
@@ -1043,6 +1128,16 @@ def _run_summary_lines(manifest: dict[str, Any]) -> tuple[str, ...]:
     errors = manifest.get("errors")
     if isinstance(errors, list) and errors:
         parts.append("errors: " + "; ".join(str(item) for item in errors))
+    warnings = manifest.get("warnings")
+    if isinstance(warnings, list) and warnings:
+        for warning in warnings[:5]:
+            parts.append(f"warning: {warning}")
+    skipped = manifest.get("skipped")
+    if isinstance(skipped, list) and skipped:
+        parts.append(f"not-updated: {len(skipped)} golden(s) left unchanged")
+    pruning_skipped = manifest.get("pruning_skipped_reason")
+    if isinstance(pruning_skipped, str) and pruning_skipped:
+        parts.append(f"pruning-skipped: {pruning_skipped}")
     return tuple(parts)
 
 

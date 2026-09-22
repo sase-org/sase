@@ -10,6 +10,7 @@ import pytest
 from tests._fix_tui_screenshots_helpers import (
     ACE_NODE,
     PAGER_NODE,
+    AttemptScript,
     FakeRunner,
     ScriptedCapture,
     commit_all,
@@ -25,6 +26,7 @@ from tests.ace.tui.visual._visual_maintenance import (
     EXIT_DRIFT,
     EXIT_FAILURE,
     EXIT_SUCCESS,
+    EXIT_USAGE,
     MaintenanceError,
     main,
 )
@@ -272,15 +274,32 @@ def test_pytest_failure_does_not_apply(tmp_path: Path) -> None:
             ScriptedCapture(PAGER_NODE, "shot", "pager", red),
         ],
         repo_root=tmp_path,
-        exit_code=1,
+        attempts=[
+            AttemptScript(exit_code=1, failed=(ACE_NODE,)),
+            AttemptScript(exit_code=1, failed=(ACE_NODE,)),
+            AttemptScript(exit_code=1, failed=(ACE_NODE,)),
+        ],
     )
     assert (
         main([], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
-        == EXIT_FAILURE
+        == EXIT_SUCCESS
     )
     assert target.read_bytes() == red
-    assert _manifest(tmp_path)["child_exit_code"] == 1
-    assert _manifest(tmp_path)["status"] == "failed"
+    manifest = _manifest(tmp_path)
+    assert manifest["status"] == "partial"
+    assert manifest["child_exit_code"] == 1
+    labels = [attempt["label"] for attempt in manifest["attempts"]]
+    assert labels == ["capture", "recover-1", "recover-2"]
+    skips = manifest["skipped"]
+    assert len(skips) == 1
+    assert skips[0]["kind"] == "node"
+    assert skips[0]["node_id"] == ACE_NODE
+    assert skips[0]["reason"] == "test_failed"
+    assert skips[0]["attempts"] == 3
+    assert "FAILED" in skips[0]["detail"]
+    assert manifest["warnings"]
+    assert any(item["kind"] == "unchanged" for item in manifest["changes"])
+    assert not any(item["kind"] == KIND_UPDATED for item in manifest["changes"])
 
 
 def test_zero_tests_are_an_error(tmp_path: Path) -> None:
@@ -327,7 +346,7 @@ def test_zero_tests_are_an_error(tmp_path: Path) -> None:
             captures=(),
         )
         write_inventory(capture_dir, inventory)
-        return 0
+        return 5
 
     hooks = silent_hooks(FakeRunner(captures=[], repo_root=tmp_path))
     hooks = type(hooks)(
@@ -338,6 +357,14 @@ def test_zero_tests_are_an_error(tmp_path: Path) -> None:
     )
     assert (
         main(["--check"], repo_root=tmp_path, hooks=hooks, environ={}) == EXIT_FAILURE
+    )
+    assert main([], repo_root=tmp_path, hooks=hooks, environ={}) == EXIT_SUCCESS
+    manifest = _manifest(tmp_path)
+    assert manifest["status"] == "clean"
+    assert manifest["child_exit_code"] == 5
+    assert any(
+        "selection matched no visual tests" in warning
+        for warning in manifest["warnings"]
     )
 
 
@@ -388,13 +415,16 @@ def test_pre_existing_dirty_paths_are_recorded_separately(tmp_path: Path) -> Non
     assert manifest["status"] == "clean"
 
 
-def test_concurrent_edit_refuses_apply(tmp_path: Path) -> None:
+def test_concurrent_edit_skips_only_the_conflicting_path(
+    tmp_path: Path,
+) -> None:
     init_repo(tmp_path)
     red = make_png(1, 1)
     blue = make_png(1, 1, (0, 0, 255, 255))
     green = make_png(1, 1, (0, 255, 0, 255))
     target = write_golden(tmp_path, "ace", "shot.png", red)
-    write_golden(tmp_path, "pager", "shot.png", red)
+    other = write_golden(tmp_path, "ace", "other.png", red)
+    write_golden(tmp_path, "pager", "keep.png", red)
     commit_all(tmp_path)
 
     class MutatingRunner(FakeRunner):
@@ -404,18 +434,32 @@ def test_concurrent_edit_refuses_apply(tmp_path: Path) -> None:
                 target.write_bytes(green)
             return result
 
+    other_node = "tests/ace/tui/visual/test_a.py::test_other"
     runner = MutatingRunner(
         captures=[
             ScriptedCapture(ACE_NODE, "shot", "ace", blue),
-            ScriptedCapture(PAGER_NODE, "shot", "pager", red),
+            ScriptedCapture(other_node, "other", "ace", blue),
+            ScriptedCapture(PAGER_NODE, "keep", "pager", red),
         ],
         repo_root=tmp_path,
     )
     assert (
         main([], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
-        == EXIT_FAILURE
+        == EXIT_SUCCESS
     )
     assert target.read_bytes() == green
+    assert other.read_bytes() == blue
+    manifest = _manifest(tmp_path)
+    assert manifest["status"] == "partial"
+    skips = [
+        item for item in manifest["skipped"] if item["reason"] == "concurrent_edit"
+    ]
+    assert len(skips) == 1
+    assert skips[0]["path"] is not None and skips[0]["path"].endswith("shot.png")
+    assert any(
+        item["kind"] == KIND_UPDATED and item["path"].endswith("other.png")
+        for item in manifest["changes"]
+    )
 
 
 def test_report_is_rendered_before_apply_and_preserved_on_apply_failure(
@@ -442,7 +486,7 @@ def test_report_is_rendered_before_apply_and_preserved_on_apply_failure(
         raise MaintenanceError("boom")
 
     monkeypatch.setattr(
-        "tests.ace.tui.visual._visual_maintenance_run.apply_changes",
+        "tests.ace.tui.visual._visual_maintenance_salvage.apply_changes",
         fail_after_report,
     )
 

@@ -21,6 +21,7 @@ from tests.ace.tui.visual._visual_maintenance_cli import (
 )
 from tests.ace.tui.visual._visual_maintenance_compare import (
     classify_captures as classify_captures,
+    classify_selected_captures as classify_selected_captures,
     compare_verification_captures as compare_verification_captures,
 )
 from tests.ace.tui.visual._visual_maintenance_lock import (
@@ -35,6 +36,12 @@ from tests.ace.tui.visual._visual_maintenance_run import (
     run_governed_visual_pytest as run_governed_visual_pytest,
     run_maintenance as run_maintenance,
 )
+from tests.ace.tui.visual._visual_maintenance_salvage import (
+    run_update as run_update,
+)
+from tests.ace.tui.visual._visual_maintenance_trust import (
+    derive_node_trust as derive_node_trust,
+)
 from tests.ace.tui.visual._visual_maintenance_types import (
     EXIT_DRIFT as EXIT_DRIFT,
     EXIT_FAILURE as EXIT_FAILURE,
@@ -42,6 +49,8 @@ from tests.ace.tui.visual._visual_maintenance_types import (
     EXIT_USAGE as EXIT_USAGE,
     MANIFEST_KIND as MANIFEST_KIND,
     MANIFEST_SCHEMA_VERSION as MANIFEST_SCHEMA_VERSION,
+    STATUS_PARTIAL as STATUS_PARTIAL,
+    AttemptRecord as AttemptRecord,
     ChangeManifest as ChangeManifest,
     ChangeRecord as ChangeRecord,
     GoldenBaseline as GoldenBaseline,
@@ -49,6 +58,7 @@ from tests.ace.tui.visual._visual_maintenance_types import (
     MaintenanceHooks as MaintenanceHooks,
     MaintenanceRequest as MaintenanceRequest,
     OverlappingRunError as OverlappingRunError,
+    SkippedRecord as SkippedRecord,
     UsageError as UsageError,
 )
 
@@ -61,6 +71,8 @@ __all__ = [
     "MANIFEST_KIND",
     "MANIFEST_SCHEMA_VERSION",
     "REPO_ROOT",
+    "STATUS_PARTIAL",
+    "AttemptRecord",
     "ChangeManifest",
     "ChangeRecord",
     "GoldenBaseline",
@@ -68,13 +80,16 @@ __all__ = [
     "MaintenanceHooks",
     "MaintenanceRequest",
     "OverlappingRunError",
+    "SkippedRecord",
     "UsageError",
     "apply_changes",
     "build_parser",
     "build_run_pytest_command",
     "capture_golden_baseline",
     "classify_captures",
+    "classify_selected_captures",
     "compare_verification_captures",
+    "derive_node_trust",
     "detect_concurrent_edits",
     "exclusive_maintenance_lock",
     "find_unfinished_journals",
@@ -88,5 +103,6 @@ __all__ = [
     "resolve_scope",
     "run_governed_visual_pytest",
     "run_maintenance",
+    "run_update",
     "validate_pytest_args",
 ]

@@ -578,6 +578,73 @@ def test_write_outputs_from_manifest_reports_created_updated_and_stale(
     assert {entry["group_id"] for entry in updated} == {"group-1"}
 
 
+def test_write_outputs_from_manifest_renders_partial_and_not_updated(
+    tmp_path: Path, script: types.ModuleType
+) -> None:
+    repo = tmp_path
+    run_dir = repo / ".pytest_cache/sase-visual/runs/run-partial"
+    run_dir.mkdir(parents=True)
+    manifest = {
+        "schema_version": 1,
+        "kind": "visual_maintenance",
+        "run_id": "run-partial",
+        "mode": "update",
+        "status": "partial",
+        "requested_scope": "full",
+        "counts": {"created": 0, "updated": 0, "unchanged": 1, "stale": 0},
+        "dirty_before": [],
+        "manifest_path": ".pytest_cache/sase-visual/runs/run-partial/manifest.json",
+        "run_dir": ".pytest_cache/sase-visual/runs/run-partial",
+        "capture_dir": ".pytest_cache/sase-visual/runs/run-partial/capture",
+        "errors": [],
+        "warnings": ["stale removal skipped: evidence is incomplete"],
+        "skipped": [
+            {
+                "kind": "node",
+                "node_id": "tests/ace/tui/visual/test_a.py::test_a",
+                "path": None,
+                "reason": "test_failed",
+                "detail": "test failed and never recovered",
+                "evidence": [".pytest_cache/sase-visual/runs/run-partial/capture.log"],
+                "attempts": 3,
+            }
+        ],
+        "attempts": [
+            {
+                "label": "capture",
+                "run_id": "run-partial",
+                "capture_dir": ".pytest_cache/sase-visual/runs/run-partial/capture",
+                "log": ".pytest_cache/sase-visual/runs/run-partial/capture.log",
+                "workers": None,
+                "child_exit_code": 1,
+            }
+        ],
+        "pruning_skipped_reason": "stale removal skipped: evidence is incomplete",
+        "changes": [],
+    }
+    manifest_path = run_dir / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    output_dir = run_dir / "report"
+
+    metadata = script.write_outputs_from_manifest(
+        manifest_path,
+        output_dir=output_dir,
+        context=script.RenderContext(repo=None, sha=None, report_url=None),
+        repo_root=repo,
+    )
+
+    assert metadata["status"] == "partial"
+    assert metadata["skipped_count"] == 1
+    summary = (output_dir / "summary.md").read_text(encoding="utf-8")
+    assert "update/partial" in summary
+    assert "## Not updated" in summary
+    assert "test_failed" in summary
+    assert "capture.log" in summary
+    html = (output_dir / "visual-failure-report.html").read_text(encoding="utf-8")
+    assert "Not updated" in html
+    assert "test_failed" in html
+
+
 def test_cli_runs_end_to_end(tmp_path: Path) -> None:
     artifact_root = tmp_path / "sase-visual"
     _write_failure(

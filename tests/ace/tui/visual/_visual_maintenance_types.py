@@ -39,9 +39,20 @@ JOURNAL_CONFLICT = "conflict"
 STATUS_CLEAN = "clean"
 STATUS_DRIFT = "drift"
 STATUS_APPLIED = "applied"
+STATUS_PARTIAL = "partial"
 STATUS_REFUSED = "refused"
 STATUS_FAILED = "failed"
 STATUS_INTERRUPTED = "interrupted"
+
+REASON_TEST_FAILED = "test_failed"
+REASON_UNSTABLE = "unstable"
+REASON_VERIFY_FAILED = "verify_failed"
+REASON_OWNER_MISMATCH = "owner_mismatch"
+REASON_CONCURRENT_EDIT = "concurrent_edit"
+REASON_PROTOCOL_ERROR = "protocol_error"
+
+SKIP_KIND_NODE = "node"
+SKIP_KIND_GOLDEN = "golden"
 
 
 class MaintenanceError(Exception):
@@ -74,6 +85,7 @@ class VisualPytestFn(Protocol):
         log_path: Path,
         ace_root: Path,
         pager_root: Path,
+        workers: int | None = None,
     ) -> int: ...
 
 
@@ -181,6 +193,52 @@ class ChangeRecord:
         }
 
 
+@dataclass(frozen=True)
+class SkippedRecord:
+    """One node or golden the run left untouched behind a warning."""
+
+    kind: str
+    node_id: str | None
+    path: str | None
+    reason: str
+    detail: str
+    evidence: tuple[str, ...] = ()
+    attempts: int = 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "kind": self.kind,
+            "node_id": self.node_id,
+            "path": self.path,
+            "reason": self.reason,
+            "detail": self.detail,
+            "evidence": list(self.evidence),
+            "attempts": self.attempts,
+        }
+
+
+@dataclass(frozen=True)
+class AttemptRecord:
+    """One governed pytest pass that contributed to the run."""
+
+    label: str
+    run_id: str
+    capture_dir: str
+    log: str
+    workers: int | None
+    child_exit_code: int | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "label": self.label,
+            "run_id": self.run_id,
+            "capture_dir": self.capture_dir,
+            "log": self.log,
+            "workers": self.workers,
+            "child_exit_code": self.child_exit_code,
+        }
+
+
 @dataclass
 class ChangeManifest:
     """Machine-readable input for the screenshot change-reports phase."""
@@ -212,6 +270,10 @@ class ChangeManifest:
     logs: dict[str, str]
     git_index_fingerprint: str
     extra: dict[str, Any] = field(default_factory=dict)
+    warnings: tuple[str, ...] = ()
+    skipped: tuple[SkippedRecord, ...] = ()
+    attempts: tuple[AttemptRecord, ...] = ()
+    pruning_skipped_reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
@@ -243,6 +305,10 @@ class ChangeManifest:
             "journal_path": self.journal_path,
             "logs": dict(self.logs),
             "git_index_fingerprint": self.git_index_fingerprint,
+            "warnings": list(self.warnings),
+            "skipped": [record.to_dict() for record in self.skipped],
+            "attempts": [record.to_dict() for record in self.attempts],
+            "pruning_skipped_reason": self.pruning_skipped_reason,
         }
         payload.update(self.extra)
         return payload

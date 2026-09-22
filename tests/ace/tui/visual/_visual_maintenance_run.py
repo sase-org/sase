@@ -49,6 +49,9 @@ from tests.ace.tui.visual._visual_maintenance_manifest import (
     publish_manifest_and_report,
     try_publish_failure_manifest,
 )
+from tests.ace.tui.visual._visual_maintenance_salvage import (
+    run_update as run_update,
+)
 from tests.ace.tui.visual._visual_maintenance_types import (
     EXIT_DRIFT,
     EXIT_FAILURE,
@@ -191,6 +194,40 @@ def run_maintenance(
 
 
 def _run_locked(
+    request: MaintenanceRequest,
+    *,
+    repo_root: Path,
+    hooks: MaintenanceHooks,
+    run_id: str,
+    run_dir: Path,
+    capture_dir: Path,
+    baseline: GoldenBaseline,
+    renderer: dict[str, Any],
+) -> int:
+    if not request.check:
+        return run_update(
+            request,
+            repo_root=repo_root,
+            hooks=hooks,
+            run_id=run_id,
+            run_dir=run_dir,
+            capture_dir=capture_dir,
+            baseline=baseline,
+            renderer=renderer,
+        )
+    return _run_locked_check(
+        request,
+        repo_root=repo_root,
+        hooks=hooks,
+        run_id=run_id,
+        run_dir=run_dir,
+        capture_dir=capture_dir,
+        baseline=baseline,
+        renderer=renderer,
+    )
+
+
+def _run_locked_check(
     request: MaintenanceRequest,
     *,
     repo_root: Path,

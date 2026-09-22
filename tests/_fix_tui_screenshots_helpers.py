@@ -149,6 +149,25 @@ class ScriptedCapture:
 
 
 @dataclass
+class AttemptScript:
+    """One scripted pytest-pass outcome for :class:`FakeRunner`.
+
+    Non-verify passes consume scripts in call order; when the scripts run
+    out, a default all-passing script with ``exit_code`` is used. Verify
+    passes keep the legacy behavior (``fail_verify``/``verify_png``).
+    """
+
+    exit_code: int = 0
+    failed: tuple[str, ...] = ()
+    errored: tuple[str, ...] = ()
+    unexecuted: tuple[str, ...] = ()
+    incomplete: bool = False
+    no_inventory: bool = False
+    session_exitstatus: int | None = None
+    pngs: dict[str, bytes] = field(default_factory=dict)
+
+
+@dataclass
 class FakeRunner:
     """Write capture-protocol records without invoking the visual suite."""
 
@@ -157,6 +176,7 @@ class FakeRunner:
     exit_code: int = 0
     fail_verify: bool = False
     verify_png: bytes | None = None
+    attempts: list[AttemptScript] = field(default_factory=list)
     calls: list[dict[str, object]] = field(default_factory=list)
 
     def __call__(
@@ -170,6 +190,7 @@ class FakeRunner:
         log_path: Path,
         ace_root: Path,
         pager_root: Path,
+        workers: int | None = None,
     ) -> int:
         self.calls.append(
             {
@@ -177,15 +198,72 @@ class FakeRunner:
                 "scope": scope,
                 "pytest_args": tuple(pytest_args),
                 "capture_dir": capture_dir,
+                "workers": workers,
             }
         )
-        log_path.write_text("fake visual pytest\n", encoding="utf-8")
-        if self.fail_verify and str(run_id).endswith("-verify"):
+        if str(run_id).endswith("-verify"):
+            return self._write_pass(
+                AttemptScript(),
+                repo_root=repo_root,
+                capture_dir=capture_dir,
+                run_id=str(run_id),
+                scope=scope,
+                pytest_args=pytest_args,
+                log_path=log_path,
+                ace_root=ace_root,
+                pager_root=pager_root,
+                verify=True,
+            )
+        index = (
+            sum(1 for call in self.calls if not str(call["run_id"]).endswith("-verify"))
+            - 1
+        )
+        if index < len(self.attempts):
+            script = self.attempts[index]
+        else:
+            script = AttemptScript(exit_code=self.exit_code)
+        return self._write_pass(
+            script,
+            repo_root=repo_root,
+            capture_dir=capture_dir,
+            run_id=str(run_id),
+            scope=scope,
+            pytest_args=pytest_args,
+            log_path=log_path,
+            ace_root=ace_root,
+            pager_root=pager_root,
+            verify=False,
+        )
+
+    def _write_pass(
+        self,
+        script: AttemptScript,
+        *,
+        repo_root: Path,
+        capture_dir: Path,
+        run_id: str,
+        scope: str,
+        pytest_args: Sequence[str],
+        log_path: Path,
+        ace_root: Path,
+        pager_root: Path,
+        verify: bool,
+    ) -> int:
+        if verify and self.fail_verify:
+            log_path.write_text("fake visual pytest\n", encoding="utf-8")
             return 1
+        lines = ["fake visual pytest"]
+        for node_id in (*script.failed, *script.errored):
+            outcome = "FAILED" if node_id in script.failed else "ERROR"
+            lines.append(f"{outcome} {node_id} - simulated failure")
+        log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        if script.no_inventory:
+            return script.exit_code
         selected = list(self.captures)
         node_ids = [arg for arg in pytest_args if "::" in arg]
         if node_ids:
             selected = [item for item in selected if item.node_id in node_ids]
+        excluded = set(script.errored) | set(script.unexecuted)
         roots = VisualCaptureRoots(ace=ace_root, pager=pager_root)
         session = VisualCaptureSession(
             capture_dir=capture_dir,
@@ -196,8 +274,10 @@ class FakeRunner:
         )
         executed: list[str] = []
         for item in selected:
-            png = item.png
-            if str(run_id).endswith("-verify") and self.verify_png is not None:
+            if item.node_id in excluded:
+                continue
+            png = script.pngs.get(item.node_id, item.png)
+            if verify and self.verify_png is not None:
                 png = self.verify_png
             snapshot_root = ace_root if item.identity == "ace" else pager_root
             session.record_capture(
@@ -208,6 +288,7 @@ class FakeRunner:
                 source_svg=item.svg,
             )
             executed.append(item.node_id)
+        collected: tuple[str, ...]
         if scope == "full":
             collected = (ACE_NODE, PAGER_NODE)
             if not executed:
@@ -216,20 +297,27 @@ class FakeRunner:
                 executed = sorted(set(executed).union(collected))
         else:
             collected = tuple(sorted(set(executed))) or (ACE_NODE,)
+        if script.unexecuted:
+            collected = tuple(sorted(set(collected) | set(script.unexecuted)))
+        exitstatus = (
+            script.session_exitstatus
+            if script.session_exitstatus is not None
+            else script.exit_code
+        )
         session.write_worker_session(
             WorkerSessionRecord(
                 run_id=run_id,
                 worker_id="controller",
-                completed=True,
+                completed=not script.incomplete,
                 collectonly=False,
-                exitstatus=0,
+                exitstatus=exitstatus,
                 collected_node_ids=collected,
                 executed_node_ids=tuple(executed),
                 skipped_node_ids=(),
                 xfailed_node_ids=(),
                 xpassed_node_ids=(),
-                failed_node_ids=(),
-                error_node_ids=(),
+                failed_node_ids=tuple(script.failed),
+                error_node_ids=tuple(script.errored),
                 deselected_node_ids=(),
                 capture_count=len(session.captures),
             )
@@ -239,10 +327,12 @@ class FakeRunner:
             run_id=run_id,
             requested_scope=scope,
             expected_workers=("controller",),
-            session_exitstatus=0,
+            session_exitstatus=exitstatus,
         )
         write_inventory(capture_dir, inventory)
-        return self.exit_code
+        if verify:
+            return 0
+        return script.exit_code
 
 
 def silent_hooks(runner: FakeRunner, *, ci: bool = False) -> MaintenanceHooks:
