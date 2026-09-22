@@ -18,7 +18,7 @@ from sase.notification_gates.service import create_gate
 from sase.sudo import cli as sudo_cli
 from sase.sudo.cli import handle_sudo_command
 from sase.sudo.gate import build_sudo_gate_request
-from tests.test_sudo_gate import _request, _runner_ledger
+from tests._sudo_gate_helpers import _request, _runner_ledger
 
 
 def _handshake_for(manifest_sha256: str) -> dict[str, Any]:
