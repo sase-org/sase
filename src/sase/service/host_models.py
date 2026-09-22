@@ -40,3 +40,14 @@ class PendingRestart:
     decision: ServiceRestartDecision
     restarts: int
     last_exit: ServiceProcLastExit | None
+
+
+@dataclass
+class GivenUp:
+    """A proc the restart policy gave up on, parked until revived."""
+
+    signature: str
+    decision: ServiceRestartDecision
+    last_exit: ServiceProcLastExit | None
+    restarts: int
+    given_up_at: float

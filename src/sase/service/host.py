@@ -33,8 +33,13 @@ from sase.service.config import ServiceConfigComposition, ServiceProcConfig
 from sase.service.config import load_service_config
 from sase.service.control import utc_timestamp
 from sase.service.host_lifecycle import run_host
+from sase.service.host_models import GivenUp as _GivenUp
 from sase.service.host_models import PendingRestart as _PendingRestart
 from sase.service.host_models import RunningProc as _RunningProc
+from sase.service.notifications import (
+    notify_service_crash_loop as _notify_crash_loop_event,
+)
+from sase.service.notifications import notify_service_give_up as _notify_give_up_event
 from sase.service.host_reporting import (
     empty_service_config,
     write_current_host_status,
@@ -92,6 +97,8 @@ class _ServiceHost:
         self._warned_service_marker_dropped = False
         self._last_good_config: ServiceConfigComposition | None = None
         self._config_error: str | None = None
+        self._given_up: dict[str, _GivenUp] = {}
+        self._notify_episodes: dict[str, int] = {}
 
     def run(self) -> int:
         """Run the foreground host until SIGTERM, SIGINT, or KeyboardInterrupt."""
@@ -263,6 +270,77 @@ class _ServiceHost:
                     restarts=running.restarts + 1,
                     last_exit=last_exit,
                 )
+        if decision.notify and not running.stop_requested:
+            self._notify_crash_loop(name, decision, restarts=running.restarts + 1)
+        if decision.action == "give_up" and not running.stop_requested:
+            current = config.get(name) if config is not None else running.entry
+            desired = (
+                current is not None
+                and state is not None
+                and self._desired_running(current, state)
+            )
+            self._record_given_up(
+                name,
+                signature=running.signature,
+                decision=decision,
+                last_exit=last_exit,
+                restarts=running.restarts,
+                desired=desired,
+            )
+
+    def _notify_crash_loop(
+        self,
+        name: str,
+        decision: ServiceRestartDecision,
+        *,
+        restarts: int,
+    ) -> None:
+        """Upsert one durable row per crash-loop episode; never raises."""
+        try:
+            episode = self._notify_episodes.get(name, 0) + 1
+            self._notify_episodes[name] = episode
+            _notify_crash_loop_event(
+                name=name,
+                reason=decision.reason,
+                restarts=restarts,
+                log_path=str(service_proc_output_log_path(name)),
+                host_started_at=self._started_at,
+                episode=episode,
+            )
+        except Exception as exc:  # noqa: BLE001 - reconcile never breaks on notify.
+            print(f"sase service host notification error: {exc}", file=sys.stderr)
+
+    def _record_given_up(
+        self,
+        name: str,
+        *,
+        signature: str,
+        decision: ServiceRestartDecision,
+        last_exit: ServiceProcLastExit,
+        restarts: int,
+        desired: bool,
+    ) -> None:
+        """Park a given-up proc until an explicit revive; notify when desired."""
+        self._given_up[name] = _GivenUp(
+            signature=signature,
+            decision=decision,
+            last_exit=last_exit,
+            restarts=restarts,
+            given_up_at=time.time(),
+        )
+        if not desired:
+            return
+        try:
+            _notify_give_up_event(
+                name=name,
+                reason=decision.reason,
+                restarts=restarts,
+                log_path=str(service_proc_output_log_path(name)),
+                host_started_at=self._started_at,
+                episode=self._notify_episodes.get(name, 0),
+            )
+        except Exception as exc:  # noqa: BLE001 - reconcile never breaks on notify.
+            print(f"sase service host notification error: {exc}", file=sys.stderr)
 
     def _reconcile_desired(
         self,
@@ -270,6 +348,14 @@ class _ServiceHost:
         state: ServiceStateSnapshot,
     ) -> None:
         entries = {entry.name: entry for entry in config.procs}
+        for name in list(self._given_up):
+            entry = entries.get(name)
+            if (
+                entry is None
+                or not self._desired_running(entry, state)
+                or _entry_signature(entry) != self._given_up[name].signature
+            ):
+                del self._given_up[name]
         for name in list(self._children):
             entry = entries.get(name)
             running = self._children[name]
@@ -305,6 +391,9 @@ class _ServiceHost:
 
         for entry in config.procs:
             if entry.name in self._children or entry.name in self._pending:
+                continue
+            given = self._given_up.get(entry.name)
+            if given is not None and given.signature == _entry_signature(entry):
                 continue
             if self._desired_running(entry, state):
                 self._launch(entry, history=self._restart_history.get(entry.name))
@@ -377,7 +466,9 @@ class _ServiceHost:
             return
         # An explicit request starts a new episode: backoff and alert state
         # go back to clean, and any pending backoff restart is dropped.
+        # It also revives a parked give-up for the same proc.
         self._pending.pop(name, None)
+        self._given_up.pop(name, None)
         self._restart_history[name] = ServiceRestartHistory()
         running = self._children.get(name)
         if action == "start" and running is not None:
@@ -625,6 +716,21 @@ class _ServiceHost:
                 decision=decision,
                 restarts=self._restart_counts.get(entry.name, 0) + 1,
                 last_exit=last_exit,
+            )
+        if decision.notify:
+            self._notify_crash_loop(
+                entry.name,
+                decision,
+                restarts=self._restart_counts.get(entry.name, 0) + 1,
+            )
+        if decision.action == "give_up":
+            self._record_given_up(
+                entry.name,
+                signature=_entry_signature(entry),
+                decision=decision,
+                last_exit=last_exit,
+                restarts=self._restart_counts.get(entry.name, 0),
+                desired=True,
             )
 
     def _stop_child(

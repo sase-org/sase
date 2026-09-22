@@ -8,7 +8,7 @@ from collections.abc import Mapping
 
 from sase.ace.hooks.processes import is_process_running
 from sase.service.config import ServiceConfigComposition
-from sase.service.host_models import PendingRestart, RunningProc
+from sase.service.host_models import GivenUp, PendingRestart, RunningProc
 from sase.service.host_support import package_version, read_reported_status
 from sase.service.paths import service_proc_output_log_path
 from sase.service.state import (
@@ -84,6 +84,7 @@ def write_current_host_status(
         pending_restarts=host._pending,  # type: ignore[attr-defined]
         last_exits=host._last_exits,  # type: ignore[attr-defined]
         restart_decisions=host._restart_decisions,  # type: ignore[attr-defined]
+        given_up=getattr(host, "_given_up", {}),
         config_error=config_error,
     )
 
@@ -99,6 +100,7 @@ def _write_host_status(
     pending_restarts: Mapping[str, PendingRestart],
     last_exits: Mapping[str, ServiceProcLastExit],
     restart_decisions: Mapping[str, ServiceRestartDecision],
+    given_up: Mapping[str, GivenUp] | None = None,
     config_error: str | None = None,
 ) -> None:
     observations = [
@@ -114,6 +116,18 @@ def _write_host_status(
                     last_exit=pending.last_exit,
                     restart=pending.decision,
                     restarts=pending.restarts,
+                    log_path=str(service_proc_output_log_path(name)),
+                )
+            )
+    for name, record in (given_up or {}).items():
+        if name not in children and name not in pending_restarts:
+            observations.append(
+                ServiceProcObservation(
+                    name=name,
+                    alive=False,
+                    last_exit=record.last_exit,
+                    restart=record.decision,
+                    restarts=record.restarts,
                     log_path=str(service_proc_output_log_path(name)),
                 )
             )
