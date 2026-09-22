@@ -452,7 +452,7 @@ tests/test_agent_loader_incomplete_history_dedup.py::test_incomplete_load_after_
 # sase-ni: September full-run evidence for these Vim containment nodes is
 # tracked on the existing narrow full-lane flake task; focused reruns pass, but
 # the post-fix records are not retired by the older August fix.
-tests/ace/tui/widgets/test_vim_normal_key_containment.py::test_ctrl_space_action_is_gated_only_while_prompt_is_mounted
+tests/ace/tui/widgets/test_vim_normal_key_containment.py::test_space_action_is_gated_only_while_prompt_is_mounted
 tests/ace/tui/widgets/test_vim_normal_key_containment.py::test_other_main_screen_vim_hosts_contain_normal_space
 # sase-10g: production query oracle fails under the parallel scoped lane and
 # passes in isolation; later full-run evidence was added to the existing task.

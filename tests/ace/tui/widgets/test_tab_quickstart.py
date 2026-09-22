@@ -99,7 +99,7 @@ def _card_plain(
 
 def _long_key_registry_config() -> dict[str, object]:
     long_binding_pairs = {
-        "start_agent_home": "ctrl+shift+f24,ctrl+shift+f23",
+        "start_agent_from_patch": "ctrl+shift+f24,ctrl+shift+f23",
         "open_config_center": "ctrl+shift+f22,ctrl+shift+f21",
         "show_help": "ctrl+shift+f20,ctrl+shift+f19",
         "open_command_palette": "ctrl+shift+f18,ctrl+shift+f17",
@@ -112,7 +112,7 @@ def test_tab_quickstart_uses_active_keymap_registry() -> None:
         {
             "keymaps": {
                 "app": {
-                    "start_agent_home": "f2",
+                    "start_agent_from_patch": "f2",
                     "open_config_center": "f3",
                     "next_tab": "f4",
                     "open_command_palette": "f7",
@@ -138,7 +138,7 @@ def test_tab_quickstart_uses_active_keymap_registry() -> None:
     assert "f5" not in card
     assert "f9" not in card
     assert " ] " in card
-    assert "Launch your first agent" in card
+    assert "Launch an agent" in card
     assert "The full tour of this tab" in card
     assert "tool calls, and artifact files" in hero
 

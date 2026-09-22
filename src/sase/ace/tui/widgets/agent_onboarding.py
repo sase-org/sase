@@ -240,10 +240,11 @@ class AgentOnboarding(VerticalScroll):
         app = registry.app
         text = Text()
         append_section_heading(text, "Start from the prompt", accent=_AGENTS_ACCENT)
-        append_keycap(text, key_display_name(app.start_agent_home))
+        append_keycap(text, key_display_name(app.start_agent_from_patch))
         text.append(
-            "open the prompt bar and describe a task; this launches an agent "
-            "in your home workspace."
+            "open the prompt bar (pre-filled with your last VCS xprompt, if "
+            "any; `Ctrl+U` clears it) and describe a task; this launches an "
+            "agent in your home workspace."
         )
         text.append("\n")
         if launch_targets_available:

@@ -163,7 +163,6 @@ def cls_bindings(km: KeymapRegistry) -> Sections:
             [
                 (d(a.run_workflow), "Run workflow"),
                 (d(a.start_custom_agent), "Run an agent"),
-                (d(a.start_agent_home), "Run agent (home)"),
                 (
                     d(a.start_agent_from_patch),
                     "Repeat last launched VCS xprompt",

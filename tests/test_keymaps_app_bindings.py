@@ -121,18 +121,15 @@ def test_build_app_bindings_binds_at_to_restore_prompt_stash() -> None:
     assert by_key.get("at") == "restore_prompt_stash"
 
 
-def test_build_app_bindings_uses_ctrl_space_agent_binding() -> None:
-    """Agent home uses Space while repeat-last keeps Ctrl+Space."""
+def test_build_app_bindings_uses_space_repeat_agent_binding() -> None:
+    """Repeat-last owns Space; the retired home action has no binding."""
     bindings = build_app_bindings(default_app_keymaps())
     by_action = {b.action: b for b in bindings}
     by_key = {b.key: b.action for b in bindings}
 
-    assert by_action["start_agent_home"].key == "space"
-    assert by_action["start_agent_from_patch"].key == "ctrl+@"
-    assert by_key["space"] == "start_agent_home"
-    assert not any(
-        b.action == "start_agent_from_patch" and b.key == "space" for b in bindings
-    )
+    assert by_action["start_agent_from_patch"].key == "space"
+    assert by_key["space"] == "start_agent_from_patch"
+    assert not any(b.action == "start_agent_home" for b in bindings)
 
 
 def test_default_lowercase_s_bindings_are_tab_scoped_and_ordered() -> None:

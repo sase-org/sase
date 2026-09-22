@@ -1,4 +1,4 @@
-"""Submit-time Ctrl+Space replay refresh (sase-p7)."""
+"""Submit-time Space replay refresh (sase-p7)."""
 
 from __future__ import annotations
 

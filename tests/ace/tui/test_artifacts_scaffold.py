@@ -171,7 +171,7 @@ async def test_subtab_keys_wrap_and_gate_hidden_pr_actions() -> None:
         assert files.refresh_request_count == 2
 
 
-async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
+async def test_space_dispatches_repeat_agent_from_every_subtab() -> None:
     async with AcePage(initial_tab="patches") as page:
         view = page.query_one_widget("#artifacts-view", ArtifactsView)
         calls: list[str] = []
@@ -187,7 +187,7 @@ async def test_ctrl_space_dispatches_repeat_agent_from_every_subtab() -> None:
             await page.expect_state("artifacts_subtab", subtab)
             assert page.app.check_action("start_agent_from_patch", ()) is True
 
-            await page.press("ctrl+@")
+            await page.press("space")
             assert calls == list(expected[:index])
 
 

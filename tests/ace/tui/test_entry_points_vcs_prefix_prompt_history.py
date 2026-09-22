@@ -106,7 +106,7 @@ def test_prompt_history_edit_first_notifies_when_no_non_cancelled_entry(
 def test_prompt_history_warns_when_mru_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Same empty-MRU warning text as ``<ctrl+space>``."""
+    """Prompt history still warns when the MRU is empty."""
     _patch_mru_pairs(monkeypatch, [])
     app = _App()
 

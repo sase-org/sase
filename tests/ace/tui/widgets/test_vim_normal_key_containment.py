@@ -170,7 +170,7 @@ async def test_normal_non_printable_keys_still_reach_app_actions(
 
 
 @pytest.mark.parametrize("vim_mode", ["insert", "normal"])
-async def test_ctrl_space_leaves_focused_prompt_intact(
+async def test_space_leaves_focused_prompt_intact(
     page: AcePage,
     vim_mode: str,
 ) -> None:
@@ -183,14 +183,18 @@ async def test_ctrl_space_leaves_focused_prompt_intact(
             await page.press("i")
         assert text_area._vim_mode == vim_mode
 
-        await page.press("ctrl+@")
+        await page.press("space")
 
         assert page.query_one_widget("#prompt-input-bar", PromptInputBar) is bar
-        assert text_area.text == "hello world"
+        if vim_mode == "insert":
+            assert "hello world" in text_area.text
+            assert " " in text_area.text
+        else:
+            assert text_area.text == "hello world"
         save_history.assert_not_called()
 
 
-async def test_ctrl_space_leaves_frontmatter_focused_prompt_intact(
+async def test_space_leaves_frontmatter_focused_prompt_intact(
     page: AcePage,
 ) -> None:
     with (
@@ -212,14 +216,14 @@ async def test_ctrl_space_leaves_frontmatter_focused_prompt_intact(
         await page.wait_for(lambda _state: page.app.focused is panel)
         prompt_text = text_area.text
 
-        await page.press("ctrl+@")
+        await page.press("space")
 
         assert page.query_one_widget("#prompt-input-bar", PromptInputBar) is bar
         assert text_area.text == prompt_text
         save_history.assert_not_called()
 
 
-async def test_ctrl_space_action_is_gated_only_while_prompt_is_mounted(
+async def test_space_action_is_gated_only_while_prompt_is_mounted(
     page: AcePage,
 ) -> None:
     with _patch_config():

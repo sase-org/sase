@@ -221,7 +221,7 @@ def _is_default_vcs_xprompt_prefix(prefix: str) -> bool:
 
     The bare-prompt default (``#git:home``) is normalized data, not a user
     selection, so it must never appear as a cyclable MRU candidate, a recorded
-    MRU entry, or a saved ``Ctrl+Space`` replay target even when an earlier
+    MRU entry, or a saved ``Space`` replay target even when an earlier
     launch persisted it. Underscore refs are normalized on both sides so legacy
     spellings (e.g. ``#git_home``) compare equal to the default.
     """

@@ -87,8 +87,8 @@ def test_help_modal_displays_command_palette_alternatives() -> None:
     assert (": / ;", "Open command palette") in entries
 
 
-def test_help_modal_displays_ctrl_space_agent_shortcuts() -> None:
-    """Help exposes Ctrl+Space for repeat-last, not the old Space wording."""
+def test_help_modal_displays_space_repeat_agent_shortcuts() -> None:
+    """Help exposes Space for repeat-last with no home-agent app row."""
     reg = load_keymap_registry({})
     cls_pairs = {
         (key, label)
@@ -107,15 +107,16 @@ def test_help_modal_displays_ctrl_space_agent_shortcuts() -> None:
     }
 
     for pairs in (cls_pairs, agent_pairs, axe_pairs):
-        assert ("Ctrl+Space", "Repeat last launched VCS xprompt") in pairs
+        assert ("Space", "Repeat last launched VCS xprompt") in pairs
+        assert ("Space", "Run agent (home)") not in pairs
         assert not any("@/Space" in label for _key, label in pairs)
 
     assert (", Space", "Run agent from current Patch") in cls_pairs
     assert (", Space", "Run agent from selected agent") in agent_pairs
 
 
-def test_help_modal_displays_bare_space_agent_home_app_key() -> None:
-    """Help exposes bare Space as the primary home-agent shortcut."""
+def test_help_modal_displays_bare_space_repeat_agent_app_key() -> None:
+    """Help exposes bare Space as the primary repeat-last shortcut."""
     reg = load_keymap_registry({})
     sections_by_tab = (cls_bindings(reg), agents_bindings(reg), axe_bindings(reg))
 
@@ -123,7 +124,7 @@ def test_help_modal_displays_bare_space_agent_home_app_key() -> None:
         pairs = {
             (key, label) for _section, bindings in sections for key, label in bindings
         }
-        assert ("Space", "Run agent (home)") in pairs
+        assert ("Space", "Repeat last launched VCS xprompt") in pairs
 
 
 def test_help_modal_displays_h_agent_home_leader_key() -> None:

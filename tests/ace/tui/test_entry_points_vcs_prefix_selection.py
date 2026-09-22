@@ -229,12 +229,12 @@ def test_selecting_non_launchable_project_notifies_without_persisting(
     assert app.editor_launches == []
 
 
-def test_ctrl_space_mounts_bar_from_mru_head(
+def test_space_mounts_bar_from_mru_head(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """``<ctrl+space>`` pre-fills from the VCS xprompt MRU head.
+    """``<space>`` pre-fills from the VCS xprompt MRU head.
 
-    Regression coverage for the headline defect: ``<ctrl+space>`` must read
+    Regression coverage for the headline defect: ``<space>`` must read
     the same store that every launch surface writes, not a separate
     selection-time store. The display half seeds the bar text/label; the
     canonical half seeds ``history_sort_key``.
@@ -260,10 +260,10 @@ def test_ctrl_space_mounts_bar_from_mru_head(
     assert app.notifications == []
 
 
-def test_ctrl_space_offers_most_recently_launched_ref(
+def test_space_offers_most_recently_launched_ref(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """After launching ref A then ref B, ``<ctrl+space>`` offers B, not A.
+    """After launching ref A then ref B, ``<space>`` offers B, not A.
 
     Reduces the "open the bar on A, cycle to B, launch" headline bug to its
     MRU-head effect: the most recently *launched* ref wins, regardless of
@@ -289,7 +289,7 @@ def test_ctrl_space_offers_most_recently_launched_ref(
     ]
 
 
-def test_ctrl_space_warns_when_mru_empty(
+def test_space_opens_blank_home_prompt_when_mru_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from sase.history import vcs_xprompt_mru
@@ -303,10 +303,8 @@ def test_ctrl_space_warns_when_mru_empty(
 
     app.action_start_agent_from_patch()
 
-    assert app.notifications == [
-        ("No previously launched VCS xprompt", "warning"),
-    ]
-    assert app.prompt_launches == []
+    assert app.notifications == []
+    assert app.prompt_launches == [{}]
     assert app.editor_launches == []
 
 

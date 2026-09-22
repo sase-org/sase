@@ -214,8 +214,9 @@ class TabQuickStart(VerticalScroll):
         query_key = key_display_name(app.edit_query)
         rows: list[tuple[tuple[str, ...], str]] = [
             (
-                (key_display_name(app.start_agent_home),),
-                "Launch your first agent from the home-workspace prompt bar.",
+                (key_display_name(app.start_agent_from_patch),),
+                "Launch an agent: repeats your last VCS xprompt, or opens a "
+                "blank home-workspace prompt the first time.",
             ),
             (
                 (key_display_name(app.open_config_center),),

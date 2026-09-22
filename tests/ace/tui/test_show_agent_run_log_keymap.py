@@ -21,8 +21,8 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     assert registry.app.view_agent_metadata == "V"
     assert registry.app.open_artifact_files == "a"
     assert registry.app.accept_proposal == "A"
-    assert registry.app.start_agent_home == "space"
-    assert registry.app.start_agent_from_patch == "ctrl+@"
+    assert registry.app.start_agent_from_patch == "space"
+    assert not hasattr(registry.app, "start_agent_home")
     assert registry.leader_mode.keys["agent_run_log"] == "A"
     assert registry.leader_mode.keys["agent_home"] == "h"
     assert registry.leader_mode.keys["agent_from_cl"] == "space"
@@ -36,8 +36,8 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     assert by_key["a"] == "open_artifact_files"
     assert by_key["A"] == "accept_proposal"
     assert by_key["J"] == "focus_next_agent_panel"
-    assert by_key["space"] == "start_agent_home"
-    assert by_key["ctrl+@"] == "start_agent_from_patch"
+    assert by_key["space"] == "start_agent_from_patch"
+    assert "ctrl+@" not in by_key
 
     # `V` is tab-disjoint: both actions bind to the key, and
     # `check_app_action` (not the bindings list) picks the one that applies
@@ -46,12 +46,10 @@ def test_default_keymap_binds_v_to_agent_run_log_and_a_to_artifacts() -> None:
     assert v_actions == {"show_agent_run_log", "view_agent_metadata"}
 
 
-def test_action_start_agent_home_opens_home_prompt() -> None:
+def test_action_start_agent_home_is_removed() -> None:
     app = _FakeEntryPoints()
 
-    app.action_start_agent_home()
-
-    assert app.home_agent_count == 1
+    assert not hasattr(app, "action_start_agent_home")
 
 
 def test_leader_a_opens_agent_run_log_for_selected_cl() -> None:

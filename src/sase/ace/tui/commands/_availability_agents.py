@@ -31,7 +31,6 @@ _REQUIRES_AGENT: frozenset[str] = frozenset(
         "app.rename_cl",
         "app.toggle_attempt_view",
         "app.toggle_agent_unread",
-        "app.start_agent_from_patch",
         "app.jump_to_agent_patch",
         "app.view_agent_metadata",
     }
@@ -64,7 +63,6 @@ _REMOTE_AGENT_LOCAL_COMMANDS: frozenset[str] = frozenset(
         "app.open_tmux",
         "app.rename_cl",
         "app.agents_retry",
-        "app.start_agent_from_patch",
         "app.start_tmux_mode",
         "app.toggle_agent_unread",
         "app.toggle_attempt_view",

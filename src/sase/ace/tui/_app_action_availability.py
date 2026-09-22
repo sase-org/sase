@@ -65,7 +65,6 @@ _LOCAL_AGENT_ROW_ACTIONS = frozenset(
         "open_tmux",
         "rename_cl",
         "agents_retry",
-        "start_agent_from_patch",
         "start_tmux_mode",
         "toggle_agent_unread",
         "toggle_attempt_view",
@@ -198,13 +197,14 @@ def check_app_action(
         metadata_search = getattr(app, "_agent_metadata_search", None)
         if not bool(getattr(metadata_search, "is_active", False)):
             return False
-    # ``Ctrl+Space`` replays the last launched VCS xprompt by remounting the
-    # prompt bar, which tears down whatever the user is currently typing
-    # (``_show_prompt_input_bar_for_home`` unmounts first). The printable
-    # launch keys (``+``, ``space``) are swallowed by the focused TextArea,
-    # so this non-printable one is the only launch entry point that can reach
-    # the app mid-prompt. Disable the action instead of the key so the guard
-    # survives rebinding and covers every focus position inside the bar.
+    # ``start_agent_from_patch`` replays the last launched VCS xprompt by
+    # remounting the prompt bar, which tears down whatever the user is
+    # currently typing (``_show_prompt_input_bar_for_home`` unmounts first).
+    # The action is now bound to printable ``space``, which the focused
+    # TextArea normally swallows (and the vim layer swallows unhandled
+    # printable NORMAL keys), but the action-level guard still covers
+    # rebinding to a non-printable key and every focus position inside
+    # the bar.
     if action == "start_agent_from_patch" and (
         bool(getattr(app, "_screen_stack", ())) and app._prompt_input_active()
     ):

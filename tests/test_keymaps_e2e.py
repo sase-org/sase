@@ -195,29 +195,23 @@ async def test_leader_at_opens_panel_while_bare_at_restores() -> None:
             assert panel_calls == [True]
 
 
-async def test_ctrl_at_dispatches_repeat_agent_binding_not_home_space() -> None:
-    """Ctrl+Space dispatches repeat-last while Space dispatches home mode."""
+async def test_space_dispatches_repeat_agent_binding() -> None:
+    """Space dispatches repeat-last; Ctrl+Space is unbound by default."""
     with _patch_config():
         async with AcePage() as page:
             repeat_calls: list[bool] = []
-            home_calls: list[bool] = []
 
             def _record_repeat_agent() -> None:
                 repeat_calls.append(True)
 
-            def _record_home_agent() -> None:
-                home_calls.append(True)
-
             page.app.action_start_agent_from_patch = _record_repeat_agent  # type: ignore[method-assign]
-            page.app.action_start_agent_home = _record_home_agent  # type: ignore[method-assign]
 
             await page.press("space")
-            assert home_calls == [True]
-            assert repeat_calls == []
+            assert repeat_calls == [True]
 
             await page.press("ctrl+@")
+            await page.pause()
             assert repeat_calls == [True]
-            assert home_calls == [True]
 
 
 async def test_leader_space_dispatches_current_selection_and_h_dispatches_home() -> (

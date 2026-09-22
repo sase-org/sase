@@ -57,7 +57,7 @@ _NON_PRS_ARTIFACT_COMMANDS: frozenset[str] = frozenset(
         "app.quit",
         "app.stop_axe_and_quit",
         "app.start_custom_agent",
-        "app.start_agent_home",
+        "app.start_agent_from_patch",
         "app.start_last_vcs_xprompt_in_editor",
         "app.restore_prompt_stash",
         "app.show_notifications",
@@ -317,7 +317,6 @@ def artifacts_available(spec: CommandSpec, ctx: CommandContext) -> bool:
         "app.toggle_mark",
         "app.rename_cl",
         "app.edit_hooks",
-        "app.start_agent_from_patch",
     }:
         return cs is not None
 

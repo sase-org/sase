@@ -285,7 +285,7 @@ def test_keep_bar_launch_clones_context_and_preserves_base() -> None:
     assert extra["display_name"] == base.display_name
 
 
-def test_keep_bar_launch_keeps_ctrl_space_gated() -> None:
+def test_keep_bar_launch_keeps_space_repeat_gated() -> None:
     app = _KeepBarGateApp()
 
     app._finish_agent_launch("pane one", keep_bar=True)

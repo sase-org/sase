@@ -67,7 +67,7 @@ def launch_toast_label(prompt: str, fallback: str) -> str:
 
 
 def record_submit_time_vcs_replay(prompt: str) -> None:
-    """Refresh the Ctrl+Space MRU from the prompt actually submitted.
+    """Refresh the Space MRU from the prompt actually submitted.
 
     ``record_vcs_xprompt_usage`` already drops the implicit ``#git:home``
     default and known non-launchable projects, so this is safe to call for
@@ -81,7 +81,7 @@ def record_submit_time_vcs_replay(prompt: str) -> None:
 
         record_vcs_xprompt_usage(prefix)
     except Exception:
-        log.debug("Failed to refresh Ctrl+Space replay target", exc_info=True)
+        log.debug("Failed to refresh Space replay target", exc_info=True)
 
 
 def dispatch_payload_from_prompt_context(ctx: PromptContext) -> dict[str, object]:

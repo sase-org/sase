@@ -21,7 +21,7 @@ class EntryPromptHistoryMixin:
     ) -> None:
         """Show prompt history modal for the last launched VCS xprompt (bound to ,.).
 
-        Documented as "same as Ctrl+Space": both read the VCS xprompt MRU head.
+        Documented as "same as Space": both read the VCS xprompt MRU head.
         """
         from sase.core.time import generate_timestamp
         from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru_pairs
@@ -33,7 +33,7 @@ class EntryPromptHistoryMixin:
             PromptHistoryResult,
         )
 
-        # Load the MRU head (same as Ctrl+Space).
+        # Load the MRU head (same as Space).
         pairs = load_launchable_vcs_xprompt_mru_pairs()
         if not pairs:
             self.notify("No previously launched VCS xprompt", severity="warning")  # type: ignore[attr-defined]

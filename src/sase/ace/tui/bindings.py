@@ -200,10 +200,9 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("Q", "stop_axe_and_quit", "Quit / Restart", show=False),
     # Agent workflow (all tabs) - shows project/Patch selection modals
     Binding("plus", "start_custom_agent", "Run Agent", show=False),
-    Binding("space", "start_agent_home", "Run Agent (Home)", show=False),
-    # Run agent from Patch (Patches view only)
+    # Repeat last launched VCS xprompt (all tabs)
     Binding(
-        "ctrl+@", "start_agent_from_patch", "Run Agent (Last VCS XPrompt)", show=False
+        "space", "start_agent_from_patch", "Run Agent (Last VCS XPrompt)", show=False
     ),
     Binding(
         "ctrl+g",

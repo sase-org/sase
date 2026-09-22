@@ -120,7 +120,6 @@ _BINDING_META: list[tuple[str, str, bool]] = [
     ("open_agent_cleanup_panel", "Agent Cleanup", False),
     ("stop_axe_and_quit", "Quit / Restart", False),
     ("start_custom_agent", "Run Agent", False),
-    ("start_agent_home", "Run Agent (Home)", False),
     ("start_agent_from_patch", "Run Agent (Last VCS XPrompt)", False),
     ("start_last_vcs_xprompt_in_editor", "Edit Last VCS XPrompt", False),
     ("restore_prompt_stash", "Restore Prompt Stash", False),

@@ -220,18 +220,11 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("stop_axe_and_quit", "Quit / restart menu", "Services", ALL_TABS, ()),
     ("start_custom_agent", "Run custom agent", "Agents", ALL_TABS, ("+",)),
     (
-        "start_agent_home",
-        "Run agent (home mode)",
+        "start_agent_from_patch",
+        "Repeat last launched VCS xprompt",
         "Agents",
         ALL_TABS,
-        ("home", "home mode", "~"),
-    ),
-    (
-        "start_agent_from_patch",
-        "Run agent from Patch",
-        "Agents",
-        CL_AGENTS,
-        (),
+        ("home", "repeat", "last vcs xprompt", "run agent"),
     ),
     (
         "start_last_vcs_xprompt_in_editor",

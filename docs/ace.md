@@ -1080,15 +1080,14 @@ the full list. The section is omitted entirely when the Patch has no deltas.
 
 ### Workflows and Agents
 
-| Key          | Action                                                         |
-| ------------ | -------------------------------------------------------------- |
-| `r`          | Run workflow on current PR                                     |
-| `+`          | Run a custom agent (opens project/Patch selection)             |
-| `Space`      | Run an agent from the home prompt context                      |
-| `,<space>`   | Run an agent from the current PR (skips selection)             |
-| `Ctrl+Space` | Prefill the prompt with the most recently launched VCS xprompt |
-| `Ctrl+G`     | Open that most recent VCS xprompt in `$EDITOR` first           |
-| `@`          | Restore a stashed prompt                                       |
+| Key        | Action                                                                                                                               |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `r`        | Run workflow on current PR                                                                                                           |
+| `+`        | Run a custom agent (opens project/Patch selection)                                                                                   |
+| `Space`    | Prefill the prompt with the most recently launched VCS xprompt (blank home prompt if none; `Space` then `Ctrl+U` for a blank prompt) |
+| `,<space>` | Run an agent from the current PR (skips selection)                                                                                   |
+| `Ctrl+G`   | Open that most recent VCS xprompt in `$EDITOR` first                                                                                 |
+| `@`        | Restore a stashed prompt                                                                                                             |
 
 If sase's TUI cannot detect a workspace provider for the selected Patch or agent, the
 quick-launch actions show an error toast instead of opening a prompt with a broken VCS
@@ -3219,8 +3218,7 @@ These work on all tabs:
 | `:` / `;`               | Open the context-aware [Command Palette](#command-palette)                                                                                                             |
 | `i`                     | Show notifications inbox                                                                                                                                               |
 | `+`                     | Run a custom agent (opens project/Patch selection)                                                                                                                     |
-| `Space`                 | Run an agent from the home prompt context                                                                                                                              |
-| `Ctrl+Space`            | Prefill the prompt bar with the most recently launched VCS xprompt                                                                                                     |
+| `Space`                 | Prefill the prompt with the most recently launched VCS xprompt (blank home prompt if none; `Space` then `Ctrl+U` for a blank prompt)                                   |
 | `Ctrl+G`                | Open the agent editor pre-filled with the most recent VCS xprompt prefix                                                                                               |
 | `Ctrl+L`                | Dismiss all currently-visible toast notifications                                                                                                                      |
 | `@`                     | Restore a stashed prompt: a lone entry restores directly; several open the restore picker                                                                              |

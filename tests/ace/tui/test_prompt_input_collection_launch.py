@@ -69,7 +69,7 @@ class _PromptActivityApp(EventHandlersBase, _FakeApp):
         return []
 
 
-def _ctrl_space_available(app: _PromptActivityApp) -> bool:
+def _repeat_action_available(app: _PromptActivityApp) -> bool:
     return (
         check_app_action(app, "start_agent_from_patch", (), lambda *_args: True)
         is not False
@@ -138,7 +138,7 @@ def test_required_input_modal_cancel_releases_barless_context() -> None:
 
     assert app.launch_tasks == []
     assert app._prompt_context is None
-    assert _ctrl_space_available(app)
+    assert _repeat_action_available(app)
 
 
 def test_required_input_modal_cancel_preserves_mounted_bar_context() -> None:
@@ -150,7 +150,7 @@ def test_required_input_modal_cancel_preserves_mounted_bar_context() -> None:
 
     assert app.launch_tasks == []
     assert app._prompt_context is not None
-    assert not _ctrl_space_available(app)
+    assert not _repeat_action_available(app)
 
 
 def test_optional_input_error_releases_barless_context(
@@ -170,7 +170,7 @@ def test_optional_input_error_releases_barless_context(
 
     assert app.launch_tasks == []
     assert app._prompt_context is None
-    assert _ctrl_space_available(app)
+    assert _repeat_action_available(app)
 
 
 def test_invalid_collected_value_does_not_launch() -> None:
@@ -205,7 +205,7 @@ def test_invalid_collected_value_releases_barless_context() -> None:
 
     assert app.launch_tasks == []
     assert app._prompt_context is None
-    assert _ctrl_space_available(app)
+    assert _repeat_action_available(app)
 
 
 def test_invalid_collected_value_preserves_mounted_bar_context() -> None:
@@ -223,7 +223,7 @@ def test_invalid_collected_value_preserves_mounted_bar_context() -> None:
 
     assert app.launch_tasks == []
     assert app._prompt_context is not None
-    assert not _ctrl_space_available(app)
+    assert not _repeat_action_available(app)
 
 
 def test_raw_placeholder_opens_panel_then_launches_substituted(

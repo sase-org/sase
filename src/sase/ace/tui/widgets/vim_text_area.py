@@ -128,7 +128,7 @@ class VimTextArea(VimNormalModeMixin, LineRenderingMixin, TextArea):
 
         In vim an unmapped printable NORMAL-mode key is a no-op; letting it bubble
         instead hands it to whatever app-level binding owns that character -- e.g.
-        bare ``space`` would reach ``start_agent_home``, which unmounts the prompt
+        bare ``space`` would reach ``start_agent_from_patch``, which unmounts the prompt
         bar and rewrites its text to history as cancelled. Only printable keys are
         swallowed, so the structural keys hosts rely on (``enter``, ``escape``,
         ``tab``, every ctrl/alt chord) keep bubbling as before.

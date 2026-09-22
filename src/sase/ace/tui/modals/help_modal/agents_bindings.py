@@ -104,7 +104,10 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             "Agent Actions",
             [
                 (d(a.start_custom_agent), "Run custom agent"),
-                (d(a.start_agent_home), "Run agent (home)"),
+                (
+                    d(a.start_agent_from_patch),
+                    "Repeat last launched VCS xprompt",
+                ),
                 (d(a.start_last_vcs_xprompt_in_editor), "Edit last VCS xprompt"),
                 (d(a.restore_prompt_stash), "Restore stashed prompt"),
                 (d(a.agents_retry), "Retry local or remote agent"),
@@ -594,10 +597,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             [
                 (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
                 ("[ / ]", "Switch Keymaps / Guide"),
-                (
-                    d(a.start_agent_from_patch),
-                    "Repeat last launched VCS xprompt",
-                ),
                 (d(a.toggle_hide_reverted), "Show/hide non-run agents"),
                 (
                     d(a.open_config_center),

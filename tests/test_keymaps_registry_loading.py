@@ -1,5 +1,9 @@
 """Tests for loading sase's TUI keymap registries."""
 
+import logging
+
+import pytest
+
 from sase.ace.tui.keymaps import (
     BangModeKeymaps,
     BeadIssueModeKeymaps,
@@ -120,8 +124,8 @@ def test_custom_agent_launcher_defaults_to_plus() -> None:
     reg = load_keymap_registry({})
 
     assert reg.app.start_custom_agent == "plus"
-    assert reg.app.start_agent_home == "space"
-    assert reg.app.start_agent_from_patch == "ctrl+@"
+    assert reg.app.start_agent_from_patch == "space"
+    assert not hasattr(reg.app, "start_agent_home")
 
 
 def test_restore_prompt_stash_defaults_to_at() -> None:
@@ -146,13 +150,11 @@ def test_custom_agent_launcher_at_override_reverts_to_plus() -> None:
 
 
 def test_agent_launch_defaults_use_distinct_space_keys() -> None:
-    """Agent launch defaults keep bare Space and Ctrl+Space distinct."""
+    """Repeat-last owns bare Space; leader ``,<space>`` is a separate scope."""
     reg = load_keymap_registry({})
 
-    assert reg.app.start_agent_home == "space"
-    assert reg.app.start_agent_from_patch == "ctrl+@"
-    assert reg.app.start_agent_from_patch != "space"
-    assert reg.app.start_agent_from_patch != reg.app.start_agent_home
+    assert reg.app.start_agent_from_patch == "space"
+    assert not hasattr(reg.app, "start_agent_home")
     assert LeaderModeKeymaps().keys["agent_home"] == "h"
     assert reg.leader_mode.keys["agent_home"] == "h"
     assert reg.leader_mode.keys["agent_home"] != "space"
@@ -185,6 +187,19 @@ def test_edit_hooks_default_binding() -> None:
     assert reg.app.agents_refresh == "r"
     assert reg.app.refresh == "R"
     assert reg.app.agents_retry == "R"
+
+
+def test_stale_start_agent_home_override_is_ignored(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A stale ``start_agent_home`` user key is ignored with a warning."""
+    with caplog.at_level(logging.WARNING, logger="sase.ace.tui.keymaps.registry"):
+        reg = load_keymap_registry({"keymaps": {"app": {"start_agent_home": "f2"}}})
+
+    assert not hasattr(reg.app, "start_agent_home")
+    assert reg.app.start_agent_from_patch == "space"
+    assert "Unknown keymap action" in caplog.text
+    assert "start_agent_home" in caplog.text
 
 
 def test_g_and_grouping_default_bindings_do_not_collide() -> None:

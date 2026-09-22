@@ -45,7 +45,7 @@ class EntryCustomMixin:
         ) -> str | None: ...
 
     def action_start_agent_from_patch(self) -> None:
-        """Pre-fill the prompt bar with the most recently launched VCS xprompt."""
+        """Repeat the most recently launched VCS xprompt, or open a blank home prompt."""
         changespec_override = self.__dict__.get(
             "action_start_agent_from_changespec"  # legacy compatibility alias
         )
@@ -58,7 +58,7 @@ class EntryCustomMixin:
             return
         resolved = _resolve_vcs_xprompt_mru_head()
         if resolved is None:
-            self.notify("No previously launched VCS xprompt", severity="warning")  # type: ignore[attr-defined]
+            self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
             return
         initial_text, display_name, history_sort_key = resolved
         self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
@@ -70,10 +70,6 @@ class EntryCustomMixin:
     def action_start_agent_from_changespec(self) -> None:  # legacy compatibility alias
         """Legacy alias for :meth:`action_start_agent_from_patch`."""
         self.action_start_agent_from_patch()
-
-    def action_start_agent_home(self) -> None:
-        """Start a home-mode agent prompt."""
-        self._show_prompt_input_bar_for_home()  # type: ignore[attr-defined]
 
     def action_start_last_vcs_xprompt_in_editor(self) -> None:
         """Open editor with the most recently used launchable VCS xprompt."""

@@ -14,7 +14,9 @@ from dataclasses import fields
 
 from sase.ace.tui.actions.refresh_panel import refresh_panel_enabled
 from sase.ace.tui.commands import (
+    CommandContext,
     build_command_catalog,
+    is_command_available,
     iter_app_commands,
     iter_digit_commands,
     iter_mode_commands,
@@ -142,28 +144,52 @@ def test_show_help_command_is_global_question_mark_keymap() -> None:
     assert "leader.show_help" not in by_id
 
 
-def test_start_agent_from_patch_command_uses_ctrl_space() -> None:
-    """The repeat-last agent command exposes Ctrl+Space, not bare Space."""
+def test_start_agent_from_patch_command_uses_space() -> None:
+    """The repeat-last agent command exposes bare Space on all tabs."""
     by_id = {c.id: c for c in iter_app_commands(_registry())}
     spec = by_id["app.start_agent_from_patch"]
 
-    assert spec.label == "Run agent from Patch"
-    assert spec.key_sequence == ("ctrl+@",)
-    assert spec.key_display == "Ctrl+Space"
-
-
-def test_start_agent_home_command_uses_bare_space() -> None:
-    """The home-agent app command exposes bare Space."""
-    by_id = {c.id: c for c in iter_app_commands(_registry())}
-    spec = by_id["app.start_agent_home"]
-
-    assert spec.label == "Run agent (home mode)"
-    assert spec.category == "Agents"
+    assert spec.label == "Repeat last launched VCS xprompt"
     assert spec.tabs == ("artifacts", "agents", "services")
     assert spec.key_sequence == ("space",)
     assert spec.key_display == "Space"
-    assert spec.executor.kind == "app_action"
-    assert spec.executor.action == "start_agent_home"
+
+
+def test_start_agent_home_command_is_absent() -> None:
+    """The retired home-agent command no longer appears in the catalog."""
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+
+    assert "app.start_agent_home" not in by_id
+
+
+def test_start_agent_from_patch_available_without_selection() -> None:
+    """Repeat-last is runnable with no row selected, including remote rows."""
+    from sase.ace.tui.models.agent import Agent, AgentType
+
+    by_id = {c.id: c for c in iter_app_commands(_registry())}
+    spec = by_id["app.start_agent_from_patch"]
+
+    assert is_command_available(spec, CommandContext(tab="agents", agent=None))
+    remote = Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="fleet-ui",
+        project_file="/fleet/apollo/project.yml",
+        status="RUNNING",
+        start_time=None,
+        fleet_origin_alias="apollo",
+    )
+    assert is_command_available(
+        spec,
+        CommandContext(
+            tab="agents",
+            agent=remote,
+            fleet_enabled=True,
+            selected_agent_remote=True,
+        ),
+    )
+    assert is_command_available(
+        spec, CommandContext(tab="artifacts", artifacts_subtab="patches", patch=None)
+    )
 
 
 def test_run_workflow_command_is_artifacts_and_axe_run() -> None:

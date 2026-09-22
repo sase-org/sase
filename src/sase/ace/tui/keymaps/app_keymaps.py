@@ -142,7 +142,6 @@ class AppKeymaps:
     open_agent_cleanup_panel: str
     stop_axe_and_quit: str
     start_custom_agent: str
-    start_agent_home: str
     start_agent_from_patch: str
     start_last_vcs_xprompt_in_editor: str
     restore_prompt_stash: str
