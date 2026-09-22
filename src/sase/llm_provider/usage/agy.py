@@ -230,8 +230,10 @@ def _wait_for_usage(
             list(streams), [], [], min(remaining, _POLL_INTERVAL_SECONDS)
         )
         for stream in ready:
+            # ``os.read`` returns whatever is ready; a buffered ``read(n)``
+            # would block until ``n`` bytes or EOF and hide the auth marker.
             try:
-                chunk = stream.read(4096)
+                chunk = os.read(stream.fileno(), 4096)
             except OSError:
                 chunk = b""
             if not chunk:
