@@ -2187,7 +2187,10 @@ variables. The snapshot is an absolute project-scoped best-effort copy that the 
 epic summary script uses as a guaranteed-local fallback after the normal checkout
 candidates; the original reference remains authoritative for display and metadata. See
 [Launch-time clan summaries](agent_families.md#launch-time-clan-summaries) for the
-complete ordering, execution, and persistence details.
+complete ordering, execution, and persistence details. Re-creating a clan with a bare
+`%clan(<name>)` or a generation-creating `%id(<id>, clan=<name>)` inherits the
+remembered tribe and re-runs the remembered summary script (falling back to the
+remembered text) when no explicit values are given.
 
 The `%model` directive also supports automatic provider resolution: known model names
 (e.g., `opus`, `o3`, `qwen3.6-plus`, `muse-spark-1.3`) are automatically mapped to their

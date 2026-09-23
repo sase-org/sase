@@ -365,7 +365,6 @@ _lint-symvision *args: _setup
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
         --epic-symbol 'sase-16y(MemberJumpSection)' \
-        --epic-symbol 'sase-170.5(resolve_clan_launch_defaults)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

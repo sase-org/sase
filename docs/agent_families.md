@@ -169,6 +169,17 @@ the record over whatever member artifacts remain. The saved description is disti
 the foldable sections that sase's TUI synthesizes below it from member artifacts and
 activity.
 
+Re-creating a clan: when a launch creates a new generation of a previously recorded clan
+without an explicit `tribe=` (and without an epic environment tribe), the new member
+inherits the remembered tribe; without an explicit `summary=`/`summary_script=` (and
+without an epic nomination), it re-runs the remembered summary script through the usual
+launch-time summary path, falling back to the remembered text when the script is missing
+or produces no output. Inherited values are stored in the new member's metadata,
+recorded under the new generation with source `inherited`, and named with their source
+generations in one agent-log line. Explicit values always win, tombstoned tribes are
+never inherited, joining an existing generation changes nothing, and a runner re-exec
+does not re-apply values already in preserved metadata.
+
 Clan membership is execution-neutral. It does not add waits, change launch order, choose
 a workspace or model, or otherwise rewrite launch behavior. Use `%wait` explicitly
 wherever ordering is required. The `clan=`, `family=`, and `tribe=` keywords on `%id`
