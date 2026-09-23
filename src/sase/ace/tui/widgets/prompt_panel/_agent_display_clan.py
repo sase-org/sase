@@ -7,9 +7,6 @@ from datetime import datetime
 
 from rich.text import Text
 
-from sase.agent.status_buckets import QUEUED_STATUS, agent_status_bucket
-
-from ...agent_count_chip import format_agent_count_chip
 from ...models._agent_clan import clan_member_counts
 from ...models._agent_clan_sections import (
     ClanAgentIdentity,
@@ -21,15 +18,13 @@ from ...models._agent_clan_sections import (
 from ...models.agent import Agent, AgentType
 from ...models.fold_scale import CLAN_FOLD_SCALE, effective_fold_level
 from ...models.fold_state import FoldLevel
-from ...models.tribe_display import (
-    compose_tribe_identity_style,
-    tribe_identity_colors,
+from .._agent_list_styling import _CLAN_IDENTITY_COLOR
+from ._agent_display_clan_identity import (
+    append_clan_identity_fields,
+    build_clan_compact_lines,
 )
-from .._agent_list_render_agent_status import append_queued_status_extras
-from .._agent_list_styling import _CLAN_IDENTITY_COLOR, _CLAN_NAME_STYLE
 from ._agent_display_clan_roster import (
     clan_roster_entries,
-    duration_label,
     family_children,
     family_rows,
     ordered_clan_members,
@@ -50,21 +45,13 @@ from ._container_hint_text import (
     container_text_with_file_hints,
 )
 from ._file_path_hints import has_file_path, resolve_agent_workspace_dir
-from ._fold_language import append_fold_header_line, append_scanning_tail
+from ._fold_language import append_scanning_tail
 from ._helpers import append_kind_header
 from ._hint_caps import HintContentBudget
+from ._identity_header import IdentityHeader, strip_leading_document_chrome
+from ._agent_display_header_renderable import AgentHeaderRenderable
 from ._member_roster import MemberJumpMap, append_member_roster
 
-_FIELD_LABEL_STYLE = "bold #87D7FF"
-_MEMBER_STATUS_STYLES: dict[str, str] = {
-    "Stopped": "bold #FFAF5F",
-    "Starting": "bold #87D7FF",
-    "Running": "bold #FFD700",
-    "Queued": "bold #5F87FF",
-    "Waiting": "bold #AF87FF",
-    "Failed": "bold #FF5F5F",
-    "Done": "bold #5FD75F",
-}
 _DISK_SECTION_IDS: dict[str, ClanDiskSection] = {
     "replies": "replies",
     "context": "context",
@@ -130,7 +117,8 @@ def build_clan_detail_text(
     fold_level: FoldLevel = FoldLevel.COLLAPSED,
     section_fold_overrides: Mapping[str, FoldLevel] | None = None,
     member_jump_map_publisher: Callable[[MemberJumpMap], None] | None = None,
-) -> Text:
+    detach_identity: bool = False,
+) -> Text | AgentHeaderRenderable:
     """Build a fold-aware clan detail document without filesystem access."""
     fold_level = effective_fold_level(fold_level, CLAN_FOLD_SCALE)
     snapshot = snapshot or ClanSectionSnapshot(
@@ -162,62 +150,39 @@ def build_clan_detail_text(
         for member in members
     )
 
-    text = Text()
-    append_kind_header(text, "CLAN", _CLAN_IDENTITY_COLOR)
-    text.append("Name: ", style=_FIELD_LABEL_STYLE)
-    text.append(
-        f"{agent.agent_clan or agent.display_name}\n",
-        style=_CLAN_NAME_STYLE,
-    )
-
-    if agent.clan_tribes:
-        tribe_colors = tribe_identity_colors(agent.clan_tribes)
-        text.append("Tribes: ", style=_FIELD_LABEL_STYLE)
-        for index, tribe in enumerate(agent.clan_tribes):
-            if index:
-                text.append(" ")
-            text.append(
-                f"@{tribe}",
-                style=compose_tribe_identity_style(
-                    tribe_colors[tribe],
-                    bold=True,
-                ),
-            )
-        text.append("\n")
-
     counts = clan_member_counts(agent, unread_ids)
-    text.append("Status: ", style=_FIELD_LABEL_STYLE)
-    status_bucket = agent_status_bucket(agent)
-    text.append(agent.display_status, style=_MEMBER_STATUS_STYLES[status_bucket])
-    if agent.status == QUEUED_STATUS:
-        append_queued_status_extras(text, agent)
-    chip = format_agent_count_chip(
-        stopped=counts.awaiting,
-        running=counts.running,
-        queued=counts.queued,
-        waiting=counts.waiting,
-        failed=counts.failed,
-        unread=counts.unread,
-        done=counts.done,
-    )
-    if chip.cell_len:
-        text.append(" ")
-        text.append_text(chip)
-    text.append("\n")
-
-    text.append("Runtime: ", style=_FIELD_LABEL_STYLE)
-    text.append(f"{duration_label(agent, now=now)}\n", style="bold #BCBCBC")
-
     family_count = len(family_members)
-    text.append("Members: ", style=_FIELD_LABEL_STYLE)
-    member_parts = [f"{agent_count} agent{'s' if agent_count != 1 else ''}"]
-    if family_count:
-        member_parts.append(
-            f"{family_count} famil{'ies' if family_count != 1 else 'y'}"
-        )
-    text.append(" · ".join(member_parts) + "\n", style="#D7D7FF")
+    hint_counter_before = hint_state.hint_counter if hint_state is not None else None
+    hint_counter_after_identity: int | None = None
 
-    append_fold_header_line(text, level=fold_level, scale=CLAN_FOLD_SCALE)
+    if detach_identity:
+        identity_text = Text()
+        append_clan_identity_fields(
+            identity_text,
+            agent,
+            counts=counts,
+            agent_count=agent_count,
+            family_count=family_count,
+            fold_level=fold_level,
+            now=now,
+        )
+        hint_counter_after_identity = (
+            hint_state.hint_counter if hint_state is not None else None
+        )
+        body = Text()
+    else:
+        text = Text()
+        append_kind_header(text, "CLAN", _CLAN_IDENTITY_COLOR)
+        append_clan_identity_fields(
+            text,
+            agent,
+            counts=counts,
+            agent_count=agent_count,
+            family_count=family_count,
+            fold_level=fold_level,
+            now=now,
+        )
+        body = text
 
     roster_entries = clan_roster_entries(
         agent,
@@ -226,7 +191,7 @@ def build_clan_detail_text(
         digests=snapshot.in_memory.members,
     )
     jump_map = append_member_roster(
-        text,
+        body,
         container_identity=agent.identity,
         entries=roster_entries,
         title="CLAN MEMBERS",
@@ -239,7 +204,7 @@ def build_clan_detail_text(
         member_jump_map_publisher(jump_map)
 
     if agent.clan_summary:
-        text.append("\n")
+        body.append("\n")
         summary = clan_summary_text(agent)
         if hint_state is not None:
             hint_state.workspace_dir = _clan_hint_workspace(agent)
@@ -250,13 +215,13 @@ def build_clan_detail_text(
                 budget=hint_budget,
                 path_resolver=hint_path_resolver,
             )
-        text.append_text(summary)
-        text.append("\n\n")
+        body.append_text(summary)
+        body.append("\n\n")
 
     errors = snapshot.in_memory.errors
     if errors:
         append_errors_section(
-            text,
+            body,
             errors,
             level=_effective_fold_level("errors", fold_level, overrides),
             hint_state=hint_state,
@@ -267,7 +232,7 @@ def build_clan_detail_text(
     output_variables = snapshot.in_memory.output_variables
     if output_variables:
         append_variables_section(
-            text,
+            body,
             output_variables,
             title="OUTPUT VARIABLES",
             section_id="output-variables",
@@ -284,7 +249,7 @@ def build_clan_detail_text(
     workflow_variables = snapshot.in_memory.workflow_variables
     if workflow_variables:
         append_variables_section(
-            text,
+            body,
             workflow_variables,
             title="WORKFLOW VARIABLES",
             section_id="workflow-variables",
@@ -307,7 +272,7 @@ def build_clan_detail_text(
     replies = disk.replies if disk is not None else ()
     if replies and disk_section_loaded(snapshot, "replies"):
         append_text_section(
-            text,
+            body,
             replies,
             title="REPLIES",
             section_id="replies",
@@ -332,7 +297,7 @@ def build_clan_detail_text(
         ):
             hint_state.workspace_dir = _clan_hint_workspace(agent)
         append_context_section(
-            text,
+            body,
             context_lanes,
             level=context_level,
             count_known=context_loaded,
@@ -350,7 +315,7 @@ def build_clan_detail_text(
     slow_tool_calls = disk.slow_tool_calls if disk is not None else ()
     if slow_tool_calls and disk_section_loaded(snapshot, "slow-tool-calls"):
         append_slow_tool_calls_section(
-            text,
+            body,
             slow_tool_calls,
             level=_effective_fold_level(
                 "slow-tool-calls",
@@ -363,7 +328,7 @@ def build_clan_detail_text(
     prompts = disk.prompts if disk is not None else ()
     if prompts and disk_section_loaded(snapshot, "prompts"):
         append_text_section(
-            text,
+            body,
             prompts,
             title="PROMPTS",
             section_id="prompts",
@@ -376,8 +341,34 @@ def build_clan_detail_text(
     if snapshot.loading_sections.intersection(required_disk_sections) or not (
         required_disk_sections.issubset(loaded_disk_sections)
     ):
-        append_scanning_tail(text)
-    return text
+        append_scanning_tail(body)
+    if detach_identity:
+        has_hints = (
+            hint_state is not None
+            and hint_counter_before is not None
+            and hint_counter_after_identity is not None
+            and hint_counter_after_identity != hint_counter_before
+        )
+        stripped_body, _ = strip_leading_document_chrome(body)
+        return AgentHeaderRenderable(
+            stripped_body,
+            (),
+            identity_header=IdentityHeader(
+                kind_label="CLAN",
+                accent=_CLAN_IDENTITY_COLOR,
+                expanded=identity_text,
+                compact=build_clan_compact_lines(
+                    agent=agent,
+                    counts=counts,
+                    agent_count=agent_count,
+                    family_count=family_count,
+                    fold_level=fold_level,
+                    now=now,
+                ),
+                has_hints=has_hints,
+            ),
+        )
+    return body
 
 
 def _clan_hint_workspace(agent: Agent) -> str | None:

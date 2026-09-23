@@ -13,6 +13,7 @@ from sase.ace.tui.models.agent_groups import GroupingMode, build_agent_tree
 from sase.ace.tui.widgets.agent_list import AgentList
 from sase.ace.tui.widgets.agent_info_panel import AgentInfoPanel
 from sase.ace.tui.widgets.prompt_panel import AgentPromptPanel
+from sase.ace.tui.widgets.prompt_panel._identity_header import find_identity_header
 from tests.ace.tui.visual._ace_agents_png_snapshot_clan_fixtures import (
     clan_tree_agents,
     queued_clan_agents,
@@ -23,6 +24,7 @@ from tests.ace.tui.visual._ace_agents_png_snapshot_helpers import (
     assert_page_svg_styled_text_absent,
     assert_page_svg_styled_text_contains,
     pin_agents_visual_now,
+    prompt_header_and_body_text,
 )
 from tests.ace.tui.visual._ace_png_snapshot_helpers import (
     patches,
@@ -60,8 +62,16 @@ async def test_queued_clan_counts_png_snapshot(
         assert "(QUEUED) ×2 [Q2]" in list_rows
         assert "#" not in list_rows
         prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
-        assert "Status: QUEUED [Q2]" in prompt.content.plain
-        assert "Status: QUEUED #" not in prompt.content.plain
+        combined = prompt_header_and_body_text(prompt)
+        assert "Status: QUEUED [Q2]" in combined
+        assert "Status: QUEUED #" not in combined
+        # The sticky header owns clan identity; the scrolling body starts
+        # at the roster.
+        assert "CLAN MEMBERS" in prompt.content.plain
+        assert "Status:" not in prompt.content.plain
+        identity = find_identity_header(prompt.content)
+        assert identity is not None
+        assert identity.kind_label == "CLAN"
         info = page.app.query_one("#agent-info-panel", AgentInfoPanel)
         assert info._build_display_text().plain.startswith("2 [0 running · 2 queued]")
         status_group_keys = [

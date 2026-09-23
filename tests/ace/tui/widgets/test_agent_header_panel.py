@@ -124,7 +124,7 @@ async def test_expanded_state_persists_across_selection_and_tribe() -> None:
         assert "TRIBE" in str(panel.border_title)
 
 
-async def test_clan_selection_hides_header() -> None:
+async def test_clan_selection_shows_header() -> None:
     member = make_clan_agent(
         "clan-test", status="RUNNING", start=datetime(2024, 1, 1), stop=None
     )
@@ -138,8 +138,28 @@ async def test_clan_selection_hides_header() -> None:
 
         await _show_agent(detail, container, pilot)
         panel = _header_panel(detail)
-        assert panel.has_class("hidden")
-        assert detail.header_toggle_available() is False
+        assert not panel.has_class("hidden")
+        assert panel.has_identity
+        assert detail.header_toggle_available() is True
+        assert "CLAN" in str(panel.border_title)
+        assert not panel.is_expanded
+        assert len(_header_text(panel).splitlines()) == 2
+
+        assert detail.toggle_header_expanded() is True
+        await pilot.pause()
+        assert "Name:" in _header_text(panel)
+        assert "Status:" in _header_text(panel)
+
+        assert detail.toggle_header_expanded() is False
+        await pilot.pause()
+        assert len(_header_text(panel).splitlines()) == 2
+
+        await _show_agent(detail, _solo(), pilot)
+        assert not panel.is_expanded
+        assert detail.toggle_header_expanded() is True
+        await _show_agent(detail, container, pilot)
+        assert panel.is_expanded
+        assert "Name:" in _header_text(panel)
 
 
 async def test_secondary_only_keeps_header_visible_and_toggleable() -> None:

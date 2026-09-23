@@ -11,11 +11,23 @@ from sase.ace.tui.models.fold_state import FoldLevel
 from sase.ace.tui.widgets.prompt_panel._agent_display_state import (
     DetailHeaderSummary,
 )
+from sase.ace.tui.models._agent_clan import clan_member_counts
+from sase.ace.tui.models._agent_tree import project_clan_tree
+from sase.ace.tui.models.fold_scale import CLAN_FOLD_SCALE
+from sase.ace.tui.widgets.prompt_panel._agent_display_clan_identity import (
+    build_clan_compact_lines,
+)
+from sase.ace.tui.widgets.prompt_panel._agent_display_clan_roster import (
+    family_children,
+    family_rows,
+    ordered_clan_members,
+)
 from sase.ace.tui.widgets.prompt_panel._identity_header_compact import (
     build_agent_compact_lines,
     build_tribe_compact_lines,
     build_workflow_compact_lines,
 )
+from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
 from tests.ace.tui.widgets._agent_display_family_helpers import make_family
 from tests.ace.tui.widgets._agent_display_helpers import make_agent
 from tests.ace.tui.widgets._agent_display_tribe_helpers import make_tribe_snapshot
@@ -152,3 +164,180 @@ def test_workflow_rows_carry_name_model_and_status() -> None:
     assert "CODEX" in first
     assert "RUNNING" in second
     assert "building" in second
+
+
+def _clan_compact_args(container: object, *, now: datetime | None = None) -> dict:
+    from sase.ace.tui.models.agent import Agent
+
+    assert isinstance(container, Agent)
+    members = ordered_clan_members(container)
+    family_members = tuple(m for m in members if family_children(m))
+    agent_count = sum(
+        max(1, len(family_rows(m, family_children(m)))) if family_children(m) else 1
+        for m in members
+    )
+    return {
+        "agent": container,
+        "counts": clan_member_counts(container),
+        "agent_count": agent_count,
+        "family_count": len(family_members),
+        "now": now,
+    }
+
+
+def test_clan_rows_carry_name_status_and_count_chip() -> None:
+    first = make_clan_agent(
+        "research.first",
+        status="DONE",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        stop=datetime(2026, 7, 17, 12, 2, 0),
+    )
+    second = make_clan_agent(
+        "research.second",
+        status="FAILED",
+        start=datetime(2026, 7, 17, 12, 1, 0),
+        stop=datetime(2026, 7, 17, 12, 1, 45),
+        model=None,
+    )
+    container = project_clan_tree([second, first])[0]
+    container.clan_tribes = ("epic", "review")
+    args = _clan_compact_args(container, now=datetime(2026, 7, 17, 12, 4, 0))
+    compact = build_clan_compact_lines(
+        fold_level=FoldLevel.COLLAPSED,
+        **args,  # type: ignore[arg-type]
+    )
+    assert compact.no_wrap is True
+    assert compact.overflow == "ellipsis"
+    first_row, second_row = _rows(compact)
+    assert "research" in first_row
+    assert container.display_status in first_row
+    assert "[" in first_row
+    assert "@epic" in second_row
+    assert "@review" in second_row
+    assert "2 agents" in second_row
+    assert "2m" in second_row
+    assert "▸ 1/3" in second_row
+
+
+def test_clan_rows_overflow_tribe_chips_after_three() -> None:
+    member = make_clan_agent(
+        "research.one",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    container = project_clan_tree([member])[0]
+    container.clan_tribes = ("one", "two", "three", "four", "five")
+    args = _clan_compact_args(container)
+    _first, second = _rows(
+        build_clan_compact_lines(
+            fold_level=FoldLevel.COLLAPSED,
+            **args,  # type: ignore[arg-type]
+        )
+    )
+    assert "@one" in second
+    assert "@two" in second
+    assert "@three" in second
+    assert "@four" not in second
+    assert "+2" in second
+
+
+def test_clan_rows_use_singular_and_plural_member_summary() -> None:
+    member = make_clan_agent(
+        "research.one",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    container = project_clan_tree([member])[0]
+    args = _clan_compact_args(container)
+    _first, second = _rows(
+        build_clan_compact_lines(
+            fold_level=FoldLevel.COLLAPSED,
+            **args,  # type: ignore[arg-type]
+        )
+    )
+    assert "1 agent" in second
+    assert "2 agents" not in second
+
+    from sase.ace.tui.models._agent_clan import ClanStatusCounts
+
+    plural = build_clan_compact_lines(
+        agent=container,
+        counts=ClanStatusCounts(),
+        agent_count=2,
+        family_count=1,
+        fold_level=FoldLevel.COLLAPSED,
+    )
+    _first_plural, second_plural = _rows(plural)
+    assert "2 agents" in second_plural
+    assert "1 family" in second_plural
+
+    plural_families = build_clan_compact_lines(
+        agent=container,
+        counts=ClanStatusCounts(),
+        agent_count=3,
+        family_count=2,
+        fold_level=FoldLevel.COLLAPSED,
+    )
+    assert "2 families" in _rows(plural_families)[1]
+
+
+def test_clan_rows_carry_fold_chip_at_each_level() -> None:
+    member = make_clan_agent(
+        "research.one",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    container = project_clan_tree([member])[0]
+    args = _clan_compact_args(container)
+    assert (
+        "▸ 1/3"
+        in _rows(
+            build_clan_compact_lines(
+                fold_level=FoldLevel.COLLAPSED,
+                **args,  # type: ignore[arg-type]
+            )
+        )[1]
+    )
+    assert (
+        "▾ 2/3"
+        in _rows(
+            build_clan_compact_lines(
+                fold_level=FoldLevel.EXPANDED,
+                **args,  # type: ignore[arg-type]
+            )
+        )[1]
+    )
+    assert (
+        "▼ 3/3"
+        in _rows(
+            build_clan_compact_lines(
+                fold_level=FoldLevel.FULLY_EXPANDED,
+                **args,  # type: ignore[arg-type]
+            )
+        )[1]
+    )
+    assert CLAN_FOLD_SCALE == (
+        FoldLevel.COLLAPSED,
+        FoldLevel.EXPANDED,
+        FoldLevel.FULLY_EXPANDED,
+    )
+
+
+def test_clan_rows_without_tribes() -> None:
+    member = make_clan_agent(
+        "research.one",
+        status="RUNNING",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+    )
+    container = project_clan_tree([member])[0]
+    assert not container.clan_tribes
+    args = _clan_compact_args(container)
+    first, second = _rows(
+        build_clan_compact_lines(
+            fold_level=FoldLevel.COLLAPSED,
+            **args,  # type: ignore[arg-type]
+        )
+    )
+    assert "research" in first
+    assert "@" not in second
+    assert "1 agent" in second

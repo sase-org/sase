@@ -5121,15 +5121,15 @@ entering/leaving a pinned attempt view resets the cursor.
   - `CODE` — when the agent began writing code
   - `EPIC` — when an epic follow-up agent was launched after plan approval
   - `DONE` — when execution completed
-- **CLAN / MEMBERS**: Shown when a synthetic clan row is selected. The orchid heading
-  and orchid `Name:` value match the clan row's identity block; the header also shows
-  `@tribes`, rolled-up status counts, wall-clock runtime, and agent/family totals.
-  Direct member rows use chronological launch order (earliest first), which keeps their
-  numbers stable while statuses change. Each numbered row shows the hood-relative
-  suffix, kind, status, model, and duration; members of a nested sequential family are
-  indented under its aggregate row. `Ctrl+J` / `Ctrl+K` navigate the rendered section
-  headings, and pressing the row's number jumps to that member in the Agents list. At
-  most 100 members receive numbers.
+- **CLAN / MEMBERS**: Shown when a synthetic clan row is selected. The orchid `CLAN`
+  kind label renders as the header panel title and the identity fields (`Name`,
+  `Tribes`, `Status`, `Runtime`, `Members`, `Fold`) live in the header panel; the body
+  starts at `CLAN MEMBERS`. Direct member rows use chronological launch order (earliest
+  first), which keeps their numbers stable while statuses change. Each numbered row
+  shows the hood-relative suffix, kind, status, model, and duration; members of a nested
+  sequential family are indented under its aggregate row. `Ctrl+J` / `Ctrl+K` navigate
+  the rendered section headings, and pressing the row's number jumps to that member in
+  the Agents list. At most 100 members receive numbers.
 - **FAMILY**: Shown when a real multi-member family root is selected. The cyan kind
   label renders as the header panel title and the cyan `Name:` value matches the family
   row's identity block. The title is header chrome, not a `Ctrl+J` title; the first
@@ -5150,14 +5150,15 @@ entering/leaving a pinned attempt view resets the cursor.
   two concise rows by default — who and how on row 1, what and state on row 2 — and `d`
   expands it to the full field list (or collapses it back). The kind label moves into
   the panel's border title in the node's accent color — `AGENT`, `AGENT SHELL`,
-  `FAMILY`, `WORKFLOW`, `STEP`, `GATE`, `MONITOR`, `PROC SHELL`, or, for a selected
-  whole tribe panel, `TRIBE` — and the border subtitle shows what `d` will do
+  `FAMILY`, `CLAN`, `WORKFLOW`, `STEP`, `GATE`, `MONITOR`, `PROC SHELL`, or, for a
+  selected whole tribe panel, `TRIBE` — and the border subtitle shows what `d` will do
   (`▾ d more` / `▴ d less`, naming the configured `toggle_agent_header` key). The panel
-  is hidden for clan rows and "No agent selected". Collapsed/expanded state is per
-  session and holds across row moves, tribe focus, and layout changes. While file-hint
-  markers (`[N]`) are visible the panel renders expanded so every hint stays selectable.
-  Metadata search (`,/`) covers the scrolling body only, since header fields stay on
-  screen.
+  is hidden only for "No agent selected". A clan's collapsed rows mirror the tribe
+  layout: name, status, and count chip on row 1; tribes, member totals, runtime, and the
+  fold chip on row 2. Collapsed/expanded state is per session and holds across row
+  moves, tribe focus, and layout changes. While file-hint markers (`[N]`) are visible
+  the panel renders expanded so every hint stays selectable. Metadata search (`,/`)
+  covers the scrolling body only, since header fields stay on screen.
 - **SASE CONTEXT / BEAD**: Shown for epic phase workers and task workers. For an epic
   phase worker, the lane is limited to its selected phase. Its fields are `Phase Title`,
   `Description`, `Size`, `Epic Plan`, and `Epic Title`, in that order. The phase title

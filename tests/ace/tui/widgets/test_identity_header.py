@@ -347,7 +347,7 @@ def test_attempt_pinned_document_carries_identity() -> None:
     assert find_identity_header(panel.captured[0]) is not None
 
 
-def test_clan_documents_carry_no_identity() -> None:
+def _clan_container() -> Agent:
     member = make_clan_agent(
         "clan-test",
         status="RUNNING",
@@ -355,8 +355,102 @@ def test_clan_documents_carry_no_identity() -> None:
     )
     container = project_clan_tree([member])[0]
     assert container.is_clan_container
+    return container
+
+
+def test_clan_detached_carries_clan_identity() -> None:
+    container = _clan_container()
     document, _ = build_header_text(container, detach_identity=True)
-    assert find_identity_header(document) is None
+    identity = find_identity_header(document)
+    assert identity is not None
+    assert identity.kind_label == "CLAN"
+    assert identity.accent == "#D75FFF"
+
+
+def test_clan_detached_body_starts_at_roster() -> None:
+    container = _clan_container()
+    document, _ = build_header_text(container, detach_identity=True)
+    assert isinstance(document, AgentHeaderRenderable)
+    assert "CLAN MEMBERS" in document.plain
+    for token in ("Name:", "Status:", "Runtime:", "Members:", "Tribes:", "Fold:"):
+        assert token not in document.plain
+    assert document.plain.lstrip("\n").startswith("━")
+    assert not document.plain.startswith("\n")
+    assert not document.plain.startswith("─" * 50)
+
+
+def test_clan_detached_expanded_matches_inline_region() -> None:
+    member = make_clan_agent(
+        "clan-test",
+        status="RUNNING",
+        start=datetime(2024, 1, 1, 14, 0, 0),
+    )
+    container = project_clan_tree([member])[0]
+    container.clan_tribes = ("epic", "review")
+    plain, _ = build_header_text(container)
+    document, _ = build_header_text(container, detach_identity=True)
+    identity = find_identity_header(document)
+    assert identity is not None
+    assert isinstance(plain, Text)
+    assert isinstance(identity.expanded, Text)
+    for line in identity.expanded.plain.splitlines():
+        assert line in plain.plain
+    plain_spans = {span.style for span in plain.spans}
+    for span in identity.expanded.spans:
+        assert span.style in plain_spans
+    assert "CLAN\n" in plain.plain
+    assert "CLAN\n" not in identity.expanded.plain
+
+
+def test_clan_non_detached_document_is_unchanged() -> None:
+    first_member = make_clan_agent(
+        "research.first",
+        status="DONE",
+        start=datetime(2026, 7, 17, 12, 0, 0),
+        stop=datetime(2026, 7, 17, 12, 2, 0),
+    )
+    second_member = make_clan_agent(
+        "research.second",
+        status="FAILED",
+        start=datetime(2026, 7, 17, 12, 1, 0),
+        stop=datetime(2026, 7, 17, 12, 1, 45),
+        model=None,
+    )
+    container = project_clan_tree([second_member, first_member])[0]
+    container.clan_tribes = ("epic", "review")
+    detail, _ = build_header_text(container, clan_fold_level=FoldLevel.COLLAPSED)
+    assert isinstance(detail, Text)
+    assert find_identity_header(detail) is None
+    header, _members = detail.plain.split("\n" + "━" * 50 + "\n", 1)
+    assert header.strip() == (
+        "CLAN\n"
+        "Name: research\n"
+        "Tribes: @epic @review\n"
+        "Status: FAILED [F1 D1]\n"
+        "Runtime: 2m\n"
+        "Members: 2 agents\n"
+        "Fold: 1/3"
+    )
+
+
+def test_clan_hint_mode_numbers_body_from_one_without_header_hints() -> None:
+    from sase.ace.tui.models._agent_clan_sections import clan_section_member_rows
+
+    container = _clan_container()
+    member = clan_section_member_rows(container)[0]
+    member.workspace_dir = "/tmp/clan-hints"
+    container.clan_summary = "See docs/summary.md"
+    from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintState
+
+    state = HeaderHintState(1, {}, None, {})
+    document, _ = build_header_text(container, hint_state=state, detach_identity=True)
+    identity = find_identity_header(document)
+    assert identity is not None
+    assert identity.has_hints is False
+    assert isinstance(document, AgentHeaderRenderable)
+    assert "[1] docs/summary.md" in document.plain
+    assert list(state.hint_mappings) == [1]
+    assert state.hint_mappings[1].endswith("docs/summary.md")
 
 
 def test_non_detached_builders_publish_no_identity() -> None:

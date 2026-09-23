@@ -30,7 +30,7 @@ from ._agent_wait_section import ResponsiveWaitSection
 from ._fold_language import FOLD_CHARS, FOLD_STYLES
 from ._workflow_render import WORKFLOW_STATUS_STYLES
 
-_CHIP_SEPARATOR_STYLE = "dim"
+CHIP_SEPARATOR_STYLE = "dim"
 _XPROMPT_KIND_STYLES: dict[str, tuple[str, str]] = {
     "workflow": ("⌘", "bold #FFAF5F"),
     "swarm": ("❋", "bold #FF87D7"),
@@ -51,17 +51,17 @@ _FALLBACK_LINE_STYLE = "dim"
 _MAX_CWD_CELLS = 48
 
 
-def _chips_row(chips: list[Text]) -> Text:
+def chips_row(chips: list[Text]) -> Text:
     """Join styled chips into one truncating compact row."""
     row = Text(no_wrap=True, overflow="ellipsis")
     for index, chip in enumerate(chips):
         if index:
-            row.append(" · ", style=_CHIP_SEPARATOR_STYLE)
+            row.append(" · ", style=CHIP_SEPARATOR_STYLE)
         row.append_text(chip)
     return row
 
 
-def _compact_text(first: Text, second: Text) -> Text:
+def compact_text(first: Text, second: Text) -> Text:
     """Combine two rows into one two-line compact renderable."""
     compact = Text(no_wrap=True, overflow="ellipsis")
     compact.append_text(first)
@@ -123,7 +123,7 @@ def _shell_count_chip(shell_section: ResponsiveShellSection | None) -> Text:
     if shell_section is not None:
         total = len(shell_section.lanes) + shell_section.hidden_count
     chip = Text()
-    chip.append(f"{total} shells", style=_CHIP_SEPARATOR_STYLE)
+    chip.append(f"{total} shells", style=CHIP_SEPARATOR_STYLE)
     return chip
 
 
@@ -205,7 +205,7 @@ def _activity_chip(agent: Agent) -> Text | None:
     return chip
 
 
-def _fold_chip(level: FoldLevel, scale: FoldScale) -> Text:
+def fold_chip(level: FoldLevel, scale: FoldScale) -> Text:
     """Return the fold position chip for fold-aware documents."""
     position, size = fold_scale_position(level, scale)
     chip = Text()
@@ -312,10 +312,10 @@ def build_agent_compact_lines(
         and fold_level is not None
         and fold_scale is not None
     ):
-        second.append(_fold_chip(fold_level, fold_scale))
+        second.append(fold_chip(fold_level, fold_scale))
 
-    second_row = _chips_row(second) if second else _fallback_context_line(agent)
-    return _compact_text(_chips_row(first), second_row)
+    second_row = chips_row(second) if second else _fallback_context_line(agent)
+    return compact_text(chips_row(first), second_row)
 
 
 def _build_proc_shell_compact_lines(agent: Agent) -> Text:
@@ -338,8 +338,8 @@ def _build_proc_shell_compact_lines(agent: Agent) -> Text:
     if activity_chip is not None:
         second.append(activity_chip)
 
-    second_row = _chips_row(second) if second else _fallback_context_line(agent)
-    return _compact_text(_chips_row(first), second_row)
+    second_row = chips_row(second) if second else _fallback_context_line(agent)
+    return compact_text(chips_row(first), second_row)
 
 
 def build_tribe_compact_lines(
@@ -388,13 +388,13 @@ def build_tribe_compact_lines(
         composition.append(f"{snapshot.nested_count} nested")
     second = Text()
     second.append(" · ".join(composition), style="")
-    second.append(" · ", style=_CHIP_SEPARATOR_STYLE)
+    second.append(" · ", style=CHIP_SEPARATOR_STYLE)
     second.append(snapshot.runtime_span, style="bold #BCBCBC")
-    second.append(" · ", style=_CHIP_SEPARATOR_STYLE)
-    second.append_text(_fold_chip(fold_level, TRIBE_FOLD_SCALE))
-    return _compact_text(
-        _chips_row([first]),
-        _chips_row([second]),
+    second.append(" · ", style=CHIP_SEPARATOR_STYLE)
+    second.append_text(fold_chip(fold_level, TRIBE_FOLD_SCALE))
+    return compact_text(
+        chips_row([first]),
+        chips_row([second]),
     )
 
 
@@ -424,12 +424,16 @@ def build_workflow_compact_lines(*, agent: Agent) -> Text:
     if activity_chip is not None:
         second.append(activity_chip)
 
-    second_row = _chips_row(second) if second else _fallback_context_line(agent)
-    return _compact_text(_chips_row(first), second_row)
+    second_row = chips_row(second) if second else _fallback_context_line(agent)
+    return compact_text(chips_row(first), second_row)
 
 
 __all__ = [
+    "CHIP_SEPARATOR_STYLE",
     "build_agent_compact_lines",
     "build_tribe_compact_lines",
     "build_workflow_compact_lines",
+    "chips_row",
+    "compact_text",
+    "fold_chip",
 ]

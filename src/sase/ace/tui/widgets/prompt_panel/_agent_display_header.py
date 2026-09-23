@@ -123,6 +123,7 @@ def build_header_text(
                 fold_level=clan_fold_level,
                 section_fold_overrides=clan_section_fold_overrides,
                 member_jump_map_publisher=member_jump_map_publisher,
+                detach_identity=detach_identity,
             ),
             None,
         )
