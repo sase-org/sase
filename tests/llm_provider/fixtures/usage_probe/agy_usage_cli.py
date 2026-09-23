@@ -163,6 +163,10 @@ def main() -> int:
     if mode == "malformed":
         print("this is not json{{{", flush=True)
         return 0
+    if mode == "rate_limited":
+        print("ERROR: 429 Too Many Requests - quota exhausted", flush=True)
+        print("retry-after: 120", file=sys.stderr, flush=True)
+        return 1
     if mode == "turn_ran":
         envelope = _success_envelope()
         envelope["num_turns"] = 1

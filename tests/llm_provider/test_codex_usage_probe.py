@@ -237,6 +237,16 @@ def test_malformed_rate_limits_result_is_error(
     assert observation["reason_code"] == "malformed_payload"
 
 
+def test_rate_limited_error_reports_retry_after(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(mode="rate_limited", monkeypatch=monkeypatch)
+    observation = collect_codex_usage(context)
+    assert observation["outcome"] == "error"
+    assert observation["reason_code"] == "rate_limited"
+    assert observation["retry_after_seconds"] == pytest.approx(45.0)
+
+
 def test_rate_limits_rpc_error_carries_bounded_diagnostic(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -12,6 +12,7 @@ import time
 from typing import Any
 
 from sase.core.rust import require_rust_binding
+from sase.llm_provider.usage._strategy import detect_rate_limit
 from sase.llm_provider.usage.types import (
     UsageCollectionOutcome,
     UsageProbeContext,
@@ -79,7 +80,7 @@ def collect_agy_usage(
     except FileNotFoundError:
         return _status(
             context,
-            outcome="error",
+            outcome="unsupported",
             reason_code="not_installed",
             diagnostic="agy_executable_not_found",
         )
@@ -90,7 +91,9 @@ def collect_agy_usage(
             reason_code="probe_failed",
             diagnostic="agy_usage_spawn_failed",
         )
-    stdout, saw_auth_prompt = _wait_for_usage(process, _subprocess_deadline(context))
+    stdout, saw_auth_prompt, stderr_text = _wait_for_usage(
+        process, _subprocess_deadline(context)
+    )
     if stdout is None:
         if saw_auth_prompt:
             return _status(
@@ -108,6 +111,18 @@ def collect_agy_usage(
     try:
         payload = json.loads(stdout.decode("utf-8"))
     except (ValueError, UnicodeDecodeError):
+        limited = detect_rate_limit(
+            stdout=stdout.decode("utf-8", errors="replace"),
+            stderr=stderr_text,
+        )
+        if limited is not None:
+            return _status(
+                context,
+                outcome="error",
+                reason_code="rate_limited",
+                diagnostic="agy_usage_rate_limited",
+                retry_after_seconds=limited.retry_after_seconds,
+            )
         return _status(
             context,
             outcome="error",
@@ -146,7 +161,7 @@ def _check_cli_version(
     except FileNotFoundError:
         return _status(
             context,
-            outcome="error",
+            outcome="unsupported",
             reason_code="not_installed",
             diagnostic="agy_executable_not_found",
         )
@@ -204,12 +219,13 @@ def _precreate_private_log(workdir: str) -> None:
 
 def _wait_for_usage(
     process: subprocess.Popen[bytes], deadline_at: float
-) -> tuple[bytes | None, bool]:
+) -> tuple[bytes | None, bool, str]:
     """Drain stdout/stderr until exit, the auth marker, or the deadline.
 
-    Returns ``(stdout, saw_auth_prompt)``. ``stdout`` is set only when the
-    child exited on its own; otherwise the whole process group is killed and
-    the child reaped before returning.
+    Returns ``(stdout, saw_auth_prompt, stderr_text)``. ``stdout`` is set
+    only when the child exited on its own; otherwise the whole process group
+    is killed and the child reaped before returning. ``stderr_text`` carries
+    the captured stderr so non-JSON failures can be classified.
     """
     stdout_buf = bytearray()
     stderr_buf = bytearray()
@@ -246,11 +262,12 @@ def _wait_for_usage(
                 stderr_buf.extend(chunk[:room] if room > 0 else b"")
     exit_code = process.poll()
     _kill_process_group(process)
-    if saw_auth_prompt or _AUTH_PROMPT_MARKER in _decode(stderr_buf).lower():
-        return None, True
+    stderr_text = _decode(stderr_buf)
+    if saw_auth_prompt or _AUTH_PROMPT_MARKER in stderr_text.lower():
+        return None, True, stderr_text
     if exit_code is not None:
-        return bytes(stdout_buf), False
-    return None, False
+        return bytes(stdout_buf), False, stderr_text
+    return None, False, stderr_text
 
 
 def _decode(data: bytes | bytearray) -> str:
@@ -321,6 +338,7 @@ def _status(
     outcome: UsageCollectionOutcome,
     reason_code: UsageReasonCode | None = None,
     diagnostic: str | None = None,
+    retry_after_seconds: float | None = None,
 ) -> dict[str, Any]:
     return validated_status_observation(
         context,
@@ -328,6 +346,7 @@ def _status(
         outcome=outcome,
         reason_code=reason_code,
         diagnostic=diagnostic,
+        retry_after_seconds=retry_after_seconds,
     )
 
 

@@ -121,11 +121,13 @@ def _run_admitted_refresh(
                         exc_info=True,
                     )
                     results.append(_deadline_result(job, time.time(), "probe_failed"))
-                    _finish_job(job, "error", cadence, time.time())
+                    _finish_job(
+                        job, "error", cadence, time.time(), reason_code="probe_failed"
+                    )
     clock = time.time()
     for job in pending:
         results.append(_deadline_result(job, clock, "deadline_exceeded"))
-        _finish_job(job, "error", cadence, clock)
+        _finish_job(job, "error", cadence, clock, reason_code="deadline_exceeded")
     # Exiting the executor block above waits for running probes, which record
     # their real observation and attempt themselves. Only jobs that never
     # started get a second-hand deadline record; anything finished is
@@ -133,7 +135,7 @@ def _run_admitted_refresh(
     for future, job in list(in_flight.items()):
         if future.cancel():
             results.append(_deadline_result(job, clock, "deadline_exceeded"))
-            _finish_job(job, "error", cadence, clock)
+            _finish_job(job, "error", cadence, clock, reason_code="deadline_exceeded")
             continue
         try:
             results.append(future.result())
@@ -144,7 +146,7 @@ def _run_admitted_refresh(
                 exc_info=True,
             )
             results.append(_deadline_result(job, time.time(), "probe_failed"))
-            _finish_job(job, "error", cadence, time.time())
+            _finish_job(job, "error", cadence, time.time(), reason_code="probe_failed")
     return results
 
 
@@ -180,7 +182,14 @@ def _run_one_provider(
             "could not persist usage observation for %r", provider, exc_info=True
         )
     outcome = str(observation.get("outcome") or "error")
-    _finish_job(job, outcome, cadence, time.time())
+    _finish_job(
+        job,
+        outcome,
+        cadence,
+        time.time(),
+        reason_code=_optional_reason(observation.get("reason_code")),
+        retry_after_seconds=_optional_seconds(observation.get("retry_after_seconds")),
+    )
     return {
         "provider": provider,
         "outcome": outcome,
@@ -203,7 +212,13 @@ def _probe_context(
 
 
 def _finish_job(
-    job: Mapping[str, Any], outcome: str, cadence: float, now: float
+    job: Mapping[str, Any],
+    outcome: str,
+    cadence: float,
+    now: float,
+    *,
+    reason_code: str | None = None,
+    retry_after_seconds: float | None = None,
 ) -> None:
     provider = str(job.get("provider") or "")
     context_id = str(job.get("context_id") or "default")
@@ -216,6 +231,9 @@ def _finish_job(
             generation,
             outcome,
             cadence_seconds=cadence,
+            reason_code=reason_code,
+            retry_after_seconds=retry_after_seconds,
+            adaptive=True,
             now=now,
         )
     except Exception:
@@ -249,6 +267,25 @@ def _deadline_result(
         "reason_code": reason_code,
         "skipped": None,
     }
+
+
+def _optional_reason(value: object) -> str | None:
+    """Return *value* when it is a non-empty reason string, else None."""
+    if not isinstance(value, str) or not value.strip():
+        return None
+    return value.strip()
+
+
+def _optional_seconds(value: object) -> float | None:
+    """Return *value* when it is a finite nonnegative number, else None."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    number = float(value)
+    if number != number or number in (float("inf"), float("-inf")):
+        return None
+    if number < 0.0:
+        return None
+    return number
 
 
 def _jobs_from_payload(payload: Mapping[str, Any]) -> list[dict[str, Any]]:

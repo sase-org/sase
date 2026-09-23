@@ -158,6 +158,101 @@ def test_verbose_plain_provider_record_includes_collector_health() -> None:
     assert 'failing_since="2027-01-12 03:00:00 EST (3d ago)"' in text
 
 
+def _rate_limited_codex_provider() -> dict[str, object]:
+    provider = _failing_codex_provider()
+    provider["collector_health"] = {
+        "state": "failing",
+        "consecutive_failures": 5,
+        "last_success_at": 1_799_740_800.0,
+        "failing_since": 1_799_740_800.0,
+        "last_failure_reason": "rate_limited",
+        "retry_at": 1_800_003_120.0,
+    }
+    return provider
+
+
+def test_collector_retry_label_combines_reason_and_retry_at() -> None:
+    health = {
+        "state": "failing",
+        "consecutive_failures": 5,
+        "last_failure_reason": "rate_limited",
+        "retry_at": 1_800_003_120.0,
+    }
+
+    assert presentation.collector_retry_label(health, 1_800_000_000.0) == (
+        "rate limited · retry in 52m"
+    )
+
+
+def test_collector_retry_label_needs_neither_reason_nor_retry() -> None:
+    assert (
+        presentation.collector_retry_label({"state": "failing"}, 1_800_000_000.0)
+        is None
+    )
+    assert (
+        presentation.collector_retry_label(
+            {"state": "failing", "last_failure_reason": "timeout"},
+            1_800_000_000.0,
+        )
+        == "timeout"
+    )
+    assert (
+        presentation.collector_retry_label(
+            {"state": "failing", "retry_at": 1_800_003_120.0},
+            1_800_000_000.0,
+        )
+        == "retry in 52m"
+    )
+
+
+def test_verbose_plain_provider_record_includes_retry_label() -> None:
+    text = render_usage_plain(
+        _snapshot(_rate_limited_codex_provider()),
+        verbose=True,
+        now=1_800_000_000.0,
+    )
+
+    assert "retry=" in text
+    assert "rate limited" in text
+    assert "retry in 52m" in text
+
+
+def test_verbose_rich_table_includes_retry_column() -> None:
+    stream = io.StringIO()
+    console = Console(
+        file=stream,
+        force_terminal=False,
+        color_system=None,
+        width=160,
+    )
+
+    console.print(
+        render_usage_rich(
+            _snapshot(_rate_limited_codex_provider()),
+            verbose=True,
+            now=1_800_000_000.0,
+        )
+    )
+
+    text = stream.getvalue()
+    assert "Retry" in text
+    assert "rate limited" in text
+    assert "retry in 52m" in text
+
+
+def test_json_payload_passes_retry_snapshot_through() -> None:
+    payload = usage_snapshot_json_payload(_snapshot(_rate_limited_codex_provider()))
+
+    assert payload["providers"][0]["collector_health"] == {
+        "state": "failing",
+        "consecutive_failures": 5,
+        "last_success_at": 1_799_740_800.0,
+        "failing_since": 1_799_740_800.0,
+        "last_failure_reason": "rate_limited",
+        "retry_at": 1_800_003_120.0,
+    }
+
+
 def test_json_payload_filters_and_reports_missing_requested_providers() -> None:
     payload = usage_snapshot_json_payload(
         _snapshot(_codex_provider()),

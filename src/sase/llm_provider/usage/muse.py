@@ -13,6 +13,7 @@ from sase.core.rust import require_rust_binding
 from sase.llm_provider.usage._strategy import (
     ProbeStrategy,
     classify_probe_failure,
+    detect_rate_limit,
     run_probe_strategies,
 )
 from sase.llm_provider.usage.transport import JsonLineSession, JsonLineTransportError
@@ -87,7 +88,7 @@ def collect_muse_usage(
     except FileNotFoundError:
         return _status(
             context,
-            outcome="error",
+            outcome="unsupported",
             reason_code="not_installed",
             diagnostic="muse_executable_not_found",
         )
@@ -319,6 +320,15 @@ def _failure_status(
     if not isinstance(error, Mapping):
         return None
     slug = method.replace("/", "_")
+    limited = detect_rate_limit(json_rpc_error=error)
+    if limited is not None:
+        return _status(
+            context,
+            outcome="error",
+            reason_code="rate_limited",
+            diagnostic=f"muse_msp_{slug}_rate_limited",
+            retry_after_seconds=limited.retry_after_seconds,
+        )
     if classify_probe_failure("probe_failed", json_rpc_error=error) == "vendor_drift":
         return _status(
             context,
@@ -364,6 +374,7 @@ def _status(
     outcome: UsageCollectionOutcome,
     reason_code: UsageReasonCode | None = None,
     diagnostic: str | None = None,
+    retry_after_seconds: float | None = None,
 ) -> dict[str, Any]:
     return validated_status_observation(
         context,
@@ -371,6 +382,7 @@ def _status(
         outcome=outcome,
         reason_code=reason_code,
         diagnostic=diagnostic,
+        retry_after_seconds=retry_after_seconds,
     )
 
 

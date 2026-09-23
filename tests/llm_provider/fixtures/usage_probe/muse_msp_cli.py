@@ -171,6 +171,14 @@ def main() -> int:
             if mode == "usage_read_error":
                 _error(request_id, -32000, "internal host failure", "internal")
                 continue
+            if mode == "usage_rate_limited":
+                _error(
+                    request_id,
+                    429,
+                    "rate limited; retry after 30 seconds",
+                    "rate_limited",
+                )
+                continue
             if turn_started:
                 polls_since_turn += 1
             minted = (

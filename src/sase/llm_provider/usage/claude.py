@@ -37,6 +37,7 @@ from sase.llm_provider.usage._claude_support import (
 from sase.llm_provider.usage._strategy import (
     ProbeStrategy,
     classify_probe_failure,
+    detect_rate_limit,
     run_probe_strategies,
 )
 from sase.llm_provider.usage.config import collection_skip_reason
@@ -169,6 +170,20 @@ def _collect_claude_usage_strategy(
             ),
         )
     if usage_result.returncode != 0:
+        limited = detect_rate_limit(
+            command_returncode=usage_result.returncode,
+            stdout=usage_result.stdout,
+            stderr=usage_result.stderr,
+        )
+        if limited is not None:
+            return status_observation(
+                context,
+                now=clock(),
+                outcome="error",
+                reason_code="rate_limited",
+                diagnostic=_claude_usage_exit_diagnostic(usage_result),
+                retry_after_seconds=limited.retry_after_seconds,
+            )
         status_from_text = status_from_auth_text(
             f"{usage_result.stdout}\n{usage_result.stderr}"
         )
@@ -461,6 +476,15 @@ def _observation_from_usage_stdout(
     try:
         payload = json.loads(stdout)
     except json.JSONDecodeError:
+        limited = detect_rate_limit(stdout=stdout)
+        if limited is not None:
+            return status_observation(
+                context,
+                now=now,
+                outcome="error",
+                reason_code="rate_limited",
+                retry_after_seconds=limited.retry_after_seconds,
+            )
         text_status = status_from_auth_text(stdout)
         if text_status.mode == "api":
             return status_observation(

@@ -97,6 +97,18 @@ def main() -> int:
                         },
                     }
                 )
+            elif mode == "rate_limited":
+                _respond(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": request_id,
+                        "error": {
+                            "code": 429,
+                            "message": "Too many requests: billing rate limit exceeded",
+                            "data": {"retryAfter": 90},
+                        },
+                    }
+                )
             else:
                 payload = json.loads(os.environ["SASE_FAKE_GROK_BILLING"])
                 wrap = os.environ.get("SASE_FAKE_GROK_RESULT_WRAP", "")

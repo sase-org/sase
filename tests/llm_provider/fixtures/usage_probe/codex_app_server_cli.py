@@ -148,12 +148,20 @@ def _respond_ok(request: dict[str, object], result: object) -> None:
     _write({"jsonrpc": "2.0", "id": request.get("id"), "result": result})
 
 
-def _respond_error(request: dict[str, object], code: int, message: str) -> None:
+def _respond_error(
+    request: dict[str, object],
+    code: int,
+    message: str,
+    data: dict[str, object] | None = None,
+) -> None:
+    error: dict[str, object] = {"code": code, "message": message}
+    if data is not None:
+        error["data"] = data
     _write(
         {
             "jsonrpc": "2.0",
             "id": request.get("id"),
-            "error": {"code": code, "message": message},
+            "error": error,
         }
     )
 
@@ -243,6 +251,14 @@ def main() -> int:
             rate_limits,
             -32042,
             "Vendor drift details\nsecond line should stay out of diagnostics",
+        )
+        return 0
+    if MODE == "rate_limited":
+        _respond_error(
+            rate_limits,
+            429,
+            "Too many requests: usage rate limit exceeded",
+            data={"retry_after": 45},
         )
         return 0
     if MODE == "null_fields":

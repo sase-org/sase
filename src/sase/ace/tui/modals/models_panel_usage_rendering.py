@@ -16,6 +16,7 @@ from sase.llm_provider.usage.presentation import (
     age_label,
     applicability_label,
     collector_health_style,
+    collector_retry_label,
     diagnostic_line,
     duration_label,
     provider_status_label,
@@ -231,6 +232,9 @@ def _collector_health_detail(
         if last_success is not None
         else "last success unknown"
     )
+    retry_label = collector_retry_label(health, now)
+    if retry_label is not None:
+        parts.append(retry_label)
     suffix = f" — {' · '.join(parts)}" if parts else ""
     return f"Collector: {state.replace('_', ' ')}{suffix}"
 

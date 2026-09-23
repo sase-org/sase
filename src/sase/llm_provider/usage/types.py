@@ -28,6 +28,7 @@ UsageReasonCode = Literal[
     "deadline_exceeded",
     "probe_failed",
     "vendor_drift",
+    "rate_limited",
 ]
 UsageCompleteness = Literal["complete", "partial"]
 UsageSource = Literal["probe", "stream_event"]
@@ -45,6 +46,7 @@ _DIAGNOSTIC_BY_REASON: dict[str, str] = {
     "deadline_exceeded": "usage probe exceeded its deadline",
     "probe_failed": "usage probe failed",
     "vendor_drift": "provider CLI request shape changed",
+    "rate_limited": "provider is rate-limiting usage requests",
     "unsupported": "provider does not collect subscription usage",
     "config_disabled": "subscription usage collection is disabled",
     "provider_disabled": "subscription usage collection is disabled for this provider",
@@ -132,6 +134,7 @@ def _status_observation(
     reason_code: UsageReasonCode | None = None,
     diagnostic: str | None = None,
     source: UsageSource = "probe",
+    retry_after_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Build a windowless observation that satisfies the domain inventory rules."""
     completeness: UsageCompleteness = "partial" if outcome == "error" else "complete"
@@ -153,6 +156,7 @@ def _status_observation(
         "outcome": outcome,
         "reason_code": reason_code,
         "diagnostic": resolved_diagnostic,
+        "retry_after_seconds": retry_after_seconds,
         "completeness": completeness,
         "authoritative_empty": False,
         "account_mode": None,
@@ -169,6 +173,7 @@ def validated_status_observation(
     reason_code: UsageReasonCode | None = None,
     diagnostic: str | None = None,
     source: UsageSource = "probe",
+    retry_after_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Build and validate a windowless status observation."""
     return validate_observation(
@@ -179,6 +184,7 @@ def validated_status_observation(
             reason_code=reason_code,
             diagnostic=diagnostic,
             source=source,
+            retry_after_seconds=retry_after_seconds,
         ),
         now=max(float(now), float(context.request_started_at)),
     )

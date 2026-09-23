@@ -17,7 +17,12 @@ from typing import Any
 from sase import __version__ as _SASE_VERSION
 
 from ..codex import resolve_codex_executable
-from ._strategy import ProbeStrategy, classify_probe_failure, run_probe_strategies
+from ._strategy import (
+    ProbeStrategy,
+    classify_probe_failure,
+    detect_rate_limit,
+    run_probe_strategies,
+)
 from .probe import worker_environ
 from .transport import JsonLineSession, JsonLineTransportError
 from .types import (
@@ -288,6 +293,16 @@ def _observation_from_error(
 ) -> dict[str, Any]:
     message = str(error.get("message") or "").lower()
     diagnostic = _rpc_error_diagnostic(method, error)
+    limited = detect_rate_limit(json_rpc_error=error)
+    if limited is not None:
+        return validated_status_observation(
+            context,
+            now=context.request_started_at,
+            outcome="error",
+            reason_code="rate_limited",
+            diagnostic=diagnostic,
+            retry_after_seconds=limited.retry_after_seconds,
+        )
     if any(marker in message for marker in _UNAUTHENTICATED_MARKERS):
         return validated_status_observation(
             context,

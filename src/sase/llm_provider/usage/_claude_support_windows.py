@@ -196,6 +196,7 @@ def status_observation(
     diagnostic: str | None = None,
     account_mode: str | None = None,
     plan: str | None = None,
+    retry_after_seconds: float | None = None,
 ) -> dict[str, Any]:
     """Build and validate a status-only provider-usage observation."""
     observation = validated_status_observation(
@@ -204,6 +205,7 @@ def status_observation(
         outcome=outcome,  # type: ignore[arg-type]
         reason_code=reason_code,  # type: ignore[arg-type]
         diagnostic=diagnostic,
+        retry_after_seconds=retry_after_seconds,
     )
     if account_mode is None and plan is None:
         return observation

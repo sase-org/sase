@@ -284,9 +284,20 @@ def test_muse_usage_probe_other_host_errors_are_probe_failures(
 def test_muse_usage_probe_missing_executable_is_not_installed(tmp_path: Path) -> None:
     result, messages, _ = _run_muse_probe(tmp_path / "no-such-muse", tmp_path)
     assert messages == []
-    assert result["outcome"] == "error"
+    assert result["outcome"] == "unsupported"
     assert result["reason_code"] == "not_installed"
     assert result["diagnostic"] == "muse_executable_not_found"
+
+
+def test_muse_usage_probe_rate_limit_error_is_rate_limited(
+    tmp_path: Path,
+) -> None:
+    fake = _make_fake_muse(tmp_path)
+    result, _, _ = _run_muse_probe(fake, tmp_path, mode="usage_rate_limited")
+    assert result["outcome"] == "error"
+    assert result["reason_code"] == "rate_limited"
+    assert result["diagnostic"] == "muse_msp_usage_read_rate_limited"
+    assert result["retry_after_seconds"] == pytest.approx(30.0)
 
 
 def test_muse_usage_probe_refuses_unsolicited_host_requests(tmp_path: Path) -> None:

@@ -14,6 +14,7 @@ from sase.core.rust import require_rust_binding
 from sase.llm_provider.usage._strategy import (
     ProbeStrategy,
     classify_probe_failure,
+    detect_rate_limit,
     run_probe_strategies,
 )
 from sase.llm_provider.usage.transport import JsonLineSession, JsonLineTransportError
@@ -41,6 +42,7 @@ _ReasonCode = Literal[
     "deadline_exceeded",
     "probe_failed",
     "vendor_drift",
+    "rate_limited",
 ]
 
 log = logging.getLogger(__name__)
@@ -82,7 +84,7 @@ def collect_grok_usage(
     except FileNotFoundError:
         return _status(
             context,
-            outcome="error",
+            outcome="unsupported",
             reason_code="not_installed",
             diagnostic="grok_executable_not_found",
         )
@@ -182,7 +184,7 @@ def _verify_grok_build(
     except FileNotFoundError:
         return _status(
             context,
-            outcome="error",
+            outcome="unsupported",
             reason_code="not_installed",
             diagnostic="grok_executable_not_found",
         )
@@ -299,6 +301,15 @@ def _status_from_error(
     error = response.get("error")
     if not isinstance(error, Mapping):
         return None
+    limited = detect_rate_limit(acp_error=error)
+    if limited is not None:
+        return _status(
+            context,
+            outcome="error",
+            reason_code="rate_limited",
+            diagnostic="grok_usage_rate_limited",
+            retry_after_seconds=limited.retry_after_seconds,
+        )
     code = error.get("code")
     evidence = _evidence_text(error)
     if (
@@ -395,6 +406,7 @@ def _status(
     outcome: _Outcome,
     reason_code: _ReasonCode | None = None,
     diagnostic: str | None = None,
+    retry_after_seconds: float | None = None,
 ) -> dict[str, Any]:
     return validated_status_observation(
         context,
@@ -402,6 +414,7 @@ def _status(
         outcome=outcome,
         reason_code=reason_code,
         diagnostic=diagnostic,
+        retry_after_seconds=retry_after_seconds,
     )
 
 

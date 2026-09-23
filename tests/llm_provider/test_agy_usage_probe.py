@@ -295,8 +295,18 @@ def test_agy_usage_probe_missing_executable_is_not_installed(
 ) -> None:
     fake = _make_fake_agy(tmp_path)
     result, _, _ = _run_agy_probe(fake, tmp_path, executable="/nonexistent/agy-xyz")
-    assert result["outcome"] == "error"
+    assert result["outcome"] == "unsupported"
     assert result["reason_code"] == "not_installed"
+
+
+def test_agy_usage_probe_rate_limit_text_is_rate_limited(
+    tmp_path: Path,
+) -> None:
+    fake = _make_fake_agy(tmp_path)
+    result, _, _ = _run_agy_probe(fake, tmp_path, mode="rate_limited")
+    assert result["outcome"] == "error"
+    assert result["reason_code"] == "rate_limited"
+    assert result["retry_after_seconds"] == pytest.approx(120.0)
 
 
 def test_agy_probe_log_file_is_owner_only(tmp_path: Path) -> None:

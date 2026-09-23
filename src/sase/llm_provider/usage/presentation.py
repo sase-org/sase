@@ -163,9 +163,15 @@ def render_usage_rich(
     table.add_column("Status")
     if verbose:
         table.add_column("Source")
+        table.add_column("Retry", no_wrap=True)
 
     for provider in rows:
         windows = _window_rows(provider)
+        retry_label = (
+            collector_retry_label(_provider_collector_health(provider), clock)
+            if verbose
+            else None
+        )
         if not windows:
             values = [
                 str(provider.get("provider") or "-"),
@@ -177,6 +183,7 @@ def render_usage_rich(
             ]
             if verbose:
                 values.append(_optional_text(provider.get("diagnostic")) or "-")
+                values.append(retry_label or "-")
             table.add_row(*values, style=provider_style(provider))
             continue
         for index, window in enumerate(windows):
@@ -191,6 +198,10 @@ def render_usage_rich(
             ]
             if verbose:
                 values.append(_window_source_label(window))
+                if index == 0 and retry_label is not None:
+                    values.append(retry_label)
+                else:
+                    values.append("")
             table.add_row(*values, style=_provider_window_style(provider, window))
 
     diagnostic_lines = tuple(
@@ -328,6 +339,9 @@ def _provider_plain_record(
                 values["consecutive_failures"] = failures
             values["last_success"] = timestamp_label(health.get("last_success_at"), now)
             values["failing_since"] = timestamp_label(health.get("failing_since"), now)
+            retry_label = collector_retry_label(health, now)
+            if retry_label is not None:
+                values["retry"] = retry_label
         values["plan"] = provider.get("plan")
         values["account_mode"] = provider.get("account_mode")
         values["last_attempt"] = timestamp_label(provider.get("last_attempt_at"), now)
@@ -426,6 +440,46 @@ def _collector_health_label(
     if failures is not None and (state != "ok" or failures > 0):
         parts.append(f"{failures}x")
     return " · ".join(parts)
+
+
+def collector_retry_label(health: Mapping[str, Any] | None, now: float) -> str | None:
+    """Return a compact retry label for a ``collector_health`` block.
+
+    Combines ``last_failure_reason`` with the ``retry_at`` instant, for
+    example ``"rate limited · retry in 52m"`` or ``"rate limited ·
+    retry ~14:05"``. Returns None when the block carries neither.
+    """
+    if health is None:
+        return None
+    parts: list[str] = []
+    reason = _collector_failure_reason(health)
+    if reason is not None:
+        parts.append(reason)
+    retry = _collector_retry_at_label(health, now)
+    if retry is not None:
+        parts.append(retry)
+    if not parts:
+        return None
+    return " · ".join(parts)
+
+
+def _collector_failure_reason(health: Mapping[str, Any]) -> str | None:
+    """Return the spaced ``last_failure_reason`` text, if present."""
+    reason = _optional_text(health.get("last_failure_reason"))
+    if reason is None:
+        return None
+    return reason.replace("_", " ")
+
+
+def _collector_retry_at_label(health: Mapping[str, Any], now: float) -> str | None:
+    """Return the ``retry_at`` portion of a retry label, if present."""
+    retry_at = _number(health.get("retry_at"))
+    if retry_at is None:
+        return None
+    if retry_at > now:
+        return f"retry in {duration_label(retry_at - now)}"
+    clock = format_local(retry_at, "%H:%M", default="unknown")
+    return f"retry ~{clock}"
 
 
 def _collector_health_style(health: Mapping[str, Any] | None) -> str:
@@ -649,6 +703,7 @@ __all__ = [
     "age_label",
     "applicability_label",
     "collector_health_style",
+    "collector_retry_label",
     "diagnostic_line",
     "duration_label",
     "provider_status_label",

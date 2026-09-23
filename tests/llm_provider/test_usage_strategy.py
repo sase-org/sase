@@ -10,6 +10,7 @@ import pytest
 from sase.llm_provider.usage._strategy import (
     ProbeStrategy,
     classify_probe_failure,
+    detect_rate_limit,
     run_probe_strategies,
 )
 from sase.llm_provider.usage.probe import default_probe_context
@@ -127,3 +128,105 @@ def test_acp_method_not_found_is_vendor_drift() -> None:
         )
         == "vendor_drift"
     )
+
+
+def test_rate_limit_error_code_matches_without_text() -> None:
+    evidence = detect_rate_limit(
+        json_rpc_error={"code": 429, "message": "slow down"},
+    )
+
+    assert evidence is not None
+    assert evidence.retry_after_seconds is None
+
+
+def test_rate_limit_text_markers_match_in_stderr() -> None:
+    assert (
+        detect_rate_limit(stderr="Error: 429 Too Many Requests").retry_after_seconds
+        is None
+    )
+    assert detect_rate_limit(stderr="usage backend is rate-limited") is not None
+    assert detect_rate_limit(stdout="ERROR: rate limit exceeded") is not None
+
+
+def test_rate_limit_header_retry_after_is_seconds() -> None:
+    evidence = detect_rate_limit(
+        command_returncode=1,
+        stdout="ERROR: 429 Too Many Requests",
+        stderr="retry-after: 120",
+    )
+
+    assert evidence is not None
+    assert evidence.retry_after_seconds == pytest.approx(120.0)
+
+
+def test_rate_limit_prose_retry_after_converts_minutes() -> None:
+    evidence = detect_rate_limit(
+        stdout="Rate limit exceeded for /usage, retry in 5 minutes",
+    )
+
+    assert evidence is not None
+    assert evidence.retry_after_seconds == pytest.approx(300.0)
+
+
+def test_rate_limit_field_retry_after_from_error_data() -> None:
+    evidence = detect_rate_limit(
+        acp_error={
+            "code": 429,
+            "message": "billing rate limit exceeded",
+            "data": {"retryAfter": 90},
+        },
+    )
+
+    assert evidence is not None
+    assert evidence.retry_after_seconds == pytest.approx(90.0)
+
+
+def test_rate_limit_retry_after_prose_inside_error_message() -> None:
+    evidence = detect_rate_limit(
+        json_rpc_error={
+            "code": 429,
+            "message": "rate limited; retry after 30 seconds",
+        },
+    )
+
+    assert evidence is not None
+    assert evidence.retry_after_seconds == pytest.approx(30.0)
+
+
+def test_rate_limit_non_json_agy_output_with_stderr_hint() -> None:
+    evidence = detect_rate_limit(
+        stdout="ERROR: 429 Too Many Requests - quota exhausted",
+        stderr="retry-after: 120",
+    )
+
+    assert evidence is not None
+    assert evidence.retry_after_seconds == pytest.approx(120.0)
+
+
+def test_rate_limit_ignores_unrelated_text() -> None:
+    assert detect_rate_limit(stderr="server unavailable") is None
+    assert detect_rate_limit(stderr="separate limitation applies") is None
+    assert detect_rate_limit() is None
+    assert detect_rate_limit(stdout="used 4290 tokens this week") is None
+
+
+def test_rate_limit_ignores_quoted_method_path() -> None:
+    assert (
+        detect_rate_limit(
+            json_rpc_error={
+                "code": -32601,
+                "message": "method not found: account/rateLimits/read",
+            },
+        )
+        is None
+    )
+
+
+def test_rate_limit_ignores_unusable_retry_after() -> None:
+    evidence = detect_rate_limit(
+        stdout="rate limit exceeded",
+        stderr="retry-after: soon",
+    )
+
+    assert evidence is not None
+    assert evidence.retry_after_seconds is None

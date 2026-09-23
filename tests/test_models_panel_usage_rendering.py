@@ -125,6 +125,25 @@ def test_provider_detail_header_includes_unhealthy_collector_line() -> None:
     assert "Collector: failing — 5 failures · since 2d · last success 3d ago" in text
 
 
+def test_provider_detail_header_includes_collector_retry_info() -> None:
+    provider = usage_provider(
+        "codex",
+        collection_reason="rate_limited",
+        collector_health={
+            "state": "failing",
+            "consecutive_failures": 3,
+            "failing_since": FROZEN_NOW - 3_600.0,
+            "last_success_at": FROZEN_NOW - 7_200.0,
+            "last_failure_reason": "rate_limited",
+            "retry_at": FROZEN_NOW + 3_120.0,
+        },
+    )
+
+    text = provider_detail_header(provider, now=FROZEN_NOW).plain
+
+    assert "rate limited · retry in 52m" in text
+
+
 def test_window_detail_row_reports_remaining_and_reset() -> None:
     window = usage_window(used_percent=87.5, resets_at=FROZEN_NOW + 7_200.0)
     row = window_detail_row(window, now=FROZEN_NOW)

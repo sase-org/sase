@@ -192,3 +192,97 @@ def test_batch_deadline_keeps_finished_probe_records(
     assert len(observations) == 1
     assert observations[0]["outcome"] == "ok"
     assert len(attempts) == 1
+
+
+def test_finish_job_records_reason_retry_after_and_adaptive(
+    runner_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    attempts: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    monkeypatch.setattr(
+        refresh_runner,
+        "record_provider_usage_refresh_attempt",
+        lambda *args, **kwargs: attempts.append((args, kwargs)),  # noqa: ANN002,ANN003
+    )
+    monkeypatch.setattr(
+        refresh_runner,
+        "release_provider_usage_refresh",
+        lambda *args, **kwargs: None,  # noqa: ANN002,ANN003
+    )
+    refresh_runner._finish_job(
+        {
+            "provider": "codex",
+            "context_id": "default",
+            "account_generation": 1,
+            "lease_id": "lease-codex",
+        },
+        "error",
+        300.0,
+        1_800_000_000.0,
+        reason_code="rate_limited",
+        retry_after_seconds=120.0,
+    )
+
+    assert len(attempts) == 1
+    kwargs = attempts[0][1]
+    assert kwargs["reason_code"] == "rate_limited"
+    assert kwargs["retry_after_seconds"] == 120.0
+    assert kwargs["adaptive"] is True
+
+
+def test_run_one_provider_passes_observation_reason_to_attempt(
+    runner_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    attempts: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    monkeypatch.setattr(
+        refresh_runner,
+        "record_provider_usage_observation",
+        lambda observation, *, now=None: None,
+    )
+    monkeypatch.setattr(
+        refresh_runner,
+        "record_provider_usage_refresh_attempt",
+        lambda *args, **kwargs: attempts.append((args, kwargs)),  # noqa: ANN002,ANN003
+    )
+    monkeypatch.setattr(
+        refresh_runner,
+        "release_provider_usage_refresh",
+        lambda *args, **kwargs: None,  # noqa: ANN002,ANN003
+    )
+
+    def _rate_limited(
+        context: object,
+        *,
+        isolate: bool = True,
+        plugin_spec: object = None,
+        now: float | None = None,
+    ) -> UsageProbeResult:
+        return UsageProbeResult(
+            observation={
+                "provider": "codex",
+                "outcome": "error",
+                "reason_code": "rate_limited",
+                "retry_after_seconds": 60.0,
+            }
+        )
+
+    monkeypatch.setattr(refresh_runner, "run_usage_probe", _rate_limited)
+    result = refresh_runner._run_one_provider(
+        {
+            "provider": "codex",
+            "context_id": "default",
+            "account_generation": 1,
+            "lease_id": "lease-codex",
+        },
+        None,
+        5.0,
+        300.0,
+        1_800_000_000.0,
+    )
+
+    assert result["outcome"] == "error"
+    assert result["reason_code"] == "rate_limited"
+    assert len(attempts) == 1
+    kwargs = attempts[0][1]
+    assert kwargs["reason_code"] == "rate_limited"
+    assert kwargs["retry_after_seconds"] == 60.0
+    assert kwargs["adaptive"] is True

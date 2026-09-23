@@ -331,6 +331,50 @@ def test_claude_usage_probe_classifies_cli_option_rejection_as_vendor_drift() ->
     assert usage_calls == [_usage_tail()]
 
 
+def test_claude_usage_probe_classifies_rate_limit_exit_before_auth() -> None:
+    runner = _runner(
+        usage_text="Current session: 10% used - resets Sep 7, 6:30pm",
+    )
+    runner.responses[_usage_tail()] = ClaudeCommandResult(
+        1,
+        "",
+        "Error: 429 Too Many Requests - usage backend is rate limiting\n"
+        "retry-after: 300",
+    )
+
+    observation = collect_claude_usage(
+        _context(),
+        runner=runner,
+        clock=lambda: OBSERVED_AT,
+    )
+
+    assert observation["outcome"] == "error"
+    assert observation["reason_code"] == "rate_limited"
+    assert observation["retry_after_seconds"] == pytest.approx(300.0)
+    assert "claude /usage exited 1" in str(observation["diagnostic"])
+
+
+def test_claude_usage_probe_classifies_non_json_rate_limit_stdout() -> None:
+    runner = _runner(
+        usage_text="Current session: 10% used - resets Sep 7, 6:30pm",
+    )
+    runner.responses[_usage_tail()] = ClaudeCommandResult(
+        0,
+        "Rate limit exceeded for usage endpoint, retry in 2 minutes",
+        "",
+    )
+
+    observation = collect_claude_usage(
+        _context(),
+        runner=runner,
+        clock=lambda: OBSERVED_AT,
+    )
+
+    assert observation["outcome"] == "error"
+    assert observation["reason_code"] == "rate_limited"
+    assert observation["retry_after_seconds"] == pytest.approx(120.0)
+
+
 def test_claude_reset_parser_handles_time_date_year_rollover_and_iso() -> None:
     ny = ZoneInfo("America/New_York")
     december = datetime(2026, 12, 31, 12, 0, tzinfo=ny).timestamp()

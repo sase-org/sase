@@ -388,6 +388,10 @@ def record_provider_usage_refresh_attempt(
     *,
     retry_after_seconds: float | None = None,
     cadence_seconds: float = DEFAULT_USAGE_CADENCE_SECONDS,
+    reason_code: str | None = None,
+    min_interval_seconds: float | None = None,
+    cli_fingerprint: str | None = None,
+    adaptive: bool = False,
     now: float | None = None,
 ) -> dict[str, Any]:
     """Record backoff/cooldown after one provider refresh attempt."""
@@ -402,6 +406,18 @@ def record_provider_usage_refresh_attempt(
         raise ValueError("retry_after_seconds must be a finite nonnegative number")
     if not is_finite_number(cadence_seconds) or float(cadence_seconds) <= 0.0:
         raise ValueError("cadence_seconds must be a finite positive number")
+    if reason_code is not None and (
+        not isinstance(reason_code, str) or not reason_code.strip()
+    ):
+        raise ValueError("reason_code must be a non-empty string")
+    if min_interval_seconds is not None and not is_finite_number(min_interval_seconds):
+        raise ValueError("min_interval_seconds must be a finite number")
+    if cli_fingerprint is not None and (
+        not isinstance(cli_fingerprint, str) or not cli_fingerprint.strip()
+    ):
+        raise ValueError("cli_fingerprint must be a non-empty string")
+    if type(adaptive) is not bool:
+        raise ValueError("adaptive must be a boolean")
     current = time.time() if now is None else now
     binding = require_rust_binding("provider_usage_record_refresh_attempt")
     recorded = binding(
@@ -415,6 +431,14 @@ def record_provider_usage_refresh_attempt(
                 None if retry_after_seconds is None else float(retry_after_seconds)
             ),
             "cadence_seconds": float(cadence_seconds),
+            "reason_code": (None if reason_code is None else reason_code.strip()),
+            "min_interval_seconds": (
+                None if min_interval_seconds is None else float(min_interval_seconds)
+            ),
+            "cli_fingerprint": (
+                None if cli_fingerprint is None else cli_fingerprint.strip()
+            ),
+            "adaptive": adaptive,
         },
         current,
     )

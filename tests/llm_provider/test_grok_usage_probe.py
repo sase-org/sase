@@ -196,6 +196,26 @@ def test_grok_usage_probe_auth_required_is_unauthenticated(tmp_path: Path) -> No
     assert result["reason_code"] == "logged_out"
 
 
+def test_grok_usage_probe_rate_limit_is_rate_limited(tmp_path: Path) -> None:
+    fake = _make_fake_grok(tmp_path)
+    result, _ = _run_grok_probe(fake, tmp_path, mode="rate_limited")[:2]
+    assert result["outcome"] == "error"
+    assert result["reason_code"] == "rate_limited"
+    assert result["diagnostic"] == "grok_usage_rate_limited"
+    assert result["retry_after_seconds"] == pytest.approx(90.0)
+
+
+def test_grok_usage_probe_missing_executable_is_unsupported() -> None:
+    from sase.llm_provider.usage.grok import collect_grok_usage
+
+    context = default_probe_context(
+        "grok", executable="/nonexistent/grok-xyz", deadline_seconds=5.0
+    )
+    result = collect_grok_usage(context)
+    assert result["outcome"] == "unsupported"
+    assert result["reason_code"] == "not_installed"
+
+
 @pytest.mark.parametrize("tier", ["Free", "Enterprise"])
 def test_grok_usage_probe_explicit_ineligible_accounts_are_not_applicable(
     tmp_path: Path, tier: str

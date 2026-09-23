@@ -2098,6 +2098,20 @@ Antigravity's is likewise a free local `/usage` probe (`agy >= 1.1.11`, about th
 five seconds per refresh); see
 [Antigravity subscription usage](agent_providers.md#agy-subscription-usage).
 
+Every recorded attempt carries its outcome, failure reason, and any `Retry-After` hint,
+and refresh backoff follows the failure class. `sase usage list -v` shows the
+per-provider retry state; JSON output passes the `collector_health` snapshot through
+unchanged.
+
+| Class        | Failure reasons                                                                                               | Retry policy                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| Success      | `ok`, `not_applicable`, `unsupported` outcomes                                                                | next probe at the provider cadence                                              |
+| Transient    | `timeout`, `deadline_exceeded`, `probe_failed`, `parse_error`, `malformed_payload`, `account_context_changed` | cadence-based backoff up to 30 minutes                                          |
+| Rate-limited | `rate_limited`                                                                                                | honored `Retry-After` when present, otherwise an escalating delay up to 2 hours |
+| Auth         | `unauthenticated`, `logged_out`, `api_mode` outcomes                                                          | generic backoff up to 30 minutes                                                |
+| Parked       | `not_installed`, `unsupported_cli_version`                                                                    | 6-hour backoff, released early when the CLI changes                             |
+| Vendor drift | `vendor_drift`                                                                                                | fixed 1-hour backoff                                                            |
+
 ```yaml
 llm_provider:
   usage_metrics:

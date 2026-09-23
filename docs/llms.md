@@ -1141,6 +1141,17 @@ Passive stream events (for example Claude `rate_limit_event`) go through
 `record_passive_usage_observation`, which accepts the same fenced envelope. Persistence
 is owned by the usage store.
 
+Failed probes classify provider pushback before anything else: when the failure evidence
+carries HTTP 429, `rate limit` / `rate-limited`, or `too many requests` — in a JSON-RPC
+or ACP error, the exit code output, or stderr — the collector reports outcome `error`
+with reason `rate_limited` instead of its usual failure reason. A `Retry-After` hint is
+captured into the observation's `retry_after_seconds` field from `retry-after: N`
+headers, `retry after/in N seconds|minutes` prose, or `retry_after` / `retryAfter`
+fields, and honored by refresh backoff. Plugin authors implementing their own collector
+should consult the shared `sase.llm_provider.usage._strategy.detect_rate_limit`
+classifier on every failure path before other classification, and report a missing
+executable as outcome `unsupported` with reason `not_installed`.
+
 Existing plugins that omit these hooks keep invoking normally: `LLMProvider.invoke` and
 `InvokeResult` are unchanged.
 
