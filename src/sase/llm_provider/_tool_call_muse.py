@@ -17,8 +17,13 @@ lifecycle events and must never be reported as tool calls.
 
 Because arguments are absent, the record's target is derived honestly and in
 one fixed order: ``edit_facts.path`` when present, then the ``command`` /
-``description`` fields of a ``bash`` result's JSON body, and otherwise a
-bounded preview of the result text.
+``description`` fields of a ``bash`` or ``shell`` result's JSON body, and
+otherwise a bounded preview of the result text.
+
+The legacy ``shell`` tool (``muse exec --enable-shell-tool``, release
+``1.3.0-R3401.1``) carries its result as plain text with no ``command`` /
+``description`` fields, so ``shell`` calls honestly fall through to the
+result-preview fallback. They are still displayed as ``Bash``.
 """
 
 from __future__ import annotations
@@ -61,10 +66,15 @@ MUSE_TOOL_CALL_PAYLOAD_TYPES = frozenset(
 
 # ``correlation_facts.outcome`` values that are not a plain success.
 _FAILURE_OUTCOMES = frozenset({"error", "failed", "failure", "rejected"})
+# A 10-minute ``shell`` kill reports a timeout outcome with ``tool timed out``
+# text and no output. That is a failure, never a success.
+_TIMEOUT_OUTCOMES = frozenset({"timeout", "timed_out"})
 _INTERRUPTED_OUTCOMES = frozenset({"cancelled", "canceled", "interrupted"})
 
 _MUSE_DISPLAY_TOOL_NAMES = {
     "bash": "Bash",
+    # Legacy synchronous shell tool (``muse exec --enable-shell-tool``).
+    "shell": "Bash",
     "edit_file": "Edit",
     "glob": "Glob",
     "grep": "Grep",
@@ -75,9 +85,12 @@ _MUSE_DISPLAY_TOOL_NAMES = {
     "write_file": "Write",
 }
 
-# Result-body fields a ``bash`` tool result carries in place of the arguments
-# the stream never emits.
+# Result-body fields a ``bash`` (or, when present, ``shell``) tool result
+# carries in place of the arguments the stream never emits. Observed ``shell``
+# results are plain text, so this rarely applies to ``shell``; the preview
+# fallback below stays the honest ``shell`` target.
 _BASH_RESULT_INPUT_FIELDS = ("command", "description")
+_SHELL_LIKE_TOOLS = frozenset({"bash", "shell"})
 
 
 @dataclass
@@ -286,7 +299,8 @@ def _derive_tool_input_summary(
 
     The derivation order is fixed and deliberately conservative, because Muse
     never emits the arguments themselves: ``edit_facts.path``, then a ``bash``
-    result's own ``command``/``description``, then a bounded preview of the
+    or ``shell`` result's own ``command``/``description`` (observed ``shell``
+    results carry none, so they fall through), then a bounded preview of the
     result text. Nothing is inferred beyond those three.
     """
     if isinstance(edit_facts, Mapping):
@@ -298,7 +312,7 @@ def _derive_tool_input_summary(
                 derived["lines_added"] = added
             return derived
 
-    if raw_tool_name == "bash" and result_body is not None:
+    if raw_tool_name in _SHELL_LIKE_TOOLS and result_body is not None:
         command_input = {
             key: result_body[key]
             for key in _BASH_RESULT_INPUT_FIELDS
@@ -339,7 +353,7 @@ def _parse_result_body(text: Any) -> dict[str, Any] | None:
 
 def _result_status(outcome: Any) -> str:
     normalized = outcome.lower() if isinstance(outcome, str) else ""
-    if normalized in _FAILURE_OUTCOMES:
+    if normalized in _FAILURE_OUTCOMES or normalized in _TIMEOUT_OUTCOMES:
         return "failure"
     if normalized in _INTERRUPTED_OUTCOMES:
         return "interrupted"

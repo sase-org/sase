@@ -30,6 +30,7 @@ from sase.llm_provider.muse import MuseProvider
 _FIXTURES = Path(__file__).parent / "fixtures"
 _READ_TOOL_FIXTURE = _FIXTURES / "muse_exec_read_tool_R708.1.jsonl"
 _WRITE_BASH_FIXTURE = _FIXTURES / "muse_exec_write_bash_tools_R708.1.jsonl"
+_SHELL_TOOL_FIXTURE = _FIXTURES / "muse_exec_shell_tool_R3401.1.jsonl"
 _SESSION_LOG_FIXTURE = _FIXTURES / "muse_session_log_usage_R708.1.jsonl"
 
 _SESSION_ID = "141ac0ea-2b6d-4171-9604-378f72626a67"
@@ -156,6 +157,97 @@ def test_muse_bash_capture_recovers_the_command_from_the_result_body(
     assert summary["command"].startswith("hexdump -C out.txt")
     assert summary["description"] == "Verify out.txt content"
     assert bash_result["tool_response_summary"]["exit_code"] == 0
+
+
+def test_muse_shell_tool_capture_displays_as_bash_with_a_preview_target(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Legacy ``shell`` results are plain text: no invented command target."""
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+
+    _run_stream(_SHELL_TOOL_FIXTURE.read_text(encoding="utf-8"))
+
+    records = _tool_call_records(tmp_path)
+    use = [r for r in records if r["event"] == "ToolUse"]
+    result = [r for r in records if r["event"] == "ToolResult"]
+    assert len(use) == 2
+    assert len(result) == 2
+    assert {r["tool_name"] for r in use} == {"Bash"}
+    assert {r["tool_name"] for r in result} == {"Bash"}
+    assert all(r["runtime"] == "muse" for r in records)
+    assert "sase-shell-fixture" in json.dumps(result[0]["tool_input_summary"])
+    # The second shell call exits non-zero, so its outcome is a failure.
+    assert result[1]["status"] == "failure"
+    assert "exit status: 1" in json.dumps(result[1]["tool_response_summary"])
+
+
+def test_muse_shell_timeout_outcome_is_a_failure_not_a_success(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A 10-minute ``shell`` kill must never be recorded as a success."""
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    payload = (
+        _envelope(
+            "task.lifecycle.proposed",
+            {"event": {"task_id": "t1", "task_kind": "tool.shell"}},
+        )
+        + _envelope(
+            "task.lifecycle.scheduled",
+            {"event": {"task_id": "t1", "idempotency_key": "tool:call_timeout"}},
+        )
+        + _envelope(
+            "tool.result",
+            {
+                "call_id": "call_timeout",
+                "correlation_facts": {
+                    "outcome": "timeout",
+                    "tool_name": "shell",
+                },
+                "text": "tool timed out",
+            },
+        )
+    )
+
+    _run_stream(payload)
+
+    results = [r for r in _tool_call_records(tmp_path) if r["event"] == "ToolResult"]
+    assert len(results) == 1
+    assert results[0]["tool_name"] == "Bash"
+    assert results[0]["status"] == "failure"
+    assert "tool timed out" in json.dumps(results[0]["tool_response_summary"])
+
+
+def test_muse_timed_out_outcome_variant_is_also_a_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("SASE_ARTIFACTS_DIR", str(tmp_path))
+    payload = (
+        _envelope(
+            "task.lifecycle.proposed",
+            {"event": {"task_id": "t1", "task_kind": "tool.shell"}},
+        )
+        + _envelope(
+            "task.lifecycle.scheduled",
+            {"event": {"task_id": "t1", "idempotency_key": "tool:call_timeout2"}},
+        )
+        + _envelope(
+            "tool.result",
+            {
+                "call_id": "call_timeout2",
+                "correlation_facts": {
+                    "outcome": "timed_out",
+                    "tool_name": "shell",
+                },
+                "text": "tool timed out",
+            },
+        )
+    )
+
+    _run_stream(payload)
+
+    results = [r for r in _tool_call_records(tmp_path) if r["event"] == "ToolResult"]
+    assert len(results) == 1
+    assert results[0]["status"] == "failure"
 
 
 def test_muse_non_tool_tasks_never_become_tool_records(

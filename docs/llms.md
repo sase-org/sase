@@ -828,11 +828,21 @@ keyed to Muse release `0.1.0-R708.1`.
 | `tool.result`                                     | `call_id`, `correlation_facts.{tool_name,outcome}`, optional `edit_facts` | Closes the call with its outcome and result                      |
 
 **Tool arguments are never in the stream.** SASE derives each record's target honestly
-and in this order: `edit_facts.path` when present; for `bash`, the `command` and
-`description` fields of the result JSON; otherwise a truncated preview of the result
-text. It does not invent arguments Muse did not emit. Non-tool tasks
-(`model.meta.response`, `reminder.agent.plugin:*`) never become tool records, and calls
-still pending at stream end are finalized like every other provider's.
+and in this order: `edit_facts.path` when present; for `bash` (or `shell`, when its body
+carries them), the `command` and `description` fields of the result JSON; otherwise a
+truncated preview of the result text. It does not invent arguments Muse did not emit.
+Non-tool tasks (`model.meta.response`, `reminder.agent.plugin:*`) never become tool
+records, and calls still pending at stream end are finalized like every other
+provider's.
+
+**Legacy `shell` tool.** Under `muse exec --enable-shell-tool` (fixture
+`tests/llm_provider/fixtures/muse_exec_shell_tool_R3401.1.jsonl`, keyed to Muse release
+`1.3.0-R3401.1`), tool tasks arrive as `tool.shell` with plain-text results that carry
+no `command` / `description` fields, so their target is honestly the result preview —
+SASE never invents the command. They display as `Bash`. A timed-out `shell` call
+(`correlation_facts.outcome` of `timeout` / `timed_out`, text `tool timed out`) is
+recorded as a `failure`, never a `success`, with the timeout text kept visible in the
+response summary.
 
 ### Token Usage and Model Identity
 
