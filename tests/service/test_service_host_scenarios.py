@@ -120,7 +120,7 @@ def _service_host(
     get_config: Callable[[], ServiceConfigComposition],
 ) -> Iterator[_ServiceHost]:
     """Yield a real host with stubbed config discovery; stop children on exit."""
-    monkeypatch.setattr("sase.service.host.load_service_config", get_config)
+    monkeypatch.setattr("sase.service.host_state.load_service_config", get_config)
     host = _ServiceHost()
     try:
         yield host
@@ -163,7 +163,9 @@ def test_concurrent_host_starts_converge_on_one_lifetime_lock_holder(
     """Two racing hosts converge: exactly one holds the lifetime lock."""
     monkeypatch.setenv("SASE_HOME", str(tmp_path / "home"))
     monkeypatch.delenv("SASE_SERVICE_ENV", raising=False)
-    monkeypatch.setattr("sase.service.host.load_service_config", lambda: _compose({}))
+    monkeypatch.setattr(
+        "sase.service.host_state.load_service_config", lambda: _compose({})
+    )
     # ``run_host`` installs process signal handlers, so every ``run_host``
     # call below runs on the main thread; the racing peer holds the real
     # lifetime lock from a worker thread.
@@ -381,7 +383,7 @@ def test_host_signal_handling_stops_children_and_releases_the_lock(
         str(flag_path),
     )
     monkeypatch.setattr(
-        "sase.service.host.load_service_config",
+        "sase.service.host_state.load_service_config",
         lambda: _compose({"worker": _layer_spec(trapping)}),
     )
     settle_calls: list[int] = []
@@ -665,7 +667,9 @@ def test_host_start_settles_orphaned_oneshots_without_relaunching(
         assert current is not None and current.status in ACTIVE_PROC_STATUSES
 
     # The host reconcile loop never picks the settled row back up.
-    monkeypatch.setattr("sase.service.host.load_service_config", lambda: _compose({}))
+    monkeypatch.setattr(
+        "sase.service.host_state.load_service_config", lambda: _compose({})
+    )
     host = _ServiceHost()
     try:
         host._reconcile_once()
@@ -863,7 +867,7 @@ def test_config_outage_keeps_last_good_and_publishes_error(
         def _raise() -> ServiceConfigComposition:
             raise RuntimeError("boom config")
 
-        monkeypatch.setattr("sase.service.host.load_service_config", _raise)
+        monkeypatch.setattr("sase.service.host_state.load_service_config", _raise)
         host._reconcile_once()
 
         assert "alpha" in host._children
@@ -879,7 +883,7 @@ def test_config_outage_keeps_last_good_and_publishes_error(
         assert snapshot.generated_at >= baseline.generated_at
 
         monkeypatch.setattr(
-            "sase.service.host.load_service_config", lambda: cell["composition"]
+            "sase.service.host_state.load_service_config", lambda: cell["composition"]
         )
         host._reconcile_once()
         assert host._config_error is None
@@ -907,7 +911,7 @@ def test_exit_during_config_outage_settles_and_restarts(
         def _raise() -> ServiceConfigComposition:
             raise RuntimeError("boom config during exit")
 
-        monkeypatch.setattr("sase.service.host.load_service_config", _raise)
+        monkeypatch.setattr("sase.service.host_state.load_service_config", _raise)
         host._reconcile_once()
 
         assert "epsilon" not in host._children

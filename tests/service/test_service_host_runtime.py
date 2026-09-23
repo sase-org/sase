@@ -22,7 +22,8 @@ from sase.service.config import (
     ServiceLauncher,
     ServiceProcConfig,
 )
-from sase.service.host import _entry_launch, _ServiceHost
+from sase.service.host import _ServiceHost
+from sase.service.host_support import entry_launch as _entry_launch
 from sase.service.paths import service_proc_output_log_path
 from sase.service.state import read_service_state
 
@@ -129,7 +130,7 @@ def test_service_host_warns_once_when_the_store_drops_the_service_marker(
         stripped = dataclasses.replace(outcome.proc, service=None)
         return dataclasses.replace(outcome, proc=stripped)
 
-    monkeypatch.setattr("sase.service.host.reserve_proc", _reserve_without_marker)
+    monkeypatch.setattr("sase.service.host_spawn.reserve_proc", _reserve_without_marker)
     host = _ServiceHost()
     long_running = (sys.executable, "-c", "import time; time.sleep(30)")
     first = dataclasses.replace(_command_entry(long_running), name="first")
