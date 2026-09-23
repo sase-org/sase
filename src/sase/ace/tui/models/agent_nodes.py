@@ -81,6 +81,26 @@ def _agent_node_owned_rows(agent: Agent) -> tuple[Agent, ...]:
     return (agent,)
 
 
+def _owning_node_for_row(
+    row: Agent,
+    node_by_raw_suffix: dict[str, Agent],
+    parent_suffix_by_suffix: dict[str, str],
+) -> Agent | None:
+    """Return the nearest agent node on *row*'s ``parent_timestamp`` chain."""
+    current = row.parent_timestamp or ""
+    visited: set[str] = set()
+    while current and current not in visited:
+        visited.add(current)
+        node = node_by_raw_suffix.get(current)
+        if node is not None:
+            return node
+        nxt = parent_suffix_by_suffix.get(current)
+        if nxt is None:
+            return None
+        current = nxt
+    return None
+
+
 def _agent_node_completion_rows(
     agent: Agent, owned_rows: Iterable[Agent] | None = None
 ) -> tuple[Agent, ...]:
@@ -92,6 +112,11 @@ def _agent_node_completion_rows(
     counting are additive, never a substitute -- ``concrete_family_member_rows``
     deliberately swaps a plan-family root for its concrete ``main`` workflow
     step, and step rows carry the step name as ``cl_name``.
+
+    A node contains every shell on its ``parent_timestamp`` chain, not only
+    direct children: a gate shell's launch monitor, or a family member's
+    monitor, is owned by the nearest agent node reachable by following
+    ``parent_timestamp`` links.
 
     Workflow step children are excluded: they always share their node's
     ``raw_suffix`` and never own a distinct completion notification, so their
@@ -123,7 +148,13 @@ def _completion_keys_for_rows(rows: Iterable[Agent]) -> tuple[AgentCompletionKey
 def agent_node_projection_index(
     agents: Iterable[Agent],
 ) -> _AgentNodeProjectionIndex:
-    """Build an ownership index from a complete loaded roster."""
+    """Build an ownership index from a complete loaded roster.
+
+    A non-node row (a gate, monitor, or family-member shell) is owned by the
+    nearest agent node on its ``parent_timestamp`` chain, not only by a direct
+    parent: a gate shell's launch monitor, or a family member's monitor, still
+    reaches the family node through the intermediate shell.
+    """
     roster = tuple(agents)
     node_agents: list[Agent] = []
     owned_by_node: dict[AgentIdentity, list[Agent]] = {}
@@ -140,10 +171,24 @@ def agent_node_projection_index(
         if agent.raw_suffix is not None:
             node_by_raw_suffix[agent.raw_suffix] = agent
 
+    parent_suffix_by_suffix: dict[str, str] = {}
     for agent in roster:
         if is_agents_tab_agent_node(agent):
             continue
-        parent = node_by_raw_suffix.get(agent.parent_timestamp or "")
+        raw = agent.raw_suffix
+        parent_suffix = agent.parent_timestamp
+        if not raw or not parent_suffix:
+            continue
+        if raw in node_by_raw_suffix:
+            continue
+        parent_suffix_by_suffix.setdefault(raw, parent_suffix)
+
+    for agent in roster:
+        if is_agents_tab_agent_node(agent):
+            continue
+        parent = _owning_node_for_row(
+            agent, node_by_raw_suffix, parent_suffix_by_suffix
+        )
         if parent is None:
             continue
         owned_rows = owned_by_node[parent.identity]

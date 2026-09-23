@@ -344,6 +344,63 @@ def test_agent_row_selection_dismisses_matching_settlement_row_from_cache(
     assert app._notification_snapshot_cache.notifications == [other_suffix]
 
 
+def test_agent_row_selection_dismisses_nested_gate_monitor_settlement(
+    notification_dismiss: Mock,
+) -> None:
+    notification_dismiss.return_value = 1
+    node = make_agent(
+        name="build--plan", status="EPIC CREATED", raw_suffix="node-suffix"
+    )
+    node.agent_family = "build"
+    node.agent_family_role = "root"
+    node.plan_chain_root = True
+    node.role_suffix = "--plan"
+    gate = make_agent(
+        name="build--gate", status="EPIC CREATED", raw_suffix="gate-suffix"
+    )
+    gate.parent_timestamp = node.raw_suffix
+    gate.agent_family = "build"
+    gate.agent_family_role = "gate"
+    gate.gate_id = "gate-1"
+    monitor = make_agent(
+        name="build--mon", status="EPIC CREATED", raw_suffix="mon-suffix"
+    )
+    monitor.parent_timestamp = gate.raw_suffix
+    monitor.agent_family = "build"
+    monitor.agent_family_role = "monitor"
+    monitor.role_suffix = "--mon"
+    monitor.monitor_id = "mon-1"
+    app = _SelectionApp([node, gate, monitor])
+    app._unread_completed_agent_ids.add(node.identity)
+    matching = SimpleNamespace(
+        id="n-nested-settlement",
+        sender="epic-launch",
+        action=None,
+        action_data={"cl_name": monitor.cl_name, "raw_suffix": monitor.raw_suffix},
+        dismissed=False,
+    )
+    unrelated = SimpleNamespace(
+        id="n-settlement-other",
+        sender="epic-launch",
+        action=None,
+        action_data={"cl_name": monitor.cl_name, "raw_suffix": "other"},
+        dismissed=False,
+    )
+    app._notification_snapshot_cache = SimpleNamespace(
+        notifications=[matching, unrelated]
+    )
+
+    app.on_agent_list_selection_changed(
+        _SelectionEvent(control=AgentList(id="agent-list-panel"), index=0)
+    )
+
+    assert node.identity not in app._unread_completed_agent_ids
+    notification_dismiss.assert_called_once()
+    (key_dicts,), _ = notification_dismiss.call_args
+    assert {"cl_name": monitor.cl_name, "raw_suffix": monitor.raw_suffix} in key_dicts
+    assert app._notification_snapshot_cache.notifications == [unrelated]
+
+
 def test_acknowledge_agent_unread_does_not_dismiss_manual_guard(
     notification_dismiss: Mock,
 ) -> None:

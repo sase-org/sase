@@ -807,8 +807,10 @@ The Agents tab also treats user-agent completions as unread work items. When a t
 agent is selected after it has been marked unread, or when the user jumps to it with the
 unread-agent shortcut, sase's TUI clears the row's unread marker and dismisses the
 matching completion notification. A host-owned settlement row (`epic-launch` or
-`monitor-settlement`) that names that row's exact `(cl_name, raw_suffix)` is
-acknowledged with the row and dismissed alongside the completion notification. Plan
+`monitor-settlement`) that names the exact `(cl_name, raw_suffix)` of that row or of any
+shell on its `parent_timestamp` chain — for example, an epic launch approved through the
+EpicApproval gate names the gate's launch monitor, and reading the family row clears it
+— is acknowledged with the row and dismissed alongside the completion notification. Plan
 approvals and user questions remain explicit response workflows and are not auto-read
 merely by selection.
 
@@ -816,16 +818,17 @@ Unread state on the Agents tab is projected from the active user-agent completio
 notifications in the store, plus any active host-owned settlement notification — the
 notification an epic launch or monitor handoff posts when an agent family finishes
 (senders `epic-launch` or `monitor-settlement`) — whose `(cl_name, raw_suffix)` matches
-the Agents-tab row or an agent row it contains. Unread state is not written as separate
-per-row state. A finished agent row whose family settles is therefore flagged unread
-until that notification is dismissed; when the underlying notification is dismissed
-(per-row selection, response modal, or any other path) the row's unread marker clears on
-the next refresh. A host-owned settlement notification that names an exact agent row's
-`(cl_name, raw_suffix)` is acknowledged with that row — read, dismissed, or marked —
-exactly like the row's completion notification. Manually toggling a row unread with `U`
-overrides this projection locally so a deliberately re-flagged row is not immediately
-re-cleared. Plan approvals and user questions still require an explicit `y` / `n`
-response and are never auto-dismissed by row navigation.
+the Agents-tab row or any shell on its `parent_timestamp` chain, not only direct
+children. Unread state is not written as separate per-row state. A finished agent row
+whose family settles is therefore flagged unread until that notification is dismissed;
+when the underlying notification is dismissed (per-row selection, response modal, or any
+other path) the row's unread marker clears on the next refresh. A host-owned settlement
+notification that names the exact `(cl_name, raw_suffix)` of an agent row or of a shell
+on its `parent_timestamp` chain is acknowledged with that row — read, dismissed, or
+marked — exactly like the row's completion notification. Manually toggling a row unread
+with `U` overrides this projection locally so a deliberately re-flagged row is not
+immediately re-cleared. Plan approvals and user questions still require an explicit `y`
+/ `n` response and are never auto-dismissed by row navigation.
 
 A newly arrived completion notification also drives a targeted Agents-tab refresh:
 sase's TUI reloads only the matching agents' artifact directories rather than rebuilding

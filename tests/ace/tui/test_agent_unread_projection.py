@@ -461,6 +461,55 @@ def test_reconcile_marks_plan_family_root_unread_for_its_own_completion() -> Non
     assert root.identity in app._unread_completed_agent_ids
 
 
+def _make_gate_launch_family(
+    *, status: str = "EPIC CREATED"
+) -> tuple[Agent, Agent, Agent]:
+    node = make_agent(name="build--plan", status=status, raw_suffix="node-suffix")
+    node.agent_family = "build"
+    node.agent_family_role = "root"
+    node.plan_chain_root = True
+    node.role_suffix = "--plan"
+    gate = make_agent(name="build--gate", status=status, raw_suffix="gate-suffix")
+    gate.parent_timestamp = node.raw_suffix
+    gate.agent_family = "build"
+    gate.agent_family_role = "gate"
+    gate.gate_id = "gate-1"
+    monitor = make_agent(name="build--mon", status=status, raw_suffix="mon-suffix")
+    monitor.parent_timestamp = gate.raw_suffix
+    monitor.agent_family = "build"
+    monitor.agent_family_role = "monitor"
+    monitor.role_suffix = "--mon"
+    monitor.monitor_id = "mon-1"
+    return node, gate, monitor
+
+
+def test_reconcile_marks_node_unread_for_nested_gate_monitor_settlement() -> None:
+    node, gate, monitor = _make_gate_launch_family()
+    app = _ProjectionApp([node, gate, monitor])
+
+    app._reconcile_unread_from_completion_notifications(
+        [
+            _make_settlement_notification(
+                cl_name=monitor.cl_name, raw_suffix=monitor.raw_suffix
+            )
+        ]
+    )
+
+    assert node.identity in app._unread_completed_agent_ids
+
+    app._reconcile_unread_from_completion_notifications(
+        [
+            _make_settlement_notification(
+                cl_name=monitor.cl_name,
+                raw_suffix=monitor.raw_suffix,
+                dismissed=True,
+            )
+        ]
+    )
+
+    assert node.identity not in app._unread_completed_agent_ids
+
+
 def test_poll_reconcile_prunes_absent_identity_but_not_fold_hidden_member() -> None:
     member = make_agent(name="research.done", status="DONE", raw_suffix="done")
     member.agent_clan = "research"

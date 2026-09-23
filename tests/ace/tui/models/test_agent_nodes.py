@@ -198,3 +198,203 @@ def test_sequential_family_container_owns_member_keys_and_its_own_key() -> None:
 
     assert (root.cl_name, root.raw_suffix) in keys
     assert (coder.cl_name, coder.raw_suffix) in keys
+
+
+def _gate_launch_family() -> tuple[Agent, Agent, Agent]:
+    """Build the production epic-launch shape: node → gate → monitor."""
+    node = _agent(
+        "build--plan",
+        raw_suffix="node-suffix",
+        agent_family="build",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    gate = _agent(
+        "build--gate",
+        raw_suffix="gate-suffix",
+        parent_timestamp=node.raw_suffix,
+        agent_family="build",
+        agent_family_role="gate",
+        gate_id="gate-1",
+    )
+    monitor = _agent(
+        "build--mon",
+        raw_suffix="mon-suffix",
+        parent_timestamp=gate.raw_suffix,
+        agent_family="build",
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        monitor_id="mon-1",
+    )
+    return node, gate, monitor
+
+
+def test_gate_launch_monitor_is_owned_by_family_node() -> None:
+    node, gate, monitor = _gate_launch_family()
+
+    index = agent_node_projection_index([node, gate, monitor])
+    projection = index.by_node_identity[node.identity]
+    monitor_key = (monitor.cl_name, monitor.raw_suffix)
+
+    assert index.owner_for_identity(monitor.identity) is projection
+    assert monitor_key in projection.completion_keys
+    assert projection_has_active_completion(projection, {monitor_key})
+
+
+def test_family_member_monitor_is_owned_by_family_node() -> None:
+    node = _agent(
+        "build--plan",
+        raw_suffix="node-suffix",
+        agent_family="build",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    coder = _agent(
+        "build--code",
+        raw_suffix="code-suffix",
+        parent_timestamp=node.raw_suffix,
+        agent_family="build",
+        agent_family_role="code",
+    )
+    monitor = _agent(
+        "build--mon",
+        raw_suffix="mon-suffix",
+        parent_timestamp=coder.raw_suffix,
+        agent_family="build",
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        monitor_id="mon-1",
+    )
+
+    index = agent_node_projection_index([node, coder, monitor])
+    projection = index.by_node_identity[node.identity]
+
+    assert index.owner_for_identity(monitor.identity) is projection
+    assert (monitor.cl_name, monitor.raw_suffix) in projection.completion_keys
+
+
+def test_ownership_chain_cycle_guard_stays_unowned() -> None:
+    node = _agent(
+        "build--plan",
+        raw_suffix="node-suffix",
+        agent_family="build",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    first = _agent(
+        "build--a",
+        raw_suffix="cycle-a",
+        parent_timestamp="cycle-b",
+        agent_family="build",
+        agent_family_role="code",
+    )
+    second = _agent(
+        "build--b",
+        raw_suffix="cycle-b",
+        parent_timestamp="cycle-a",
+        agent_family="build",
+        agent_family_role="code",
+    )
+    loop = _agent(
+        "build--loop",
+        raw_suffix="loop-suffix",
+        parent_timestamp="loop-suffix",
+        agent_family="build",
+        agent_family_role="code",
+    )
+
+    index = agent_node_projection_index([node, first, second, loop])
+
+    assert index.owner_for_identity(first.identity) is None
+    assert index.owner_for_identity(second.identity) is None
+    assert index.owner_for_identity(loop.identity) is None
+
+
+def test_ownership_dangling_chain_stays_unowned() -> None:
+    node = _agent(
+        "build--plan",
+        raw_suffix="node-suffix",
+        agent_family="build",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    gate = _agent(
+        "build--gate",
+        raw_suffix="gate-suffix",
+        parent_timestamp="missing-suffix",
+        agent_family="build",
+        agent_family_role="gate",
+        gate_id="gate-1",
+    )
+    monitor = _agent(
+        "build--mon",
+        raw_suffix="mon-suffix",
+        parent_timestamp=gate.raw_suffix,
+        agent_family="build",
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        monitor_id="mon-1",
+    )
+
+    index = agent_node_projection_index([node, gate, monitor])
+
+    assert index.owner_for_identity(gate.identity) is None
+    assert index.owner_for_identity(monitor.identity) is None
+
+
+def test_projection_index_keeps_workflow_step_child_out_of_keys() -> None:
+    roster = _plan_family_root_with_main_step_and_continuation()
+    index = agent_node_projection_index(list(roster))
+    node = roster[0]
+    projection = index.by_node_identity[node.identity]
+
+    assert (node.cl_name, node.raw_suffix) in projection.completion_keys
+    assert ("main", node.raw_suffix) not in projection.completion_keys
+
+
+def test_nested_monitors_do_not_cross_families() -> None:
+    first_node, first_gate, first_monitor = _gate_launch_family()
+    second_node = _agent(
+        "other--plan",
+        raw_suffix="other-node-suffix",
+        agent_family="other",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    second_gate = _agent(
+        "other--gate",
+        raw_suffix="other-gate-suffix",
+        parent_timestamp=second_node.raw_suffix,
+        agent_family="other",
+        agent_family_role="gate",
+        gate_id="gate-2",
+    )
+    second_monitor = _agent(
+        first_monitor.cl_name,
+        raw_suffix="other-mon-suffix",
+        parent_timestamp=second_gate.raw_suffix,
+        agent_family="other",
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        monitor_id="mon-2",
+    )
+
+    index = agent_node_projection_index(
+        [
+            first_node,
+            first_gate,
+            first_monitor,
+            second_node,
+            second_gate,
+            second_monitor,
+        ]
+    )
+
+    assert (
+        index.owner_for_identity(first_monitor.identity)
+        is index.by_node_identity[first_node.identity]
+    )
+    assert (
+        index.owner_for_identity(second_monitor.identity)
+        is index.by_node_identity[second_node.identity]
+    )
