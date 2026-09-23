@@ -613,7 +613,7 @@ class TestRecreateEndToEnd:
             )
             with (
                 patch(
-                    "sase.axe.runner_workspace_prepare._verify_healed_checkout",
+                    "sase.axe.runner_workspace_prepare.verify_healed_checkout",
                     side_effect=[forced, None],
                 ),
                 patch(

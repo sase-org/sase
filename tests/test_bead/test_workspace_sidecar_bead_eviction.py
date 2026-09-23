@@ -11,7 +11,7 @@ import pytest
 from sase.axe import runner_workspace_sidecar as workspace_module
 from sase.axe.runner_workspace import prepare_launch_workspace_repos
 from sase.axe.runner_workspace_beads import _workspace_bead_store_dirs
-from sase.axe.runner_workspace_prepare import _protect_unpushed_sidecar_commits
+from sase.axe.runner_workspace_prepare import protect_unpushed_sidecar_commits
 from sase.axe.runner_workspace_sidecar import _workspace_sidecar_repo_roots
 from sase.bead.model import IssueType
 from sase.bead.project import BEADS_DIRNAME_ROOT, BeadProject
@@ -762,7 +762,7 @@ def test_launch_publishes_once_and_rescues_once_for_wedged_bead_store(
 
     # The ordinary preparation pass attempts publication and warns; the
     # launch eviction pass must not re-publish at the same HEAD.
-    assert _protect_unpushed_sidecar_commits(str(workspace))
+    assert protect_unpushed_sidecar_commits(str(workspace))
     prepare_launch_workspace_repos(str(workspace), _WORKSPACE_NUM)
 
     assert sync_attempts == [sidecar]
