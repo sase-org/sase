@@ -10,12 +10,10 @@ from typing import Any
 
 from tests.ace.tui.visual._visual_capture import load_inventory
 from tests.ace.tui.visual._visual_maintenance_apply import (
-    apply_changes,
     recover_unfinished_journals,
 )
 from tests.ace.tui.visual._visual_maintenance_baseline import (
     capture_golden_baseline,
-    recheck_baseline_or_raise,
 )
 from tests.ace.tui.visual._visual_maintenance_cli import parse_command
 from tests.ace.tui.visual._visual_maintenance_compare import (
@@ -27,7 +25,6 @@ from tests.ace.tui.visual._visual_maintenance_exec import (
     build_run_pytest_command as build_run_pytest_command,
     run_governed_visual_pytest as run_governed_visual_pytest,
     run_pytest,
-    verify_changes,
 )
 from tests.ace.tui.visual._visual_maintenance_guards import (
     default_is_ci as _default_is_ci,
@@ -57,16 +54,11 @@ from tests.ace.tui.visual._visual_maintenance_types import (
     EXIT_FAILURE,
     EXIT_SUCCESS,
     EXIT_USAGE,
-    JOURNAL_FILENAME,
-    KIND_CREATED,
-    KIND_UPDATED,
-    STATUS_APPLIED,
     STATUS_CLEAN,
     STATUS_DRIFT,
     STATUS_FAILED,
     STATUS_INTERRUPTED,
     STATUS_REFUSED,
-    ChangeManifest,
     GoldenBaseline,
     MaintenanceError,
     MaintenanceHooks,
@@ -242,7 +234,6 @@ def _run_locked_check(
     child_exit: int | None = None
     verify_dir: Path | None = None
     journal_relpath: str | None = None
-    terminal_manifest: ChangeManifest | None = None
     try:
         child_exit = run_pytest(
             hooks,
@@ -293,118 +284,8 @@ def _run_locked_check(
             capture_dir=capture_dir,
         )
         preserve_expected_bytes(run_dir, changes, repo_root)
-        if not request.check and any(
-            item.kind in {KIND_CREATED, KIND_UPDATED} for item in changes
-        ):
-            verify_dir = run_dir / "verify"
-            verify_dir.mkdir(parents=True, exist_ok=True)
-            logs["verify"] = str((run_dir / "verify.log").relative_to(repo_root))
-            verify_changes(
-                hooks,
-                repo_root=repo_root,
-                first=inventory,
-                changes=changes,
-                verify_dir=verify_dir,
-                run_id=run_id,
-                log_path=run_dir / "verify.log",
-            )
-        status = (
-            STATUS_DRIFT
-            if request.check and has_actionable_changes(changes)
-            else STATUS_CLEAN
-        )
+        status = STATUS_DRIFT if has_actionable_changes(changes) else STATUS_CLEAN
         exit_code = EXIT_DRIFT if status == STATUS_DRIFT else EXIT_SUCCESS
-        if not request.check and has_actionable_changes(changes):
-            preapply_manifest = build_manifest(
-                request,
-                repo_root=repo_root,
-                run_id=run_id,
-                run_dir=run_dir,
-                capture_dir=capture_dir,
-                verify_dir=verify_dir,
-                baseline=baseline,
-                renderer=renderer,
-                changes=changes,
-                status=STATUS_DRIFT,
-                exit_code=EXIT_SUCCESS,
-                child_exit_code=child_exit,
-                inventory_reasons=inventory.reasons,
-                errors=inventory.errors,
-                logs=logs,
-                journal_relpath=None,
-                extra={
-                    "full_inventory": inventory.full_inventory,
-                    "pruning_allowed": inventory.pruning_allowed,
-                    "complete": inventory.complete,
-                },
-            )
-            publish_manifest_and_report(repo_root, run_dir, preapply_manifest)
-            recheck_baseline_or_raise(baseline, repo_root)
-            try:
-                apply_changes(
-                    run_dir,
-                    changes,
-                    repo_root=repo_root,
-                    capture_dir=capture_dir,
-                    run_id=run_id,
-                )
-            except KeyboardInterrupt:
-                terminal_manifest = build_manifest(
-                    request,
-                    repo_root=repo_root,
-                    run_id=run_id,
-                    run_dir=run_dir,
-                    capture_dir=capture_dir,
-                    verify_dir=verify_dir,
-                    baseline=baseline,
-                    renderer=renderer,
-                    changes=changes,
-                    status=STATUS_INTERRUPTED,
-                    exit_code=EXIT_FAILURE,
-                    child_exit_code=child_exit,
-                    inventory_reasons=inventory.reasons,
-                    errors=("interrupted during apply",),
-                    logs=logs,
-                    journal_relpath=None,
-                    extra={
-                        "full_inventory": inventory.full_inventory,
-                        "pruning_allowed": inventory.pruning_allowed,
-                        "complete": inventory.complete,
-                    },
-                )
-                publish_manifest_and_report(repo_root, run_dir, terminal_manifest)
-                print_summary(terminal_manifest)
-                raise
-            except MaintenanceError as error:
-                terminal_manifest = build_manifest(
-                    request,
-                    repo_root=repo_root,
-                    run_id=run_id,
-                    run_dir=run_dir,
-                    capture_dir=capture_dir,
-                    verify_dir=verify_dir,
-                    baseline=baseline,
-                    renderer=renderer,
-                    changes=changes,
-                    status=STATUS_FAILED,
-                    exit_code=EXIT_FAILURE,
-                    child_exit_code=child_exit,
-                    inventory_reasons=inventory.reasons,
-                    errors=(str(error),),
-                    logs=logs,
-                    journal_relpath=None,
-                    extra={
-                        "full_inventory": inventory.full_inventory,
-                        "pruning_allowed": inventory.pruning_allowed,
-                        "complete": inventory.complete,
-                    },
-                )
-                publish_manifest_and_report(repo_root, run_dir, terminal_manifest)
-                print_summary(terminal_manifest)
-                raise
-            journal_relpath = str((run_dir / JOURNAL_FILENAME).relative_to(repo_root))
-            status = STATUS_APPLIED
-            exit_code = EXIT_SUCCESS
         manifest = build_manifest(
             request,
             repo_root=repo_root,
@@ -432,8 +313,6 @@ def _run_locked_check(
         print_summary(manifest)
         return exit_code
     except KeyboardInterrupt:
-        if terminal_manifest is not None:
-            raise
         manifest = failure_manifest(
             request,
             repo_root=repo_root,
@@ -452,8 +331,6 @@ def _run_locked_check(
         print_summary(manifest)
         raise
     except MaintenanceError as error:
-        if terminal_manifest is not None:
-            raise
         manifest = failure_manifest(
             request,
             repo_root=repo_root,

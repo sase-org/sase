@@ -300,3 +300,86 @@ def test_check_mode_ignores_salvage(tmp_path: Path) -> None:
     )
     assert target.read_bytes() == red
     assert len(runner.calls) == 1
+
+
+def test_no_inventory_once_then_clean_retry_applies_retry_candidates(
+    tmp_path: Path,
+) -> None:
+    red = make_png(1, 1, (255, 0, 0, 255))
+    blue = make_png(1, 1, (0, 0, 255, 255))
+    target, runner = _salvage_setup(
+        tmp_path,
+        baseline=red,
+        candidate=blue,
+        attempts=[AttemptScript(no_inventory=True, exit_code=1)],
+    )
+    assert (
+        main([], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
+        == EXIT_SUCCESS
+    )
+    assert target.read_bytes() == blue
+    manifest = _manifest(tmp_path)
+    assert manifest["status"] == "applied"
+    assert manifest["skipped"] == []
+    assert manifest["capture_dir"].endswith("capture-retry")
+    assert [attempt["label"] for attempt in manifest["attempts"]] == [
+        "capture",
+        "capture-retry",
+        "verify",
+    ]
+
+
+def test_no_inventory_once_then_recovery_uses_retry_and_recover_dirs(
+    tmp_path: Path,
+) -> None:
+    red = make_png(1, 1, (255, 0, 0, 255))
+    green = make_png(1, 1, (0, 255, 0, 255))
+    blue = make_png(1, 1, (0, 0, 255, 255))
+    target, runner = _salvage_setup(
+        tmp_path,
+        baseline=red,
+        candidate=blue,
+        pager_name="keep",
+        attempts=[
+            AttemptScript(no_inventory=True, exit_code=1),
+            AttemptScript(exit_code=1, failed=(ACE_NODE,), pngs={ACE_NODE: green}),
+        ],
+    )
+    assert (
+        main([], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
+        == EXIT_SUCCESS
+    )
+    assert target.read_bytes() == blue
+    manifest = _manifest(tmp_path)
+    assert manifest["status"] == "applied"
+    assert manifest["capture_dir"].endswith("capture-retry")
+    labels = [attempt["label"] for attempt in manifest["attempts"]]
+    assert labels == ["capture", "capture-retry", "recover-1", "verify"]
+    recover_calls = [
+        call for call in runner.calls if str(call["run_id"]).endswith("recover-1")
+    ]
+    assert len(recover_calls) == 1
+    assert tuple(recover_calls[0]["pytest_args"]) == (ACE_NODE,)
+
+
+def test_retry_session_only_nonzero_exit_warns_with_retry_log(
+    tmp_path: Path,
+) -> None:
+    red = make_png(1, 1, (255, 0, 0, 255))
+    blue = make_png(1, 1, (0, 0, 255, 255))
+    target, runner = _salvage_setup(
+        tmp_path,
+        baseline=red,
+        candidate=blue,
+        attempts=[AttemptScript(no_inventory=True, exit_code=1)],
+        exit_code=1,
+    )
+    assert (
+        main([], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
+        == EXIT_SUCCESS
+    )
+    assert target.read_bytes() == blue
+    manifest = _manifest(tmp_path)
+    assert manifest["status"] == "applied"
+    assert manifest["child_exit_code"] == 1
+    assert any("capture-retry.log" in warning for warning in manifest["warnings"])

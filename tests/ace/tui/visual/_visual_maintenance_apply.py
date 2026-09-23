@@ -27,6 +27,7 @@ from tests.ace.tui.visual._visual_maintenance_types import (
     KIND_STALE,
     KIND_UPDATED,
     ChangeRecord,
+    JournalConflictError,
     MaintenanceError,
     RUNS_DIRNAME,
 )
@@ -99,7 +100,7 @@ def recover_journal(path: Path, repo_root: Path) -> None:
         payload["status"] = JOURNAL_CONFLICT
         payload["conflicts"] = conflicts
         _write_journal(path, payload)
-        raise MaintenanceError(
+        raise JournalConflictError(
             "unfinished apply journal has conflicts and cannot be restored: "
             + "; ".join(conflicts)
         )

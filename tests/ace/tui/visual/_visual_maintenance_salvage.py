@@ -100,7 +100,7 @@ def run_update(
             repo_root=repo_root,
             run_id=run_id,
             run_dir=run_dir,
-            capture_dir=capture_dir,
+            capture_dir=state.effective_inventory_dir,
             verify_dir=state.verify_dir,
             baseline=baseline,
             renderer=renderer,
@@ -121,7 +121,7 @@ def run_update(
             repo_root=repo_root,
             run_id=run_id,
             run_dir=run_dir,
-            capture_dir=capture_dir,
+            capture_dir=state.effective_inventory_dir,
             verify_dir=state.verify_dir,
             baseline=baseline,
             renderer=renderer,
@@ -162,9 +162,20 @@ class _UpdateRun(_SalvageRecoveryMixin, _SalvageFinalizeMixin):
     dropped_paths: set[str] = field(default_factory=set)
     protocol_errors: list[str] = field(default_factory=list)
     verify_sources: dict[str, tuple[CaptureRecord, Path]] = field(default_factory=dict)
+    inventory_dir: Path | None = None
+    inventory_log_key: str = "capture"
+
+    @property
+    def effective_inventory_dir(self) -> Path:
+        """Directory holding the working inventory's candidate bytes."""
+        return (
+            self.inventory_dir if self.inventory_dir is not None else self.capture_dir
+        )
 
     def execute(self) -> int:
         """Run capture, recovery, classification, verification, and apply."""
+        self.inventory_dir = self.capture_dir
+        self.inventory_log_key = "capture"
         self.logs["capture"] = posix_relative(
             self.run_dir / "capture.log", self.repo_root
         )
@@ -193,7 +204,8 @@ class _UpdateRun(_SalvageRecoveryMixin, _SalvageFinalizeMixin):
         if (self.child_exit != 0 or inventory.session_exitstatus != 0) and not recover:
             self.warnings.append(
                 f"pytest exited {self.child_exit} although no visual test "
-                f"failed (often the temp-leak guard); see {self.logs['capture']}"
+                "failed (often the temp-leak guard); "
+                f"see {self.logs[self.inventory_log_key]}"
             )
         recovered = self._recover_nodes(recover)
         trusted = trusted | frozenset(recovered)
@@ -270,7 +282,7 @@ class _UpdateRun(_SalvageRecoveryMixin, _SalvageFinalizeMixin):
             repo_root=self.repo_root,
             run_id=self.run_id,
             run_dir=self.run_dir,
-            capture_dir=self.capture_dir,
+            capture_dir=self.effective_inventory_dir,
             verify_dir=self.verify_dir,
             baseline=self.baseline,
             renderer=self.renderer,
@@ -372,11 +384,12 @@ class _UpdateRun(_SalvageRecoveryMixin, _SalvageFinalizeMixin):
 
         needed: list[tuple[CaptureRecord, Path]] = list(self.verify_sources.values())
         needed.extend(ordered)
+        inventory_dir = self.effective_inventory_dir
         if not needed:
-            return self.capture_dir
-        if all(source_dir == self.capture_dir for _, source_dir in needed):
-            return self.capture_dir
-        merged = self.capture_dir / "merged"
+            return inventory_dir
+        if all(source_dir == inventory_dir for _, source_dir in needed):
+            return inventory_dir
+        merged = inventory_dir / "merged"
         merged.mkdir(parents=True, exist_ok=True)
         seen: set[str] = set()
         for record, source_dir in needed:

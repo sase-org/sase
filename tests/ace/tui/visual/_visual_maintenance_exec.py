@@ -9,19 +9,12 @@ import subprocess
 import sys
 from typing import Any
 
-from tests.ace.tui.visual._visual_capture import load_inventory
 from tests.ace.tui.visual._visual_maintenance_baseline import (
     default_ace_root,
     default_pager_root,
 )
-from tests.ace.tui.visual._visual_maintenance_compare import (
-    compare_verification_captures,
-)
 from tests.ace.tui.visual._visual_maintenance_manifest import posix_relative
 from tests.ace.tui.visual._visual_maintenance_types import (
-    KIND_CREATED,
-    KIND_UPDATED,
-    ChangeRecord,
     GoldenBaseline,
     MaintenanceError,
     MaintenanceHooks,
@@ -145,54 +138,6 @@ def run_pytest(
         pager_root=default_pager_root(repo_root),
         workers=workers,
     )
-
-
-def verify_changes(
-    hooks: MaintenanceHooks,
-    *,
-    repo_root: Path,
-    first: Any,
-    changes: Sequence[ChangeRecord],
-    verify_dir: Path,
-    run_id: str,
-    log_path: Path,
-) -> None:
-    node_ids = sorted(
-        {
-            change.node_id
-            for change in changes
-            if change.kind in {KIND_CREATED, KIND_UPDATED} and change.node_id
-        }
-    )
-    if not node_ids:
-        return
-    child_exit = run_pytest(
-        hooks,
-        repo_root=repo_root,
-        capture_dir=verify_dir,
-        run_id=f"{run_id}-verify",
-        scope="targeted",
-        pytest_args=tuple(node_ids),
-        log_path=log_path,
-    )
-    inventory_path = verify_dir / "inventory.json"
-    if child_exit != 0 or not inventory_path.is_file():
-        raise MaintenanceError(
-            "determinism verification pytest failed; goldens were not changed "
-            f"(child_exit_code={child_exit})"
-        )
-    second = load_inventory(inventory_path)
-    if not second.complete:
-        reasons = ", ".join(second.reasons) or "incomplete"
-        raise MaintenanceError(
-            f"determinism verification inventory is incomplete ({reasons})"
-        )
-    mismatches = compare_verification_captures(first, second, node_ids)
-    if mismatches:
-        raise MaintenanceError(
-            "determinism verification disagreed with the first capture: "
-            + "; ".join(mismatches)
-        )
 
 
 def assert_pruning_safe(inventory: Any, baseline: GoldenBaseline) -> None:

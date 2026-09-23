@@ -15,7 +15,6 @@ from tests.ace.tui.visual._visual_capture_paths import (
 from tests.ace.tui.visual._visual_maintenance_types import (
     GoldenBaseline,
     GoldenFileState,
-    MaintenanceError,
 )
 
 
@@ -97,17 +96,6 @@ def detect_concurrent_edits(
     for path in sorted(set(current.files) - set(baseline.files)):
         conflicts.append(f"created:{path}")
     return tuple(conflicts)
-
-
-def recheck_baseline_or_raise(baseline: GoldenBaseline, repo_root: Path) -> None:
-    """Refuse apply when goldens changed under us."""
-    conflicts = detect_concurrent_edits(baseline, repo_root)
-    if not conflicts:
-        return
-    raise MaintenanceError(
-        "golden files changed during the run; refusing to apply: "
-        + ", ".join(conflicts)
-    )
 
 
 def _scan_root(

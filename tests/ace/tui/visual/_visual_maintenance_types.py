@@ -67,6 +67,10 @@ class UsageError(MaintenanceError):
     exit_code = EXIT_USAGE
 
 
+class JournalConflictError(UsageError):
+    """An unfinished apply journal conflicts with the current goldens."""
+
+
 class OverlappingRunError(UsageError):
     """Another maintenance run holds the checkout-local lock."""
 

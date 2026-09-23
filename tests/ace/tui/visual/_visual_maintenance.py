@@ -22,7 +22,6 @@ from tests.ace.tui.visual._visual_maintenance_cli import (
 from tests.ace.tui.visual._visual_maintenance_compare import (
     classify_captures as classify_captures,
     classify_selected_captures as classify_selected_captures,
-    compare_verification_captures as compare_verification_captures,
 )
 from tests.ace.tui.visual._visual_maintenance_lock import (
     exclusive_maintenance_lock as exclusive_maintenance_lock,
@@ -91,7 +90,6 @@ __all__ = [
     "capture_golden_baseline",
     "classify_captures",
     "classify_selected_captures",
-    "compare_verification_captures",
     "derive_node_trust",
     "detect_concurrent_edits",
     "exclusive_maintenance_lock",

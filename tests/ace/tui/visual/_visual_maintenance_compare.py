@@ -114,43 +114,6 @@ def preserve_expected_bytes(
         atomic_write_bytes(target, source.read_bytes())
 
 
-def compare_verification_captures(
-    first: InventoryReport,
-    second: InventoryReport,
-    node_ids: Sequence[str],
-) -> tuple[str, ...]:
-    """Return mismatch reasons between two captures of the same node set."""
-    wanted = set(node_ids)
-    first_caps = [item for item in first.captures if item.node_id in wanted]
-    second_caps = [item for item in second.captures if item.node_id in wanted]
-    reasons: list[str] = []
-    first_keys = {
-        (item.node_id, item.canonical_golden_path, item.root_identity)
-        for item in first_caps
-    }
-    second_keys = {
-        (item.node_id, item.canonical_golden_path, item.root_identity)
-        for item in second_caps
-    }
-    if first_keys != second_keys:
-        missing = sorted(first_keys - second_keys)
-        extra = sorted(second_keys - first_keys)
-        if missing:
-            reasons.append("verify_missing_keys:" + ",".join(map(str, missing)))
-        if extra:
-            reasons.append("verify_extra_keys:" + ",".join(map(str, extra)))
-    first_by_path = {item.canonical_golden_path: item for item in first_caps}
-    for item in second_caps:
-        original = first_by_path.get(item.canonical_golden_path)
-        if original is None:
-            continue
-        if original.candidate_sha256 != item.candidate_sha256:
-            reasons.append(f"verify_hash_mismatch:{item.canonical_golden_path}")
-        if original.node_id != item.node_id:
-            reasons.append(f"verify_owner_mismatch:{item.canonical_golden_path}")
-    return tuple(reasons)
-
-
 def _classify_record(
     record: CaptureRecord,
     *,

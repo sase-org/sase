@@ -22,6 +22,7 @@ from tests.ace.tui.visual._visual_capture_paths import atomic_write_bytes, sha25
 from tests.ace.tui.visual._visual_maintenance import (
     EXIT_FAILURE,
     EXIT_SUCCESS,
+    EXIT_USAGE,
     MaintenanceError,
     main,
 )
@@ -228,6 +229,79 @@ def test_journal_conflict_refuses_recovery(tmp_path: Path) -> None:
             allow_writes=True,
         )
     assert ace.read_bytes() == green
+
+
+def _write_conflicting_planned_journal(repo: Path) -> tuple[Path, Path]:
+    red = make_png(1, 1)
+    blue = make_png(1, 1, (0, 0, 255, 255))
+    green = make_png(1, 1, (0, 255, 0, 255))
+    ace = write_golden(repo, "ace", "shot.png", red)
+    write_golden(repo, "pager", "shot.png", red)
+    commit_all(repo)
+    run_dir = repo / ".pytest_cache/sase-visual/runs/oldrun"
+    run_dir.mkdir(parents=True)
+    backup = run_dir / "backups/tests/ace/tui/visual/snapshots/png/shot.png"
+    backup.parent.mkdir(parents=True)
+    backup.write_bytes(red)
+    ace.write_bytes(green)
+    journal = {
+        "schema_version": 1,
+        "kind": "visual_maintenance_journal",
+        "run_id": "oldrun",
+        "status": JOURNAL_PLANNED,
+        "entries": [
+            {
+                "path": "tests/ace/tui/visual/snapshots/png/shot.png",
+                "action": "update",
+                "before_sha256": sha256_bytes(red),
+                "after_sha256": sha256_bytes(blue),
+                "backup_relpath": "backups/tests/ace/tui/visual/snapshots/png/shot.png",
+                "state": "applied",
+            }
+        ],
+    }
+    journal_path = run_dir / "apply-journal.json"
+    journal_path.write_text(json.dumps(journal), encoding="utf-8")
+    return ace, journal_path
+
+
+def test_update_mode_journal_conflict_exits_usage(tmp_path: Path) -> None:
+    init_repo(tmp_path)
+    ace, journal_path = _write_conflicting_planned_journal(tmp_path)
+    runner = FakeRunner(
+        captures=[
+            ScriptedCapture(ACE_NODE, "shot", "ace", make_png(1, 1)),
+            ScriptedCapture(PAGER_NODE, "shot", "pager", make_png(1, 1)),
+        ],
+        repo_root=tmp_path,
+    )
+    assert (
+        main([], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
+        == EXIT_USAGE
+    )
+    assert ace.read_bytes() == make_png(1, 1, (0, 255, 0, 255))
+    payload = json.loads(journal_path.read_text(encoding="utf-8"))
+    assert payload["status"] == "conflict"
+
+
+def test_check_mode_unfinished_journal_still_exits_failure(
+    tmp_path: Path,
+) -> None:
+    init_repo(tmp_path)
+    ace, _journal_path = _write_conflicting_planned_journal(tmp_path)
+    before = ace.read_bytes()
+    runner = FakeRunner(
+        captures=[
+            ScriptedCapture(ACE_NODE, "shot", "ace", make_png(1, 1)),
+            ScriptedCapture(PAGER_NODE, "shot", "pager", make_png(1, 1)),
+        ],
+        repo_root=tmp_path,
+    )
+    assert (
+        main(["--check"], repo_root=tmp_path, hooks=silent_hooks(runner), environ={})
+        == EXIT_FAILURE
+    )
+    assert ace.read_bytes() == before
 
 
 def test_apply_changes_unit_creates_and_deletes(tmp_path: Path) -> None:

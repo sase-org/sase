@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from tests.ace.tui.visual._visual_capture import load_inventory
+from tests.ace.tui.visual._visual_capture import InventoryReport, load_inventory
 from tests.ace.tui.visual._visual_capture_records import CaptureRecord
 from tests.ace.tui.visual._visual_maintenance_compare import (
     classify_selected_captures,
@@ -375,7 +375,7 @@ def _deciding_sample(state: _Golden) -> _Sample:
     return state.samples[-1]
 
 
-def _load_if_present(path: Path):  # type: ignore[no-untyped-def]
+def _load_if_present(path: Path) -> InventoryReport | None:
     """Return the inventory at *path*, or None when missing or unreadable."""
     if not path.is_file():
         return None

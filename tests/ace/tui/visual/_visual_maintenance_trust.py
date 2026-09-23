@@ -72,14 +72,6 @@ def derive_node_trust(
     return trusted, tuple(recover)
 
 
-def trusted_captures(
-    inventory: InventoryReport,
-    trusted: frozenset[str],
-) -> list[CaptureRecord]:
-    """Return captures whose node is trusted, in inventory order."""
-    return [record for record in inventory.captures if record.node_id in trusted]
-
-
 def split_protocol_errors(
     errors: Sequence[str],
 ) -> tuple[dict[str, list[str]], list[str]]:

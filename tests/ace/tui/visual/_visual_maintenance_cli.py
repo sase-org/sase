@@ -68,9 +68,9 @@ Exit codes:
   1  check mode found required golden changes
   {EXIT_USAGE}  usage error (including -n in PYTEST_ADDOPTS, or pytest exit 4
      with nothing executed), environment refusal (CI update, renderer,
-     platform), or lock-wait timeout
-  {EXIT_FAILURE}  no usable capture inventory after retry, unfinished-journal
-     conflict, apply failure after rollback, or interrupt
+     platform), unfinished-journal conflict, or lock-wait timeout
+  {EXIT_FAILURE}  no usable capture inventory after retry, apply failure
+     after rollback, or interrupt
 
 `just` may normalize a non-zero child code to 1. Automation that needs the
 distinction should read the run manifest or invoke this tool directly.

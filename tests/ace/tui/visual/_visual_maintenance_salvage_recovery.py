@@ -145,6 +145,8 @@ class _SalvageRecoveryMixin:
                 f"(child_exit_code={self.child_exit})"
             )
         assert retry_inventory is not None
+        self.inventory_dir = retry_dir
+        self.inventory_log_key = "capture-retry"
         return retry_inventory
 
     def _recover_nodes(
@@ -202,11 +204,12 @@ class _SalvageRecoveryMixin:
         recovered: Mapping[str, tuple[tuple[CaptureRecord, ...], Path]],
     ) -> list[tuple[CaptureRecord, Path]]:
         trusted, _ = derive_node_trust(inventory)
+        inventory_dir = self.effective_inventory_dir
         by_node: dict[str, list[tuple[CaptureRecord, Path]]] = {}
         for record in inventory.captures:
             if record.node_id in recovered or record.node_id not in trusted:
                 continue
-            by_node.setdefault(record.node_id, []).append((record, self.capture_dir))
+            by_node.setdefault(record.node_id, []).append((record, inventory_dir))
         for node_id, (records, source_dir) in recovered.items():
             by_node[node_id] = [(item, source_dir) for item in records]
         return [pair for node_id in sorted(by_node) for pair in by_node[node_id]]
