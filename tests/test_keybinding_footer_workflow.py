@@ -47,7 +47,7 @@ def test_keybinding_footer_workflow_binding_single() -> None:
     patch = _make_patch(status="Ready", comments=[comment])
 
     with mock_patch(
-        "sase.ace.tui.widgets._keybinding_bindings.get_available_workflows"
+        "sase.ace.tui.widgets._keybinding_bindings_patch.get_available_workflows"
     ) as mock:
         mock.return_value = ["fix"]
         bindings = footer._compute_available_bindings(patch)
@@ -63,7 +63,7 @@ def test_keybinding_footer_workflow_binding_multiple() -> None:
     patch = _make_patch(status="Ready")
 
     with mock_patch(
-        "sase.ace.tui.widgets._keybinding_bindings.get_available_workflows"
+        "sase.ace.tui.widgets._keybinding_bindings_patch.get_available_workflows"
     ) as mock:
         mock.return_value = ["fix", "crs"]
         bindings = footer._compute_available_bindings(patch)
