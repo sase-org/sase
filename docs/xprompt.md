@@ -3572,16 +3572,16 @@ rendered body segment is embedded at the reference location and the remaining re
 body segments become follow-up agent prompts:
 
 ```bash
-sase run '#gh:sase Review this first: #three_phase(login)'
+sase run '+sase Review this first: #three_phase(login)'
 ```
 
-When the call site starts with a VCS workspace reference such as `#gh:sase`,
+When the call site starts with a workspace reference such as `+sase`, `#gh:sase`,
 `#git:feature`, a plugin-provided ref, or a known-project underscore form such as
 `#gh_sase`, that workspace reference is inherited by every generated follow-up segment
 unless the generated segment already declares its own VCS reference. Leading launch
 directives stay before the inherited workspace reference, so a prompt like
-`%id:abq #gh:sase #three_phase(login)` keeps `%id:abq` attached to the first generated
-segment and prefixes `#gh:sase` onto follow-ups.
+`%id:abq +sase #three_phase(login)` keeps `%id:abq` attached to the first generated
+segment and prefixes `+sase` onto follow-ups.
 
 #### Rules and Limitations
 

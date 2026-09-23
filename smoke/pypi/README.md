@@ -67,7 +67,7 @@ as:
 
 ```bash
 sase doctor
-sase run "#git:home summarize this scratch environment"
+sase run "+home summarize this scratch environment"
 sase agent list
 sase tui
 ```

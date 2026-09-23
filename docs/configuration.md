@@ -1628,12 +1628,12 @@ shortcut lists concrete model rows, so accepting `==gpt` can rewrite the token t
 The old `*alias` and `**model` forms remain ordinary prompt text. `Ctrl+T` remains
 available for both shortcut menus when automatic directive menus are disabled.
 
-File-path completion roots relative lookups in the prompt-selected workspace. Registered
-workspace-provider refs and known-project refs such as `#git:<project>` or
-`#gh:<owner>/<repo>` can root lookup in that project checkout. If no prompt workspace
-ref resolves, lookups fall back to the TUI process directory. These root rules are
-shared by live path suggestions, manual `Ctrl+T` path completion, and the manual
-`Ctrl+R` recursive finder.
+File-path completion roots relative lookups in the prompt-selected workspace. A
+`+<project>` [project tag](xprompt.md#project-tags), registered workspace-provider refs,
+and known-project refs such as `#git:<project>` or `#gh:<owner>/<repo>` can root lookup
+in that project checkout. If no prompt workspace ref resolves, lookups fall back to the
+TUI process directory. These root rules are shared by live path suggestions, manual
+`Ctrl+T` path completion, and the manual `Ctrl+R` recursive finder.
 
 Source: `src/sase/ace/tui/widgets/prompt_completion.py`,
 `src/sase/ace/tui/widgets/_prompt_soft_completion.py`,
@@ -4531,7 +4531,8 @@ with the derived repository. Later workspaces clone lazy document roles on deman
 legacy single-sidecar shape continues to resolve byte-for-byte as before.
 
 Built-in bare-git projects also auto-create or refresh generated SDD guide files during
-first-use `#git:<project>` initialization, existing bare-repo registration,
+first-use `#git:<project>` initialization (target existing projects with their
+`+<project>` [project tag](xprompt.md#project-tags)), existing bare-repo registration,
 `#git`/workspace materialization, and the first in-tree SDD write. Setup/materialization
 flows commit and push only those generated init paths with an `Initialize SDD` init
 commit when needed.

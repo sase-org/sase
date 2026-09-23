@@ -97,7 +97,7 @@ _COMPACT_ROOT_COMMANDS: tuple[CompactRootCommand, ...] = (
 _COMPACT_ROOT_EXAMPLES: tuple[str, ...] = (
     "sase doctor",
     "sase init -c",
-    'sase run "#git:home summarize this repository; do not change files"',
+    'sase run "+home summarize this repository; do not change files"',
     "sase screenshot -o /tmp/sase.png",
     "sase tui",
     "sase agent list",

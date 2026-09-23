@@ -10,4 +10,6 @@ ProjectSpec is `~/.sase/projects/<key>/<key>.sase`, where the directory key `<ke
 `gh_sase-org__sase`); the user-facing name is the spec's `PROJECT_NAME:` (ex: `sase`)
 or, if unset, the key. Projects have exactly two user-facing states, enabled and
 disabled; missing `PROJECT_STATE:` means enabled, and only an explicit disable changes
-that. The system-managed `home` project remains hidden.
+that. The system-managed `home` project remains hidden. Prompts name an existing project
+with a [[glossary:project-tag]] (`+<project>`). Directory keys, names, and aliases are
+unique across projects and VCS types, compared case-insensitively.

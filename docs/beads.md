@@ -2386,10 +2386,10 @@ or `--bug-id`), `sase bead work` preserves the current project's VCS context in 
 generated prompt. The first phase segment targets the project reference and adds a `#pr`
 reference for the Patch, while later phase and land segments target the Patch ref
 directly. For non-Patch epics launched from a known SASE workspace, each segment is
-still prefixed with the detected VCS workflow and project name (for example `#git:sase`
-or `#gh:sase-org/sase`); a bead routed to another enabled project uses that project's
-workflow and name. If the current directory is not associated with a SASE project, the
-prompts are left unprefixed and run in the caller's normal launch context.
+still prefixed with the project's [project tag](xprompt.md#project-tags) (for example
+`+sase`, which expands to `#gh:gh_sase-org__sase`); a bead routed to another enabled
+project uses that project's tag. If the current directory is not associated with a SASE
+project, the prompts are left unprefixed and run in the caller's normal launch context.
 
 If checkpoint creation fails before it commits, the command restores every phase/epic
 status and assignee it changed, and restores `is_ready_to_work` only when this attempt

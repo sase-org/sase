@@ -598,7 +598,8 @@ skill.
 | `sase snippet show`                  | Show one snippet's raw/composed definition, source stack, aliases, and links.     | [Snippet CLI](xprompt.md#snippet-cli)                                                       |
 
 Use `#name(...)` for inline xprompt expansion and `#!workflow(...)` for standalone
-workflow references. Workspace references such as `#git:<project>` and plugin-provided
+workflow references. Workspace references such as `+<project>`
+([project tag](xprompt.md#project-tags)), `#git:<project>`, and plugin-provided
 references are resolved before the prompt or workflow runs.
 
 ## Review And Delivery

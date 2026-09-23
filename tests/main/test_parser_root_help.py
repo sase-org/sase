@@ -39,8 +39,7 @@ def test_root_help_renders_compact_help(capsys: pytest.CaptureFixture[str]) -> N
     assert "Common commands:" in help_text
     assert "Examples:" in help_text
     assert (
-        'sase run "#git:home summarize this repository; do not change files"'
-        in help_text
+        'sase run "+home summarize this repository; do not change files"' in help_text
     )
     assert "Use `sase --full-help` to show every command." in help_text
     assert common_command_rows == sorted(common_command_rows)

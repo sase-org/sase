@@ -6568,10 +6568,10 @@ token under the cursor:
   `./`, `../`, `~/`, or containing `/`), completion shows matching filesystem entries.
   Tokens starting with `@` are also recognized — the `@` prefix is preserved in the
   completed path (useful for file-reference arguments). Relative paths use the
-  prompt-selected base directory: registered workspace-provider refs and known-project
-  refs such as `#git:<project>` or `#gh:<owner>/<repo>` can root completion in that
-  project checkout. If no prompt workspace ref resolves, sase's TUI uses the TUI process
-  directory.
+  prompt-selected base directory: `+<project>` [project tags](xprompt.md#project-tags),
+  registered workspace-provider refs, and known-project refs such as `#git:<project>` or
+  `#gh:<owner>/<repo>` can root completion in that project checkout. If no prompt
+  workspace ref resolves, sase's TUI uses the TUI process directory.
 - **File-history completion**: When the cursor is in whitespace (or at an empty prompt
   prefix), `Ctrl+T` opens a list of recently referenced files and well-formed
   `@kind:payload` artifact references drawn from prompt history, ranked by recency.
@@ -7322,14 +7322,14 @@ always apply to whole selected lines regardless of the cursor column.
 
 Press `Ctrl+K` from the prompt input to open the prompt history modal. That shortcut is
 available when the current prompt is a single logical line; that line's first active
-workspace reference (e.g. `#gh:sase`) becomes an initial `project:<name>` filter scope
-once the project-identity snapshot resolves, with the remaining text preserved as a
-literal search (see Filtering below). Press `,.` (leader + `.`) to open the same modal
-unscoped from the main sase's TUI UI. The modal loads prompts previously launched from
-sase's TUI or `sase run` in recency pages of `ace.page_size` rows (default 100). Normal
-launch writes skip prompts shorter than five words (e.g. `y`, `ok`) so they do not
-clutter the list, while failed-launch recovery can still preserve a short submitted
-prompt. The same history is available from the shell through [`sase prompt`](prompt.md).
+workspace reference (e.g. `+sase`) becomes an initial `project:<name>` filter scope once
+the project-identity snapshot resolves, with the remaining text preserved as a literal
+search (see Filtering below). Press `,.` (leader + `.`) to open the same modal unscoped
+from the main sase's TUI UI. The modal loads prompts previously launched from sase's TUI
+or `sase run` in recency pages of `ace.page_size` rows (default 100). Normal launch
+writes skip prompts shorter than five words (e.g. `y`, `ok`) so they do not clutter the
+list, while failed-launch recovery can still preserve a short submitted prompt. The same
+history is available from the shell through [`sase prompt`](prompt.md).
 
 Bare prompts are stored after launch normalization, so a prompt without an explicit
 workspace reference appears with the default `#git:home` prefix. Explicit workspace

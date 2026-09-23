@@ -94,10 +94,12 @@ Assign a tribe with `%id(tribe=<tribe>)` or `#tribe:<tribe>` for an auto-named a
 
 ## Project-Task Launches
 
-Start project work with a workspace ref; bare prompts normalize to `#git:home`.
+Start project work with a [[glossary:project-tag]] (`+sase`) or a workspace ref; bare
+prompts normalize to `#git:home`.
 
 | Ref          | Runs in                                          |
 | ------------ | ------------------------------------------------ |
+| `+<project>` | Known project by key, name, or alias (default)   |
 | `#gh:<ref>`  | GitHub project, Patch, `owner/repo`, or `@agent` |
 | `#git:<ref>` | Bare-git workspace                               |
 
@@ -125,4 +127,4 @@ honoring `SASE_COMMIT_METHOD`, `SASE_PR_NAME`, `SASE_PR_STATUS`, and `SASE_BUG_I
 Intentional plan/monitor/pipe/questions handoffs skip declaration. Use `gh` only for
 GitHub API/PR reads when needed.
 
-Typical project-task prompt: `#gh:sase %auto #pr:my_change <task text>`.
+Typical project-task prompt: `+sase %auto #pr:my_change <task text>`.

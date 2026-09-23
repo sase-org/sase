@@ -7,9 +7,12 @@ provider handles higher-level concerns: workflow type detection, reference resol
 (for example `#git:repo` or `#gh:org/repo`), change submission, mail preparation, and
 workspace directory management.
 
-A **workspace reference** is a prompt prefix such as `#git:sase`, `#gh:sase`, or a ref
-registered by another workspace provider. It tells SASE which project and workspace
-should be used before the rest of the prompt or workflow runs.
+A **workspace reference** is a prompt prefix such as `+sase`, `#git:sase`, `#gh:sase`,
+or a ref registered by another workspace provider. It tells SASE which project and
+workspace should be used before the rest of the prompt or workflow runs. The
+`+<project>` [project tag](xprompt.md#project-tags) is the default spelling for a known
+project; the `#` forms remain for Patches, `owner/repo`, `@agent`, paren forms, and
+creating new projects.
 
 SASE keeps three related concepts distinct:
 
@@ -218,9 +221,9 @@ SASE also recognizes provider-prefixed VCS refs that target registered project n
 even when the corresponding workspace plugin is not available in the current process.
 Known projects are discovered from `~/.sase/projects/*/*.sase` (with legacy
 `~/.sase/projects/*/*.gp` accepted as a fallback) by reading each `WORKSPACE_DIR:`
-entry. For example, if the `sase` project is registered, `#gh:sase #!some/workflow` and
-the underscore shorthand `#gh_sase #!some/workflow` are treated as VCS workspace
-launches rather than ordinary xprompt references.
+entry. For example, if the `sase` project is registered, `+sase #!some/workflow`,
+`#gh:sase #!some/workflow`, and the underscore shorthand `#gh_sase #!some/workflow` are
+treated as VCS workspace launches rather than ordinary xprompt references.
 
 Known-project fallback is lifecycle-aware. Launch pickers and broad xprompt/catalog
 discovery include enabled projects only. Legacy `inactive`, `archived`, and `closed`

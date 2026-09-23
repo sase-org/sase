@@ -123,8 +123,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 
 - Kind: memory web descriptor
 - Description: No description set.
-- Lines: 33
-- Approx. tokens: 410
+- Lines: 34
+- Approx. tokens: 418
 
 ### `sase/memory/task_types.md`
 
@@ -243,8 +243,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Parent: `AGENTS.md`
 - Description: Read before xprompts, prompt directives, or launching agents with git/gh
   VCS workflow blocks.
-- Lines: 128
-- Approx. tokens: 1979
+- Lines: 130
+- Approx. tokens: 2005
 
 ## Statistics
 
@@ -252,8 +252,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 12
 - Web descriptor notes: 3
-- Total lines: 1321
-- Total approx. tokens: 17406
+- Total lines: 1324
+- Total approx. tokens: 17440
 
 ## Commands
 

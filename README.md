@@ -81,19 +81,20 @@ separate mechanism: it can select Grok through the shipped `@small`, `@medium`,
 uv tool install sase                                      # add a plugin too: uv tool install sase --with sase-github
 sase doctor                                               # check install, config, and provider authentication
 sase completion install                                   # optional: <TAB> completion for zsh, bash, or fish
-sase run "#git:home summarize what this repository does; do not change files" # auto-detected providers
+sase run "+home summarize what this repository does; do not change files" # auto-detected providers
 # Or, for Muse Code:
-sase run "%model:muse/muse-spark-1.3 #git:home summarize what this repository does; do not change files"
+sase run "%model:muse/muse-spark-1.3 +home summarize what this repository does; do not change files"
 # Or, for Grok Build:
-sase run "%model:grok/grok-4.6 #git:home summarize what this repository does; do not change files"
+sase run "%model:grok/grok-4.6 +home summarize what this repository does; do not change files"
 sase tui                                                  # open the interactive control surface
 ```
 
 For a first run, use the auto-detected-provider command, or one of the explicit
-Muse/Grok examples for deterministic provider selection. The `#git:home` workspace
-reference targets the built-in `home` project, which is bootstrapped automatically, so
-the first run needs no project setup. After the run completes, `sase tui` opens the TUI
-with the completed run visible on the Agents tab.
+Muse/Grok examples for deterministic provider selection. The `+home`
+[project tag](docs/xprompt.md#project-tags) targets the built-in `home` project, which
+is bootstrapped automatically, so the first run needs no project setup. It expands to
+the canonical `#git:home` workspace reference. After the run completes, `sase tui` opens
+the TUI with the completed run visible on the Agents tab.
 
 If `sase doctor` reports a missing provider, install and authenticate it, then run the
 check again; see [Agent Providers](https://sase.sh/agent_providers/). For full

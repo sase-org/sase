@@ -59,7 +59,9 @@ Project and user configuration cannot override this selection. See
 guidance, and offline/push behavior.
 
 For built-in bare-git projects, SASE creates or refreshes the generated SDD guide files
-automatically. First-use `#git:<project>` initialization includes them in the initial
+automatically. Target an existing project with its `+<project>`
+[project tag](xprompt.md#project-tags); first-use `#git:<project>` initialization (which
+creates a new project and keeps its `#git:` spelling) includes them in the initial
 commit; existing bare-repo registration, `#git` materialization, and `sase repo open`
 commit and push an `Initialize SDD` init commit when the generated files are missing or
 stale. First SDD writes, plan archiving, and `sase bead init` also refresh the generated

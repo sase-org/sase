@@ -78,20 +78,20 @@ launching:
 
 ```bash
 # Auto-detected providers:
-sase run "#git:home summarize this workspace's layout; do not change files"
+sase run "+home summarize this workspace's layout; do not change files"
 # Muse Code:
-sase run "%model:muse/muse-spark-1.3 #git:home summarize this workspace's layout; do not change files"
+sase run "%model:muse/muse-spark-1.3 +home summarize this workspace's layout; do not change files"
 # Grok Build:
-sase run "%model:grok/grok-4.6 #git:home summarize this workspace's layout; do not change files"
+sase run "%model:grok/grok-4.6 +home summarize this workspace's layout; do not change files"
 # Then, while it is still running:
 sase agent list
 ```
 
-The `#git:home` prefix targets SASE's built-in `home` sandbox. On first use, SASE
-bootstraps that managed project with a bare git repository, a primary checkout, and
-generated SDD scaffolding, then launches the provider CLI in an isolated numbered
-workspace managed by SASE. Prompts with no workspace reference are normalized to
-`#git:home` automatically, so the bare form
+The `+home` [project tag](xprompt.md#project-tags) targets SASE's built-in `home`
+sandbox. On first use, SASE bootstraps that managed project with a bare git repository,
+a primary checkout, and generated SDD scaffolding, then launches the provider CLI in an
+isolated numbered workspace managed by SASE. Prompts with no workspace reference are
+normalized to `#git:home` automatically, so the bare form
 `sase run "summarize this workspace's layout; do not change files"` is equivalent. That
 isolation is what lets you fire off several agents at once without them colliding, and
 what lets a failed run be retried without touching your primary checkout.
@@ -146,7 +146,7 @@ After you have seen the agent record, try a low-risk change:
 
 ```bash
 sase run \
-  "#git:home create or update notes.md with one short note about SASE workspaces. Then run: sase artifact create -p notes.md -l 'Workspace note'"
+  "+home create or update notes.md with one short note about SASE workspaces. Then run: sase artifact create -p notes.md -l 'Workspace note'"
 sase agent list -a
 ```
 
@@ -196,7 +196,7 @@ sase artifact show file:explicit:0123456789abcdef01234567
 Then add `@` when the same reference appears inside a prompt:
 
 ```bash
-sase run "#git:home read @file:explicit:0123456789abcdef01234567 and summarize it"
+sase run "+home read @file:explicit:0123456789abcdef01234567 and summarize it"
 ```
 
 Replace the sample reference with one from your own `REF` column. This leading-`@`

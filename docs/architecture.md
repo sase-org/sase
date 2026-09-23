@@ -37,18 +37,19 @@ Most agent work enters through `sase run`, sase's TUI, validated axe job proposa
 epic execution, or mobile/editor helper bridges. The launch path follows the same shape
 across those entry points:
 
-1. Parse prompt text, directives, and optional multi-prompt separators, then
-   canonicalize ProjectSpec aliases in launch-bound VCS refs. For example, `#gh:bob`
-   becomes the stable directory-key ref `#gh:bob-cli` before history or artifact
-   snapshots are written.
+1. Parse prompt text, directives, and optional multi-prompt separators, then expand
+   `+<project>` [project tags](xprompt.md#project-tags) and canonicalize ProjectSpec
+   aliases in launch-bound VCS refs. For example, `+bob` expands to `#gh:bob-cli` (and
+   `#gh:bob` canonicalizes to the same stable directory-key ref) before history or
+   artifact snapshots are written.
 2. Expand the swarm, repeat, or alternative directives needed to determine the launch
    slots and validate their names.
-3. Resolve each slot's workspace reference, such as `#git:<project>` or a
-   plugin-provided form. An explicit ref to a disabled known project re-enables that
-   project before the claim. Direct claims that bypass this launch preparation remain
-   blocked by the workspace claim guard. Providers may return a `canonical_ref` for a
-   raw locator such as a first-use owner/repo ref; launch metadata, history, and prompt
-   MRU entries then use that stable ref.
+3. Resolve each slot's workspace reference, such as `+<project>` or a plugin-provided
+   form. An explicit ref to a disabled known project re-enables that project before the
+   claim. Direct claims that bypass this launch preparation remain blocked by the
+   workspace claim guard. Providers may return a `canonical_ref` for a raw locator such
+   as a first-use owner/repo ref; launch metadata, history, and prompt MRU entries then
+   use that stable ref.
 4. Prepare fixed or deferred workspace metadata. For a normal launch, claim the final
    numbered workspace atomically immediately before spawning the process.
 5. In the detached runner, wait for `%wait` dependencies and time floors, then pass

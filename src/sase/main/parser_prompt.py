@@ -20,7 +20,7 @@ def _add_prefix_option(parser: argparse.ArgumentParser) -> None:
         metavar="VCS_PREFIX",
         help=(
             "Replace embedded VCS workflow tags with VCS_PREFIX before replay,"
-            " e.g. reuse a '#gh:sase' prompt under '#gh:bob-cli'"
+            " e.g. reuse a '+sase' prompt under '+bob-cli'"
         ),
     )
 

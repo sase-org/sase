@@ -64,9 +64,9 @@ xprompt renderer syntax is not accepted.
 ## Project Context
 
 Short references resolve from the prompt segment, not from the current working
-directory. A segment's leading `#git:`, `#gh:`, or other VCS workflow tag supplies the
-project context. If a segment has no explicit tag, the caller's launch identity supplies
-it.
+directory. A segment's leading `+<project>` [project tag](xprompt.md#project-tags),
+`#git:`, `#gh:`, or other VCS workflow tag supplies the project context. If a segment
+has no explicit tag, the caller's launch identity supplies it.
 
 Context affects ambiguity:
 
