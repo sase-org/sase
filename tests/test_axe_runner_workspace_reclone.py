@@ -157,7 +157,7 @@ class TestPrepareWorkspaceIfNeededReclone:
 
         with (
             patch(
-                "sase.axe.run_agent_runner_setup.prepare_workspace",
+                "sase.axe.run_agent_runner_setup_workspace.prepare_workspace",
                 side_effect=[_eligible_error(str(workspace_dir)), None],
             ) as prepare,
             patch(
@@ -194,7 +194,7 @@ class TestPrepareWorkspaceIfNeededReclone:
     ) -> None:
         with (
             patch(
-                "sase.axe.run_agent_runner_setup.prepare_workspace",
+                "sase.axe.run_agent_runner_setup_workspace.prepare_workspace",
                 side_effect=[_ineligible_fetch_error("/tmp/workspace")],
             ),
             patch(
@@ -220,7 +220,7 @@ class TestPrepareWorkspaceIfNeededReclone:
     ) -> None:
         with (
             patch(
-                "sase.axe.run_agent_runner_setup.prepare_workspace",
+                "sase.axe.run_agent_runner_setup_workspace.prepare_workspace",
                 side_effect=[_eligible_error("/tmp/workspace")],
             ),
             patch(
@@ -243,7 +243,7 @@ class TestPrepareWorkspaceIfNeededReclone:
     def test_second_failure_fails_the_launch(self, tmp_path: Path) -> None:
         with (
             patch(
-                "sase.axe.run_agent_runner_setup.prepare_workspace",
+                "sase.axe.run_agent_runner_setup_workspace.prepare_workspace",
                 side_effect=[
                     _eligible_error("/tmp/workspace"),
                     _eligible_error("/tmp/workspace"),
@@ -254,7 +254,7 @@ class TestPrepareWorkspaceIfNeededReclone:
                 return_value="/tmp/workspace",
             ) as recreate,
             patch(
-                "sase.axe.run_agent_runner_setup.enter_agent_workspace",
+                "sase.axe.run_agent_runner_setup_workspace.enter_agent_workspace",
             ),
             pytest.raises(RuntimeError, match="Failed to prepare workspace"),
         ):
@@ -367,7 +367,7 @@ class TestLinkedRepoPrepareReclone:
                     return_value=str(linked_dir),
                 ) as materialize,
                 patch(
-                    "sase.axe.run_agent_runner_setup.prepare_workspace",
+                    "sase.axe.run_agent_runner_setup_linked_repos.prepare_workspace",
                     side_effect=[_eligible_error(str(linked_dir)), None],
                 ) as prepare,
             ):

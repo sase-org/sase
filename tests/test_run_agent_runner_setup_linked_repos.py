@@ -77,7 +77,7 @@ def test_refresh_linked_repos_for_workspace_updates_env_meta_without_prompt_note
             return_value=resolution,
         ),
         patch(
-            "sase.axe.run_agent_runner_setup."
+            "sase.axe.run_agent_runner_setup_meta."
             "update_agent_artifact_index_for_marker_mutation",
         ),
     ):
@@ -121,7 +121,7 @@ def test_refresh_linked_repos_for_workspace_preserves_meta_on_empty_resolution(
             return_value=LinkedRepoResolution(repos=()),
         ),
         patch(
-            "sase.axe.run_agent_runner_setup."
+            "sase.axe.run_agent_runner_setup_meta."
             "update_agent_artifact_index_for_marker_mutation",
         ),
     ):
@@ -176,10 +176,12 @@ def test_empty_fresh_linked_repo_resolution_does_not_prepare_stale_meta(
             return_value=empty_resolution,
         ),
         patch(
-            "sase.axe.run_agent_runner_setup."
+            "sase.axe.run_agent_runner_setup_meta."
             "update_agent_artifact_index_for_marker_mutation",
         ),
-        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+        patch(
+            "sase.axe.run_agent_runner_setup_linked_repos.prepare_workspace"
+        ) as prepare,
     ):
         refreshed = refresh_linked_repos_for_workspace(
             project_file=str(tmp_path / "project.sase"),
@@ -213,10 +215,12 @@ def test_prepare_linked_repo_workspaces_uses_default_revision_sentinel(
             return_value="/repos/sase-core_7",
         ),
         patch(
-            "sase.axe.run_agent_runner_setup.prepare_workspace",
+            "sase.axe.run_agent_runner_setup_linked_repos.prepare_workspace",
             side_effect=lambda *args, **kwargs: calls.append((args, kwargs)) or True,
         ),
-        patch("sase.axe.run_agent_runner_setup._guard_workspace_not_occupied") as guard,
+        patch(
+            "sase.axe.run_agent_runner_setup_linked_repos.guard_workspace_not_occupied"
+        ) as guard,
     ):
         prepare_linked_repo_workspaces_if_needed(
             resolution=_resolution(),
@@ -259,7 +263,7 @@ def test_prepare_linked_repo_workspaces_reuses_fresh_launch_sidecar(
             side_effect=AssertionError("fresh plans sidecar was cloned again"),
         ),
         patch(
-            "sase.axe.run_agent_runner_setup.prepare_workspace",
+            "sase.axe.run_agent_runner_setup_linked_repos.prepare_workspace",
             side_effect=AssertionError("fresh plans sidecar was prepared again"),
         ),
         patch("sase.linked_repos.apply_linked_repo_env") as apply_env,
@@ -295,7 +299,7 @@ def test_prepare_linked_repo_workspaces_skips_prep_for_new_sidecar(
             side_effect=materialize,
         ) as materialize_sidecar,
         patch(
-            "sase.axe.run_agent_runner_setup.prepare_workspace",
+            "sase.axe.run_agent_runner_setup_linked_repos.prepare_workspace",
             side_effect=AssertionError("new research sidecar was prepared again"),
         ),
         patch("sase.linked_repos.apply_linked_repo_env"),
@@ -327,7 +331,7 @@ def test_prepare_linked_repo_workspaces_prepares_retained_sidecar(
             return_value=str(research),
         ),
         patch(
-            "sase.axe.run_agent_runner_setup.prepare_workspace",
+            "sase.axe.run_agent_runner_setup_linked_repos.prepare_workspace",
             return_value=True,
         ) as prepare,
         patch("sase.linked_repos.apply_linked_repo_env"),
@@ -345,7 +349,9 @@ def test_prepare_linked_repo_workspaces_prepares_retained_sidecar(
 def test_prepare_linked_repo_workspaces_skips_lazy_entries() -> None:
     with (
         patch("sase.linked_repos.materialize_linked_repo_workspace") as materialize,
-        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+        patch(
+            "sase.axe.run_agent_runner_setup_linked_repos.prepare_workspace"
+        ) as prepare,
     ):
         prepare_linked_repo_workspaces_if_needed(
             resolution=_resolution(auto_clone=False),
@@ -371,7 +377,9 @@ def test_prepare_linked_repo_workspaces_does_not_materialize_lazy_beads_sidecar(
 
     with (
         patch("sase.linked_repos.materialize_linked_repo_workspace") as materialize,
-        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+        patch(
+            "sase.axe.run_agent_runner_setup_linked_repos.prepare_workspace"
+        ) as prepare,
     ):
         prepare_linked_repo_workspaces_if_needed(
             resolution=resolution,
@@ -390,7 +398,9 @@ def test_prepare_linked_repo_workspaces_rejects_empty_primary_for_retained_repo(
             "sase.linked_repos.materialize_linked_repo_workspace",
             return_value="/repos/sase-core_7",
         ),
-        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+        patch(
+            "sase.axe.run_agent_runner_setup_linked_repos.prepare_workspace"
+        ) as prepare,
         pytest.raises(ValueError, match="primary_workspace_dir is required"),
     ):
         prepare_linked_repo_workspaces_if_needed(
@@ -412,7 +422,9 @@ def test_prepare_linked_repo_workspaces_defensively_skips_hidden_sidecars() -> N
 
     with (
         patch("sase.linked_repos.materialize_linked_repo_workspace") as materialize,
-        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+        patch(
+            "sase.axe.run_agent_runner_setup_linked_repos.prepare_workspace"
+        ) as prepare,
         patch("sase.linked_repos.apply_linked_repo_env") as apply_env,
     ):
         prepare_linked_repo_workspaces_if_needed(
@@ -442,7 +454,7 @@ def test_refresh_linked_repos_filters_stale_hidden_sidecar_metadata(
             return_value=hidden,
         ),
         patch(
-            "sase.axe.run_agent_runner_setup."
+            "sase.axe.run_agent_runner_setup_meta."
             "update_agent_artifact_index_for_marker_mutation",
         ),
     ):
@@ -481,7 +493,9 @@ def test_prepare_linked_repo_workspaces_skips_primary_paths() -> None:
         )
     )
 
-    with patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare:
+    with patch(
+        "sase.axe.run_agent_runner_setup_linked_repos.prepare_workspace"
+    ) as prepare:
         prepare_linked_repo_workspaces_if_needed(
             resolution=resolution,
             cl_name="feature",
@@ -499,7 +513,7 @@ def test_prepare_linked_repo_workspaces_failure_names_workspace(tmp_path: Path) 
             return_value="/repos/sase-core_7",
         ),
         patch(
-            "sase.axe.run_agent_runner_setup.prepare_workspace",
+            "sase.axe.run_agent_runner_setup_linked_repos.prepare_workspace",
             side_effect=WorkspacePreparationError(
                 "sase_hg_update failed for target origin/master: "
                 "git fetch origin: exit 128: remote hung up",

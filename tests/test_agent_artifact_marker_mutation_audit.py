@@ -200,11 +200,11 @@ _REVIEWED_MARKER_MUTATION_CONTEXTS: dict[str, Review] = {
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_runner_setup.py:setup_artifacts_directory": Review(
+    "src/sase/axe/run_agent_runner_setup_meta.py:setup_artifacts_directory": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),
-    "src/sase/axe/run_agent_runner_setup.py:write_home_running_marker": Review(
+    "src/sase/axe/run_agent_runner_setup_meta.py:write_home_running_marker": Review(
         mutation_calls=("open", "dump"),
         lifecycle_calls=(_UPDATE_INDEX,),
     ),

@@ -19,7 +19,7 @@ from tests._axe_run_agent_runner_retry_helpers import (
     BOOTSTRAP,
     LAUNCH,
     RUNNER,
-    SETUP,
+    SETUP_WORKSPACE,
     base_patches,
     exec_result,
     run_main,
@@ -221,8 +221,8 @@ class TestDeferredWorkspaceFlow:
         patches[f"{RUNNER}.wait_for_runner_slot"] = wait_for_slot
         patches[f"{LAUNCH}.resolve_wait_chat_paths"] = MagicMock(return_value=[])
         patches[f"{LAUNCH}.claim_deferred_workspace"] = claim_deferred
-        patches[f"{SETUP}.prepare_workspace"] = prepare_ws
-        patches[f"{SETUP}.prepare_launch_workspace_repos"] = prepare_sidecars
+        patches[f"{SETUP_WORKSPACE}.prepare_workspace"] = prepare_ws
+        patches[f"{SETUP_WORKSPACE}.prepare_launch_workspace_repos"] = prepare_sidecars
         patches[f"{LAUNCH}.refresh_linked_repos_for_workspace"] = refresh_linked_repos
         patches[f"{LAUNCH}.prepare_linked_repo_workspaces_if_needed"] = (
             prepare_linked_repos

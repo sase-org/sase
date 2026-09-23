@@ -64,7 +64,7 @@ def _runner_patches(
     )
     stack.enter_context(
         patch(
-            "sase.axe.run_agent_runner_setup."
+            "sase.axe.run_agent_runner_setup_meta."
             "update_agent_artifact_index_for_marker_mutation"
         )
     )

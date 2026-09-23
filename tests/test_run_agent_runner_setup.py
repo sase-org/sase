@@ -492,15 +492,15 @@ def test_setup_artifacts_directory_updates_artifact_index(tmp_path: Path) -> Non
 
     with (
         patch(
-            "sase.axe.run_agent_runner_setup.create_artifacts_directory",
+            "sase.axe.run_agent_runner_setup_meta.create_artifacts_directory",
             return_value=str(tmp_path),
         ),
         patch(
-            "sase.axe.run_agent_runner_setup.convert_timestamp_to_artifacts_format",
+            "sase.axe.run_agent_runner_setup_meta.convert_timestamp_to_artifacts_format",
             return_value="20260520220000",
         ),
         patch(
-            "sase.axe.run_agent_runner_setup."
+            "sase.axe.run_agent_runner_setup_meta."
             "update_agent_artifact_index_for_marker_mutation",
             side_effect=lambda path: calls.append(path),
         ),

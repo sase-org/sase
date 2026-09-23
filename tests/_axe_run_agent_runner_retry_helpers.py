@@ -63,7 +63,9 @@ class WorkflowResult:
 RUNNER = "sase.axe.run_agent_runner"
 BOOTSTRAP = "sase.axe.run_agent_runner_bootstrap"
 LAUNCH = "sase.axe.run_agent_runner_launch"
-SETUP = "sase.axe.run_agent_runner_setup"
+SETUP_WORKSPACE = "sase.axe.run_agent_runner_setup_workspace"
+SETUP_LINKED_REPOS = "sase.axe.run_agent_runner_setup_linked_repos"
+SETUP_META = "sase.axe.run_agent_runner_setup_meta"
 FINALIZE = "sase.axe.run_agent_runner_finalize"
 EXEC = "sase.axe.run_agent_exec"
 RETRY = "sase.axe.run_agent_exec_retry"
@@ -80,14 +82,17 @@ def base_patches(artifacts_dir: str) -> dict[str, Any]:
 
     return {
         # Runner module.
-        f"{SETUP}.prepare_workspace": prepare_ws_mock,
+        f"{SETUP_WORKSPACE}.prepare_workspace": prepare_ws_mock,
+        f"{SETUP_LINKED_REPOS}.prepare_workspace": prepare_ws_mock,
         f"{BOOTSTRAP}.extract_directives_and_write_meta": MagicMock(
             return_value=AGENT_INFO
         ),
-        f"{SETUP}.convert_timestamp_to_artifacts_format": MagicMock(
+        f"{SETUP_META}.convert_timestamp_to_artifacts_format": MagicMock(
             return_value="20260316_120000"
         ),
-        f"{SETUP}.create_artifacts_directory": MagicMock(return_value=artifacts_dir),
+        f"{SETUP_META}.create_artifacts_directory": MagicMock(
+            return_value=artifacts_dir
+        ),
         "sase.notifications.senders.append_notification": MagicMock(),
         f"{RUNNER}.format_duration": MagicMock(return_value="1s"),
         f"{FINALIZE}.record_stop_time": MagicMock(),
@@ -139,7 +144,7 @@ def run_main(
     output_file = tmp_path / "output.txt"
     output_file.write_text("")
 
-    artifacts_dir_mock = patches.get(f"{SETUP}.create_artifacts_directory")
+    artifacts_dir_mock = patches.get(f"{SETUP_META}.create_artifacts_directory")
     if artifacts_dir_mock:
         adir = Path(artifacts_dir_mock.return_value)
         adir.mkdir(parents=True, exist_ok=True)

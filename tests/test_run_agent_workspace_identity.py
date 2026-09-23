@@ -58,7 +58,7 @@ def _prepare_placeholder_rebind(tmp_path: Path) -> tuple[AgentExecContext, Path]
             return_value=LinkedRepoResolution(repos=()),
         ),
         patch(
-            "sase.axe.run_agent_runner_setup."
+            "sase.axe.run_agent_runner_setup_meta."
             "update_agent_artifact_index_for_marker_mutation",
         ),
     ):

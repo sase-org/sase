@@ -18,7 +18,7 @@ from tests._axe_run_agent_runner_retry_helpers import (
     BOOTSTRAP,
     LAUNCH,
     RUNNER,
-    SETUP,
+    SETUP_WORKSPACE,
     base_patches,
     exec_result,
     run_main,
@@ -72,7 +72,7 @@ class TestRunStartedAtRecording:
         patches[f"{BOOTSTRAP}.extract_directives_and_write_meta"] = (
             extract_and_write_meta
         )
-        patches[f"{SETUP}.prepare_workspace"] = prepare_workspace
+        patches[f"{SETUP_WORKSPACE}.prepare_workspace"] = prepare_workspace
         patches[f"{LAUNCH}.run_execution_loop"] = run_loop
         gate = patches[f"{RUNNER}.wait_for_runner_slot"]
 
@@ -119,7 +119,7 @@ class TestRunStartedAtRecording:
             assert running_agent_slot_count([record], lambda _record: True) == 1
             raise RuntimeError("blocked workspace preparation")
 
-        patches[f"{SETUP}.prepare_workspace"] = prepare_workspace
+        patches[f"{SETUP_WORKSPACE}.prepare_workspace"] = prepare_workspace
         patches[f"{LAUNCH}.run_execution_loop"] = run_loop
         patches[f"{RUNNER}.write_error_done_marker"] = write_error
 
@@ -255,7 +255,7 @@ class TestRunStartedAtRecording:
         patches[f"{LAUNCH}.refresh_linked_repos_for_workspace"] = (
             refresh_linked_repos_for_workspace
         )
-        patches[f"{SETUP}.prepare_workspace"] = prepare_workspace
+        patches[f"{SETUP_WORKSPACE}.prepare_workspace"] = prepare_workspace
         patches[f"{LAUNCH}.run_execution_loop"] = run_loop
         patches[f"{RUNNER}.write_error_done_marker"] = write_error
 
@@ -378,7 +378,7 @@ class TestRunStartedAtRecording:
             return_value=exec_result(artifacts_dir)
         )
         patches[
-            "sase.axe.run_agent_runner_setup."
+            "sase.axe.run_agent_runner_setup_meta."
             "update_agent_artifact_index_for_marker_mutation"
         ] = setup_index_update
         patches[f"{RUNNER}.update_agent_artifact_index_for_marker_mutation"] = (

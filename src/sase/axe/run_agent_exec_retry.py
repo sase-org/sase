@@ -92,7 +92,7 @@ def _guard_retry_prep_not_occupied(ctx: AgentExecContext) -> None:
     """Refuse a retry re-prep if this checkout is no longer this agent's.
 
     Same in-process guard used at initial launch prep — see
-    ``run_agent_runner_setup._guard_workspace_not_occupied``. This is
+    ``run_agent_runner_setup_workspace.guard_workspace_not_occupied``. This is
     ordinarily a same-pid self-check, but it also catches the case where
     something else clobbered the claim mid-run.
     """

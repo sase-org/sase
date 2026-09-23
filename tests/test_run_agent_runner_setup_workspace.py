@@ -43,7 +43,7 @@ def test_prepare_workspace_if_needed_invokes_strict_sdd_clone_after_clear() -> N
 
     with (
         patch(
-            "sase.axe.run_agent_runner_setup.prepare_workspace",
+            "sase.axe.run_agent_runner_setup_workspace.prepare_workspace",
             side_effect=prepare_workspace,
         ),
         patch(
@@ -74,7 +74,7 @@ def test_prepare_workspace_if_needed_invokes_strict_sdd_clone_after_clear() -> N
 
 def test_prepare_workspace_if_needed_skips_sdd_clone_for_home_mode() -> None:
     with (
-        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+        patch("sase.axe.run_agent_runner_setup_workspace.prepare_workspace") as prepare,
         patch("sase.sdd.store.ensure_workspace_sdd_clone") as ensure_clone,
         patch("sase.linked_repos.clear_workspace_repos") as clear_repos,
     ):
@@ -95,7 +95,7 @@ def test_prepare_workspace_if_needed_skips_sdd_clone_for_home_mode() -> None:
 
 def test_prepare_workspace_if_needed_skips_sdd_clone_for_retry_handoff() -> None:
     with (
-        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+        patch("sase.axe.run_agent_runner_setup_workspace.prepare_workspace") as prepare,
         patch("sase.sdd.store.ensure_workspace_sdd_clone") as ensure_clone,
         patch("sase.linked_repos.clear_workspace_repos") as clear_repos,
     ):
@@ -142,7 +142,7 @@ def test_prepare_workspace_if_needed_refuses_when_checkout_is_occupied(
     )
 
     with (
-        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+        patch("sase.axe.run_agent_runner_setup_workspace.prepare_workspace") as prepare,
         pytest.raises(WorkspaceOccupiedError, match="rival-agent"),
     ):
         prepare_workspace_if_needed(
@@ -188,7 +188,8 @@ def test_prepare_workspace_if_needed_proceeds_when_occupant_is_caller(
 
     with (
         patch(
-            "sase.axe.run_agent_runner_setup.prepare_workspace", return_value=True
+            "sase.axe.run_agent_runner_setup_workspace.prepare_workspace",
+            return_value=True,
         ) as prepare,
         patch("sase.sdd.store.ensure_workspace_sdd_clone"),
         patch("sase.linked_repos.clear_workspace_repos"),
@@ -266,7 +267,7 @@ def test_prepare_workspace_if_needed_surfaces_underlying_error(
     )
     with (
         patch(
-            "sase.axe.run_agent_runner_setup.prepare_workspace",
+            "sase.axe.run_agent_runner_setup_workspace.prepare_workspace",
             side_effect=WorkspacePreparationError(
                 underlying, step="checkout", workspace_dir="/tmp/workspace"
             ),

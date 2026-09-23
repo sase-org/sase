@@ -190,7 +190,7 @@ def test_deferred_claim_skips_held_workspace_and_guard_blocks_stolen_prep(
     assert workspace_num in claimed_nums
 
     with (
-        patch("sase.axe.run_agent_runner_setup.prepare_workspace") as prepare,
+        patch("sase.axe.run_agent_runner_setup_workspace.prepare_workspace") as prepare,
         pytest.raises(WorkspaceOccupiedError, match="06e--plan"),
     ):
         prepare_workspace_if_needed(
