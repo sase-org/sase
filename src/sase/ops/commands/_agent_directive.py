@@ -10,18 +10,38 @@ from sase.ops.cli import load_request
 from sase.ops.names import AGENT_PERSIST_DIRECTIVE
 
 
+def _persist_directive_with_clan_records(
+    payload: Mapping[str, Any],
+    *,
+    artifacts_dir: str,
+) -> tuple[Any, list[dict[str, Any]]]:
+    """Apply one directive spec plus its durable clan-record edit.
+
+    The clan-record write uses ``source=edited`` so a clan-level tribe edit
+    sticks over member-derived values. This path is user-initiated, so record
+    failures raise as directive errors instead of being swallowed.
+    """
+    from sase.ace.tui.actions.agents._directive_persistence import (
+        persist_agent_directive_update,
+    )
+
+    spec = _spec_from_payload(payload, artifacts_dir=artifacts_dir)
+    result = persist_agent_directive_update(spec)
+    resolved = _resolve_tribe_payload(payload, artifacts_dir=artifacts_dir)
+    applied = _apply_clan_record_updates(resolved)
+    return result, applied
+
+
 def persist_directive_from_payload(
     payload: Mapping[str, Any],
     *,
     artifacts_dir: str,
 ) -> Any:
     """Build and apply one persist-directive spec from JSON-shaped payload."""
-    from sase.ace.tui.actions.agents._directive_persistence import (
-        persist_agent_directive_update,
+    result, _applied = _persist_directive_with_clan_records(
+        payload, artifacts_dir=artifacts_dir
     )
-
-    spec = _spec_from_payload(payload, artifacts_dir=artifacts_dir)
-    return persist_agent_directive_update(spec)
+    return result
 
 
 def run_persist_directive(
@@ -31,19 +51,17 @@ def run_persist_directive(
     payload = dict(request.payload)
     updates = payload.get("updates")
     if isinstance(updates, list) and updates:
-        specs: list[tuple[str, Any]] = []
+        items: list[tuple[str, dict[str, Any]]] = []
         for item in updates:
             if not isinstance(item, dict):
                 continue
             item_dir = str(item.get("artifacts_dir") or args.artifacts_dir)
-            specs.append((item_dir, _spec_from_payload(item, artifacts_dir=item_dir)))
+            items.append((item_dir, dict(item)))
         results = []
-        for item_dir, spec in specs:
-            from sase.ace.tui.actions.agents._directive_persistence import (
-                persist_agent_directive_update,
+        for item_dir, item in items:
+            result, clan_records = _persist_directive_with_clan_records(
+                item, artifacts_dir=item_dir
             )
-
-            result = persist_agent_directive_update(spec)
             results.append(
                 {
                     "artifacts_dir": item_dir,
@@ -51,6 +69,8 @@ def run_persist_directive(
                     "ready_updated": result.ready_updated,
                     "tribe_updated": result.tribe_updated,
                     "waiting_updated": result.waiting_updated,
+                    "clan_record_updated": bool(clan_records),
+                    "clan_records": clan_records,
                 }
             )
         return (
@@ -59,7 +79,9 @@ def run_persist_directive(
             {"updates": results},
         )
     artifacts_dir = str(payload.get("artifacts_dir") or args.artifacts_dir)
-    result = persist_directive_from_payload(payload, artifacts_dir=artifacts_dir)
+    result, clan_records = _persist_directive_with_clan_records(
+        payload, artifacts_dir=artifacts_dir
+    )
     return (
         True,
         f"Persisted agent directive in {artifacts_dir}",
@@ -69,6 +91,8 @@ def run_persist_directive(
             "ready_updated": result.ready_updated,
             "tribe_updated": result.tribe_updated,
             "waiting_updated": result.waiting_updated,
+            "clan_record_updated": bool(clan_records),
+            "clan_records": clan_records,
         },
     )
 
@@ -219,7 +243,120 @@ def _resolve_tribe_payload(
             next_meta_set["tribe"] = resolved
         result["meta_set"] = next_meta_set
 
+    clan_record = result.get("clan_record")
+    if isinstance(clan_record, dict):
+        result["clan_record"] = _resolve_clan_record_entry(
+            clan_record,
+            resolved=resolved,
+            raw_tribe=raw_tribe,
+            artifacts_dir=artifacts_dir,
+        )
+    clan_records = result.get("clan_records")
+    if isinstance(clan_records, list):
+        result["clan_records"] = [
+            _resolve_clan_record_entry(
+                entry,
+                resolved=resolved,
+                raw_tribe=raw_tribe,
+                artifacts_dir=artifacts_dir,
+            )
+            if isinstance(entry, dict)
+            else entry
+            for entry in clan_records
+        ]
+
     return result
+
+
+def _resolve_clan_record_entry(
+    entry: Mapping[str, Any],
+    *,
+    resolved: str,
+    raw_tribe: str | None,
+    artifacts_dir: str,
+) -> dict[str, Any]:
+    """Resolve one clan-record tribe through public-tribe canonicalization."""
+    next_entry = dict(entry)
+    tribe = next_entry.get("tribe")
+    if not isinstance(tribe, str) or not tribe:
+        return next_entry
+    if raw_tribe is not None and tribe == raw_tribe:
+        next_entry["tribe"] = resolved
+        return next_entry
+    from sase.config.inventory import discover_layer_inputs
+    from sase.core.agent_tribe import canonicalize_public_tribe_name
+    from sase.core.agent_tribe_evidence import stored_tribe_names_for_resolution
+
+    next_entry["tribe"] = canonicalize_public_tribe_name(
+        tribe,
+        layers=discover_layer_inputs(),
+        stored_tribes=stored_tribe_names_for_resolution(),
+        current_tribe=_current_meta_tribe(artifacts_dir, clan=True),
+    )
+    return next_entry
+
+
+def _clan_record_entries(payload: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Return every clan-record edit carried by a directive payload."""
+    entries: list[Mapping[str, Any]] = []
+    single = payload.get("clan_record")
+    if isinstance(single, Mapping):
+        entries.append(single)
+    multiple = payload.get("clan_records")
+    if isinstance(multiple, list):
+        entries.extend(item for item in multiple if isinstance(item, Mapping))
+    return entries
+
+
+def _apply_clan_record_updates(payload: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Write resolved clan-record tribe edits with ``edited`` provenance.
+
+    Raises on invalid payloads or record failures so user-initiated edits
+    surface as directive errors instead of being silently swallowed.
+    """
+    from sase.core.agent_clan_record import (
+        clan_attribute_update,
+        record_clan_attributes,
+    )
+
+    applied: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for entry in _clan_record_entries(payload):
+        clan = entry.get("clan")
+        generation = entry.get("generation")
+        tribe = entry.get("tribe")
+        if not isinstance(clan, str) or not clan:
+            raise ValueError("clan_record update requires a non-empty clan")
+        if not isinstance(generation, str) or not generation:
+            raise ValueError("clan_record update requires a non-empty generation")
+        if tribe is not None and not isinstance(tribe, str):
+            raise ValueError("clan_record tribe must be a string or null")
+        if isinstance(tribe, str) and not tribe:
+            raise ValueError("clan_record tribe must be a non-empty string or null")
+        key = (clan, generation)
+        if key in seen:
+            continue
+        seen.add(key)
+        outcome = record_clan_attributes(
+            {
+                "clan": clan,
+                "generation": generation,
+                "tribe": clan_attribute_update(
+                    tribe,
+                    "edited",
+                    source_identity="tui",
+                ),
+            },
+            strict=True,
+        )
+        applied.append(
+            {
+                "clan": clan,
+                "generation": generation,
+                "changed": bool(outcome is not None and outcome.get("changed")),
+            }
+        )
+    return applied
 
 
 def _payload_tribe_value(payload: Mapping[str, Any]) -> str | None:
@@ -242,6 +379,10 @@ def _payload_tribe_value(payload: Mapping[str, Any]) -> str | None:
             tribe = meta_set.get(key)
             if isinstance(tribe, str) and tribe:
                 return tribe
+    for entry in _clan_record_entries(payload):
+        tribe = entry.get("tribe")
+        if isinstance(tribe, str) and tribe:
+            return tribe
     return None
 
 

@@ -367,7 +367,10 @@ def test_apply_unset_strips_legacy_meta_tag(tmp_path: Path) -> None:
     assert app.refresh_calls == 1
 
 
-def test_clan_tribe_reassignment_rewrites_only_declaring_prompt(tmp_path: Path) -> None:
+def test_clan_tribe_reassignment_rewrites_only_declaring_prompt(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     declarer_dir = tmp_path / "declarer"
     joiner_dir = tmp_path / "joiner"
     for artifacts_dir, prompt, name in (
@@ -553,3 +556,294 @@ def test_modal_returns_normalized_result_via_validation() -> None:
         assert "must not start with '@'" in str(exc)
     else:  # pragma: no cover - defensive
         raise AssertionError("expected InvalidTribeError")
+
+
+def _make_clan_member(
+    artifacts_dir: Path,
+    *,
+    clan: str = "research",
+    generation: str = "g1",
+    clan_tribe: str | None = "old",
+    prompt: str | None = None,
+    name: str = "research.lead",
+) -> Agent:
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    (artifacts_dir / "raw_xprompt.md").write_text(
+        prompt
+        or (
+            "%id:research.lead\n"
+            "%clan(research, tribe=old, summary_script=sase_clan_summary_epic)\n"
+            "Lead"
+        ),
+        encoding="utf-8",
+    )
+    meta: dict[str, Any] = {
+        "name": name,
+        "agent_clan": clan,
+        "agent_clan_generation": generation,
+    }
+    if clan_tribe is not None:
+        meta["clan_tribe"] = clan_tribe
+    (artifacts_dir / "agent_meta.json").write_text(json.dumps(meta), encoding="utf-8")
+    return _make_agent(
+        artifacts_dir=str(artifacts_dir),
+        agent_name=name,
+        agent_clan=clan,
+        agent_clan_generation=generation,
+        clan_tribe=clan_tribe,
+    )
+
+
+def _make_clan_container(
+    *,
+    clan: str = "research",
+    generation: str = "g1",
+    clan_tribe: str | None = "old",
+) -> Agent:
+    return _make_agent(
+        artifacts_dir=None,
+        raw_suffix=None,
+        agent_name=None,
+        agent_clan=clan,
+        agent_clan_generation=generation,
+        clan_tribe=clan_tribe,
+        is_clan_container=True,
+    )
+
+
+def test_modal_names_clan_for_single_clan_target(tmp_path: Path) -> None:
+    tribe_file = tmp_path / "agent_tribes.json"
+    member = _make_agent(agent_clan="research", clan_tribe="old")
+    app = _FakeApp([member])
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribe_file):
+        app.action_edit_agent_tribe()
+    modal = app.pushed_modals[0]
+    assert isinstance(modal, AgentTribeModal)
+    assert modal._target_label == "clan research"
+    assert modal._current_tribe == "old"
+
+
+def test_modal_names_clan_for_bulk_clan_targets(tmp_path: Path) -> None:
+    tribe_file = tmp_path / "agent_tribes.json"
+    a1 = _make_agent(suffix="t1", agent_clan="research", clan_tribe="old")
+    a2 = _make_agent(suffix="t2", agent_clan="research", clan_tribe="old")
+    app = _FakeApp([a1, a2])
+    app._marked_agents = {a1.identity, a2.identity}
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribe_file):
+        app.action_edit_agent_tribe()
+    modal = app.pushed_modals[0]
+    assert isinstance(modal, AgentTribeModal)
+    assert modal._target_label == "clan research (2 members)"
+
+
+def test_synthetic_clan_row_edit_writes_record_only(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    from sase.core.agent_clan_record import load_clan_record
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    tribe_file = tmp_path / "agent_tribes.json"
+    container = _make_clan_container()
+    app = _FakeApp([container])
+    assert container.get_artifacts_dir() is None
+
+    with patch("sase.ace.agent_tribes._AGENT_TRIBES_FILE", tribe_file):
+        app._apply_agent_tribe_change(
+            AgentTribeModalResult(action="set", tribe="new"),
+            [container],
+        )
+
+    assert container.clan_tribe == "new"
+    record = load_clan_record("research", strict=True)
+    assert record is not None
+    attribute = record["generations"]["g1"]["tribe"]
+    assert attribute["value"] == "new"
+    assert attribute["source"] == "edited"
+    assert attribute["source_identity"] == "tui"
+    assert not tribe_file.exists()
+    assert any("for clan research" in m for m, _ in app.notifications)
+
+
+def test_member_edit_writes_meta_and_record(tmp_path: Path, monkeypatch: Any) -> None:
+    from sase.core.agent_clan_record import load_clan_record
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    member_dir = tmp_path / "member"
+    member = _make_clan_member(member_dir)
+    app = _FakeApp([member])
+
+    with (
+        patch(
+            "sase.core.agent_artifact_index_lifecycle."
+            "update_agent_artifact_index_for_marker_mutation"
+        ),
+    ):
+        app._apply_agent_tribe_change(
+            AgentTribeModalResult(action="set", tribe="new"),
+            [member],
+        )
+
+    assert member.clan_tribe == "new"
+    meta = json.loads((member_dir / "agent_meta.json").read_text(encoding="utf-8"))
+    assert meta["clan_tribe"] == "new"
+    prompt = (member_dir / "raw_xprompt.md").read_text(encoding="utf-8")
+    assert "%clan(research, tribe=new" in prompt
+    record = load_clan_record("research", strict=True)
+    assert record is not None
+    assert record["generations"]["g1"]["tribe"]["value"] == "new"
+    assert record["generations"]["g1"]["tribe"]["source"] == "edited"
+
+
+def test_clan_edits_deduplicate_to_one_record_write(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    declarer_dir = tmp_path / "declarer"
+    joiner_dir = tmp_path / "joiner"
+    declarer = _make_clan_member(declarer_dir)
+    joiner = _make_clan_member(
+        joiner_dir,
+        prompt="%id(worker, clan=research)\nWork",
+        name="research.worker",
+    )
+    app = _FakeApp([declarer, joiner])
+
+    captured: dict[str, Any] = {}
+
+    def _capture_submit(target: Any, **kwargs: Any) -> bool:
+        captured.update(kwargs)
+        return True
+
+    with (
+        patch(
+            "sase.ace.tui.actions.agent_durable.submit_agent_directive",
+            _capture_submit,
+        ),
+        patch(
+            "sase.core.agent_artifact_index_lifecycle."
+            "update_agent_artifact_index_for_marker_mutation"
+        ),
+    ):
+        app._apply_agent_tribe_change(
+            AgentTribeModalResult(action="set", tribe="new"),
+            [declarer, joiner],
+        )
+
+    updates = captured["payload"]["updates"]
+    records = [u["clan_record"] for u in updates if "clan_record" in u]
+    assert len(records) == 1
+    assert records[0] == {"clan": "research", "generation": "g1", "tribe": "new"}
+
+
+def test_unset_tombstone_beats_newer_epic_member_after_reload(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    from sase.core.agent_scan_facade import scan_agent_artifacts
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    projects_root = tmp_path / "projects"
+    member_dir = projects_root / "myproj" / "artifacts" / "ace-run" / "20260506120000"
+    member = _make_clan_member(
+        member_dir,
+        prompt="%id(worker, clan=research)\nWork",
+        name="research.worker",
+    )
+    app = _FakeApp([member])
+
+    with (
+        patch(
+            "sase.core.agent_artifact_index_lifecycle."
+            "update_agent_artifact_index_for_marker_mutation"
+        ),
+    ):
+        app._apply_agent_tribe_change(
+            AgentTribeModalResult(action="unset", tribe=None),
+            [member],
+        )
+
+    # A newer epic member still carrying clan_tribe=epic must not win.
+    newer_dir = projects_root / "myproj" / "artifacts" / "ace-run" / "20260506120100"
+    newer_dir.mkdir(parents=True)
+    (newer_dir / "agent_meta.json").write_text(
+        json.dumps(
+            {
+                "name": "research.newer",
+                "agent_clan": "research",
+                "agent_clan_generation": "g1",
+                "clan_tribe": "epic",
+            }
+        ),
+        encoding="utf-8",
+    )
+    snapshot = scan_agent_artifacts(projects_root)
+    contexts = [
+        context
+        for context in snapshot.clan_context
+        if context.agent_clan == "research" and context.agent_clan_generation == "g1"
+    ]
+    assert len(contexts) == 1
+    assert contexts[0].clan_tribe is None
+
+
+def test_failed_clan_edit_rolls_back_siblings_and_container(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    from sase.ace.tui.proc_observer import ObservedProc as ProcInfo
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    member_dir = tmp_path / "member"
+    sibling_dir = tmp_path / "sibling"
+    member = _make_clan_member(member_dir)
+    sibling = _make_clan_member(
+        sibling_dir,
+        prompt="%id(worker, clan=research)\nWork",
+        name="research.worker",
+    )
+    container = _make_clan_container()
+    app = _FakeApp([member, sibling, container])
+
+    captured: dict[str, Any] = {}
+
+    def _capture_submit(target: Any, **kwargs: Any) -> bool:
+        captured.update(kwargs)
+        return True
+
+    with patch(
+        "sase.ace.tui.actions.agent_durable.submit_agent_directive",
+        _capture_submit,
+    ):
+        app._apply_agent_tribe_change(
+            AgentTribeModalResult(action="set", tribe="new"),
+            [member],
+        )
+
+    # Optimistic display covers the edited member, its sibling, and the
+    # synthetic container sharing the same (clan, generation).
+    assert member.clan_tribe == "new"
+    assert sibling.clan_tribe == "new"
+    assert container.clan_tribe == "new"
+
+    proc_info = ProcInfo(
+        proc_id="task-0",
+        proc_type="agent-directive",
+        cl_name="agent-tribes",
+        project_file="agent-tribes",
+        status="error",
+        message="boom",
+        started_at=datetime.now(),
+    )
+    captured["on_complete"](
+        TrackedProcCompletion(
+            proc_info=proc_info,
+            success=False,
+            message="boom",
+            output="",
+            payload=None,
+            error="boom",
+        )
+    )
+
+    assert member.clan_tribe == "old"
+    assert sibling.clan_tribe == "old"
+    assert container.clan_tribe == "old"
+    assert any("persist failed" in m for m, _ in app.notifications)

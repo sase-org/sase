@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -402,6 +403,94 @@ def test_persist_directive_payload_resolves_job_alias_before_writes(
     assert json.loads(tribes_file.read_text()) == [
         {"id": ["run", "fix-bug", "20260506120000"], "tribe": "chop"}
     ]
+
+
+def test_clan_record_set_then_unset_round_trip(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    from sase.core.agent_clan_record import load_clan_record
+    from sase.ops.commands._agent_directive import _persist_directive_with_clan_records
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    missing_dir = tmp_path / "missing-artifacts"
+
+    _, applied = _persist_directive_with_clan_records(
+        {"clan_record": {"clan": "research", "generation": "g1", "tribe": "study"}},
+        artifacts_dir=str(missing_dir),
+    )
+    assert applied == [{"clan": "research", "generation": "g1", "changed": True}]
+    record = load_clan_record("research", strict=True)
+    assert record is not None
+    attribute = record["generations"]["g1"]["tribe"]
+    assert attribute["value"] == "study"
+    assert attribute["source"] == "edited"
+    assert attribute["source_identity"] == "tui"
+    # A record-only edit never creates the placeholder artifacts directory.
+    assert not missing_dir.exists()
+
+    _, unset = _persist_directive_with_clan_records(
+        {"clan_record": {"clan": "research", "generation": "g1", "tribe": None}},
+        artifacts_dir=str(missing_dir),
+    )
+    assert unset == [{"clan": "research", "generation": "g1", "changed": True}]
+    reread = load_clan_record("research", strict=True)
+    assert reread is not None
+    tombstone = reread["generations"]["g1"]["tribe"]
+    assert tombstone["value"] is None
+    assert tombstone["source"] == "edited"
+
+
+def test_clan_record_resolves_public_alias_before_write(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    from sase.core.agent_clan_record import load_clan_record
+    from sase.ops.commands._agent_directive import persist_directive_from_payload
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    with patch("sase.config.inventory.discover_layer_inputs", return_value=[]):
+        persist_directive_from_payload(
+            {"clan_record": {"clan": "research", "generation": "g1", "tribe": "job"}},
+            artifacts_dir=str(tmp_path / "missing-artifacts"),
+        )
+    record = load_clan_record("research", strict=True)
+    assert record is not None
+    assert record["generations"]["g1"]["tribe"]["value"] == "chop"
+
+
+def test_clan_record_failure_surfaces_as_directive_error(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    from sase.core import agent_clan_record
+    from sase.ops.commands._agent_directive import persist_directive_from_payload
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+
+    def _boom(update: Any, **kwargs: Any) -> Any:
+        raise RuntimeError("record store down")
+
+    monkeypatch.setattr(agent_clan_record, "record_clan_attributes", _boom)
+    with pytest.raises(RuntimeError, match="record store down"):
+        persist_directive_from_payload(
+            {"clan_record": {"clan": "research", "generation": "g1", "tribe": "study"}},
+            artifacts_dir=str(tmp_path / "missing-artifacts"),
+        )
+
+
+def test_clan_record_rejects_invalid_payloads(tmp_path: Path, monkeypatch: Any) -> None:
+    from sase.ops.commands._agent_directive import persist_directive_from_payload
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
+    artifacts = str(tmp_path / "missing-artifacts")
+    with pytest.raises(ValueError, match="non-empty clan"):
+        persist_directive_from_payload(
+            {"clan_record": {"clan": "", "generation": "g1", "tribe": "study"}},
+            artifacts_dir=artifacts,
+        )
+    with pytest.raises(ValueError, match="non-empty generation"):
+        persist_directive_from_payload(
+            {"clan_record": {"clan": "research", "generation": "", "tribe": "study"}},
+            artifacts_dir=artifacts,
+        )
 
 
 def test_persist_directive_payload_collision_leaves_files_unchanged(

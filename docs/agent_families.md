@@ -169,6 +169,13 @@ the record over whatever member artifacts remain. The saved description is disti
 the foldable sections that sase's TUI synthesizes below it from member artifacts and
 activity.
 
+Pressing `N` on a clan row or on any clan member sets the whole clan generation's
+recorded tribe through the same durable path, and clearing it writes an explicit
+edited-unset tombstone. The unset sticks even when members still carry an epic tribe,
+because fill-only `propagated` values never overwrite the record. Member edits also keep
+their `agent_meta.json` and `%clan` prompt rewrites so older readers still see the new
+tribe.
+
 Re-creating a clan: when a launch creates a new generation of a previously recorded clan
 without an explicit `tribe=` (and without an epic environment tribe), the new member
 inherits the remembered tribe; without an explicit `summary=`/`summary_script=` (and

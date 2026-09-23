@@ -1334,45 +1334,45 @@ was drawn, the jump is cancelled with a warning rather than landing somewhere st
 
 ### Agent Actions
 
-| Key                 | Action                                                                                                          |
-| ------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `!R`                | Revive a previously dismissed agent                                                                             |
-| `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                  |
-| `+`                 | Run custom agent                                                                                                |
-| `A`                 | Toggle bare `%auto` plan auto-approval / answer HITL                                                            |
-| `F`                 | Prepare a fork of the selected agent/family, proc shell, monitor, clan container, or focused named tribe panel  |
-| `n`                 | Name agent                                                                                                      |
-| `r`                 | Refresh the Agents tab, or open the Refresh panel when that panel is enabled                                    |
-| `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                           |
-| `v`                 | View files (hint mode; annotates clan/family containers in place)                                               |
-| `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                               |
-| `d`                 | Expand / collapse the agent header panel (sticky identity header above the detail panels)                       |
-| `.`                 | Expand / collapse the jump panel (sticky jump targets below the detail panels)                                  |
-| `I`                 | Show/hide non-run agents                                                                                        |
-| `V`                 | Open the focused agent's metadata as a sectioned document in the pager (see below)                              |
-| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                                 |
-| `W`                 | Prepare a prompt that waits for the selected agent/family, clan, or named tribe; marks produce `%w:a,b,c`       |
-| `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)         |
-| `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                           |
-| `U`                 | Toggle the focused agent's unread marker                                                                        |
-| `u`                 | Clear all agent marks                                                                                           |
-| `x`                 | Kill / dismiss the agent, clan, or focused panel or group (or every marked agent); stop a monitor or proc       |
-| `X`                 | Open the cleanup panel for panel, all-panel, tribe, marked, group, or custom cleanup                            |
-| `Enter`             | Act on agent: review pending gate, go to Patch, or choose when several apply                                    |
-| `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                  |
-| `E`                 | Edit panel content in editor                                                                                    |
-| `t`                 | Open the focused agent's tmux target, or a workspace chooser (`m` marks many; a selector opens one)             |
-| `T`                 | Open tmux window in the agent's primary project workspace                                                       |
-| `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it)      |
-| `p`                 | Open Agent view picker: `f` file, `t` LLM Calls, `[` metadata only, `1`/`=`/`2` split sizes, `]` secondary only |
-| `pp`                | Next split layout; from either fullscreen layout, return to equal split                                         |
-| `pP`                | Previous split layout; from either fullscreen layout, return to equal split                                     |
-| `z`                 | Start metadata fold mode for clan, agent node (family or single agent), or selected whole-tribe detail panels   |
-| `Z`                 | Zoom the active agent or tribe detail panel                                                                     |
-| `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                 |
-| `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds          |
-| `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds       |
-| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                   |
+| Key                 | Action                                                                                                                                                                     |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `!R`                | Revive a previously dismissed agent                                                                                                                                        |
+| `a`                 | Open completion artifacts for the focused agent; in tmux, press again to close the viewer pane                                                                             |
+| `+`                 | Run custom agent                                                                                                                                                           |
+| `A`                 | Toggle bare `%auto` plan auto-approval / answer HITL                                                                                                                       |
+| `F`                 | Prepare a fork of the selected agent/family, proc shell, monitor, clan container, or focused named tribe panel                                                             |
+| `n`                 | Name agent                                                                                                                                                                 |
+| `r`                 | Refresh the Agents tab, or open the Refresh panel when that panel is enabled                                                                                               |
+| `R`                 | Edit prompt and relaunch the selected local agent, or retry a remote row on its owner                                                                                      |
+| `v`                 | View files (hint mode; annotates clan/family containers in place)                                                                                                          |
+| `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                                                                                          |
+| `d`                 | Expand / collapse the agent header panel (sticky identity header above the detail panels)                                                                                  |
+| `.`                 | Expand / collapse the jump panel (sticky jump targets below the detail panels)                                                                                             |
+| `I`                 | Show/hide non-run agents                                                                                                                                                   |
+| `V`                 | Open the focused agent's metadata as a sectioned document in the pager (see below)                                                                                         |
+| `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                                                                                            |
+| `W`                 | Prepare a prompt that waits for the selected agent/family, clan, or named tribe; marks produce `%w:a,b,c`                                                                  |
+| `m`                 | Mark / unmark current agent, or all top-level agents in focused collapsed group (auto-advances to next)                                                                    |
+| `s`                 | Save and dismiss marked agents as a revivable group (opens optional group-name modal)                                                                                      |
+| `U`                 | Toggle the focused agent's unread marker                                                                                                                                   |
+| `u`                 | Clear all agent marks                                                                                                                                                      |
+| `x`                 | Kill / dismiss the agent, clan, or focused panel or group (or every marked agent); stop a monitor or proc                                                                  |
+| `X`                 | Open the cleanup panel for panel, all-panel, tribe, marked, group, or custom cleanup                                                                                       |
+| `Enter`             | Act on agent: review pending gate, go to Patch, or choose when several apply                                                                                               |
+| `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                                                                             |
+| `E`                 | Edit panel content in editor                                                                                                                                               |
+| `t`                 | Open the focused agent's tmux target, or a workspace chooser (`m` marks many; a selector opens one)                                                                        |
+| `T`                 | Open tmux window in the agent's primary project workspace                                                                                                                  |
+| `N`                 | Open the agent tribe modal (input is pre-seeded with `pinned` for agents without a tribe; empty clears it; on a clan row or clan member it sets the clan's recorded tribe) |
+| `p`                 | Open Agent view picker: `f` file, `t` LLM Calls, `[` metadata only, `1`/`=`/`2` split sizes, `]` secondary only                                                            |
+| `pp`                | Next split layout; from either fullscreen layout, return to equal split                                                                                                    |
+| `pP`                | Previous split layout; from either fullscreen layout, return to equal split                                                                                                |
+| `z`                 | Start metadata fold mode for clan, agent node (family or single agent), or selected whole-tribe detail panels                                                              |
+| `Z`                 | Zoom the active agent or tribe detail panel                                                                                                                                |
+| `=`                 | Isolate the focused tribe panel, or restore the remembered pre-isolation layout                                                                                            |
+| `-`                 | Collapse every open agent-node/clan fold in the focused tribe panel, or restore the last sweep's folds                                                                     |
+| `_`                 | Collapse every open agent-node/clan fold in every eligible tribe panel, or restore the last sweep's folds                                                                  |
+| `Ctrl+N` / `Ctrl+P` | Next / previous file in panel                                                                                                                                              |
 
 When `t` opens the **Tmux Workspace** chooser, a displayed selector key opens that one
 target immediately, even if other rows are already marked. `m` marks or unmarks the
@@ -1942,7 +1942,10 @@ effective agent **tribe**. Agents without a stored tribe live in the reserved `@
 panel; an explicit `default` assignment converges on the same panel, so the UI never
 creates a duplicate default bucket. `@default` is derived for presentation and is not
 backfilled into `agent_meta.json` or `agent_tribes.json`; clearing a user-managed tribe
-returns the agent to this panel. Every tribe renders as `@<tribe>` with a sase-agent
+returns the agent to this panel. Pressing `N` on a clan row or on any clan member
+instead sets the whole clan generation's recorded tribe, and clearing it writes an
+explicit unset that sticks even when members still carry an epic tribe (see
+[clan records](agent_families.md)). Every tribe renders as `@<tribe>` with a sase-agent
 count in the panel title. One standalone agent or one sequential family is one sase
 agent, and a rootless clan contributes one sase agent per direct member rather than one
 for its synthetic container. Per-tribe icons, identity colors, and initial expansion are

@@ -24,6 +24,16 @@ if TYPE_CHECKING:
     from ...models.agent import AgentType
 
 
+def _clan_aware_bulk_label(affected: list[Agent]) -> str:
+    """Describe a bulk modal target, naming the clan when clan-bound."""
+    clans = sorted({a.agent_clan for a in affected if a.agent_clan})
+    if clans and all(a.agent_clan for a in affected):
+        if len(clans) == 1:
+            return f"clan {clans[0]} ({len(affected)} members)"
+        return f"{len(affected)} marked agent(s) in clans {', '.join(clans)}"
+    return f"{len(affected)} marked agent(s)"
+
+
 class AgentTribeAssignmentMixin:
     """Mixin providing the agent-tribe modal action (``N`` keymap)."""
 
@@ -57,7 +67,7 @@ class AgentTribeAssignmentMixin:
                 )
                 return
             self._open_agent_tribe_modal(
-                target_label=f"{len(marked)} marked agent(s)",
+                target_label=_clan_aware_bulk_label(marked),
                 current_tribe=None,
                 known_tribes=tuple(known_tribes),
                 affected=marked,
@@ -68,9 +78,12 @@ class AgentTribeAssignmentMixin:
         if agent is None:
             self.notify("No agent selected", severity="warning")  # type: ignore[attr-defined]
             return
+        clan_bound = bool(agent.agent_clan)
         self._open_agent_tribe_modal(
-            target_label=agent.display_name,
-            current_tribe=agent.tribe,
+            target_label=(
+                f"clan {agent.agent_clan}" if clan_bound else agent.display_name
+            ),
+            current_tribe=(agent.clan_tribe if clan_bound else agent.tribe),
             known_tribes=tuple(known_tribes),
             affected=[agent],
             default_tribe=DEFAULT_PINNED_TRIBE,
@@ -117,6 +130,8 @@ class AgentTribeAssignmentMixin:
         prior_tribes = {agent.identity: agent.tribe for agent in affected}
         prior_clan_tribes = {agent.identity: agent.clan_tribe for agent in affected}
         updates: list[dict[str, object]] = []
+        clan_afters: dict[tuple[str, str], str | None] = {}
+        emitted_clan_records: set[tuple[str, str]] = set()
         for agent in affected:
             clan_bound = bool(agent.agent_clan)
             visible_before = agent.clan_tribe if clan_bound else agent.tribe
@@ -130,13 +145,20 @@ class AgentTribeAssignmentMixin:
                 changed += 1
 
             artifacts_dir = agent.get_artifacts_dir()
-            if clan_bound and not artifacts_dir:
-                self.notify(  # type: ignore[attr-defined]
-                    "Cannot edit a synthetic clan row directly; set the tribe "
-                    "through a member's %clan(<clan>, tribe=<tribe>) directive.",
-                    severity="warning",
-                )
-                return
+            if clan_bound:
+                clan = agent.agent_clan or ""
+                clan_generation = agent.agent_clan_generation or ""
+                if not clan_generation:
+                    if not artifacts_dir:
+                        self.notify(  # type: ignore[attr-defined]
+                            "Cannot record a clan tribe without a clan generation",
+                            severity="warning",
+                        )
+                        return
+                else:
+                    key = (clan, clan_generation)
+                    if key not in clan_afters:
+                        clan_afters[key] = after
             clan_prompt_declares = False
             if clan_bound and artifacts_dir:
                 raw_prompt = agent.get_raw_xprompt_content()
@@ -174,6 +196,24 @@ class AgentTribeAssignmentMixin:
                     "identity": list(agent.identity),
                     "tribe": after,
                 }
+            if clan_bound:
+                clan = agent.agent_clan or ""
+                clan_generation = agent.agent_clan_generation or ""
+                key = (clan, clan_generation)
+                # Only the first update per (clan, generation) carries the
+                # durable record edit; later members of the same clan
+                # deduplicate to one record write.
+                if (
+                    key in clan_afters
+                    and clan_afters[key] == after
+                    and key not in emitted_clan_records
+                ):
+                    emitted_clan_records.add(key)
+                    update["clan_record"] = {
+                        "clan": clan,
+                        "generation": clan_generation,
+                        "tribe": after,
+                    }
             updates.append(update)
 
         if changed == 0:
@@ -187,6 +227,26 @@ class AgentTribeAssignmentMixin:
         generation = object()
         for agent in affected:
             agent._directive_generation = generation  # type: ignore[attr-defined]
+        # Optimistic clan display also covers sibling members and the
+        # synthetic container sharing each edited (clan, generation).
+        optimistic_clan_identities: set[tuple[object, str, str | None]] = set()
+        for candidates in (self._agents, self._agents_with_children):
+            for candidate in candidates:
+                if not candidate.agent_clan:
+                    continue
+                key = (
+                    candidate.agent_clan,
+                    candidate.agent_clan_generation or "",
+                )
+                if key in clan_afters:
+                    optimistic_clan_identities.add(candidate.identity)
+        for candidates in (self._agents, self._agents_with_children):
+            for candidate in candidates:
+                if candidate.identity in optimistic_clan_identities:
+                    if candidate.identity not in prior_tribes:
+                        prior_tribes[candidate.identity] = candidate.tribe
+                    if candidate.identity not in prior_clan_tribes:
+                        prior_clan_tribes[candidate.identity] = candidate.clan_tribe
         from ..agent_durable import submit_agent_directive
 
         def _rollback_visible_tribes() -> None:
@@ -196,6 +256,7 @@ class AgentTribeAssignmentMixin:
                         if (
                             getattr(candidate, "_directive_generation", None)
                             is not generation
+                            and candidate.identity not in optimistic_clan_identities
                         ):
                             continue
                         candidate.tribe = prior_tribes[candidate.identity]
@@ -215,7 +276,14 @@ class AgentTribeAssignmentMixin:
             if callable(refresh):
                 refresh(source="agent-tribe-persist-failed")
 
-        first_dir = str(updates[0].get("artifacts_dir") or "agent-tribes")
+        first_dir = next(
+            (
+                str(item.get("artifacts_dir"))
+                for item in updates
+                if item.get("artifacts_dir")
+            ),
+            "agent-tribes",
+        )
         submitted = submit_agent_directive(
             self,
             artifacts_dir=first_dir,
@@ -229,16 +297,39 @@ class AgentTribeAssignmentMixin:
         if not submitted:
             return
 
-        for agent in affected:
-            after = result.tribe if result.action == "set" else None
-            for candidates in (self._agents, self._agents_with_children):
-                for candidate in candidates:
-                    if candidate.identity == agent.identity:
-                        if candidate.agent_clan:
-                            candidate.clan_tribe = after
-                        else:
+        for candidates in (self._agents, self._agents_with_children):
+            for candidate in candidates:
+                if candidate.identity in affected_identities:
+                    after = result.tribe if result.action == "set" else None
+                    if candidate.agent_clan:
+                        candidate.clan_tribe = after
+                        if candidate.is_clan_container:
                             candidate.tribe = after
+                    else:
+                        candidate.tribe = after
+                elif candidate.identity in optimistic_clan_identities:
+                    key = (
+                        candidate.agent_clan or "",
+                        candidate.agent_clan_generation or "",
+                    )
+                    after = clan_afters.get(key)
+                    candidate.clan_tribe = after
+                    if candidate.is_clan_container:
+                        candidate.tribe = after
 
+        clan_names = sorted({clan for clan, _gen in clan_afters})
+        all_clan_bound = clan_afters and all(a.agent_clan for a in affected)
+        if all_clan_bound and len(clan_names) == 1:
+            if result.action == "set":
+                assert result.tribe is not None
+                self.notify(  # type: ignore[attr-defined]
+                    f"Set @{result.tribe} for clan {clan_names[0]}",
+                )
+            else:
+                self.notify(  # type: ignore[attr-defined]
+                    f"Cleared tribe for clan {clan_names[0]}",
+                )
+            return
         suffix = "agent" if changed == 1 else "agents"
         if result.action == "set":
             assert result.tribe is not None
