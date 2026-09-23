@@ -495,7 +495,7 @@ class PluginInstallActionsMixin:
             reasons = "; ".join(
                 [
                     *(agent_cli_install_skip_line(entry) for entry in cli_plan.entries),
-                    *(("Plugins: " + plugin_skip) if plugin_skip else ()),
+                    *((plugin_skip,) if plugin_skip else ()),
                 ]
             )
             self._notify(

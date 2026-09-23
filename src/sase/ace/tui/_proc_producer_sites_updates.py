@@ -152,6 +152,7 @@ UPDATE_PRODUCERS: tuple[ProcProducerSite, ...] = (
         "",
         identifiers=("plugins",),
         result_kind="plugin.install",
+        concurrency_keys=("agent-cli-plugin-install",),
         restart_recovery="not durable; session-local install workflow",
     ),
     site(

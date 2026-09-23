@@ -157,7 +157,7 @@ class AgentCliBrowserActionsMixin:
             self._refresh_row(target.key)
         self._update_static("#updates-hints", self._hints())
         self._notify(
-            mark_all_message(
+            _mark_all_message(
                 marked=marked,
                 count=len(targets),
                 section=row.section,
@@ -346,7 +346,9 @@ def _unmarkable_message(row: UpdateRow) -> str:
     return "Select an installable plugin or an updatable agent CLI to mark."
 
 
-def mark_all_message(*, marked: bool, count: int, section: str, capability: str) -> str:
+def _mark_all_message(
+    *, marked: bool, count: int, section: str, capability: str
+) -> str:
     """Toast for ``*``: ``Marked 4 agent CLIs to install`` and friends."""
     noun = "agent CLI" if section == "agent-clis" else "plugin"
     if count != 1:

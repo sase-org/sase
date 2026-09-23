@@ -235,9 +235,12 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         if event.worker is self._agent_cli_install_plan_worker:
             if event.state == WorkerState.SUCCESS:
                 self._agent_cli_install_plan_worker = None
+                # Drop the "preparing install preview…" hint.
+                self._update_static("#updates-hints", self._hints())
                 self._on_agent_cli_install_preview(event.worker.result)
             elif event.state == WorkerState.ERROR:
                 self._agent_cli_install_plan_worker = None
+                self._update_static("#updates-hints", self._hints())
                 self._notify(
                     self._worker_error_text(event.worker, kind="agent CLI install"),
                     severity="error",

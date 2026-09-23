@@ -43,11 +43,11 @@ _FIXED_DIGEST = "0123456789abcdef" * 4
 
 
 def _stub_install_plan(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Stub install planning with a fixed digest and ``/home/dev`` paths."""
+    """Stub install planning with a fixed digest and ``/home/visual`` paths."""
     statuses = {status.name: status for status in _agent_cli_statuses()}
     script = InstallScript(
         url="https://dev.meta.ai/install.sh",
-        path=Path("/home/dev/.cache/sase/agent-clis/install-01234567.sh"),
+        path=Path("/home/visual/.cache/sase/agent-clis/install-01234567.sh"),
         digest=_FIXED_DIGEST,
         size_bytes=48213,
     )
@@ -58,7 +58,7 @@ def _stub_install_plan(monkeypatch: pytest.MonkeyPatch) -> None:
                 route=InstallRoute.NPM,
                 argv=("npm", "install", "-g", "@qwen-code/qwen-code"),
                 env_overlay=(),
-                install_dir="/home/dev/.npm-global/bin",
+                install_dir="/home/visual/.npm-global/bin",
                 install_dir_on_path=True,
             ),
             AgentCliInstallEntry(
@@ -67,7 +67,7 @@ def _stub_install_plan(monkeypatch: pytest.MonkeyPatch) -> None:
                 argv=("bash", str(script.path)),
                 env_overlay=(),
                 script=script,
-                install_dir="/home/dev/.local/bin",
+                install_dir="/home/visual/.local/bin",
                 install_dir_on_path=False,
             ),
             AgentCliInstallEntry(
