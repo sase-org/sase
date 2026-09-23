@@ -6149,10 +6149,12 @@ Admin Center Machines tab's `s` action when current reachability matters. Move w
 `0`.
 
 Choosing a remote inserts or replaces the pane's single `%dispatch:<alias>` selector.
-Choosing `here` removes it. The prompt context line shows the cached Target and Source;
-for a remote it also states that source proof is checked on submit. Submission runs that
-proof preflight off the UI thread before launch. A failure leaves the prompt intact,
-reports the exact reason, and returns focus to the originating pane.
+Choosing `here` removes it. The prompt context line appears only while the pane has a
+`%dispatch` selector (or an invalid one) and shows the cached Target and Source; for a
+remote it also states that source proof is checked on submit. It stays hidden for
+ordinary local launches. Submission runs that proof preflight off the UI thread before
+launch. A failure leaves the prompt intact, reports the exact reason, and returns focus
+to the originating pane.
 
 After source preflight passes, sase's TUI inserts a provisional `QUEUED` remote row
 before the background launch settles. A structured accepted owner response keeps it

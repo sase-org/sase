@@ -199,7 +199,8 @@ data labels each non-quarantined remote `ok` and enables it; quarantined rows re
 visible but disabled. This is an eligibility label, not a gateway-health result—the
 picker performs no network probe. Choosing a remote inserts or replaces the single
 dispatch selector; choosing `here` removes it. The prompt's Target/Source context line
-makes the selected owner and portable source explicit before submission.
+appears once a remote is selected and makes the selected owner and portable source
+explicit before submission; it stays hidden for ordinary local launches.
 
 Remote launch carries portable project evidence rather than the controller's local
 paths. A trusted launch integration can supply a Patch reference or explicit revision in

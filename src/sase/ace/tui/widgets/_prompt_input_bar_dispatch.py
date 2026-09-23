@@ -346,7 +346,7 @@ class PromptInputBarDispatchMixin(_MixinBase):
         self._refresh_dispatch_context_line()
 
     def _refresh_dispatch_context_line(self) -> None:
-        """Render the target/source context line from cached local state."""
+        """Render the target/source context line for `%dispatch` prompts."""
         if self._mode != "prompt":
             self._hide_dispatch_context_line()
             return
@@ -396,6 +396,9 @@ class PromptInputBarDispatchMixin(_MixinBase):
             text.append(str(exc), style="#FFAF5F")
             return text, "error", True
 
+        if scan is None:
+            return Text(), "ok", False
+
         target = "here"
         target_status = "local"
         target_style = "bold #87D75F"
@@ -434,11 +437,7 @@ class PromptInputBarDispatchMixin(_MixinBase):
             severity = override[1]
         elif scan is not None:
             text.append("  proof checked on submit", style="dim")
-        visible = bool(
-            scan is not None
-            or self._dispatch_target_rows
-            or self._dispatch_preflight_override is not None
-        )
+        visible = scan is not None
         return text, severity, visible
 
     def _dispatch_source_label(self) -> str:
