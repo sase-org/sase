@@ -12,6 +12,7 @@ from pypdf import PdfReader
 
 
 DEFAULT_SITE_DIR = Path("site")
+# Cloudflare Workers caps a single static asset at 25 MiB; the gate keeps headroom below it.
 MAX_SIZE_BYTES = 22 * 1024 * 1024
 MIN_PAGE_COUNT = 8
 

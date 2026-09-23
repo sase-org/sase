@@ -46,7 +46,7 @@ for raw_path in sys.argv[1:]:
 """
 
 
-def delete_paths_in_background(paths: Sequence[Path]) -> None:
+def _delete_paths_in_background(paths: Sequence[Path]) -> None:
     """Best-effort delete *paths* outside the workspace-prep critical path."""
 
     if not paths:
@@ -91,7 +91,7 @@ def move_aside_for_background_delete(
         return None
     trashed = target.parent / f"{target.name}.{tag}-{uuid.uuid4().hex[:12]}"
     os.rename(target, trashed)
-    delete_paths_in_background([trashed])
+    _delete_paths_in_background([trashed])
     return trashed
 
 
@@ -114,18 +114,18 @@ def clear_workspace_repos(
     )
 
     if not os.path.lexists(repos_root):
-        delete_paths_in_background(stale_trash)
+        _delete_paths_in_background(stale_trash)
         return
 
     if not repos_root.is_dir() or repos_root.is_symlink():
         _remove_path(repos_root)
-        delete_paths_in_background(stale_trash)
+        _delete_paths_in_background(stale_trash)
         return
 
     trash_root.mkdir(parents=True, exist_ok=True)
     trashed_repos = trash_root / f"repos-{uuid.uuid4().hex}"
     os.rename(repos_root, trashed_repos)
-    delete_paths_in_background([*stale_trash, trashed_repos])
+    _delete_paths_in_background([*stale_trash, trashed_repos])
 
 
 def _linked_repo_clone_location(

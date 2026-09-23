@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -126,6 +127,9 @@ def settle_proc_shell(
     maybe_crash("result_written")
     _mark(state, "result_written")
 
+    # Release proc holds before the terminal row is visible, so observers
+    # never see success while the proc hold is still stored.
+    _release_proc_holds({"proc_id": proc_id, "status": status})
     finished = finish_proc(
         ProcFinish(
             proc_id=proc_id,
@@ -143,7 +147,7 @@ def settle_proc_shell(
     return finished
 
 
-def _release_proc_holds(proc: Proc) -> None:
+def _release_proc_holds(proc: Proc | Mapping[str, Any]) -> None:
     try:
         from sase.core.agent_hold_facade import release_proc_agent_holds
 

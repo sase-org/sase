@@ -158,6 +158,14 @@ body {
   word-break: break-word;
 }
 
+/* Chromium's PDF backend draws every rounded corner as several full-precision
+   Bezier segments; square code chips emit one compact rectangle instead, which
+   keeps the handbook's page content streams several MiB smaller. */
+.md-typeset code,
+.md-typeset kbd {
+  border-radius: 0;
+}
+
 .md-typeset pre,
 .md-typeset .highlight > pre {
   border: 1px solid var(--sase-pdf-border);

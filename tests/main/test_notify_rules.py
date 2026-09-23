@@ -18,6 +18,7 @@ from sase.notifications.cli_rules import handle_notify_rules
 from sase.notifications.store import append_notification
 
 from tests.main.notify_handler_helpers import make_notification
+from tests.main.parser_help_helpers import assert_metavar_option_documented
 
 pytest_plugins = ["tests.main.notify_handler_fixtures"]
 
@@ -515,7 +516,7 @@ def test_help_documents_the_options(capsys: pytest.CaptureFixture[str]) -> None:
         create_parser().parse_args(["notify", "rules", "-h"])
 
     out = capsys.readouterr().out
-    assert "-e, --explain ID" in out
+    assert_metavar_option_documented(out, "-e", "--explain", "ID")
     assert "-j, --json" in out
     assert out.index("--explain") < out.index("--json")
     assert cli_rules.handle_notify_rules.__doc__

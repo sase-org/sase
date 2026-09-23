@@ -10,6 +10,7 @@ from __future__ import annotations
 from textual.containers import Container, VerticalScroll
 from textual.widgets import Static
 
+from sase.ace.testing import wait_for
 from sase.ace.tui.modals.preview_panel_modal import PreviewPanelModal
 from sase.ace.tui.modals.preview_panel_sizing import PanelGeometry
 from sase.ace.tui.widgets._prompt_preview_target import PreviewPayload
@@ -148,11 +149,8 @@ async def test_preview_modal_resize_recomputes_geometry() -> None:
         before = modal.query_one("#preview-modal-container", Container).outer_size
         assert modal._last_geometry_screen == (100, 30)  # noqa: SLF001
         await pilot.resize_terminal(160, 60)
-        await pilot.pause()
-        await pilot.pause()
-        await pilot.pause()
+        await wait_for(pilot, lambda: modal._last_geometry_screen == (160, 60))  # noqa: SLF001
         container = modal.query_one("#preview-modal-container", Container)
-        assert modal._last_geometry_screen == (160, 60)  # noqa: SLF001
         assert modal._geometry_floor == PanelGeometry(150, 58)  # noqa: SLF001
         assert container.styles.height.cells == 58
         assert container.outer_size.height >= before.height

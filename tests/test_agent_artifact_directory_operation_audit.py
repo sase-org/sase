@@ -100,6 +100,15 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "detached deletion; neither path is an agent artifact directory."
         ),
     ),
+    "src/sase/_linked_repo_workspaces.py:move_aside_for_background_delete": DirOpReview(
+        exemption=(
+            "Renames a caller-supplied path to a unique same-parent trash sibling "
+            "and deletes it in the background. Its callers pass only "
+            "numbered-workspace checkouts (corrupt-checkout recovery, "
+            "recreate_managed_workspace) or linked-repo clone workspaces, never "
+            "an agent artifact directory."
+        ),
+    ),
     "src/sase/migration_kit/restore.py:_swap_into_place": DirOpReview(
         exemption=(
             "Moves a migration-kit declared source root aside (never deleting "
@@ -234,10 +243,12 @@ _REVIEWED_DIR_OPERATION_CONTEXTS: dict[str, DirOpReview] = {
             "directory."
         ),
     ),
-    "src/sase/workspace_provider/_utils_checkout.py:ensure_git_clone_at": DirOpReview(
+    "src/sase/workspace_provider/_utils_checkout.py:_remove_corrupt_checkout": DirOpReview(
         exemption=(
-            "Workspace checkout directory under a managed root, not an agent "
-            "artifact directory."
+            "Rescues the sidecar clones of a corrupt numbered workspace checkout, "
+            "then moves the checkout aside for background deletion, falling back "
+            "to rmtree. That is a workspace checkout, not an agent artifact "
+            "directory."
         ),
     ),
     "src/sase/workspace_provider/_utils_git.py:abort_in_progress_git_operations": (

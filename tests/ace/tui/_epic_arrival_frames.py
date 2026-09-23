@@ -308,20 +308,25 @@ async def _record(run: ArrivalRun, monkeypatch: pytest.MonkeyPatch) -> None:
         def apply(rows: list[Agent]) -> None:
             selected = app._get_selected_agent()
             app._agents_refresh_active_source = "watcher"
-            app._apply_loaded_agents_prepared(
-                PreparedApplyData(
-                    filtered_agents=list(rows),
-                    has_always_visible=True,
-                    hidden_count=0,
-                    hideable_agents=[],
-                    dismissed_agent_objects=[],
-                ),
-                on_agents_tab=True,
-                selected_identity=selected.identity if selected else None,
-                load_state=state,
-                persist_dismissed_changes=False,
-                incomplete_merge_already_applied=True,
-            )
+            try:
+                app._apply_loaded_agents_prepared(
+                    PreparedApplyData(
+                        filtered_agents=list(rows),
+                        has_always_visible=True,
+                        hidden_count=0,
+                        hideable_agents=[],
+                        dismissed_agent_objects=[],
+                    ),
+                    on_agents_tab=True,
+                    selected_identity=selected.identity if selected else None,
+                    load_state=state,
+                    persist_dismissed_changes=False,
+                    incomplete_merge_already_applied=True,
+                )
+            finally:
+                # Scope the source to this apply, as _loading_refresh.py does, so
+                # pump-free follow-ups (live hints, bead warmup) are not attributed to it.
+                app._agents_refresh_active_source = "unknown"
 
         # One warm-up apply of the unchanged roster lets per-apply stamps (runner
         # capacity on every row) settle, so the recorded no-op really is one.

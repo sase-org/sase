@@ -440,6 +440,18 @@ class AcePage:
     async def expect_modal(self, name: str, *, timeout: float = 5.0) -> None:
         """Assert that the named modal is currently shown."""
         await self.expect_state("modal", name, timeout=timeout)
+        app = self.app
+        await _poll_until(
+            lambda: app.screen.is_mounted,
+            is_success=bool,
+            settle=lambda: settle_helpers.settle_pilot(self._pilot),
+            timeout=timeout,
+            timeout_message=lambda: (
+                f"expect_modal({name!r}) timed out after {timeout}s"
+                " — the modal was pushed but never finished mounting"
+            ),
+            clock=app._loop.time if app._loop is not None else None,
+        )
 
     async def expect_no_modal(self, *, timeout: float = 5.0) -> None:
         """Assert that no modal is currently shown."""
