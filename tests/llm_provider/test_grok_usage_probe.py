@@ -626,3 +626,24 @@ def test_grok_usage_probe_reaps_descendant_processes(tmp_path: Path) -> None:
     assert pid_text
     child_pid = int(pid_text)
     assert not _pid_alive(child_pid)
+
+
+def test_grok_version_probe_timeout_is_four_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A slow `--version` gets 4 s, still bounded by the probe deadline."""
+    from sase.llm_provider.usage import grok
+
+    seen: dict[str, Any] = {}
+
+    def fake_run(argv: object, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        seen.update(kwargs)
+        assert isinstance(argv, list)
+        return subprocess.CompletedProcess(
+            argv, 0, stdout=_NATIVE_VERSION + "\n", stderr=""
+        )
+
+    monkeypatch.setattr(grok.subprocess, "run", fake_run)
+    context = default_probe_context("grok", deadline_seconds=120.0)
+    assert grok._verify_grok_build("grok", context) is None
+    assert seen["timeout"] == pytest.approx(4.0)

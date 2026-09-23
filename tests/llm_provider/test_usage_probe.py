@@ -8,7 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from sase.llm_provider.usage.probe import default_probe_context, run_usage_probe
+from sase.llm_provider.usage.probe import (
+    default_probe_context,
+    probe_in_process,
+    run_usage_probe,
+    worker_environ,
+)
 from sase.testing.usage_synthetic import (
     SECRET_CANARY,
     SYNTHETIC_MODE_ENV,
@@ -152,3 +157,63 @@ def test_descendant_processes_are_reaped(
     assert result.observation["reason_code"] == "timeout"
     child_pid = int(pidfile.read_text(encoding="utf-8"))
     assert not _pid_alive(child_pid)
+
+
+def test_in_process_type_error_calls_the_hook_exactly_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A TypeError inside the hook is a failure, never a second mint."""
+    monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
+    calls: list[object] = []
+
+    class _MintOnce:
+        def llm_usage_probe(self, context: object) -> None:
+            calls.append(context)
+            raise TypeError("credential mint failed internally")
+
+    context = default_probe_context("muse", now=1_800_000_000.0)
+    observation = probe_in_process(_MintOnce(), context, now=1_800_000_000.0)
+    assert len(calls) == 1
+    assert observation["outcome"] == "error"
+    assert observation["reason_code"] == "probe_failed"
+
+
+def test_in_process_positional_hook_is_called_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A hook without a ``context`` parameter is called positionally, once."""
+    monkeypatch.delenv("SASE_FEATURE_FLAGS", raising=False)
+    calls: list[object] = []
+
+    class _LegacyHook:
+        def llm_usage_probe(self, ctx: object) -> None:
+            calls.append(ctx)
+            return None
+
+    context = default_probe_context("synth", now=1_800_000_000.0)
+    observation = probe_in_process(_LegacyHook(), context, now=1_800_000_000.0)
+    assert len(calls) == 1
+    assert calls[0] is context
+    assert observation["outcome"] == "unsupported"
+
+
+def test_worker_environ_allows_proxy_and_config_dirs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Probes behind proxies and custom CA/config dirs keep their settings."""
+    allowed = {
+        "CLAUDE_CONFIG_DIR": "/tmp/sase-claude-cfg",
+        "HTTP_PROXY": "http://proxy:8080",
+        "HTTPS_PROXY": "http://proxy:8080",
+        "NO_PROXY": "localhost",
+        "ALL_PROXY": "http://proxy:8080",
+        "NODE_EXTRA_CA_CERTS": "/tmp/sase-ca.pem",
+        "http_proxy": "http://proxy:8080",
+    }
+    for name, value in allowed.items():
+        monkeypatch.setenv(name, value)
+    monkeypatch.setenv("MY_API_KEY", "secret")
+    env = worker_environ()
+    for name, value in allowed.items():
+        assert env[name] == value
+    assert "MY_API_KEY" not in env

@@ -126,10 +126,25 @@ def _run_admitted_refresh(
     for job in pending:
         results.append(_deadline_result(job, clock, "deadline_exceeded"))
         _finish_job(job, "error", cadence, clock)
+    # Exiting the executor block above waits for running probes, which record
+    # their real observation and attempt themselves. Only jobs that never
+    # started get a second-hand deadline record; anything finished is
+    # collected as-is so a success is never rewritten into backoff.
     for future, job in list(in_flight.items()):
-        future.cancel()
-        results.append(_deadline_result(job, clock, "deadline_exceeded"))
-        _finish_job(job, "error", cadence, clock)
+        if future.cancel():
+            results.append(_deadline_result(job, clock, "deadline_exceeded"))
+            _finish_job(job, "error", cadence, clock)
+            continue
+        try:
+            results.append(future.result())
+        except Exception:
+            log.warning(
+                "usage refresh probe crashed for %r",
+                job.get("provider"),
+                exc_info=True,
+            )
+            results.append(_deadline_result(job, time.time(), "probe_failed"))
+            _finish_job(job, "error", cadence, time.time())
     return results
 
 

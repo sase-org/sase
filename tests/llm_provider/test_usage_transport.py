@@ -102,3 +102,18 @@ def test_jsonline_descendant_cleanup(tmp_path: Path) -> None:
     while time.monotonic() < deadline and _pid_alive(child_pid):
         time.sleep(0.05)  # sase-test-wait: init reaps the killed descendant
     assert not _pid_alive(child_pid)
+
+
+def test_jsonline_escaping_descendant_is_sigkilled(tmp_path: Path) -> None:
+    """A SIGTERM-ignoring grandchild dies even when the root exits first."""
+    pidfile = tmp_path / "grandchild.pid"
+    with pytest.raises(JsonLineTransportError):
+        with _session(
+            "escaping_descendant", SASE_USAGE_JSONLINE_PIDFILE=str(pidfile)
+        ) as session:
+            session.read_response(1)
+    child_pid = int(pidfile.read_text(encoding="utf-8"))
+    deadline = time.monotonic() + 2.0
+    while time.monotonic() < deadline and _pid_alive(child_pid):
+        time.sleep(0.05)  # sase-test-wait: init reaps the killed descendant
+    assert not _pid_alive(child_pid)

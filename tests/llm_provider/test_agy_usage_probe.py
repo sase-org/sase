@@ -365,3 +365,22 @@ def test_agy_is_ineligible_without_cli(
     monkeypatch.setenv("PATH", str(empty))
     monkeypatch.delenv("SASE_AGY_PATH", raising=False)
     assert eligible_usage_providers() == ()
+
+
+def test_agy_version_probe_timeout_is_four_seconds(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A slow `--version` gets 4 s, still bounded by the probe deadline."""
+    from sase.llm_provider.usage import agy
+
+    seen: dict[str, Any] = {}
+
+    def fake_run(argv: object, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        seen.update(kwargs)
+        assert isinstance(argv, list)
+        return subprocess.CompletedProcess(argv, 0, stdout="1.2.7\n", stderr="")
+
+    monkeypatch.setattr(agy.subprocess, "run", fake_run)
+    context = default_probe_context("agy", deadline_seconds=120.0)
+    assert agy._check_cli_version("agy", context) is None
+    assert seen["timeout"] == pytest.approx(4.0)

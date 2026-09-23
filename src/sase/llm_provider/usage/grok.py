@@ -23,7 +23,7 @@ from sase.llm_provider.usage.types import (
 )
 
 _GROK_VERSION_RE = re.compile(r"^grok \d+\.\d+\.\d+ \([0-9a-f]+\) \[[a-z]+\]")
-_VERSION_PROBE_TIMEOUT_SECONDS = 2.0
+_VERSION_PROBE_TIMEOUT_SECONDS = 4.0
 _SUBPROCESS_CLEANUP_MARGIN_SECONDS = 0.25
 _MIN_SUBPROCESS_DEADLINE_SECONDS = 0.1
 # ACP extension methods take a `_` wire prefix. `x.ai/billing` returns -32601.

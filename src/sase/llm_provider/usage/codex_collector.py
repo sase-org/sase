@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import logging
 import tempfile
-from collections.abc import Mapping
+import time
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from sase import __version__ as _SASE_VERSION
@@ -32,6 +33,9 @@ _ACCOUNT_READ_ID = 2
 _RATE_LIMITS_ID = 3
 _RATE_LIMITS_LEGACY_ID = 4
 _RATE_LIMITS_METHOD = "account/rateLimits/read"
+# Best-effort ``account/read`` budget: it must never eat the deadline the
+# rate-limit read needs.
+_ACCOUNT_READ_SUB_DEADLINE_SECONDS = 3.0
 
 _UNAUTHENTICATED_MARKERS = (
     "not logged in",
@@ -71,58 +75,72 @@ def collect_codex_usage(context: UsageProbeContext) -> dict[str, Any]:
     if not cwd:
         tmp_cwd = tempfile.TemporaryDirectory(prefix="sase-codex-usage-")
         cwd = tmp_cwd.name
+    live: list[JsonLineSession] = []
+
+    def connect() -> JsonLineSession:
+        fresh = JsonLineSession(argv, deadline_at=context.deadline_at, cwd=cwd, env=env)
+        live.append(fresh)
+        return fresh
+
     try:
-        session = JsonLineSession(
-            argv, deadline_at=context.deadline_at, cwd=cwd, env=env
-        )
-    except OSError:
-        if tmp_cwd is not None:
-            tmp_cwd.cleanup()
-        return validated_status_observation(
-            context,
-            now=context.request_started_at,
-            outcome="unsupported",
-            reason_code="not_installed",
-        )
-    try:
-        return _collect_with_session(session, context)
-    except JsonLineTransportError as exc:
-        return validated_status_observation(
-            context,
-            now=context.request_started_at,
-            outcome="error",
-            reason_code=_TRANSPORT_REASON_BY_CODE.get(exc.code, "probe_failed"),
-        )
+        try:
+            session = connect()
+        except OSError:
+            return validated_status_observation(
+                context,
+                now=context.request_started_at,
+                outcome="unsupported",
+                reason_code="not_installed",
+            )
+        try:
+            return _collect_with_session(session, context, connect)
+        except JsonLineTransportError as exc:
+            return validated_status_observation(
+                context,
+                now=context.request_started_at,
+                outcome="error",
+                reason_code=_TRANSPORT_REASON_BY_CODE.get(exc.code, "probe_failed"),
+            )
     finally:
-        session.close()
+        for owned in live:
+            owned.close()
         if tmp_cwd is not None:
             tmp_cwd.cleanup()
 
 
 def _collect_with_session(
-    session: JsonLineSession, context: UsageProbeContext
+    session: JsonLineSession,
+    context: UsageProbeContext,
+    connect: Callable[[], JsonLineSession],
 ) -> dict[str, Any]:
-    session.send(
-        {
-            "jsonrpc": "2.0",
-            "id": _INITIALIZE_ID,
-            "method": "initialize",
-            "params": {
-                "clientInfo": {
-                    "name": "sase",
-                    "title": "SASE",
-                    "version": _SASE_VERSION,
-                }
-            },
-        }
-    )
-    init_response = session.read_response(_INITIALIZE_ID)
-    init_error = _rpc_error(init_response)
-    if init_error is not None:
-        return _observation_from_error(context, "initialize", init_error)
-    session.send({"jsonrpc": "2.0", "method": "initialized", "params": {}})
+    failure = _handshake(session, context)
+    if failure is not None:
+        return failure
 
-    if _probe_auth_mode(session) == "api":
+    try:
+        auth_mode = _probe_auth_mode(session, context)
+    except JsonLineTransportError:
+        # The best-effort ``account/read`` failed at the transport level, which
+        # closes (poisons) this session. Start a fresh session for the
+        # rate-limit read within the remaining deadline instead of failing.
+        if context.deadline_at - time.time() <= 0:
+            raise
+        try:
+            session = connect()
+        except OSError:
+            return validated_status_observation(
+                context,
+                now=context.request_started_at,
+                outcome="error",
+                reason_code="probe_failed",
+                diagnostic="codex_reconnect_failed",
+            )
+        failure = _handshake(session, context)
+        if failure is not None:
+            return failure
+        auth_mode = None
+
+    if auth_mode == "api":
         return validated_status_observation(
             context,
             now=context.request_started_at,
@@ -156,20 +174,53 @@ def _collect_with_session(
     )
 
 
-def _probe_auth_mode(session: JsonLineSession) -> str | None:
-    """Best-effort ``account/read`` auth-mode hint; ``None`` is inconclusive."""
-    try:
-        session.send(
-            {
-                "jsonrpc": "2.0",
-                "id": _ACCOUNT_READ_ID,
-                "method": "account/read",
-                "params": {},
-            }
-        )
-        response = session.read_response(_ACCOUNT_READ_ID)
-    except JsonLineTransportError:
-        return None
+def _handshake(
+    session: JsonLineSession, context: UsageProbeContext
+) -> dict[str, Any] | None:
+    """Exchange ``initialize``/``initialized``; an error observation or None."""
+    session.send(
+        {
+            "jsonrpc": "2.0",
+            "id": _INITIALIZE_ID,
+            "method": "initialize",
+            "params": {
+                "clientInfo": {
+                    "name": "sase",
+                    "title": "SASE",
+                    "version": _SASE_VERSION,
+                }
+            },
+        }
+    )
+    init_response = session.read_response(_INITIALIZE_ID)
+    init_error = _rpc_error(init_response)
+    if init_error is not None:
+        return _observation_from_error(context, "initialize", init_error)
+    session.send({"jsonrpc": "2.0", "method": "initialized", "params": {}})
+    return None
+
+
+def _probe_auth_mode(
+    session: JsonLineSession, context: UsageProbeContext
+) -> str | None:
+    """Best-effort ``account/read`` auth-mode hint; ``None`` is inconclusive.
+
+    RPC-level failures stay inconclusive. Transport failures propagate: the
+    failed read closes (poisons) the session and the caller reconnects, so the
+    rate-limit read runs on a fresh session within the remaining deadline.
+    """
+    session.send(
+        {
+            "jsonrpc": "2.0",
+            "id": _ACCOUNT_READ_ID,
+            "method": "account/read",
+            "params": {},
+        }
+    )
+    response = session.read_response(
+        _ACCOUNT_READ_ID,
+        deadline_at=time.time() + _ACCOUNT_READ_SUB_DEADLINE_SECONDS,
+    )
     if _rpc_error(response) is not None:
         return None
     return _extract_auth_mode_hint(response.get("result"))

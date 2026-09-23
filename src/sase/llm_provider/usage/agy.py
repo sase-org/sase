@@ -22,7 +22,7 @@ from sase.llm_provider.usage.types import (
 _AGY_CLI_NAME = "agy"
 _AGY_VERSION_FLOOR = (1, 1, 11)
 _AGY_VERSION_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)")
-_VERSION_PROBE_TIMEOUT_SECONDS = 2.0
+_VERSION_PROBE_TIMEOUT_SECONDS = 4.0
 # The worker's already-filtered ``os.environ`` is the base (H6): only add the
 # flag that stops `agy` swapping its own binary mid-probe (H4).
 _AGY_NO_AUTO_UPDATE_ENV = "AGY_CLI_DISABLE_AUTO_UPDATE"

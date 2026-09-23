@@ -80,7 +80,24 @@ class JsonLineSession:
         self.process.stdin.write(line)
         self.process.stdin.flush()
 
-    def read_response(self, request_id: object) -> dict[str, Any]:
+    def read_response(
+        self, request_id: object, *, deadline_at: float | None = None
+    ) -> dict[str, Any]:
+        """Return the JSON object whose ``id`` matches *request_id*.
+
+        *deadline_at* optionally tightens the session deadline for this read
+        only (a best-effort probe); it never extends it.
+        """
+        if deadline_at is not None and deadline_at < self._deadline_at:
+            previous = self._deadline_at
+            self._deadline_at = deadline_at
+            try:
+                return self._read_response(request_id)
+            finally:
+                self._deadline_at = previous
+        return self._read_response(request_id)
+
+    def _read_response(self, request_id: object) -> dict[str, Any]:
         """Return the JSON object whose ``id`` matches *request_id*."""
         try:
             while True:
@@ -272,15 +289,35 @@ def bounded_communicate(
 
 
 def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
-    """SIGTERM then SIGKILL the child's process group and reap it."""
+    """SIGTERM then SIGKILL the child's process group and reap it.
+
+    Descendant pids and process groups are snapshotted before SIGTERM, and
+    the snapshot's survivors are SIGKILLed unconditionally after the grace
+    period: a root that exits on SIGTERM must not let a SIGTERM-ignoring
+    grandchild outlive it just because the root is already gone.
+    """
     pid = process.pid
     if pid and process.poll() is None:
+        snapshot_pids = [pid, *_descendant_pids(pid)]
+        snapshot_groups: set[int] = set()
+        for target_pid in snapshot_pids:
+            try:
+                snapshot_groups.add(os.getpgid(target_pid))
+            except OSError:
+                continue
         _signal_owned_process_groups(pid, signal.SIGTERM)
         deadline = time.time() + TERMINATE_GRACE_SECONDS
         while process.poll() is None and time.time() < deadline:
             time.sleep(0.02)
-        if process.poll() is None:
-            _signal_owned_process_groups(pid, signal.SIGKILL)
+        for pgid in snapshot_groups:
+            _signal_group(pgid, signal.SIGKILL)
+        for target_pid in snapshot_pids:
+            try:
+                os.kill(target_pid, signal.SIGKILL)
+            except ProcessLookupError:
+                continue
+            except OSError:
+                continue
     try:
         process.wait(timeout=1.0)
     except subprocess.TimeoutExpired:

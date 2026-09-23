@@ -356,3 +356,24 @@ def test_registered_hook_runs_through_isolated_probe(
     assert result.observation["provider"] == "codex"
     assert result.observation["outcome"] == "ok"
     assert result.observation["windows"]
+
+
+def test_account_read_transport_error_reconnects_for_rate_limits(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A poisoned best-effort `account/read` must not fail the probe."""
+    marker = tmp_path / "poisoned"
+    monkeypatch.setenv("SASE_CODEX_APP_SERVER_POISON_ONCE_FILE", str(marker))
+    request_log = tmp_path / "requests.jsonl"
+    monkeypatch.setenv("SASE_CODEX_APP_SERVER_REQUEST_LOG", str(request_log))
+    context = _context(mode="account_read_poison_once", monkeypatch=monkeypatch)
+    observation = collect_codex_usage(context)
+    validate_observation(observation, now=context.request_started_at)
+    assert observation["outcome"] == "ok"
+    assert observation["windows"]
+    rate_limit_requests = [
+        request
+        for request in _read_jsonl(request_log)
+        if request.get("method") == "account/rateLimits/read"
+    ]
+    assert len(rate_limit_requests) == 1

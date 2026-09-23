@@ -68,6 +68,25 @@ def main() -> int:
                 handle.write(str(child.pid))
         time.sleep(3600)  # sase-test-wait: keep the child alive until group kill
         return 0
+    if MODE == "escaping_descendant":
+        # The root dies on SIGTERM while a grandchild in its own process
+        # group ignores SIGTERM. Only a SIGKILL of the pre-SIGTERM snapshot
+        # reaps the grandchild.
+        child = subprocess.Popen(
+            [
+                sys.executable,
+                "-c",
+                "import signal, time; "
+                "signal.signal(signal.SIGTERM, signal.SIG_IGN); "
+                "time.sleep(30)",
+            ],
+            start_new_session=True,
+        )
+        if PIDFILE:
+            with open(PIDFILE, "w", encoding="utf-8") as handle:
+                handle.write(str(child.pid))
+        time.sleep(3600)  # sase-test-wait: root exits on SIGTERM; child must not
+        return 0
     request = _read_request()
     _write({"jsonrpc": "2.0", "id": request.get("id"), "result": {"ok": True}})
     return 0

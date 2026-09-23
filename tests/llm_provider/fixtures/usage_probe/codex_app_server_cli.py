@@ -21,6 +21,7 @@ import time
 MODE = os.environ.get("SASE_CODEX_APP_SERVER_MODE", "multi_bucket")
 PIDFILE = os.environ.get("SASE_CODEX_APP_SERVER_PIDFILE")
 REQUEST_LOG = os.environ.get("SASE_CODEX_APP_SERVER_REQUEST_LOG")
+POISON_ONCE_FILE = os.environ.get("SASE_CODEX_APP_SERVER_POISON_ONCE_FILE")
 SECRET_CANARY = "token=SECRET_CANARY_CODEX"
 _UNIT_PARAMS_ERROR = "Invalid request: invalid type: map, expected unit"
 
@@ -167,6 +168,15 @@ def _handshake() -> None:
     _read_request()  # initialized (notification, no reply expected)
 
 
+def _poison_first_account_read() -> bool:
+    """Consume the poison-once marker; True only for the first connection."""
+    if not POISON_ONCE_FILE or os.path.exists(POISON_ONCE_FILE):
+        return False
+    with open(POISON_ONCE_FILE, "w", encoding="utf-8") as handle:
+        handle.write("poisoned\n")
+    return True
+
+
 def main() -> int:
     if MODE == "hang_before_initialize":
         time.sleep(3600)  # sase-test-wait: hang until the transport deadline kills us
@@ -178,18 +188,32 @@ def main() -> int:
         time.sleep(3600)  # sase-test-wait: hang until the transport deadline kills us
         return 0
 
-    account_read = _read_request()  # account/read
-    if MODE == "api_mode":
-        _respond_ok(account_read, {"authMode": "apikey"})
-        return 0
-    if MODE == "account_read_unauthenticated":
-        _respond_error(account_read, 1, "not authenticated")
-    elif MODE == "account_read_method_missing":
-        _respond_error(account_read, -32601, "method not found: account/read")
+    # Dispatch on method: a reconnected session skips the best-effort
+    # ``account/read`` and sends ``account/rateLimits/read`` first.
+    first = _read_request()
+    if first.get("method") == "account/read":
+        if MODE == "account_read_poison_once" and _poison_first_account_read():
+            # Transport-level failure on the best-effort read: garbage instead
+            # of a JSON-RPC response. The collector must reconnect for the
+            # rate-limit read instead of letting this poison the session.
+            sys.stdout.write("this is not json\n")
+            sys.stdout.flush()
+            return 0
+        if MODE == "api_mode":
+            _respond_ok(first, {"authMode": "apikey"})
+            return 0
+        if MODE == "account_read_unauthenticated":
+            _respond_error(first, 1, "not authenticated")
+        elif MODE == "account_read_method_missing":
+            _respond_error(first, -32601, "method not found: account/read")
+        else:
+            _respond_ok(first, {"authMode": "chatgpt"})
+        rate_limits = _read_request()  # account/rateLimits/read
+    elif first.get("method") == "account/rateLimits/read":
+        rate_limits = first
     else:
-        _respond_ok(account_read, {"authMode": "chatgpt"})
-
-    rate_limits = _read_request()  # account/rateLimits/read
+        _respond_error(first, -32601, f"method not found: {first.get('method')}")
+        return 0
     if MODE == "legacy_params_required":
         if not _has_non_empty_params(rate_limits):
             _respond_error(rate_limits, -32600, _UNIT_PARAMS_ERROR)

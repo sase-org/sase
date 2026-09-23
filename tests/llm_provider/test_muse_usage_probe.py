@@ -185,7 +185,7 @@ def test_muse_usage_probe_preserves_over_quota_percentages(tmp_path: Path) -> No
     assert weekly["used_percent"] == pytest.approx(130.0)
 
 
-def test_muse_usage_probe_never_minting_host_reports_absence_not_error(
+def test_muse_usage_probe_missed_mint_is_a_timeout_not_absence(
     tmp_path: Path,
 ) -> None:
     fake = _make_fake_muse(tmp_path)
@@ -195,11 +195,12 @@ def test_muse_usage_probe_never_minting_host_reports_absence_not_error(
     methods = _methods(messages)
     assert methods[: len(_SEQUENCE_PREFIX)] == _SEQUENCE_PREFIX
     assert methods.count("usage/read") > 1  # it polled until the budget ran out
-    assert result["outcome"] == "ok"
-    assert result["reason_code"] is None
-    assert result["authoritative_empty"] is True
-    assert result["completeness"] == "complete"
-    assert result["diagnostic"] == "muse_usage_not_yet_observed"
+    # A missed mint keeps last-known-good windows: it is an error, never an
+    # authoritative-empty observation that would blank the stored windows.
+    assert result["outcome"] == "error"
+    assert result["reason_code"] == "timeout"
+    assert result["diagnostic"] == "muse_usage_mint_timeout"
+    assert result["authoritative_empty"] is False
     assert result["windows"] == []
 
 

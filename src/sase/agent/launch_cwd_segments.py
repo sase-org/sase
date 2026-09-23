@@ -14,7 +14,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class ExpandedLaunchSegments:
+class _ExpandedLaunchSegments:
     """Post-swarm-expansion segments plus per-slot launch metadata."""
 
     segments: list[str]
@@ -29,7 +29,7 @@ def expand_launch_segments(
     *,
     launch_units: Sequence[LaunchUnitInput] | None = None,
     segment_extra_env: Sequence[dict[str, str] | None] | None = None,
-) -> ExpandedLaunchSegments:
+) -> _ExpandedLaunchSegments:
     """Expand ACE units or ``---`` segments plus xprompt swarms into slots."""
     from sase.agent.launch_projects import (
         enable_known_project_vcs_refs_for_launch_prompt,
@@ -108,7 +108,7 @@ def expand_launch_segments(
             record.swarm_xprompts for record in expanded_records
         ]
 
-    return ExpandedLaunchSegments(
+    return _ExpandedLaunchSegments(
         segments=expanded_segments,
         template_groups=expanded_segment_template_groups,
         swarm_xprompts=expanded_segment_swarm_xprompts,

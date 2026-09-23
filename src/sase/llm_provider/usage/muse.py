@@ -202,12 +202,12 @@ def _poll_usage(
 
     The shared transport discards server notifications, so awaiting
     ``usage/changed`` would need a transport change; ``usage/read`` costs ~1 ms.
-    A budget that runs out with no ``usage`` member is truthful absence (a
-    logged-out or never-minted host), not an error, and is normalized by core
-    into the same authoritative-empty observation as any other absent ``usage``.
-    That observation clears the stored Muse windows, so one missed mint blanks
-    the header weekly indicator until the next tick; the budget above makes a
-    miss rare and it is accepted knowingly.
+    A budget that runs out with no ``usage`` member is a missed mint, reported
+    as an error so last-known-good windows are kept and age through freshness.
+    It must never become an authoritative-empty observation: that would clear
+    the stored Muse windows and blank the header weekly indicator until the
+    next tick. A genuinely logged-out host then shows aging windows plus
+    collector-health failures instead of a blank.
     """
     poll_until = min(
         time.time() + _MINT_WAIT_SECONDS,
@@ -229,8 +229,15 @@ def _poll_usage(
                 diagnostic="muse_usage_read_payload_missing",
             )
         remaining = poll_until - time.time()
-        if "usage" in result or remaining <= 0:
+        if "usage" in result:
             return _observation_from_payload(result, context)
+        if remaining <= 0:
+            return _status(
+                context,
+                outcome="error",
+                reason_code="timeout",
+                diagnostic="muse_usage_mint_timeout",
+            )
         time.sleep(min(_POLL_INTERVAL_SECONDS, remaining))
 
 

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 import json
 import logging
 import os
 import sys
 import tempfile
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from sase.core.paths import get_sase_managed_tmpdir
@@ -36,13 +37,20 @@ DEFAULT_PROBE_DEADLINE_SECONDS = 10.0
 _WORKER_MODULE = "sase.llm_provider.usage.worker"
 _ALLOWED_ENV_NAMES = frozenset(
     {
+        # None of these match the denied secret markers.
+        "ALL_PROXY",
+        "CLAUDE_CONFIG_DIR",
         "CODEX_HOME",
         "HOME",
+        "HTTPS_PROXY",
+        "HTTP_PROXY",
         "LANG",
         "LC_ALL",
         "LC_CTYPE",
         "LD_LIBRARY_PATH",
         "LOGNAME",
+        "NODE_EXTRA_CA_CERTS",
+        "NO_PROXY",
         "PATH",
         "PWD",
         "PYTHONHOME",
@@ -108,23 +116,20 @@ def record_passive_usage_observation(
 def probe_in_process(
     plugin: object, context: UsageProbeContext, *, now: float
 ) -> dict[str, Any]:
-    """Call ``llm_usage_probe`` on *plugin* without spawning a worker."""
+    """Call ``llm_usage_probe`` on *plugin* without spawning a worker.
+
+    The calling convention is decided once from the hook signature: a hook
+    with a ``context`` parameter (or ``**kwargs``) is called by keyword,
+    anything else positionally. A ``TypeError`` raised inside the hook is a
+    probe failure, never a reason to call the hook a second time (a retry
+    would mint a second credential for providers like Muse).
+    """
     method = getattr(plugin, "llm_usage_probe", None)
     if method is None:
         return validated_status_observation(context, now=now, outcome="unsupported")
+    use_keyword = _takes_context_kwarg(method)
     try:
-        raw = method(context=context)
-    except TypeError:
-        try:
-            raw = method(context)
-        except Exception:
-            log.warning("usage probe failed for provider %r", context.provider)
-            return validated_status_observation(
-                context,
-                now=now,
-                outcome="error",
-                reason_code="probe_failed",
-            )
+        raw = method(context=context) if use_keyword else method(context)
     except Exception:
         log.warning("usage probe failed for provider %r", context.provider)
         return validated_status_observation(
@@ -159,6 +164,23 @@ def probe_in_process(
             outcome="error",
             reason_code="malformed_payload",
         )
+
+
+def _takes_context_kwarg(method: Callable[..., Any]) -> bool:
+    """Return True when *method* accepts a ``context`` keyword argument."""
+    try:
+        parameters = inspect.signature(method).parameters.values()
+    except (TypeError, ValueError):
+        return True
+    for parameter in parameters:
+        if parameter.kind is inspect.Parameter.VAR_KEYWORD:
+            return True
+        if parameter.name == "context" and parameter.kind not in (
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.VAR_POSITIONAL,
+        ):
+            return True
+    return False
 
 
 def load_probe_plugin(

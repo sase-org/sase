@@ -3,14 +3,18 @@
 from __future__ import annotations
 
 import importlib
+import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
 from sase.chops.builtin import run_builtin_chop
+from sase.llm_provider.usage import refresh_runner
 from sase.llm_provider.usage.refresh import UsageRefreshReceipt
 from sase.llm_provider.usage.refresh_runner import _run_admitted_refresh
+from sase.llm_provider.usage.types import UsageProbeResult
 from sase.testing.usage_synthetic import (
     SECRET_CANARY,
     SYNTHETIC_MODE_ENV,
@@ -117,3 +121,74 @@ def test_chop_emits_nothing_due_summary(
     assert "reason=nothing_due" in out
     payload = Path(result_path).read_text(encoding="utf-8")
     assert '"status": "no_op"' in payload
+
+
+def test_batch_deadline_keeps_finished_probe_records(
+    runner_home: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A probe finishing during executor shutdown is collected, not rewritten.
+
+    The wait loop breaks at the work deadline, but leaving the executor block
+    waits for the running probe, which records its real observation and
+    attempt. Recording ``deadline_exceeded`` on top would turn a success into
+    backoff.
+    """
+    observations: list[dict[str, Any]] = []
+    attempts: list[tuple[tuple[Any, ...], dict[str, Any]]] = []
+    monkeypatch.setattr(
+        refresh_runner,
+        "record_provider_usage_observation",
+        lambda observation, *, now=None: observations.append(dict(observation)),
+    )
+    monkeypatch.setattr(
+        refresh_runner,
+        "record_provider_usage_refresh_attempt",
+        lambda *args, **kwargs: attempts.append((args, kwargs)),  # noqa: ANN002,ANN003
+    )
+    monkeypatch.setattr(
+        refresh_runner,
+        "release_provider_usage_refresh",
+        lambda *args, **kwargs: None,  # noqa: ANN002,ANN003
+    )
+
+    def _slow_ok(
+        context: object,
+        *,
+        isolate: bool = True,
+        plugin_spec: object = None,
+        now: float | None = None,
+    ) -> UsageProbeResult:
+        time.sleep(  # sase-test-wait: past the work deadline, inside executor shutdown
+            1.5
+        )
+        return UsageProbeResult(
+            observation={
+                "provider": "slow",
+                "outcome": "ok",
+                "reason_code": None,
+            }
+        )
+
+    monkeypatch.setattr(refresh_runner, "run_usage_probe", _slow_ok)
+    results = _run_admitted_refresh(
+        {
+            # The work deadline is started + 1.0; the probe lands at +1.5.
+            "batch_deadline_seconds": 3.0,
+            "provider_deadline_seconds": 5.0,
+            "max_concurrent": 1,
+            "providers": [
+                {
+                    "provider": "slow",
+                    "context_id": "default",
+                    "account_generation": 1,
+                    "lease_id": "lease-slow",
+                }
+            ],
+        }
+    )
+    assert len(results) == 1
+    assert results[0]["provider"] == "slow"
+    assert results[0]["outcome"] == "ok"
+    assert len(observations) == 1
+    assert observations[0]["outcome"] == "ok"
+    assert len(attempts) == 1
