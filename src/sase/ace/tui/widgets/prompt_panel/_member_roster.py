@@ -157,7 +157,7 @@ class MemberJumpNumbering:
 
 
 @dataclass(frozen=True, slots=True)
-class MemberJumpSection:
+class _MemberJumpSection:
     """One roster's contribution to a published jump map."""
 
     title: str
@@ -185,7 +185,7 @@ class MemberJumpMap:
 
     container_identity: MemberJumpContainerIdentity
     targets: tuple[_MemberJumpTarget, ...]
-    sections: tuple[MemberJumpSection, ...] = ()
+    sections: tuple[_MemberJumpSection, ...] = ()
 
 
 def member_status_style(bucket: str) -> str:
@@ -292,7 +292,7 @@ def append_member_roster(
         hidden_hint = ""
     if extra_tail is not None:
         hidden_hint = f"{hidden_hint}\n{extra_tail}" if hidden_hint else extra_tail
-    section = MemberJumpSection(
+    section = _MemberJumpSection(
         title=title,
         accent=accent,
         numbered_count=rendered_count,
@@ -312,7 +312,7 @@ def merged_member_jump_map(
 ) -> MemberJumpMap:
     """Concatenate same-container maps into the one map a document publishes."""
     targets: list[_MemberJumpTarget] = []
-    sections: list[MemberJumpSection] = []
+    sections: list[_MemberJumpSection] = []
     for jump_map in maps:
         if jump_map is None:
             continue
@@ -559,7 +559,6 @@ __all__ = [
     "MemberJumpContainerIdentity",
     "MemberJumpNumbering",
     "MemberJumpRole",
-    "MemberJumpSection",
     "MemberRosterChild",
     "MemberRosterEntry",
     "MemberRosterStatusCounts",
