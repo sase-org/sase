@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import logging
 import os
-import re
 import subprocess
 import uuid
 from pathlib import Path
@@ -14,6 +13,7 @@ from sase.output import provider_timer
 
 from ._effort_args import effort_cli_args
 from ._hookspec import hookimpl
+from ._wait_signals import ends_with_wait_claim
 from ._subprocess import (
     start_completion_watchdog,
     start_interrupt_monitor,
@@ -62,19 +62,6 @@ _WAIT_CONTINUATION_NUDGE = (
     "the command synchronously in the foreground, then give your final answer. "
     "Do not end your turn waiting."
 )
-_WAIT_SIGNAL_RE = re.compile(
-    r"\b(?:"
-    r"i(?:'|\u2019)ll wait|"
-    r"will be notified|"
-    r"notify me|"
-    r"when (?:it|the command|the task|the process) "
-    r"(?:completes?|finishes?)|"
-    r"waiting for|"
-    r"still running|"
-    r"in the background"
-    r")\b",
-    re.IGNORECASE,
-)
 
 
 def _claude_max_wait_continuations() -> int:
@@ -101,8 +88,7 @@ def _classify_claude_wait_state(
         return True, "schedule_wakeup_tool_use"
 
     if wait_state.outstanding_background_tasks:
-        tail = wait_state.final_text_tail.strip()[-700:]
-        if _WAIT_SIGNAL_RE.search(tail):
+        if ends_with_wait_claim(wait_state.final_text_tail):
             task_ids = ",".join(sorted(wait_state.outstanding_background_tasks))
             return True, f"background_task_wait:{task_ids}"
         return False, "background_tasks_without_wait_reply"

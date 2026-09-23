@@ -766,6 +766,15 @@ Muse's synchronous ceiling goes to a SASE monitor, chosen before the command sta
 - **Why managed `bash` is not used.** The managed tool backgrounds long commands and can
   wake the model after its turn ends. That wake is invisible to SASE: it never appears
   in the `--json` stream SASE reads, and it dies with the provider process.
+- **Stranded-wait guard.** After a clean exit whose reply still ends by claiming to wait
+  ("I'll wait", "still running", and similar), SASE re-invokes Muse with the accumulated
+  reply plus a nudge to finish in the foreground or hand the long command to
+  `/sase_monitor`, up to `SASE_MUSE_MAX_WAIT_CONTINUATIONS` continuations (default `2`).
+  When the budget is exhausted the run fails with `LLMInvocationError` instead of
+  recording the waiting reply as a successful answer. Each firing is logged to
+  `wait_guard_log.jsonl` in the artifacts directory. The wait-signal pattern lives in
+  the shared `src/sase/llm_provider/_wait_signals.py` module, also used by Claude's wait
+  guard.
 
 ### Model Mapping
 
@@ -921,14 +930,15 @@ Claude Code. Muse reads `AGENTS.md` natively, so there is no `MUSE.md` provider 
 
 ### Environment Variables
 
-| Variable               | Description                                                         |
-| ---------------------- | ------------------------------------------------------------------- |
-| `SASE_LLM_LARGE_ARGS`  | Extra CLI args for `large` tier (generic, preferred)                |
-| `SASE_LLM_SMALL_ARGS`  | Extra CLI args for `small` tier (generic, preferred)                |
-| `SASE_MUSE_PATH`       | Path to the Muse Code CLI binary (default: `muse` on `PATH`)        |
-| `SASE_MUSE_LARGE_ARGS` | Extra CLI args for `large` tier (Muse-specific fallback)            |
-| `SASE_MUSE_SMALL_ARGS` | Extra CLI args for `small` tier (Muse-specific fallback)            |
-| `SASE_MUSE_SANDBOX`    | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled` |
+| Variable                           | Description                                                         |
+| ---------------------------------- | ------------------------------------------------------------------- |
+| `SASE_LLM_LARGE_ARGS`              | Extra CLI args for `large` tier (generic, preferred)                |
+| `SASE_LLM_SMALL_ARGS`              | Extra CLI args for `small` tier (generic, preferred)                |
+| `SASE_MUSE_PATH`                   | Path to the Muse Code CLI binary (default: `muse` on `PATH`)        |
+| `SASE_MUSE_LARGE_ARGS`             | Extra CLI args for `large` tier (Muse-specific fallback)            |
+| `SASE_MUSE_SMALL_ARGS`             | Extra CLI args for `small` tier (Muse-specific fallback)            |
+| `SASE_MUSE_SANDBOX`                | Set to `on` to keep Muse's sandbox with `--sandbox-network enabled` |
+| `SASE_MUSE_MAX_WAIT_CONTINUATIONS` | Stranded-wait guard continuation cap (default: `2`)                 |
 
 The generic `SASE_LLM_*_ARGS` variables take precedence over `SASE_MUSE_*_ARGS`.
 

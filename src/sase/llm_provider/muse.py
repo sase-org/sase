@@ -29,8 +29,9 @@ from ._subprocess import (
     start_interrupt_monitor,
     stream_and_parse_muse_json_output,
 )
+from ._wait_signals import ends_with_wait_claim
 from .base import LLMProvider
-from .types import InvokeResult, LLMInvocationOptions, ModelTier
+from .types import InvokeResult, LLMInvocationError, LLMInvocationOptions, ModelTier
 
 if TYPE_CHECKING:
     from .usage.types import UsageProbeContext
@@ -78,6 +79,30 @@ _MUSE_SYNC_CEILING_MINUTES = _MUSE_SYNC_CEILING_SECONDS // 60
 # a minute of headroom before the kill.
 _MUSE_SYNC_COMMAND_TIMEOUT_SECONDS = _MUSE_SYNC_CEILING_SECONDS - 60
 _MUSE_ENABLE_SHELL_TOOL_ARG = "--enable-shell-tool"
+
+_MUSE_MAX_WAIT_CONTINUATIONS_ENV = "SASE_MUSE_MAX_WAIT_CONTINUATIONS"
+_DEFAULT_MUSE_MAX_WAIT_CONTINUATIONS = 2
+_MUSE_WAIT_CONTINUATION_NUDGE = (
+    "Your previous reply ended the turn claiming to wait for a command, "
+    "notification, or wake-up. This SASE session is single-turn: nothing "
+    "will wake you, and nothing you started is still running. Finish now. "
+    "Rerun anything unfinished in the foreground, or hand a genuinely long "
+    "command to `/sase_monitor` with `--next`. Then submit your final "
+    "declaration and give your final answer. If your work was already "
+    "complete, restate your final answer without claiming to wait."
+)
+
+
+def _muse_max_wait_continuations() -> int:
+    """Return the bounded stranded-wait continuation budget."""
+    raw_value = os.environ.get(_MUSE_MAX_WAIT_CONTINUATIONS_ENV)
+    if raw_value is None:
+        return _DEFAULT_MUSE_MAX_WAIT_CONTINUATIONS
+    try:
+        return max(0, int(raw_value))
+    except ValueError:
+        return _DEFAULT_MUSE_MAX_WAIT_CONTINUATIONS
+
 
 # The launcher otherwise checks for and swaps in a new binary hourly; a
 # multi-hour agent run must not have its binary replaced mid-flight. Users
@@ -233,6 +258,23 @@ def _log_interrupt(message: str | None, cycle: int) -> None:
         with open(log_path, "a", encoding="utf-8") as f:
             json.dump(
                 {"message": message, "timestamp": time.time(), "cycle": cycle},
+                f,
+            )
+            f.write("\n")
+    except OSError:
+        pass
+
+
+def _log_wait_guard(reason: str, cycle: int) -> None:
+    """Append a stranded-wait guard firing to the artifacts directory."""
+    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+    if not artifacts_dir:
+        return
+    log_path = Path(artifacts_dir) / "wait_guard_log.jsonl"
+    try:
+        with open(log_path, "a", encoding="utf-8") as f:
+            json.dump(
+                {"reason": reason, "timestamp": time.time(), "cycle": cycle},
                 f,
             )
             f.write("\n")
@@ -524,6 +566,8 @@ class MuseProvider(LLMProvider):
             "cache_read_input_tokens": 0,
         }
         cycle = 0
+        wait_continuations = 0
+        max_wait_continuations = _muse_max_wait_continuations()
 
         while True:
             # The prompt goes through a 0o600 managed temp file rather than
@@ -589,6 +633,36 @@ class MuseProvider(LLMProvider):
             accumulated_response = (
                 accumulated_response + "\n\n" + content.strip()
             ).strip()
+            # A clean exit whose reply still ends by claiming to wait is
+            # stranded: with the synchronous shell nothing can be pending, and
+            # with managed `bash` a watchdog teardown reports the same way.
+            # Either way nothing will wake the model, so continue with a nudge
+            # or fail loudly rather than recording the wait as success.
+            if ends_with_wait_claim(content):
+                cycle += 1
+                _log_wait_guard("stranded_wait_claim", cycle)
+                if wait_continuations >= max_wait_continuations:
+                    artifacts_dir = os.environ.get("SASE_ARTIFACTS_DIR")
+                    artifact_hint = (
+                        f" Artifacts: {artifacts_dir}." if artifacts_dir else ""
+                    )
+                    raise LLMInvocationError(
+                        "Muse produced a wait-claim reply after "
+                        f"{wait_continuations} continuation(s); refusing to "
+                        "report it as success. Reason: "
+                        "stranded_wait_claim. Nothing will wake the model, and "
+                        f"nothing it started is still running.{artifact_hint}"
+                    )
+                wait_continuations += 1
+                # Muse has no headless resume, so reconstruct the context the
+                # way the interrupt path does.
+                current_prompt = (
+                    f"{prompt}\n\n"
+                    f"--- Work So Far ---\n{accumulated_response}\n\n"
+                    f"--- Required Continuation ---\n"
+                    f"{_MUSE_WAIT_CONTINUATION_NUDGE}"
+                )
+                continue
             return InvokeResult(content=accumulated_response, usage=total_usage)
 
     def _run_subprocess(
