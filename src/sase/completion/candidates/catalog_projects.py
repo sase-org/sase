@@ -118,6 +118,49 @@ def patch_source_path(_project: str | None) -> Path | None:
     return sase_projects_dir()
 
 
+def project_tag_source_path(_project: str | None) -> Path | None:
+    """Return the cache-invalidation path for project tag candidates."""
+    from sase.core.paths import sase_projects_dir
+
+    return sase_projects_dir()
+
+
+def project_tag_candidates(_project: str | None) -> list[Candidate]:
+    """Return taggable enabled project names for ``+<project>`` completion.
+
+    Values are bare project names (the shell re-adds the ``+`` marker as
+    the completion prefix), sorted case-insensitively. Only launchable,
+    non-system projects whose display name is in the tag grammar are
+    offered; ``home`` is never offered, matching the TUI menu.
+
+    This stays off provider detection (and the ``sase.xprompt`` /
+    ``sase.workspace_provider`` packages) so the ``completion candidates``
+    fast path never pays for plugin loads or process spawns; a tag that
+    resolves to a provider-less project fails at launch with the usual D3
+    diagnostic.
+    """
+    from sase.core.paths import sase_projects_dir
+    from sase.core.project_lifecycle_facade import list_project_records
+    from sase.core.project_lifecycle_wire import effective_project_name
+    from sase.project_tags.catalog import is_project_tag_name
+
+    records = list_project_records(sase_projects_dir(), "enabled")
+    names: list[str] = []
+    for record in records:
+        if not getattr(record, "is_project", True):
+            continue
+        if getattr(record, "system_managed", False):
+            continue
+        if getattr(record, "state", "enabled") != "enabled":
+            continue
+        if not getattr(record, "launchable", True):
+            continue
+        display = effective_project_name(record)
+        if is_project_tag_name(display):
+            names.append(display)
+    return dedupe(Candidate(name, "") for name in sorted(names, key=str.casefold))
+
+
 def patch_candidates(project: str | None) -> list[Candidate]:
     """Return Patch names parsed from each project's ``.sase`` files."""
     from sase.core.rust import require_rust_binding
@@ -157,6 +200,8 @@ def patch_candidates(project: str | None) -> list[Candidate]:
 __all__ = [
     "patch_candidates",
     "patch_source_path",
+    "project_tag_candidates",
+    "project_tag_source_path",
     "repo_candidates",
     "repo_source_path",
     "workspace_candidates",

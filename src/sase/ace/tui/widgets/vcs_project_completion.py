@@ -1,14 +1,14 @@
 """Prompt-bar candidate building for the ``+`` VCS project/PR completion menu.
 
-This is the thin TUI bridge between the headless Phase-1 helpers in
-:mod:`sase.xprompt.vcs_project_completion` (catalog, trigger detection, the
-canonical expansion transform) and the prompt input bar's
+This is the thin TUI bridge between the headless catalog in
+:mod:`sase.xprompt.vcs_project_completion` and the prompt input bar's
 :class:`~sase.ace.tui.widgets.file_completion.CompletionCandidate` machinery.
 
-The accept path expands the *whole* prompt via
-:func:`~sase.xprompt.vcs_project_completion.apply_vcs_project_selection`, so a
-candidate's ``insertion`` is the entry's ``display_tag`` for display only -- it
-is never used as a token-local replacement.
+The accept path applies the core in-place binding
+(:func:`sase.project_tags.apply_project_tag_selection`), so a candidate's
+``insertion`` is the row's verbatim text: ``+<name> `` for project rows (or
+``#<workflow>:<name> `` when the name is not in the tag grammar) and
+``#<workflow>:<patch> `` for PR rows.
 """
 
 from __future__ import annotations
@@ -44,10 +44,20 @@ def build_no_active_projects_placeholder() -> CompletionCandidate:
 
 
 def _candidate(entry: VcsProjectEntry) -> CompletionCandidate:
-    """Build one completion candidate from a project/PR *entry*."""
+    """Build one completion candidate from a project/PR *entry*.
+
+    Project rows insert the ``+<name>`` tag (or the ``#<workflow>:<name>``
+    ref when the name is not in the tag grammar); PR rows insert their
+    ``#<workflow>:<patch>`` ref. The trailing space is the row's own
+    separator for the core in-place accept.
+    """
+    if entry.kind == "project" and entry.tag:
+        insertion = f"{entry.tag} "
+    else:
+        insertion = f"{entry.display_tag} "
     return CompletionCandidate(
         display=entry.name,
-        insertion=entry.display_tag,
+        insertion=insertion,
         is_dir=False,
         name=entry.name,
         metadata=entry,

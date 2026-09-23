@@ -1,9 +1,10 @@
 """ACE PNG visual snapshot for the ``+`` project completion menu (sase-4z.2).
 
 Pins how ``PromptInputBar`` renders the ``vcs_project`` completion panel: the
-``projects`` border title and one row per enabled project showing the project
-name in an accent color, its provider, the resulting ``#gh:sase`` tag dimmed as
-the expansion hint, and the description. The bar is mounted over the running app
+``projects`` border title and one row per enabled project showing the
+accent-colored ``+name`` tag (dim sigil, bold name), the dim
+``provider · #wf:name`` detail, the description, and the ``current`` badge.
+PR rows keep their ``[PR]`` badge. The bar is mounted over the running app
 so the full ``styles.tcss`` applies exactly as at runtime. Goldens live in
 ``tests/ace/tui/visual/snapshots/png/``.
 """
@@ -36,10 +37,13 @@ def _vcs_candidate(
     vcs: str,
     provider: str,
     description: str,
+    accent_index: int | None = None,
+    current: bool | None = None,
 ) -> CompletionCandidate:
+    tag = f"+{name}"
     return CompletionCandidate(
         display=name,
-        insertion=f"#{vcs}:{name}",
+        insertion=f"{tag} ",
         is_dir=False,
         name=name,
         metadata=VcsProjectEntry(
@@ -48,6 +52,10 @@ def _vcs_candidate(
             display_tag=f"#{vcs}:{name}",
             provider_display=provider,
             description=description,
+            key=name,
+            tag=tag,
+            accent_index=accent_index,
+            current=current,
         ),
     )
 
@@ -58,18 +66,22 @@ _VCS_PROJECT_ROWS = [
         vcs="gh",
         provider="GitHub",
         description="Structured agentic software engineering",
+        accent_index=0,
+        current=True,
     ),
     _vcs_candidate(
         "sase-core",
         vcs="gh",
         provider="GitHub",
         description="Shared Rust core backend",
+        accent_index=1,
     ),
     _vcs_candidate(
         "dotfiles",
         vcs="git",
         provider="Git",
         description="Personal chezmoi configuration",
+        accent_index=2,
     ),
 ]
 

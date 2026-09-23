@@ -1,14 +1,14 @@
 """Tests for the ``+`` VCS project completion foundations.
 
-Covers trigger detection, the active-project catalog builder, prefix filtering,
-and the canonical expansion algorithm, including the cross-language golden
-test-vector table that the Rust core must match byte-for-byte.
+Covers the active-project catalog builder, prefix filtering, the v5 catalog
+payload, and D7 row ordering. Trigger detection and the in-place accept
+algorithm now live in the Rust core; their golden vectors moved to the
+core's ``project_tag/tests.rs`` with the tui-editor phase.
 """
 
 from __future__ import annotations
 
 import os
-import re
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -23,28 +23,11 @@ from sase.xprompt import vcs_project_completion as vpc
 from sase.xprompt.vcs_project_completion import (
     VCS_PROJECT_CATALOG_SCHEMA_VERSION,
     VcsProjectEntry,
-    apply_vcs_project_selection,
     build_vcs_project_completion_entries,
     filter_vcs_project_entries,
-    find_vcs_project_trigger,
     vcs_project_catalog_payload,
 )
 from tests._project_display_case import ProjectDisplayCase
-
-# A replace pattern covering gh/git/spy regardless of which workspace-provider
-# plugins happen to be installed in the test environment.
-_TEST_VCS_REPLACE_PATTERN = re.compile(
-    r"^((?:%\S+[\s]+)*)#(?:gh|git|spy)(?:!!|\?\?)?(?:\([^)]*\)|\+|[_:][^\s]*|)(?:\s|$)",
-    re.MULTILINE,
-)
-
-
-def _patch_vcs_replace_pattern():
-    """Patch the shared replace pattern used by the expansion transform."""
-    return patch(
-        "sase.xprompt._parsing._get_vcs_replace_pattern",
-        return_value=_TEST_VCS_REPLACE_PATTERN,
-    )
 
 
 @pytest.fixture(autouse=True)
@@ -90,150 +73,6 @@ def _record(
         parse_warnings=[],
         display_name=display_name,
     )
-
-
-# --- Golden vectors (the cross-language parity contract) -------------------
-
-# ``‸`` marks the caret. The trigger token starts at ``+``; most vectors place
-# the caret at the end, while one asserts a cursor-local query inside a longer
-# whole-token replacement span.
-_CURSOR = "‸"
-
-_GOLDEN_VECTORS = [
-    ("Describe this repo. +‸", "#gh:sase Describe this repo."),
-    ("+‸", "#gh:sase "),
-    ("+sa‸", "#gh:sase "),
-    ("+s‸\n", "#gh:sase \n"),
-    ("+s‸\nmore text", "#gh:sase \nmore text"),
-    ("#git:foo Fix bug +‸", "#gh:sase Fix bug"),
-    ("#gh!!:foo do X +‸", "#gh:sase do X"),
-    # Existing leading VCS tag at end-of-input (no trailing text): the trigger
-    # strip leaves the bare tag at EOF, which must still be replaced, not
-    # doubled.
-    ("#gh:sase +‸", "#gh:sase "),
-    ("#gh:sase +foo‸", "#gh:sase "),
-    ("#git:foo +‸", "#gh:sase "),
-    ("Fix +bug‸ here", "#gh:sase Fix here"),
-    ("Line one\n +‸", "#gh:sase Line one\n"),
-    ("---\nname: x\n---\nBody +‸", "---\nname: x\n---\n#gh:sase Body"),
-    ("%model:opus Body +‸", "%model:opus #gh:sase Body"),
-    ("+sa‸ Fix", "#gh:sase Fix"),
-    ("Fix +sa‸se now", "#gh:sase Fix now"),
-]
-
-
-@pytest.mark.parametrize(("marked", "expected"), _GOLDEN_VECTORS)
-def test_golden_vectors(marked: str, expected: str) -> None:
-    """End-to-end trigger detection + expansion matches the golden table."""
-    cursor = marked.index(_CURSOR)
-    prompt = marked.replace(_CURSOR, "")
-
-    trigger = find_vcs_project_trigger(prompt, cursor)
-    assert trigger is not None
-
-    with _patch_vcs_replace_pattern():
-        result = apply_vcs_project_selection(prompt, trigger.span, "#gh:sase")
-
-    assert result == expected
-
-
-# --- Trigger detection -----------------------------------------------------
-
-
-def test_trigger_at_beginning_of_prompt() -> None:
-    trigger = find_vcs_project_trigger("+", 1)
-    assert trigger is not None
-    assert trigger.span == (0, 1)
-    assert trigger.query == ""
-
-
-def test_trigger_with_query() -> None:
-    trigger = find_vcs_project_trigger("+sa", 3)
-    assert trigger is not None
-    assert trigger.span == (0, 3)
-    assert trigger.query == "sa"
-
-
-def test_trigger_after_space() -> None:
-    trigger = find_vcs_project_trigger("Fix +bug", 8)
-    assert trigger is not None
-    assert trigger.span == (4, 8)
-    assert trigger.query == "bug"
-
-
-def test_trigger_after_space_on_new_line() -> None:
-    trigger = find_vcs_project_trigger("line\n +x", 8)
-    assert trigger is not None
-    assert trigger.span == (6, 8)
-    assert trigger.query == "x"
-
-
-def test_trigger_token_extends_past_cursor() -> None:
-    """The span covers the whole token; the query stops at the cursor."""
-    trigger = find_vcs_project_trigger("Fix +abc", 6)
-    assert trigger is not None
-    assert trigger.span == (4, 8)
-    assert trigger.query == "a"
-
-
-def test_trigger_fires_after_literal_space() -> None:
-    trigger = find_vcs_project_trigger("2 + 2", 3)
-    assert trigger is not None
-    assert trigger.span == (2, 3)
-    assert trigger.query == ""
-
-
-@pytest.mark.parametrize(
-    ("prompt", "cursor"),
-    [
-        ("#+", 2),
-        ("#+sa", 4),
-        ("Fix #+sa", 8),
-        ("line\n+", 6),
-        ("\t+", 2),
-        ("\N{NO-BREAK SPACE}+", 2),
-        ("word+", 5),
-        ("a+b", 3),
-        ("c++", 3),
-        ("c#+x", 4),
-    ],
-)
-def test_unclaimed_plus_forms(prompt: str, cursor: int) -> None:
-    assert find_vcs_project_trigger(prompt, cursor) is None
-
-
-def test_no_trigger_before_cursor_advances_past_plus() -> None:
-    """The caret must sit past ``+`` for the trigger to be live."""
-    assert find_vcs_project_trigger("+", 0) is None
-
-
-def test_hash_then_space_plus_triggers_at_plus() -> None:
-    trigger = find_vcs_project_trigger("# +", 3)
-    assert trigger is not None
-    assert trigger.span == (2, 3)
-    assert trigger.query == ""
-
-
-def test_no_trigger_hash_without_plus() -> None:
-    assert find_vcs_project_trigger("#", 1) is None
-
-
-def test_no_trigger_with_cursor_inside_hash_plus_token() -> None:
-    assert find_vcs_project_trigger("#+", 0) is None
-    assert find_vcs_project_trigger("#+", 1) is None
-
-
-def test_no_trigger_without_plus() -> None:
-    assert find_vcs_project_trigger("hello world", 11) is None
-
-
-def test_no_trigger_empty_prompt() -> None:
-    assert find_vcs_project_trigger("", 0) is None
-
-
-def test_no_trigger_cursor_out_of_range() -> None:
-    assert find_vcs_project_trigger("+", 5) is None
-    assert find_vcs_project_trigger("+", -1) is None
 
 
 # --- Catalog builder -------------------------------------------------------

@@ -50,6 +50,8 @@ from sase.completion.candidates.catalog_content import (
 from sase.completion.candidates.catalog_projects import (
     patch_candidates,
     patch_source_path,
+    project_tag_candidates,
+    project_tag_source_path,
     repo_candidates,
     repo_source_path,
     workspace_candidates,
@@ -100,6 +102,7 @@ PROVIDERS: dict[ValueKind, tuple[_Fetch, _SourcePath]] = {
     ),
     ValueKind.DIRECTIVE: (directive_candidates, directive_source_path),
     ValueKind.TAG: (tag_candidates, tag_source_path),
+    ValueKind.PROJECT_TAG: (project_tag_candidates, project_tag_source_path),
     ValueKind.AGENT: (agent_candidates, agent_source_path),
     ValueKind.MODEL: (model_candidates, model_source_path),
     ValueKind.PROVIDER: (provider_candidates, provider_source_path),

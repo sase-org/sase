@@ -111,6 +111,77 @@ def test_project_candidates_respects_prefix_and_limit(
     assert result == [Candidate("alpha", "enabled")]
 
 
+def _tag_record(
+    project_name: str,
+    *,
+    state: str = "enabled",
+    system_managed: bool = False,
+    launchable: bool = True,
+    display_name: str | None = None,
+) -> ProjectRecordWire:
+    return ProjectRecordWire(
+        schema_version=PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
+        project_name=project_name,
+        project_dir=f"/tmp/{project_name}",
+        project_file=f"/tmp/{project_name}/{project_name}.sase",
+        archive_file=None,
+        workspace_dir=f"/tmp/{project_name}/ws",
+        state=state,
+        state_explicit=True,
+        system_managed=system_managed,
+        active_claim_count=0,
+        launchable=launchable,
+        display_name=display_name,
+    )
+
+
+def test_project_tag_candidates_offer_taggable_projects(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    records = [
+        _tag_record("sase"),
+        _tag_record("bob_cli", display_name="bob-cli"),
+        _tag_record("home", system_managed=True),
+        _tag_record("beta", state="disabled"),
+        _tag_record("dotfiles", launchable=False),
+        _tag_record("odd", display_name="9lives"),
+    ]
+    monkeypatch.setattr(
+        project_lifecycle_facade,
+        "list_project_records",
+        lambda *args, **kwargs: records,
+    )
+
+    result = candidates_for("project_tag", "", project=None, limit=200)
+
+    assert result == [Candidate("bob-cli", ""), Candidate("sase", "")]
+
+
+def test_project_tag_candidates_respects_prefix_and_limit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    records = [_tag_record(name) for name in ("alpha", "alpaca", "beta")]
+    monkeypatch.setattr(
+        project_lifecycle_facade,
+        "list_project_records",
+        lambda *args, **kwargs: records,
+    )
+
+    assert candidates_for("project_tag", "alp", project=None, limit=200) == [
+        Candidate("alpaca", ""),
+        Candidate("alpha", ""),
+    ]
+    assert candidates_for("project_tag", "alp", project=None, limit=1) == [
+        Candidate("alpaca", "")
+    ]
+
+
+def test_project_tag_kind_is_shipped() -> None:
+    from sase.completion.candidates.providers import shipped_kinds
+
+    assert "project_tag" in shipped_kinds()
+
+
 def test_bead_candidates_lists_ids_and_titles(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

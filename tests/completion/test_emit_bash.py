@@ -105,6 +105,7 @@ def test_run_prompt_helper_detects_embedded_markers() -> None:
     assert "__sase_prompt_kind=xprompt" in script
     assert "__sase_prompt_kind=directive" in script
     assert "__sase_prompt_kind=artifact_ref" in script
+    assert "__sase_prompt_kind=project_tag" in script
 
 
 def test_kinded_call_site_passes_current_word_and_prefix() -> None:

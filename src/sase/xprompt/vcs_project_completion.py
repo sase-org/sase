@@ -1,23 +1,22 @@
 """Headless foundations for the ``+`` project/patch-completion feature.
 
 This module provides the pure-logic building blocks shared by the TUI prompt
-input widget (consuming these helpers directly) and the Rust xprompt LSP
+input widget (consuming the catalog directly) and the Rust xprompt LSP
 (consuming a materialized JSON catalog built from
 :func:`build_vcs_project_completion_entries`).
 
-The four public helpers are:
+The public helpers are:
 
 * :func:`build_vcs_project_completion_entries` -- the enabled project/patch catalog.
 * :func:`filter_vcs_project_entries` -- case-insensitive prefix filtering.
-* :func:`find_vcs_project_trigger` -- detect a ``+query`` trigger token at
-  prompt offset zero or immediately after a literal ASCII space.
-* :func:`apply_vcs_project_selection` -- expand a selected project or patch into
-  the prompt via the canonical VCS-tag expansion algorithm.
+* :class:`VcsProjectTrigger` -- the trigger value type shared with the
+  core-backed :func:`sase.project_tags.find_project_tag_trigger`.
 
-The canonical expansion algorithm implemented by
-:func:`apply_vcs_project_selection` is the cross-language parity contract: the
-Rust core must produce byte-identical output for the golden test vectors. Keep
-both sides in sync when changing it.
+Trigger detection and the in-place accept algorithm live in the Rust core
+(``project_tag_trigger`` / ``project_tag_apply_selection``); the Python
+mirrors were deleted once the core owned them (project tags epic,
+tui-editor phase). The golden vectors live in the core's
+``project_tag/tests.rs``.
 """
 
 from __future__ import annotations
@@ -42,7 +41,6 @@ from sase.workspace_provider import (
     get_display_name,
     get_workflow_names,
 )
-from sase.xprompt import _parsing
 
 # The system-managed project that must never appear as a completion candidate.
 _HOME_PROJECT_NAME = "home"
@@ -479,124 +477,12 @@ def filter_vcs_project_entries(
     ]
 
 
-# --- Trigger detection -----------------------------------------------------
-
-
-def find_vcs_project_trigger(prompt: str, cursor: int) -> VcsProjectTrigger | None:
-    """Detect a ``+query`` trigger at *cursor* in *prompt*.
-
-    The non-whitespace token immediately preceding *cursor* must start with
-    ``+``, and that plus must be at absolute prompt offset ``0`` or immediately
-    after a literal ASCII space. Newlines, tabs, other whitespace, and plus
-    signs embedded in words or operators do not trigger. ``#+`` is ordinary
-    prompt text for this feature.
-
-    Args:
-        prompt: The full prompt text.
-        cursor: Caret index within *prompt*.
-
-    Returns:
-        A :class:`VcsProjectTrigger` describing the token span and filter query,
-        or ``None`` when no trigger applies.
-    """
-    if cursor < 0 or cursor > len(prompt):
-        return None
-
-    # Walk back through the run of non-whitespace characters before the cursor
-    # to find the token start.
-    start = cursor
-    while start > 0 and not prompt[start - 1].isspace():
-        start -= 1
-
-    follows_literal_space = start > 0 and prompt[start - 1] == " "
-    if prompt[start : start + 1] != "+" or not (start == 0 or follows_literal_space):
-        return None
-
-    # The cursor must sit past the prefix for the trigger to be live.
-    if cursor < start + 1:
-        return None
-
-    # Extend forward to the end of the token (next whitespace or end of prompt).
-    end = start
-    while end < len(prompt) and not prompt[end].isspace():
-        end += 1
-
-    query = prompt[start + 1 : cursor]
-    return VcsProjectTrigger(start=start, end=end, query=query)
-
-
-# --- Expansion (the canonical parity contract) -----------------------------
-
-
-def _strip_trigger_token(prompt: str, start: int, end: int) -> str:
-    """Remove the trigger span ``[start, end)`` and collapse one stray space.
-
-    The collapse avoids leaving a double space, an orphan trailing space at the
-    end of a line/prompt, or an orphan leading space at the start of a
-    line/prompt.
-    """
-    before = prompt[:start]
-    after = prompt[end:]
-    before_space = before.endswith(" ")
-    after_space = after.startswith(" ")
-
-    if before_space and after_space:
-        # The token sat between two spaces; collapse to a single space.
-        after = after[1:]
-    elif before_space and (after == "" or after[0] in "\r\n"):
-        # A trailing space would be orphaned at end of line/prompt.
-        before = before[:-1]
-    elif after_space and (before == "" or before[-1] in "\r\n"):
-        # A leading space would be orphaned at start of line/prompt.
-        after = after[1:]
-
-    return before + after
-
-
-def apply_vcs_project_selection(
-    prompt: str,
-    trigger_span: tuple[int, int],
-    display_tag: str,
-) -> str:
-    """Expand a selected project into *prompt*, returning the new prompt text.
-
-    Implements the canonical expansion algorithm: remove the trigger token,
-    collapse one adjacent space, then either replace every line-start VCS
-    workflow tag with *display_tag* or, when none exist, prepend *display_tag*
-    after any leading frontmatter / whitespace / ``%directive`` tokens.
-
-    Args:
-        prompt: The full prompt text.
-        trigger_span: The ``(start, end)`` span of the ``+query`` trigger token.
-        display_tag: The selected project's VCS tag, without a trailing space
-            (e.g. ``"#gh:sase"``).
-
-    Returns:
-        The rewritten prompt text.
-    """
-    start, end = trigger_span
-    base = _strip_trigger_token(prompt, start, end)
-
-    # ``replace_vcs_workflow_tags`` replaces every line-start VCS tag, or -- when
-    # none exist -- prepends the tag at offset 0. Detect that no-tag case (its
-    # output is exactly the naive prepend) and redo it with frontmatter /
-    # directive-aware placement.
-    replaced = _parsing.replace_vcs_workflow_tags(base, display_tag)
-    if replaced != f"{display_tag} {base}":
-        return replaced
-
-    offset = _parsing.find_vcs_workflow_tag_prepend_offset(base)
-    return f"{base[:offset]}{display_tag} {base[offset:]}"
-
-
 __all__ = [
     "VCS_PROJECT_CATALOG_SCHEMA_VERSION",
     "VcsProjectEntry",
     "VcsProjectTrigger",
-    "apply_vcs_project_selection",
     "build_vcs_project_completion_entries",
     "filter_vcs_project_entries",
-    "find_vcs_project_trigger",
     "vcs_project_catalog_signature",
     "vcs_project_catalog_payload",
 ]

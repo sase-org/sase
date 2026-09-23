@@ -52,10 +52,8 @@ from sase.ace.tui.widgets.xprompt_completion import (
     build_xprompt_completion_candidates,
     extract_xprompt_token_around_cursor,
 )
-from sase.xprompt.vcs_project_completion import (
-    VcsProjectTrigger,
-    find_vcs_project_trigger,
-)
+from sase.project_tags import find_project_tag_trigger
+from sase.xprompt.vcs_project_completion import VcsProjectTrigger
 from sase.xprompt.vcs_ref_completion import (
     VcsRefTrigger,
     find_vcs_ref_trigger,
@@ -333,10 +331,12 @@ class FileCompletionContextMixin(_MixinBase):
 
         Used by the ``+`` project completion menu to detect the trigger token,
         narrow the candidate list as the query grows, and locate the span the
-        canonical expansion transform must consume on accept.
+        core accept binding consumes on accept. Detection is owned by the
+        Rust core (D1 left boundaries: start of text, whitespace, ``{``,
+        ``|``).
         """
         cursor_offset = self._absolute_offset(self.cursor_location)
-        return find_vcs_project_trigger(self.text, cursor_offset)
+        return find_project_tag_trigger(self.text, cursor_offset)
 
     def _get_vcs_repo_trigger(self) -> VcsRepoTrigger | None:
         """Return a VCS repository completion trigger at the cursor."""

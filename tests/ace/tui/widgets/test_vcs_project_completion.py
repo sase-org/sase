@@ -1,10 +1,9 @@
 """Tests for the ``+`` VCS-project completion menu in the prompt widget.
 
-Covers trigger auto-open, query filtering, ``ctrl+n/p`` navigation, canonical
-acceptance (representative golden vectors), existing-tag replacement, the
-empty-catalog placeholder, and dismissal. The full golden-vector table is the
-parity contract and is exhaustively asserted at the helper level in
-``tests/test_xprompt_vcs_project_completion.py``.
+Covers trigger auto-open, query filtering, ``ctrl+n/p`` navigation, core
+in-place acceptance (representative vectors), project switching, the
+empty-catalog placeholder, and dismissal. The full golden-vector table for
+the core trigger/accept pair lives in the core's ``project_tag/tests.rs``.
 """
 
 from __future__ import annotations
@@ -55,6 +54,10 @@ def _entry(
         kind=kind,
         project=project or name,
         status=status,
+        key=(project or name) if kind == "project" else "",
+        tag=f"+{name}" if kind == "project" else "",
+        accent_index=0 if kind == "project" else None,
+        current=False if kind == "project" else None,
     )
 
 
@@ -91,7 +94,17 @@ def test_candidates_unfiltered_returns_all_in_order() -> None:
     assert [c.name for c in candidates] == ["sase", "telegram", "widgets"]
     # Each candidate carries its entry as metadata for the renderer.
     assert all(isinstance(c.metadata, VcsProjectEntry) for c in candidates)
-    assert candidates[0].insertion == "#gh:sase"
+    # Project rows insert the tag (with the row's own trailing separator);
+    # PR rows insert their ``#`` ref.
+    assert candidates[0].insertion == "+sase "
+
+
+def test_candidate_insertions_use_tags_for_projects() -> None:
+    candidates, _ = vcs_project_completion_candidates("", entries=_PROJECTS_AND_PRS)
+    by_name = {c.name: c.insertion for c in candidates}
+    assert by_name["sase"] == "+sase "
+    assert by_name["telegram"] == "+telegram "
+    assert by_name["ship-completion"] == "#gh:ship-completion "
 
 
 def test_candidates_prefix_filter_is_case_insensitive() -> None:
@@ -177,7 +190,7 @@ async def test_bare_plus_at_bof_auto_opens_menu() -> None:
         assert "telegram" in rendered
 
 
-async def test_menu_renders_project_and_patch_badges() -> None:
+async def test_menu_renders_project_tags_and_patch_badges() -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         bar = app.query_one(PromptInputBar)
@@ -187,9 +200,12 @@ async def test_menu_renders_project_and_patch_badges() -> None:
         panel = bar.query_one("#prompt-completion", Static)
         assert panel.border_title == "projects & PRs"
         rendered = panel.render().plain
-        assert "[P] sase" in rendered
+        # Project rows render the accent-colored tag, never a badge.
+        assert "+sase" in rendered
+        assert "[P]" not in rendered
+        assert "GitHub · #gh:sase" in rendered
+        # Patch rows keep their badge, status, and owning project.
         assert "[PR] ship-completion" in rendered
-        assert "#gh:ship-completion" in rendered
         assert "Ready" in rendered
         assert "· sase" in rendered
 
@@ -235,9 +251,9 @@ async def test_glued_plus_after_text_does_not_open() -> None:
         assert ta._file_completion_active is False
 
 
-@pytest.mark.parametrize("prefix", ["\t", "line\n"])
-async def test_plus_without_literal_space_does_not_open(prefix: str) -> None:
-    """Tabs and newlines do not satisfy the literal-space trigger rule."""
+@pytest.mark.parametrize("prefix", ["\t", "line\n", "%{", "%{a | "])
+async def test_plus_at_d1_boundaries_opens(prefix: str) -> None:
+    """Tabs, newlines, and alt-group boundaries satisfy the D1 trigger rule."""
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -247,7 +263,8 @@ async def test_plus_without_literal_space_does_not_open(prefix: str) -> None:
             await pilot.press("+")
 
         assert ta.text == f"{prefix}+"
-        assert ta._file_completion_active is False
+        assert ta._file_completion_active is True
+        assert ta._completion_kind == VCS_PROJECT_COMPLETION_KIND
 
 
 @pytest.mark.parametrize("prefix", ["", "Fix ", "c"])
@@ -297,7 +314,7 @@ async def test_ctrl_n_p_cycle_highlight() -> None:
             assert ta._file_completion_index == 2  # wraps to the end
 
 
-# --- Accept (canonical expansion, representative golden vectors) ------------
+# --- Accept (core in-place insertion, representative vectors) --------------
 
 
 def _select(ta: PromptTextArea, name: str) -> None:
@@ -311,23 +328,23 @@ def _select(ta: PromptTextArea, name: str) -> None:
 @pytest.mark.parametrize(
     ("text", "expected"),
     [
-        ("+", "#gh:sase "),
-        ("+sa", "#gh:sase "),
-        ("Describe this repo. +", "#gh:sase Describe this repo."),
-        ("#git:foo Fix bug +", "#gh:sase Fix bug"),
-        # Existing leading tag at end-of-input must be replaced, not doubled
-        # (uses `#git:foo` since only `git` is a registered workflow name in
-        # the test environment).
-        ("#git:foo +", "#gh:sase "),
-        ("Line one\n +", "#gh:sase Line one\n"),
+        ("+", "+sase "),
+        ("+sa", "+sase "),
+        ("Describe this repo. +", "Describe this repo. +sase "),
+        # Accepting a project removes the other workspace target in the
+        # same segment (uses `#git:foo` since `git` is a registered
+        # workflow name in the test environment).
+        ("#git:foo Fix bug +", "Fix bug +sase "),
+        ("#git:foo +", "+sase "),
+        ("Line one\n +", "Line one\n +sase "),
         (
             "---\nname: x\n---\nBody +",
-            "---\nname: x\n---\n#gh:sase Body",
+            "---\nname: x\n---\nBody +sase ",
         ),
-        ("%model:opus Body +", "%model:opus #gh:sase Body"),
+        ("%model:opus Body +", "%model:opus Body +sase "),
     ],
 )
-async def test_accept_applies_canonical_expansion(text: str, expected: str) -> None:
+async def test_accept_applies_in_place_insertion(text: str, expected: str) -> None:
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -342,8 +359,8 @@ async def test_accept_applies_canonical_expansion(text: str, expected: str) -> N
         assert ta._file_completion_active is False
 
 
-async def test_bof_plus_accept_expands_to_tag() -> None:
-    """Accepting a BOF ``+`` selection prepends the project's VCS tag."""
+async def test_bof_plus_accept_inserts_tag() -> None:
+    """Accepting a BOF ``+`` selection inserts the project's tag in place."""
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -353,12 +370,12 @@ async def test_bof_plus_accept_expands_to_tag() -> None:
         _select(ta, "sase")
         await pilot.press("ctrl+l")
 
-        assert ta.text == "#gh:sase "
+        assert ta.text == "+sase "
         assert ta._file_completion_active is False
 
 
 async def test_bare_plus_query_filters_and_accepts() -> None:
-    """Typing after a BOF ``+`` filters, and accept expands the match."""
+    """Typing after a BOF ``+`` filters, and accept inserts the match's tag."""
     app = CompletionTestApp()
     async with app.run_test() as pilot:
         ta = app.query_one(PromptTextArea)
@@ -370,7 +387,7 @@ async def test_bare_plus_query_filters_and_accepts() -> None:
             assert [c.name for c in ta._file_completion_candidates] == ["telegram"]
         await pilot.press("ctrl+l")
 
-        assert ta.text == "#git:telegram "
+        assert ta.text == "+telegram "
         assert ta._file_completion_active is False
 
 
@@ -398,8 +415,25 @@ async def test_accept_places_cursor_after_inserted_tag() -> None:
         _select(ta, "sase")
         await pilot.press("ctrl+l")
 
-        assert ta.text == "#gh:sase "
-        assert ta.cursor_location == (0, len("#gh:sase "))
+        assert ta.text == "+sase "
+        assert ta.cursor_location == (0, len("+sase "))
+
+
+async def test_accept_switches_project_within_one_segment() -> None:
+    """Accepting a second project removes the first target in its segment."""
+    app = CompletionTestApp()
+    async with app.run_test() as pilot:
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("#git:foo first\n---\n#git:baz second +")
+        ta.cursor_location = ta._location_from_absolute(len(ta.text))
+        with patch(_ENTRIES_PATH, return_value=_PROJECTS):
+            assert ta._try_vcs_project_completion() is True
+        _select(ta, "sase")
+        await pilot.press("ctrl+l")
+
+        # Only the trigger's own segment loses its other target.
+        assert ta.text == "#git:foo first\n---\nsecond +sase "
+        assert ta._file_completion_active is False
 
 
 # --- Empty catalog & dismissal ---------------------------------------------

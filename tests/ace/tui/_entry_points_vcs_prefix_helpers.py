@@ -111,3 +111,34 @@ def _patch_missing_workspace_plugin(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
     monkeypatch.setattr(_entry_points, "_vcs_prompt_prefix", _raise)
+
+
+def _tag_catalog(*names: str):
+    """Build a tiny tag catalog snapshot with ``+<name>`` targets."""
+    from sase.project_tags import ProjectTagCatalog
+    from sase.project_tags.catalog import ProjectTagTarget
+
+    return ProjectTagCatalog(
+        targets=tuple(
+            ProjectTagTarget(
+                key=name,
+                name=name,
+                tag=f"+{name}",
+                workflow_type="gh",
+                vcs_ref=f"#gh:{name}",
+                state="enabled",
+            )
+            for name in names
+        ),
+        accent_palette=(),
+    )
+
+
+def _patch_tag_peek(monkeypatch: pytest.MonkeyPatch, catalog: object | None) -> None:
+    """Pin the tag-catalog peek used by prefill helpers.
+
+    Pass a :func:`_tag_catalog` snapshot for the warm path or ``None`` for
+    the cold-catalog ``#`` fallback, so prefill expectations never depend on
+    ambient cache state from other tests.
+    """
+    monkeypatch.setattr("sase.project_tags.peek_project_tag_catalog", lambda: catalog)

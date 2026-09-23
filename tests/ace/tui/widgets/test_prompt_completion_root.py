@@ -35,6 +35,31 @@ def test_git_completion_root_uses_known_projects_without_provider_resolution(
     assert resolve_prompt_completion_base_dir("#git:bob-cli sdd/") == str(workspace)
 
 
+def test_tag_completion_root_expands_before_resolution(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    """A ``+``-only prompt reaches resolution once tags expand (D4)."""
+    patch_git_metadata(monkeypatch)
+    workspace = tmp_path / "bob-cli"
+    workspace.mkdir()
+    monkeypatch.setattr(
+        "sase.xprompt.loader.get_known_project_workspaces",
+        lambda include_states=("enabled",): {"bob-cli": workspace},
+    )
+    monkeypatch.setattr(
+        "sase.project_aliases.canonicalize_project_aliases_in_prompt",
+        lambda prompt: "#git:bob-cli sdd/",
+    )
+
+    def fail_resolve_ref(ref: str, workflow_type: str) -> object:
+        raise AssertionError("resolve_ref should not be called for +tag completion")
+
+    monkeypatch.setattr("sase.workspace_provider.resolve_ref", fail_resolve_ref)
+
+    assert resolve_prompt_completion_base_dir("+bob-cli sdd/") == str(workspace)
+
+
 def test_warm_completion_root_does_not_reread_project_alias_files(
     tmp_path: Path,
     monkeypatch: MonkeyPatch,

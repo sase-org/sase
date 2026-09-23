@@ -320,6 +320,7 @@ printf '%s\\n' "${{COMPREPLY[@]}}"
         ("ask #zz", "ask #zzz-fixture-xprompt"),
         ("ask %mo", "ask %model"),
         ("ask @file:e", "ask @file:explicit:abc123"),
+        ("ask +zz", "ask +zzz-fixture-project"),
     ],
 )
 def test_run_prompt_completes_embedded_markers_in_spaced_prompt(
@@ -405,6 +406,7 @@ def _write_marker_fixture_sase(tmp_path: Path) -> Path:
         "    xprompt) printf 'zzz-fixture-xprompt\\tA fixture xprompt\\n' ;;\n"
         "    directive) printf 'model\\tOverride the LLM model\\n' ;;\n"
         "    artifact_ref) printf 'file:explicit:abc123\\tScreenshot\\n' ;;\n"
+        "    project_tag) printf 'zzz-fixture-project\\tGitHub project\\n' ;;\n"
         "  esac\n"
         "fi\n",
         encoding="utf-8",

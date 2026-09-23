@@ -23,6 +23,10 @@ class EntryQuickLaunchMixin:
             self, project_file: str, name: str
         ) -> str | None: ...
 
+        def _project_tag_prefix_or_notify(
+            self, project_file: str, name: str
+        ) -> str | None: ...
+
     def _start_agent_from_patch_quick(self) -> None:
         """Start agent from current Patch without Patch name modal.
 
@@ -67,7 +71,12 @@ class EntryQuickLaunchMixin:
             if agent.is_project_agent
             else humanize_cl_name(cl_name)
         )
-        prefix = self._vcs_prompt_prefix_or_notify(agent.project_file, display_name)
+        if agent.is_project_agent:
+            prefix = self._project_tag_prefix_or_notify(
+                agent.project_file, display_name
+            )
+        else:
+            prefix = self._vcs_prompt_prefix_or_notify(agent.project_file, display_name)
         if prefix is None:
             return
 

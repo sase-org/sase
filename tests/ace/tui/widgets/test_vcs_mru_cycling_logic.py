@@ -41,6 +41,36 @@ def _patched_vcs_parsing() -> Iterator[None]:
     vcs_refs._VCS_UNDERSCORE_NORMALIZER = None
 
 
+def _tag_catalog() -> object:
+    """A tiny two-project tag catalog: sase (gh) and notes (git)."""
+    from sase.project_tags import ProjectTagCatalog
+    from sase.project_tags.catalog import ProjectTagTarget
+
+    return ProjectTagCatalog(
+        targets=(
+            ProjectTagTarget(
+                key="gh_sase-org__sase",
+                name="sase",
+                tag="+sase",
+                workflow_type="gh",
+                vcs_ref="#gh:sase",
+                provider_display="GitHub",
+                state="enabled",
+            ),
+            ProjectTagTarget(
+                key="notes",
+                name="notes",
+                tag="+notes",
+                workflow_type="git",
+                vcs_ref="#git:notes",
+                provider_display="Git",
+                state="enabled",
+            ),
+        ),
+        accent_palette=(),
+    )
+
+
 def _cycle(
     text: str,
     *,
@@ -48,6 +78,7 @@ def _cycle(
     current_index: int | None = None,
     mru: list[str] | None = None,
     key: str = "ctrl+p",
+    catalog: object | None = None,
 ) -> _VcsMruCycleEdit:
     with _patched_vcs_parsing():
         edit = _cycle_vcs_mru_text(
@@ -56,6 +87,7 @@ def _cycle(
             mru=mru or ["#git:foo", "#git:bar", "#git:baz"],
             current_index=current_index,
             key=key,  # type: ignore[arg-type]
+            catalog=catalog,  # type: ignore[arg-type]
         )
     assert edit is not None
     return edit
@@ -65,11 +97,13 @@ def _delete(
     text: str,
     *,
     cursor_offset: int | None = None,
+    catalog: object | None = None,
 ) -> _VcsXPromptDeleteEdit:
     with _patched_vcs_parsing():
         edit = _delete_vcs_xprompt_text(
             text,
             len(text) if cursor_offset is None else cursor_offset,
+            catalog,  # type: ignore[arg-type]
         )
     assert edit is not None
     return edit
@@ -375,5 +409,80 @@ def test_cursor_inside_deleted_span_snaps_to_start() -> None:
 def test_cursor_after_deleted_span_shifts_by_removed_length() -> None:
     text = "#git:foo fix the bug"
     edit = _delete(text, cursor_offset=len(text))
+    assert edit.text == "fix the bug"
+    assert edit.cursor_offset == len("fix the bug")
+
+
+# --- Project tags ------------------------------------------------------------
+
+
+def test_tag_current_target_advances_ring_in_tag_form() -> None:
+    edit = _cycle(
+        "+sase fix the bug",
+        mru=["#gh:sase", "#git:notes"],
+        catalog=_tag_catalog(),
+    )
+    assert edit.text == "+notes fix the bug"
+    assert edit.mru_index == 1
+    assert edit.replacement == "+notes"
+
+
+def test_ref_current_target_advances_ring_in_tag_form() -> None:
+    edit = _cycle(
+        "#gh:sase fix the bug",
+        mru=["#gh:sase", "#git:notes"],
+        catalog=_tag_catalog(),
+    )
+    assert edit.text == "+notes fix the bug"
+    assert edit.mru_index == 1
+
+
+def test_tag_terminal_stop_deletes_tag() -> None:
+    edit = _cycle("+notes", mru=["#git:notes"], catalog=_tag_catalog())
+    assert edit.text == ""
+    assert edit.cursor_offset == 0
+    assert edit.mru_index == 1
+    assert edit.replacement == ""
+
+
+def test_patch_mru_entries_keep_ref_form() -> None:
+    edit = _cycle(
+        "+sase fix",
+        mru=["#gh:sase", "#gh:ship"],
+        catalog=_tag_catalog(),
+    )
+    assert edit.text == "#gh:ship fix"
+    assert edit.mru_index == 1
+
+
+def test_unanchored_unknown_tag_is_not_a_target() -> None:
+    edit = _cycle(
+        "do +zzz x",
+        mru=["#gh:sase", "#git:notes"],
+        catalog=_tag_catalog(),
+    )
+    assert edit.text == "+sase do +zzz x"
+    assert edit.mru_index == 0
+
+
+def test_anchored_unknown_tag_counts_when_catalog_is_cold() -> None:
+    edit = _cycle("+zzz fix", mru=["#git:foo", "#git:bar"])
+    assert edit.text == "#git:foo fix"
+    assert edit.mru_index == 0
+
+
+def test_tag_inside_fenced_block_is_not_a_target() -> None:
+    text = "Fix it:\n```\nsase run +sase do thing\n```\n"
+    edit = _cycle(
+        text,
+        mru=["#gh:sase", "#git:notes"],
+        catalog=_tag_catalog(),
+    )
+    assert edit.text.startswith("+sase ")
+    assert "+sase do thing" in edit.text
+
+
+def test_deletes_tag_target() -> None:
+    edit = _delete("+sase fix the bug", catalog=_tag_catalog())
     assert edit.text == "fix the bug"
     assert edit.cursor_offset == len("fix the bug")

@@ -24,16 +24,20 @@ from sase.project_aliases import canonicalize_project_aliases_in_prompt
 from sase.project_tags import (
     ProjectTagCatalog,
     ProjectTagError,
+    apply_project_tag_selection,
     build_targets,
     effective_find_vcs_workflow_tag,
     effective_vcs_workflow_tag,
     expand_project_tags,
+    find_project_tag_trigger,
     find_project_tags,
     is_project_tag_name,
+    known_project_tag_for,
     load_project_tag_catalog,
     peek_project_tag_catalog,
     project_tag_for,
     validate_project_tags_for_launch,
+    validate_project_tags_with_catalog,
 )
 from sase.project_tags.catalog import _clear_project_tag_catalog_cache
 
@@ -308,3 +312,151 @@ def test_accent_index_matches_accent() -> None:
         assert PROJECT_ACCENTS[project_accent_index(key, among=among)] == (
             project_accent(key, among=among)
         )
+
+
+# --- Known-target spelling ---------------------------------------------------
+
+
+def test_known_project_tag_for_matches_key_name_and_alias(
+    tag_catalog: ProjectTagCatalog,
+) -> None:
+    assert known_project_tag_for(tag_catalog, "sase") == "+sase"
+    assert known_project_tag_for(tag_catalog, "SASE") == "+sase"
+    assert known_project_tag_for(tag_catalog, "+sase") == "+sase"
+    assert known_project_tag_for(tag_catalog, "bobby") == "+bob"
+    assert known_project_tag_for(tag_catalog, "gh_acme__widgets") == "+widgets"
+
+
+def test_known_project_tag_for_rejects_unknown_names(
+    tag_catalog: ProjectTagCatalog,
+) -> None:
+    # Patch names and typos never gain a ``+`` spelling here (unlike
+    # project_tag_for's generator fallback); callers fall back to ``#``.
+    assert known_project_tag_for(tag_catalog, "some-patch") is None
+    assert known_project_tag_for(tag_catalog, "ssae") is None
+    assert known_project_tag_for(tag_catalog, "") is None
+
+
+# --- Core trigger ------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("text", "cursor", "expected"),
+    [
+        ("+", 1, (0, 1, "")),
+        ("+sa", 3, (0, 3, "sa")),
+        ("Fix +bug", 8, (4, 8, "bug")),
+        ("line\n +x", 8, (6, 8, "x")),
+        ("\t+", 2, (1, 2, "")),
+        ("%{+sa", 5, (2, 5, "sa")),
+        ("%{a | +sa", 9, (6, 9, "sa")),
+    ],
+)
+def test_find_project_tag_trigger_at_d1_boundaries(
+    text: str, cursor: int, expected: tuple[int, int, str]
+) -> None:
+    trigger = find_project_tag_trigger(text, cursor)
+    assert trigger is not None
+    assert (trigger.start, trigger.end, trigger.query) == expected
+    assert trigger.span == expected[:2]
+
+
+@pytest.mark.parametrize(
+    ("text", "cursor"),
+    [
+        ("a+b", 3),
+        ("c++", 3),
+        ("#+sa", 4),
+        ("Fix #+sa", 8),
+        ("hello world", 11),
+        ("", 0),
+        ("+", 0),
+        ("+", 5),
+        ("+", -1),
+    ],
+)
+def test_find_project_tag_trigger_rejects_non_triggers(text: str, cursor: int) -> None:
+    assert find_project_tag_trigger(text, cursor) is None
+
+
+# --- Core in-place accept ----------------------------------------------------
+
+
+def _patched_workflows() -> object:
+    return patch(
+        "sase.workspace_provider.get_workflow_names", return_value={"gh", "git"}
+    )
+
+
+def test_apply_selection_inserts_tag_in_place() -> None:
+    with _patched_workflows():
+        text, cursor = apply_project_tag_selection("+", (0, 1), "+sase ")
+    assert (text, cursor) == ("+sase ", len("+sase "))
+
+
+def test_apply_selection_keeps_surrounding_body() -> None:
+    with _patched_workflows():
+        text, cursor = apply_project_tag_selection(
+            "Describe this repo. +", (20, 21), "+sase "
+        )
+    assert text == "Describe this repo. +sase "
+    assert cursor == len(text)
+
+
+def test_apply_selection_removes_other_target_in_segment() -> None:
+    with _patched_workflows():
+        text, _ = apply_project_tag_selection("#git:foo Fix bug +", (17, 18), "+sase ")
+    assert text == "Fix bug +sase "
+
+
+def test_apply_selection_switches_projects() -> None:
+    with _patched_workflows():
+        text, cursor = apply_project_tag_selection("+sase do it +bo", (12, 15), "+bob ")
+    assert text == "do it +bob "
+    assert cursor == len(text)
+
+
+def test_apply_selection_keeps_other_segments() -> None:
+    prompt = "#git:foo first\n---\n#git:baz second +"
+    with _patched_workflows():
+        text, _ = apply_project_tag_selection(
+            prompt, (len(prompt) - 1, len(prompt)), "+sase "
+        )
+    assert text == "#git:foo first\n---\nsecond +sase "
+
+
+def test_apply_selection_accepts_pr_ref_spelling() -> None:
+    with _patched_workflows():
+        text, cursor = apply_project_tag_selection("Review +sh", (7, 10), "#gh:ship ")
+    assert text == "Review #gh:ship "
+    assert cursor == len(text)
+
+
+# --- Warm-catalog validation -------------------------------------------------
+
+
+def test_validate_with_catalog_rejects_unknown_anchored(
+    tag_catalog: ProjectTagCatalog,
+) -> None:
+    with pytest.raises(ProjectTagError, match=r"Unknown project tag \+ssae"):
+        validate_project_tags_with_catalog("+ssae do it", tag_catalog)
+
+
+def test_validate_with_catalog_rejects_disabled(
+    tag_catalog: ProjectTagCatalog,
+) -> None:
+    with pytest.raises(ProjectTagError, match="disabled"):
+        validate_project_tags_with_catalog("+beta do it", tag_catalog)
+
+
+def test_validate_with_catalog_allows_unanchored_unknown(
+    tag_catalog: ProjectTagCatalog,
+) -> None:
+    validate_project_tags_with_catalog("run chmod +x-dependent fix", tag_catalog)
+
+
+def test_validate_with_catalog_rejects_two_targets(
+    tag_catalog: ProjectTagCatalog,
+) -> None:
+    with pytest.raises(ProjectTagError, match="Only one workspace target"):
+        validate_project_tags_with_catalog("+sase +bob", tag_catalog)

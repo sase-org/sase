@@ -59,6 +59,22 @@ def _document_copy_handlers_enabled(subtab: str) -> bool:
     return is_document_artifacts_pane(subtab)
 
 
+def _project_tag_or_vcs_prefix(display_name: str, workflow_type: str) -> str:
+    """Return the ``+<project>`` tag for *display_name* when known.
+
+    Falls back to the ``#<workflow>:<name>`` prefix when the name is not in
+    the tag grammar, the catalog is cold, or the project is unknown.
+    """
+    from sase.project_tags import known_project_tag_for, peek_project_tag_catalog
+
+    catalog = peek_project_tag_catalog()
+    if catalog is not None:
+        spelling = known_project_tag_for(catalog, display_name)
+        if spelling is not None:
+            return spelling
+    return f"#{workflow_type}:{display_name}"
+
+
 def _document_copy_handlers(
     owner: Any,
     subtab_keys: dict[str, Any],
@@ -263,7 +279,10 @@ class ClipboardArtifactsMixin(
                         severity="error",
                     )
                     return
-                prompt = f"#{workflow_type}:{display_name} {' '.join(references)} "
+                prompt = (
+                    f"{_project_tag_or_vcs_prefix(display_name, workflow_type)} "
+                    f"{' '.join(references)} "
+                )
                 self._show_prompt_input_bar_for_home(  # type: ignore[attr-defined]
                     initial_text=prompt,
                     display_name=f"{display_name} artifact reference",

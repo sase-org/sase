@@ -15,6 +15,8 @@ from sase.project_display_names import ProjectDisplayProjection, ProjectDisplayS
 from ._entry_points_vcs_prefix_helpers import (
     _App,
     _patch_missing_workspace_plugin,
+    _patch_tag_peek,
+    _tag_catalog,
 )
 
 
@@ -25,6 +27,8 @@ def test_home_project_selection_launches_with_vcs_prefix(
     monkeypatch.setattr(
         _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#git:{name} "
     )
+    # A cold tag catalog degrades the prefill to today's ``#`` form.
+    _patch_tag_peek(monkeypatch, None)
     app = _App()
 
     app._start_custom_agent_from_selection(
@@ -62,6 +66,7 @@ def test_project_selection_prefills_configured_project_name(
         "sase.project_display_names.project_display_name_for",
         lambda key, *_a, **_k: {"gh_acme__widgets": "widgets"}.get(key, key),
     )
+    _patch_tag_peek(monkeypatch, _tag_catalog("widgets"))
     app = _App()
 
     app._start_custom_agent_from_selection(
@@ -75,7 +80,7 @@ def test_project_selection_prefills_configured_project_name(
 
     assert app.prompt_launches == [
         {
-            "initial_text": "#gh:widgets ",
+            "initial_text": "+widgets ",
             "display_name": "widgets",
             "history_sort_key": "gh_acme__widgets",
         }
@@ -95,6 +100,40 @@ def test_project_selection_without_project_name_is_unchanged(
         "sase.project_display_names.project_display_name_for",
         lambda key, *_a, **_k: key,
     )
+    _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
+    app = _App()
+
+    app._start_custom_agent_from_selection(
+        SelectionItem(
+            display_name="[P] sase",
+            item_type="project",
+            project_name="sase",
+            cl_name=None,
+        )
+    )
+
+    assert app.prompt_launches == [
+        {
+            "initial_text": "+sase ",
+            "display_name": "sase",
+            "history_sort_key": "sase",
+        }
+    ]
+
+
+def test_project_selection_falls_back_to_vcs_prefix_when_catalog_is_cold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cold tag catalog degrades the ``+`` picker prefill to ``#`` form."""
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
+    monkeypatch.setattr(
+        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
+    )
+    monkeypatch.setattr(
+        "sase.project_display_names.project_display_name_for",
+        lambda key, *_a, **_k: key,
+    )
+    _patch_tag_peek(monkeypatch, None)
     app = _App()
 
     app._start_custom_agent_from_selection(
@@ -246,13 +285,14 @@ def test_space_mounts_bar_from_mru_head(
         "load_launchable_vcs_xprompt_mru_pairs",
         lambda *a, **k: [("#gh:gh_acme__widgets", "#gh:widgets")],
     )
+    _patch_tag_peek(monkeypatch, _tag_catalog("widgets"))
     app = _App()
 
     app.action_start_agent_from_patch()
 
     assert app.prompt_launches == [
         {
-            "initial_text": "#gh:widgets ",
+            "initial_text": "+widgets ",
             "display_name": "widgets",
             "history_sort_key": "gh_acme__widgets",
         }
@@ -276,13 +316,14 @@ def test_space_offers_most_recently_launched_ref(
         "load_launchable_vcs_xprompt_mru_pairs",
         lambda *a, **k: [("#gh:projB", "#gh:projB"), ("#gh:projA", "#gh:projA")],
     )
+    _patch_tag_peek(monkeypatch, _tag_catalog("projB", "projA"))
     app = _App()
 
     app.action_start_agent_from_patch()
 
     assert app.prompt_launches == [
         {
-            "initial_text": "#gh:projB ",
+            "initial_text": "+projB ",
             "display_name": "projB",
             "history_sort_key": "projB",
         }

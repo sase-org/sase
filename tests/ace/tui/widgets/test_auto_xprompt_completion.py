@@ -59,6 +59,9 @@ def _project(name: str) -> VcsProjectEntry:
         vcs_prefix="gh",
         display_tag=f"#gh:{name}",
         provider_display="GitHub",
+        key=name,
+        tag=f"+{name}",
+        accent_index=0,
     )
 
 
@@ -227,7 +230,7 @@ async def test_bof_plus_routes_to_project_completion() -> None:
         assert ta.text == "+"
         assert ta._file_completion_active is True
         assert ta._completion_kind == VCS_PROJECT_COMPLETION_KIND
-        assert [c.insertion for c in ta._file_completion_candidates] == ["#gh:sase"]
+        assert [c.insertion for c in ta._file_completion_candidates] == ["+sase "]
 
 
 async def test_embedded_hash_token_does_not_auto_open() -> None:

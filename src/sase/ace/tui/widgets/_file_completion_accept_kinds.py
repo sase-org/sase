@@ -27,11 +27,9 @@ from sase.ace.tui.widgets.xprompt_arg_assist import (
     detect_xprompt_arg_hint_at_cursor,
     xprompt_completion_skeleton,
 )
+from sase.project_tags import apply_project_tag_selection
 from sase.workspace_provider import VcsNamespaceEntry, VcsRepoEntry
-from sase.xprompt.vcs_project_completion import (
-    VcsProjectEntry,
-    apply_vcs_project_selection,
-)
+from sase.xprompt.vcs_project_completion import VcsProjectEntry
 from sase.xprompt.vcs_ref_completion import apply_vcs_ref_selection
 from sase.xprompt.vcs_repo_completion import apply_vcs_repo_selection
 
@@ -45,7 +43,7 @@ class FileCompletionAcceptKindsMixin(FileCompletionBaseMixin):
         def _try_artifact_ref_completion(self, *, force: bool = False) -> bool: ...
 
     def _accept_vcs_project_completion(self, selected: CompletionCandidate) -> bool:
-        """Apply the canonical expansion for the selected project candidate."""
+        """Apply the core in-place accept for the selected project candidate."""
         entry = selected.metadata
         if not isinstance(entry, VcsProjectEntry):
             # The empty project/PR placeholder is not selectable.
@@ -56,10 +54,11 @@ class FileCompletionAcceptKindsMixin(FileCompletionBaseMixin):
             self._clear_file_completion()
             return False
         old_text = self.text
-        new_text = apply_vcs_project_selection(
-            old_text, trigger.span, entry.display_tag
+        new_text, cursor_offset = apply_project_tag_selection(
+            old_text, trigger.span, selected.insertion
         )
         self._replace_absolute_range(0, len(old_text), new_text)
+        self.cursor_location = self._location_from_absolute(cursor_offset)
         self._clear_file_completion()
         return True
 

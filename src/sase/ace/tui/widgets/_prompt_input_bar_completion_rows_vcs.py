@@ -9,20 +9,35 @@ from sase.ace.tui.widgets._prompt_input_bar_completion_rows_utils import (
 )
 from sase.ace.tui.widgets.file_completion import CompletionCandidate
 from sase.ace.tui.widgets.vcs_repo_completion import VcsRepoCompletionPlaceholder
+from sase.project_accents import PROJECT_ACCENTS
 from sase.project_display_names import project_display_name_for
 from sase.workspace_provider import VcsNamespaceEntry, VcsRepoEntry
 from sase.xprompt.vcs_project_completion import VcsProjectEntry
 
 
+def _project_tag_accent(entry: VcsProjectEntry) -> str | None:
+    """Return the palette accent for a project row, or ``None`` for neutral."""
+    if entry.accent_index is None:
+        return None
+    if 0 <= entry.accent_index < len(PROJECT_ACCENTS):
+        return PROJECT_ACCENTS[entry.accent_index]
+    return None
+
+
 def vcs_project_label_width(candidate: CompletionCandidate) -> int:
-    """Visible width for the badge + primary label in a VCS completion row."""
+    """Visible width for the primary label in a VCS completion row.
+
+    Project rows render ``+name`` in the project's accent (no badge); patch
+    rows keep their ``[PR]`` badge.
+    """
     entry = (
         candidate.metadata if isinstance(candidate.metadata, VcsProjectEntry) else None
     )
     if entry is None:
         return len(candidate.display)
-    badge_width = 5 if entry.kind == "patch" else 4
-    return badge_width + len(entry.name)
+    if entry.kind == "patch":
+        return 5 + len(entry.name)
+    return 1 + len(entry.name)
 
 
 def vcs_repo_label_width(candidate: CompletionCandidate) -> int:
@@ -53,9 +68,11 @@ def append_vcs_project_completion_row(
 ) -> None:
     """Append one ``+`` project/PR completion row.
 
-    Project and Patch rows use the same badges as the ProjectSelect modal.
-    The empty-catalog placeholder (no :class:`VcsProjectEntry` metadata) renders
-    as a single dim row.
+    Project rows render ``+name`` in the project's accent (the ``+`` dim,
+    the name bold), then a dim ``provider · #wf:name`` detail and a
+    ``current`` badge where it applies. Patch rows keep their ``[PR]``
+    badge. The empty-catalog placeholder (no :class:`VcsProjectEntry`
+    metadata) renders as a single dim row.
     """
     entry = (
         candidate.metadata if isinstance(candidate.metadata, VcsProjectEntry) else None
@@ -68,19 +85,11 @@ def append_vcs_project_completion_row(
         badge = "[PR] "
         badge_style = "bold #00D7AF"
         name_style = "bold #00D7AF" if is_selected else "#00D7AF"
-    else:
-        badge = "[P] "
-        badge_style = "bold #87D7FF"
-        name_style = "bold #87D7FF" if is_selected else "#87D7FF"
-
-    content.append(badge, style=badge_style)
-    content.append(entry.name, style=name_style)
-    padding = max(0, label_width - (len(badge) + len(entry.name)))
-    if padding:
-        content.append(" " * padding)
-
-    content.append(f"  {entry.display_tag}", style="dim green")
-    if entry.kind == "patch":
+        content.append(badge, style=badge_style)
+        content.append(entry.name, style=name_style)
+        padding = max(0, label_width - (len(badge) + len(entry.name)))
+        if padding:
+            content.append(" " * padding)
         if entry.status:
             content.append(f"  {entry.status}", style="dim")
         if entry.project:
@@ -88,10 +97,25 @@ def append_vcs_project_completion_row(
                 f"  · {project_display_name_for(entry.project)}",
                 style="dim",
             )
+        return
+
+    accent = _project_tag_accent(entry)
+    sigil_style = f"dim {accent}" if accent else "dim"
+    if accent:
+        name_style = f"bold {accent}"
     else:
-        content.append(f"  {entry.provider_display}", style="dim")
-        if entry.description:
-            content.append(f"  {entry.description}", style="dim")
+        name_style = "bold" if is_selected else ""
+    content.append("+", style=sigil_style)
+    content.append(entry.name, style=name_style)
+    padding = max(0, label_width - (1 + len(entry.name)))
+    if padding:
+        content.append(" " * padding)
+
+    content.append(f"  {entry.provider_display} · {entry.display_tag}", style="dim")
+    if entry.description:
+        content.append(f"  {entry.description}", style="dim")
+    if entry.current:
+        content.append("  current", style="dim")
 
 
 def append_vcs_repo_completion_row(

@@ -39,6 +39,25 @@ def _vcs_prompt_prefix(project_file: str, name: str) -> str:
     return f"#{workflow_type}:{name} "
 
 
+def _project_tag_prompt_prefix(project_file: str, name: str) -> str:
+    """Build a project prompt prefix, preferring the ``+<project>`` tag.
+
+    Project rows launch with their tag (``+sase ``); names that are not in
+    the tag grammar and Patch names fall back to the ``#<workflow>:<name>``
+    prefix from :func:`_vcs_prompt_prefix`. When the tag catalog is cold,
+    the prefix degrades to today's ``#`` form and the launch path still
+    validates.
+    """
+    from sase.project_tags import known_project_tag_for, peek_project_tag_catalog
+
+    catalog = peek_project_tag_catalog()
+    if catalog is not None:
+        spelling = known_project_tag_for(catalog, name)
+        if spelling is not None:
+            return f"{spelling} "
+    return _vcs_prompt_prefix(project_file, name)
+
+
 def _rewrite_retry_prompt_name(
     raw_prompt: str,
     retry_name: str,
@@ -94,6 +113,16 @@ class _EntryPointsBaseMixin:
             )
             return None
 
+    def _project_tag_prefix_or_notify(self, project_file: str, name: str) -> str | None:
+        """Build a project prompt prefix, preferring the ``+`` tag spelling."""
+        try:
+            return _project_tag_prompt_prefix(project_file, name)
+        except ValueError as exc:
+            self.notify(  # type: ignore[attr-defined]
+                f"Cannot start agent for {name}: {exc}", severity="error"
+            )
+            return None
+
     def _is_launchable_project(self, project_name: str) -> bool:
         return is_launchable_project(project_name)
 
@@ -137,6 +166,7 @@ class EntryPointsMixin(
 __all__ = [
     "EntryPointsMixin",
     "_force_name_reuse_in_prompt",
+    "_project_tag_prompt_prefix",
     "_rewrite_retry_prompt_name",
     "_vcs_prompt_prefix",
     "is_launchable_project",

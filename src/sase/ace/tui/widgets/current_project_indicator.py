@@ -144,7 +144,12 @@ class CurrentProjectIndicator(Static):
 
         if not indicator or project is None:
             return None
-        lines = [f"Current project: {project.display_name}"]
+        from sase.project_tags import is_project_tag_name
+
+        headline = f"Current project: {project.display_name}"
+        if is_project_tag_name(project.display_name):
+            headline += f" (+{project.display_name})"
+        lines = [headline]
         lines.append(
             "Your working project: it seeds project filters and is "
             "preselected in the + launch picker."

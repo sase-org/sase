@@ -222,19 +222,32 @@ class XPromptArgHintMixin(_MixinBase):
         return entries if isinstance(entries, list) else None
 
     def _xprompt_arg_assist_project_from_text(self) -> str | None:
-        """Derive xprompt context from a leading VCS tag or the active app.
+        """Derive xprompt context from a leading workspace target or the app.
 
-        The VCS tag yields a user-facing project name while the prompt context
-        yields a ProjectSpec directory key, so both are normalized to the
-        canonical xprompt namespace. That keeps the app-level catalog cache
-        keyed consistently no matter which source wins.
+        The target may be a ``+<project>`` tag or a ``#`` VCS ref; tags
+        expand to their canonical ref first. The VCS tag yields a
+        user-facing project name while the prompt context yields a
+        ProjectSpec directory key, so both are normalized to the canonical
+        xprompt namespace. That keeps the app-level catalog cache keyed
+        consistently no matter which source wins.
         """
         prompt_text_area = _prompt_text_area_module()
-        tag = (
-            prompt_text_area.extract_vcs_workflow_tag(self.text)
-            if "#" in self.text
-            else None
-        )
+        tag = None
+        if "+" in self.text:
+            # Tags expand first, but only when the catalog is already warm:
+            # this runs on the keystroke path and must never build it.
+            from sase.project_tags import (
+                effective_vcs_workflow_tag,
+                peek_project_tag_catalog,
+            )
+
+            if peek_project_tag_catalog() is not None:
+                try:
+                    tag = effective_vcs_workflow_tag(self.text)
+                except Exception:  # noqa: BLE001 - fall back to the raw tag.
+                    tag = None
+        if tag is None and "#" in self.text:
+            tag = prompt_text_area.extract_vcs_workflow_tag(self.text)
         if tag is not None:
             project = prompt_text_area.extract_project_from_vcs_tag(tag)
             if project:

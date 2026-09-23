@@ -9,7 +9,11 @@ import pytest
 
 from sase.ace.tui.actions.agent_workflow import _entry_points
 
-from ._entry_points_vcs_prefix_helpers import _App
+from ._entry_points_vcs_prefix_helpers import (
+    _App,
+    _patch_tag_peek,
+    _tag_catalog,
+)
 
 
 def test_quick_patch_mounts_prompt_bar_for_non_launchable_project(
@@ -132,3 +136,35 @@ def test_edit_and_relaunch_mounts_prompt_bar_for_non_launchable_project(
     )
 
     assert len(app.mounted) == 1
+
+
+def test_quick_project_agent_mounts_bar_with_tag_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A project agent quick-launch prefills the ``+`` tag, not the ``#`` ref."""
+    monkeypatch.setattr(_entry_points, "is_launchable_project", lambda _project: True)
+    monkeypatch.setattr(
+        _entry_points, "_vcs_prompt_prefix", lambda _pf, name: f"#gh:{name} "
+    )
+    monkeypatch.setattr(
+        "sase.project_display_names.project_display_name_for",
+        lambda key, *_a, **_k: key,
+    )
+    _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
+
+    agent = SimpleNamespace(
+        project_file="/tmp/sase/sase.sase",
+        cl_name="sase",
+        is_project_agent=True,
+    )
+
+    class _AppWithAgent(_App):
+        def _get_selected_agent(self) -> Any:
+            return agent
+
+    app = _AppWithAgent()
+
+    app._start_agent_from_agent_quick()
+
+    assert app.prompt_launches[0]["initial_text"] == "+sase "
+    assert app.prompt_launches[0]["display_name"] == "sase"

@@ -18,18 +18,73 @@ _FRONTMATTER_RE = re.compile(r"\A---[^\n]*\n.*?\n---\s*", re.DOTALL)
 _DIRECTIVE_NAME_RE = re.compile(r"%[a-zA-Z_][a-zA-Z0-9_]*")
 
 
+def _leading_workspace_tag(body: str) -> str | None:
+    """Return the leading workspace target's canonical ``#`` ref, if any.
+
+    ``+<project>`` tags expand first, but only when the tag catalog is
+    already warm: render paths must never build it (process spawns) on the
+    UI thread, so a cold catalog degrades to the raw ``#`` extraction.
+    """
+    if "+" in body:
+        from sase.project_tags import (
+            effective_vcs_workflow_tag,
+            peek_project_tag_catalog,
+        )
+
+        if peek_project_tag_catalog() is not None:
+            try:
+                tag = effective_vcs_workflow_tag(body)
+            except Exception:  # noqa: BLE001 - fall back to the raw tag.
+                tag = None
+            if tag:
+                return tag
+    if "#" not in body:
+        return None
+    from sase.xprompt import extract_vcs_workflow_tag
+
+    return extract_vcs_workflow_tag(body)
+
+
+def _first_workspace_tag(body: str) -> str | None:
+    """Return the first workspace target's canonical ``#`` ref, if any.
+
+    Same warm-catalog policy as :func:`_leading_workspace_tag`.
+    """
+    if "+" in body:
+        from sase.project_tags import (
+            effective_find_vcs_workflow_tag,
+            effective_vcs_workflow_tag,
+            peek_project_tag_catalog,
+        )
+
+        if peek_project_tag_catalog() is not None:
+            try:
+                tag = effective_vcs_workflow_tag(
+                    body
+                ) or effective_find_vcs_workflow_tag(body)
+            except Exception:  # noqa: BLE001 - fall back to the raw tag.
+                tag = None
+            if tag:
+                return tag
+    if "#" not in body:
+        return None
+    from sase.xprompt import extract_vcs_workflow_tag, find_vcs_workflow_tag
+
+    return extract_vcs_workflow_tag(body) or find_vcs_workflow_tag(body)
+
+
 def vcs_workflow_from_prompt(raw_prompt: str) -> AgentVcsWorkflow | None:
     if not raw_prompt:
         return None
 
-    from sase.xprompt import extract_project_from_vcs_tag, extract_vcs_workflow_tag
+    from sase.xprompt import extract_project_from_vcs_tag
     from sase.project_display_names import (
         humanize_vcs_refs_in_text,
         project_display_name_for,
     )
 
     body = _strip_leading_prompt_directives(_strip_frontmatter(raw_prompt))
-    tag = extract_vcs_workflow_tag(body)
+    tag = _leading_workspace_tag(body)
     if not tag:
         return None
 
@@ -50,10 +105,8 @@ def vcs_workflow_from_prompt(raw_prompt: str) -> AgentVcsWorkflow | None:
 def raw_vcs_tag_for_prompt(raw_prompt: str) -> str:
     if not raw_prompt:
         return ""
-    from sase.xprompt import extract_vcs_workflow_tag, find_vcs_workflow_tag
-
     body = _strip_leading_prompt_directives(_strip_frontmatter(raw_prompt))
-    tag = extract_vcs_workflow_tag(body) or find_vcs_workflow_tag(body)
+    tag = _first_workspace_tag(body)
     return tag.strip() if tag else ""
 
 

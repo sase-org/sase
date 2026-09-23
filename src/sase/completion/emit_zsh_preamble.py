@@ -88,6 +88,7 @@ __sase_run_prompt_fragment() {
       '#') marker='#'; kind='xprompt'; break ;;
       '%') marker='%'; kind='directive'; break ;;
       '@') marker='@'; kind='artifact_ref'; break ;;
+      '+') marker='+'; kind='project_tag'; break ;;
     esac
   done
   [[ -n $marker ]] || return 1
@@ -127,7 +128,8 @@ __sase_run_prompt_embedded() {
 # `sase run`'s PROMPT positional: native file completion plus stored xprompt
 # names, since `sase run` accepts either a free-form prompt (often a path an
 # editor buffer was drafted in), `#name`-style xprompt references, and
-# embedded `#xprompt`, `%directive`, or `@artifact-reference` fragments.
+# embedded `#xprompt`, `%directive`, `@artifact-reference`, or `+project-tag`
+# fragments.
 __sase_run_prompt() {
   if __sase_run_prompt_fragment; then
     __sase_run_prompt_embedded $reply && return

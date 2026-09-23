@@ -32,6 +32,13 @@ def test_preamble_defines_sase_candidates_with_in_shell_cache() -> None:
     assert "__sase_run completion candidates $kind" in text
 
 
+def test_run_prompt_fragment_detects_project_tag_marker() -> None:
+    text = zsh_preamble()
+    body = _function_body(text, "__sase_run_prompt_fragment")
+    assert "'+') marker='+'; kind='project_tag'; break ;;" in body
+    assert text.count("kind='project_tag'") == 1
+
+
 def test_preamble_keeps_compsys_helpers_in_completion_environment() -> None:
     text = zsh_preamble()
     assert "Do not reset shell options" in text

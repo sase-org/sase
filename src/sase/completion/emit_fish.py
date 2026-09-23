@@ -63,6 +63,10 @@ function __sase_run_prompt_fragment
                 set marker '@'
                 set kind artifact_ref
                 break
+            case '+'
+                set marker '+'
+                set kind project_tag
+                break
         end
         set i (math $i - 1)
     end

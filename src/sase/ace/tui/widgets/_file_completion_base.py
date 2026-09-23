@@ -620,15 +620,16 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
         self._schedule_history_word_completion_load()
 
     def _warm_vcs_project_completion_catalog(self) -> None:
-        """Warm the ``+`` project catalog off the keystroke path.
+        """Warm the ``+`` project catalogs off the keystroke path.
 
-        The catalog build touches disk (project enumeration + provider
-        detection), so it must never run synchronously inside key handling
+        The catalog builds touch disk (project enumeration + provider
+        detection), so they must never run synchronously inside key handling
         (``sase/memory/tui_perf.md``). Building once in a background thread
         populates the module-level cache in
-        :mod:`sase.xprompt.vcs_project_completion`, so the first valid ``+`` opens
-        the menu instantly. Gated on the real app's completion-settings
-        capability so lightweight test harnesses skip it.
+        :mod:`sase.xprompt.vcs_project_completion` and the shared
+        :mod:`sase.project_tags` snapshot, so the first valid ``+`` opens
+        the menu instantly and tag prefills resolve. Gated on the real app's
+        completion-settings capability so lightweight test harnesses skip it.
         """
         if getattr(self, "_vcs_project_catalog_warmed", False):
             return
@@ -659,6 +660,9 @@ class FileCompletionBaseMixin(FileCompletionArtifactCandidatesMixin):
 def _warm_vcs_completion_catalogs() -> None:
     """Warm VCS project and ref-root namespace completion caches."""
     build_vcs_project_completion_entries()
+    from sase.project_tags import load_project_tag_catalog
+
+    load_project_tag_catalog()
 
     from sase.workspace_provider import get_workflow_names
     from sase.xprompt.vcs_ref_completion import vcs_ref_namespaces_by_workflow

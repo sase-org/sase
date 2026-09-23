@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from sase.xprompt.vcs_project_completion import VcsProjectTrigger
 
 
 class ProjectTagError(RuntimeError):
@@ -20,6 +23,18 @@ def _expand_binding() -> Any:
     from sase.core.rust import require_rust_binding
 
     return require_rust_binding("project_tag_expand")
+
+
+def _trigger_binding() -> Any:
+    from sase.core.rust import require_rust_binding
+
+    return require_rust_binding("project_tag_trigger")
+
+
+def _apply_selection_binding() -> Any:
+    from sase.core.rust import require_rust_binding
+
+    return require_rust_binding("project_tag_apply_selection")
 
 
 def _line_of(text: str, offset: int) -> int:
@@ -197,6 +212,25 @@ def validate_project_tags_for_launch(
     from sase.project_tags.catalog import load_project_tag_catalog
 
     catalog = load_project_tag_catalog(projects_dir)
+    validate_project_tags_with_catalog(text, catalog, _alt_depth=_alt_depth)
+
+
+def validate_project_tags_with_catalog(
+    text: str,
+    catalog: Any,
+    *,
+    _alt_depth: int = 0,
+) -> None:
+    """Validate ``+<project>`` tags in *text* against a catalog (D3).
+
+    Same policy as :func:`validate_project_tags_for_launch` but takes a
+    previously loaded snapshot, so render and keystroke paths can validate
+    with :func:`~sase.project_tags.catalog.peek_project_tag_catalog` and
+    skip validation (never build) when the catalog is cold.
+    """
+
+    if "+" not in text:
+        return
     wire_targets = catalog.wire_targets()
     expansion = _expand_binding()(text, wire_targets)
     tags = list(expansion["tags"])
@@ -288,8 +322,8 @@ def validate_project_tags_for_launch(
     for _, _, branches in alt_groups:
         for branch in branches:
             if "+" in branch:
-                validate_project_tags_for_launch(
-                    branch, projects_dir, _alt_depth=_alt_depth + 1
+                validate_project_tags_with_catalog(
+                    branch, catalog, _alt_depth=_alt_depth + 1
                 )
 
 
@@ -329,6 +363,89 @@ def project_tag_for(key_or_ref: str) -> str:
     return key_or_ref
 
 
+def known_project_tag_for(catalog: Any, key_or_ref: str) -> str | None:
+    """Return the tag/``#<workflow>:`` spelling for a known catalog target.
+
+    Matches *key_or_ref* (one leading ``+`` tolerated) against the catalog's
+    directory keys, display names, and aliases, case-insensitively. Returns
+    the ``+<project>`` tag, or the ``#<workflow>:<name>`` ref when the name
+    is not in the tag grammar, or ``None`` when no target matches. Unlike
+    :func:`project_tag_for`, unknown names never gain a ``+`` spelling, so
+    Patch names and typos fall through to the caller's ``#`` fallback.
+    """
+
+    needle = key_or_ref.strip()
+    if needle.startswith("+"):
+        needle = needle[1:]
+    if not needle:
+        return None
+    folded = needle.casefold()
+    for target in catalog.targets:
+        candidates = [target.key, target.name, *target.aliases]
+        if any(c.casefold() == folded for c in candidates):
+            if target.tag is not None:
+                return target.tag
+            if target.vcs_ref is not None:
+                return target.vcs_ref
+            return None
+    return None
+
+
+def find_project_tag_trigger(text: str, cursor: int) -> VcsProjectTrigger | None:
+    """Detect a live ``+query`` completion trigger at *cursor* (D1/D7).
+
+    Delegates to the core ``project_tag_trigger`` binding, which owns the
+    left-boundary rule (start of text, whitespace, ``{``, or ``|``). Offsets
+    are Python code-point offsets. Returns the shared
+    :class:`~sase.xprompt.vcs_project_completion.VcsProjectTrigger`, or
+    ``None`` when no trigger applies.
+    """
+
+    if cursor < 0 or cursor > len(text):
+        return None
+    result = _trigger_binding()(text, cursor)
+    if result is None:
+        return None
+    from sase.xprompt.vcs_project_completion import VcsProjectTrigger
+
+    return VcsProjectTrigger(
+        start=int(result["start"]),
+        end=int(result["end"]),
+        query=str(result["query"]),
+    )
+
+
+def apply_project_tag_selection(
+    text: str,
+    trigger_span: tuple[int, int],
+    insertion: str,
+    projects_dir: Path | str | None = None,
+) -> tuple[str, int]:
+    """Apply an accepted completion row to *text* via the core binding (D7).
+
+    *insertion* is the row's text verbatim — a project row passes
+    ``+<name> `` (or ``#<workflow>:<name> `` when the name is not in the
+    tag grammar) and a PR row passes ``#<workflow>:<patch> ``. The trigger
+    token is replaced in place and every other workspace target in the
+    trigger's ``---`` segment is removed, so picking a project always
+    leaves exactly one. Returns ``(new_text, cursor)`` with a Python
+    code-point cursor just past the insertion.
+    """
+
+    from sase.project_tags.catalog import load_project_tag_catalog
+    from sase.workspace_provider import get_workflow_names
+
+    catalog = load_project_tag_catalog(projects_dir)
+    applied = _apply_selection_binding()(
+        text,
+        trigger_span,
+        insertion,
+        sorted(get_workflow_names()),
+        catalog.wire_targets(),
+    )
+    return str(applied["text"]), int(applied["cursor"])
+
+
 def effective_vcs_workflow_tag(prompt: str) -> str | None:
     """Return the leading VCS tag for *prompt*, resolving tags first."""
 
@@ -357,11 +474,15 @@ def effective_find_vcs_workflow_tag(prompt: str) -> str | None:
 
 __all__ = [
     "ProjectTagError",
+    "apply_project_tag_selection",
     "effective_find_vcs_workflow_tag",
     "effective_vcs_workflow_tag",
     "expand_project_tags",
     "expand_project_tags_report",
+    "find_project_tag_trigger",
     "find_project_tags",
+    "known_project_tag_for",
     "project_tag_for",
     "validate_project_tags_for_launch",
+    "validate_project_tags_with_catalog",
 ]

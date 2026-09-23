@@ -369,7 +369,7 @@ def test_project_tooltip_names_origin(
     )
 
     assert CurrentProjectIndicator._build_tooltip(project, indicator=True) == (
-        "Current project: sase\n"
+        "Current project: sase (+sase)\n"
         "Your working project: it seeds project filters and is "
         "preselected in the + launch picker.\n"
         f"{expected}\n"

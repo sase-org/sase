@@ -118,7 +118,25 @@ def _current_project_via_text(current_project: CurrentProject) -> str:
     ref = f"#{current_project.workflow_type}:{current_project.origin_ref}"
     if current_project.origin == "patch":
         return f"via Patch {current_project.origin_ref} ({ref})"
+    tag = _project_tag_for_origin(current_project)
+    if tag is not None:
+        return f"via {tag} ({ref})"
     return f"via {ref}"
+
+
+def _project_tag_for_origin(current_project: CurrentProject) -> str | None:
+    """Return the ``+<project>`` spelling for a project origin, or ``None``.
+
+    Patch origins and unknown names keep the ``#`` ref; a cold tag catalog
+    degrades to the ``#`` ref as well.
+    """
+    from sase.project_tags import known_project_tag_for, peek_project_tag_catalog
+
+    catalog = peek_project_tag_catalog()
+    if catalog is None:
+        return None
+    spelling = known_project_tag_for(catalog, current_project.origin_ref)
+    return spelling if spelling and spelling.startswith("+") else None
 
 
 def _current_project_detail_reason(record: ProjectRecordWire) -> str:

@@ -171,11 +171,42 @@ class LaunchPromptInputMixin(LaunchProviderGuardMixin, LaunchHoldGuardMixin):
             self.notify("No prompt context - cannot launch", severity="error")  # type: ignore[attr-defined]
             return
 
+        if not self._preflight_project_tags(prompt):
+            return
+
         self._preflight_hold_confirm(
             prompt,
             keep_bar,
             owner_session_id=owner_session_id,
         )
+
+    def _preflight_project_tags(self, prompt: str) -> bool:
+        """Reject D3 project-tag errors before the bar unmounts, if possible.
+
+        Validates against the warm tag catalog snapshot so the prompt stays
+        in the editor on error (an error toast names the problem). When the
+        catalog is cold, validation is skipped here and ``launch_query``
+        still enforces D3 before any unit spawns.
+        """
+        if "+" not in prompt:
+            return True
+        from sase.project_tags import (
+            ProjectTagError,
+            peek_project_tag_catalog,
+            validate_project_tags_with_catalog,
+        )
+
+        catalog = peek_project_tag_catalog()
+        if catalog is None:
+            return True
+        try:
+            validate_project_tags_with_catalog(prompt, catalog)
+        except ProjectTagError as exc:
+            self.notify(str(exc), severity="error")  # type: ignore[attr-defined]
+            return False
+        except Exception:  # noqa: BLE001 - launch_query still validates.
+            return True
+        return True
 
     def _release_prompt_context_if_no_bar_mounted(self) -> None:
         """Clear bar-less prompt state without destroying a mounted draft.

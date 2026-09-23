@@ -21,9 +21,11 @@ def resolve_prompt_completion_base_dir(prompt: str) -> str | None:
     This helper is intentionally read-only: it never changes process CWD,
     claims workspaces, or activates lifecycle projects.  When a ref is
     incomplete or cannot be resolved, ``None`` is returned so callers keep the
-    existing CWD-based behavior.
+    existing CWD-based behavior.  ``+<project>`` tags expand inside
+    :func:`~sase.project_aliases.canonicalize_project_aliases_in_prompt`,
+    so tag-form prompts resolve here too.
     """
-    if "#" not in prompt:
+    if "#" not in prompt and "+" not in prompt:
         return None
 
     normalized = _normalize_prompt_refs(prompt)

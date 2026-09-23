@@ -15,21 +15,28 @@ def _resolve_vcs_xprompt_mru_head() -> tuple[str, str, str] | None:
     """Resolve the VCS xprompt MRU head into a ready-to-mount prefill.
 
     Returns ``(initial_text, display_name, history_sort_key)``, or ``None``
-    when the MRU is empty. ``initial_text``/``display_name`` use the
-    humanized display prefix (users must never see a directory key);
-    ``history_sort_key`` uses the canonical on-disk prefix so prompt-history
-    grouping agrees with every other prefill surface.
+    when the MRU is empty. ``initial_text`` uses the ``+<project>`` tag for
+    project entries (Patch entries keep their ``#`` ref) while
+    ``display_name``/``history_sort_key`` keep today's display/canonical
+    project spelling so history grouping agrees with every other prefill
+    surface.
     """
     from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru_pairs
+    from sase.project_tags import known_project_tag_for, peek_project_tag_catalog
     from sase.xprompt import extract_project_from_vcs_tag
 
     pairs = load_launchable_vcs_xprompt_mru_pairs()
     if not pairs:
         return None
     canonical_prefix, display_prefix = pairs[0]
-    initial_text = f"{display_prefix} "
     display_name = extract_project_from_vcs_tag(display_prefix) or display_prefix
     history_sort_key = extract_project_from_vcs_tag(canonical_prefix) or display_name
+    initial_text = f"{display_prefix} "
+    catalog = peek_project_tag_catalog()
+    if catalog is not None:
+        spelling = known_project_tag_for(catalog, display_name)
+        if spelling is not None and spelling.startswith("+"):
+            initial_text = f"{spelling} "
     return initial_text, display_name, history_sort_key
 
 
@@ -41,6 +48,10 @@ class EntryCustomMixin:
         def _is_launchable_project(self, project_name: str) -> bool: ...
 
         def _vcs_prompt_prefix_or_notify(
+            self, project_file: str, name: str
+        ) -> str | None: ...
+
+        def _project_tag_prefix_or_notify(
             self, project_file: str, name: str
         ) -> str | None: ...
 
@@ -196,7 +207,7 @@ class EntryCustomMixin:
                 or selection.project_label
                 or project_display_name_for(project_name)
             )
-            prefix = self._vcs_prompt_prefix_or_notify(project_file, display_name)
+            prefix = self._project_tag_prefix_or_notify(project_file, display_name)
             if prefix is None:
                 return
             if open_in_editor:

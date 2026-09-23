@@ -32,6 +32,7 @@ class ValueKind(StrEnum):
     PROVIDER = "provider"
     SNIPPET = "snippet"
     TAG = "tag"
+    PROJECT_TAG = "project_tag"
     PATH = "path"
     DIR = "dir"
 

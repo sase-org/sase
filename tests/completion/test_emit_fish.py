@@ -172,6 +172,7 @@ def test_run_prompt_positional_combines_files_and_xprompts() -> None:
     assert "-rFa '(__sase_run_prompt_candidates)'" in script
     assert "set kind directive" in script
     assert "set kind artifact_ref" in script
+    assert "set kind project_tag" in script
 
 
 def test_aliases_are_matched_but_not_offered() -> None:
@@ -277,6 +278,7 @@ def test_fish_sources_generated_script(tmp_path: Path, live_script: str) -> None
         ('sase run "ask #zz', "ask #zzz-fixture-xprompt"),
         ('sase run "ask %mo', "ask %model"),
         ('sase run "ask @file:e', "ask @file:explicit:abc123"),
+        ('sase run "ask +zz', "ask +zzz-fixture-project"),
     ],
 )
 def test_fish_completes_run_prompt_embedded_markers(
@@ -299,6 +301,7 @@ def test_fish_completes_run_prompt_embedded_markers(
         "    xprompt) printf 'zzz-fixture-xprompt\\tA fixture xprompt\\n' ;;\n"
         "    directive) printf 'model\\tOverride the LLM model\\n' ;;\n"
         "    artifact_ref) printf 'file:explicit:abc123\\tScreenshot\\n' ;;\n"
+        "    project_tag) printf 'zzz-fixture-project\\tGitHub project\\n' ;;\n"
         "  esac\n"
         "fi\n",
         encoding="utf-8",

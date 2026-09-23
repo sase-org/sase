@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sase.xprompt import extract_vcs_workflow_tag
+from sase.project_tags import (
+    effective_vcs_workflow_tag,
+    known_project_tag_for,
+    peek_project_tag_catalog,
+)
+from sase.xprompt import extract_project_from_vcs_tag, extract_vcs_workflow_tag
 
 if TYPE_CHECKING:
     from textual.widgets import Static as _MixinBase
@@ -99,14 +104,34 @@ class PromptInputBarStackNavigationMixin(_MixinBase):
         self._rebuild_stack(enter_mode="insert")
 
     def _added_bottom_pane_initial_text(self) -> str:
-        """Return the VCS workflow seed for a newly appended agent pane."""
+        """Return the workspace seed for a newly appended agent pane.
+
+        The seed follows the selected pane's leading workspace target,
+        whether it is a ``+<project>`` tag or a ``#`` ref, and project
+        seeds use the tag spelling (Patch seeds keep their ``#`` ref).
+        """
         selected = self._stack.selected_item
         if selected.is_auxiliary_pane:
             return ""
-        vcs_tag = extract_vcs_workflow_tag(f"{selected.text} ")
+        catalog = peek_project_tag_catalog()
+        vcs_tag = None
+        if "+" in selected.text and catalog is not None:
+            try:
+                vcs_tag = effective_vcs_workflow_tag(f"{selected.text} ")
+            except Exception:  # noqa: BLE001 - fall back to the raw tag.
+                vcs_tag = None
+        if vcs_tag is None:
+            vcs_tag = extract_vcs_workflow_tag(f"{selected.text} ")
         if vcs_tag is None:
             return ""
-        return f"{vcs_tag.strip()} "
+        vcs_tag = vcs_tag.strip()
+        if catalog is not None:
+            project = extract_project_from_vcs_tag(vcs_tag)
+            if project:
+                spelling = known_project_tag_for(catalog, project)
+                if spelling is not None and spelling.startswith("+"):
+                    return f"{spelling} "
+        return f"{vcs_tag} "
 
     def _clear_active_completion_state(self) -> None:
         """Drop transient active-pane state before stack focus/mutation."""

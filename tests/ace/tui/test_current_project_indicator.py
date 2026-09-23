@@ -76,7 +76,7 @@ def test_patch_origin_renders_project_name_and_names_patch_in_tooltip() -> None:
     assert text.plain == "+sase"
     assert "my_patch" not in text.plain
     assert tooltip == (
-        "Current project: sase\n"
+        "Current project: sase (+sase)\n"
         "Your working project: it seeds project filters and is "
         "preselected in the + launch picker.\n"
         "Set via Patch my_patch\n"
@@ -91,7 +91,7 @@ def test_project_origin_tooltip_names_mru_ref_and_launch_hint() -> None:
     tooltip = CurrentProjectIndicator._build_tooltip(project, indicator=True)
 
     assert tooltip == (
-        "Current project: sase\n"
+        "Current project: sase (+sase)\n"
         "Your working project: it seeds project filters and is "
         "preselected in the + launch picker.\n"
         "Set by your last launch (#gh:sase)\n"

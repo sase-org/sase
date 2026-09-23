@@ -140,14 +140,27 @@ class PromptBarRequestsMixin:
         vcs_prefix = event.vcs_prefix
 
         def _build_prompt(prompt_text: str) -> str:
-            """Replace embedded VCS workflow tags with the current VCS prefix.
+            """Replace embedded workspace targets with the current VCS prefix.
 
             Finds all VCS workflow tags in the prompt (including in
             multi-prompt segments and after ``%directive`` tokens) and
-            replaces each with *vcs_prefix*.  This handles cross-VCS
+            replaces each with *vcs_prefix*.  Project tags expand to
+            their canonical ``#`` form first so tag-form entries reuse
+            across projects the same way.  This handles cross-VCS
             reuse and avoids tag doubling.
             """
             if vcs_prefix:
+                if "+" in prompt_text:
+                    from sase.project_tags import (
+                        expand_project_tags,
+                        peek_project_tag_catalog,
+                    )
+
+                    if peek_project_tag_catalog() is not None:
+                        try:
+                            prompt_text = expand_project_tags(prompt_text)
+                        except Exception:  # noqa: BLE001 - fall back to raw.
+                            pass
                 from sase.xprompt import replace_vcs_workflow_tags
 
                 return replace_vcs_workflow_tags(prompt_text, vcs_prefix)
@@ -356,6 +369,10 @@ class PromptBarRequestsMixin:
             elif origin_bar is not None:
                 prompt_text = origin_bar.active_text()
             if prompt_text:
+                from sase.project_tags import (
+                    effective_vcs_workflow_tag,
+                    peek_project_tag_catalog,
+                )
                 from sase.xprompt._parsing import (
                     extract_project_from_vcs_tag,
                     extract_vcs_workflow_tag,
@@ -366,7 +383,14 @@ class PromptBarRequestsMixin:
                     known_project_namespaces,
                 )
 
-                vcs_tag = extract_vcs_workflow_tag(prompt_text)
+                vcs_tag = None
+                if "+" in prompt_text and peek_project_tag_catalog() is not None:
+                    try:
+                        vcs_tag = effective_vcs_workflow_tag(prompt_text)
+                    except Exception:  # noqa: BLE001 - fall back to raw.
+                        vcs_tag = None
+                if vcs_tag is None and "#" in prompt_text:
+                    vcs_tag = extract_vcs_workflow_tag(prompt_text)
                 if vcs_tag:
                     # The tag names the project however the user spelled it, so
                     # canonicalize before the namespace lookup: the namespace map
