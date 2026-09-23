@@ -22,7 +22,6 @@ from .widgets import (
     AgentList,
     AgentLoadIndicator,
     AgentsFilterBar,
-    AliasOverridesIndicator,
     ArtifactsView,
     AxeDashboard,
     AxeInfoPanel,
@@ -32,14 +31,10 @@ from .widgets import (
     LaunchContextBar,
     LaunchContextSource,
     LinkRail,
-    MonitorIndicator,
-    NotificationIndicator,
-    ProviderDisablesIndicator,
-    StashedPromptsIndicator,
     TabBar,
     TabQuickStart,
-    ProcIndicator,
-    UpdatesAvailableIndicator,
+    TopBar,
+    TopBarIndicators,
     UsageHeader,
 )
 
@@ -94,15 +89,9 @@ class AppLayoutMixin:
         # of flashing placeholders. Non-rendering (display: none): zero size.
         yield LaunchContextSource(id="launch-context-source")
         yield UsageHeader(id="ace-header")
-        with Horizontal(id="top-bar"):
+        with TopBar(id="top-bar"):
             yield TabBar(id="tab-bar")
-            yield ProcIndicator(id="proc-indicator")
-            yield MonitorIndicator(id="monitor-indicator")
-            yield UpdatesAvailableIndicator(id="updates-indicator")
-            yield AliasOverridesIndicator(id="alias-overrides-indicator")
-            yield ProviderDisablesIndicator(id="provider-disables-indicator")
-            yield StashedPromptsIndicator(id="stashed-prompts-indicator")
-            yield NotificationIndicator(id="notification-indicator")
+            yield TopBarIndicators(id="top-bar-indicators")
         with Horizontal(id="main-container"):
             yield ArtifactsView(
                 commits_default_filter=self._commits_default_filter,

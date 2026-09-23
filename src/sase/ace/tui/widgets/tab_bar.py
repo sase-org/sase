@@ -2,6 +2,7 @@
 
 from typing import Any
 
+from rich.cells import cell_len
 from rich.text import Text
 from textual.events import Click
 from textual.message import Message
@@ -45,7 +46,10 @@ class TabBar(Static):
         self._tab_ranges: dict[TabName, tuple[int, int]] = dict.fromkeys(
             TAB_ORDER, (0, 0)
         )
-        super().__init__(self._build_content(), **kwargs)
+        self._content_cells = 0
+        content = self._build_content()
+        self._content_cells = cell_len(content.plain) + 2
+        super().__init__(content, **kwargs)
 
     def set_keymap_registry(self, registry: KeymapRegistry) -> None:
         """Override the keymap registry and refresh display."""
@@ -56,6 +60,16 @@ class TabBar(Static):
         """Update the displayed active tab."""
         self._current_tab = tab
         self._refresh_content()
+
+    @property
+    def content_cells(self) -> int:
+        """Return the cell width of the last-built labels plus padding.
+
+        The hosting top bar uses this to compute the cells free for the
+        indicator cluster. Cached when content is built; never re-rendered
+        to measure.
+        """
+        return self._content_cells
 
     def _build_content(self) -> Text:
         """Build the tab bar content."""
@@ -72,8 +86,21 @@ class TabBar(Static):
 
     def _refresh_content(self) -> None:
         """Refresh the tab bar display."""
+        content = self._build_content()
+        self._content_cells = cell_len(content.plain) + 2
         if self.is_mounted:
-            self.update(self._build_content())
+            self.update(content)
+        self._request_host_fit()
+
+    def _request_host_fit(self) -> None:
+        """Ask the hosting top bar to recompute free cells and density."""
+        node = self.parent
+        while node is not None:
+            fit = getattr(node, "fit_top_bar_indicators", None)
+            if callable(fit):
+                fit()
+                return
+            node = node.parent
 
     def on_click(self, event: Click) -> None:
         """Handle click events to switch tabs."""

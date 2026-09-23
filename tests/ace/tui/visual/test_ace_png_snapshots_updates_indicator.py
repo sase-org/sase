@@ -39,7 +39,7 @@ async def test_updates_indicator_routine_png_snapshot(
         indicator.set_available(3)
         await wait_for_state(
             page,
-            lambda: indicator.render().plain == " ⬆ 3 ",
+            lambda: indicator.render().plain == "updates:  3 ",
             description="routine updates indicator",
         )
         page.app.refresh(layout=True)
@@ -73,7 +73,7 @@ async def test_updates_indicator_core_rebuild_png_snapshot(
         indicator.set_available(3, core=True)
         await wait_for_state(
             page,
-            lambda: indicator.render().plain == " ⬆ 3  core ",
+            lambda: indicator.render().plain == "updates:  3  core ",
             description="core-rebuild updates indicator",
         )
         page.app.refresh(layout=True)
@@ -107,7 +107,7 @@ async def test_updates_indicator_agent_cli_only_png_snapshot(
         indicator.set_available(0, agent_cli_count=2)
         await wait_for_state(
             page,
-            lambda: indicator.render().plain == " CLI ⬆ 2 ",
+            lambda: indicator.render().plain == "updates:  CLI 2 ",
             description="agent-CLI-only updates indicator",
         )
         page.app.refresh(layout=True)
@@ -141,7 +141,7 @@ async def test_updates_indicator_mixed_routine_png_snapshot(
         indicator.set_available(3, agent_cli_count=2)
         await wait_for_state(
             page,
-            lambda: indicator.render().plain == " ⬆ 3  CLI ⬆ 2 ",
+            lambda: indicator.render().plain == "updates:  3  CLI 2 ",
             description="mixed routine updates indicator",
         )
         page.app.refresh(layout=True)
@@ -175,7 +175,7 @@ async def test_updates_indicator_mixed_core_rebuild_png_snapshot(
         indicator.set_available(3, core=True, agent_cli_count=2)
         await wait_for_state(
             page,
-            lambda: indicator.render().plain == " ⬆ 3  core  CLI ⬆ 2 ",
+            lambda: indicator.render().plain == "updates:  3  core  CLI 2 ",
             description="mixed core-rebuild updates indicator",
         )
         page.app.refresh(layout=True)
@@ -232,7 +232,7 @@ async def test_updates_indicator_with_neighbors_png_snapshot(
         indicator.set_available(3, core=True, agent_cli_count=2)
         await wait_for_state(
             page,
-            lambda: indicator.render().plain == " ⬆ 3  core  CLI ⬆ 2 ",
+            lambda: indicator.render().plain == " 3  core  CLI 2 ",
             description="mixed core-rebuild updates indicator with neighbors",
         )
         await wait_for_state(

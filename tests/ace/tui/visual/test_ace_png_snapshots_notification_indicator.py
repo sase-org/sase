@@ -109,7 +109,7 @@ async def test_notification_indicator_chips_png_snapshot(
     patch_startup_loaders(monkeypatch)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
-        await _drive_indicator(page, _BUILTIN_TABS, " ⚑2 ✖3 ◈1 ✉4 ")
+        await _drive_indicator(page, _BUILTIN_TABS, "inbox: ⚑2 ✖3 ◈1 ✉4")
         ace_png_visual.assert_page_png(
             page,
             "notification_indicator_chips_120x40",
@@ -125,7 +125,7 @@ async def test_notification_indicator_kind_chips_png_snapshot(
     patch_startup_loaders(monkeypatch)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
-        await _drive_indicator(page, _KIND_TABS, " ◆2 #3 ⊘1 •5 ")
+        await _drive_indicator(page, _KIND_TABS, "inbox: ◆2 #3 ⊘1 •5")
         ace_png_visual.assert_page_png(
             page,
             "notification_indicator_kind_chips_120x40",
@@ -141,7 +141,7 @@ async def test_notification_indicator_snoozed_png_snapshot(
     patch_startup_loaders(monkeypatch)
 
     async with AcePage(query='"visual"', patches=patches()) as page:
-        await _drive_indicator(page, _SNOOZED_TABS, " ☾4 ")
+        await _drive_indicator(page, _SNOOZED_TABS, "inbox: ☾4")
         ace_png_visual.assert_page_png(
             page,
             "notification_indicator_snoozed_120x40",

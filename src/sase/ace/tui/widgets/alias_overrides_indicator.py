@@ -22,7 +22,6 @@ from __future__ import annotations
 from typing import Any
 
 from rich.text import Text
-from textual.widgets import Static
 
 from sase.llm_provider.config import (
     DEFAULT_MODEL_FIELD,
@@ -40,18 +39,23 @@ from ._override_pill import (
     format_remaining_until,
     format_tooltip_target,
 )
+from .top_bar_group import TopBarGroup
 
 #: Violet pill, parallel to the gold default pill but unmistakably distinct;
 #: matches the launch override-chip accent for a uniform override style.
 _ACTIVE_STYLE = ALIAS_LANE_PALETTE.base_style
 
 
-class AliasOverridesIndicator(Static):
+class AliasOverridesIndicator(TopBarGroup):
     """Shows a terse pill whenever a non-default alias/setting is overridden."""
 
+    GROUP_LABEL = "overrides"
+    CLICK_ACTION = "open_models_panel"
+
     def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
         overrides = self._active_non_default_overrides()
-        super().__init__(self._build_content(overrides), **kwargs)
+        self._set_body(self._build_content(overrides))
         self.tooltip = self._build_tooltip(overrides)
 
     def on_mount(self) -> None:
@@ -66,10 +70,6 @@ class AliasOverridesIndicator(Static):
         self._apply_content()
         return super().refresh()
 
-    async def on_click(self) -> None:
-        """Open Launch settings."""
-        await self.app.run_action("open_models_panel")
-
     def _build_initial_content(self, *, now: float | None = None) -> Text:
         """Render the pill from the current non-default override map."""
         return self._build_content(self._active_non_default_overrides(), now=now)
@@ -77,8 +77,10 @@ class AliasOverridesIndicator(Static):
     def _apply_content(self, *, now: float | None = None) -> None:
         """Update content and tooltip from one current override snapshot."""
         overrides = self._active_non_default_overrides()
-        self.update(self._build_content(overrides, now=now))
-        self.tooltip = self._build_tooltip(overrides, now=now)
+        self._set_body(self._build_content(overrides, now=now))
+        tooltip = self._build_tooltip(overrides, now=now)
+        if self.tooltip != tooltip:
+            self.tooltip = tooltip
 
     @staticmethod
     def _active_non_default_overrides() -> dict[str, TemporaryLLMOverride]:

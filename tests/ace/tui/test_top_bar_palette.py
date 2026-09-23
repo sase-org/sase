@@ -11,7 +11,8 @@ from __future__ import annotations
 from rich.style import Style
 from rich.text import Text
 
-from sase.ace.tui.proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE, gear_chip
+from sase.ace.tui.proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE
+from sase.ace.tui.widgets.top_bar_group import filled_count_chip
 from sase.ace.tui.widgets._override_pill import (
     ALIAS_LANE_PALETTE,
     PROVIDER_DISABLE_PALETTE,
@@ -101,8 +102,8 @@ def _foreground_background_pairs(text: Text) -> list[tuple[str, str]]:
 
 def _neighbors() -> dict[str, Text]:
     return {
-        "proc gear chip": gear_chip(1, PROC_GEAR_HUE),
-        "monitor gear chip": gear_chip(1, MONITOR_GEAR_HUE),
+        "proc gear chip": filled_count_chip(1, PROC_GEAR_HUE),
+        "monitor gear chip": filled_count_chip(1, MONITOR_GEAR_HUE),
         "stashed prompts": StashedPromptsIndicator._build_content(1),
         "alias override pill": build_override_pill(
             subject="@medium",

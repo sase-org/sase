@@ -3986,14 +3986,15 @@ providers stay in the model picker (header labelled `soft`, rows dimmed one step
 `%model` completion (annotated `soft` in the provenance column). Hard-disabled providers
 are still omitted from both.
 
-sase's TUI also shows active provider routing state in compact top-bar pills beside the
-violet alias-override pill (the launch-default and current-project chips moved one row
-down, to each tab's status-row launch-context cluster). One hard-disabled provider
-renders like `CLAUDE off 42m`; one soft-disabled provider renders like
-`CLAUDE soft 42m`; active priority renders like `CODEX ★ priority 42m`. When priority
-and disables are both active, the top bar keeps a single priority-led pill with the
-disable count, such as `CODEX ★ 42m +1`. Several disables without priority render the
-most severe (hard first) provider plus a count, such as `CLAUDE +2`, and use the soft
+sase's TUI also shows active provider routing state in the labeled `provider:` top-bar
+group beside the violet `overrides:` group (the launch-default and current-project chips
+moved one row down, to each tab's status-row launch-context cluster). One hard-disabled
+provider renders like `provider: CLAUDE off 42m`; one soft-disabled provider renders
+like `provider: CLAUDE soft 42m`; active priority renders like
+`provider: CODEX ★ priority 42m`. When priority and disables are both active, the top
+bar keeps a single priority-led pill with the disable count, such as
+`provider: CODEX ★ 42m +1`. Several disables without priority render the most severe
+(hard first) provider plus a count, such as `provider: CLAUDE +2`, and use the soft
 palette only when every active disable is soft. Hover lists active priority plus every
 active provider disable, mode, provenance, and expiry; clicking the pill opens Launch
 Control.
@@ -4219,13 +4220,14 @@ Overrides are per-alias and per-launch-setting, and independent:
   `default model` and of each other.
 
 Every non-default override (an alias, `epic lander`, or `big epic lander`) is surfaced
-by a distinct, concise violet top-bar pill: a single active override renders as
-`@<alias>[@<effort>] <time-left>` or as `epic lander <time-left>` /
-`big epic lander <time-left>`, and several render as `<first> +N`, naming the
-alphabetically first overridden alias or launch-setting label and counting the rest. In
-both pills, lane color carries the "override" meaning while the effort suffix and time
-use a recessive tone; `∞` means until cleared. Hover either pill for full target and
-expiry details, or click it to open Launch Control.
+by the labeled `overrides:` violet top-bar group: a single active override renders as
+`overrides: @<alias>[@<effort>] <time-left>` or as `overrides: epic lander <time-left>`
+/ `overrides: big epic lander <time-left>`, and several render as
+`overrides: <first> +N`, naming the alphabetically first overridden alias or
+launch-setting label and counting the rest. In both pills, lane color carries the
+"override" meaning while the effort suffix and time use a recessive tone; `∞` means
+until cleared. Hover either pill for full target and expiry details, or click it to open
+Launch Control.
 
 When no override is active, the same status-row chip instead names the current launch
 default — the smallest `%model` value that would pin this exact target (a bare model
@@ -4411,12 +4413,12 @@ HITL panels. Gate Debug presents Overview, Request, Response, Errors, and raw Ro
 the backing file, and `d`, `q`, or `Esc` closes the overlay without losing state in the
 underlying panel.
 
-The top-bar notification indicator color reflects the highest-priority unread bucket:
-orange for unmuted priority or error notifications (plan approvals, launch approvals,
-user questions, mentor reviews, axe errors, CRS results, agent error reports), gold for
-regular unmuted notifications, and cyan when only muted or snoozed notifications remain.
-A trailing dot means muted unread rows also exist while the badge is showing the
-actionable count.
+The `inbox:` top-bar notification group color reflects the highest-priority unread
+bucket: orange for unmuted priority or error notifications (plan approvals, launch
+approvals, user questions, mentor reviews, axe errors, CRS results, agent error
+reports), gold for regular unmuted notifications, and cyan when only muted or snoozed
+notifications remain. A trailing dot means muted unread rows also exist while the badge
+is showing the actionable count.
 
 ### Snooze Reminder Scheduling
 
@@ -4716,20 +4718,36 @@ The tab bar renders plain tab labels (`Agents`, `Artifacts`, `Services`). Per-bu
 counts live inside each tab's body — for example the per-panel count summaries on the
 Agents tab — rather than as suffixes on the tab title itself.
 
+### Top-Bar Indicators
+
+The right-aligned indicator cluster speaks the same visual language as the status-row
+cluster beneath it (`load: 5/8 · model: opus@high · project: +sase`): every group
+renders as a dim `<type>: <body>` group, and visible groups are joined by a dim `·`. The
+left-to-right order runs from activity to system state to launch routing to personal
+queues: `procs`, `monitors`, `updates`, `overrides`, `provider`, `prompts`, `inbox`. The
+always-visible `inbox` anchors the right edge directly above `project:`. Labels are
+fixed strings that never pluralize. When the full cluster does not fit in the cells left
+over after the tab strip and a 2-cell minimum gap, every label drops together
+(separators kept); widening restores full labels without oscillation. Every group is
+clickable: procs and monitors open the Admin Center Procs tab, updates opens the Updates
+tab, overrides and provider open Launch settings, prompts opens the prompt stash picker,
+and inbox opens the notification modal.
+
 ### Proc Indicator
 
-A blue gear icon (⚙) with a count appears in the top bar when sase's TUI own procs are
-running (e.g., sync, mail, accept, and notification-gate operations). It excludes
-monitor shells (see [Monitor Indicator](#monitor-indicator) below) and service-host rows
-— service procs and oneshots — which the Services tab reports instead. The indicator
-automatically hides when all procs complete.
+A `procs: N` group with a filled blue count chip appears in the top bar when sase's TUI
+own procs are running (e.g., sync, mail, accept, and notification-gate operations). It
+excludes monitor shells (see [Monitor Indicator](#monitor-indicator) below) and
+service-host rows — service procs and oneshots — which the Services tab reports instead.
+The indicator automatically hides when all procs complete. Clicking opens the Procs tab.
 
 ### Monitor Indicator
 
-An amber gear icon (⚙), immediately right of the [Proc Indicator](#proc-indicator),
-shows a count of currently running monitor shells (`sase monitor start` supervised
-commands). It hides at zero. A monitor is a detached supervisor that survives sase's TUI
-exit, so it is counted separately from — and never blocks — sase's TUI own procs.
+A `monitors: N` group with a filled amber count chip, immediately right of the
+[Proc Indicator](#proc-indicator), shows a count of currently running monitor shells
+(`sase monitor start` supervised commands). It hides at zero. A monitor is a detached
+supervisor that survives sase's TUI exit, so it is counted separately from — and never
+blocks — sase's TUI own procs. Clicking opens the Procs tab.
 
 ### Current Project Indicator
 
@@ -6361,8 +6379,8 @@ picker open on the remaining entries, and the picker closes only when nothing re
 when rows are also being restored. `Escape` or `q` cancels without deleting anything.
 With no explicit marks, `Enter` restores the highlighted row; pinned rows stay stashed
 when restored, while unpinned rows are popped. Number keys `1`-`9` and `0` restore rows
-1-10 directly with the same pin-aware behavior. A small top-bar badge shows how many
-restorable drafts are currently stashed.
+1-10 directly with the same pin-aware behavior. A small `prompts: N` top-bar group shows
+how many restorable drafts are currently stashed.
 
 ### Editing an Existing XPrompt from the TUI
 
@@ -7752,8 +7770,8 @@ install/update rows and a run-grouped timeline across all CLIs. Configure the pa
 Automatic checks publish one composite snapshot after first paint. Ten-minute session
 ticks only revalidate cached SASE/plugin rows and provider names already known outdated;
 full discovery waits for the longer configured recompute cadence, and provider registry
-lookups retain their own cache. The top bar renders the updates badge as its only dark
-chip (lime `⬆ N` SASE and sage `CLI ⬆ N` segments with separate counts, plus a lime
+lookups retain their own cache. The top bar renders the `updates:` group as its only
+dark chip (lime `N` SASE and sage `CLI N` segments with separate counts, plus a lime
 `core` tag for a sase-core rebuild).
 
 For editable host, core, and plugin checkouts, the running TUI also remembers the Git

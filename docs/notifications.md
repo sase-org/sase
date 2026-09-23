@@ -346,24 +346,22 @@ projecting rows, counts, `expired_ids`, and the next active deadline.
 
 ### Top-Bar Indicator
 
-The notification indicator in the TUI top bar renders one colored `<icon><count>` chip
-per notification-panel tab (see [Tabs and Ordering](#tabs-and-ordering)), in the panel's
-own left-to-right order, so the badge and the panel always agree on what each count
-means:
+The `inbox:` group in the TUI top bar renders one colored `<icon><count>` chip per
+notification-panel tab (see [Tabs and Ordering](#tabs-and-ordering)), in the panel's own
+left-to-right order, so the badge and the panel always agree on what each count means:
 
-- **Nothing pending** — a dim `✉ 0`. This is the only state that keeps the `✉` anchor;
-  see below for why.
-- **Snoozed only** — `☾4`: the count renders in the Snoozed tab's resolved color at a
-  dimmer weight than an actionable count, prefixed by the Snoozed tab's own icon instead
-  of a trailing `z` suffix.
+- **Nothing pending** — a dim `inbox: 0`.
+- **Snoozed only** — `inbox: ☾4`: the count renders in the Snoozed tab's resolved color
+  at a dimmer weight than an actionable count, prefixed by the Snoozed tab's own icon
+  instead of a trailing `z` suffix.
 - **Anything else** — one `<icon><count>` chip per visible tab, each the tab's icon and
   count in its own resolved color at full weight, joined by a single space, for example
-  `⚑2 ✖3 ◈1`. Each chip is self-identifying, so there is no separator glyph and no `✉`
-  anchor — once `general` owns `✉` as its own tab icon, prefixing the whole badge with
-  it would render the same glyph twice, meaning two different things. As soon as any
-  non-snoozed tab has a count, the Snoozed chip drops out of the badge entirely — it
-  does not compete for the limited chip budget — but the snoozed count still appears in
-  the tooltip.
+  `inbox: ⚑2 ✖3 ◈1`. Each chip is self-identifying, so there is no separator glyph
+  between chips — the `·` separates groups, not tab chips — and no `✉` anchor: once
+  `general` owns `✉` as its own tab icon, prefixing the whole badge with it would render
+  the same glyph twice, meaning two different things. As soon as any non-snoozed tab has
+  a count, the Snoozed chip drops out of the badge entirely — it does not compete for
+  the limited chip budget — but the snoozed count still appears in the tooltip.
 - **Overflow** — at most
   [`ace.notification_indicator_max_counts`](configuration.md#acenotification_tabs) chips
   (4 by default), taken in panel order; any remaining tabs collapse into one trailing

@@ -91,42 +91,42 @@ def test_the_widget_special_cases_the_same_keys_the_panel_uses() -> None:
 
 def test_no_tabs_renders_dim_collapsed_envelope() -> None:
     text = NotificationIndicator._build_content(())
-    assert text.plain == " ✉ 0 "
+    assert text.plain == "0"
     assert "dim" in str(text.style)
 
 
 def test_empty_tabs_are_dropped_from_the_badge() -> None:
     text = NotificationIndicator._build_content((_tab("hitl", 0),))
-    assert text.plain == " ✉ 0 "
+    assert text.plain == "0"
 
 
 def test_one_tab_renders_one_chip() -> None:
     text = NotificationIndicator._build_content((_tab("hitl", 2),))
-    assert text.plain == " ⚑2 "
+    assert text.plain == "⚑2"
 
 
 def test_three_tabs_render_three_chips_joined_by_single_spaces() -> None:
     text = NotificationIndicator._build_content(
         (_tab("hitl", 2), _tab("beads", 3), _tab("errors", 1))
     )
-    assert text.plain == " ⚑2 ◈3 ✖1 "
+    assert text.plain == "⚑2 ◈3 ✖1"
 
 
 def test_the_envelope_anchor_is_dropped_once_any_chip_is_present() -> None:
     """``general`` owns ``✉`` now, so an anchor would render the glyph twice."""
     text = NotificationIndicator._build_content((_tab("hitl", 2), _tab(None, 1)))
-    assert text.plain == " ⚑2 ✉1 "
+    assert text.plain == "⚑2 ✉1"
 
 
 def test_a_sender_declared_icon_reaches_the_chip() -> None:
     text = NotificationIndicator._build_content((_tab("deploys", 3, icon="🚀"),))
-    assert text.plain == " 🚀3 "
+    assert text.plain == "🚀3"
 
 
 def test_chip_order_follows_input_tab_order() -> None:
     """The leftmost chip is the leftmost panel tab; that is what makes it readable."""
     tabs = (_tab("beads", 7), _tab("hitl", 5), _tab("errors", 9))
-    assert NotificationIndicator._build_content(tabs).plain == " ◈7 ⚑5 ✖9 "
+    assert NotificationIndicator._build_content(tabs).plain == "◈7 ⚑5 ✖9"
 
 
 def test_each_chip_carries_its_own_resolved_tab_color() -> None:
@@ -140,22 +140,22 @@ def test_each_chip_carries_its_own_resolved_tab_color() -> None:
 def test_snoozed_only_renders_the_moon_prefixed_count() -> None:
     tab = _tab(SNOOZED_TAB_KEY, 4)
     text = NotificationIndicator._build_content((tab,))
-    assert text.plain == " ☾4 "
+    assert text.plain == "☾4"
     assert _resolve_notification_tab_icon(tab) == "☾"
-    snoozed_style = str(text.spans[0].style)
+    snoozed_style = str(text.style)
     assert snoozed_style.startswith("dim ")
     assert "#6C6C6C" in snoozed_style
 
 
 def test_snoozed_chip_disappears_as_soon_as_anything_else_is_pending() -> None:
     tabs = (_tab("beads", 3), _tab(SNOOZED_TAB_KEY, 4))
-    assert NotificationIndicator._build_content(tabs).plain == " ◈3 "
+    assert NotificationIndicator._build_content(tabs).plain == "◈3"
 
 
 def test_muted_keeps_its_own_chip() -> None:
     """Only snoozed is special-cased; muted is an ordinary tab now."""
     tabs = (_tab("beads", 3), _tab(MUTED_TAB_KEY, 2))
-    assert NotificationIndicator._build_content(tabs).plain == " ◈3 ⊘2 "
+    assert NotificationIndicator._build_content(tabs).plain == "◈3 ⊘2"
 
 
 def test_overflow_beyond_the_configured_maximum_collapses_into_plus_k(
@@ -163,12 +163,12 @@ def test_overflow_beyond_the_configured_maximum_collapses_into_plus_k(
 ) -> None:
     _use_config(monkeypatch, {"notification_indicator_max_counts": 2})
     tabs = (_tab("hitl", 1), _tab("beads", 2), _tab("errors", 3), _tab("docs", 4))
-    assert NotificationIndicator._build_content(tabs).plain == " ⚑1 ◈2 +2 "
+    assert NotificationIndicator._build_content(tabs).plain == "⚑1 ◈2 +2"
 
 
 def test_default_maximum_admits_four_chips() -> None:
     tabs = tuple(_tab(f"tag{index}", index + 1) for index in range(5))
-    assert NotificationIndicator._build_content(tabs).plain == " •1 t2 a3 g4 +1 "
+    assert NotificationIndicator._build_content(tabs).plain == "•1 t2 a3 g4 +1"
 
 
 def test_two_tag_tabs_render_distinct_chips() -> None:
@@ -176,8 +176,8 @@ def test_two_tag_tabs_render_distinct_chips() -> None:
 
     text = NotificationIndicator._build_content(tabs).plain
 
-    assert text.startswith(" ")
-    chips = text.strip().split()
+    assert text == "#2 d3"
+    chips = text.split()
     assert chips == ["#2", "d3"]
 
 
@@ -284,7 +284,7 @@ def test_indicator_chips_correspond_one_to_one_with_the_panel_tabs() -> None:
     chips = NotificationIndicator._build_content(tabs).plain
     expected = [tab for tab in tabs if tab.count and tab.tag != SNOOZED_TAB_KEY]
     icons = resolve_notification_tab_icons(tabs)
-    assert chips == " {} ".format(
+    assert chips == "{}".format(
         " ".join(f"{icons[tab.tag]}{tab.count}" for tab in expected)
     )
     assert sum(tab.count for tab in tabs) == len(notifications)
@@ -323,7 +323,7 @@ def test_chip_order_follows_priority(
     expected = [tab for tab in tabs if tab.count]
 
     assert [tab.tag for tab in expected] == ["hitl", "review", "beads"]
-    assert NotificationIndicator._build_content(tabs).plain == " {} ".format(
+    assert NotificationIndicator._build_content(tabs).plain == "{}".format(
         " ".join(f"{icons[tab.tag]}{tab.count}" for tab in expected)
     )
 

@@ -12,10 +12,9 @@ bar's existing two-part pill grammar. Agent CLIs share the same moss
 surface with sage ink, differing by label and ink tone, not by borrowing
 another hue.
 
-The glyph is ``⬆`` (U+2B06): a solid pictogram that matches the row's
-``⚙ ❄ ⚑ ✖`` neighbors instead of looking like punctuation. It keeps the
-"up = upgrade" direction sase already uses, is in both bundled Fira Code
-weights, and is always one cell wide.
+The top-bar badge no longer carries the ``⬆`` (U+2B06) identity glyph; the
+``updates:`` label names the group now. ``UPDATE_GLYPH`` stays because the
+Update panel and plugins browser still use it.
 """
 
 from __future__ import annotations

@@ -429,9 +429,9 @@ default), while npm latest-version lookups retain their separate six-hour cache.
 failures remain independent, so a provider lookup failure does not erase known
 SASE/plugin results and vice versa.
 
-The persistent top-bar badge is the top bar's only dark chip (a deep moss surface), so
-it never blends with its neighbors: lime `⬆ N` for SASE/plugin updates, with a bright
-lime `core` tag when `sase-core-rs` requires a Rust rebuild, and a sage `CLI ⬆ N`
+The persistent `updates:` top-bar group is the top bar's only dark chip (a deep moss
+surface), so it never blends with its neighbors: lime `N` for SASE/plugin updates, with
+a bright lime `core` tag when `sase-core-rs` requires a Rust rebuild, and a sage `CLI N`
 segment for supported agent CLIs. Mixed states join the SASE and CLI segments, and the
 tooltip spells out both counts plus any manual-only CLI updates. Clicking the badge
 opens this tab without mutating anything.

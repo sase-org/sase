@@ -10,9 +10,9 @@ def test_zero_count_renders_empty_hidden_badge() -> None:
     assert text.plain == ""
 
 
-def test_positive_count_renders_green_teal_snowflake_badge() -> None:
+def test_positive_count_renders_green_teal_badge() -> None:
     text = StashedPromptsIndicator._build_content(3)
-    assert text.plain == " ❄ 3 "
+    assert text.plain == " 3 "
     assert "#00D7AF" in str(text.style)
 
 
@@ -23,9 +23,15 @@ def test_negative_count_is_treated_as_empty() -> None:
 
 
 def test_tooltip_describes_stash_size() -> None:
-    assert StashedPromptsIndicator._build_tooltip(0) == "No stashed prompts"
-    assert StashedPromptsIndicator._build_tooltip(1) == "1 stashed prompt"
-    assert StashedPromptsIndicator._build_tooltip(4) == "4 stashed prompts"
+    assert StashedPromptsIndicator._build_tooltip(0) == (
+        "No stashed prompts\nClick to open the prompt stash"
+    )
+    assert StashedPromptsIndicator._build_tooltip(1) == (
+        "1 stashed prompt\nClick to open the prompt stash"
+    )
+    assert StashedPromptsIndicator._build_tooltip(4) == (
+        "4 stashed prompts\nClick to open the prompt stash"
+    )
 
 
 def test_set_count_updates_state_and_tooltip() -> None:
@@ -33,7 +39,7 @@ def test_set_count_updates_state_and_tooltip() -> None:
     indicator.set_count(2)
     assert indicator._count == 2
     assert indicator.pinned_count == 0
-    assert indicator.tooltip == "2 stashed prompts"
+    assert indicator.tooltip == "2 stashed prompts\nClick to open the prompt stash"
 
 
 def test_set_count_clamps_negative_to_zero() -> None:
@@ -41,7 +47,7 @@ def test_set_count_clamps_negative_to_zero() -> None:
     indicator.set_count(-5)
     assert indicator._count == 0
     assert indicator.pinned_count == 0
-    assert indicator.tooltip == "No stashed prompts"
+    assert indicator.tooltip == "No stashed prompts\nClick to open the prompt stash"
 
 
 def test_set_count_tracks_pinned_count_without_changing_badge_text() -> None:
@@ -49,7 +55,7 @@ def test_set_count_tracks_pinned_count_without_changing_badge_text() -> None:
     indicator.set_count(3, pinned_count=2)
     assert indicator.count == 3
     assert indicator.pinned_count == 2
-    assert StashedPromptsIndicator._build_content(indicator.count).plain == " ❄ 3 "
+    assert StashedPromptsIndicator._build_content(indicator.count).plain == " 3 "
 
 
 def test_set_count_clamps_pinned_count_to_total() -> None:

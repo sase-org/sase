@@ -20,29 +20,25 @@
     background: $surface;
 }
 
-#proc-indicator {
-    width: auto;
-    content-align: right middle;
-}
-
-#monitor-indicator {
-    width: auto;
-    content-align: right middle;
-}
-
 #llm-override-indicator {
     width: auto;
     content-align: right middle;
 }
 
-#alias-overrides-indicator {
+TopBarIndicators {
     width: auto;
-    content-align: right middle;
+    height: 1;
+    background: $surface;
 }
 
-#provider-disables-indicator {
+TopBarGroup {
     width: auto;
-    content-align: right middle;
+    height: 1;
+}
+
+TopBarIndicators .top-bar-separator {
+    width: auto;
+    text-style: dim;
 }
 
 #ace-header HeaderTitle {
@@ -58,21 +54,6 @@
 }
 
 #current-project-indicator {
-    width: auto;
-    content-align: right middle;
-}
-
-#notification-indicator {
-    width: auto;
-    content-align: right middle;
-}
-
-#updates-indicator {
-    width: auto;
-    content-align: right middle;
-}
-
-#stashed-prompts-indicator {
     width: auto;
     content-align: right middle;
 }

@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 from rich.text import Text
-from textual.widgets import Static
 
 from sase.ace.tui.provider_disable_display import provider_disable_provenance_label
 from sase.llm_provider.load_balancing import MemberAvailability
@@ -28,14 +27,19 @@ from ._override_pill import (
     format_remaining_until,
 )
 from ._text_signature import text_signature
+from .top_bar_group import TopBarGroup
 
 _ACTIVE_STYLE = PROVIDER_DISABLE_PALETTE.base_style
 
 
-class ProviderDisablesIndicator(Static):
+class ProviderDisablesIndicator(TopBarGroup):
     """Shows active machine-wide provider disables in one compact pill."""
 
+    GROUP_LABEL = "provider"
+    CLICK_ACTION = "open_models_panel"
+
     def __init__(self, **kwargs: Any) -> None:
+        super().__init__(**kwargs)
         context = self._active_provider_routing_context()
         priority_state = self._priority_availability(context)
         initial_content = self._build_content(
@@ -43,11 +47,7 @@ class ProviderDisablesIndicator(Static):
             priority=context.priority,
             priority_availability=priority_state,
         )
-        self._content_signature = text_signature(initial_content)
-        super().__init__(
-            initial_content,
-            **kwargs,
-        )
+        self._set_body(initial_content)
         self.tooltip = self._build_tooltip(
             context.provider_disables,
             priority=context.priority,
@@ -65,10 +65,6 @@ class ProviderDisablesIndicator(Static):
             return super().refresh(*args, **kwargs)
         self._apply_content()
         return super().refresh()
-
-    async def on_click(self) -> None:
-        """Open Launch settings for the routing pill."""
-        await self.app.run_action("open_models_panel")
 
     def _build_initial_content(self, *, now: float | None = None) -> Text:
         """Render the current provider-disable map."""
@@ -100,10 +96,7 @@ class ProviderDisablesIndicator(Static):
 
     def _replace_content(self, content: Text, tooltip: str | None) -> None:
         """Update the widget only when the selected rendering actually changed."""
-        signature = text_signature(content)
-        if signature != self._content_signature:
-            self.update(content)
-            self._content_signature = signature
+        self._set_body(content)
         if self.tooltip != tooltip:
             self.tooltip = tooltip
 

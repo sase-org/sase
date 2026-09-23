@@ -26,7 +26,7 @@ from sase.skills.use_log import SkillUseEvent
 # Default visual-suite inbox: one Gates chip and one General chip. Goldens of
 # unrelated surfaces still show this badge, so startup waits for the exact
 # plain text rather than whatever the isolated SASE_HOME store last held.
-DEFAULT_VISUAL_NOTIFICATION_BADGE = " ⚑1 ✉18 "
+DEFAULT_VISUAL_NOTIFICATION_BADGE = "inbox: ⚑1 ✉18"
 
 _VISUAL_NOTIFICATION_BADGE: str | None = None
 

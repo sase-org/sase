@@ -7,7 +7,8 @@ from typing import TYPE_CHECKING, Any
 
 from rich.cells import cell_len
 from rich.text import Text
-from textual.widgets import Static
+
+from .top_bar_group import TopBarGroup
 
 if TYPE_CHECKING:
     from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
@@ -19,26 +20,29 @@ SNOOZED_TAB_KEY = "__snoozed__"
 MUTED_TAB_KEY = "__muted__"
 
 
-class NotificationIndicator(Static):
+class NotificationIndicator(TopBarGroup):
     """Always-visible per-tab notification badge in the top bar.
 
-    The badge renders one ``<icon><count>`` chip per notification-panel tab,
-    in the panel's own tab order, so the leftmost chip is the leftmost tab and
-    the icons and colors are the ones the panel teaches. Each chip identifies
-    itself, so the badge carries no ``✉`` anchor and no separators once it has
-    chips to show; the empty ``✉ 0`` state keeps the envelope. Snoozed is the
-    one special case: it collapses to a dim ``<icon><N>`` when nothing else is
-    pending and contributes no chip at all when anything else is. Beyond
-    ``ace.notification_indicator_max_counts`` chips the remainder collapses
-    into a dim ``+K``.
+    Renders as ``inbox: <chips>`` with one ``<icon><count>`` chip per
+    notification-panel tab, in the panel's own tab order, so the leftmost
+    chip is the leftmost tab and the icons and colors are the ones the
+    panel teaches. Chips are joined by one space with no separator glyph;
+    the ``·`` separates groups, not tab chips. The empty state is a dim
+    ``0``; a snoozed-only backlog collapses to a dim ``<icon><N>``.
+    Beyond ``ace.notification_indicator_max_counts`` chips the remainder
+    collapses into a dim ``+K``.
 
     Hovering reveals a per-tab briefing with the oldest activity in each tab
     and the next snooze wake; clicking opens the notification modal.
     """
 
+    GROUP_LABEL = "inbox"
+    CLICK_ACTION = "show_notifications"
+
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(self._build_content(()), **kwargs)
+        super().__init__(**kwargs)
         self._tabs: tuple[NotificationTagTab, ...] = ()
+        self._set_body(self._build_content(()))
         self.tooltip = self._build_tooltip(())
 
     def set_tabs(self, tabs: Sequence[NotificationTagTab]) -> None:
@@ -53,17 +57,14 @@ class NotificationIndicator(Static):
         if resolved == self._tabs:
             return
         self._tabs = resolved
-        self.tooltip = self._build_tooltip(resolved)
-        if self.is_mounted:
-            self.update(self._build_content(resolved))
-
-    async def on_click(self) -> None:
-        """Open the notification modal, same as the ``show_notifications`` key."""
-        await self.app.run_action("show_notifications")
+        self._set_body(self._build_content(resolved))
+        tooltip = self._build_tooltip(resolved)
+        if self.tooltip != tooltip:
+            self.tooltip = tooltip
 
     @staticmethod
     def _build_content(tabs: Sequence[NotificationTagTab]) -> Text:
-        """Build the badge text: one colored ``<icon><count>`` per visible tab."""
+        """Build the badge body: one colored ``<icon><count>`` per visible tab."""
         from .notification_tab_style import (
             notification_indicator_max_counts,
             resolve_notification_tab_color,
@@ -73,22 +74,20 @@ class NotificationIndicator(Static):
         icons = resolve_notification_tab_icons(tabs)
         visible = [tab for tab in tabs if tab.count > 0]
         if not visible:
-            return Text(" ✉ 0 ", style="dim")
+            return Text("0", style="dim")
 
         snoozed = [tab for tab in visible if tab.tag == SNOOZED_TAB_KEY]
         others = [tab for tab in visible if tab.tag != SNOOZED_TAB_KEY]
 
-        text = Text(" ", style="dim")
         if not others:
             # Nothing needs an answer, so the deferred backlog is worth the
             # badge — the moon glyph keeps it from reading as actionable.
             total = sum(tab.count for tab in snoozed)
             color = resolve_notification_tab_color(snoozed[0])
             icon = icons[snoozed[0].tag]
-            text.append(f"{icon}{total}", style=f"dim {color}")
-            text.append(" ", style="dim")
-            return text
+            return Text(f"{icon}{total}", style=f"dim {color}")
 
+        text = Text()
         shown = others[: max(1, notification_indicator_max_counts())]
         for index, tab in enumerate(shown):
             if index:
@@ -101,7 +100,6 @@ class NotificationIndicator(Static):
         suppressed = len(others) - len(shown)
         if suppressed:
             text.append(f" +{suppressed}", style="dim")
-        text.append(" ", style="dim")
         return text
 
     @staticmethod

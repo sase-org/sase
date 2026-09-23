@@ -1,9 +1,11 @@
 """Shared gear-chip rendering for proc and monitor counts.
 
-The blue/orange gear chip is the canonical proc-vs-monitor lane marker: the
-top bar (``ProcIndicator`` / ``MonitorIndicator``) and the Procs tab header
-both build the same chip from the same two hues, so a count reads as the
-same object everywhere it appears.
+The blue/orange gear chip is the canonical proc-vs-monitor lane marker for
+the Procs tab header, which builds the same chip from the same two hues.
+The top bar (``ProcIndicator`` / ``MonitorIndicator``) now renders labeled
+``procs: N`` / ``monitors: N`` groups with filled count chips in those hues
+(see ``widgets/top_bar_group.filled_count_chip``), so a count reads as the
+same lane in both places without the gear glyph.
 """
 
 from __future__ import annotations

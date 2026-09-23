@@ -83,6 +83,8 @@ from .stashed_prompts_indicator import (
 )
 from .tab_bar import TabBar as TabBar
 from .tab_quickstart import TabQuickStart as TabQuickStart
+from .top_bar import TopBar as TopBar
+from .top_bar import TopBarIndicators as TopBarIndicators
 from .proc_indicator import ProcIndicator as ProcIndicator
 from .llm_calls_panel import ToolDetailLevel as ToolDetailLevel
 from .llm_calls_panel import LLMCallsVisibilityChanged as LLMCallsVisibilityChanged

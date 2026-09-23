@@ -28,17 +28,19 @@ from sase.llm_provider.config import (
 from sase.llm_provider.provider_disable import PROVIDER_DISABLE_WIRE_SCHEMA_VERSION
 from sase.llm_provider.provider_priority import provider_routing_context_from_parts
 
-# Expected left-to-right order of widgets inside ``#top-bar``. The ``#tab-bar``
-# spacer (``width: 1fr``) anchors the right-aligned indicator cluster, so every
-# widget after it forms that cluster. The launch-default model and current
-# project chips no longer live here: they render in the labeled
-# ``LaunchContextBar`` at the far right of each tab's status row, so the top
-# bar keeps only the alert-style indicators (procs, monitors, updates, the
-# violet non-``default`` alias override pill, provider disables, stashed
-# prompts, notifications). Pinning the whole order keeps future reorders
-# intentional.
+# Expected left-to-right order of widgets inside ``#top-bar``: the tab strip
+# plus the right-aligned indicator cluster. The cluster itself lives in
+# ``#top-bar-indicators`` with labeled groups and dim ``·`` separators
+# interleaved. Pinning both orders keeps future reorders intentional.
 EXPECTED_TOP_BAR_ORDER = [
     "tab-bar",
+    "top-bar-indicators",
+]
+
+# Expected left-to-right child order inside ``#top-bar-indicators``: the
+# seven labeled groups (procs, monitors, updates, overrides, provider,
+# prompts, inbox) with separators interleaved.
+EXPECTED_TOP_BAR_CLUSTER_ORDER = [
     "proc-indicator",
     "monitor-indicator",
     "updates-indicator",
@@ -118,9 +120,14 @@ async def test_top_bar_places_updates_indicator_left_of_model() -> None:
         ids = [child.id for child in top_bar.children]
 
         assert ids == EXPECTED_TOP_BAR_ORDER
+        cluster = page.query_one_widget("#top-bar-indicators")
+        group_ids = [child.id for child in cluster.children if child.id]
+        assert group_ids == EXPECTED_TOP_BAR_CLUSTER_ORDER
         # Pin the relative order this change is about so a regression points at
         # the intended invariant directly.
-        assert ids.index("updates-indicator") < ids.index("alias-overrides-indicator")
+        assert group_ids.index("updates-indicator") < group_ids.index(
+            "alias-overrides-indicator"
+        )
         # The launch-context chips left the top bar for the status rows.
         assert "llm-override-indicator" not in ids
         assert "current-project-indicator" not in ids
@@ -172,7 +179,7 @@ async def test_mixed_updates_indicator_keeps_narrow_top_bar_in_bounds(
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
 
-        assert indicator.render().plain == " ⬆ 3  core  CLI ⬆ 2 "
+        assert indicator.render().plain == "updates:  3  core  CLI 2 "
         assert project_indicator.render().plain == "+sase"
         visible_regions = [
             child.region for child in top_bar.children if child.region.width > 0
@@ -239,6 +246,7 @@ async def test_override_pills_keep_narrow_top_bar_in_bounds(
         await page.app.wait_for_refresh()
 
         assert default_indicator.render().plain == "CODEX(o3)@xhigh ∞"
+        # At 80 cells the cluster is compact, so group labels are dropped.
         assert alias_indicator.render().plain == " @medium@max ∞ "
         assert provider_indicator.render().plain == " CLAUDE off ∞ "
         assert project_indicator.render().plain == "+sase"

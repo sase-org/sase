@@ -3,22 +3,28 @@
 from typing import Any
 
 from rich.text import Text
-from textual.widgets import Static
 
-from ..proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE, gear_chip
+from ..proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE
+from .top_bar_group import TopBarGroup, filled_count_chip
 
 
-class ProcIndicator(Static):
+class ProcIndicator(TopBarGroup):
     """Shows the count of running ACE-owned background procs in the top-bar.
 
-    Excludes ``sase monitor start`` proc shells \u2014 see :class:`MonitorIndicator`.
+    Renders as ``procs: N`` with a filled count chip. Excludes
+    ``sase monitor start`` proc shells — see :class:`MonitorIndicator`.
     Visible only when at least one proc is running; hides itself otherwise
-    to avoid clutter.
+    to avoid clutter. Clicking opens the Admin Center Procs tab.
     """
 
+    GROUP_LABEL = "procs"
+    CLICK_ACTION = "open_tasks_panel"
+
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(self._build_content(0), **kwargs)
+        super().__init__(**kwargs)
         self._count = 0
+        self._set_body(self._build_content(0))
+        self.tooltip = self._build_tooltip(0)
 
     def set_count(self, count: int) -> None:
         """Update the displayed running proc count.
@@ -28,27 +34,43 @@ class ProcIndicator(Static):
         """
         if self._count != count:
             self._count = count
-            if self.is_mounted:
-                self.update(self._build_content(count))
+            self._set_body(self._build_content(count))
+            tooltip = self._build_tooltip(count)
+            if self.tooltip != tooltip:
+                self.tooltip = tooltip
 
     @staticmethod
     def _build_content(count: int) -> Text:
-        """Build the indicator text."""
-        return gear_chip(count, PROC_GEAR_HUE)
+        """Build the indicator body."""
+        return filled_count_chip(count, PROC_GEAR_HUE)
+
+    @staticmethod
+    def _build_tooltip(count: int) -> str:
+        """Build the hover tooltip describing the proc count."""
+        if count <= 0:
+            return "No running procs\nClick to open the Procs tab"
+        noun = "proc" if count == 1 else "procs"
+        return f"{count} running {noun}\nClick to open the Procs tab"
 
 
-class MonitorIndicator(Static):
+class MonitorIndicator(TopBarGroup):
     """Shows the count of running monitor shells in the top-bar.
 
-    A monitor shell (``sase monitor start``) is a detached supervisor that
-    outlives ACE, so it is counted separately from :class:`ProcIndicator`'s
-    ACE-owned procs. Visible only when at least one monitor is running;
-    hides itself otherwise to avoid clutter.
+    Renders as ``monitors: N`` with a filled count chip. A monitor shell
+    (``sase monitor start``) is a detached supervisor that outlives ACE, so
+    it is counted separately from :class:`ProcIndicator`'s ACE-owned procs.
+    Visible only when at least one monitor is running; hides itself
+    otherwise to avoid clutter. Clicking opens the Admin Center Procs tab.
     """
 
+    GROUP_LABEL = "monitors"
+    CLICK_ACTION = "open_tasks_panel"
+
     def __init__(self, **kwargs: Any) -> None:
-        super().__init__(self._build_content(0), **kwargs)
+        super().__init__(**kwargs)
         self._count = 0
+        self._set_body(self._build_content(0))
+        self.tooltip = self._build_tooltip(0)
 
     def set_count(self, count: int) -> None:
         """Update the displayed running monitor count.
@@ -58,10 +80,20 @@ class MonitorIndicator(Static):
         """
         if self._count != count:
             self._count = count
-            if self.is_mounted:
-                self.update(self._build_content(count))
+            self._set_body(self._build_content(count))
+            tooltip = self._build_tooltip(count)
+            if self.tooltip != tooltip:
+                self.tooltip = tooltip
 
     @staticmethod
     def _build_content(count: int) -> Text:
-        """Build the indicator text."""
-        return gear_chip(count, MONITOR_GEAR_HUE)
+        """Build the indicator body."""
+        return filled_count_chip(count, MONITOR_GEAR_HUE)
+
+    @staticmethod
+    def _build_tooltip(count: int) -> str:
+        """Build the hover tooltip describing the monitor count."""
+        if count <= 0:
+            return "No running monitors\nClick to open the Procs tab"
+        noun = "monitor" if count == 1 else "monitors"
+        return f"{count} running {noun}\nClick to open the Procs tab"
