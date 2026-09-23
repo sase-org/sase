@@ -46,6 +46,8 @@ class ProjectTagTarget:
             "name": self.name,
             "aliases": list(self.aliases),
             "workflow_type": self.workflow_type,
+            "state": self.state,
+            "workspace_dir": self.workspace_dir,
         }
 
 
@@ -187,6 +189,36 @@ def build_targets(
     return targets
 
 
+def _synthetic_home_target() -> ProjectTagTarget:
+    """Return the always-present system ``home`` tag target (D2).
+
+    ``home`` is a launch target even before its ProjectSpec exists, so
+    ``+home`` expands to ``#git:home`` and bootstraps exactly as
+    ``#git:home`` does on a fresh ``SASE_HOME``. It carries no accent.
+    """
+
+    from sase.workspace_provider import get_display_name
+
+    try:
+        provider_display = get_display_name("git") or "git"
+    except Exception:  # noqa: BLE001 - display degrades to the raw type.
+        provider_display = "git"
+    return ProjectTagTarget(
+        key="home",
+        name="home",
+        aliases=(),
+        tag="+home",
+        workflow_type="git",
+        vcs_ref="#git:home",
+        provider_display=provider_display,
+        state="system",
+        workspace_dir=None,
+        accent=None,
+        accent_index=None,
+        launchable=True,
+    )
+
+
 def _build_catalog(projects_dir: Path) -> ProjectTagCatalog:
     """Build a fresh catalog snapshot from *projects_dir*."""
 
@@ -198,8 +230,12 @@ def _build_catalog(projects_dir: Path) -> ProjectTagCatalog:
         ("enabled", "disabled"),
         include_home=True,
     )
+    targets = list(build_targets(records))
+    if not any(target.key.casefold() == "home" for target in targets):
+        targets.append(_synthetic_home_target())
+        targets.sort(key=lambda target: target.name.casefold())
     return ProjectTagCatalog(
-        targets=tuple(build_targets(records)),
+        targets=tuple(targets),
         accent_palette=tuple(PROJECT_ACCENTS),
     )
 
@@ -237,9 +273,7 @@ def load_project_tag_catalog(
         accent_palette=catalog.accent_palette,
         signature=signature,
     )
-    if use_cache and signature is not None:
-        _CATALOG_CACHE = (signature, catalog)
-    else:
+    if use_cache:
         _CATALOG_CACHE = (signature, catalog)
     return catalog
 
@@ -276,18 +310,10 @@ def peek_project_tag_catalog_signature() -> object | None:
     return _CATALOG_CACHE[1].signature
 
 
-def catalog_cache_signature(projects_dir: Path | str | None = None) -> object | None:
-    """Return the cache signature for *projects_dir*, or ``None``."""
-
-    resolved = Path(projects_dir) if projects_dir is not None else sase_projects_dir()
-    return _catalog_signature(resolved)
-
-
 __all__ = [
     "ProjectTagCatalog",
     "ProjectTagTarget",
     "build_targets",
-    "catalog_cache_signature",
     "is_project_tag_name",
     "load_project_tag_catalog",
     "peek_project_tag_catalog",

@@ -335,10 +335,7 @@ def project_tag_for(key_or_ref: str) -> str:
     is unknown. Accepts one leading ``+`` on the input.
     """
 
-    from sase.project_tags.catalog import (
-        is_project_tag_name,
-        load_project_tag_catalog,
-    )
+    from sase.project_tags.catalog import load_project_tag_catalog
 
     needle = key_or_ref.strip()
     if needle.startswith("+"):
@@ -358,8 +355,6 @@ def project_tag_for(key_or_ref: str) -> str:
             if target.vcs_ref is not None:
                 return target.vcs_ref
             return key_or_ref
-    if is_project_tag_name(needle):
-        return f"+{needle}"
     return key_or_ref
 
 

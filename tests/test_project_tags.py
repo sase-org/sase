@@ -158,6 +158,8 @@ def test_catalog_wire_targets_match_core_shape(
         "name": "beta",
         "aliases": [],
         "workflow_type": "git",
+        "state": "disabled",
+        "workspace_dir": "/tmp/workspaces/beta",
     }
 
 
@@ -270,7 +272,9 @@ def test_project_tag_for_spellings() -> None:
     assert project_tag_for("sase") == "+sase"
     assert project_tag_for("+sase") == "+sase"
     assert project_tag_for("bob") == "+bob"
-    assert project_tag_for("zzz") == "+zzz"
+    assert project_tag_for("zzz") == "zzz"
+    assert project_tag_for("+zzz") == "+zzz"
+    assert project_tag_for("sase-core") == "sase-core"
     assert project_tag_for("1abc") == "1abc"
 
 
@@ -285,9 +289,56 @@ def test_catalog_peek_never_builds(tmp_path: Path) -> None:
         assert peek_project_tag_catalog() is first
         second = load_project_tag_catalog(tmp_path, use_cache=False)
         assert second is not first
-        assert [t.key for t in second.targets] == []
+        # An uncached load leaves the shared cache alone ...
+        assert peek_project_tag_catalog() is first
+        # ... and still carries the synthetic system home target.
+        assert [t.key for t in second.targets] == ["home"]
+        home = second.targets[0]
+        assert (home.tag, home.state, home.workflow_type) == (
+            "+home",
+            "system",
+            "git",
+        )
+        assert home.vcs_ref == "#git:home"
+        assert home.accent is None and home.accent_index is None
     finally:
         _clear_project_tag_catalog_cache()
+
+
+def test_build_catalog_keeps_a_real_home_spec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A present ``home`` spec is never doubled by the synthetic target."""
+    from sase.project_tags.catalog import _build_catalog
+
+    home_record = _record("home", system_managed=True)
+    monkeypatch.setattr(
+        "sase.core.project_lifecycle_facade.list_project_records",
+        lambda *args, **kwargs: [home_record],
+    )
+    catalog = _build_catalog(tmp_path)
+    assert [t.key for t in catalog.targets] == ["home"]
+
+
+def test_home_target_is_synthetic_before_its_spec_exists(tmp_path: Path) -> None:
+    """An empty projects dir still yields the system ``home`` target."""
+    from sase.project_tags.catalog import _build_catalog
+
+    catalog = _build_catalog(tmp_path)
+    assert catalog.known_tags() == ["+home"]
+    (home,) = catalog.targets
+    assert (home.key, home.name, home.tag) == ("home", "home", "+home")
+    assert (home.workflow_type, home.state) == ("git", "system")
+    assert home.vcs_ref == "#git:home"
+    assert home.accent is None and home.accent_index is None
+    assert home.to_wire() == {
+        "key": "home",
+        "name": "home",
+        "aliases": [],
+        "workflow_type": "git",
+        "state": "system",
+        "workspace_dir": None,
+    }
 
 
 # --- Launch-query ordering ----------------------------------------------------

@@ -17,11 +17,14 @@ ListProjectRecords = Callable[..., list[ProjectRecordWire]]
 
 @dataclass(frozen=True)
 class ProjectRefConflict:
-    """A PROJECT_NAME or alias that collides with another project's refs.
+    """A project ref that collides with another project's refs.
 
-    ``claimant`` declared *ref* as ``PROJECT_NAME`` or an alias.
-    ``occupant`` is the project whose directory key already is that ref,
-    or the earlier claimant of the same alias.
+    ``claimant`` declared *ref* (as ``PROJECT_NAME``, an alias, or its own
+    directory key). ``occupant`` is the project whose directory key already
+    is that ref, the earlier claimant of the same alias, the other directory
+    key in a case-only collision, or ``home`` for the reserved ref.
+    ``occupant_kind`` names the occupant's side: ``"directory key"``,
+    ``"PROJECT_NAME"``, or ``"project alias"``.
     """
 
     ref: str
@@ -30,6 +33,7 @@ class ProjectRefConflict:
     occupant: str
     claimant_workspace_dir: str | None = None
     occupant_workspace_dir: str | None = None
+    occupant_kind: str = "directory key"
 
 
 def filtered_project_records(
@@ -225,9 +229,10 @@ def project_ref_conflicts_from_records(
     """Return dropped/conflicting refs that alias-map construction would ignore.
 
     Refs compare case-insensitively. Each conflict names the claimant (the
-    project that declared the ref as ``PROJECT_NAME`` or alias) and the
-    occupant (the project whose directory key already is that ref, the
-    earlier claimant of the same alias, or ``home`` for the reserved ref).
+    project that declared the ref as ``PROJECT_NAME``, alias, or directory
+    key) and the occupant (the project whose directory key already is that
+    ref, the earlier claimant of the same alias, the other directory key in
+    a case-only collision, or ``home`` for the reserved ref).
     """
     spec_backed = _spec_backed_project_records(records)
     by_name = {record.project_name: record for record in spec_backed}
@@ -236,11 +241,15 @@ def project_ref_conflicts_from_records(
         folded_project_names.setdefault(
             _fold_project_ref(record.project_name), record.project_name
         )
-    claimed: dict[str, str] = {}
+    claimed: dict[str, tuple[str, str]] = {}
     conflicts: list[ProjectRefConflict] = []
 
     def _conflict(
-        ref: str, kind: str, claimant: str, occupant: str
+        ref: str,
+        kind: str,
+        claimant: str,
+        occupant: str,
+        occupant_kind: str = "directory key",
     ) -> ProjectRefConflict:
         claimant_record = by_name.get(claimant)
         occupant_record = by_name.get(occupant)
@@ -255,7 +264,31 @@ def project_ref_conflicts_from_records(
             occupant_workspace_dir=(
                 occupant_record.workspace_dir if occupant_record is not None else None
             ),
+            occupant_kind=occupant_kind,
         )
+
+    # Directory keys are never claims in the loop below, so case-only key
+    # collisions and non-system keys folding to the reserved `home` ref are
+    # reported here. Sorted for deterministic occupant/claimant assignment.
+    seen_key_folds: dict[str, str] = {}
+    for record in sorted(spec_backed, key=lambda item: item.project_name):
+        fold = _fold_project_ref(record.project_name)
+        if fold == _RESERVED_HOME_FOLD:
+            conflicts.append(
+                _conflict(
+                    record.project_name, "directory key", record.project_name, "home"
+                )
+            )
+            continue
+        first = seen_key_folds.get(fold)
+        if first is not None and first != record.project_name:
+            conflicts.append(
+                _conflict(
+                    record.project_name, "directory key", record.project_name, first
+                )
+            )
+        else:
+            seen_key_folds.setdefault(fold, record.project_name)
 
     for record in spec_backed:
         own_fold = _fold_project_ref(record.project_name)
@@ -279,10 +312,12 @@ def project_ref_conflicts_from_records(
                 conflicts.append(_conflict(ref, kind, record.project_name, occupant))
                 continue
             existing = claimed.get(fold)
-            if existing is not None and existing != record.project_name:
-                conflicts.append(_conflict(ref, kind, record.project_name, existing))
+            if existing is not None and existing[0] != record.project_name:
+                conflicts.append(
+                    _conflict(ref, kind, record.project_name, existing[0], existing[1])
+                )
                 continue
-            claimed.setdefault(fold, record.project_name)
+            claimed.setdefault(fold, (record.project_name, kind))
 
     return tuple(conflicts)
 

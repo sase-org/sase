@@ -232,3 +232,85 @@ def test_project_name_collisions_reports_case_variant_alias_conflict(
     assert collision["claimant"] == "beta"
     assert collision["occupant"] == "alpha"
     assert "sase project alias remove beta" in check.next_steps[0]
+
+
+def test_project_name_collisions_words_alias_vs_alias_by_kind(
+    monkeypatch, tmp_path: Path
+) -> None:
+    first = replace(
+        _record(tmp_path, name="alpha"),
+        aliases=["Widgets"],
+        archive_file=str(tmp_path / "alpha.archive"),
+    )
+    second = replace(
+        _record(tmp_path, name="beta"),
+        aliases=["widgets"],
+        archive_file=str(tmp_path / "beta.archive"),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_project.list_project_records",
+        lambda *_args, **_kwargs: [first, second],
+    )
+
+    check = _check_project_name_collisions(_context(tmp_path))
+
+    (detail,) = check.details
+    assert "project alias of beta" in detail
+    assert "project alias of alpha" in detail
+    assert "directory alpha" not in detail
+    assert "directory beta" not in detail
+
+
+def test_project_name_collisions_reports_case_only_directory_keys(
+    monkeypatch, tmp_path: Path
+) -> None:
+    first = replace(
+        _record(tmp_path, name="Widgets"),
+        archive_file=str(tmp_path / "Widgets.archive"),
+    )
+    second = replace(
+        _record(tmp_path, name="widgets"),
+        archive_file=str(tmp_path / "widgets.archive"),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_project.list_project_records",
+        lambda *_args, **_kwargs: [first, second],
+    )
+
+    check = _check_project_name_collisions(_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert check.data["collision_count"] == 1
+    collision = check.data["collisions"][0]
+    assert collision["kind"] == "directory key"
+    assert collision["claimant"] == "widgets"
+    assert collision["occupant"] == "Widgets"
+    (detail,) = check.details
+    assert "directory key widgets" in detail
+    assert "directory key Widgets" in detail
+    assert "Rename project directory 'widgets'" in check.next_steps[0]
+
+
+def test_project_name_collisions_reports_home_folded_directory_key(
+    monkeypatch, tmp_path: Path
+) -> None:
+    record = replace(
+        _record(tmp_path, name="Home"),
+        archive_file=str(tmp_path / "Home.archive"),
+    )
+    monkeypatch.setattr(
+        "sase.doctor.checks_project.list_project_records",
+        lambda *_args, **_kwargs: [record],
+    )
+
+    check = _check_project_name_collisions(_context(tmp_path))
+
+    assert check.status == "WARN"
+    assert check.data["collision_count"] == 1
+    collision = check.data["collisions"][0]
+    assert collision["kind"] == "directory key"
+    assert collision["claimant"] == "Home"
+    assert collision["occupant"] == "home"
+    (detail,) = check.details
+    assert "directory key Home" in detail
+    assert "claims the reserved system ref 'home'" in detail

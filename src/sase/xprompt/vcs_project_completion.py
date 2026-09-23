@@ -138,9 +138,11 @@ class VcsProjectTrigger:
 
 # --- Catalog ---------------------------------------------------------------
 
-# Module-level cache: (signature, entries). Invalidated by ProjectSpec file
-# mtimes so both project membership and patch edits are picked up, and
-# explicitly clearable via :func:`_clear_vcs_project_completion_cache`.
+# Module-level cache: ((spec signature, MRU signature), entries). Invalidated
+# by ProjectSpec file mtimes so project membership and patch edits are picked
+# up, and by the MRU store so the `current` badge and MRU order follow
+# `sase project set-current`. Explicitly clearable via
+# :func:`_clear_vcs_project_completion_cache`.
 _ENTRIES_CACHE: tuple[object, tuple[VcsProjectEntry, ...]] | None = None
 
 
@@ -173,6 +175,24 @@ def _catalog_signature(projects_dir: Path) -> object | None:
 def vcs_project_catalog_signature(projects_dir: Path) -> object | None:
     """Return the cache signature used by the VCS project catalog."""
     return _catalog_signature(projects_dir)
+
+
+def _mru_freshness_signature() -> tuple[int, int] | None:
+    """Return ``(mtime_ns, size)`` for the MRU store, or ``None``.
+
+    Entry order and the ``current`` flag derive from the MRU
+    (``sase project set-current`` writes only the MRU), so the entries
+    cache keys on this alongside the spec signature. ``None`` when the
+    store does not exist yet; creating it still invalidates the cache.
+    """
+
+    try:
+        from sase.history.vcs_xprompt_mru import vcs_xprompt_mru_path
+
+        stat = vcs_xprompt_mru_path().stat()
+    except OSError:
+        return None
+    return (stat.st_mtime_ns, stat.st_size)
 
 
 def _iter_enabled_project_patches(projects_dir: Path) -> Iterator[Patch]:
@@ -341,16 +361,17 @@ def build_vcs_project_completion_entries(
 
     resolved = Path(projects_dir) if projects_dir is not None else sase_projects_dir()
     signature = _catalog_signature(resolved)
+    freshness = (signature, _mru_freshness_signature())
 
     if use_cache and signature is not None and _ENTRIES_CACHE is not None:
-        cached_signature, cached_entries = _ENTRIES_CACHE
-        if cached_signature == signature:
+        cached_freshness, cached_entries = _ENTRIES_CACHE
+        if cached_freshness == freshness:
             return list(cached_entries)
 
     entries = _build_entries(resolved)
 
     if use_cache and signature is not None:
-        _ENTRIES_CACHE = (signature, tuple(entries))
+        _ENTRIES_CACHE = (freshness, tuple(entries))
 
     return entries
 

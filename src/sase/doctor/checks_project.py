@@ -248,18 +248,36 @@ def _collision_detail(
     occupant = records_by_name.get(conflict.occupant)
     auto_init = _occupant_is_auto_init_bare_git(occupant)
     auto_init_note = "; auto-init bare-git signature" if auto_init else ""
+    claimant_dir = conflict.claimant_workspace_dir or "no WORKSPACE_DIR"
+    occupant_dir = conflict.occupant_workspace_dir or "no WORKSPACE_DIR"
     if conflict.occupant == "home":
+        if conflict.kind == "directory key":
+            subject = f"directory key {conflict.claimant} ({claimant_dir})"
+        else:
+            subject = f"{conflict.kind} of {conflict.claimant} ({claimant_dir})"
         return (
-            f"{conflict.ref}: {conflict.kind} of {conflict.claimant} "
-            f"({conflict.claimant_workspace_dir or 'no WORKSPACE_DIR'}) "
+            f"{conflict.ref}: {subject} "
             "claims the reserved system ref 'home'"
+            f"{auto_init_note}"
+        )
+    if conflict.kind == "directory key":
+        return (
+            f"{conflict.ref}: directory key {conflict.claimant} ({claimant_dir}) "
+            f"collides with directory key {conflict.occupant} ({occupant_dir})"
+            f"{auto_init_note}"
+        )
+    if conflict.occupant_kind != "directory key":
+        return (
+            f"{conflict.ref}: {conflict.occupant_kind} of {conflict.occupant} "
+            f"({occupant_dir}) collides with {conflict.kind} of "
+            f"{conflict.claimant} ({claimant_dir})"
             f"{auto_init_note}"
         )
     return (
         f"{conflict.ref}: directory {conflict.occupant} "
-        f"({conflict.occupant_workspace_dir or 'no WORKSPACE_DIR'}) "
+        f"({occupant_dir}) "
         f"collides with {conflict.kind} of {conflict.claimant} "
-        f"({conflict.claimant_workspace_dir or 'no WORKSPACE_DIR'})"
+        f"({claimant_dir})"
         f"{auto_init_note}"
     )
 
@@ -270,6 +288,16 @@ def _collision_next_step(conflict: ProjectRefConflict) -> str:
             f"Run `sase project alias remove {conflict.claimant} "
             f"{conflict.ref}` so {conflict.ref!r} resolves to "
             f"{conflict.occupant!r}."
+        )
+    if conflict.kind == "directory key":
+        if conflict.occupant == "home":
+            return (
+                f"Rename project directory {conflict.claimant!r}: "
+                f"{conflict.ref!r} is reserved for the system home project."
+            )
+        return (
+            f"Rename project directory {conflict.claimant!r} to a unique name "
+            f"so {conflict.ref!r} resolves to {conflict.occupant!r}."
         )
     return (
         f"Rename PROJECT_NAME {conflict.ref!r} for project "

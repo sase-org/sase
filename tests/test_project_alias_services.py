@@ -757,6 +757,79 @@ def test_project_ref_home_is_reserved() -> None:
     assert conflicts[0].occupant == "home"
 
 
+def test_project_ref_conflicts_reports_case_only_directory_keys() -> None:
+    from sase.project_alias_records import project_ref_conflicts_from_records
+
+    conflicts = project_ref_conflicts_from_records(
+        [
+            _record(
+                "Widgets",
+                archive_file="/tmp/projects/Widgets/Widgets.archive",
+            ),
+            _record(
+                "widgets",
+                archive_file="/tmp/projects/widgets/widgets.archive",
+            ),
+        ]
+    )
+
+    assert len(conflicts) == 1
+    conflict = conflicts[0]
+    assert conflict.ref == "widgets"
+    assert conflict.kind == "directory key"
+    assert conflict.claimant == "widgets"
+    assert conflict.occupant == "Widgets"
+    assert conflict.occupant_kind == "directory key"
+    assert conflict.claimant_workspace_dir == "/tmp/workspaces/widgets"
+    assert conflict.occupant_workspace_dir == "/tmp/workspaces/Widgets"
+
+
+def test_project_ref_conflicts_reports_home_folded_directory_key() -> None:
+    from sase.project_alias_records import project_ref_conflicts_from_records
+
+    conflicts = project_ref_conflicts_from_records(
+        [
+            _record(
+                "Home",
+                archive_file="/tmp/projects/Home/Home.archive",
+            ),
+        ]
+    )
+
+    assert len(conflicts) == 1
+    conflict = conflicts[0]
+    assert conflict.ref == "Home"
+    assert conflict.kind == "directory key"
+    assert conflict.claimant == "Home"
+    assert conflict.occupant == "home"
+
+
+def test_project_ref_conflicts_marks_earlier_alias_claimant() -> None:
+    from sase.project_alias_records import project_ref_conflicts_from_records
+
+    conflicts = project_ref_conflicts_from_records(
+        [
+            _record(
+                "alpha",
+                archive_file="/tmp/projects/alpha/alpha.archive",
+                aliases=["Widgets"],
+            ),
+            _record(
+                "beta",
+                archive_file="/tmp/projects/beta/beta.archive",
+                aliases=["widgets"],
+            ),
+        ]
+    )
+
+    assert len(conflicts) == 1
+    conflict = conflicts[0]
+    assert conflict.kind == "project alias"
+    assert conflict.claimant == "beta"
+    assert conflict.occupant == "alpha"
+    assert conflict.occupant_kind == "project alias"
+
+
 def test_allocate_project_name_is_case_insensitive() -> None:
     records = [
         _record(
