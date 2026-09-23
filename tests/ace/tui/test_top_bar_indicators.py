@@ -130,14 +130,49 @@ async def test_busy_cluster_renders_all_labels_wide(
             "overrides:",
             "priority:",
             "disabled:",
-            "prompts:",
+            "stash:",
             "inbox:",
         ):
             assert label in text
+        assert "stash:  ≡ 4 " in text
+        assert "prompts:" not in text
         assert " · " in text
         assert "  ·  " not in text
         cluster = page.app.query_one("#top-bar-indicators", TopBarIndicators)
         assert cluster.density == "full"
+
+
+async def test_stash_chip_renders_crisp_chip_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The full-density stash chip keeps its crisp near-black chip text."""
+    async with AcePage(size=(220, 40)) as page:
+        await _drive_busy(page, monkeypatch)
+        stash = page.app.query_one(
+            "#stashed-prompts-indicator", StashedPromptsIndicator
+        )
+        strip = stash.render_line(0)
+        assert any("≡" in segment.text for segment in strip._segments)  # noqa: SLF001
+        checked = 0
+        for segment in strip._segments:  # noqa: SLF001
+            if segment.control is not None or segment.style is None:
+                continue
+            if "≡" not in segment.text and "4" not in segment.text:
+                continue
+            style = segment.style
+            assert not style.dim, (
+                f"stash chip segment {segment.text!r} is dim: {style!r}"
+            )
+            assert style.color is not None, (
+                f"stash chip segment {segment.text!r} has no foreground"
+            )
+            triplet = style.color.triplet
+            foreground = f"#{triplet.red:02X}{triplet.green:02X}{triplet.blue:02X}"
+            assert foreground == "#1A1A1A", (
+                f"stash chip segment {segment.text!r} is {foreground}, need #1A1A1A"
+            )
+            checked += 1
+        assert checked > 0, "no stash chip segments to check"
 
 
 async def test_show_hide_show_updates_separators() -> None:

@@ -204,3 +204,51 @@ def test_stash_chip_text_meets_aa_contrast() -> None:
         assert ratio >= _MIN_TEXT_CONTRAST, (
             f"stash text {fg} on {bg} is {ratio:.2f}:1 (need >= {_MIN_TEXT_CONTRAST}:1)"
         )
+
+
+def test_full_density_chip_text_is_not_dimmed() -> None:
+    """A labeled group must not dim its chip body.
+
+    Regression guard for the stash chip rendering gray at full density: the
+    label used to be the ``Text`` base style, so ``dim`` leaked onto every
+    chip body. Wrap each neighbor body in a labeled probe group, render the
+    composed text, and require every filled segment to be non-dim with text
+    that still meets the AA contrast floor.
+    """
+    from rich.console import Console
+
+    from sase.ace.tui.widgets.top_bar_group import TopBarGroup
+
+    class _LabeledProbe(TopBarGroup):
+        GROUP_LABEL = "probe"
+
+    console = Console(color_system="truecolor", width=120)
+    bodies = dict(_neighbors())
+    bodies["stashed prompts count"] = StashedPromptsIndicator._build_content(4)
+    assert bodies
+    for name, body in bodies.items():
+        probe = _LabeledProbe()
+        probe._set_body(body)
+        composed = probe._composed_text()
+        assert composed.plain != "", f"{name} probe rendered empty"
+        checked = 0
+        for offset in range(len(composed.plain)):
+            style = composed.get_style_at_offset(console, offset)
+            if style.bgcolor is None:
+                continue
+            assert not style.dim, (
+                f"{name} offset {offset} {composed.plain[offset]!r} is dim on a fill"
+            )
+            assert style.color is not None, (
+                f"{name} offset {offset} has a fill but no foreground"
+            )
+            fg = _color_hex(style.color)
+            bg = _color_hex(style.bgcolor)
+            assert fg is not None and bg is not None
+            ratio = _contrast_ratio(fg, bg)
+            assert ratio >= _MIN_TEXT_CONTRAST, (
+                f"{name} text {fg} on {bg} is {ratio:.2f}:1 "
+                f"(need >= {_MIN_TEXT_CONTRAST}:1)"
+            )
+            checked += 1
+        assert checked > 0, f"{name} probe has no filled segments to check"

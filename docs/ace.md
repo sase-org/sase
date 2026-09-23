@@ -4724,18 +4724,19 @@ Agents tab — rather than as suffixes on the tab title itself.
 
 The right-aligned indicator cluster speaks the same visual language as the status-row
 cluster beneath it (`load: 5/8 · model: opus@high · project: +sase`): every group
-renders as a dim `<type>: <body>` group, and visible groups are joined by a dim `·`. The
-left-to-right order runs from activity to system state to launch routing to personal
-queues: `procs`, `monitors`, `updates`, `overrides`, `priority`, `disabled`, `prompts`,
-`inbox`. The always-visible `inbox` anchors the right edge directly above `project:`.
-Labels are fixed strings that never pluralize. Count chips carry their identity glyph
-inside the fill — `⚙` for procs and monitors, `≡` for prompts, `★` for priority — so
-compact mode (labels dropped together when the full cluster does not fit in the cells
-left over after the tab strip and a 2-cell minimum gap; separators kept) still
-identifies each group; widening restores full labels without oscillation. Every group is
-clickable: procs and monitors open the Admin Center Procs tab, updates opens the Updates
-tab, overrides, priority, and disabled open Launch settings, prompts opens the prompt
-stash picker, and inbox opens the notification modal.
+renders as a `<type>: <body>` group where only the `<type>:` label is dim, so a group's
+value looks the same in full and compact modes, and visible groups are joined by a dim
+`·`. The left-to-right order runs from activity to system state to launch routing to
+personal queues: `procs`, `monitors`, `updates`, `overrides`, `priority`, `disabled`,
+`stash`, `inbox`. The always-visible `inbox` anchors the right edge directly above
+`project:`. Labels are fixed strings that never pluralize. Count chips carry their
+identity glyph inside the fill — `⚙` for procs and monitors, `≡` for the stash, `★` for
+priority — so compact mode (labels dropped together when the full cluster does not fit
+in the cells left over after the tab strip and a 2-cell minimum gap; separators kept)
+still identifies each group; widening restores full labels without oscillation. Every
+group is clickable: procs and monitors open the Admin Center Procs tab, updates opens
+the Updates tab, overrides, priority, and disabled open Launch settings, stash opens the
+prompt stash picker, and inbox opens the notification modal.
 
 ### Proc Indicator
 
@@ -6390,7 +6391,7 @@ picker open on the remaining entries, and the picker closes only when nothing re
 when rows are also being restored. `Escape` or `q` cancels without deleting anything.
 With no explicit marks, `Enter` restores the highlighted row; pinned rows stay stashed
 when restored, while unpinned rows are popped. Number keys `1`-`9` and `0` restore rows
-1-10 directly with the same pin-aware behavior. A small `prompts: ≡ N` pink-chip top-bar
+1-10 directly with the same pin-aware behavior. A small `stash: ≡ N` pink-chip top-bar
 group shows how many restorable drafts are currently stashed.
 
 ### Editing an Existing XPrompt from the TUI

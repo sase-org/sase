@@ -3,9 +3,11 @@
 The TUI top bar (the row with the ``Agents | Artifacts | Services`` tabs)
 speaks the same visual language as the status-row cluster beneath it
 (``load: 5/8 · model: opus@high · project: +sase``): every indicator group
-renders as a dim ``<type>: <body>`` group, and visible groups are joined by
-a dim ``·`` separator. Count chips carry their identity glyph inside the
-fill so compact density (labels dropped) still identifies each group.
+renders as a ``<type>: <body>`` group where only the label is dim, and
+visible groups are joined by a dim ``·`` separator. A group's body keeps
+its own styles at both full and compact density. Count chips carry their
+identity glyph inside the fill so compact density (labels dropped) still
+identifies each group.
 """
 
 from __future__ import annotations
@@ -62,8 +64,10 @@ class TopBarGroup(Static):
     """One labeled ``<type>: <body>`` group in the top-bar cluster.
 
     Subclasses keep their existing static ``_build_content`` builders, which
-    now return the body only; this base adds the dim micro-label. The label
-    is part of the widget, so hovering or clicking it behaves like the value.
+    now return the body only; this base adds the dim micro-label. Only the
+    label is dim: the body keeps its own styles at both full and compact
+    density. The label is part of the widget, so hovering or clicking it
+    behaves like the value.
     """
 
     GROUP_LABEL: ClassVar[str] = ""
@@ -130,12 +134,17 @@ class TopBarGroup(Static):
         return True
 
     def _composed_text(self) -> Text:
-        """Compose the rendered text from the label, body, and density."""
+        """Compose the rendered text from the label, body, and density.
+
+        Only the label span is dim; the body keeps its own styles so full
+        density renders exactly like compact density plus the label.
+        """
         if not self.group_visible:
             return Text("")
         if self._density == "compact":
             return self._body.copy()
-        text = Text(f"{self.GROUP_LABEL}: ", style="dim")
+        text = Text()
+        text.append(f"{self.GROUP_LABEL}: ", style="dim")
         text.append_text(self._body)
         return text
 

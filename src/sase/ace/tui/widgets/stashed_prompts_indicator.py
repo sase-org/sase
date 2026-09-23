@@ -13,7 +13,7 @@ _STASH_GLYPH = "≡"
 class StashedPromptsIndicator(TopBarGroup):
     """Top-bar badge showing how many prompt drafts are stashed.
 
-    Renders as ``prompts: ≡ N`` with a filled orchid-pink stack chip. The
+    Renders as ``stash: ≡ N`` with a filled orchid-pink stack chip. The
     ``≡`` glyph reads as stacked layers (git-stash for prompts) and its flat
     bars contrast with the round gear ``⚙`` so the two chips cannot be
     mistaken in compact mode. Pink is the one hue family no other top-bar
@@ -22,7 +22,7 @@ class StashedPromptsIndicator(TopBarGroup):
     when the stash is empty. Clicking opens the prompt stash picker.
     """
 
-    GROUP_LABEL = "prompts"
+    GROUP_LABEL = "stash"
     CLICK_ACTION = "open_prompt_stash"
 
     def __init__(self, **kwargs: Any) -> None:

@@ -116,3 +116,51 @@ def test_set_body_noops_on_identical_body() -> None:
     assert group.set_density("full") is False
     assert group.set_density("compact") is True
     assert group.set_density("compact") is False
+
+
+def test_full_density_dims_only_the_label() -> None:
+    """Only the label is dim; the body renders as it does at compact density."""
+    from rich.console import Console
+    from rich.text import Text
+
+    console = Console(color_system="truecolor", width=80)
+    group = _ProbeGroup()
+    group._set_body(Text(" 2 ", style="bold #1a1a1a on #48CAE4"))
+
+    full = group._composed_text()
+    # No base style may leak onto appended spans.
+    assert str(full.style) == ""
+    label = f"{group.GROUP_LABEL}: "
+    assert full.plain.startswith(label)
+
+    # The label segment is dim.
+    for offset in range(len(label)):
+        assert full.get_style_at_offset(console, offset).dim is True
+
+    # A body that did not ask for dim has no dim segment at full density.
+    for offset in range(len(label), len(full.plain)):
+        assert not full.get_style_at_offset(console, offset).dim
+
+    # The body renders exactly as at compact density.
+    group.set_density("compact")
+    compact = group._composed_text()
+    assert compact.plain == " 2 "
+    for index in range(len(compact.plain)):
+        full_style = full.get_style_at_offset(console, len(label) + index)
+        compact_style = compact.get_style_at_offset(console, index)
+        assert str(full_style) == str(compact_style)
+
+
+def test_full_density_keeps_a_body_dim_the_body_asked_for() -> None:
+    """A body that asks for dim itself (quiet states) stays dim."""
+    from rich.console import Console
+    from rich.text import Text
+
+    console = Console(color_system="truecolor", width=80)
+    group = _ProbeGroup()
+    group._set_body(Text("0", style="dim"))
+
+    full = group._composed_text()
+    label = f"{group.GROUP_LABEL}: "
+    for offset in range(len(label), len(full.plain)):
+        assert full.get_style_at_offset(console, offset).dim is True
