@@ -259,6 +259,9 @@ def test_project_name_collisions_words_alias_vs_alias_by_kind(
     assert "project alias of alpha" in detail
     assert "directory alpha" not in detail
     assert "directory beta" not in detail
+    (collision,) = check.data["collisions"]
+    assert collision["kind"] == "project alias"
+    assert collision["occupant_kind"] == "project alias"
 
 
 def test_project_name_collisions_reports_case_only_directory_keys(

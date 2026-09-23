@@ -158,6 +158,96 @@ def test_show_markdown_warms_tag_catalog_from_cold_cache(
     assert text in capsys.readouterr().out
 
 
+def _seed_demo_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Create a real ``demo`` project in the isolated SASE home.
+
+    Only provider detection is stubbed (a plugin boundary): project
+    listing, display names, and the tag catalog all read the real spec
+    file, so the CLI warms them from a cold cache like a fresh process.
+    """
+    from sase.core.paths import sase_projects_dir
+    import sase.workspace_provider as workspace_provider
+
+    spec_dir = sase_projects_dir() / "demo"
+    spec_dir.mkdir(parents=True, exist_ok=True)
+    (spec_dir / "demo.sase").write_text(
+        "PROJECT_NAME: demo\n"
+        f"WORKSPACE_DIR: {tmp_path / 'demo-ws'}\n"
+        "NAME: Demo\n"
+        "STATUS: Ready\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        workspace_provider, "detect_workflow_type", lambda _project_file: "git"
+    )
+
+
+def test_show_markdown_tagifies_stored_ref_from_cold_cache(
+    history_file: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """End-to-end tagify from a cold catalog: stored ``#`` prints ``+``."""
+    import sase.project_tags.catalog as tag_catalog
+
+    _seed_demo_project(tmp_path, monkeypatch)
+    monkeypatch.setattr(tag_catalog, "_CATALOG_CACHE", None)
+    text = "#git:demo do the important thing"
+    _seed(_entry(text, "260603_000000"))
+
+    handle_prompt_show(argparse.Namespace(id=_prompt_id(text), format="markdown"))
+
+    out = capsys.readouterr().out
+    assert "+demo" in out
+    assert "#git:demo" not in out
+
+
+def test_list_pretty_tagifies_stored_ref_from_cold_cache(
+    history_file: Path,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The pretty list renderer tagifies from a cold catalog like show does."""
+    import sase.project_tags.catalog as tag_catalog
+
+    _seed_demo_project(tmp_path, monkeypatch)
+    monkeypatch.setattr(tag_catalog, "_CATALOG_CACHE", None)
+    text = "#git:demo Fix parser"
+    _seed(_entry(text, "260603_000000"))
+
+    handle_prompt_list(
+        argparse.Namespace(all=False, cancelled=False, query=None, limit=20, json=False)
+    )
+
+    out = capsys.readouterr().out
+    assert "+demo" in out
+    assert "#git:demo" not in out
+
+
+def test_show_raw_and_json_skip_tag_catalog(
+    history_file: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Raw and JSON output never tagify, so they skip the catalog load."""
+    import sase.project_tags as project_tags_package
+
+    def _boom() -> object:
+        raise AssertionError("raw/json show must not warm the tag catalog")
+
+    monkeypatch.setattr(project_tags_package, "ensure_project_tag_catalog", _boom)
+    text = "#git:demo do the important thing"
+    _seed(_entry(text, "260603_000000"))
+
+    handle_prompt_show(argparse.Namespace(id=_prompt_id(text), format="raw"))
+    assert capsys.readouterr().out == text
+
+    handle_prompt_show(argparse.Namespace(id=_prompt_id(text), format="json"))
+    assert json.loads(capsys.readouterr().out)["text"] == text
+
+
 def test_show_unknown_selector_exits_nonzero(
     history_file: Path,
     capsys: pytest.CaptureFixture[str],

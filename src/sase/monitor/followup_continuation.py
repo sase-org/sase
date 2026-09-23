@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -132,16 +133,49 @@ def frozen_intent_vcs_prefix(
         return ""
     canonical_ref = f"#{recorded[0]}:{recorded[1]}"
     if canonical_ref not in mutable_next_action:
-        # A tag naming the recorded project counts as already prefixed.
+        # A resolved tag token naming the recorded project counts as
+        # already prefixed. Prose mentions and substrings of longer tags
+        # do not: only a real ``+<project>`` token counts (D1).
         try:
             from sase.project_tags import project_tag_for
 
             tag = project_tag_for(recorded[1])
         except Exception:  # noqa: BLE001 - fall back to the canonical ref.
             tag = canonical_ref
-        if tag == canonical_ref or tag not in mutable_next_action:
+        if not tag.startswith("+"):
+            return ""
+        if not _mutable_has_project_tag_token(mutable_next_action, tag):
             return ""
     return f"#{recorded[0]}:{recorded[1]}\n"
+
+
+def _mutable_has_project_tag_token(mutable_next_action: str, tag: str) -> bool:
+    """Return whether *tag* (``+<name>``) occurs as a real tag token.
+
+    Uses the tag scanner so ``+bob`` does not match inside ``+bobby``.
+    Falls back to D1 boundary matching when the scanner is unavailable.
+    """
+
+    try:
+        from sase.project_tags import find_project_tags
+
+        scanned = find_project_tags(mutable_next_action)
+    except Exception:  # noqa: BLE001 - fall back to boundary matching.
+        scanned = []
+        fallback = True
+    else:
+        fallback = False
+    if not fallback:
+        folded = tag.casefold()
+        for found in scanned:
+            if not isinstance(found, dict):
+                continue
+            name = found.get("name")
+            if isinstance(name, str) and f"+{name}".casefold() == folded:
+                return True
+        return False
+    pattern = r"(?:^|(?<=[\s{|(\[]))" + re.escape(tag) + r"(?![A-Za-z0-9_.-])"
+    return re.search(pattern, mutable_next_action) is not None
 
 
 def has_frozen_monitor_result_pointer(meta: Mapping[str, Any]) -> bool:

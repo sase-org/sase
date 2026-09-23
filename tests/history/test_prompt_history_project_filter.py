@@ -9,6 +9,7 @@ import pytest
 import sase.ace.patch.cache as patch_cache
 import sase.history.prompt_history_project_filter as project_filter
 from sase.core.project_lifecycle_wire import ProjectRecordWire
+from sase.project_tags.catalog import ProjectTagCatalog
 from sase.core.prompt_history_filter_wire import PromptHistoryProjectIdentity
 from sase.history.prompt_history_project_filter import (
     PromptHistoryProjectCatalog,
@@ -166,6 +167,107 @@ def test_prepare_row_facts_resolves_each_multi_prompt_segment() -> None:
 
     assert facts.segment_project_keys == ["sase", "sase-core"]
     assert facts.segment_raw_refs == ["sase", "sase-core"]
+
+
+def _warm_tag_catalog() -> ProjectTagCatalog:
+    """Return a minimal warm tag snapshot resolving ``+sase`` only."""
+    from sase.project_tags.catalog import ProjectTagCatalog, ProjectTagTarget
+
+    return ProjectTagCatalog(
+        targets=(
+            ProjectTagTarget(
+                key="sase",
+                name="sase",
+                tag="+sase",
+                workflow_type="gh",
+                vcs_ref="#gh:sase",
+            ),
+        ),
+        accent_palette=(),
+    )
+
+
+def _block_tag_catalog_builds(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Make any tag-catalog build fail loudly (event-loop safety)."""
+    import sase.project_tags as project_tags_package
+    import sase.project_tags.catalog as tag_catalog_module
+
+    def _boom(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("modal path must never build the tag catalog")
+
+    monkeypatch.setattr(tag_catalog_module, "load_project_tag_catalog", _boom)
+    monkeypatch.setattr(project_tags_package, "load_project_tag_catalog", _boom)
+    monkeypatch.setattr(tag_catalog_module, "_build_catalog", _boom)
+
+
+def test_prepare_row_facts_resolves_tag_without_building_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The modal path peeks at a warm catalog and never builds one."""
+    import sase.project_tags as project_tags_package
+
+    _block_tag_catalog_builds(monkeypatch)
+    monkeypatch.setattr(
+        project_tags_package, "peek_project_tag_catalog", _warm_tag_catalog
+    )
+    catalog = _catalog(PromptHistoryProjectIdentity(key="sase"))
+
+    facts = prepare_prompt_history_row_facts(
+        0, "+sase fix parser", "+sase fix parser", catalog
+    )
+
+    assert facts.segment_project_keys == ["sase"]
+    assert facts.segment_raw_refs == ["sase"]
+
+
+def test_prepare_row_facts_matches_hash_form_when_catalog_warm(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``project:`` filtering is identical for ``+tag`` and ``#`` spellings."""
+    import sase.project_tags as project_tags_package
+
+    _block_tag_catalog_builds(monkeypatch)
+    monkeypatch.setattr(
+        project_tags_package, "peek_project_tag_catalog", _warm_tag_catalog
+    )
+    catalog = _catalog(
+        PromptHistoryProjectIdentity(key="sase"),
+        PromptHistoryProjectIdentity(key="other"),
+    )
+    compiled = catalog.compile_query("project:sase fix")
+
+    tagged = prepare_prompt_history_row_facts(
+        0, "+sase fix parser", "+sase fix parser", catalog
+    )
+    hashed = prepare_prompt_history_row_facts(
+        1, "#gh:sase fix parser", "#gh:sase fix parser", catalog
+    )
+    other = prepare_prompt_history_row_facts(
+        2, "#gh:other fix parser", "#gh:other fix parser", catalog
+    )
+
+    assert tagged.segment_project_keys == hashed.segment_project_keys == ["sase"]
+    assert filtered_prompt_history_row_indices(compiled, [tagged, hashed, other]) == (
+        frozenset({0, 1})
+    )
+
+
+def test_prepare_row_facts_falls_back_to_raw_text_when_catalog_cold(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A cold catalog leaves ``+tag`` rows unscoped instead of blocking."""
+    import sase.project_tags as project_tags_package
+
+    _block_tag_catalog_builds(monkeypatch)
+    monkeypatch.setattr(project_tags_package, "peek_project_tag_catalog", lambda: None)
+    catalog = _catalog(PromptHistoryProjectIdentity(key="sase"))
+
+    facts = prepare_prompt_history_row_facts(
+        0, "+sase fix parser", "+sase fix parser", catalog
+    )
+
+    assert facts.segment_project_keys == [None]
+    assert facts.segment_raw_refs == [None]
 
 
 def test_prepare_row_facts_legacy_record_has_no_inferred_project() -> None:

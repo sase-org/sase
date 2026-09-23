@@ -6,7 +6,7 @@ decision, and before force-reuse, typed dispatch, MRU, and spawn), remote
 dispatch forwarding ``+tags`` verbatim, MRU recording the canonical
 ``#<workflow>:<key>`` form, the post-fan-out unit guard rejecting two
 workspace targets, ambiguous tags, provider-less tags, and disabled tags
-before any spawn, ``%{+sase | +bob}`` alt fan-out and swarm expansion, tag
+before any spawn, ``%{+sase | +bob-cli}`` alt fan-out and swarm expansion, tag
 errors in the LaunchApproval preview, and refusal of a ``#git:Sase`` init
 with a ``+sase`` hint.
 """
@@ -446,11 +446,15 @@ def test_unit_guard_rejects_provider_less_tag(monkeypatch: pytest.MonkeyPatch) -
 
 
 def test_unit_guard_accepts_alt_branches_as_separate_units(
-    monkeypatch: pytest.MonkeyPatch, tag_catalog: ProjectTagCatalog
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    _patch_tag_catalog(monkeypatch, tag_catalog)
+    catalog = _catalog_for(
+        [_record("sase"), _record("bob-cli")],
+        extra_workflows={"bob-cli": "git"},
+    )
+    _patch_tag_catalog(monkeypatch, catalog)
 
-    record_failed, error = _guard(["%{+sase | +bob} audit the README"])
+    record_failed, error = _guard(["%{+sase | +bob-cli} audit the README"])
 
     assert error is None
     record_failed.assert_not_called()

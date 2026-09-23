@@ -141,6 +141,61 @@ def test_agents_show_reports_project_for_sharded_agent(
     assert "Project: dotfiles" in capsys.readouterr().out
 
 
+def _seed_demo_project(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Create a real ``demo`` project in the isolated SASE home.
+
+    Only provider detection is stubbed (a plugin boundary): project
+    listing, display names, and the tag catalog all read the real spec
+    file, so the CLI warms them from a cold cache like a fresh process.
+    """
+    from sase.core.paths import sase_projects_dir
+    import sase.workspace_provider as workspace_provider
+
+    spec_dir = sase_projects_dir() / "demo"
+    spec_dir.mkdir(parents=True, exist_ok=True)
+    (spec_dir / "demo.sase").write_text(
+        "PROJECT_NAME: demo\n"
+        f"WORKSPACE_DIR: {tmp_path / 'demo-ws'}\n"
+        "NAME: Demo\n"
+        "STATUS: Ready\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(
+        workspace_provider, "detect_workflow_type", lambda _project_file: "git"
+    )
+
+
+def test_agents_show_tagifies_prompt_ref_from_cold_cache(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """``sase agent show`` tagifies a stored ``#`` prompt from a cold catalog."""
+    import sase.project_tags.catalog as tag_catalog
+
+    _seed_demo_project(tmp_path, monkeypatch)
+    monkeypatch.setattr(tag_catalog, "_CATALOG_CACHE", None)
+    art_dir = _make_artifact_dir(
+        tmp_path,
+        project="dotfiles",
+        cl_name="ship-it",
+        raw_suffix="20260613123000",
+        sharded=True,
+    )
+    (art_dir / "raw_xprompt.md").write_text(
+        "#git:demo do the important thing", encoding="utf-8"
+    )
+    with patch(
+        "sase.agents.cli_show.find_named_agent",
+        return_value=_named(art_dir),
+    ):
+        handle_agents_show(argparse.Namespace(name="brisk-otter"))
+
+    out = capsys.readouterr().out
+    assert "+demo" in out
+    assert "#git:demo" not in out
+
+
 def test_resolve_identity_returns_none_when_agent_missing() -> None:
     with patch("sase.agents.cli_tribe.find_named_agent", return_value=None):
         assert _resolve_identity_by_name("ghost") is None

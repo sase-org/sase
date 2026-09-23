@@ -130,8 +130,8 @@ def resolve_xprompt_aliases(prompt: str) -> str:
 
     Aliases are defined in the ``xprompt_aliases`` config field and are
     substituted *before* any other xprompt processing.  This allows aliases
-    like ``#gh_sase`` → ``#gh:sase`` where the colon syntax must be present
-    in the raw text for VCS directory-switching logic.
+    like ``#c`` → ``#commit`` where the expanded syntax must be present
+    in the raw text for later resolution logic.
     """
     if "#" not in prompt:
         return prompt

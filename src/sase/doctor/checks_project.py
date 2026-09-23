@@ -316,6 +316,7 @@ def _collision_data(
         "kind": conflict.kind,
         "claimant": conflict.claimant,
         "occupant": conflict.occupant,
+        "occupant_kind": conflict.occupant_kind,
         "claimant_workspace_dir": conflict.claimant_workspace_dir,
         "occupant_workspace_dir": conflict.occupant_workspace_dir,
         "occupant_is_auto_init_bare_git": _occupant_is_auto_init_bare_git(occupant),

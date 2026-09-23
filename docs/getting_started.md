@@ -133,7 +133,7 @@ sase's TUI has three top-level tabs:
 
 The top bar's colored `+<project>` chip is the [current project](ace.md#current-project)
 — the project you most recently launched an agent on (or promoted with
-`sase project set-current`). After the `#git:home` run above, that chip is `+home`.
+`sase project set-current`). After the `+home` run above, that chip is `+home`.
 First-open Artifacts filters seed from it; they do not lock you into that project. Press
 `?` for help and `q` to quit.
 

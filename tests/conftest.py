@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from sase.project_tags.catalog import _clear_project_tag_catalog_cache
 from tests._conftest_environment import (
     _clear_agent_env_vars,
     _clear_console_color_override_env_vars,
@@ -288,6 +289,20 @@ def _restore_hypothesis_local_constant_prescan() -> None:
         return
     providers._get_local_constants = _HYPOTHESIS_LOCAL_CONSTANTS_ORIGINAL
     _HYPOTHESIS_LOCAL_CONSTANTS_ORIGINAL = None
+
+
+@pytest.fixture(autouse=True)
+def _reset_project_tag_catalog_cache() -> Iterator[None]:
+    """Drop the process-global tag catalog snapshot after each test.
+
+    Every full-app test warms a catalog at startup, and the empty-projects
+    ``+home`` test leaves a temp-dir catalog behind. Without a reset, later
+    tests in the same worker can render ``#git:home`` as ``+home`` depending
+    on test order. The visual suite's monkeypatch pin restores itself on
+    teardown, so this trailing clear keeps working with it.
+    """
+    yield
+    _clear_project_tag_catalog_cache()
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

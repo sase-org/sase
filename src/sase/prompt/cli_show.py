@@ -16,10 +16,11 @@ from sase.project_display_names import humanize_vcs_refs_in_text
 
 
 def handle_prompt_show(args: argparse.Namespace) -> None:
-    """Resolve the prompt selector and print the requested format."""
-    from sase.project_tags import ensure_project_tag_catalog
+    """Resolve the prompt selector and print the requested format.
 
-    ensure_project_tag_catalog()
+    Only the markdown rendering tagifies, so only it warms the tag
+    catalog; raw and JSON output stay byte-exact without catalog I/O.
+    """
     selector: str = getattr(args, "id", "")
     fmt: str = getattr(args, "format", "raw") or "raw"
 

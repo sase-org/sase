@@ -141,16 +141,26 @@ def _quote_qualifier_value(value: str) -> str:
 def _segment_active_ref(segment: str) -> str | None:
     """Return the active (leading, else embedded) VCS ref text for *segment*.
 
-    Project tags (``+<project>``) resolve through the tag-aware helpers.
+    Project tags (``+<project>``) expand against the peeked catalog
+    snapshot only: this runs on the modal's event loop, so it must never
+    build the catalog (which walks and stats every project spec). When
+    the catalog is cold the unexpanded text is used as-is.
     """
     from sase.project_tags import (
-        effective_find_vcs_workflow_tag,
-        effective_vcs_workflow_tag,
+        expand_project_tags_with_catalog,
+        peek_project_tag_catalog,
     )
+    from sase.xprompt import extract_vcs_workflow_tag, find_vcs_workflow_tag
 
-    tag = effective_vcs_workflow_tag(segment) or effective_find_vcs_workflow_tag(
-        segment
-    )
+    prompt = segment
+    if "+" in segment:
+        catalog = peek_project_tag_catalog()
+        if catalog is not None:
+            try:
+                prompt = expand_project_tags_with_catalog(segment, catalog)
+            except Exception:  # noqa: BLE001 - fall back to the raw segment.
+                prompt = segment
+    tag = extract_vcs_workflow_tag(prompt) or find_vcs_workflow_tag(prompt)
     if not tag:
         return None
     return extract_project_from_vcs_tag(tag)

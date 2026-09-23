@@ -74,6 +74,13 @@ def test_replace_vcs_tags_multi_prompt_with_directives() -> None:
         assert result == "%i:a #gh:other Fix A\n---\n%i:b #gh:other Fix B"
 
 
+def test_replace_vcs_tags_with_project_tag_prefix() -> None:
+    """The prompt-history MRU entry path substitutes a ``+tag`` prefix."""
+    with _patch_vcs_replace_pattern():
+        result = replace_vcs_workflow_tags("#gh:sase Fix the bug", "+sase")
+        assert result == "+sase Fix the bug"
+
+
 def test_replace_vcs_tags_no_existing_tag() -> None:
     """Prepend VCS prefix when prompt has no existing VCS tag."""
     with _patch_vcs_replace_pattern():

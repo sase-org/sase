@@ -82,6 +82,22 @@ def expand_project_tags(
     return str(expansion["text"])
 
 
+def expand_project_tags_with_catalog(text: str, catalog: Any) -> str:
+    """Rewrite resolved ``+<project>`` tags using a loaded snapshot (D4).
+
+    Same policy as :func:`expand_project_tags` but takes a previously
+    loaded snapshot, so render and keystroke paths can expand with
+    :func:`~sase.project_tags.catalog.peek_project_tag_catalog` and fall
+    back to the unexpanded text (never build) when the catalog is cold.
+    """
+
+    if "+" not in text:
+        return text
+    wire_targets = catalog.wire_targets()
+    expansion = _expand_binding()(text, wire_targets)
+    return str(expansion["text"])
+
+
 def expand_project_tags_report(
     text: str,
     projects_dir: Path | str | None = None,
@@ -474,6 +490,7 @@ __all__ = [
     "effective_vcs_workflow_tag",
     "expand_project_tags",
     "expand_project_tags_report",
+    "expand_project_tags_with_catalog",
     "find_project_tag_trigger",
     "find_project_tags",
     "known_project_tag_for",

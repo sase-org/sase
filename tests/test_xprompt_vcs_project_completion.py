@@ -30,6 +30,10 @@ from sase.xprompt.vcs_project_completion import (
 from tests._project_display_case import ProjectDisplayCase
 
 
+#: Real MRU rank builder, captured before the module autouse fixture stubs it.
+_REAL_MRU_CATALOG_RANK = vpc._mru_catalog_rank
+
+
 @pytest.fixture(autouse=True)
 def _clear_catalog_cache():
     """Keep the module-level catalog cache from leaking across tests.
@@ -460,12 +464,27 @@ def test_cache_invalidates_when_mru_store_changes(
     mru_file = tmp_path / "vcs_xprompt_mru.json"
     mru_file.write_text('{"entries": ["#gh:sase"]}', encoding="utf-8")
     monkeypatch.setattr(mru_module, "_MRU_FILE", mru_file)
+    # Keep every MRU entry: with no resolvability snapshot the prune guards
+    # keep entries rather than risk nuking the store, so the rank below is
+    # computed from the real store contents.
+    monkeypatch.setattr(mru_module, "_resolvable_vcs_ref_index", lambda: None)
 
-    with list_p as list_mock, detect_p, display_p:
-        first = build_vcs_project_completion_entries(projects_dir=tmp_path)
-        second = build_vcs_project_completion_entries(projects_dir=tmp_path)
+    with (
+        list_p as list_mock,
+        detect_p,
+        display_p,
+        # Exercise the real recency rank; the module fixture stubs it.
+        patch.object(vpc, "_mru_catalog_rank", _REAL_MRU_CATALOG_RANK),
+    ):
+        # The current key tracks the MRU head the way `set-current` writes
+        # it; resolution itself is covered by the current-project tests.
+        with patch.object(vpc, "_current_catalog_key", return_value="sase"):
+            first = build_vcs_project_completion_entries(projects_dir=tmp_path)
+            second = build_vcs_project_completion_entries(projects_dir=tmp_path)
         assert second == first
         assert list_mock.call_count == 1
+        assert [entry.name for entry in first] == ["sase", "bob"]
+        assert [entry.current for entry in first] == [True, False]
         # Rewrite the store the way `sase project set-current` does.
         mru_file.write_text(
             '{"entries": ["#git:bob", "#gh:sase", "#git:bob-extra"]}',
@@ -476,8 +495,10 @@ def test_cache_invalidates_when_mru_store_changes(
             mru_file,
             ns=(stat.st_atime_ns + 1_000_000_000, stat.st_mtime_ns + 1_000_000_000),
         )
-        third = build_vcs_project_completion_entries(projects_dir=tmp_path)
-        assert [entry.name for entry in third] == [entry.name for entry in first]
+        with patch.object(vpc, "_current_catalog_key", return_value="bob"):
+            third = build_vcs_project_completion_entries(projects_dir=tmp_path)
+        assert [entry.name for entry in third] == ["bob", "sase"]
+        assert [entry.current for entry in third] == [True, False]
         assert list_mock.call_count == 2
 
 
