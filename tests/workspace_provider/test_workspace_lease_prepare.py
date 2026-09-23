@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
+from collections.abc import Sequence
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -26,18 +29,46 @@ class TestPrepareFromRemote:
         *,
         fetch_stderr: str = "",
         checkout_stderr: str = "",
-    ) -> None:
+        fetch_script: Sequence[str | None] | None = None,
+    ) -> dict[str, Any]:
         import subprocess
 
+        fetch_calls: list[dict[str, Any]] = []
+        checkout_calls: list[dict[str, Any]] = []
+        sleep_calls: list[float] = []
+        script = list(fetch_script) if fetch_script is not None else None
+
         def fake_run_git(
-            args: list[str], checkout: Path
+            args: list[str], checkout: Path, timeout: float | None = None
         ) -> subprocess.CompletedProcess[str]:
             del checkout
-            failing = {"fetch": fetch_stderr, "checkout": checkout_stderr}
-            if args[0] in failing and failing[args[0]]:
-                return subprocess.CompletedProcess(
-                    args, 128, stdout="", stderr=failing[args[0]] + "\n"
-                )
+            if args[0] == "fetch":
+                fetch_calls.append({"timeout": timeout})
+                if script is not None:
+                    item = script.pop(0) if script else None
+                    if item is None:
+                        return subprocess.CompletedProcess(
+                            args, 0, stdout="", stderr=""
+                        )
+                    if item == "timeout":
+                        raise subprocess.TimeoutExpired(
+                            ["git", *args], timeout if timeout is not None else 0.0
+                        )
+                    return subprocess.CompletedProcess(
+                        args, 128, stdout="", stderr=item + "\n"
+                    )
+                if fetch_stderr:
+                    return subprocess.CompletedProcess(
+                        args, 128, stdout="", stderr=fetch_stderr + "\n"
+                    )
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
+            if args[0] == "checkout":
+                checkout_calls.append({"timeout": timeout})
+                if checkout_stderr:
+                    return subprocess.CompletedProcess(
+                        args, 128, stdout="", stderr=checkout_stderr + "\n"
+                    )
+                return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
             if args[0] == "remote":
                 return subprocess.CompletedProcess(
                     args, 0, stdout="origin\n", stderr=""
@@ -48,12 +79,23 @@ class TestPrepareFromRemote:
                 )
             return subprocess.CompletedProcess(args, 0, stdout="", stderr="")
 
+        def fake_sleep(seconds: float) -> None:
+            sleep_calls.append(seconds)
+
         monkeypatch.setattr("sase.workspace_provider._lease_git._run_git", fake_run_git)
+        monkeypatch.setattr("sase.workspace_provider._lease_git._sleep", fake_sleep)
+        return {
+            "fetch_calls": fetch_calls,
+            "checkout_calls": checkout_calls,
+            "sleep_calls": sleep_calls,
+        }
 
     _PUBLICKEY_DENIAL = (
         "git@ssh.github.com: Permission denied (publickey).\n"
         "fatal: Could not read from remote repository."
     )
+
+    _CONNECTION_RESET = "kex_exchange_identification: read: Connection reset by peer"
 
     def test_fetch_publickey_denial_gains_ssh_agent_remediation(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -170,6 +212,158 @@ class TestPrepareFromRemote:
 
         assert error.retryability is None
         assert error.is_credential_failure is False
+
+    def test_fetch_publickey_denial_then_success_retries_once(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        (tmp_path / ".git").mkdir()
+        calls = self._fake_git(monkeypatch, fetch_script=[self._PUBLICKEY_DENIAL, None])
+
+        with caplog.at_level(
+            logging.WARNING, logger="sase.workspace_provider._lease_git"
+        ):
+            _prepare_from_primary_remote(tmp_path)
+
+        assert len(calls["fetch_calls"]) == 2
+        assert calls["sleep_calls"] == [10.0]
+        warnings = [
+            r
+            for r in caplog.records
+            if r.levelno >= logging.WARNING
+            and "sase.workspace_provider._lease_git" in r.name
+        ]
+        assert len(warnings) == 1
+        assert "cleared on retry" in warnings[0].getMessage()
+        assert self._PUBLICKEY_DENIAL in warnings[0].getMessage()
+
+    def test_persistent_fetch_publickey_denial_raises_after_confirmation(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        (tmp_path / ".git").mkdir()
+        calls = self._fake_git(
+            monkeypatch,
+            fetch_script=[self._PUBLICKEY_DENIAL, self._PUBLICKEY_DENIAL],
+        )
+
+        with pytest.raises(OperationalLeaseError) as exc_info:
+            _prepare_from_primary_remote(tmp_path)
+
+        assert str(exc_info.value) == (
+            "operational workspace lease failed during preparation: "
+            f"{self._PUBLICKEY_DENIAL}\n"
+            "This is usually a missing or empty SSH agent in the calling process "
+            "(check SSH_AUTH_SOCK); when the caller is the service host, give it an "
+            "unattended credential (see docs/init.md). Re-running `sase service "
+            "init` from a login shell only lasts until that shell's agent dies.; "
+            "the user-owned primary checkout was left untouched"
+        )
+        assert len(calls["fetch_calls"]) == 2
+        assert calls["sleep_calls"] == [10.0]
+        error = exc_info.value
+        assert error.is_credential_failure is True
+
+    def test_retryable_transport_failure_then_success(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        (tmp_path / ".git").mkdir()
+        calls = self._fake_git(monkeypatch, fetch_script=[self._CONNECTION_RESET, None])
+
+        _prepare_from_primary_remote(tmp_path)
+
+        assert len(calls["fetch_calls"]) == 2
+        assert calls["sleep_calls"] == [1.0]
+
+    def test_persistent_retryable_transport_failure_raises_after_three_attempts(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        (tmp_path / ".git").mkdir()
+        calls = self._fake_git(
+            monkeypatch,
+            fetch_script=[
+                self._CONNECTION_RESET,
+                self._CONNECTION_RESET,
+                self._CONNECTION_RESET,
+            ],
+        )
+
+        with pytest.raises(OperationalLeaseError, match="preparation") as exc_info:
+            _prepare_from_primary_remote(tmp_path)
+
+        assert len(calls["fetch_calls"]) == 3
+        assert calls["sleep_calls"] == [1.0, 5.0]
+        error = exc_info.value
+        assert error.is_credential_failure is False
+
+    def test_non_retryable_fetch_failure_raises_after_one_attempt(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        (tmp_path / ".git").mkdir()
+        calls = self._fake_git(
+            monkeypatch,
+            fetch_script=["fatal: couldn't find remote ref main"],
+        )
+
+        with pytest.raises(OperationalLeaseError, match="preparation"):
+            _prepare_from_primary_remote(tmp_path)
+
+        assert len(calls["fetch_calls"]) == 1
+        assert calls["sleep_calls"] == []
+
+    def test_fetch_timeout_retries_then_raises(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.sdd._git import network_git_timeout
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        (tmp_path / ".git").mkdir()
+        calls = self._fake_git(
+            monkeypatch, fetch_script=["timeout", "timeout", "timeout"]
+        )
+
+        with pytest.raises(OperationalLeaseError, match="preparation") as exc_info:
+            _prepare_from_primary_remote(tmp_path)
+
+        assert len(calls["fetch_calls"]) == 3
+        assert calls["sleep_calls"] == [1.0, 5.0]
+        message = str(exc_info.value)
+        assert "timed out after" in message
+        assert f"{network_git_timeout():g}s" in message
+        error = exc_info.value
+        assert error.retryability is None
+        assert error.is_credential_failure is False
+        assert all(
+            call["timeout"] == network_git_timeout() for call in calls["fetch_calls"]
+        )
+
+    def test_checkout_publickey_denial_is_not_retried(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from sase.workspace_provider.lease import _prepare_from_primary_remote
+
+        (tmp_path / ".git").mkdir()
+        calls = self._fake_git(monkeypatch, checkout_stderr=self._PUBLICKEY_DENIAL)
+
+        with pytest.raises(OperationalLeaseError, match="preparation") as exc_info:
+            _prepare_from_primary_remote(tmp_path)
+
+        assert len(calls["checkout_calls"]) == 1
+        assert calls["sleep_calls"] == []
+        message = str(exc_info.value)
+        assert self._PUBLICKEY_DENIAL in message
+        assert "SSH_AUTH_SOCK" in message
 
     def test_prepare_fast_forwards_to_origin_head(self, tmp_path: Path) -> None:
         import subprocess

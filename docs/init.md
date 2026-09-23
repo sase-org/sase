@@ -274,7 +274,12 @@ While the credential is refused, host chops that write beads cannot fetch their
 operational workspace, so they fail with `Permission denied (publickey)`. The external
 issue mirror treats this as a credential failure: it reports `auth_error`, logs the git
 error, and backs off exponentially instead of failing on every scheduled tick. Beads are
-not mirrored until the credential is restored.
+not mirrored until the credential is restored. Operational lease preparation retries a
+transient transport failure (connection reset, timeout, DNS) up to three attempts. It
+re-checks a `Permission denied (publickey)` once after about 10 seconds before failing,
+so a brief remote-side refusal, such as during a GitHub incident, no longer fails the
+leased operation. A refusal that survives the re-check is reported with the existing
+remediation.
 
 The code cannot restore the credential, so this is yours to fix. There are two supported
 ways to give the host an unattended credential:
