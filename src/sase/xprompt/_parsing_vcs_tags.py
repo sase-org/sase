@@ -95,17 +95,40 @@ def find_vcs_workflow_tag_span(prompt: str) -> tuple[int, int] | None:
 
 
 def _prompt_segment_has_vcs_workflow_ref(segment: str) -> bool:
-    """Return whether *segment* contains any registered workspace workflow ref."""
+    """Return whether *segment* contains any registered workspace workflow ref.
+
+    A resolvable ``+<project>`` tag counts as a workspace ref, so the
+    default ``#git:home`` prefix is never injected next to a tag (D4).
+    """
     from sase.workspace_provider import get_ref_patterns
 
-    if "#" not in segment:
+    if "#" not in segment and "+" not in segment:
         return False
 
-    normalized = normalize_vcs_underscore_refs(segment)
-    return any(
-        pattern.search(normalized) is not None
-        for pattern in get_ref_patterns().values()
-    )
+    if "#" in segment:
+        normalized = normalize_vcs_underscore_refs(segment)
+        if any(
+            pattern.search(normalized) is not None
+            for pattern in get_ref_patterns().values()
+        ):
+            return True
+
+    if "+" in segment:
+        try:
+            from sase.project_tags import expand_project_tags_report
+
+            report = expand_project_tags_report(segment)
+            raw_tags = report.get("tags")
+            tags = raw_tags if isinstance(raw_tags, list) else []
+            return any(
+                isinstance(tag, dict)
+                and dict(tag.get("resolution", {})).get("kind") == "resolved"
+                and tag.get("replacement") is not None
+                for tag in tags
+            )
+        except Exception:  # noqa: BLE001 - cold catalog means no tag ref.
+            return False
+    return False
 
 
 def normalize_default_vcs_workflow_segment(
@@ -183,7 +206,7 @@ def inherit_vcs_workflow_tag(prompt: str, inherited_vcs_tag: str | None) -> str:
 
     from ._prompt_segments import split_prompt_segments
 
-    frontmatter, body = _split_frontmatter_block(prompt)
+    frontmatter, body = split_frontmatter_block(prompt)
     pieces, separators = split_prompt_segments(body)
 
     normalized_pieces = [
@@ -196,7 +219,7 @@ def inherit_vcs_workflow_tag(prompt: str, inherited_vcs_tag: str | None) -> str:
     return f"{frontmatter}{rebuilt}"
 
 
-def _split_frontmatter_block(prompt: str) -> tuple[str, str]:
+def split_frontmatter_block(prompt: str) -> tuple[str, str]:
     """Split raw leading YAML frontmatter from *prompt*, preserving text."""
     lines = prompt.splitlines(keepends=True)
     if not lines or lines[0].strip() != "---":
@@ -216,7 +239,7 @@ def find_vcs_workflow_tag_prepend_offset(prompt: str) -> int:
     normalization: after a leading YAML frontmatter block, leading horizontal
     whitespace, and leading ``%directive`` tokens.
     """
-    frontmatter, body = _split_frontmatter_block(prompt)
+    frontmatter, body = split_frontmatter_block(prompt)
     offset = len(frontmatter)
 
     leading_ws_match = re.match(r"[^\S\r\n]*", body)
@@ -240,7 +263,7 @@ def normalize_default_vcs_workflow(prompt: str) -> str:
     """
     from ._prompt_segments import split_prompt_segments
 
-    frontmatter, body = _split_frontmatter_block(prompt)
+    frontmatter, body = split_frontmatter_block(prompt)
     pieces, separators = split_prompt_segments(body)
 
     normalized_pieces = [

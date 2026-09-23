@@ -149,11 +149,18 @@ def build_provider_mismatch_error(
     except ValueError:
         actual_workflow_type = None
 
-    hint = (
-        f"Use #{actual_workflow_type}:{project_name} instead."
-        if actual_workflow_type
-        else "Use the VCS tag matching its actual provider instead."
-    )
+    if actual_workflow_type:
+        try:
+            from sase.project_tags import project_tag_for
+
+            suggestion = project_tag_for(project_name)
+            if not suggestion.startswith(("+", "#")):
+                suggestion = f"#{actual_workflow_type}:{project_name}"
+        except Exception:  # noqa: BLE001 - hints degrade to `#wf:` refs.
+            suggestion = f"#{actual_workflow_type}:{project_name}"
+        hint = f"Use {suggestion} instead."
+    else:
+        hint = "Use the VCS tag matching its actual provider instead."
     return ProjectProviderMismatchError(
         f"'{display_name}' is not a bare-git project — #git:{project_name} "
         f"would convert it into one. {hint}"

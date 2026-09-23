@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from functools import cache
 import re
 
-from sase.xprompt import extract_project_from_vcs_tag, extract_vcs_workflow_tag
+from sase.xprompt import extract_project_from_vcs_tag
 from sase.xprompt._directive_types import (
     _DEPRECATED_DIRECTIVES,
     _DIRECTIVE_ALIASES,
@@ -322,8 +322,14 @@ def _project_columns(
 
 
 def _extract_vcs_tag(text: str) -> str | None:
-    """Extract a leading VCS tag, including known fallback VCS prefixes."""
-    return extract_vcs_workflow_tag(text) or _extract_fallback_vcs_tag(text)
+    """Extract a leading VCS tag, including known fallback VCS prefixes.
+
+    Project tags (``+<project>``) resolve through the tag-aware helper so
+    tag-form prompts attribute to the right project.
+    """
+    from sase.project_tags import effective_vcs_workflow_tag
+
+    return effective_vcs_workflow_tag(text) or _extract_fallback_vcs_tag(text)
 
 
 def _extract_fallback_vcs_tag(text: str) -> str | None:

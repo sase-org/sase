@@ -71,6 +71,24 @@ def launch_agents_from_cwd_impl(
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
 
     ensure_historical_auto_name_migration()
+    if "+" in query:
+        # Validate tags against the raw prompt before canonicalization
+        # expands resolved tags into `#<workflow>:<key>` refs (which would
+        # hide disabled/no-provider targets from the policy check). Alt
+        # branches and `---` segments are validated as future units; the
+        # post-fan-out unit guard below re-checks anchored leftovers.
+        try:
+            from sase.project_tags import (
+                ProjectTagError as _ProjectTagError,
+                validate_project_tags_for_launch as _validate_tags,
+            )
+
+            _validate_tags(query)
+        except _ProjectTagError:
+            record_failed_launch_prompt(query)
+            raise
+        except Exception:  # noqa: BLE001 - cold catalog fails open here.
+            pass
     try:
         query = canonicalize_project_aliases_in_prompt(query)
     except Exception:
@@ -197,6 +215,11 @@ def launch_agents_from_cwd_impl(
         expanded_segments=expanded_segments,
         template_groups=expanded_segment_template_groups,
         swarm_xprompts=expanded_segment_swarm_xprompts,
+        record_failed_launch_prompt=record_failed_launch_prompt,
+    )
+    _guard_project_tags_for_launch_units(
+        submitted_query,
+        expanded_segments=expanded_segments,
         record_failed_launch_prompt=record_failed_launch_prompt,
     )
     if not (extra_env or {}).get("SASE_LAUNCH_DISPATCH_FINGERPRINT"):
@@ -585,6 +608,40 @@ def launch_agents_from_cwd_impl(
         record_failed_launch_prompt(query)
         raise
     return execution.results
+
+
+def _guard_project_tags_for_launch_units(
+    submitted_query: str,
+    *,
+    expanded_segments: Sequence[str],
+    record_failed_launch_prompt: Callable[[str], None],
+) -> None:
+    """Enforce D3 tag policy for each post-fan-out launch unit.
+
+    Runs after swarm/alt fan-out and before any spawn, so an anchored check
+    here also covers ``%{+ssae | +sase}`` branches. Fast path: segments
+    without ``+`` are skipped without touching the catalog.
+    """
+
+    if not any("+" in segment for segment in expanded_segments):
+        return
+    try:
+        from sase.project_tags import (
+            ProjectTagError,
+            validate_project_tags_for_launch,
+        )
+    except ImportError:
+        return
+    for segment in expanded_segments:
+        if "+" not in segment:
+            continue
+        try:
+            validate_project_tags_for_launch(segment)
+        except ProjectTagError:
+            record_failed_launch_prompt(submitted_query)
+            raise
+        except Exception:  # noqa: BLE001 - cold catalog fails open here.
+            continue
 
 
 def _guard_typed_directives_require_admission(

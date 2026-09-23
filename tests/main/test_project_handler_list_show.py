@@ -193,6 +193,28 @@ class TestListAndShow:
         assert "Project: widgets" in out
         assert "Directory key: gh_x__widgets" in out
 
+    def test_show_accepts_plus_tag_spelling(
+        self,
+        projects_root: Path,
+        lifecycle_stubs: Callable[[], None],
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        lifecycle_stubs()
+        _write_project(
+            projects_root,
+            "gh_x__widgets",
+            "PROJECT_NAME: widgets\nWORKSPACE_DIR: /tmp/widgets\nNAME: a\n",
+        )
+
+        args = make_args(project_subcommand="show", project="+widgets", json=False)
+        with pytest.raises(SystemExit) as exc:
+            handle_project_command(args)
+
+        assert exc.value.code == 0
+        out = capsys.readouterr().out
+        assert "Project: widgets" in out
+        assert "Directory key: gh_x__widgets" in out
+
     def test_list_text_shows_project_name_with_directory_key(
         self,
         projects_root: Path,

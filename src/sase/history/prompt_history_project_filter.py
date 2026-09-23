@@ -28,8 +28,6 @@ from sase.core.prompt_history_filter_wire import (
 )
 from sase.xprompt._parsing_vcs_tags import (
     extract_project_from_vcs_tag,
-    extract_vcs_workflow_tag,
-    find_vcs_workflow_tag,
     find_vcs_workflow_tag_span,
 )
 from sase.xprompt._prompt_segments import split_prompt_segments
@@ -141,8 +139,18 @@ def _quote_qualifier_value(value: str) -> str:
 
 
 def _segment_active_ref(segment: str) -> str | None:
-    """Return the active (leading, else embedded) VCS ref text for *segment*."""
-    tag = extract_vcs_workflow_tag(segment) or find_vcs_workflow_tag(segment)
+    """Return the active (leading, else embedded) VCS ref text for *segment*.
+
+    Project tags (``+<project>``) resolve through the tag-aware helpers.
+    """
+    from sase.project_tags import (
+        effective_find_vcs_workflow_tag,
+        effective_vcs_workflow_tag,
+    )
+
+    tag = effective_vcs_workflow_tag(segment) or effective_find_vcs_workflow_tag(
+        segment
+    )
     if not tag:
         return None
     return extract_project_from_vcs_tag(tag)

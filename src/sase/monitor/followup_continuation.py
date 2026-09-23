@@ -130,8 +130,17 @@ def frozen_intent_vcs_prefix(
     mutable_next_action = clean_str(meta.get("monitor_next_action")) or ""
     if not mutable_next_action or mutable_next_action == frozen_next_action:
         return ""
-    if f"#{recorded[0]}:{recorded[1]}" not in mutable_next_action:
-        return ""
+    canonical_ref = f"#{recorded[0]}:{recorded[1]}"
+    if canonical_ref not in mutable_next_action:
+        # A tag naming the recorded project counts as already prefixed.
+        try:
+            from sase.project_tags import project_tag_for
+
+            tag = project_tag_for(recorded[1])
+        except Exception:  # noqa: BLE001 - fall back to the canonical ref.
+            tag = canonical_ref
+        if tag == canonical_ref or tag not in mutable_next_action:
+            return ""
     return f"#{recorded[0]}:{recorded[1]}\n"
 
 

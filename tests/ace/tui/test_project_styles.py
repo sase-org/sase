@@ -5,9 +5,9 @@ from __future__ import annotations
 from sase.ace.tui.project_styles import (
     PROJECT_ACCENTS,
     _hash_index,
-    _project_accent_map,
     project_accent,
 )
+from sase.project_accents import _project_accent_map
 
 _CORPUS: tuple[str, ...] = tuple(f"project-{i}" for i in range(200))
 

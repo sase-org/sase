@@ -19,7 +19,7 @@ from sase.ace.tui.keymaps import (
     load_keymap_registry,
     split_key_alternatives,
 )
-from sase.ace.tui.project_styles import project_accent
+from sase.project_accents import accent_among_keys, project_accent
 from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.util.selection import ProgrammaticSelectionGuard
 from sase.core.paths import sase_projects_dir
@@ -94,10 +94,12 @@ def _resolve_current_project_snapshot() -> _CurrentProjectSnapshot:
         project = resolve_current_project()
         accent = ""
         if project is not None:
-            accent = project_accent(
-                project.project_key,
-                among=tuple(get_known_project_workspaces()),
-            )
+            try:
+                records = list_project_records(sase_projects_dir(), "all")
+                among: tuple[str, ...] = accent_among_keys(records)
+            except Exception:  # noqa: BLE001 - display reads always degrade.
+                among = tuple(get_known_project_workspaces())
+            accent = project_accent(project.project_key, among=among)
     except Exception:  # noqa: BLE001 - display reads always degrade.
         return _CurrentProjectSnapshot(project=None, accent="")
     return _CurrentProjectSnapshot(project=project, accent=accent)

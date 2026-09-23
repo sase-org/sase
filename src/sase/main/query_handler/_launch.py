@@ -105,6 +105,37 @@ def launch_query(query: str) -> None:
         )
         sys.exit(0)
 
+    # Project tags resolve against this machine's projects: remote-dispatch
+    # already returned above with the prompt forwarded verbatim, so validate
+    # and expand here, before force-reuse, typed dispatch, MRU, and spawn.
+    if "+" in query:
+        from sase.history.prompt import record_failed_launch_prompt
+        from sase.ops.commands.run import emit_run_launch_result
+        from sase.project_tags import (
+            ProjectTagError,
+            expand_project_tags,
+            validate_project_tags_for_launch,
+        )
+
+        try:
+            validate_project_tags_for_launch(query)
+        except ProjectTagError as exc:
+            message = str(exc)
+            record_failed_launch_prompt(query)
+            print(f"Error: {message}", file=sys.stderr)
+            emit_run_launch_result(success=False, message=message)
+            sys.exit(1)
+        try:
+            query = expand_project_tags(query)
+        except ProjectTagError as exc:
+            message = str(exc)
+            record_failed_launch_prompt(query)
+            print(f"Error: {message}", file=sys.stderr)
+            emit_run_launch_result(success=False, message=message)
+            sys.exit(1)
+        except Exception:  # noqa: BLE001 - tags stay literal when catalog is cold.
+            pass
+
     segment_extra_env = None
     force_reuse_applied = False
     if allow_force_reuse:

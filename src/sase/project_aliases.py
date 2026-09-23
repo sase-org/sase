@@ -312,7 +312,18 @@ def _project_workflow_type(project: str) -> str | None:
 def canonicalize_project_aliases_in_prompt(
     prompt: str, *, use_cache: bool = True
 ) -> str:
-    """Rewrite project alias refs in VCS launch tags to canonical names."""
+    """Rewrite project alias refs in VCS launch tags to canonical names.
+
+    Project tags (``+<project>``) are expanded first, before the ``#`` guard,
+    so every downstream caller understands tags for free (D4).
+    """
+    if "+" in prompt:
+        try:
+            from sase.project_tags import expand_project_tags
+
+            prompt = expand_project_tags(prompt)
+        except Exception:  # noqa: BLE001 - tags stay literal when catalog is cold.
+            pass
     if "#" not in prompt:
         return prompt
     pattern = _project_alias_ref_pattern()

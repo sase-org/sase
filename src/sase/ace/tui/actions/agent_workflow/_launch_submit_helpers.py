@@ -12,13 +12,14 @@ log = logging.getLogger(__name__)
 
 
 def submitted_vcs_xprompt_prefix(prompt: str) -> str | None:
-    """Return ``#<workflow>:<ref>`` for *prompt*'s leading VCS tag, if any."""
-    from sase.xprompt._parsing import (
-        extract_project_from_vcs_tag,
-        extract_vcs_workflow_tag,
-    )
+    """Return ``#<workflow>:<ref>`` for *prompt*'s leading VCS tag, if any.
 
-    tag = extract_vcs_workflow_tag(prompt.strip() + " ")
+    Project tags (``+<project>``) resolve through the tag-aware helper.
+    """
+    from sase.project_tags import effective_vcs_workflow_tag
+    from sase.xprompt._parsing import extract_project_from_vcs_tag
+
+    tag = effective_vcs_workflow_tag(prompt.strip() + " ")
     if tag is None:
         return None
     ref = extract_project_from_vcs_tag(tag)

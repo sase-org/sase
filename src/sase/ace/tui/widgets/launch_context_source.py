@@ -31,7 +31,7 @@ from textual.widget import Widget
 from textual.worker import Worker, WorkerState
 
 from sase.ace.tui.current_project_settings import CurrentProjectSettings
-from sase.ace.tui.project_styles import project_accent
+from sase.project_accents import accent_among_keys, project_accent
 from sase.ace.tui.provider_styles import ProviderTextPalette, provider_text_palette
 from sase.current_project import (
     CurrentProject,
@@ -134,12 +134,19 @@ def _resolve_default_snapshot() -> LaunchDefaultSnapshot | None:
 
 
 def _enabled_project_keys() -> tuple[str, ...]:
-    """Return enabled project keys for accent assignment.
+    """Return the D6 canonical accent set for accent assignment.
 
     Disk-backed; call only from the off-thread resolve worker.
     """
 
-    return tuple(get_known_project_workspaces())
+    try:
+        from sase.core.paths import sase_projects_dir
+        from sase.core.project_lifecycle_facade import list_project_records
+
+        records = list_project_records(sase_projects_dir(), "all")
+        return accent_among_keys(records)
+    except Exception:  # noqa: BLE001 - display reads always degrade.
+        return tuple(get_known_project_workspaces())
 
 
 def _resolve_project_snapshot() -> CurrentProjectSnapshot | None:

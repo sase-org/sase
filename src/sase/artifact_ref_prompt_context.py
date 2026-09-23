@@ -329,15 +329,15 @@ def _prompt_segments(prompt: str) -> tuple[tuple[tuple[int, int], str], ...]:
 
 
 def _leading_or_embedded_tag(segment: str) -> str | None:
-    from sase.xprompt._parsing_vcs_tags import (
-        extract_vcs_workflow_tag,
-        find_vcs_workflow_tag,
+    from sase.project_tags import (
+        effective_find_vcs_workflow_tag,
+        effective_vcs_workflow_tag,
     )
 
-    tag = extract_vcs_workflow_tag(segment)
+    tag = effective_vcs_workflow_tag(segment)
     if tag is not None:
         return tag
-    return find_vcs_workflow_tag(segment)
+    return effective_find_vcs_workflow_tag(segment)
 
 
 def _tag_identity(tag: str) -> tuple[str | None, str | None]:

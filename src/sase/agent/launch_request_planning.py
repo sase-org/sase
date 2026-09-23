@@ -73,6 +73,7 @@ def normalize_request_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def build_preview_plan(prompt: str) -> tuple[str, Any]:
+    from sase.agent.launch_request_types import LaunchRequestError
     from sase.agent.multi_prompt import parse_multi_prompt
     from sase.agent.xprompt_swarm import expand_xprompt_swarms_with_metadata
     from sase.project_aliases import canonicalize_project_aliases_in_prompt
@@ -81,6 +82,20 @@ def build_preview_plan(prompt: str) -> tuple[str, Any]:
         normalize_default_vcs_workflow_segment,
     )
 
+    if "+" in prompt:
+        # Surface tag validation errors in the LaunchApproval preview (D3),
+        # before canonicalization expands resolved tags out of sight.
+        try:
+            from sase.project_tags import (
+                ProjectTagError,
+                validate_project_tags_for_launch,
+            )
+
+            validate_project_tags_for_launch(prompt)
+        except ProjectTagError as exc:
+            raise LaunchRequestError("invalid_request", "prompt", str(exc)) from exc
+        except Exception:  # noqa: BLE001 - cold catalog fails open here.
+            pass
     submitted = canonicalize_project_aliases_in_prompt(prompt)
     multi = parse_multi_prompt(submitted)
     expanded_records = expand_xprompt_swarms_with_metadata(

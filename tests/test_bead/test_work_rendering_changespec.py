@@ -37,7 +37,7 @@ class TestPatchRendering:
         )
 
         expected = (
-            "#git:sase #pr:feature_epic\n"
+            "+sase #pr:feature_epic\n"
             "%id(!e1.p1, bead=p1)\n"
             "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
             "%model:@small\n"
@@ -75,7 +75,7 @@ class TestPatchRendering:
         )
 
         expected = (
-            "#gh:sase #pr:feature_epic\n"
+            "+sase #pr:feature_epic\n"
             "%id(!e1.p1, bead=p1)\n"
             "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)\n"
             "%model:@small\n"
@@ -130,10 +130,7 @@ class TestPatchRendering:
 
         assert rendered.count("#pr:feature_epic") == 1
         membership = "%clan(e1, tribe=epic, summary_script=sase_clan_summary_epic)"
-        assert (
-            f"#git:sase #pr:feature_epic\n%id(!e1.p1, bead=p1)\n{membership}"
-            in rendered
-        )
+        assert f"+sase #pr:feature_epic\n%id(!e1.p1, bead=p1)\n{membership}" in rendered
         assert "#git:feature_epic\n%id(!p2, clan=e1, bead=p2)" in rendered
         assert "#git:feature_epic\n%id(!land, clan=e1, bead=e1)" in rendered
         assert rendered.count(membership) == 1
@@ -156,5 +153,5 @@ class TestPatchRendering:
             ),
         )
 
-        assert rendered.startswith("#git:sase #pr(name=feature_epic, bug_id=12345)")
+        assert rendered.startswith("+sase #pr(name=feature_epic, bug_id=12345)")
         assert "#pr:" not in rendered

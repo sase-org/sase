@@ -25,7 +25,7 @@ def test_task_prompt_has_exact_single_segment_order_and_feedback_tail() -> None:
     )
 
     assert rendered == (
-        "#gh:sase\n"
+        "+sase\n"
         "%id(!sase-42, bead=sase-42)\n"
         "%m:@small\n"
         "#custom/work_task:sase-42\n"

@@ -1,0 +1,42 @@
+"""Project tags (``+<project>``): catalog, expansion, and validation (D2–D4)."""
+
+from __future__ import annotations
+
+from sase.project_tags.catalog import (
+    ProjectTagCatalog as ProjectTagCatalog,
+    ProjectTagTarget as ProjectTagTarget,
+    build_targets as build_targets,
+    catalog_cache_signature as catalog_cache_signature,
+    is_project_tag_name as is_project_tag_name,
+    load_project_tag_catalog as load_project_tag_catalog,
+    peek_project_tag_catalog as peek_project_tag_catalog,
+)
+from sase.project_tags.tags import (
+    ProjectTagError as ProjectTagError,
+    effective_find_vcs_workflow_tag as effective_find_vcs_workflow_tag,
+    effective_vcs_workflow_tag as effective_vcs_workflow_tag,
+    expand_project_tags as expand_project_tags,
+    expand_project_tags_report as expand_project_tags_report,
+    find_project_tags as find_project_tags,
+    project_tag_for as project_tag_for,
+    validate_project_tags_for_launch as validate_project_tags_for_launch,
+)
+
+
+__all__ = [
+    "ProjectTagCatalog",
+    "ProjectTagError",
+    "ProjectTagTarget",
+    "build_targets",
+    "catalog_cache_signature",
+    "effective_find_vcs_workflow_tag",
+    "effective_vcs_workflow_tag",
+    "expand_project_tags",
+    "expand_project_tags_report",
+    "find_project_tags",
+    "is_project_tag_name",
+    "load_project_tag_catalog",
+    "peek_project_tag_catalog",
+    "project_tag_for",
+    "validate_project_tags_for_launch",
+]

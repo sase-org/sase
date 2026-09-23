@@ -49,9 +49,18 @@ def _patch_vcs_replace_pattern():
 
 @pytest.fixture(autouse=True)
 def _clear_catalog_cache():
-    """Keep the module-level catalog cache from leaking across tests."""
+    """Keep the module-level catalog cache from leaking across tests.
+
+    Neutralizes current-project/MRU row ordering so builder expectations
+    stay alphabetical and hermetic regardless of this machine's MRU;
+    ordering itself is covered by dedicated tests below.
+    """
     vpc._clear_vcs_project_completion_cache()
-    yield
+    with (
+        patch.object(vpc, "_current_catalog_key", return_value=None),
+        patch.object(vpc, "_mru_catalog_rank", return_value={}),
+    ):
+        yield
     vpc._clear_vcs_project_completion_cache()
 
 
@@ -278,9 +287,19 @@ def test_builder_basic_entries_sorted_by_name() -> None:
         kind="project",
         project="bob",
         status="",
+        key="bob",
+        tag="+bob",
+        accent_index=bob.accent_index,
+        current=False,
     )
+    assert bob.accent_index is not None
     assert sase.display_tag == "#gh:sase"
     assert sase.provider_display == "GitHub"
+    assert sase.key == "sase"
+    assert sase.tag == "+sase"
+    assert sase.accent_index is not None
+    assert sase.accent_index != bob.accent_index
+    assert sase.current is False
 
 
 def test_builder_uses_project_name_as_completion_display() -> None:
@@ -306,8 +325,13 @@ def test_builder_uses_project_name_as_completion_display() -> None:
             kind="project",
             project="gh_acme__widgets",
             status="",
+            key="gh_acme__widgets",
+            tag="+widgets",
+            accent_index=entries[0].accent_index,
+            current=False,
         )
     ]
+    assert entries[0].accent_index is not None
 
 
 def test_builder_excludes_system_managed_and_non_launchable() -> None:
@@ -590,11 +614,36 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
     display_names = {"gh": "GitHub", "git": "Git (bare)"}
     list_p, detect_p, display_p = _patch_catalog(records, workflow_types, display_names)
 
+    from sase.project_accents import PROJECT_ACCENTS, project_accent_index
+    from sase.project_tags.catalog import ProjectTagCatalog, build_targets
+
+    def _fake_detect(project_file: str) -> str:
+        for record in records:
+            if record.project_file == project_file:
+                prefix = workflow_types.get(record.project_name)
+                if prefix is None:
+                    raise ValueError(f"no plugin for {project_file}")
+                return prefix
+        raise ValueError(f"unknown project file {project_file}")
+
+    tag_catalog = ProjectTagCatalog(
+        targets=tuple(
+            build_targets(
+                records,
+                detect_workflow_type=_fake_detect,
+                get_display_name=display_names.get,
+            )
+        ),
+        accent_palette=tuple(PROJECT_ACCENTS),
+    )
+    among = ("bob", "sase")
+
     with (
         list_p,
         detect_p,
         display_p,
         patch.object(vpc, "get_workflow_names", return_value={"spy", "gh", "git"}),
+        patch.object(vpc, "load_project_tag_catalog", return_value=tag_catalog),
         patch(
             "sase.xprompt.vcs_ref_completion.vcs_ref_namespaces_by_workflow",
             return_value={
@@ -613,6 +662,7 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
         payload = vcs_project_catalog_payload(projects_dir="/tmp/projects")
 
     assert payload["schema_version"] == VCS_PROJECT_CATALOG_SCHEMA_VERSION
+    assert payload["schema_version"] == 5
     # Workflow names cover every known prefix (not just active ones), sorted.
     assert payload["workflow_names"] == ["gh", "git", "spy"]
     # Entries mirror VcsProjectEntry field-for-field, sorted by name, so the
@@ -628,6 +678,10 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
             "kind": "project",
             "project": "bob",
             "status": "",
+            "key": "bob",
+            "tag": "+bob",
+            "accent_index": project_accent_index("bob", among=among),
+            "current": False,
         },
         {
             "name": "sase",
@@ -639,6 +693,10 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
             "kind": "project",
             "project": "sase",
             "status": "",
+            "key": "sase",
+            "tag": "+sase",
+            "accent_index": project_accent_index("sase", among=among),
+            "current": False,
         },
     ]
     assert payload["namespaces"] == {
@@ -652,6 +710,65 @@ def test_catalog_payload_bundles_entries_and_workflow_names() -> None:
         "git": [],
         "spy": [],
     }
+    # v5 additions: the Python-owned accent palette and every tag target.
+    assert payload["accent_palette"] == list(PROJECT_ACCENTS)
+    assert payload["project_tags"] == [
+        {
+            "key": "bob",
+            "name": "bob",
+            "aliases": ["bobby"],
+            "workflow_type": "git",
+        },
+        {
+            "key": "sase",
+            "name": "sase",
+            "aliases": [],
+            "workflow_type": "gh",
+        },
+    ]
+
+
+# --- D7 row ordering ------------------------------------------------------
+
+
+def test_catalog_orders_current_project_first() -> None:
+    records = [_record("sase"), _record("bob"), _record("zed")]
+    workflow_types = {"sase": "gh", "bob": "git", "zed": "git"}
+    list_p, detect_p, display_p = _patch_catalog(records, workflow_types)
+
+    with (
+        list_p,
+        detect_p,
+        display_p,
+        patch.object(vpc, "_current_catalog_key", return_value="zed"),
+        patch.object(vpc, "_mru_catalog_rank", return_value={"sase": 0}),
+    ):
+        entries = build_vcs_project_completion_entries(
+            projects_dir="/tmp/projects", use_cache=False
+        )
+
+    assert [e.name for e in entries] == ["zed", "sase", "bob"]
+    assert [e.current for e in entries] == [True, False, False]
+
+
+def test_catalog_orders_mru_recency_before_name() -> None:
+    records = [_record("sase"), _record("bob"), _record("zed")]
+    workflow_types = {"sase": "gh", "bob": "git", "zed": "git"}
+    list_p, detect_p, display_p = _patch_catalog(records, workflow_types)
+
+    with (
+        list_p,
+        detect_p,
+        display_p,
+        patch.object(vpc, "_current_catalog_key", return_value=None),
+        patch.object(vpc, "_mru_catalog_rank", return_value={"zed": 0, "bob": 1}),
+    ):
+        entries = build_vcs_project_completion_entries(
+            projects_dir="/tmp/projects", use_cache=False
+        )
+
+    assert [e.name for e in entries] == ["zed", "bob", "sase"]
+    assert [e.current for e in entries] == [False, False, False]
 
 
 # --- Filtering -------------------------------------------------------------

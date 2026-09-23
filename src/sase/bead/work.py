@@ -339,7 +339,7 @@ def render_task_prompt(
         )
 
     lines = [
-        f"#{vcs_context.vcs_workflow}:{vcs_context.project_name}",
+        _vcs_launch_prefix(vcs_context.vcs_workflow, vcs_context.project_name),
         f"%id(!{bead_id}, bead={bead_id})",
         f"%m:{task_model_directive_value(model, size=size)}",
         f"#{work_task_xprompt.name}:{bead_id}",
@@ -663,6 +663,26 @@ def _bead_env(
     return env
 
 
+def _vcs_launch_prefix(vcs_workflow: str, project_name: str) -> str:
+    """Return the launch prefix for *project_name*, defaulting to tags.
+
+    Produces ``+<project>`` when the name is in the tag grammar and known
+    to the catalog, falling back to ``#<workflow>:<name>`` otherwise. Patch
+    callers keep their ``#gh:<patch>`` spelling and never call this.
+    """
+
+    fallback = f"#{vcs_workflow}:{project_name}"
+    try:
+        from sase.project_tags import project_tag_for
+
+        tag = project_tag_for(project_name)
+    except Exception:  # noqa: BLE001 - generators degrade to `#wf:` refs.
+        return fallback
+    if tag.startswith(("+", "#")):
+        return tag
+    return fallback
+
+
 def _segment_prefix(
     ctx: VCSLaunchContext | None,
     is_first_phase: bool,
@@ -671,10 +691,14 @@ def _segment_prefix(
         return []
 
     if isinstance(ctx, PatchLaunchContext):
-        ref = ctx.project_name if is_first_phase else ctx.changespec_name
+        if not is_first_phase:
+            # Later Patch phases keep `#gh:<patch>`.
+            line = f"#{ctx.vcs_workflow}:{ctx.changespec_name}"
+            return [line]
+        ref = ctx.project_name
     else:
         ref = ctx.project_name
-    line = f"#{ctx.vcs_workflow}:{ref}"
+    line = _vcs_launch_prefix(ctx.vcs_workflow, ref)
     if is_first_phase and isinstance(ctx, PatchLaunchContext):
         line = f"{line} {_pr_reference(ctx)}"
     return [line]

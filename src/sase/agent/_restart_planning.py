@@ -37,7 +37,10 @@ def plan_agent_restart(
     from sase.agent.relaunch_prompt import ensure_forced_name_reuse
     from sase.core.agent_artifact_paths import parse_agent_artifact_path
     from sase.core.agent_identity_facade import present_agent_name
-    from sase.xprompt import extract_vcs_workflow_tag, find_vcs_workflow_tag
+    from sase.project_tags import (
+        effective_find_vcs_workflow_tag,
+        effective_vcs_workflow_tag,
+    )
 
     agent = find_named_agent(name)
     if agent is None:
@@ -81,7 +84,9 @@ def plan_agent_restart(
         _refuse_hard_disabled_provider(force_reuse_plan.rewritten_prompt)
     wipe_preview = preview_agent_name_wipe(meta_name)
 
-    vcs_tag = extract_vcs_workflow_tag(raw_prompt) or find_vcs_workflow_tag(raw_prompt)
+    vcs_tag = effective_vcs_workflow_tag(raw_prompt) or effective_find_vcs_workflow_tag(
+        raw_prompt
+    )
     preview = build_restart_preview(
         agent=agent,
         artifacts_dir=artifacts_dir,

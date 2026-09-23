@@ -83,6 +83,14 @@ def _vcs_ref_from_prompt(prompt: str) -> tuple[str, str] | None:
     """
     from sase.workspace_provider import get_embedded_vcs_tag_pattern, get_ref_patterns
 
+    if "+" in prompt:
+        # Resolve project tags first so tag-form prompts recover correctly.
+        try:
+            from sase.project_tags import expand_project_tags
+
+            prompt = expand_project_tags(prompt)
+        except Exception:  # noqa: BLE001 - fall back to the raw prompt.
+            pass
     match = get_embedded_vcs_tag_pattern().search(prompt)
     if match is None:
         return None

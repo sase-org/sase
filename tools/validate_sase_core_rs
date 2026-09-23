@@ -369,6 +369,11 @@ REQUIRED_BINDINGS = (
     "migration_residue_classify",
     "migration_tree_digest",
     "migration_wire_schema_version",
+    "project_tag_scan",
+    "project_tag_resolve",
+    "project_tag_expand",
+    "project_tag_trigger",
+    "project_tag_apply_selection",
 )
 
 # Public Python compatibility symbols intentionally retained alongside the

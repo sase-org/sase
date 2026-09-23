@@ -9,9 +9,9 @@ import sys
 from rich.console import Console
 from rich.text import Text
 
-from sase.ace.tui.project_styles import project_accent
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
+from sase.project_accents import accent_among_keys, project_accent
 from sase.current_project import (
     CurrentProject,
     SetCurrentProjectOutcome,
@@ -44,16 +44,12 @@ def _current_json_payload(current: CurrentProject) -> dict[str, object]:
     }
 
 
-def _enabled_project_keys() -> list[str]:
+def _enabled_project_keys() -> tuple[str, ...]:
     try:
-        records = list_project_records(
-            sase_projects_dir(),
-            "enabled",
-            include_home=False,
-        )
+        records = list_project_records(sase_projects_dir(), "all")
     except (OSError, ValueError, ImportError, AttributeError):
-        return []
-    return [record.project_name for record in records if record.is_project]
+        return ()
+    return accent_among_keys(records)
 
 
 def _origin_display(current: CurrentProject) -> str:

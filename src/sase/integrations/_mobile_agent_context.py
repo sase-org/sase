@@ -91,6 +91,14 @@ def project_context_from_prompt(
 
 
 def mobile_prompt_vcs_ref(prompt: str) -> tuple[str, str] | None:
+    if "+" in prompt:
+        # Resolve project tags first so tag-form prompts attribute correctly.
+        try:
+            from sase.project_tags import expand_project_tags
+
+            prompt = expand_project_tags(prompt)
+        except Exception:  # noqa: BLE001 - fall back to the raw prompt.
+            pass
     try:
         from sase.workspace_provider import get_ref_patterns
 

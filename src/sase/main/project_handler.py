@@ -136,8 +136,21 @@ _HANDLERS = {
 }
 
 
+def _strip_tag_prefix(args: argparse.Namespace) -> None:
+    """Accept a ``+<project>`` tag spelling for the project argument.
+
+    Strips one leading ``+`` so ``sase project show +sase`` resolves like
+    ``sase project show sase``. Alias *values* are never stripped.
+    """
+
+    project = getattr(args, "project", None)
+    if isinstance(project, str) and project.startswith("+"):
+        args.project = project[1:]
+
+
 def handle_project_command(args: argparse.Namespace) -> None:
     """Dispatch a parsed ``sase project ...`` command to its handler."""
+    _strip_tag_prefix(args)
     sub = getattr(args, "project_subcommand", None)
     handler = _HANDLERS.get(sub) if isinstance(sub, str) else None
     if handler is None:

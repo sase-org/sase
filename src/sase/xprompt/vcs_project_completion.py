@@ -34,8 +34,8 @@ from sase.ace.patch import (
 )
 from sase.core.paths import sase_projects_dir
 from sase.core.project_lifecycle_facade import list_project_records
-from sase.core.project_lifecycle_wire import effective_project_name
 from sase.project_display_names import ProjectDisplaySnapshot, humanize_cl_name
+from sase.project_tags.catalog import build_targets, load_project_tag_catalog
 from sase.status_state_machine import remove_workspace_suffix
 from sase.workspace_provider import (
     detect_workflow_type,
@@ -51,7 +51,7 @@ _ACTIVE_PATCH_STATUSES = frozenset({"WIP", "Draft", "Ready", "Mailed"})
 
 # Schema version for the materialized JSON catalog handed to the Rust LSP. Bump
 # when the on-disk shape changes; the Rust loader tolerates unknown extra keys.
-VCS_PROJECT_CATALOG_SCHEMA_VERSION = 4
+VCS_PROJECT_CATALOG_SCHEMA_VERSION = 5
 
 VcsProjectEntryKind = Literal["project", "patch", "changespec"]  # legacy catalog kind
 
@@ -84,6 +84,14 @@ class VcsProjectEntry:
         project: Owning project basename. For project rows, this equals
             ``name``.
         status: Base patch status for patch rows; empty for project rows.
+        key: Directory key (e.g. ``"gh_sase-org__sase"``). Present in v5+
+            catalogs; empty for patch rows.
+        tag: Project tag spelling (e.g. ``"+sase"``), or empty when the name
+            is not in the tag grammar. Present in v5+ catalogs.
+        accent_index: Index into the catalog's ``accent_palette``. Present in
+            v5+ catalogs; ``None`` for rows without an accent.
+        current: Whether this row is the current project. Present in v5+
+            catalogs; ``None`` for patch rows.
     """
 
     name: str
@@ -95,6 +103,10 @@ class VcsProjectEntry:
     kind: VcsProjectEntryKind = "project"
     project: str = ""
     status: str = ""
+    key: str = ""
+    tag: str = ""
+    accent_index: int | None = None
+    current: bool | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(
@@ -175,43 +187,90 @@ def _iter_enabled_project_patches(projects_dir: Path) -> Iterator[Patch]:
         yield from parse_project_file(str(project_file))
 
 
+def _current_catalog_key() -> str | None:
+    """Return the current project's directory key, or ``None``.
+
+    Degrades to ``None`` when the MRU cannot be read; ordering then falls
+    back to MRU recency and name.
+    """
+
+    try:
+        from sase.current_project import resolve_current_project
+
+        current = resolve_current_project()
+    except Exception:  # noqa: BLE001 - ordering degrades to MRU/name.
+        return None
+    return current.project_key if current is not None else None
+
+
+def _mru_catalog_rank() -> dict[str, int]:
+    """Return a directory-key/name MRU recency rank (lower is more recent)."""
+
+    try:
+        from sase.history.vcs_xprompt_mru import (
+            load_launchable_vcs_xprompt_mru_pairs,
+        )
+
+        pairs = load_launchable_vcs_xprompt_mru_pairs(prune=False)
+    except Exception:  # noqa: BLE001 - ordering degrades to name.
+        return {}
+    rank: dict[str, int] = {}
+    for index, (canonical, display) in enumerate(pairs):
+        ref = canonical.split(":", 1)[1] if ":" in canonical else canonical
+        rank.setdefault(ref, index)
+        rank.setdefault(display, index)
+    return rank
+
+
 def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:
-    """Build the enabled project/patch completion catalog from *projects_dir*."""
+    """Build the enabled project/patch completion catalog from *projects_dir*.
+
+    Project rows derive from the shared project-tag catalog
+    (:func:`build_targets`), so there is one source for tag resolution and
+    completion. Rows are ordered current-project-first, then MRU recency,
+    then name; patch rows follow. ``home`` is never offered as a row.
+    """
     project_entries: dict[str, VcsProjectEntry] = {}
     prefix_by_project: dict[str, tuple[str, str]] = {}
     records = list_project_records(projects_dir, "enabled")
     project_display_snapshot = ProjectDisplaySnapshot.from_records(records)
-    for record in records:
-        if record.system_managed or not record.launchable:
+    targets = build_targets(
+        records,
+        detect_workflow_type=detect_workflow_type,
+        get_display_name=get_display_name,
+    )
+    current_key = _current_catalog_key()
+    for target in targets:
+        if target.state != "enabled" or not target.launchable:
             continue
-        if record.project_name == _HOME_PROJECT_NAME:
+        if target.key == _HOME_PROJECT_NAME:
             continue
-        try:
-            vcs_prefix = detect_workflow_type(record.project_file)
-        except ValueError:
-            # No workspace plugin claims this project (e.g. its provider plugin
-            # is not installed); it cannot be expanded into a VCS tag, so skip.
+        if target.workflow_type is None:
+            # No workspace plugin claims this project (e.g. its provider
+            # plugin is not installed); it cannot expand into a VCS tag.
             continue
-        if not vcs_prefix:
-            continue
-        provider_display = get_display_name(vcs_prefix) or vcs_prefix
-        display_name = effective_project_name(record)
-        aliases = tuple(record.aliases)
-        if display_name != record.project_name:
-            aliases = (*aliases, record.project_name)
+        vcs_prefix = target.workflow_type
+        display_name = target.name
+        aliases = tuple(target.aliases)
+        if display_name != target.key:
+            aliases = (*aliases, target.key)
         # Dedupe by storage project name (last record wins).
-        project_entries[record.project_name] = VcsProjectEntry(
+        project_entries[target.key] = VcsProjectEntry(
             name=display_name,
             vcs_prefix=vcs_prefix,
             display_tag=f"#{vcs_prefix}:{display_name}",
-            provider_display=provider_display,
+            provider_display=target.provider_display,
             description="",
             aliases=aliases,
             kind="project",
-            project=record.project_name,
+            project=target.key,
             status="",
+            key=target.key,
+            tag=target.tag or "",
+            accent_index=target.accent_index,
+            current=(target.key == current_key),
         )
-        prefix_by_project[record.project_name] = (vcs_prefix, provider_display)
+        prefix_by_project[target.key] = (vcs_prefix, target.provider_display)
 
     patch_entries: list[VcsProjectEntry] = []
     for patch in _iter_enabled_project_patches(projects_dir):
@@ -242,8 +301,20 @@ def _build_entries(projects_dir: Path) -> list[VcsProjectEntry]:
             )
         )
 
+    # D7 row order: the current project first, then MRU recency, then
+    # alphabetical. Patch rows follow, grouped by owning project and name.
+    mru_rank = _mru_catalog_rank()
+    fallback_rank = len(mru_rank) + 1
+
+    def _project_sort_key(entry: VcsProjectEntry) -> tuple[int, int, str]:
+        current = 0 if entry.current else 1
+        recency = mru_rank.get(entry.key, fallback_rank)
+        if entry.key not in mru_rank:
+            recency = mru_rank.get(entry.name, fallback_rank)
+        return (current, recency, entry.name.casefold())
+
     return [
-        *sorted(project_entries.values(), key=lambda entry: entry.name),
+        *sorted(project_entries.values(), key=_project_sort_key),
         *sorted(patch_entries, key=lambda entry: (entry.project, entry.name)),
     ]
 
@@ -311,6 +382,11 @@ def vcs_project_catalog_payload(
     side. This is the on-disk contract consumed by ``sase-xprompt-lsp``,
     materialized at LSP launch by :mod:`sase.integrations.xprompt_lsp`.
 
+    The v5 shape adds ``accent_palette`` (the Python-owned 18-color palette),
+    ``project_tags`` (every tag-resolution target), and per-entry ``key``,
+    ``tag``, ``accent_index``, and ``current`` fields. Entries are ordered
+    current-project-first, then MRU recency, then name; patch rows last.
+
     Args:
         projects_dir: Projects root to enumerate. Defaults to the SASE projects
             directory.
@@ -323,12 +399,17 @@ def vcs_project_catalog_payload(
     entries = build_vcs_project_completion_entries(projects_dir)
     workflow_names = sorted(get_workflow_names())
 
+    from sase.project_accents import PROJECT_ACCENTS
     from sase.xprompt.vcs_ref_completion import vcs_ref_namespaces_by_workflow
 
     namespaces_by_workflow = vcs_ref_namespaces_by_workflow(
         workflow_names,
         projects_dir,
     )
+    try:
+        tag_catalog = load_project_tag_catalog(projects_dir)
+    except Exception:  # noqa: BLE001 - catalog extras degrade to empty.
+        tag_catalog = None
     serialized_entries: list[dict[str, object]] = []
     for entry in entries:
         entry_kind = _canonical_vcs_project_entry_kind(entry.kind)
@@ -343,6 +424,12 @@ def vcs_project_catalog_payload(
             "kind": _legacy_vcs_project_entry_kind(entry_kind),
             "project": entry.project,
             "status": entry.status,
+            # v5 additions: directory key, tag spelling, accent palette
+            # index, and whether this row is the current project.
+            "key": entry.key,
+            "tag": entry.tag,
+            "accent_index": entry.accent_index,
+            "current": entry.current,
         }
         if entry_kind != "project":
             serialized_entry["entry_kind"] = entry_kind
@@ -363,6 +450,12 @@ def vcs_project_catalog_payload(
             ]
             for workflow, entries in namespaces_by_workflow.items()
         },
+        "accent_palette": (
+            list(tag_catalog.accent_palette)
+            if tag_catalog is not None
+            else list(PROJECT_ACCENTS)
+        ),
+        "project_tags": (tag_catalog.wire_targets() if tag_catalog is not None else []),
     }
 
 

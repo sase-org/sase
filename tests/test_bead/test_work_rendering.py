@@ -51,7 +51,7 @@ class TestRenderEdgeCases:
 
         segments = rendered.split("\n---\n")
         assert len(segments) == 3
-        assert all(segment.startswith("#git:sase\n") for segment in segments)
+        assert all(segment.startswith("+sase\n") for segment in segments)
         assert "#bd/work_phase_bead:p1" in rendered
         assert "#bd/work_phase_bead:p2" in rendered
         assert "#bd/land_epic:e1" in rendered

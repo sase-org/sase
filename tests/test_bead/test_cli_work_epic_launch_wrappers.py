@@ -59,13 +59,13 @@ def test_work_dry_run_regular_epic_renders_vcs_launch_wrappers(
     assert launch_calls == []
     out = capsys.readouterr().out
     membership = epic_clan_declaration(epic_id)
-    assert f"#git:sase\n%id(!{phase_ids[0]}, bead={phase_ids[0]})\n{membership}" in out
+    assert f"+sase\n%id(!{phase_ids[0]}, bead={phase_ids[0]})\n{membership}" in out
     for pid in phase_ids[1:]:
         suffix = pid.removeprefix(f"{epic_id}.")
-        assert f"#git:sase\n%id(!{suffix}, clan={epic_id}, bead={pid})" in out
+        assert f"+sase\n%id(!{suffix}, clan={epic_id}, bead={pid})" in out
         assert f"#bd/work_phase_bead:{pid}" in out
     assert f"#bd/work_phase_bead:{phase_ids[0]}" in out
-    assert f"#git:sase\n%id(!land, clan={epic_id}, bead={epic_id})" in out
+    assert f"+sase\n%id(!land, clan={epic_id}, bead={epic_id})" in out
     assert f"#bd/land_epic:{epic_id}" in out
     assert out.count(epic_clan_declaration(epic_id)) == 1
     assert "%family" not in out
@@ -123,9 +123,9 @@ def test_work_dry_run_renders_patch_launch_wrappers(
     assert launch_calls == []
     out = capsys.readouterr().out
     membership = epic_clan_declaration(epic_id)
-    assert "#git:sase #pr(name=feature_epic, bug_id=12345)" in out
+    assert "+sase #pr(name=feature_epic, bug_id=12345)" in out
     assert (
-        f"#git:sase #pr(name=feature_epic, bug_id=12345)\n"
+        f"+sase #pr(name=feature_epic, bug_id=12345)\n"
         f"%id(!{phase_ids[0]}, bead={phase_ids[0]})\n{membership}" in out
     )
     phase_suffix = phase_ids[1].removeprefix(f"{epic_id}.")

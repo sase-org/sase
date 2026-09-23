@@ -181,7 +181,7 @@ def test_task_work_launches_one_checkpointed_agent(
 
     assert events == ["checkpoint", "launch"]
     assert captured["query"] == (
-        f"#git:sase\n"
+        f"+sase\n"
         f"%id({task_id}, bead={task_id})\n"
         f"%m:@small\n"
         f"#bd/work_task:{task_id}\n"
@@ -282,7 +282,7 @@ def test_task_work_foreign_full_id_uses_owner_launch_context(
 
     assert len(routed_contexts) == 1
     output = capsys.readouterr().out
-    assert "#git:owner" in output
+    assert "+owner" in output
     assert f"#bd/work_task:{task_id}" in output
 
 
