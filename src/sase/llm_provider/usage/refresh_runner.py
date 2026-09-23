@@ -57,6 +57,19 @@ def main(argv: list[str] | None = None) -> int:  # noqa: ARG001
     )
 
 
+def run_admitted_refresh(
+    payload: Mapping[str, Any],
+    *,
+    now: float | None = None,
+) -> list[dict[str, Any]]:
+    """Execute the admitted provider batch in-process.
+
+    The scheduler's ``usage`` routine calls this directly instead of
+    submitting a proc; the payload shape matches the proc runner's.
+    """
+    return _run_admitted_refresh(payload, now=now)
+
+
 def _run_admitted_refresh(
     payload: Mapping[str, Any],
     *,

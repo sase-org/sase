@@ -234,3 +234,117 @@ def test_refresh_foreground_exits_one_for_unauthenticated_result(
     assert code == 1
     assert "Subscription usage" in output.out
     assert "Usage refresh" in output.err
+
+
+def test_partition_operation_ids_splits_proc_and_inline() -> None:
+    from sase.main.usage_handler import _partition_operation_ids
+
+    proc_ids, inline_ids = _partition_operation_ids(
+        ("op123", "usage-job:abc123", "op456")
+    )
+    assert proc_ids == ("op123", "op456")
+    assert inline_ids == ("usage-job:abc123",)
+
+
+def test_refresh_foreground_joins_inline_operation_via_store(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(usage_handler, "_registered_provider_names", lambda: ("codex",))
+    monkeypatch.setattr(
+        usage_handler,
+        "submit_usage_refresh",
+        lambda providers, *, explicit, origin: UsageRefreshReceipt(
+            schema_version=1,
+            origin=origin,
+            operation_ids=("usage-job:abc123",),
+            providers=(
+                _UsageRefreshProviderResult(
+                    provider="codex",
+                    status="reserved",
+                    reason="cadence",
+                    operation_id="usage-job:abc123",
+                ),
+            ),
+        ),
+    )
+    waited: list[tuple[str, ...]] = []
+
+    def fake_wait(operation_ids: tuple[str, ...], timeout: float) -> None:
+        waited.append(operation_ids)
+
+    monkeypatch.setattr(usage_handler, "wait_for_usage_refresh_operations", fake_wait)
+    monkeypatch.setattr(
+        usage_handler,
+        "_wait_for_operation_ids",
+        lambda operation_ids, *, stream: (),
+    )
+    monkeypatch.setattr(
+        usage_handler,
+        "_load_provider_usage_read",
+        lambda: _read(_snapshot(_provider("codex"))),
+    )
+
+    code = handle_usage_command(
+        parse_sase_args(["usage", "refresh", "-p", "codex", "-j"])
+    )
+    output = capsys.readouterr()
+
+    assert code == 0
+    assert waited == [("usage-job:abc123",)]
+    payload = json.loads(output.out)
+    assert payload["operation_results"] == [
+        {
+            "error": None,
+            "message": "usage refresh completed",
+            "payload": {"providers": [{"outcome": "ok", "provider": "codex"}]},
+            "proc_id": "usage-job:abc123",
+            "proc_status": None,
+            "success": True,
+        }
+    ]
+
+
+def test_refresh_foreground_reports_inline_timeout_as_failure(
+    monkeypatch, capsys
+) -> None:
+    monkeypatch.setattr(usage_handler, "_registered_provider_names", lambda: ("codex",))
+    monkeypatch.setattr(
+        usage_handler,
+        "submit_usage_refresh",
+        lambda providers, *, explicit, origin: UsageRefreshReceipt(
+            schema_version=1,
+            origin=origin,
+            operation_ids=("usage-job:abc123",),
+            providers=(
+                _UsageRefreshProviderResult(
+                    provider="codex",
+                    status="reserved",
+                    reason="cadence",
+                    operation_id="usage-job:abc123",
+                ),
+            ),
+        ),
+    )
+
+    def fake_wait(operation_ids: tuple[str, ...], timeout: float) -> None:
+        raise TimeoutError("usage refresh operations still live: usage-job:abc123")
+
+    monkeypatch.setattr(usage_handler, "wait_for_usage_refresh_operations", fake_wait)
+    monkeypatch.setattr(
+        usage_handler,
+        "_wait_for_operation_ids",
+        lambda operation_ids, *, stream: (),
+    )
+    monkeypatch.setattr(
+        usage_handler,
+        "_load_provider_usage_read",
+        lambda: _read(_snapshot(_provider("codex"))),
+    )
+
+    code = handle_usage_command(
+        parse_sase_args(["usage", "refresh", "-p", "codex", "--plain"])
+    )
+    output = capsys.readouterr()
+
+    assert code == 1
+    assert "failed" in output.err

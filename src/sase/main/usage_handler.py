@@ -18,10 +18,13 @@ from sase.llm_provider.usage.presentation import (
     usage_snapshot_json_payload,
 )
 from sase.llm_provider.usage.refresh import (
+    INLINE_USAGE_OPERATION_PREFIX,
     USAGE_REFRESH_BATCH_DEADLINE_SECONDS,
     USAGE_REFRESH_OPERATION,
     UsageRefreshReceipt,
+    is_inline_usage_operation,
     submit_usage_refresh,
+    wait_for_usage_refresh_operations,
 )
 from sase.llm_provider.usage.store import (
     ProviderUsageStateError,
@@ -119,10 +122,13 @@ def _handle_usage_refresh(args: argparse.Namespace, providers: tuple[str, ...]) 
 
     if not getattr(args, "json", False):
         print(render_refresh_receipt_plain(receipt), file=sys.stderr)
+    proc_ids, inline_ids = _partition_operation_ids(receipt.operation_ids)
     operation_results = _wait_for_operation_ids(
-        receipt.operation_ids,
+        proc_ids,
         stream=sys.stderr,
     )
+    inline_failures = _wait_for_inline_operations(inline_ids, stream=sys.stderr)
+    operation_results = (*operation_results, *inline_failures)
     try:
         read = _load_provider_usage_read()
     except (
@@ -138,6 +144,12 @@ def _handle_usage_refresh(args: argparse.Namespace, providers: tuple[str, ...]) 
             json_output=bool(getattr(args, "json", False)),
         )
         return 1
+    failed_ids = {item.proc_id for item in inline_failures}
+    completed_inline = tuple(op for op in inline_ids if op not in failed_ids)
+    operation_results = (
+        *operation_results,
+        *_synthesize_inline_operation_results(receipt, completed_inline, read.snapshot),
+    )
 
     if getattr(args, "json", False):
         payload = usage_snapshot_json_payload(
@@ -277,6 +289,127 @@ def _wait_for_operation_ids(
                 proc_status=proc.status,
             )
         )
+    return tuple(results)
+
+
+def _partition_operation_ids(
+    operation_ids: Sequence[str],
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Split receipt operation IDs into proc IDs and inline usage-job IDs."""
+    proc_ids = tuple(op for op in operation_ids if not is_inline_usage_operation(op))
+    inline_ids = tuple(op for op in operation_ids if is_inline_usage_operation(op))
+    return proc_ids, inline_ids
+
+
+def _short_operation_id(operation_id: str) -> str:
+    """Return a compact display form for a proc or inline operation ID."""
+    if is_inline_usage_operation(operation_id):
+        suffix = operation_id[len(INLINE_USAGE_OPERATION_PREFIX) :]
+        return f"usage-job:{suffix[:6]}" if suffix else operation_id
+    from sase.procs import short_proc_id
+
+    return short_proc_id(operation_id)
+
+
+def _wait_for_inline_operations(
+    operation_ids: Sequence[str],
+    *,
+    stream: TextIO,
+) -> tuple[_UsageOperationResult, ...]:
+    """Store-wait each inline operation; timeouts become failed results."""
+    if not operation_ids:
+        return ()
+    failures: list[_UsageOperationResult] = []
+    timeout = USAGE_REFRESH_BATCH_DEADLINE_SECONDS + 20.0
+    for operation_id in operation_ids:
+        short_id = _short_operation_id(operation_id)
+        print(f"Waiting for usage refresh {short_id}...", file=stream)
+        try:
+            wait_for_usage_refresh_operations((operation_id,), timeout)
+        except TimeoutError as exc:
+            message = str(exc)
+            print(f"Usage refresh {short_id} failed: {message}", file=stream)
+            failures.append(
+                _UsageOperationResult(
+                    proc_id=operation_id,
+                    success=False,
+                    message=message,
+                    error=message,
+                    payload={},
+                )
+            )
+            continue
+        print(f"Usage refresh {short_id} completed", file=stream)
+    return tuple(failures)
+
+
+def _synthesize_inline_operation_results(
+    receipt: UsageRefreshReceipt,
+    operation_ids: Sequence[str],
+    snapshot: Mapping[str, Any],
+) -> tuple[_UsageOperationResult, ...]:
+    """Build per-operation results for inline operations from the snapshot."""
+    if not operation_ids:
+        return ()
+    rows: dict[str, Mapping[str, Any]] = {}
+    raw_providers = snapshot.get("providers")
+    if isinstance(raw_providers, list):
+        for item in raw_providers:
+            if isinstance(item, Mapping):
+                name = str(item.get("provider") or "")
+                if name:
+                    rows[name] = item
+    results: list[_UsageOperationResult] = []
+    for operation_id in operation_ids:
+        providers = [
+            item.provider
+            for item in receipt.providers
+            if item.operation_id == operation_id
+        ]
+        outcomes = []
+        missing = []
+        failed = []
+        for name in providers:
+            row = rows.get(name)
+            if row is None:
+                missing.append(name)
+                continue
+            status = str(row.get("collection_status") or "unknown")
+            outcomes.append({"outcome": status, "provider": name})
+            if status in _REFRESH_ERROR_OUTCOMES:
+                failed.append(name)
+        if missing:
+            message = f"no observation recorded for {', '.join(sorted(missing))}"
+            results.append(
+                _UsageOperationResult(
+                    proc_id=operation_id,
+                    success=False,
+                    message=message,
+                    error=message,
+                    payload={"providers": outcomes},
+                )
+            )
+        elif failed:
+            message = f"usage refresh reported {', '.join(sorted(failed))}"
+            results.append(
+                _UsageOperationResult(
+                    proc_id=operation_id,
+                    success=False,
+                    message=message,
+                    error=message,
+                    payload={"providers": outcomes},
+                )
+            )
+        else:
+            results.append(
+                _UsageOperationResult(
+                    proc_id=operation_id,
+                    success=True,
+                    message="usage refresh completed",
+                    error=None,
+                    payload={"providers": outcomes},
+                )
+            )
     return tuple(results)
 
 

@@ -7,12 +7,14 @@ import os
 import re
 import shutil
 import sys
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from sase.core.paths import sase_home
+from sase.llm_provider.provider_disable import is_finite_number
 from sase.llm_provider.usage._probe_meta import (
     usage_cli_fingerprint,
     usage_probe_floor,
@@ -28,14 +30,19 @@ from sase.llm_provider.usage.store import (
     PROVIDER_USAGE_REFRESH_RESERVED,
     admit_provider_usage_refresh,
     evaluate_provider_usage_refresh_due,
+    list_provider_usage_refresh_reservations,
     mark_provider_usage_refresh_due,
     prepare_provider_usage_account_context,
+    record_provider_usage_refresh_attempt,
     release_provider_usage_refresh,
 )
 
 log = logging.getLogger(__name__)
 
 USAGE_REFRESH_OPERATION = "usage.refresh"
+INLINE_USAGE_OPERATION_PREFIX = "usage-job:"
+USAGE_REFRESH_EXECUTIONS = ("proc", "inline")
+USAGE_INLINE_WAIT_POLL_SECONDS = 0.5
 USAGE_REFRESH_RECEIPT_SCHEMA_VERSION = 1
 MAX_CONCURRENT_USAGE_PROBES = 3
 USAGE_REFRESH_PROVIDER_DEADLINE_SECONDS = 20.0
@@ -58,12 +65,14 @@ class _UsageRefreshProviderResult:
     lease_id: str | None = None
     context_id: str = USAGE_REFRESH_CONTEXT_ID
     account_generation: int = 1
+    due_at: float | None = None
 
     def to_json(self) -> dict[str, Any]:
         """Return a JSON-ready mapping."""
         return {
             "account_generation": self.account_generation,
             "context_id": self.context_id,
+            "due_at": self.due_at,
             "lease_id": self.lease_id,
             "operation_id": self.operation_id,
             "provider": self.provider,
@@ -80,6 +89,7 @@ class UsageRefreshReceipt:
     origin: str
     operation_ids: tuple[str, ...]
     providers: tuple[_UsageRefreshProviderResult, ...]
+    inline_results: tuple[Mapping[str, Any], ...] = ()
 
     def to_json(self) -> dict[str, Any]:
         """Return a JSON-ready mapping."""
@@ -96,11 +106,59 @@ class UsageRefreshReceipt:
         return bool(self.operation_ids)
 
 
+def is_inline_usage_operation(operation_id: str) -> bool:
+    """Return whether *operation_id* names an inline usage job, not a proc."""
+    return isinstance(operation_id, str) and operation_id.startswith(
+        INLINE_USAGE_OPERATION_PREFIX
+    )
+
+
+def wait_for_usage_refresh_operations(
+    operation_ids: Sequence[str],
+    timeout: float,
+    *,
+    poll_interval: float = USAGE_INLINE_WAIT_POLL_SECONDS,
+) -> None:
+    """Block until no live store reservation holds any of *operation_ids*.
+
+    Raises TimeoutError when the deadline passes with reservations still live.
+    """
+    pending = {str(item) for item in operation_ids if str(item)}
+    if not pending:
+        return
+    if not is_finite_number(timeout) or float(timeout) < 0.0:
+        raise ValueError("timeout must be a finite nonnegative number")
+    interval = (
+        float(poll_interval)
+        if is_finite_number(poll_interval) and float(poll_interval) > 0.0
+        else USAGE_INLINE_WAIT_POLL_SECONDS
+    )
+    deadline = time.monotonic() + float(timeout)
+    while True:
+        try:
+            live = {
+                reservation.operation_id
+                for reservation in list_provider_usage_refresh_reservations()
+                if reservation.operation_id in pending
+            }
+        except Exception:
+            log.debug("usage refresh reservation poll failed", exc_info=True)
+            live = set(pending)
+        if not live:
+            return
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                "usage refresh operations still live: " + ", ".join(sorted(live))
+            )
+        time.sleep(interval)
+
+
 def request_due_usage_refresh(
     *,
     origin: str = "axe",
     now: float | None = None,
     plugin_specs: Mapping[str, Mapping[str, Any]] | None = None,
+    execution: str = "proc",
 ) -> UsageRefreshReceipt:
     """Submit coalesced refresh work for currently due eligible providers."""
     return submit_usage_refresh(
@@ -109,6 +167,7 @@ def request_due_usage_refresh(
         origin=origin,
         now=now,
         plugin_specs=plugin_specs,
+        execution=execution,
     )
 
 
@@ -119,14 +178,19 @@ def submit_usage_refresh(
     origin: str = "axe",
     now: float | None = None,
     plugin_specs: Mapping[str, Mapping[str, Any]] | None = None,
+    execution: str = "proc",
 ) -> UsageRefreshReceipt:
     """Admit, join, or defer refresh work for *providers*.
 
     ``providers is None`` selects background-eligible providers that are due.
     An explicit filter inspects the named providers even when they are not
     background-eligible. Joining one in-flight provider never drops others.
+    With ``execution="inline"`` the admitted batch runs in-process under a
+    non-proc operation ID instead of submitting a proc; the per-provider
+    runner results ride on the receipt's ``inline_results``.
     """
     origin = _normalize_origin(origin)
+    execution = _normalize_execution(execution)
     from sase.procs import new_proc_id
 
     settings = get_usage_metrics_settings()
@@ -145,7 +209,10 @@ def submit_usage_refresh(
 
     results: list[_UsageRefreshProviderResult] = []
     started: list[_UsageRefreshProviderResult] = []
-    operation_id = new_proc_id()
+    if execution == "inline":
+        operation_id = f"{INLINE_USAGE_OPERATION_PREFIX}{new_proc_id()}"
+    else:
+        operation_id = new_proc_id()
     specs = {str(name): dict(spec) for name, spec in (plugin_specs or {}).items()}
     cadence = settings.refresh_seconds
 
@@ -186,34 +253,46 @@ def submit_usage_refresh(
         if result.status == PROVIDER_USAGE_REFRESH_RESERVED:
             started.append(result)
 
+    inline_results: tuple[Mapping[str, Any], ...] = ()
     if started:
-        try:
-            _submit_started_proc(
-                started,
-                operation_id=operation_id,
-                origin=origin,
-                plugin_specs=specs,
-                cadence_seconds=cadence,
-            )
-        except Exception:
-            log.warning("usage refresh proc submit failed", exc_info=True)
-            _release_started(started, now=now)
-            results = [
-                (
-                    _UsageRefreshProviderResult(
-                        provider=item.provider,
-                        status="error",
-                        reason="submit_failed",
-                        operation_id=None,
-                        context_id=item.context_id,
-                        account_generation=item.account_generation,
-                    )
-                    if item.status == PROVIDER_USAGE_REFRESH_RESERVED
-                    else item
+        if execution == "inline":
+            inline_results = tuple(
+                _run_inline_batch(
+                    started,
+                    origin=origin,
+                    plugin_specs=specs,
+                    cadence_seconds=cadence,
+                    now=now,
                 )
-                for item in results
-            ]
-            started = []
+            )
+        else:
+            try:
+                _submit_started_proc(
+                    started,
+                    operation_id=operation_id,
+                    origin=origin,
+                    plugin_specs=specs,
+                    cadence_seconds=cadence,
+                )
+            except Exception:
+                log.warning("usage refresh proc submit failed", exc_info=True)
+                _release_started(started, now=now)
+                results = [
+                    (
+                        _UsageRefreshProviderResult(
+                            provider=item.provider,
+                            status="error",
+                            reason="submit_failed",
+                            operation_id=None,
+                            context_id=item.context_id,
+                            account_generation=item.account_generation,
+                        )
+                        if item.status == PROVIDER_USAGE_REFRESH_RESERVED
+                        else item
+                    )
+                    for item in results
+                ]
+                started = []
 
     operation_ids = tuple(
         dict.fromkeys(
@@ -229,6 +308,7 @@ def submit_usage_refresh(
         origin=origin,
         operation_ids=operation_ids,
         providers=tuple(results),
+        inline_results=inline_results,
     )
 
 
@@ -354,6 +434,7 @@ def _admit_one(
                 operation_id=None,
                 context_id=context.context_id,
                 account_generation=context.account_generation,
+                due_at=due.due_at,
             )
     admitted = admit_provider_usage_refresh(
         provider,
@@ -383,22 +464,19 @@ def _admit_one(
         lease_id=lease_id,
         context_id=context.context_id,
         account_generation=context.account_generation,
+        due_at=admitted.due_at,
     )
 
 
-def _submit_started_proc(
+def _runner_payload(
     started: Sequence[_UsageRefreshProviderResult],
     *,
-    operation_id: str,
     origin: str,
     plugin_specs: Mapping[str, Mapping[str, Any]],
     cadence_seconds: float,
-) -> None:
-    from sase.procs import ProcSubmitRequest, submit_proc_request
-
-    home = Path(sase_home())
-    home.mkdir(parents=True, exist_ok=True)
-    payload = {
+) -> dict[str, Any]:
+    """Build the admitted-batch payload shared by proc and inline runs."""
+    return {
         "cadence_seconds": cadence_seconds,
         "max_concurrent": MAX_CONCURRENT_USAGE_PROBES,
         "origin": origin,
@@ -418,6 +496,87 @@ def _submit_started_proc(
         ],
         "batch_deadline_seconds": USAGE_REFRESH_BATCH_DEADLINE_SECONDS,
     }
+
+
+def _run_inline_batch(
+    started: Sequence[_UsageRefreshProviderResult],
+    *,
+    origin: str,
+    plugin_specs: Mapping[str, Mapping[str, Any]],
+    cadence_seconds: float,
+    now: float | None,
+) -> list[dict[str, Any]]:
+    """Run the admitted batch in-process with the proc runner's payload."""
+    from sase.llm_provider.usage.refresh_runner import run_admitted_refresh
+
+    payload = _runner_payload(
+        started,
+        origin=origin,
+        plugin_specs=plugin_specs,
+        cadence_seconds=cadence_seconds,
+    )
+    try:
+        return run_admitted_refresh(payload, now=now)
+    except Exception:
+        log.warning("inline usage refresh failed", exc_info=True)
+        _record_inline_crash(started, cadence_seconds, now=now)
+        _release_started(started, now=now)
+        return [
+            {
+                "provider": item.provider,
+                "outcome": "error",
+                "reason_code": "probe_failed",
+                "skipped": None,
+            }
+            for item in started
+        ]
+
+
+def _record_inline_crash(
+    started: Sequence[_UsageRefreshProviderResult],
+    cadence_seconds: float,
+    *,
+    now: float | None,
+) -> None:
+    """Mark inline providers errored when the in-process batch raises."""
+    for item in started:
+        try:
+            record_provider_usage_refresh_attempt(
+                item.provider,
+                item.context_id,
+                item.account_generation,
+                "error",
+                cadence_seconds=cadence_seconds,
+                reason_code="probe_failed",
+                min_interval_seconds=usage_probe_floor(item.provider),
+                cli_fingerprint=usage_cli_fingerprint(item.provider),
+                adaptive=True,
+                now=now,
+            )
+        except Exception:
+            log.debug(
+                "could not record inline usage refresh crash for %r", item.provider
+            )
+
+
+def _submit_started_proc(
+    started: Sequence[_UsageRefreshProviderResult],
+    *,
+    operation_id: str,
+    origin: str,
+    plugin_specs: Mapping[str, Mapping[str, Any]],
+    cadence_seconds: float,
+) -> None:
+    from sase.procs import ProcSubmitRequest, submit_proc_request
+
+    home = Path(sase_home())
+    home.mkdir(parents=True, exist_ok=True)
+    payload = _runner_payload(
+        started,
+        origin=origin,
+        plugin_specs=plugin_specs,
+        cadence_seconds=cadence_seconds,
+    )
     submit_proc_request(
         ProcSubmitRequest(
             argv=(sys.executable, "-m", _RUNNER_MODULE),
@@ -481,6 +640,12 @@ def _normalize_origin(origin: str) -> str:
     return cleaned
 
 
+def _normalize_execution(execution: str) -> str:
+    if execution in USAGE_REFRESH_EXECUTIONS:
+        return execution
+    raise ValueError(f"execution must be one of {USAGE_REFRESH_EXECUTIONS!r}")
+
+
 def _referenced_provider_ids() -> set[str]:
     from sase.llm_provider.config import (
         get_big_epic_lander_model,
@@ -536,9 +701,12 @@ def _provider_cli_ready(provider: str, metadata: Mapping[str, Any]) -> bool:
 
 
 __all__ = [
+    "INLINE_USAGE_OPERATION_PREFIX",
     "MAX_CONCURRENT_USAGE_PROBES",
+    "USAGE_INLINE_WAIT_POLL_SECONDS",
     "USAGE_REFRESH_BATCH_DEADLINE_SECONDS",
     "USAGE_REFRESH_CONTEXT_ID",
+    "USAGE_REFRESH_EXECUTIONS",
     "USAGE_REFRESH_LEASE_TTL_SECONDS",
     "USAGE_REFRESH_OPERATION",
     "USAGE_REFRESH_ORIGINS",
@@ -546,10 +714,12 @@ __all__ = [
     "USAGE_REFRESH_RECEIPT_SCHEMA_VERSION",
     "UsageRefreshReceipt",
     "eligible_usage_providers",
+    "is_inline_usage_operation",
     "request_due_usage_refresh",
     "submit_usage_refresh",
     "trigger_usage_refresh_after_limit_event",
     "usage_cli_fingerprint",
     "usage_probe_floor",
     "usage_probe_floors",
+    "wait_for_usage_refresh_operations",
 ]

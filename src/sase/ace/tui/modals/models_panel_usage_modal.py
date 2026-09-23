@@ -14,11 +14,12 @@ from textual.widgets import DataTable, OptionList, Static
 from textual.widgets._option_list import Option
 from textual.worker import Worker, WorkerState
 
-from sase.ace.tui.proc_observer import proc_projection_for
 from sase.llm_provider.usage import (
     PROVIDER_USAGE_REFRESH_JOINED,
     PROVIDER_USAGE_REFRESH_RESERVED,
+    list_provider_usage_refresh_reservations,
 )
+from sase.llm_provider.usage.presentation import render_usage_refresh_toast
 from sase.llm_provider.usage.refresh import (
     UsageRefreshReceipt,
     eligible_usage_providers,
@@ -52,10 +53,7 @@ _FOOTER_TEXT = (
 )
 _DETAIL_TABLE_ID = "provider-usage-detail"
 _OPTION_LIST_ID = "provider-usage-list"
-
-
-def _usage_refresh_scope(provider: str) -> str:
-    return f"usage-refresh:{provider}"
+_RESERVATIONS_WORKER_GROUP = "provider-usage-reservations"
 
 
 class ProviderUsageModal(OptionListNavigationMixin, ModalScreen[None]):
@@ -94,6 +92,8 @@ class ProviderUsageModal(OptionListNavigationMixin, ModalScreen[None]):
         self._scan_conflicts_on_load = True
         self._summary_after_load: tuple[str, ...] | None = None
         self._update_worker: Worker[UsageRefreshReceipt] | None = None
+        self._reservations_worker: Worker[Any] | None = None
+        self._reservations_mode: str | None = None
         self._pending: dict[str, str] = {}
         self._clock_timer: Timer | None = None
         self._poll_timer: Timer | None = None
@@ -124,7 +124,11 @@ class ProviderUsageModal(OptionListNavigationMixin, ModalScreen[None]):
         for timer in (self._clock_timer, self._poll_timer):
             if timer is not None:
                 timer.stop()
-        for worker in (self._snapshot_worker, self._update_worker):
+        for worker in (
+            self._snapshot_worker,
+            self._update_worker,
+            self._reservations_worker,
+        ):
             if worker is not None and not worker.is_finished:
                 worker.cancel()
 
@@ -216,6 +220,8 @@ class ProviderUsageModal(OptionListNavigationMixin, ModalScreen[None]):
             self._on_snapshot_worker(event)
         elif event.worker is self._update_worker:
             self._on_update_worker(event)
+        elif event.worker is self._reservations_worker:
+            self._on_reservations_worker(event)
 
     def _on_snapshot_worker(self, event: Worker.StateChanged) -> None:
         if event.state not in (WorkerState.SUCCESS, WorkerState.ERROR):
@@ -247,13 +253,32 @@ class ProviderUsageModal(OptionListNavigationMixin, ModalScreen[None]):
         if summary_after is not None:
             self._notify_update_summary(summary_after)
 
+    def _live_refresh_operations(self) -> dict[str, str]:
+        """Return provider-to-operation for live store reservations.
+
+        Runs in a thread worker, never on the UI thread or message pump. The
+        store covers both proc-owned and inline-owned refreshes.
+        """
+        try:
+            reservations = list_provider_usage_refresh_reservations()
+        except Exception:
+            return {}
+        return {
+            reservation.provider: reservation.operation_id
+            for reservation in reservations
+        }
+
     def _attach_in_flight_refreshes(self) -> None:
         """Show `Updating` for providers whose durable refresh is still live.
 
-        A previous `u` press may still be running in a supervised proc after
-        this screen was closed and reopened; this is a read-only scope check,
-        never a new submission.
+        A previous `u` press may still be running after this screen was
+        closed and reopened; this is a read-only reservation check, never a
+        new submission.
         """
+        if self._reservations_worker is not None and (
+            not self._reservations_worker.is_finished
+        ):
+            return
         candidates = (
             {str(item.get("provider") or "") for item in self._snapshot.providers}
             if self._snapshot
@@ -263,14 +288,23 @@ class ProviderUsageModal(OptionListNavigationMixin, ModalScreen[None]):
         candidates.discard("")
         if not candidates:
             return
-        projection = proc_projection_for(self.app)
-        started = {}
-        for provider in candidates:
-            conflict = projection.scope_conflict((_usage_refresh_scope(provider),))
-            if conflict is not None:
-                started[provider] = conflict.proc_id
-        if started:
-            self._begin_tracking(started)
+
+        def task() -> dict[str, str]:
+            live = self._live_refresh_operations()
+            return {
+                provider: operation_id
+                for provider, operation_id in live.items()
+                if provider in candidates
+            }
+
+        self._reservations_mode = "attach"
+        self._reservations_worker = self.run_worker(
+            task,
+            thread=True,
+            exclusive=False,
+            exit_on_error=False,
+            group=_RESERVATIONS_WORKER_GROUP,
+        )
 
     # --- update tracking ----------------------------------------------------
 
@@ -293,7 +327,7 @@ class ProviderUsageModal(OptionListNavigationMixin, ModalScreen[None]):
             if item.operation_id and item.status in _STARTED_REFRESH_STATUSES
         }
         if not started:
-            self.notify("No eligible providers to update.", severity="warning")
+            self.notify(render_usage_refresh_toast(receipt), severity="warning")
             return
         self._begin_tracking(started)
 
@@ -303,21 +337,32 @@ class ProviderUsageModal(OptionListNavigationMixin, ModalScreen[None]):
         if self._poll_timer is None:
             self._poll_timer = self.set_interval(1.0, self._poll_pending)
 
-    def _poll_pending(self) -> None:
-        if not self._pending:
-            if self._poll_timer is not None:
-                self._poll_timer.stop()
-                self._poll_timer = None
+    def _on_reservations_worker(self, event: Worker.StateChanged) -> None:
+        if event.state not in (WorkerState.SUCCESS, WorkerState.ERROR):
             return
-        projection = proc_projection_for(self.app)
-        still_pending: dict[str, str] = {}
-        for provider, operation_id in self._pending.items():
-            conflict = projection.scope_conflict((_usage_refresh_scope(provider),))
-            if conflict is not None and conflict.proc_id == operation_id:
-                still_pending[provider] = operation_id
-        finished = tuple(sorted(set(self._pending) - set(still_pending)))
-        self._pending = still_pending
-        if not finished:
+        mode = self._reservations_mode
+        self._reservations_worker = None
+        self._reservations_mode = None
+        if event.state == WorkerState.ERROR:
+            return
+        result = event.worker.result
+        if mode == "attach":
+            if isinstance(result, dict) and result:
+                self._begin_tracking(result)
+            return
+        if not isinstance(result, tuple) or len(result) != 2:
+            return
+        snapshot_pending, finished = result
+        if not isinstance(snapshot_pending, dict) or not isinstance(finished, tuple):
+            return
+        applied = tuple(
+            provider
+            for provider in finished
+            if self._pending.get(provider) == snapshot_pending.get(provider)
+        )
+        for provider in applied:
+            self._pending.pop(provider, None)
+        if not applied:
             return
         if not self._pending and self._poll_timer is not None:
             self._poll_timer.stop()
@@ -328,7 +373,40 @@ class ProviderUsageModal(OptionListNavigationMixin, ModalScreen[None]):
         self._start_snapshot_load(
             keep_provider=self._highlighted_provider(),
             scan_conflicts=False,
-            summary_after=finished,
+            summary_after=applied,
+        )
+
+    def _poll_pending(self) -> None:
+        if not self._pending:
+            if self._poll_timer is not None:
+                self._poll_timer.stop()
+                self._poll_timer = None
+            return
+        # The timer callback stays thin: the store read runs in a coalesced
+        # thread worker, never on the message pump.
+        if self._reservations_worker is not None and (
+            not self._reservations_worker.is_finished
+        ):
+            return
+        pending = dict(self._pending)
+
+        def task() -> tuple[dict[str, str], tuple[str, ...]]:
+            live = self._live_refresh_operations()
+            still_pending = {
+                provider: operation_id
+                for provider, operation_id in pending.items()
+                if live.get(provider) == operation_id
+            }
+            finished = tuple(sorted(set(pending) - set(still_pending)))
+            return pending, finished
+
+        self._reservations_mode = "poll"
+        self._reservations_worker = self.run_worker(
+            task,
+            thread=True,
+            exclusive=False,
+            exit_on_error=False,
+            group=_RESERVATIONS_WORKER_GROUP,
         )
 
     def _notify_update_summary(self, providers: tuple[str, ...]) -> None:

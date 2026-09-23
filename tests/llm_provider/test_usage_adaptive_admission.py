@@ -111,6 +111,7 @@ def test_admit_one_passes_adaptive_floor_fingerprint(
         class _Admitted:
             status = "reserved"
             reason = "never_observed"
+            due_at = None
             reservation = _Reservation()
 
         return _Admitted()

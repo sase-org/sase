@@ -15,6 +15,7 @@ from sase.ace.tui.modals.refresh_panel_modal import (
     RefreshRow,
 )
 from sase.feature_flags import FeatureFlag, current_flags
+from sase.llm_provider.usage.presentation import render_usage_refresh_toast
 from sase.llm_provider.usage.refresh import UsageRefreshReceipt, submit_usage_refresh
 
 TabName = Literal["artifacts", "agents", "services"]
@@ -23,7 +24,6 @@ FULL_HISTORY_MIGRATION_BANNER = ",y lives here now — press f"
 REFRESH_PANEL_COMMAND_LABEL = "Open Refresh panel"
 REFRESH_TAB_COMMAND_LABEL = "Refresh tab"
 _USAGE_DISABLED_MESSAGE = "subscription usage collection is disabled"
-_USAGE_ALREADY_RUNNING = "Usage refresh already running"
 _TAB_LABELS = {"agents": "Agents", "services": "Services"}
 
 
@@ -165,11 +165,7 @@ class RefreshPanelMixin:
         if disabled and not receipt.started:
             self.notify(_USAGE_DISABLED_MESSAGE)  # type: ignore[attr-defined]
             return
-        started = [item.provider for item in receipt.providers if item.operation_id]
-        if started:
-            self.notify(f"Refreshing usage: {', '.join(started)}")  # type: ignore[attr-defined]
-            return
-        self.notify(_USAGE_ALREADY_RUNNING)  # type: ignore[attr-defined]
+        self.notify(render_usage_refresh_toast(receipt))  # type: ignore[attr-defined]
 
     def _refresh_panel_rows(self) -> tuple[RefreshRow, ...]:
         """Build chooser rows from in-memory tab and freshness state."""

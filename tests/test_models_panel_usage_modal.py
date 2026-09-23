@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -11,25 +10,27 @@ from textual.worker import WorkerState
 
 import sase.ace.tui.modals.models_panel_usage_modal as usage_modal
 from sase.ace.tui.modals.models_panel_usage_modal import ProviderUsageModal
-from sase.ace.tui.proc_observer import ObservedProc, ProcProjection
 from sase.llm_provider.usage.refresh import (
     UsageRefreshReceipt,
     _UsageRefreshProviderResult,
 )
+from sase.llm_provider.usage.store import ProviderUsageRefreshReservation
 from tests._models_panel_helpers import ModelsPanelTestApp, wait_for
 from tests._usage_view_helpers import usage_provider, usage_view_snapshot
 
 
-def _running_proc(provider: str, proc_id: str = "op-1") -> ObservedProc:
-    return ObservedProc(
-        proc_id=proc_id,
-        proc_type="usage-refresh",
-        cl_name="",
-        project_file="",
-        status="running",
-        message="running",
-        started_at=datetime.now(),
-        exclusive_scopes=frozenset({f"usage-refresh:{provider}"}),
+def _reservation(
+    provider: str, operation_id: str = "op-1"
+) -> ProviderUsageRefreshReservation:
+    return ProviderUsageRefreshReservation(
+        version=1,
+        provider=provider,
+        context_id="default",
+        account_generation=1,
+        operation_id=operation_id,
+        lease_id=f"lease-{provider}",
+        reserved_at=1_800_000_000.0,
+        expires_at=1_800_000_100.0,
     )
 
 
@@ -131,6 +132,9 @@ async def test_usage_modal_update_marks_providers_and_clears_on_completion(
     refreshed = usage_view_snapshot(usage_provider("codex", collection_status="ok"))
     receipt = _receipt(provider="codex", operation_id="op-1", status="reserved")
     monkeypatch.setattr(usage_modal, "submit_usage_refresh", lambda *a, **k: receipt)
+    monkeypatch.setattr(
+        usage_modal, "list_provider_usage_refresh_reservations", lambda: ()
+    )
     calls = {"n": 0}
 
     def load_snapshot() -> object:
@@ -148,7 +152,6 @@ async def test_usage_modal_update_marks_providers_and_clears_on_completion(
         option_list = modal.query_one("#provider-usage-list", OptionList)
         assert "Updating" in option_list.get_option_at_index(0).prompt.plain
 
-        pilot.app._proc_projection = ProcProjection(rows=())
         await wait_for(pilot, lambda: not modal._pending, timeout=5.0)
         await wait_for(pilot, lambda: modal._snapshot is refreshed, timeout=5.0)
 
@@ -163,6 +166,9 @@ async def test_usage_modal_update_summary_reports_failures(monkeypatch) -> None:
     )
     receipt = _receipt(provider="codex", operation_id="op-1", status="reserved")
     monkeypatch.setattr(usage_modal, "submit_usage_refresh", lambda *a, **k: receipt)
+    monkeypatch.setattr(
+        usage_modal, "list_provider_usage_refresh_reservations", lambda: ()
+    )
     calls = {"n": 0}
 
     def load_snapshot() -> object:
@@ -178,7 +184,6 @@ async def test_usage_modal_update_summary_reports_failures(monkeypatch) -> None:
         modal.action_update_usage()
         await wait_for(pilot, lambda: modal._pending == {"codex": "op-1"})
 
-        pilot.app._proc_projection = ProcProjection(rows=())
         await wait_for(pilot, lambda: modal._snapshot is failed, timeout=5.0)
 
         messages = [call.args[0] for call in modal.notify.call_args_list]
@@ -188,14 +193,41 @@ async def test_usage_modal_update_summary_reports_failures(monkeypatch) -> None:
 async def test_usage_modal_reopen_attaches_to_in_flight_refresh(monkeypatch) -> None:
     snapshot = usage_view_snapshot(usage_provider("codex"))
     monkeypatch.setattr(usage_modal, "eligible_usage_providers", lambda: ())
+    monkeypatch.setattr(
+        usage_modal,
+        "list_provider_usage_refresh_reservations",
+        lambda: (_reservation("codex", "op-1"),),
+    )
     submit = MagicMock()
     monkeypatch.setattr(usage_modal, "submit_usage_refresh", submit)
 
     async with ModelsPanelTestApp().run_test() as pilot:
-        pilot.app._proc_projection = ProcProjection(rows=(_running_proc("codex"),))
         modal = ProviderUsageModal(load_snapshot=lambda: snapshot)
         pilot.app.push_screen(modal)
         await wait_for(pilot, lambda: modal._pending == {"codex": "op-1"})
+
+        submit.assert_not_called()
+        option_list = modal.query_one("#provider-usage-list", OptionList)
+        assert "Updating" in option_list.get_option_at_index(0).prompt.plain
+
+
+async def test_usage_modal_reopen_attaches_to_inline_owned_refresh(
+    monkeypatch,
+) -> None:
+    snapshot = usage_view_snapshot(usage_provider("codex"))
+    monkeypatch.setattr(usage_modal, "eligible_usage_providers", lambda: ())
+    monkeypatch.setattr(
+        usage_modal,
+        "list_provider_usage_refresh_reservations",
+        lambda: (_reservation("codex", "usage-job:abc123"),),
+    )
+    submit = MagicMock()
+    monkeypatch.setattr(usage_modal, "submit_usage_refresh", submit)
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = ProviderUsageModal(load_snapshot=lambda: snapshot)
+        pilot.app.push_screen(modal)
+        await wait_for(pilot, lambda: modal._pending == {"codex": "usage-job:abc123"})
 
         submit.assert_not_called()
         option_list = modal.query_one("#provider-usage-list", OptionList)

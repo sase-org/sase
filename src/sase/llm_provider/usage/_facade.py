@@ -21,6 +21,7 @@ from sase.llm_provider.usage._wire import (
     ProviderUsageRefreshAdmitOutcome,
     ProviderUsageRefreshDueOutcome,
     ProviderUsageRefreshMarkDueOutcome,
+    ProviderUsageRefreshReservation,
     ProviderUsageRefreshReservationOutcome,
     ProviderUsageStoreRead,
     ProviderUsageStoreWriteOutcome,
@@ -286,6 +287,19 @@ def release_provider_usage_refresh(
             current,
         )
     )
+
+
+def list_provider_usage_refresh_reservations(
+    *,
+    now: float | None = None,
+) -> tuple[ProviderUsageRefreshReservation, ...]:
+    """Return live, unexpired refresh reservations from the usage store."""
+    current = time.time() if now is None else now
+    binding = require_rust_binding("provider_usage_list_refresh_reservations")
+    raw = binding(str(sase_home()), current)
+    if not isinstance(raw, list):
+        raise ProviderUsageStateError("refresh reservation list is not a list")
+    return tuple(ProviderUsageRefreshReservation.from_wire(item) for item in raw)
 
 
 def evaluate_provider_usage_refresh_due(

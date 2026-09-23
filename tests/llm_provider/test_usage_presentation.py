@@ -9,10 +9,16 @@ from rich.console import Console
 from sase.llm_provider.usage import presentation
 from sase.llm_provider.usage.presentation import (
     render_usage_plain,
+    render_usage_refresh_toast,
     render_usage_rich,
     reset_label,
     timestamp_label,
     usage_snapshot_json_payload,
+)
+from sase.llm_provider.usage.refresh import (
+    USAGE_REFRESH_RECEIPT_SCHEMA_VERSION,
+    UsageRefreshReceipt,
+    _UsageRefreshProviderResult,
 )
 from sase.llm_provider.usage.store import ProviderUsageStoreDiagnostic
 
@@ -182,6 +188,75 @@ def test_collector_retry_label_combines_reason_and_retry_at() -> None:
     assert presentation.collector_retry_label(health, 1_800_000_000.0) == (
         "rate limited · retry in 52m"
     )
+
+
+def _toast_receipt(
+    *items: tuple[str, str | None, str | None, float | None],
+) -> UsageRefreshReceipt:
+    providers = tuple(
+        _UsageRefreshProviderResult(
+            provider=name,
+            status="reserved" if operation_id else "deferred",
+            reason=reason,
+            operation_id=operation_id,
+            due_at=due_at,
+        )
+        for name, reason, operation_id, due_at in items
+    )
+    return UsageRefreshReceipt(
+        schema_version=USAGE_REFRESH_RECEIPT_SCHEMA_VERSION,
+        origin="ace",
+        operation_ids=tuple(
+            dict.fromkeys(item.operation_id for item in providers if item.operation_id)
+        ),
+        providers=providers,
+    )
+
+
+def test_refresh_toast_lists_started_providers() -> None:
+    receipt = _toast_receipt(
+        ("claude", "cadence", "op-1", None),
+        ("codex", "joined", "op-1", None),
+    )
+    assert render_usage_refresh_toast(receipt) == "Refreshing usage: claude, codex"
+
+
+def test_refresh_toast_renders_each_deferral_reason() -> None:
+    now = 1_800_000_000.0
+    receipt = _toast_receipt(
+        ("claude", "floor", None, now + 120.0),
+        ("codex", "cooldown", None, now + 45.0),
+        ("grok", "rate_limited", None, now + 3_120.0),
+        ("agy", "parked", None, None),
+    )
+    assert render_usage_refresh_toast(receipt, now=now) == (
+        "Usage refresh deferred: "
+        "claude floor · retry in 2m"
+        " · codex cooldown · retry in 45s"
+        " · grok rate limited · retry in 52m"
+        " · agy parked"
+    )
+
+
+def test_refresh_toast_mixes_started_and_deferred() -> None:
+    now = 1_800_000_000.0
+    receipt = _toast_receipt(
+        ("claude", "cadence", "op-1", None),
+        ("grok", "rate_limited", None, now + 3_120.0),
+    )
+    assert render_usage_refresh_toast(receipt, now=now) == (
+        "Refreshing usage: claude · grok rate limited · retry in 52m"
+    )
+
+
+def test_refresh_toast_with_no_providers_is_nothing_due() -> None:
+    receipt = UsageRefreshReceipt(
+        schema_version=USAGE_REFRESH_RECEIPT_SCHEMA_VERSION,
+        origin="ace",
+        operation_ids=(),
+        providers=(),
+    )
+    assert render_usage_refresh_toast(receipt) == "Usage refresh: nothing due"
 
 
 def test_collector_retry_label_needs_neither_reason_nor_retry() -> None:

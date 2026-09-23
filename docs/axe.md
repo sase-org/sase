@@ -198,7 +198,7 @@ Use these related commands according to intent:
 
 ## Default Routines
 
-The scheduler ships with six default routines:
+The scheduler ships with seven default routines:
 
 ### hooks (5-second interval)
 
@@ -282,7 +282,6 @@ Lower-frequency status checks:
 | `plugins_required`      | Raise one `PluginsRequired` gate per project missing plugins |
 | `pr_submitted_checks`   | Start PR submission status checks                            |
 | `stale_running_cleanup` | Backstop dead-process claim and proc-row cleanup             |
-| `usage_refresh`         | Submit due subscription-usage refreshes                      |
 
 **A live task bead has at most one pending gate**, and `bead_task_triage` is the single
 owner of that invariant. It scans enabled non-home projects for task beads and derives
@@ -385,11 +384,25 @@ fingerprint over the missing set, so a re-run does not duplicate a notification.
 `sase axe job run plugins_required` to raise or refresh those gates without waiting for
 the next five-minute checks tick.
 
-The `usage_refresh` job checks machine-local due and backoff state and submits coalesced
-work to the same durable subscription-usage refresh service the CLI and sase's TUI use;
-it does not poll per agent or per project. Collection stays gated by
-`llm_provider.usage_metrics.enabled`; see
+### usage (60-second interval)
+
+Subscription-usage collection, owned by the scheduler:
+
+| Job             | Description                            |
+| --------------- | -------------------------------------- |
+| `usage_refresh` | Refresh due subscription-usage windows |
+
+The `usage_refresh` job checks machine-local due and backoff state and probes the
+admitted providers inline in the job process, under a non-proc operation ID, so periodic
+collection creates no proc rows. It does not poll per agent or per project. Collection
+stays gated by `llm_provider.usage_metrics.enabled`; see
 [Subscription usage extension](llms.md#subscription-usage-extension).
+
+A scheduled tick performs a due-only refresh. A manual run — the Services-tab `r` key or
+`sase axe job run usage_refresh` — performs an explicit refresh instead, still subject
+to the 60-second cooldown and any `Retry-After`. A host that shares an account with
+another machine can opt out per provider with
+`llm_provider.usage_metrics.providers.<name>: false` in a machine overlay.
 
 ### external_mirror (15-minute interval)
 

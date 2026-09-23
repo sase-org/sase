@@ -389,3 +389,165 @@ def test_due_refresh_with_no_eligible_providers_is_empty(
     receipt = request_due_usage_refresh(origin="axe")
     assert receipt.providers == ()
     assert receipt.operation_ids == ()
+
+
+def test_inline_execution_runs_batch_in_process_without_proc(
+    usage_home: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "sase.procs.submit_proc_request",
+        lambda request: pytest.fail("inline refresh submitted a proc"),
+    )
+    seen: dict[str, object] = {}
+
+    def fake_run(
+        payload: dict[str, Any], *, now: float | None = None
+    ) -> list[dict[str, Any]]:
+        seen["payload"] = payload
+        return [
+            {
+                "provider": "synth",
+                "outcome": "ok",
+                "reason_code": None,
+                "skipped": None,
+            }
+        ]
+
+    monkeypatch.setattr(
+        "sase.llm_provider.usage.refresh_runner.run_admitted_refresh", fake_run
+    )
+    receipt = submit_usage_refresh(
+        ("synth",),
+        explicit=True,
+        origin="axe",
+        execution="inline",
+        plugin_specs={"synth": SYNTHETIC_PLUGIN_SPEC},
+    )
+    assert len(receipt.operation_ids) == 1
+    operation_id = receipt.operation_ids[0]
+    assert operation_id.startswith("usage-job:")
+    assert receipt.providers[0].operation_id == operation_id
+    assert receipt.inline_results == (
+        {
+            "provider": "synth",
+            "outcome": "ok",
+            "reason_code": None,
+            "skipped": None,
+        },
+    )
+    payload = seen["payload"]
+    assert isinstance(payload, dict)
+    assert [item["provider"] for item in payload["providers"]] == ["synth"]
+
+
+def test_inline_execution_releases_leases_when_batch_raises(
+    usage_home: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sase.llm_provider.usage.refresh as refresh_mod
+
+    released: list[str] = []
+    real_release = refresh_mod.release_provider_usage_refresh
+    monkeypatch.setattr(
+        refresh_mod,
+        "release_provider_usage_refresh",
+        lambda *args, **kwargs: (
+            released.append(args[0]) or real_release(*args, **kwargs)
+        ),
+    )
+    attempts: list[tuple[str, str]] = []
+    real_attempt = refresh_mod.record_provider_usage_refresh_attempt
+    monkeypatch.setattr(
+        refresh_mod,
+        "record_provider_usage_refresh_attempt",
+        lambda provider, *args, **kwargs: (
+            attempts.append((provider, str(kwargs.get("reason_code"))))
+            or real_attempt(provider, *args, **kwargs)
+        ),
+    )
+
+    def boom(
+        payload: dict[str, Any], *, now: float | None = None
+    ) -> list[dict[str, Any]]:
+        raise RuntimeError("worker exploded")
+
+    monkeypatch.setattr(
+        "sase.llm_provider.usage.refresh_runner.run_admitted_refresh", boom
+    )
+    receipt = submit_usage_refresh(
+        ("synth",),
+        explicit=True,
+        origin="axe",
+        execution="inline",
+        plugin_specs={"synth": SYNTHETIC_PLUGIN_SPEC},
+    )
+    assert receipt.inline_results == (
+        {
+            "provider": "synth",
+            "outcome": "error",
+            "reason_code": "probe_failed",
+            "skipped": None,
+        },
+    )
+    assert released == ["synth"]
+    assert attempts == [("synth", "probe_failed")]
+
+
+def test_receipt_carries_due_at_for_deferrals(
+    usage_home: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def due(*args: object, **kwargs: object) -> ProviderUsageRefreshDueOutcome:
+        return ProviderUsageRefreshDueOutcome(
+            version=1, due=False, reason="floor", due_at=1_800_000_300.0
+        )
+
+    monkeypatch.setattr(
+        "sase.llm_provider.usage.refresh.evaluate_provider_usage_refresh_due",
+        due,
+    )
+    receipt = submit_usage_refresh(
+        ("synth",),
+        explicit=False,
+        origin="axe",
+        plugin_specs={"synth": SYNTHETIC_PLUGIN_SPEC},
+    )
+    assert receipt.providers[0].status == "deferred"
+    assert receipt.providers[0].due_at == 1_800_000_300.0
+    assert receipt.providers[0].to_json()["due_at"] == 1_800_000_300.0
+
+
+def test_wait_for_usage_refresh_operations_returns_when_released(
+    usage_home: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sase.llm_provider.usage.refresh as refresh_mod
+
+    live = [
+        _reservation("synth", "usage-job:abc123"),
+    ]
+
+    def fake_list(*, now: float | None = None) -> list[ProviderUsageRefreshReservation]:
+        current = list(live)
+        live.clear()
+        return current
+
+    monkeypatch.setattr(
+        refresh_mod, "list_provider_usage_refresh_reservations", fake_list
+    )
+    refresh_mod.wait_for_usage_refresh_operations(
+        ("usage-job:abc123",), 5.0, poll_interval=0.01
+    )
+
+
+def test_wait_for_usage_refresh_operations_times_out(
+    usage_home: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import sase.llm_provider.usage.refresh as refresh_mod
+
+    monkeypatch.setattr(
+        refresh_mod,
+        "list_provider_usage_refresh_reservations",
+        lambda *, now=None: (_reservation("synth", "usage-job:abc123"),),
+    )
+    with pytest.raises(TimeoutError, match="usage-job:abc123"):
+        refresh_mod.wait_for_usage_refresh_operations(
+            ("usage-job:abc123",), 0.05, poll_interval=0.01
+        )

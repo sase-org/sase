@@ -5,8 +5,6 @@ from __future__ import annotations
 from typing import Any
 from unittest.mock import patch
 
-import pytest
-
 from sase.ace.tui.actions.base import BaseActionsMixin
 from sase.ace.tui.actions.event_refresh._freshness import freshness_label
 from sase.ace.tui.actions.refresh_panel import (
@@ -372,33 +370,90 @@ def test_flag_on_cancel_does_not_refresh() -> None:
     assert app.notifications == []
 
 
-@pytest.mark.parametrize(
-    ("reason", "started", "expected"),
-    [
-        ("config_disabled", False, "subscription usage collection is disabled"),
-        (None, False, "Usage refresh already running"),
-    ],
-)
-def test_usage_receipt_toasts(
-    reason: str | None,
-    started: bool,
-    expected: str,
-) -> None:
+def test_usage_receipt_toast_for_disabled_collection() -> None:
     app = _DispatchApp()
     receipt = UsageRefreshReceipt(
         schema_version=USAGE_REFRESH_RECEIPT_SCHEMA_VERSION,
         origin="ace",
-        operation_ids=("op-1",) if started else (),
+        operation_ids=(),
         providers=(
             _UsageRefreshProviderResult(
                 provider="synth",
-                status="disabled" if reason else "joined",
-                reason=reason,
-                operation_id="op-1" if started else None,
+                status="disabled",
+                reason="config_disabled",
+                operation_id=None,
             ),
         ),
     )
 
     app._notify_usage_refresh_receipt(receipt)
 
-    assert app.notifications == [expected]
+    assert app.notifications == ["subscription usage collection is disabled"]
+
+
+def test_usage_receipt_toast_for_empty_receipt() -> None:
+    app = _DispatchApp()
+    receipt = UsageRefreshReceipt(
+        schema_version=USAGE_REFRESH_RECEIPT_SCHEMA_VERSION,
+        origin="ace",
+        operation_ids=(),
+        providers=(),
+    )
+
+    app._notify_usage_refresh_receipt(receipt)
+
+    assert app.notifications == ["Usage refresh: nothing due"]
+
+
+def test_usage_receipt_toast_for_deferred_receipt() -> None:
+    app = _DispatchApp()
+    receipt = UsageRefreshReceipt(
+        schema_version=USAGE_REFRESH_RECEIPT_SCHEMA_VERSION,
+        origin="ace",
+        operation_ids=(),
+        providers=(
+            _UsageRefreshProviderResult(
+                provider="synth",
+                status="deferred",
+                reason="floor",
+                operation_id=None,
+                due_at=1_800_000_300.0,
+            ),
+        ),
+    )
+
+    app._notify_usage_refresh_receipt(receipt)
+
+    (toast,) = app.notifications
+    assert toast.startswith("Usage refresh deferred: synth floor")
+
+
+def test_usage_receipt_toast_renders_deferral_reasons() -> None:
+    app = _DispatchApp()
+    receipt = UsageRefreshReceipt(
+        schema_version=USAGE_REFRESH_RECEIPT_SCHEMA_VERSION,
+        origin="ace",
+        operation_ids=("op-claude",),
+        providers=(
+            _UsageRefreshProviderResult(
+                provider="claude",
+                status="reserved",
+                reason="cadence",
+                operation_id="op-claude",
+            ),
+            _UsageRefreshProviderResult(
+                provider="grok",
+                status="deferred",
+                reason="rate_limited",
+                operation_id=None,
+                due_at=1_800_003_600.0,
+            ),
+        ),
+    )
+
+    app._notify_usage_refresh_receipt(receipt)
+
+    (toast,) = app.notifications
+    assert toast.startswith("Refreshing usage: claude")
+    assert "grok rate limited" in toast
+    assert "retry" in toast

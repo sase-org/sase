@@ -1245,14 +1245,26 @@ axe:
             handling of pinned claims with agent artifacts and terminalization of orphaned active proc rows. This
             five-minute placement still frees stale workspace claims and proc rows if the fast hooks lane is disabled,
             restarting, or repeatedly failing.
+    usage:
+      description: |-
+        Refresh subscription-usage windows every minute
+
+        Runs every sixty seconds so due provider probes, passed resets, and marked-due providers are picked up
+        within a minute. The usage_refresh job probes inline in the job process instead of submitting a proc, so
+        periodic collection creates no proc rows. Manual runs through the Services tab or `sase axe job run`
+        perform explicit refreshes, still subject to the cooldown and any Retry-After. Collection stays gated by
+        llm_provider.usage_metrics.enabled.
+      interval: 60
+      job_timeout: "90s"
+      jobs:
         - name: usage_refresh
           script: sase_job_usage_refresh
           description: |-
-            Submit due subscription-usage refreshes through the shared durable service
+            Refresh due subscription-usage windows inline
 
-            Checks machine-local due and backoff state and submits coalesced usage-refresh work for eligible
-            providers. One job serves CLI, sase's TUI, and AXE callers; it does not poll per agent or project. Collection
-            stays gated by llm_provider.usage_metrics.enabled.
+            Checks machine-local due and backoff state and probes the admitted providers in-process under a
+            non-proc operation ID. One job serves CLI, sase's TUI, and AXE callers; it does not poll per agent or
+            project. Collection stays gated by llm_provider.usage_metrics.enabled.
     external_mirror:
       description: |-
         Mirror external tracker issues and pull requests on a fifteen-minute cadence

@@ -1169,9 +1169,10 @@ bounds automatic retries with cadence-based backoff. Automatic admission passes
 `adaptive=True` with each provider's floor and CLI fingerprint; parked providers unpark
 early when the CLI changes. Limit events only mark the provider due — they never submit
 an explicit probe, so the next routine tick picks the provider up subject to its floor.
-The scheduler submits due work from the `usage_refresh` job on the five-minute checks
-routine. sase's TUI requests the same due work after first paint and while open when the
-scheduler is absent. A normal TUI tick never probes inline.
+The scheduler runs due work inline from the `usage_refresh` job on the 60-second `usage`
+routine, probing the admitted batch in-process so periodic collection creates no proc
+rows. sase's TUI requests the same due work after first paint and while open, but only
+when the scheduler does not own collection. A normal TUI tick never probes inline.
 
 ## Configuration
 
@@ -2326,11 +2327,12 @@ stable line-oriented text, while redirected output also becomes plain automatica
 sase's TUI exposes the same cache from Launch Control: press `u`, or choose **Open
 Providers · Usage** from the command palette. The modal never probes on first paint.
 Press its own `u` to update, close it without cancelling durable work, and reopen to
-reattach. The scheduler submits due refreshes on its checks cadence. sase's TUI
-independently requests due work after its first paint and then on the configured cadence
-while it remains open; it does not first detect whether the scheduler is running.
-Per-provider coalescing makes concurrent scheduler, sase's TUI, CLI, and limit-event
-requests join the same live probe.
+reattach. The scheduler runs due refreshes inline on its 60-second `usage` routine.
+sase's TUI independently requests due work after its first paint and then every 60
+seconds while it remains open, but only when the scheduler does not own collection;
+user-triggered refreshes still submit visible procs either way. Per-provider coalescing
+makes concurrent scheduler, sase's TUI, CLI, and limit-event requests join the same live
+probe.
 
 Background refreshes, and `sase usage refresh` without `-p`, only probe eligible
 providers: registered providers that are not hidden from model pickers, ship a probe

@@ -361,9 +361,11 @@ Providers · Usage** from the command palette. See
 [Providers · Usage](ace.md#providers-usage).
 
 Observations are dated best-effort readings from each provider's own CLI, not guarantees
-of remaining capacity. Collection is on by default; opt out with
-`llm_provider.usage_metrics.enabled: false`. See
-[Subscription Usage](llms.md#subscription-usage).
+of remaining capacity. Periodic collection runs on the scheduler's 60-second `usage`
+routine and probes inline, so it creates no proc rows; user-triggered refreshes still
+submit visible procs. Collection is on by default; opt out with
+`llm_provider.usage_metrics.enabled: false`, or per provider on a host that shares an
+account with another machine. See [Subscription Usage](llms.md#subscription-usage).
 
 ## Inventory and Updates
 

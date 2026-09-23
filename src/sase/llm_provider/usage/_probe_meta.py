@@ -128,18 +128,6 @@ def resolve_provider_cli_command(provider: str) -> str:
     return override or (str(cli_name).strip() if cli_name else "")
 
 
-def _clear_probe_floor_cache() -> None:
-    """Drop the memoized floors. Tests use this after planting metadata."""
-    global _floors_cache  # noqa: PLW0603
-
-    _floors_cache = None
-
-
-def _resolve_provider_cli_command(provider: str) -> str:
-    """Legacy alias for :func:`resolve_provider_cli_command`."""
-    return resolve_provider_cli_command(provider)
-
-
 __all__ = [
     "MAX_USAGE_PROBE_INTERVAL_SECONDS",
     "MIN_USAGE_PROBE_INTERVAL_SECONDS",

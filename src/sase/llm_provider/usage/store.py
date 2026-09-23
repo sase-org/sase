@@ -3,6 +3,7 @@
 from sase.llm_provider.usage._facade import (
     admit_provider_usage_refresh,
     evaluate_provider_usage_refresh_due,
+    list_provider_usage_refresh_reservations,
     load_provider_usage,
     mark_provider_usage_refresh_due,
     prepare_provider_usage_account_context,
@@ -87,6 +88,7 @@ __all__ = [
     "ProviderUsageStoreWriteOutcome",
     "admit_provider_usage_refresh",
     "evaluate_provider_usage_refresh_due",
+    "list_provider_usage_refresh_reservations",
     "load_provider_usage",
     "mark_provider_usage_refresh_due",
     "prepare_provider_usage_account_context",

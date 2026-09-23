@@ -212,6 +212,54 @@ def render_usage_rich(
     return table
 
 
+def render_usage_refresh_toast(receipt: Any, *, now: float | None = None) -> str:
+    """Render a refresh receipt as one compact toast line.
+
+    Started providers lead (``"Refreshing usage: claude, codex"``) with any
+    deferral appended (``" · grok rate limited · retry in 52m"``). When
+    nothing started, the deferral reasons stand alone so a toast never claims
+    work is running that is not.
+    """
+    clock = time.time() if now is None else now
+    providers = tuple(getattr(receipt, "providers", ()) or ())
+    started = [
+        str(getattr(item, "provider", "") or "")
+        for item in providers
+        if getattr(item, "operation_id", None)
+    ]
+    started = [name for name in started if name]
+    deferred = [
+        _usage_refresh_deferral_detail(item, clock)
+        for item in providers
+        if not getattr(item, "operation_id", None)
+        and str(getattr(item, "provider", "") or "")
+    ]
+    if started:
+        toast = "Refreshing usage: " + ", ".join(started)
+        if deferred:
+            toast += " · " + " · ".join(deferred)
+        return toast
+    if deferred:
+        return "Usage refresh deferred: " + " · ".join(deferred)
+    return "Usage refresh: nothing due"
+
+
+def _usage_refresh_deferral_detail(item: Any, now: float) -> str:
+    """Render one non-started receipt provider as ``"<name> <reason>"``."""
+    provider = str(getattr(item, "provider", "") or "")
+    reason = getattr(item, "reason", None)
+    reason_text = str(reason).strip() if isinstance(reason, str) else ""
+    label = collector_retry_label(
+        {
+            "last_failure_reason": reason_text or None,
+            "retry_at": getattr(item, "due_at", None),
+        },
+        now,
+    )
+    detail = label or str(getattr(item, "status", "") or "deferred")
+    return f"{provider} {detail}" if provider else detail
+
+
 def render_refresh_receipt_plain(receipt: Any) -> str:
     """Render a refresh receipt as line-oriented ASCII text."""
     operation_ids = tuple(str(item) for item in getattr(receipt, "operation_ids", ()))
