@@ -272,10 +272,55 @@ class BeadsNavigationMixin(_MixinBase):
 
     def expand_fold_for_entry_target(self, target: ArtifactEntryTarget) -> bool:
         """Expand the epic fold hiding a pending phase target."""
-        if not self._expand_parent_for_target(target):
+        expanded = self._expand_parent_for_target(target)
+        if not expanded and (
+            target.pane_id == "beads"
+            and len(target.parts) >= 3
+            and target.parts[1] == "epic"
+        ):
+            key = (target.parts[0], target.parts[2])
+            expanded = self._epic_fold_registry.expand(key)
+        if not expanded:
             return False
         self._refresh_options()
         return True
+
+    def host_reveal_context(self, target: ArtifactEntryTarget) -> Any | None:
+        """Return the Beads family context query for *target*."""
+        from sase.ace.link_reveal_context import RevealContext
+
+        if target.pane_id != "beads" or len(target.parts) < 3:
+            return None
+        snapshot = self._snapshot
+        if snapshot is None:
+            return None
+        project, kind, bead_id = target.parts[0], target.parts[1], target.parts[2]
+        if kind == "phase":
+            for (phase_project, epic_id), phases in snapshot.phases_by_epic.items():
+                if phase_project != project:
+                    continue
+                if any(phase.issue.id == bead_id for phase in phases):
+                    return RevealContext(
+                        alternatives=(("id", f"{epic_id}.*"),),
+                        label=f"epic {epic_id}",
+                        member_count=len(phases),
+                    )
+            return None
+        if kind == "epic":
+            phases = snapshot.phases_by_epic.get((project, bead_id), ())
+            return RevealContext(
+                alternatives=(("id", bead_id), ("id", f"{bead_id}.*")),
+                label=f"epic {bead_id}",
+                member_count=1 + len(phases),
+                expand_target_fold=True,
+            )
+        if kind in ("task", "flag"):
+            return RevealContext(
+                alternatives=(("id", bead_id),),
+                label=f"bead {bead_id}",
+                member_count=1,
+            )
+        return None
 
     def host_query_row_for_target(
         self, target: ArtifactEntryTarget

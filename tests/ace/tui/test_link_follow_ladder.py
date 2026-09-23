@@ -106,9 +106,7 @@ def test_follow_skips_identity_when_dialect_has_no_field() -> None:
         probe=probe,
         query_profile=compile_query_profile(procs_query_schema()),
         identity_row={"fields": {"id": "sase-closed"}},
-        reveal_when=lambda query: (
-            "project:demo" in query and "-status:closed" not in query
-        ),
+        reveal_when=lambda query: query.strip() == "limit:all",
     )
     app = _App(
         chips=(_chip("bead:sase-closed", target),),
@@ -120,46 +118,49 @@ def test_follow_skips_identity_when_dialect_has_no_field() -> None:
 
     app._follow_link_number(1)
 
-    assert pane.applied_queries == [("project:demo limit:all", True)]
+    assert pane.applied_queries == [("limit:all", True)]
     assert pane.selected_entry_target() == target
 
 
-def test_follow_widens_excluding_term_instead_of_neutral_query() -> None:
+def test_follow_uses_context_before_identity() -> None:
+    from sase.ace.link_reveal_context import RevealContext
+
     origin = ArtifactEntryTarget("files", ("origin.txt",))
     selected = ArtifactEntryTarget("beads", ("demo", "task", "sase-open"))
-    target = ArtifactEntryTarget("beads", ("demo", "task", "sase-closed"))
-    probe = _Probe(
-        {
-            "project:demo -status:closed": False,
-            "project:demo": True,
-            "-status:closed": False,
-        }
-    )
+    target = ArtifactEntryTarget("beads", ("demo", "phase", "sase-1.1"))
+    probe = _Probe({"id:sase-1.*": True}, default=False)
     pane = _Pane(
         targets=(selected,),
         selected=selected,
-        query="project:demo -status:closed",
+        query="-status:closed limit:100",
         target_after_limit=target,
         probe=probe,
-        reveal_when=lambda query: (
-            "project:demo" in query and "-status:closed" not in query
+        query_profile=compile_query_profile(beads_query_schema()),
+        identity_row={"fields": {"id": "sase-1.1"}},
+        reveal_context=RevealContext(
+            alternatives=(("id", "sase-1.*"),),
+            label="epic sase-1",
+            member_count=2,
         ),
+        reveal_when=lambda query: query.strip() == "id:sase-1.* limit:100",
     )
     app = _App(
-        chips=(_chip("bead:sase-closed", target),),
+        chips=(_chip("bead:sase-1.1", target),),
         panes={
             "files": _Pane(targets=(origin,), selected=origin),
             "beads": pane,
         },
     )
+    _link_follow_outcomes.clear()
 
     app._follow_link_number(1)
 
-    assert pane.applied_queries == [("project:demo limit:all", True)]
+    assert pane.applied_queries == [("id:sase-1.* limit:100", True)]
     assert pane.selected_entry_target() == target
+    assert _link_follow_outcomes["context"] == 1
 
 
-def test_follow_uses_limit_all_only_after_widening_returns_nothing() -> None:
+def test_follow_uses_limit_all_when_no_context_or_identity() -> None:
     origin = ArtifactEntryTarget("files", ("origin.txt",))
     selected = ArtifactEntryTarget("agents", ("builder",))
     target = ArtifactEntryTarget("agents", ("hidden",))
@@ -185,26 +186,26 @@ def test_follow_uses_limit_all_only_after_widening_returns_nothing() -> None:
     assert pane.selected_entry_target() == target
 
 
-def test_follow_records_exactly_one_history_entry_for_two_rewrites() -> None:
+def test_follow_records_exactly_one_history_entry_for_context_rewrite() -> None:
+    from sase.ace.link_reveal_context import RevealContext
+
     origin = ArtifactEntryTarget("files", ("origin.txt",))
     target = ArtifactEntryTarget("files", ("hidden.txt",))
-    probe = _Probe(
-        {
-            "project:demo -status:closed": False,
-            "project:demo -status:closed limit:all": False,
-            "project:demo": True,
-            "-status:closed": False,
-        }
-    )
+    probe = _Probe({"id:demo.*": True}, default=False)
     pane = _Pane(
         targets=(origin,),
         selected=origin,
         query="project:demo -status:closed limit:40",
         target_after_limit=target,
         probe=probe,
-        reveal_when=lambda query: (
-            "project:demo" in query and "-status:closed" not in query
+        query_profile=compile_query_profile(beads_query_schema()),
+        identity_row={"fields": {"id": "demo-1"}},
+        reveal_context=RevealContext(
+            alternatives=(("id", "demo.*"),),
+            label="epic demo",
+            member_count=2,
         ),
+        reveal_when=lambda query: query.strip() == "id:demo.* limit:40",
     )
     app = _App(
         chips=(_chip("file:hidden.txt", target),),
@@ -213,16 +214,12 @@ def test_follow_records_exactly_one_history_entry_for_two_rewrites() -> None:
 
     app._follow_link_number(1)
 
-    assert pane.applied_queries == [
-        ("project:demo -status:closed limit:all", True),
-        ("project:demo limit:all", True),
-    ]
+    assert pane.applied_queries == [("id:demo.* limit:40", True)]
     stacks = app._query_history["files"]
     assert [record.source for record in stacks.prev] == [
         "project:demo -status:closed limit:40"
     ]
     assert stacks.next == []
-    assert "limit:all" not in {record.source for record in stacks.prev}
     assert pane.selected_entry_target() == target
 
     app.action_prev_query()
@@ -230,7 +227,7 @@ def test_follow_records_exactly_one_history_entry_for_two_rewrites() -> None:
     assert pane.selected_entry_target() == origin
 
     app.action_next_query()
-    assert pane.host_limit_query() == "project:demo limit:all"
+    assert pane.host_limit_query() == "id:demo.* limit:40"
 
 
 def test_second_follow_does_not_stack_history_while_lens_is_live() -> None:

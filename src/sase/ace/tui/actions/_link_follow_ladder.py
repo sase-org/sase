@@ -1,33 +1,31 @@
-"""Reveal-ladder rungs for host-owned ``$`` link-follow."""
+"""Plan-then-commit reveal steps for host-owned ``$`` link-follow."""
 
 from __future__ import annotations
 
 from typing import Any
 
+from sase.ace.config import get_ace_page_size
 from sase.ace.link_reveal import (
-    HostQueryProbe,
     LinkReveal,
     build_identity_reveal_query,
     is_link_reveal_active,
     make_link_reveal,
-    minimal_widening_query,
 )
+from sase.ace.link_reveal_context import render_reveal_query
 from sase.ace.query.limit_token import LimitTokenError, extract_limit
 from sase.ace.query_record import QueryRecord, current_profile_digest
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 
 RUNG_FOLD = 3
-RUNG_LIMIT = 4
+RUNG_CONTEXT = 4
 RUNG_IDENTITY = 5
-RUNG_WIDEN = 6
-RUNG_NEUTRAL = 7
-RUNG_TOAST = 8
+RUNG_NEUTRAL = 6
+RUNG_TOAST = 7
 
 _SUCCESS_OUTCOMES = {
-    RUNG_LIMIT: "fold",
-    RUNG_IDENTITY: "limit",
-    RUNG_WIDEN: "identity",
-    RUNG_NEUTRAL: "widen",
+    RUNG_CONTEXT: "fold",
+    RUNG_IDENTITY: "context",
+    RUNG_NEUTRAL: "identity",
     RUNG_TOAST: "neutral",
 }
 
@@ -35,7 +33,7 @@ _SUCCESS_OUTCOMES = {
 def selected_follow_outcome(rung: int) -> str:
     """Return the outcome label for a SELECTED follow that advanced to *rung*.
 
-    *rung* is the next ladder step the transaction would try, so a follow
+    *rung* is the next engine step the transaction would try, so a follow
     that never rewrote still sits at :data:`RUNG_FOLD` and counts as
     ``select``.
     """
@@ -47,13 +45,6 @@ def pane_limit_query(pane: Any) -> str | None:
     if not callable(getter):
         return None
     return str(getter())
-
-
-def _limit_all_query(remainder: str) -> str:
-    stripped = remainder.strip()
-    if not stripped:
-        return "limit:all"
-    return f"{stripped} limit:all"
 
 
 def capture_query_origin(
@@ -110,28 +101,51 @@ def try_reveal_rung(app: Any, pane: Any, transaction: Any, rung: int) -> bool:
     if rung == RUNG_FOLD:
         expander = getattr(pane, "expand_fold_for_entry_target", None)
         return bool(callable(expander) and expander(transaction.target))
-    if rung == RUNG_LIMIT:
-        return _reveal_drop_head_slice_limit(app, pane, transaction)
+    if rung == RUNG_CONTEXT:
+        return _reveal_context_query(app, pane, transaction)
     if rung == RUNG_IDENTITY:
         return _reveal_identity_query(app, pane, transaction)
-    if rung == RUNG_WIDEN:
-        return _reveal_minimal_widening(app, pane, transaction)
     if rung == RUNG_NEUTRAL:
         return _reveal_neutral_query(app, pane, transaction)
     return False
 
 
-def _reveal_drop_head_slice_limit(app: Any, pane: Any, transaction: Any) -> bool:
-    query = pane_limit_query(pane)
-    if query is None:
+def _reveal_context_query(app: Any, pane: Any, transaction: Any) -> bool:
+    context_fn = getattr(pane, "host_reveal_context", None)
+    context = context_fn(transaction.target) if callable(context_fn) else None
+    if context is None:
+        return False
+    profile = getattr(pane, "_query_profile", None)
+    if profile is None:
+        return False
+    probe_fn = getattr(pane, "host_query_probe", None)
+    probe = probe_fn(transaction.target) if callable(probe_fn) else None
+    if probe is None or not callable(getattr(probe, "matches", None)):
+        return False
+    current = pane_limit_query(pane)
+    if current is None:
         return False
     try:
-        remainder, cap = extract_limit(query)
+        rendered = render_reveal_query(
+            context,
+            profile,
+            current_query=current,
+            page_size=get_ace_page_size(),
+        )
+    except ValueError:
+        return False
+    try:
+        remainder, _cap = extract_limit(rendered)
     except LimitTokenError:
         return False
-    if cap is None:
+    try:
+        if not probe.matches(remainder):
+            return False
+    except Exception:  # noqa: BLE001 - verification failure falls through
         return False
-    return _commit_reveal_query(app, pane, transaction, _limit_all_query(remainder))
+    return _commit_reveal_query(
+        app, pane, transaction, rendered, label=context.label or None
+    )
 
 
 def _reveal_identity_query(app: Any, pane: Any, transaction: Any) -> bool:
@@ -143,26 +157,19 @@ def _reveal_identity_query(app: Any, pane: Any, transaction: Any) -> bool:
     rewritten = build_identity_reveal_query(profile, row)
     if rewritten is None:
         return False
-    return _commit_reveal_query(app, pane, transaction, rewritten)
-
-
-def _reveal_minimal_widening(app: Any, pane: Any, transaction: Any) -> bool:
-    probe_fn = getattr(pane, "host_query_probe", None)
-    probe: HostQueryProbe | Any = (
-        probe_fn(transaction.target) if callable(probe_fn) else None
-    )
-    if probe is None or not callable(getattr(probe, "matches", None)):
-        return False
-    query = pane_limit_query(pane)
-    if query is None:
-        return False
-    rewritten = minimal_widening_query(query, probe)
-    if rewritten is None:
-        return False
+    current = pane_limit_query(pane) or ""
+    try:
+        _remainder, cap = extract_limit(current)
+    except LimitTokenError:
+        cap = None
+    if cap is not None:
+        rewritten = f"{rewritten} limit:{cap}"
     return _commit_reveal_query(app, pane, transaction, rewritten)
 
 
 def _reveal_neutral_query(app: Any, pane: Any, transaction: Any) -> bool:
+    if transaction.target.pane_id == "stitches":
+        return False
     query = pane_limit_query(pane)
     if query is None:
         return False
@@ -177,6 +184,8 @@ def _commit_reveal_query(
     pane: Any,
     transaction: Any,
     query: str,
+    *,
+    label: str | None = None,
 ) -> bool:
     apply = getattr(pane, "apply_host_limit_query", None)
     if not callable(apply):
@@ -187,7 +196,7 @@ def _commit_reveal_query(
     after = pane_limit_query(pane)
     if after == before:
         return False
-    _refresh_link_reveal(app, pane, transaction, after or query)
+    _refresh_link_reveal(app, pane, transaction, after or query, label=label)
     return True
 
 
@@ -213,6 +222,8 @@ def _refresh_link_reveal(
     pane: Any,
     transaction: Any,
     revealed: str,
+    *,
+    label: str | None = None,
 ) -> None:
     del pane
     origin = transaction.origin_query
@@ -223,6 +234,7 @@ def _refresh_link_reveal(
         origin_canonical="" if origin is None else origin.canonical,
         origin_target=transaction.origin_target,
         revealed_canonical=revealed,
+        label=label,
     )
     reveals = getattr(app, "_link_reveals", None)
     if not isinstance(reveals, dict):

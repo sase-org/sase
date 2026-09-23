@@ -47,7 +47,7 @@ def test_action_double_dollar_follows_first_link_and_records_origin() -> None:
     assert app._link_trail[0].origin == origin
 
 
-def test_follow_link_drops_head_slice_limit_before_missing_warning() -> None:
+def test_follow_link_uses_neutral_query_before_missing_warning() -> None:
     origin = ArtifactEntryTarget("files", ("origin.txt",))
     target = ArtifactEntryTarget("files", ("hidden.txt",))
     pane = _Pane(
@@ -63,7 +63,7 @@ def test_follow_link_drops_head_slice_limit_before_missing_warning() -> None:
 
     app._follow_link_number(1)
 
-    assert pane.applied_queries == [("kind:log limit:all", True)]
+    assert pane.applied_queries == [("limit:all", True)]
     assert pane.selected_entry_target() == target
     assert app.notifications == [
         ("Revealed file:hidden.txt — press ^ to restore your query", None)

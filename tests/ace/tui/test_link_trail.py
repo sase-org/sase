@@ -226,7 +226,7 @@ def test_back_and_forward_round_trip_between_artifacts_and_agents() -> None:
     assert len(app._link_trail) == 1
 
 
-def test_back_restores_narrowed_query_widened_by_the_forward_hop() -> None:
+def test_back_restores_narrowed_query_rewritten_by_the_forward_hop() -> None:
     origin = ArtifactEntryTarget("files", ("origin.txt",))
     target = ArtifactEntryTarget("files", ("hidden.txt",))
     pane = _Pane(
@@ -238,7 +238,7 @@ def test_back_restores_narrowed_query_widened_by_the_forward_hop() -> None:
     app = _App(chips=(_chip("file:hidden.txt", target),), panes={"files": pane})
 
     _follow_first(app)
-    assert pane.applied_queries == ["kind:log limit:all"]
+    assert pane.applied_queries == ["limit:all"]
     assert pane.selected_entry_target() == target
 
     assert app._walk_link_trail_back() is True

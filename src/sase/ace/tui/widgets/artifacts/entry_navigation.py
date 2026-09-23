@@ -17,6 +17,7 @@ from sase.core.artifact_entry_target import ArtifactEntryTarget
 
 if TYPE_CHECKING:
     from sase.ace.link_reveal import HostQueryProbe
+    from sase.ace.link_reveal_context import RevealContext
     from sase.ace.query.profile_evaluator_types import ArtifactQueryRowInput
 
 
@@ -244,6 +245,17 @@ class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
             self.host_query_row_for_target(target),
             getattr(self, "_query_profile", None),
         )
+
+    def host_reveal_context(self, target: ArtifactEntryTarget) -> RevealContext | None:
+        """Return the verified context query for *target*, if this pane has one.
+
+        The default is ``None``, which means the link-follow engine falls
+        back to the identity query. Panes with a natural family (Beads
+        epics, agent hoods, file creators, plan paths, stitch windows,
+        patch stacks) override this to land the jump inside that family.
+        """
+        del target
+        return None
 
     def _complete_entry_request(
         self,

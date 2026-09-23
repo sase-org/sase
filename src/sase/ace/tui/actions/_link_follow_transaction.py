@@ -125,7 +125,13 @@ class LinkFollowTransactionMixin:
         self._handle_missing_link_follow(transaction)
 
     def _handle_missing_link_follow(self, transaction: LinkFollowTransaction) -> None:
-        """Wait on loading panes, re-resolve stale targets, then walk rungs."""
+        """Wait on loading panes, re-resolve stale targets, then reveal.
+
+        Jump sequence: Fold → Acquire → Context → Identity → Neutral →
+        honest report. Acquire (targeted hydration) runs before any query
+        rewrite and is triggered when the pane has no unfiltered row for
+        the target.
+        """
         pane = self._artifacts_entry_navigator(  # type: ignore[attr-defined]
             transaction.target.pane_id
         )
@@ -166,6 +172,10 @@ class LinkFollowTransactionMixin:
         if pane is not None:
             rung = transaction.rung
             while rung < RUNG_TOAST:
+                if rung != RUNG_FOLD and not transaction.hydrated:
+                    if self._pane_row_is_missing(pane, transaction.target):
+                        if self._begin_link_hydration(pane, transaction):
+                            return
                 if try_reveal_rung(self, pane, transaction, rung):
                     retried = replace(transaction, rung=rung + 1)
                     self._link_follow_transaction = retried
@@ -177,10 +187,11 @@ class LinkFollowTransactionMixin:
                     self._handle_link_follow_outcome(transaction.generation, state)
                     return
                 rung += 1
-            if not transaction.hydrated and self._begin_link_hydration(
-                pane, transaction
+            if not transaction.hydrated and self._pane_row_is_missing(
+                pane, transaction.target
             ):
-                return
+                if self._begin_link_hydration(pane, transaction):
+                    return
         self._link_follow_transaction = None
         end_link_follow_pinning(self)
         record_link_follow_outcome("missing")
@@ -188,6 +199,20 @@ class LinkFollowTransactionMixin:
             transaction.ref,
             transaction.target,
         )
+
+    def _pane_row_is_missing(self, pane: Any, target: ArtifactEntryTarget) -> bool:
+        """Return whether *pane* has no unfiltered row for *target*.
+
+        ``None`` (no snapshot, unknown target, unsupported pane) means
+        Acquire should run before any query rewrite.
+        """
+        row_fn = getattr(pane, "host_query_row_for_target", None)
+        if not callable(row_fn):
+            return True
+        try:
+            return row_fn(target) is None
+        except Exception:  # noqa: BLE001 - treat probe errors as missing
+            return True
 
     def _begin_link_hydration(
         self,
@@ -322,9 +347,7 @@ class LinkFollowTransactionMixin:
         )
         self._handle_link_follow_outcome(transaction.generation, state)
 
-    def _finalize_selected_link_follow(
-        self, transaction: LinkFollowTransaction
-    ) -> None:
+    def _finalize_selected_link_follow(self, transaction: LinkFollowTransaction) -> Any:
         """Record the trail hop and refresh the rail exactly once."""
         previous_guard = self._link_trail_guard  # type: ignore[attr-defined]
         self._link_trail_guard = True
@@ -343,6 +366,13 @@ class LinkFollowTransactionMixin:
         pane = self._artifacts_entry_navigator(  # type: ignore[attr-defined]
             transaction.target.pane_id
         )
+        if pane is not None:
+            context_fn = getattr(pane, "host_reveal_context", None)
+            context = context_fn(transaction.target) if callable(context_fn) else None
+            if context is not None and context.expand_target_fold:
+                expander = getattr(pane, "expand_fold_for_entry_target", None)
+                if callable(expander):
+                    expander(transaction.target)
         current = pane_limit_query(pane) or ""
         reveal = getattr(self, "_link_reveals", {}).get(transaction.target.pane_id)
         if is_link_reveal_active(
@@ -354,6 +384,42 @@ class LinkFollowTransactionMixin:
                 f"Revealed {transaction.ref} — press ^ to restore your query",
             )
         self.refresh_link_rail()  # type: ignore[attr-defined]
+        return self._build_reveal_outcome(transaction, pane, current, reveal)
+
+    def _build_reveal_outcome(
+        self,
+        transaction: LinkFollowTransaction,
+        pane: Any,
+        current: str,
+        reveal: Any,
+    ) -> Any:
+        """Build the toast-ready outcome for one selected follow."""
+        from sase.ace.link_reveal_context import (
+            HiddenReason,
+            RevealOutcome,
+            explain_hidden,
+        )
+        from ._link_follow_helpers import pane_label
+
+        origin_canonical = ""
+        if transaction.origin_query is not None:
+            origin_canonical = transaction.origin_query.canonical
+        probe_fn = getattr(pane, "host_query_probe", None)
+        probe = probe_fn(transaction.target) if callable(probe_fn) else None
+        profile = getattr(pane, "_query_profile", None)
+        hidden: HiddenReason = explain_hidden(probe, origin_canonical, profile)
+        label = getattr(reveal, "label", None)
+        return RevealOutcome(
+            pane_label=pane_label(transaction.target),
+            ref=transaction.ref,
+            old_canonical=origin_canonical,
+            new_canonical=current,
+            hidden=hidden,
+            scope_change=transaction.scope_change,
+            context_label=label,
+            hydrated=transaction.hydrated,
+            outcome=selected_follow_outcome(transaction.rung),
+        )
 
     def _notify_link_follow_failed(self, transaction: LinkFollowTransaction) -> None:
         self.notify(  # type: ignore[attr-defined]

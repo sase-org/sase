@@ -6,11 +6,11 @@ visible. A :class:`LinkReveal` gives a rewriting rung an identity -- the
 followed ref and the exact query it rewrote *from* -- so the host can
 advertise a way back (``^``) and detect when that way back has gone stale.
 
-The ladder prefers cheaper rungs first. Fold expansion mutates no query and
-pushes no history entry, so it runs before any rewrite even though an
-earlier epic sketch listed the ``limit:`` drop first. Identity reveal builds
-the tightest query that names the row through the profile's declared
-identity field, then falls through to widening when a dialect has none.
+The engine prefers cheaper steps first. Fold expansion mutates no query
+and pushes no history entry, so it runs before any rewrite. Context reveal
+lands the row inside its natural family, identity reveal builds the
+tightest query that names the row through the profile's declared identity
+field, and the neutral ``limit:all`` step is the last resort.
 
 The lens is deliberately not a stored on/off flag. It is live for a pane
 whenever that pane's current canonical query still equals the query the
@@ -26,7 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from sase.ace.query.limit_token import LimitTokenError, extract_limit
+from sase.ace.query.limit_token import LimitTokenError
 from sase.ace.query.profile_evaluator import coerce_artifact_query_row
 from sase.ace.query.profile_evaluator_types import ArtifactQueryRowInput
 from sase.ace.query.profile_reference_support import ProfileQueryError
@@ -38,9 +38,7 @@ from sase.core.query_profile_corpus_facade import (
     compile_artifact_query_index,
     evaluate_artifact_query_many,
 )
-from sase.filter_tokens import FilterQueryError, quote_value, tokenize
-
-_BOOLEAN_WORDS = frozenset({"AND", "OR", "NOT"})
+from sase.filter_tokens import quote_value
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +50,7 @@ class LinkReveal:
     origin: QueryRecord
     origin_target: ArtifactEntryTarget | None
     revealed_canonical: str
+    label: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +107,7 @@ def make_link_reveal(
     origin_canonical: str,
     origin_target: ArtifactEntryTarget | None,
     revealed_canonical: str,
+    label: str | None = None,
 ) -> LinkReveal:
     """Build one lens record, stamping the origin dialect's digest."""
     return LinkReveal(
@@ -120,6 +120,7 @@ def make_link_reveal(
         ),
         origin_target=origin_target,
         revealed_canonical=revealed_canonical,
+        label=label,
     )
 
 
@@ -212,49 +213,6 @@ def build_host_query_probe(
     return HostQueryProbe(index=index)
 
 
-def _limit_all_query(remainder: str) -> str:
-    stripped = remainder.strip()
-    if not stripped:
-        return "limit:all"
-    return f"{stripped} limit:all"
-
-
-def _has_boolean_syntax(raw: str, value: str) -> bool:
-    if value.upper() in _BOOLEAN_WORDS:
-        return True
-    return "(" in raw or ")" in raw
-
-
-def minimal_widening_query(query: str, probe: HostQueryProbe) -> str | None:
-    """Drop only the terms that exclude *probe*'s row.
-
-    Returns ``None`` when the filter is not what is hiding the row, when
-    the query uses boolean-grammar syntax (token subtraction is not sound
-    for ``boolean=True`` dialects such as patches and agents), or when
-    verification of the rewritten query fails. Callers then fall through
-    to the neutral ``limit:all`` rung.
-    """
-    try:
-        remainder, _cap = extract_limit(query)
-    except LimitTokenError:
-        return None
-    if probe.matches(remainder):
-        return None
-    try:
-        tokens = tokenize(remainder, error_type=FilterQueryError)
-    except FilterQueryError:
-        return None
-    if any(_has_boolean_syntax(token.raw, token.value) for token in tokens):
-        return None
-    kept = tuple(token.raw for token in tokens if probe.matches(token.raw))
-    if len(kept) == len(tokens):
-        return None
-    rewritten = " ".join(kept)
-    if not probe.matches(rewritten):
-        return None
-    return _limit_all_query(rewritten)
-
-
 __all__ = [
     "HostQueryProbe",
     "LinkReveal",
@@ -263,6 +221,5 @@ __all__ = [
     "build_identity_reveal_query",
     "is_link_reveal_active",
     "make_link_reveal",
-    "minimal_widening_query",
     "pane_canonical_query",
 ]

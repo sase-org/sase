@@ -66,6 +66,7 @@ class _Pane:
         install_fn: Callable[[object], ArtifactEntryTarget | None] | None = None,
         query_profile: object | None = None,
         identity_row: object | None = None,
+        reveal_context: object | None = None,
     ) -> None:
         self._targets = targets
         self.current = selected
@@ -76,6 +77,7 @@ class _Pane:
         self._probe = probe
         self._query_profile = query_profile
         self._identity_row = identity_row
+        self._reveal_context = reveal_context
         self.reveal_when = reveal_when
         self.applied_queries: list[tuple[str, bool]] = []
         self.expanded_folds: list[ArtifactEntryTarget] = []
@@ -173,6 +175,10 @@ class _Pane:
     def host_query_probe(self, target: ArtifactEntryTarget) -> object | None:
         del target
         return self._probe
+
+    def host_reveal_context(self, target: ArtifactEntryTarget) -> object | None:
+        del target
+        return self._reveal_context
 
     def apply_host_limit_query(self, query: str, *, grow: bool = False) -> None:
         old = self.host_limit_query()
