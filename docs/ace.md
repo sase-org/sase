@@ -6292,11 +6292,13 @@ the picker, `space` toggles a row's persistent pin, `Tab` marks a row to restore
 remove from the stash, `d` marks one row for deletion, `D` marks every row for deletion,
 `a` toggles all rows for restore-and-remove, and `Enter` confirms the marked set. Delete
 marks are staged until confirmation, replace restore marks for the same rows, and do not
-alter pin state; `Escape` or `q` cancels without deleting anything. With no explicit
-marks, `Enter` restores the highlighted row; pinned rows stay stashed when restored,
-while unpinned rows are popped. Number keys `1`-`9` and `0` restore rows 1-10 directly
-with the same pin-aware behavior. A small top-bar badge shows how many restorable drafts
-are currently stashed.
+alter pin state; confirming delete marks with `Enter` deletes those rows and keeps the
+picker open on the remaining entries, and the picker closes only when nothing remains or
+when rows are also being restored. `Escape` or `q` cancels without deleting anything.
+With no explicit marks, `Enter` restores the highlighted row; pinned rows stay stashed
+when restored, while unpinned rows are popped. Number keys `1`-`9` and `0` restore rows
+1-10 directly with the same pin-aware behavior. A small top-bar badge shows how many
+restorable drafts are currently stashed.
 
 ### Editing an Existing XPrompt from the TUI
 

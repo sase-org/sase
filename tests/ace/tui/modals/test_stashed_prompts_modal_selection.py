@@ -113,18 +113,30 @@ async def test_toggle_all_partitions_pinned_and_unpinned_rows() -> None:
     assert app.result.delete_ids == []
 
 
-async def test_delete_mark_returns_delete_ids_not_restore() -> None:
+async def test_partial_delete_stays_open_and_posts_delete_requested() -> None:
+    from textual.widgets import Label
+
     app = ModalHost([make_entry("a"), make_entry("b")])
     async with app.run_test(size=(100, 30)) as pilot:
         await pilot.pause()
+        modal = app.screen
+        assert isinstance(modal, StashedPromptsModal)
         await pilot.press("d")  # mark "a" for deletion
         await pilot.press("j")  # highlight "b"
         await pilot.press("enter")  # confirm only the marked deletion
         await pilot.pause()
-    assert isinstance(app.result, StashRestoreResult)
-    assert app.result.pop_ids == []
-    assert app.result.keep_ids == []
-    assert app.result.delete_ids == ["a"]
+        assert app.result == "UNSET"
+        assert app.screen is modal
+        assert len(app.delete_events) == 1
+        assert app.delete_events[0].entry_ids == ["a"]
+        assert [e.id for e in modal._entries] == ["b"]
+        assert modal._deleted == set()
+        assert (
+            str(modal.query_one("#stashed-prompts-title", Label).content)
+            == "Stashed prompts (1)"
+        )
+        assert modal._highlighted_entry() is not None
+        assert modal._highlighted_entry().id == "b"
 
 
 async def test_pin_is_orthogonal_to_delete_selection() -> None:

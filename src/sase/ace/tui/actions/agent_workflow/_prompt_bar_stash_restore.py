@@ -142,6 +142,42 @@ class PromptBarStashRestoreMixin(PromptBarStashStoreMixin):
             self._persist_prompt_stash_pin_async(event.entry.id, event.pinned)
         )
 
+    def on_stashed_prompts_modal_delete_requested(self, event: object) -> None:
+        """Delete prompt-stash rows while the picker stays open."""
+        from ...modals import StashedPromptsModal
+
+        if not isinstance(event, StashedPromptsModal.DeleteRequested):
+            return
+        self._spawn_prompt_stash_task(
+            self._delete_prompt_stash_entries_async(event.entry_ids)
+        )
+
+    async def _delete_prompt_stash_entries_async(self, entry_ids: list[str]) -> None:
+        """Remove stash rows deleted in place from the open picker."""
+        import asyncio
+
+        from sase.core.paths import prompt_stash_path
+        from sase.core.prompt_stash_facade import pop_prompt_stash
+
+        lock = self._prompt_stash_write_lock()
+        async with lock:
+            try:
+                outcome = await asyncio.to_thread(
+                    pop_prompt_stash, prompt_stash_path(), entry_ids
+                )
+            except Exception as exc:
+                self.notify(  # type: ignore[attr-defined]
+                    self._prompt_stash_error_message(
+                        "Failed to delete stashed prompt",
+                        exc,
+                    ),
+                    severity="error",
+                )
+                return
+        removed = {entry.id for entry in outcome.removed} & set(entry_ids)
+        self._notify_restore_outcome(0, len(removed))
+        self._apply_prompt_stash_snapshot_counts(outcome.snapshot)
+
     async def _persist_prompt_stash_pin_async(
         self, entry_id: str, pinned: bool
     ) -> None:

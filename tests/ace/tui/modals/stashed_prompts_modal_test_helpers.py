@@ -36,6 +36,7 @@ class ModalHost(App[None]):
         self._entries = entries
         self.result: object = "UNSET"
         self.pin_events: list[StashedPromptsModal.PinToggled] = []
+        self.delete_events: list[StashedPromptsModal.DeleteRequested] = []
 
     def compose(self) -> ComposeResult:
         yield Static("host")
@@ -50,3 +51,8 @@ class ModalHost(App[None]):
         self, event: StashedPromptsModal.PinToggled
     ) -> None:
         self.pin_events.append(event)
+
+    def on_stashed_prompts_modal_delete_requested(
+        self, event: StashedPromptsModal.DeleteRequested
+    ) -> None:
+        self.delete_events.append(event)

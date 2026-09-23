@@ -471,3 +471,72 @@ async def test_confirm_without_bar_legacy_row_uses_end_fallback(
     assert harness.home_mounts == ["solo"]
     assert harness.home_mount_selected_panes == [None]
     assert harness.home_mount_cursors == [None]
+
+
+# --- in-place delete while the picker stays open ---------------------------
+
+
+async def test_delete_requested_removes_one_and_refreshes_badge(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [
+            ("a", "2026-06-16T10:00:00", "alpha", ""),
+            ("b", "2026-06-16T11:00:00", "beta", ""),
+        ],
+    )
+    bar = _FakeBar(mode="prompt")
+    harness = _RestoreHarness(bar=bar)
+
+    harness.on_stashed_prompts_modal_delete_requested(
+        StashedPromptsModal.DeleteRequested(["a"])
+    )
+    await _wait_prompt_stash_tasks(harness)
+
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    assert [e.id for e in read_prompt_stash_snapshot(path).entries] == ["b"]
+    assert bar.restored is None  # nothing loaded
+    assert harness.home_mounts == []
+    assert harness.notifications == [("Deleted stashed prompt", None)]
+    assert harness.applied_counts == [1]
+
+
+async def test_delete_requested_two_ids_plural_message(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _skip_without_prompt_stash_bindings()
+    path = tmp_path / "prompt_stash.jsonl"
+    _point_store_at(monkeypatch, path)
+    _seed(
+        path,
+        [
+            ("a", "2026-06-16T10:00:00", "alpha", ""),
+            ("b", "2026-06-16T11:00:00", "beta", ""),
+            ("c", "2026-06-16T12:00:00", "gamma", ""),
+        ],
+    )
+    harness = _RestoreHarness(bar=_FakeBar(mode="prompt"))
+
+    harness.on_stashed_prompts_modal_delete_requested(
+        StashedPromptsModal.DeleteRequested(["a", "b"])
+    )
+    await _wait_prompt_stash_tasks(harness)
+
+    from sase.core.prompt_stash_facade import read_prompt_stash_snapshot
+
+    assert [e.id for e in read_prompt_stash_snapshot(path).entries] == ["c"]
+    assert harness.notifications == [("Deleted 2 stashed prompts", None)]
+    assert harness.applied_counts == [1]
+
+
+async def test_delete_requested_ignores_other_events() -> None:
+    harness = _RestoreHarness(bar=_FakeBar(mode="prompt"))
+    harness.on_stashed_prompts_modal_delete_requested(object())
+    await _wait_prompt_stash_tasks(harness)
+    assert harness.notifications == []
+    assert harness.applied_counts == []

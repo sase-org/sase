@@ -8,7 +8,9 @@ immediately, ``tab`` marks it to restore, ``d`` marks one row for deletion,
 ``D`` marks every row for deletion, and ``enter`` confirms. Pinned rows are
 restored while staying stashed; unpinned rows are restored and popped. The
 modal never touches the store directly; restore/delete decisions are returned
-as :class:`StashRestoreResult`.
+as :class:`StashRestoreResult`, except a delete-only confirm that leaves rows
+remaining, which posts :class:`StashedPromptsModal.DeleteRequested` for the app
+to persist while the panel stays open.
 """
 
 from __future__ import annotations
@@ -74,6 +76,16 @@ class StashedPromptsModal(
             super().__init__()
             self.entry = entry
             self.pinned = pinned
+
+    class DeleteRequested(Message):
+        """Posted when ``enter`` confirms a delete-only selection leaving rows.
+
+        The app should delete these ids immediately while the panel stays open.
+        """
+
+        def __init__(self, entry_ids: list[str]) -> None:
+            super().__init__()
+            self.entry_ids = entry_ids
 
     _option_list_id = "stashed-prompts-list"
     BINDINGS = [
@@ -367,11 +379,51 @@ class StashedPromptsModal(
             return
         self.dismiss(self._single_restore_result(self._entries[index]))
 
+    def _apply_deletions_in_place(self, delete_ids: list[str]) -> None:
+        highlighted = self._highlighted_index_and_entry()
+        old_index: int | None = highlighted[0] if highlighted is not None else None
+        old_id: str | None = highlighted[1].id if highlighted is not None else None
+        self.post_message(self.DeleteRequested(list(delete_ids)))
+        deleted = set(delete_ids)
+        self._entries = [e for e in self._entries if e.id not in deleted]
+        for entry_id in deleted:
+            self._prompt_counts.pop(entry_id, None)
+            self._highlight_cache.pop(entry_id, None)
+            self._pinned.discard(entry_id)
+            self._pop.discard(entry_id)
+        self._deleted.clear()
+        try:
+            self.query_one("#stashed-prompts-title", Label).update(self._title_text())
+        except Exception:
+            pass
+        self._refresh_rows()
+        if not self._entries:
+            return
+        new_index: int | None = None
+        if old_id is not None:
+            for idx, entry in enumerate(self._entries):
+                if entry.id == old_id:
+                    new_index = idx
+                    break
+        if new_index is None and old_index is not None:
+            new_index = min(old_index, len(self._entries) - 1)
+        if new_index is None:
+            new_index = 0
+        try:
+            option_list = self.query_one("#stashed-prompts-list", OptionList)
+        except Exception:
+            return
+        option_list.highlighted = new_index
+        self._paint_preview(self._entries[new_index].id)
+
     def action_confirm(self) -> None:
         marked = [e.id for e in self._entries if e.id in self._pop]
         pop_ids = [entry_id for entry_id in marked if entry_id not in self._pinned]
         keep_ids = [entry_id for entry_id in marked if entry_id in self._pinned]
         delete_ids = [e.id for e in self._entries if e.id in self._deleted]
+        if not marked and delete_ids and len(delete_ids) < len(self._entries):
+            self._apply_deletions_in_place(delete_ids)
+            return
         if not marked and not delete_ids:
             highlighted = self._highlighted_entry()
             if highlighted is not None:
