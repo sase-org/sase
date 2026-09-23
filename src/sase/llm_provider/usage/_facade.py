@@ -106,8 +106,15 @@ def provider_usage_project_indicator(
     cadence_seconds: float = DEFAULT_USAGE_CADENCE_SECONDS,
     warn_percent: float = DEFAULT_USAGE_WARN_PERCENT,
     critical_percent: float = DEFAULT_USAGE_CRITICAL_PERCENT,
+    provider_min_intervals: Mapping[str, float] | None = None,
 ) -> ProviderUsageIndicatorProjection:
-    """Return selected usage-window records from one public snapshot."""
+    """Return selected usage-window records from one public snapshot.
+
+    Per-provider freshness uses ``max(cadence_seconds, floor)`` for providers
+    named in *provider_min_intervals*; other providers use *cadence_seconds*
+    as before. The key is sent to the Rust projection only when provided, so
+    callers that pass nothing project exactly as today.
+    """
     current = time.time() if now is None else now
     if not isinstance(snapshot, Mapping):
         raise ProviderUsageStateError("provider-usage snapshot is not an object")
@@ -117,21 +124,20 @@ def provider_usage_project_indicator(
         eligible = None
     else:
         eligible = sorted(dict.fromkeys(str(item) for item in eligible_providers))
+    request: dict[str, object] = {
+        "schema_version": PROVIDER_USAGE_INDICATOR_SCHEMA_VERSION,
+        "snapshot": _indicator_snapshot_wire(snapshot),
+        "indicator": indicator,
+        "eligible_providers": eligible,
+        "now": float(current),
+        "cadence_seconds": float(cadence_seconds),
+        "warn_percent": float(warn_percent),
+        "critical_percent": float(critical_percent),
+    }
+    if provider_min_intervals is not None:
+        request["provider_min_intervals"] = dict(provider_min_intervals)
     binding = require_rust_binding("provider_usage_project_indicator")
-    return ProviderUsageIndicatorProjection.from_wire(
-        binding(
-            {
-                "schema_version": PROVIDER_USAGE_INDICATOR_SCHEMA_VERSION,
-                "snapshot": _indicator_snapshot_wire(snapshot),
-                "indicator": indicator,
-                "eligible_providers": eligible,
-                "now": float(current),
-                "cadence_seconds": float(cadence_seconds),
-                "warn_percent": float(warn_percent),
-                "critical_percent": float(critical_percent),
-            }
-        )
-    )
+    return ProviderUsageIndicatorProjection.from_wire(binding(request))
 
 
 def _indicator_snapshot_wire(snapshot: Mapping[str, object]) -> dict[str, object]:

@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from sase.config.core import current_config_token
+from sase.llm_provider.usage._probe_meta import usage_probe_floors
 from sase.llm_provider.usage.config import (
     UsageIndicatorSettings,
     UsageMetricsSettings,
@@ -40,6 +41,7 @@ class _UsagePeekSnapshot:
     eligible: frozenset[str]
     metrics: UsageMetricsSettings
     indicator: UsageIndicatorSettings
+    floors: Mapping[str, float]
     captured_at: float
 
 
@@ -58,6 +60,7 @@ _peek_snapshot: Mapping[str, Any] = {
 }
 _peek_metrics = UsageMetricsSettings()
 _peek_indicator = UsageIndicatorSettings()
+_peek_floors: dict[str, float] = {}
 _peek_captured_at = 0.0
 
 
@@ -87,6 +90,7 @@ def _cached_usage_display_snapshot() -> _UsagePeekSnapshot:
             eligible=_peek_eligible,
             metrics=_peek_metrics,
             indicator=_peek_indicator,
+            floors=dict(_peek_floors),
             captured_at=_peek_captured_at,
         )
 
@@ -107,6 +111,7 @@ def cached_usage_indicator_projection(
             cadence_seconds=display.metrics.refresh_seconds,
             warn_percent=display.metrics.warn_percent,
             critical_percent=display.metrics.critical_percent,
+            provider_min_intervals=dict(display.floors),
         )
     except Exception:
         return _empty_usage_indicator_projection(captured_at)
@@ -149,7 +154,7 @@ def refresh_usage_peek_cache(
     now: float | None = None,
 ) -> tuple[tuple[Mapping[str, Any], ...], frozenset[str]]:
     """Load the public snapshot and eligible providers. Call off the UI thread."""
-    global _peek_captured_at, _peek_eligible, _peek_indicator  # noqa: PLW0603
+    global _peek_captured_at, _peek_eligible, _peek_floors, _peek_indicator  # noqa: PLW0603
     global _peek_metrics, _peek_providers, _peek_snapshot  # noqa: PLW0603
 
     settings = get_usage_metrics_settings()
@@ -182,12 +187,17 @@ def refresh_usage_peek_cache(
         eligible = frozenset(eligible_usage_providers())
     except Exception:
         eligible = frozenset()
+    try:
+        floors = usage_probe_floors()
+    except Exception:
+        floors = {}
     with _peek_lock:
         _peek_snapshot = snapshot
         _peek_providers = providers
         _peek_eligible = eligible
         _peek_metrics = settings
         _peek_indicator = indicator
+        _peek_floors = dict(floors)
         _peek_captured_at = captured_at
     return providers, eligible
 
@@ -195,8 +205,9 @@ def refresh_usage_peek_cache(
 def _clear_usage_peek_cache() -> None:
     """Drop cached providers. Tests use this after planting state."""
     global _peek_captured_at, _peek_deadline, _peek_eligible  # noqa: PLW0603
-    global _peek_indicator, _peek_metrics, _peek_providers  # noqa: PLW0603
-    global _peek_snapshot, _peek_state_token, _peek_token  # noqa: PLW0603
+    global _peek_floors, _peek_indicator, _peek_metrics  # noqa: PLW0603
+    global _peek_providers, _peek_snapshot  # noqa: PLW0603
+    global _peek_state_token, _peek_token  # noqa: PLW0603
 
     with _peek_lock:
         _peek_token = None
@@ -207,6 +218,7 @@ def _clear_usage_peek_cache() -> None:
         _peek_snapshot = _empty_public_snapshot(0.0)
         _peek_metrics = UsageMetricsSettings()
         _peek_indicator = UsageIndicatorSettings()
+        _peek_floors = {}
         _peek_captured_at = 0.0
 
 
@@ -217,6 +229,7 @@ def _empty_usage_peek_snapshot(now: float) -> _UsagePeekSnapshot:
         eligible=frozenset(),
         metrics=UsageMetricsSettings(),
         indicator=UsageIndicatorSettings(enabled=False, raw={"enabled": False}),
+        floors={},
         captured_at=now,
     )
 

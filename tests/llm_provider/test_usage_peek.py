@@ -147,6 +147,7 @@ def test_cached_projection_uses_memory_snapshot_and_indicator_settings(
     import sase.llm_provider.usage.refresh as refresh_mod
 
     monkeypatch.setattr(refresh_mod, "eligible_usage_providers", lambda: ("claude",))
+    monkeypatch.setattr(peek_mod, "usage_probe_floors", lambda: {"claude": 300.0})
 
     try:
         providers, eligible = refresh_usage_peek_cache(now=100.0)
@@ -183,8 +184,124 @@ def test_cached_projection_uses_memory_snapshot_and_indicator_settings(
             "cadence_seconds": 120.0,
             "warn_percent": 70.0,
             "critical_percent": 85.0,
+            "provider_min_intervals": {"claude": 300.0},
         }
     ]
+
+
+def _plant_floor_header_cache(
+    monkeypatch: pytest.MonkeyPatch, floors: dict[str, float]
+) -> None:
+    """Plant a header peek cache with 250 s-old weekly windows.
+
+    Uses the real worker-thread load path (minus disk/config) so the render
+    path below exercises the real Rust projection.
+    """
+    _clear_usage_peek_cache()
+    monkeypatch.setattr(
+        peek_mod,
+        "get_usage_metrics_settings",
+        lambda: UsageMetricsSettings(
+            enabled=True,
+            refresh_seconds=60.0,
+            warn_percent=70.0,
+            critical_percent=85.0,
+        ),
+    )
+    monkeypatch.setattr(
+        peek_mod,
+        "get_usage_indicator_settings",
+        lambda: UsageIndicatorSettings(
+            raw={"weekly_all": "always"},
+            config={"enabled": True},
+        ),
+    )
+    monkeypatch.setattr(peek_mod, "usage_probe_floors", lambda: dict(floors))
+
+    def _window() -> dict[str, object]:
+        window = usage_window(
+            key="weekly",
+            label="Weekly",
+            used_percent=10.0,
+            remaining_percent=90.0,
+            resets_at=_FROZEN_NOW + 500_000.0,
+            applicability={"kind": "account"},
+            observed_at=_FROZEN_NOW - 250.0,
+            age_seconds=250.0,
+        )
+        window["duration_seconds"] = 604_800.0
+        return window
+
+    def _provider(name: str) -> dict[str, object]:
+        return usage_provider(
+            name,
+            attention={"kind": "none", "provider": name, "window_key": None},
+            windows=[_window()],
+            known_constraints=[],
+        )
+
+    snapshot = {
+        "schema_version": 1,
+        "generated_at": _FROZEN_NOW - 250.0,
+        "collection_health": "ok",
+        "providers": [_provider("claude"), _provider("codex"), _provider("grok")],
+        "attention": None,
+    }
+    monkeypatch.setattr(
+        peek_mod,
+        "load_provider_usage",
+        lambda **_kwargs: type("Read", (), {"snapshot": snapshot})(),
+    )
+
+    import sase.llm_provider.usage.refresh as refresh_mod
+
+    monkeypatch.setattr(
+        refresh_mod,
+        "eligible_usage_providers",
+        lambda: ("claude", "codex", "grok"),
+    )
+    refresh_usage_peek_cache(now=_FROZEN_NOW)
+
+
+def test_header_projection_applies_captured_polling_floors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The header indicator uses max(refresh_seconds, floor) freshness.
+
+    With refresh_seconds 60, a Claude window observed 250 s ago (floor 300)
+    stays fresh, a Codex window at the same age (floor 120) is stale, and a
+    provider without a floor keeps the bare-cadence verdict.
+    """
+    try:
+        _plant_floor_header_cache(monkeypatch, {"claude": 300.0, "codex": 120.0})
+        projection = cached_usage_indicator_projection(now=_FROZEN_NOW)
+    finally:
+        _clear_usage_peek_cache()
+
+    by_provider = {entry["provider"]: entry for entry in projection.entries}
+    assert by_provider["claude"]["freshness"] == "fresh"
+    assert by_provider["codex"]["freshness"] == "stale"
+    assert by_provider["grok"]["freshness"] == "unknown"
+
+
+def test_cached_projection_performs_no_floor_lookup(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The render path reuses captured floors instead of reading config/disk."""
+
+    def _boom() -> dict[str, float]:
+        raise AssertionError("render path must not look up probe floors")
+
+    try:
+        _plant_floor_header_cache(monkeypatch, {"claude": 300.0, "codex": 120.0})
+        monkeypatch.setattr(peek_mod, "usage_probe_floors", _boom)
+        projection = cached_usage_indicator_projection(now=_FROZEN_NOW)
+    finally:
+        _clear_usage_peek_cache()
+
+    by_provider = {entry["provider"]: entry for entry in projection.entries}
+    assert by_provider["claude"]["freshness"] == "fresh"
+    assert by_provider["codex"]["freshness"] == "stale"
 
 
 def _weekly_account_window(
