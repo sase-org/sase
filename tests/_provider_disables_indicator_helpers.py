@@ -24,6 +24,7 @@ from sase.llm_provider.provider_priority import (
 )
 
 _MODULE = "sase.ace.tui.widgets.provider_disables_indicator"
+_PRIORITY_MODULE = "sase.ace.tui.widgets.provider_priority_indicator"
 _CONSOLE = Console(width=200)
 _FROZEN_NOW = 1_800_000_000.0
 
@@ -110,15 +111,19 @@ def _patch_priority_facts(
     registered: bool = True,
     user_facing: bool = True,
 ) -> None:
-    monkeypatch.setattr(
-        f"{_MODULE}.provider_routing_facts",
-        lambda provider: provider_availability_facts(
+    def _facts(provider: str):  # type: ignore[no-untyped-def]
+        return provider_availability_facts(
             provider,
             registered=registered,
             user_facing=user_facing,
             cli_available=cli_available,
-        ),
-    )
+        )
+
+    for module in (_MODULE, _PRIORITY_MODULE):
+        try:
+            monkeypatch.setattr(f"{module}.provider_routing_facts", _facts)
+        except AttributeError:
+            continue
 
 
 def _usage_groups() -> tuple[UsageProviderGroup, ...]:

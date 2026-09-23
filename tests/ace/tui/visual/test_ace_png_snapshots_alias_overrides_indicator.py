@@ -26,6 +26,7 @@ import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicat
 import sase.ace.tui.widgets.launch_context_source as launch_context_source
 import sase.ace.tui.widgets._override_pill as override_pill
 import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
+import sase.ace.tui.widgets.provider_priority_indicator as provider_priority_indicator
 from sase.ace.testing import AcePage
 from sase.llm_provider import (
     TemporaryLLMOverride,
@@ -59,6 +60,11 @@ pytestmark = pytest.mark.visual
 def _no_provider_priority(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         provider_disables_indicator,
+        "peek_provider_routing_context",
+        lambda *a, **k: _routing_context(),
+    )
+    monkeypatch.setattr(
+        provider_priority_indicator,
         "peek_provider_routing_context",
         lambda *a, **k: _routing_context(),
     )
@@ -291,16 +297,22 @@ async def test_provider_priority_indicator_combined_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(override_pill.time, "time", lambda: _FROZEN_NOW)
-    monkeypatch.setattr(
-        provider_disables_indicator,
-        "peek_provider_routing_context",
-        lambda *a, **k: _routing_context(
-            {"claude": _disable("claude")},
-            _priority("codex", expires_at=_FROZEN_NOW + 42 * 60),
-        ),
+    combined = _routing_context(
+        {"claude": _disable("claude")},
+        _priority("codex", expires_at=_FROZEN_NOW + 42 * 60),
     )
     monkeypatch.setattr(
         provider_disables_indicator,
+        "peek_provider_routing_context",
+        lambda *a, **k: combined,
+    )
+    monkeypatch.setattr(
+        provider_priority_indicator,
+        "peek_provider_routing_context",
+        lambda *a, **k: combined,
+    )
+    monkeypatch.setattr(
+        provider_priority_indicator,
         "provider_routing_facts",
         _provider_facts(),
     )
@@ -326,15 +338,21 @@ async def test_provider_priority_unavailable_indicator_png_snapshot(
 ) -> None:
     patch_startup_loaders(monkeypatch)
     monkeypatch.setattr(override_pill.time, "time", lambda: _FROZEN_NOW)
-    monkeypatch.setattr(
-        provider_disables_indicator,
-        "peek_provider_routing_context",
-        lambda *a, **k: _routing_context(
-            priority=_priority("codex", expires_at=_FROZEN_NOW + 42 * 60)
-        ),
+    only_priority = _routing_context(
+        priority=_priority("codex", expires_at=_FROZEN_NOW + 42 * 60)
     )
     monkeypatch.setattr(
         provider_disables_indicator,
+        "peek_provider_routing_context",
+        lambda *a, **k: only_priority,
+    )
+    monkeypatch.setattr(
+        provider_priority_indicator,
+        "peek_provider_routing_context",
+        lambda *a, **k: only_priority,
+    )
+    monkeypatch.setattr(
+        provider_priority_indicator,
         "provider_routing_facts",
         _provider_facts(cli_available=False),
     )

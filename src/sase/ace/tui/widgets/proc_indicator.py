@@ -4,17 +4,18 @@ from typing import Any
 
 from rich.text import Text
 
-from ..proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE
-from .top_bar_group import TopBarGroup, filled_count_chip
+from ..proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE, gear_chip
+from .top_bar_group import TopBarGroup
 
 
 class ProcIndicator(TopBarGroup):
     """Shows the count of running ACE-owned background procs in the top-bar.
 
-    Renders as ``procs: N`` with a filled count chip. Excludes
-    ``sase monitor start`` proc shells — see :class:`MonitorIndicator`.
-    Visible only when at least one proc is running; hides itself otherwise
-    to avoid clutter. Clicking opens the Admin Center Procs tab.
+    Renders as ``procs: ⚙ N`` with the blue gear chip shared with the Procs
+    tab header. Excludes ``sase monitor start`` proc shells — see
+    :class:`MonitorIndicator`. Visible only when at least one proc is
+    running; hides itself otherwise to avoid clutter. Clicking opens the
+    Admin Center Procs tab.
     """
 
     GROUP_LABEL = "procs"
@@ -42,7 +43,7 @@ class ProcIndicator(TopBarGroup):
     @staticmethod
     def _build_content(count: int) -> Text:
         """Build the indicator body."""
-        return filled_count_chip(count, PROC_GEAR_HUE)
+        return gear_chip(count, PROC_GEAR_HUE)
 
     @staticmethod
     def _build_tooltip(count: int) -> str:
@@ -56,11 +57,12 @@ class ProcIndicator(TopBarGroup):
 class MonitorIndicator(TopBarGroup):
     """Shows the count of running monitor shells in the top-bar.
 
-    Renders as ``monitors: N`` with a filled count chip. A monitor shell
-    (``sase monitor start``) is a detached supervisor that outlives ACE, so
-    it is counted separately from :class:`ProcIndicator`'s ACE-owned procs.
-    Visible only when at least one monitor is running; hides itself
-    otherwise to avoid clutter. Clicking opens the Admin Center Procs tab.
+    Renders as ``monitors: ⚙ N`` with the amber gear chip shared with the
+    Procs tab header. A monitor shell (``sase monitor start``) is a detached
+    supervisor that outlives ACE, so it is counted separately from
+    :class:`ProcIndicator`'s ACE-owned procs. Visible only when at least one
+    monitor is running; hides itself otherwise to avoid clutter. Clicking
+    opens the Admin Center Procs tab.
     """
 
     GROUP_LABEL = "monitors"
@@ -88,7 +90,7 @@ class MonitorIndicator(TopBarGroup):
     @staticmethod
     def _build_content(count: int) -> Text:
         """Build the indicator body."""
-        return filled_count_chip(count, MONITOR_GEAR_HUE)
+        return gear_chip(count, MONITOR_GEAR_HUE)
 
     @staticmethod
     def _build_tooltip(count: int) -> str:

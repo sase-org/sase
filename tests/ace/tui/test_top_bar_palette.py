@@ -8,11 +8,12 @@ where hue alone collapses.
 
 from __future__ import annotations
 
+import colorsys
+
 from rich.style import Style
 from rich.text import Text
 
-from sase.ace.tui.proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE
-from sase.ace.tui.widgets.top_bar_group import filled_count_chip
+from sase.ace.tui.proc_gear_chips import MONITOR_GEAR_HUE, PROC_GEAR_HUE, gear_chip
 from sase.ace.tui.widgets._override_pill import (
     ALIAS_LANE_PALETTE,
     PROVIDER_DISABLE_PALETTE,
@@ -20,12 +21,17 @@ from sase.ace.tui.widgets._override_pill import (
     PROVIDER_SOFT_DISABLE_PALETTE,
     build_override_pill,
 )
+from sase.ace.tui.widgets.provider_priority_indicator import (
+    ProviderPriorityIndicator,
+)
 from sase.ace.tui.widgets.stashed_prompts_indicator import StashedPromptsIndicator
 from sase.ace.tui.widgets.update_accents import UPDATES_SURFACE
 from sase.ace.tui.widgets.updates_indicator import UpdatesAvailableIndicator
+from tests._provider_disables_indicator_helpers import _priority
 
 _MIN_SURFACE_CONTRAST = 3.0
 _MIN_TEXT_CONTRAST = 4.5
+_MIN_STASH_HUE_DISTANCE = 45.0
 
 
 def _hex_to_rgb(value: str) -> tuple[int, int, int]:
@@ -100,10 +106,21 @@ def _foreground_background_pairs(text: Text) -> list[tuple[str, str]]:
     return pairs
 
 
+def _hue_deg(value: str) -> float:
+    r, g, b = _hex_to_rgb(value)
+    h, _s, _v = colorsys.rgb_to_hsv(r / 255, g / 255, b / 255)
+    return h * 360.0
+
+
+def _hue_distance(a: str, b: str) -> float:
+    delta = abs(_hue_deg(a) - _hue_deg(b)) % 360.0
+    return min(delta, 360.0 - delta)
+
+
 def _neighbors() -> dict[str, Text]:
     return {
-        "proc gear chip": filled_count_chip(1, PROC_GEAR_HUE),
-        "monitor gear chip": filled_count_chip(1, MONITOR_GEAR_HUE),
+        "proc gear chip": gear_chip(1, PROC_GEAR_HUE),
+        "monitor gear chip": gear_chip(1, MONITOR_GEAR_HUE),
         "stashed prompts": StashedPromptsIndicator._build_content(1),
         "alias override pill": build_override_pill(
             subject="@medium",
@@ -123,11 +140,8 @@ def _neighbors() -> dict[str, Text]:
             trailing="soft ∞",
             palette=PROVIDER_SOFT_DISABLE_PALETTE,
         ),
-        "provider priority pill": build_override_pill(
-            subject="CLAUDE ★",
-            effort=None,
-            trailing="priority ∞",
-            palette=PROVIDER_PRIORITY_PALETTE,
+        "provider priority pill": ProviderPriorityIndicator._build_content(
+            _priority("codex", expires_at=None),
         ),
     }
 
@@ -156,4 +170,37 @@ def test_updates_badge_text_meets_aa_contrast() -> None:
         ratio = _contrast_ratio(fg, bg)
         assert ratio >= _MIN_TEXT_CONTRAST, (
             f"badge text {fg} on {bg} is {ratio:.2f}:1 (need >= {_MIN_TEXT_CONTRAST}:1)"
+        )
+
+
+def test_stash_chip_hue_stays_distinct_from_every_neighbor() -> None:
+    stash = StashedPromptsIndicator._build_content(4)
+    stash_backgrounds = _backgrounds(stash)
+    assert stash_backgrounds, "stash chip has no background to check"
+    stash_bg = sorted(stash_backgrounds)[0]
+    neighbors: dict[str, str] = {
+        "proc gear chip": PROC_GEAR_HUE,
+        "monitor gear chip": MONITOR_GEAR_HUE,
+        "updates surface": UPDATES_SURFACE,
+        "alias override pill": ALIAS_LANE_PALETTE.accent,
+        "provider hard-disable pill": PROVIDER_DISABLE_PALETTE.accent,
+        "provider soft-disable pill": PROVIDER_SOFT_DISABLE_PALETTE.accent,
+        "provider priority pill": PROVIDER_PRIORITY_PALETTE.accent,
+    }
+    for name, neighbor_bg in neighbors.items():
+        distance = _hue_distance(stash_bg, neighbor_bg)
+        assert distance >= _MIN_STASH_HUE_DISTANCE, (
+            f"stash chip {stash_bg} too close in hue to {name} "
+            f"{neighbor_bg}: {distance:.1f}° (need >= {_MIN_STASH_HUE_DISTANCE}°)"
+        )
+
+
+def test_stash_chip_text_meets_aa_contrast() -> None:
+    stash = StashedPromptsIndicator._build_content(4)
+    pairs = _foreground_background_pairs(stash)
+    assert pairs, "stash chip has no foreground/background pairs to check"
+    for fg, bg in pairs:
+        ratio = _contrast_ratio(fg, bg)
+        assert ratio >= _MIN_TEXT_CONTRAST, (
+            f"stash text {fg} on {bg} is {ratio:.2f}:1 (need >= {_MIN_TEXT_CONTRAST}:1)"
         )

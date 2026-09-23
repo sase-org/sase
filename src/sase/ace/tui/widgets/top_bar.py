@@ -14,6 +14,7 @@ from .alias_overrides_indicator import AliasOverridesIndicator
 from .notification_indicator import NotificationIndicator
 from .proc_indicator import MonitorIndicator, ProcIndicator
 from .provider_disables_indicator import ProviderDisablesIndicator
+from .provider_priority_indicator import ProviderPriorityIndicator
 from .stashed_prompts_indicator import StashedPromptsIndicator
 from .tab_bar import TabBar
 from .top_bar_group import (
@@ -25,6 +26,17 @@ from .top_bar_group import (
     separator_visibility,
 )
 from .updates_indicator import UpdatesAvailableIndicator
+
+_TOP_BAR_GROUP_IDS: tuple[str, ...] = (
+    "proc-indicator",
+    "monitor-indicator",
+    "updates-indicator",
+    "alias-overrides-indicator",
+    "provider-priority-indicator",
+    "provider-disables-indicator",
+    "stashed-prompts-indicator",
+    "notification-indicator",
+)
 
 
 class TopBarIndicators(Horizontal):
@@ -43,12 +55,13 @@ class TopBarIndicators(Horizontal):
         return self._density
 
     def compose(self) -> ComposeResult:
-        """Yield the seven groups with separators interleaved."""
+        """Yield the eight groups with separators interleaved."""
         groups: tuple[TopBarGroup, ...] = (
             ProcIndicator(id="proc-indicator"),
             MonitorIndicator(id="monitor-indicator"),
             UpdatesAvailableIndicator(id="updates-indicator"),
             AliasOverridesIndicator(id="alias-overrides-indicator"),
+            ProviderPriorityIndicator(id="provider-priority-indicator"),
             ProviderDisablesIndicator(id="provider-disables-indicator"),
             StashedPromptsIndicator(id="stashed-prompts-indicator"),
             NotificationIndicator(id="notification-indicator"),
@@ -63,7 +76,7 @@ class TopBarIndicators(Horizontal):
         self.sync_top_bar_groups()
 
     def groups(self) -> list[TopBarGroup]:
-        """Return the seven indicator groups in left-to-right order."""
+        """Return the eight indicator groups in left-to-right order."""
         try:
             return [
                 widget
@@ -73,8 +86,17 @@ class TopBarIndicators(Horizontal):
         except Exception:
             return []
 
+    def _ordered_groups(self) -> list[TopBarGroup]:
+        """Return groups sorted into compose order."""
+        ordered = self.groups()
+        # Query order follows compose order for mounted children; fall back
+        # to id order when the query backend reorders.
+        by_id = {group_id: index for index, group_id in enumerate(_TOP_BAR_GROUP_IDS)}
+        ordered.sort(key=lambda g: by_id.get(str(g.id), 99))
+        return ordered
+
     def separators(self) -> list[Static]:
-        """Return the six separator widgets in left-to-right order."""
+        """Return the seven separator widgets in left-to-right order."""
         try:
             return [
                 widget
@@ -86,20 +108,8 @@ class TopBarIndicators(Horizontal):
 
     def sync_top_bar_groups(self) -> None:
         """Apply separator visibility and refit the host top bar."""
-        ordered = self.groups()
-        # Query order follows compose order for mounted children; fall back
-        # to id order when the query backend reorders.
-        by_id = {
-            "proc-indicator": 0,
-            "monitor-indicator": 1,
-            "updates-indicator": 2,
-            "alias-overrides-indicator": 3,
-            "provider-disables-indicator": 4,
-            "stashed-prompts-indicator": 5,
-            "notification-indicator": 6,
-        }
-        ordered.sort(key=lambda g: by_id.get(str(g.id), 99))
-        if len(ordered) != 7:
+        ordered = self._ordered_groups()
+        if len(ordered) != len(_TOP_BAR_GROUP_IDS):
             return
         visible = tuple(group.group_visible for group in ordered)
         cache = (visible, self._density)
@@ -115,19 +125,9 @@ class TopBarIndicators(Horizontal):
     @property
     def full_cells(self) -> int:
         """Return the cell width of the full cluster as currently resolved."""
-        ordered = self.groups()
+        ordered = self._ordered_groups()
         if not ordered:
             return 0
-        by_id = {
-            "proc-indicator": 0,
-            "monitor-indicator": 1,
-            "updates-indicator": 2,
-            "alias-overrides-indicator": 3,
-            "provider-disables-indicator": 4,
-            "stashed-prompts-indicator": 5,
-            "notification-indicator": 6,
-        }
-        ordered.sort(key=lambda g: by_id.get(str(g.id), 99))
         visible = [group.group_visible for group in ordered]
         width = sum(group.full_cells for group in ordered)
         width += sum(
@@ -138,19 +138,9 @@ class TopBarIndicators(Horizontal):
     @property
     def compact_cells(self) -> int:
         """Return the cell width of the compact cluster as currently resolved."""
-        ordered = self.groups()
+        ordered = self._ordered_groups()
         if not ordered:
             return 0
-        by_id = {
-            "proc-indicator": 0,
-            "monitor-indicator": 1,
-            "updates-indicator": 2,
-            "alias-overrides-indicator": 3,
-            "provider-disables-indicator": 4,
-            "stashed-prompts-indicator": 5,
-            "notification-indicator": 6,
-        }
-        ordered.sort(key=lambda g: by_id.get(str(g.id), 99))
         visible = [group.group_visible for group in ordered]
         width = sum(group.compact_cells for group in ordered)
         width += sum(

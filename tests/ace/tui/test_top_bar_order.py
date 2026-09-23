@@ -38,13 +38,14 @@ EXPECTED_TOP_BAR_ORDER = [
 ]
 
 # Expected left-to-right child order inside ``#top-bar-indicators``: the
-# seven labeled groups (procs, monitors, updates, overrides, provider,
-# prompts, inbox) with separators interleaved.
+# eight labeled groups (procs, monitors, updates, overrides, priority,
+# disabled, prompts, inbox) with separators interleaved.
 EXPECTED_TOP_BAR_CLUSTER_ORDER = [
     "proc-indicator",
     "monitor-indicator",
     "updates-indicator",
     "alias-overrides-indicator",
+    "provider-priority-indicator",
     "provider-disables-indicator",
     "stashed-prompts-indicator",
     "notification-indicator",

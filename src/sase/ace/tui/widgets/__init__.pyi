@@ -73,6 +73,9 @@ from .artifacts.relation_panel import RelationPanel as RelationPanel
 from .provider_disables_indicator import (
     ProviderDisablesIndicator as ProviderDisablesIndicator,
 )
+from .provider_priority_indicator import (
+    ProviderPriorityIndicator as ProviderPriorityIndicator,
+)
 from .provider_usage_indicator import (
     ProviderUsageIndicator as ProviderUsageIndicator,
 )

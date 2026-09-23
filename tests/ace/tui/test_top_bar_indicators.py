@@ -6,6 +6,7 @@ import pytest
 
 import sase.ace.tui.widgets.alias_overrides_indicator as alias_overrides_indicator
 import sase.ace.tui.widgets.provider_disables_indicator as provider_disables_indicator
+import sase.ace.tui.widgets.provider_priority_indicator as provider_priority_indicator
 from sase.ace.testing import AcePage
 from sase.ace.tui.modals.notification_modal_tags import NotificationTagTab
 from sase.ace.tui.widgets import (
@@ -14,6 +15,7 @@ from sase.ace.tui.widgets import (
     NotificationIndicator,
     ProcIndicator,
     ProviderDisablesIndicator,
+    ProviderPriorityIndicator,
     StashedPromptsIndicator,
     TopBarIndicators,
     UpdatesAvailableIndicator,
@@ -24,7 +26,11 @@ from sase.llm_provider.provider_disable import (
     PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
     TemporaryProviderDisable,
 )
-from sase.llm_provider.provider_priority import provider_routing_context_from_parts
+from sase.llm_provider.provider_priority import (
+    PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+    TemporaryProviderPriority,
+    provider_routing_context_from_parts,
+)
 
 
 def _override() -> TemporaryLLMOverride:
@@ -43,6 +49,16 @@ def _disable() -> TemporaryProviderDisable:
     return TemporaryProviderDisable(
         version=PROVIDER_DISABLE_WIRE_SCHEMA_VERSION,
         provider="claude",
+        created_at=100.0,
+        expires_at=None,
+        source="test",
+    )
+
+
+def _priority() -> TemporaryProviderPriority:
+    return TemporaryProviderPriority(
+        version=PROVIDER_PRIORITY_WIRE_SCHEMA_VERSION,
+        provider="codex",
         created_at=100.0,
         expires_at=None,
         source="test",
@@ -68,12 +84,18 @@ async def _drive_busy(page: AcePage, monkeypatch: pytest.MonkeyPatch) -> None:
         "get_active_alias_overrides",
         lambda: {"medium": _override()},
     )
+    context = provider_routing_context_from_parts(
+        {"claude": _disable()}, _priority(), captured_at=100.0
+    )
     monkeypatch.setattr(
         provider_disables_indicator,
         "peek_provider_routing_context",
-        lambda *a, **k: provider_routing_context_from_parts(
-            {"claude": _disable()}, None, captured_at=100.0
-        ),
+        lambda *a, **k: context,
+    )
+    monkeypatch.setattr(
+        provider_priority_indicator,
+        "peek_provider_routing_context",
+        lambda *a, **k: context,
     )
     page.app.query_one("#proc-indicator", ProcIndicator).set_count(2)
     page.app.query_one("#monitor-indicator", MonitorIndicator).set_count(1)
@@ -98,7 +120,7 @@ async def _drive_busy(page: AcePage, monkeypatch: pytest.MonkeyPatch) -> None:
 async def test_busy_cluster_renders_all_labels_wide(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async with AcePage(size=(180, 40)) as page:
+    async with AcePage(size=(220, 40)) as page:
         await _drive_busy(page, monkeypatch)
         text = _cluster_text(page)
         for label in (
@@ -106,7 +128,8 @@ async def test_busy_cluster_renders_all_labels_wide(
             "monitors:",
             "updates:",
             "overrides:",
-            "provider:",
+            "priority:",
+            "disabled:",
             "prompts:",
             "inbox:",
         ):
@@ -118,7 +141,7 @@ async def test_busy_cluster_renders_all_labels_wide(
 
 
 async def test_show_hide_show_updates_separators() -> None:
-    async with AcePage(size=(180, 40)) as page:
+    async with AcePage(size=(220, 40)) as page:
         updates = page.app.query_one("#updates-indicator", UpdatesAvailableIndicator)
         cluster = page.app.query_one("#top-bar-indicators", TopBarIndicators)
         # Initially only the inbox is visible.
@@ -142,12 +165,12 @@ async def test_show_hide_show_updates_separators() -> None:
 async def test_busy_cluster_compacts_narrow_and_restores_wide(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async with AcePage(size=(180, 40)) as page:
+    async with AcePage(size=(220, 40)) as page:
         await _drive_busy(page, monkeypatch)
         cluster = page.app.query_one("#top-bar-indicators", TopBarIndicators)
         top_bar = page.app.query_one("#top-bar", TopBar)
         assert cluster.density == "full"
-        await page._pilot.resize_terminal(80, 30)  # noqa: SLF001
+        await page._pilot.resize_terminal(120, 30)  # noqa: SLF001
         await page.pause()
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
@@ -155,12 +178,18 @@ async def test_busy_cluster_compacts_narrow_and_restores_wide(
         assert cluster.density == "compact"
         narrow_text = _cluster_text(page)
         assert "procs:" not in narrow_text
+        assert "priority:" not in narrow_text
+        assert "disabled:" not in narrow_text
         assert " · " in narrow_text
+        # Icons survive compact density.
+        assert "⚙" in narrow_text
+        assert "≡" in narrow_text
+        assert "★" in narrow_text
         # Cluster stays within the top-bar bounds.
         assert cluster.region.x + cluster.region.width <= (
             top_bar.region.x + top_bar.region.width
         )
-        await page._pilot.resize_terminal(180, 40)  # noqa: SLF001
+        await page._pilot.resize_terminal(220, 40)  # noqa: SLF001
         await page.pause()
         page.app.refresh(layout=True)
         await page.app.wait_for_refresh()
@@ -190,4 +219,16 @@ async def test_newly_clickable_groups_run_home_actions(
         await page.app.query_one(
             "#stashed-prompts-indicator", StashedPromptsIndicator
         ).on_click()
-        assert calls == ["open_tasks_panel", "open_tasks_panel", "open_prompt_stash"]
+        await page.app.query_one(
+            "#provider-priority-indicator", ProviderPriorityIndicator
+        ).on_click()
+        await page.app.query_one(
+            "#provider-disables-indicator", ProviderDisablesIndicator
+        ).on_click()
+        assert calls == [
+            "open_tasks_panel",
+            "open_tasks_panel",
+            "open_prompt_stash",
+            "open_models_panel",
+            "open_models_panel",
+        ]

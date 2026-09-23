@@ -3988,18 +3988,18 @@ providers stay in the model picker (header labelled `soft`, rows dimmed one step
 `%model` completion (annotated `soft` in the provenance column). Hard-disabled providers
 are still omitted from both.
 
-sase's TUI also shows active provider routing state in the labeled `provider:` top-bar
-group beside the violet `overrides:` group (the launch-default and current-project chips
-moved one row down, to each tab's status-row launch-context cluster). One hard-disabled
-provider renders like `provider: CLAUDE off 42m`; one soft-disabled provider renders
-like `provider: CLAUDE soft 42m`; active priority renders like
-`provider: CODEX ★ priority 42m`. When priority and disables are both active, the top
-bar keeps a single priority-led pill with the disable count, such as
-`provider: CODEX ★ 42m +1`. Several disables without priority render the most severe
-(hard first) provider plus a count, such as `provider: CLAUDE +2`, and use the soft
-palette only when every active disable is soft. Hover lists active priority plus every
-active provider disable, mode, provenance, and expiry; clicking the pill opens Launch
-Control.
+sase's TUI also shows active provider routing state in the labeled `priority:` and
+`disabled:` top-bar groups beside the violet `overrides:` group (the launch-default and
+current-project chips moved one row down, to each tab's status-row launch-context
+cluster). An active priority renders like `priority: CODEX ★ 42m` (with a state word
+only for soft-disabled or unavailable, such as `priority: CODEX ★ soft-disabled 42m`).
+One hard-disabled provider renders like `disabled: CLAUDE off 42m`; one soft-disabled
+provider renders like `disabled: CLAUDE soft 42m`. Several disables render the most
+severe (hard first) provider plus a count, such as `disabled: CLAUDE +2`, and use the
+soft palette only when every active disable is soft. When priority and disables are both
+active each fact keeps its own label, color, and tooltip. Hovering `priority:` lists the
+priority provider and expiry; hovering `disabled:` lists every active disable, mode,
+provenance, and expiry; clicking either pill opens Launch Control.
 
 ### Disabled-provider launch panel
 
@@ -4726,30 +4726,34 @@ The right-aligned indicator cluster speaks the same visual language as the statu
 cluster beneath it (`load: 5/8 · model: opus@high · project: +sase`): every group
 renders as a dim `<type>: <body>` group, and visible groups are joined by a dim `·`. The
 left-to-right order runs from activity to system state to launch routing to personal
-queues: `procs`, `monitors`, `updates`, `overrides`, `provider`, `prompts`, `inbox`. The
-always-visible `inbox` anchors the right edge directly above `project:`. Labels are
-fixed strings that never pluralize. When the full cluster does not fit in the cells left
-over after the tab strip and a 2-cell minimum gap, every label drops together
-(separators kept); widening restores full labels without oscillation. Every group is
+queues: `procs`, `monitors`, `updates`, `overrides`, `priority`, `disabled`, `prompts`,
+`inbox`. The always-visible `inbox` anchors the right edge directly above `project:`.
+Labels are fixed strings that never pluralize. Count chips carry their identity glyph
+inside the fill — `⚙` for procs and monitors, `≡` for prompts, `★` for priority — so
+compact mode (labels dropped together when the full cluster does not fit in the cells
+left over after the tab strip and a 2-cell minimum gap; separators kept) still
+identifies each group; widening restores full labels without oscillation. Every group is
 clickable: procs and monitors open the Admin Center Procs tab, updates opens the Updates
-tab, overrides and provider open Launch settings, prompts opens the prompt stash picker,
-and inbox opens the notification modal.
+tab, overrides, priority, and disabled open Launch settings, prompts opens the prompt
+stash picker, and inbox opens the notification modal.
 
 ### Proc Indicator
 
-A `procs: N` group with a filled blue count chip appears in the top bar when sase's TUI
+A `procs: ⚙ N` group with a filled blue gear chip appears in the top bar when sase's TUI
 own procs are running (e.g., sync, mail, accept, and notification-gate operations). It
-excludes monitor shells (see [Monitor Indicator](#monitor-indicator) below) and
-service-host rows — service procs and oneshots — which the Services tab reports instead.
-The indicator automatically hides when all procs complete. Clicking opens the Procs tab.
+is the same chip the Procs tab header shows. It excludes monitor shells (see
+[Monitor Indicator](#monitor-indicator) below) and service-host rows — service procs and
+oneshots — which the Services tab reports instead. The indicator automatically hides
+when all procs complete. Clicking opens the Procs tab.
 
 ### Monitor Indicator
 
-A `monitors: N` group with a filled amber count chip, immediately right of the
+A `monitors: ⚙ N` group with a filled amber gear chip, immediately right of the
 [Proc Indicator](#proc-indicator), shows a count of currently running monitor shells
-(`sase monitor start` supervised commands). It hides at zero. A monitor is a detached
-supervisor that survives sase's TUI exit, so it is counted separately from — and never
-blocks — sase's TUI own procs. Clicking opens the Procs tab.
+(`sase monitor start` supervised commands). It is the same chip the Procs tab header
+shows. It hides at zero. A monitor is a detached supervisor that survives sase's TUI
+exit, so it is counted separately from — and never blocks — sase's TUI own procs.
+Clicking opens the Procs tab.
 
 ### Current Project Indicator
 
@@ -6386,8 +6390,8 @@ picker open on the remaining entries, and the picker closes only when nothing re
 when rows are also being restored. `Escape` or `q` cancels without deleting anything.
 With no explicit marks, `Enter` restores the highlighted row; pinned rows stay stashed
 when restored, while unpinned rows are popped. Number keys `1`-`9` and `0` restore rows
-1-10 directly with the same pin-aware behavior. A small `prompts: N` top-bar group shows
-how many restorable drafts are currently stashed.
+1-10 directly with the same pin-aware behavior. A small `prompts: ≡ N` pink-chip top-bar
+group shows how many restorable drafts are currently stashed.
 
 ### Editing an Existing XPrompt from the TUI
 

@@ -1,17 +1,16 @@
 """Shared gear-chip rendering for proc and monitor counts.
 
 The blue/orange gear chip is the canonical proc-vs-monitor lane marker for
-the Procs tab header, which builds the same chip from the same two hues.
-The top bar (``ProcIndicator`` / ``MonitorIndicator``) now renders labeled
-``procs: N`` / ``monitors: N`` groups with filled count chips in those hues
-(see ``widgets/top_bar_group.filled_count_chip``), so a count reads as the
-same lane in both places without the gear glyph.
+the Procs tab header and the top bar (``ProcIndicator`` /
+``MonitorIndicator``), which share this chip by construction so a count
+reads as the same lane in both places.
 """
 
 from __future__ import annotations
 
 from rich.text import Text
 
+from sase.ace.tui.widgets.top_bar_group import icon_count_chip
 from sase.monitor_state import MONITOR_GLYPH, MONITOR_GLYPH_COLOR
 
 PROC_GEAR_HUE = "#48CAE4"
@@ -32,7 +31,7 @@ def gear_chip(count: int, hue: str, *, hide_at_zero: bool = True) -> Text:
         if hide_at_zero:
             return Text("")
         return Text(f" {_GEAR} {count} ", style=f"dim {hue}")
-    return Text(f" {_GEAR} {count} ", style=f"bold #1a1a1a on {hue}")
+    return icon_count_chip(_GEAR, count, hue)
 
 
 __all__ = ["MONITOR_GEAR_HUE", "PROC_GEAR_HUE", "gear_chip"]

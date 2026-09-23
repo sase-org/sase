@@ -1,8 +1,8 @@
 """sase's TUI PNG visual snapshot coverage for the prompt-stash surfaces.
 
 Phase 4 visual polish: pin how the two user-facing chrome pieces of the prompt
-stash render — the top-bar ``StashedPromptsIndicator`` badge (snowflake glyph +
-green-teal accent, shown only when a stash exists) and the ``StashedPromptsModal``
+stash render — the top-bar ``StashedPromptsIndicator`` badge (stack glyph +
+orchid-pink accent, shown only when a stash exists) and the ``StashedPromptsModal``
 restore picker (newest-first rows with numbered keycap gutter, relative age,
 originating-project chip, truncated preview, and the ``✓`` pop / ``📌`` pin /
 ``✗`` delete markers).

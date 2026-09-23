@@ -4,7 +4,8 @@ The TUI top bar (the row with the ``Agents | Artifacts | Services`` tabs)
 speaks the same visual language as the status-row cluster beneath it
 (``load: 5/8 · model: opus@high · project: +sase``): every indicator group
 renders as a dim ``<type>: <body>`` group, and visible groups are joined by
-a dim ``·`` separator.
+a dim ``·`` separator. Count chips carry their identity glyph inside the
+fill so compact density (labels dropped) still identifies each group.
 """
 
 from __future__ import annotations
@@ -25,15 +26,15 @@ TOP_BAR_SEPARATOR = " · "
 TOP_BAR_MIN_GAP = 2
 
 
-def filled_count_chip(count: int, hue: str) -> Text:
-    """Build a filled `` N `` count chip in *hue*.
+def icon_count_chip(icon: str, count: int, hue: str) -> Text:
+    """Build a filled ``<icon> <count>`` chip in *hue*.
 
     Shared body for procs, monitors, and prompts. A zero or negative count
     renders as an empty (hidden) body so the hosting group collapses.
     """
     if count <= 0:
         return Text("")
-    return Text(f" {count} ", style=f"bold #1a1a1a on {hue}")
+    return Text(f" {icon} {count} ", style=f"bold #1a1a1a on {hue}")
 
 
 def separator_visibility(visible: Sequence[bool]) -> tuple[bool, ...]:
@@ -187,6 +188,6 @@ __all__ = [
     "TopBarDensity",
     "TopBarGroup",
     "choose_top_bar_density",
-    "filled_count_chip",
+    "icon_count_chip",
     "separator_visibility",
 ]

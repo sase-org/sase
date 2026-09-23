@@ -9,18 +9,27 @@ from sase.ace.tui.widgets.top_bar_group import (
     TOP_BAR_SEPARATOR,
     TopBarGroup,
     choose_top_bar_density,
-    filled_count_chip,
+    icon_count_chip,
     separator_visibility,
 )
 
 
 def test_separator_visibility_matches_joined_groups_over_all_subsets() -> None:
     """Every visibility subset joins exactly like visible texts with dots."""
-    texts = ["procs:  2 ", "monitors:  1 ", "updates:  3 ", "a", "b", "c", "inbox: 0"]
-    for bits in itertools.product([False, True], repeat=7):
+    texts = [
+        "procs:  ⚙ 2 ",
+        "monitors:  ⚙ 1 ",
+        "updates:  3 ",
+        "a",
+        "b",
+        "c",
+        "d",
+        "inbox: 0",
+    ]
+    for bits in itertools.product([False, True], repeat=8):
         visible = list(bits)
         flags = separator_visibility(visible)
-        assert len(flags) == 6
+        assert len(flags) == 7
         # Rebuild the row the cluster would render: visible groups joined
         # by the separator wherever the flag is set.
         parts: list[str] = []
@@ -59,13 +68,14 @@ def test_choose_top_bar_density_at_fit_boundary() -> None:
     assert choose_top_bar_density(0, full_cells=0) == "full"
 
 
-def test_filled_count_chip_style_and_zero() -> None:
-    chip = filled_count_chip(2, PROC_GEAR_HUE)
-    assert chip.plain == " 2 "
+def test_icon_count_chip_style_and_zero() -> None:
+    chip = icon_count_chip("⚙", 2, PROC_GEAR_HUE)
+    assert chip.plain == " ⚙ 2 "
     assert chip.style == f"bold #1a1a1a on {PROC_GEAR_HUE}"
-    assert filled_count_chip(1, MONITOR_GEAR_HUE).plain == " 1 "
-    assert filled_count_chip(0, PROC_GEAR_HUE).plain == ""
-    assert filled_count_chip(-3, PROC_GEAR_HUE).plain == ""
+    assert icon_count_chip("⚙", 1, MONITOR_GEAR_HUE).plain == " ⚙ 1 "
+    assert icon_count_chip("≡", 4, "#FF87D7").plain == " ≡ 4 "
+    assert icon_count_chip("⚙", 0, PROC_GEAR_HUE).plain == ""
+    assert icon_count_chip("⚙", -3, PROC_GEAR_HUE).plain == ""
 
 
 class _ProbeGroup(TopBarGroup):

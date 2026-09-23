@@ -4,21 +4,22 @@ from typing import Any
 
 from rich.text import Text
 
-from .top_bar_group import TopBarGroup, filled_count_chip
+from .top_bar_group import TopBarGroup, icon_count_chip
 
-_STASH_ACCENT = "#00D7AF"
+_STASH_ACCENT = "#FF87D7"
+_STASH_GLYPH = "≡"
 
 
 class StashedPromptsIndicator(TopBarGroup):
     """Top-bar badge showing how many prompt drafts are stashed.
 
-    Renders as ``prompts: N`` with a filled teal count chip. Mirrors
-    :class:`ProcIndicator`: visible only when at least one prompt is
-    stashed, hidden (empty) otherwise so it never adds clutter when the
-    stash is empty. The teal accent reads as "set aside for later"
-    (git-stash for prompts) and is visually distinct from the task (cyan)
-    and notification (orange/gold) badges. Clicking opens the prompt stash
-    picker.
+    Renders as ``prompts: ≡ N`` with a filled orchid-pink stack chip. The
+    ``≡`` glyph reads as stacked layers (git-stash for prompts) and its flat
+    bars contrast with the round gear ``⚙`` so the two chips cannot be
+    mistaken in compact mode. Pink is the one hue family no other top-bar
+    chip uses. Mirrors :class:`ProcIndicator`: visible only when at least
+    one prompt is stashed, hidden (empty) otherwise so it never adds clutter
+    when the stash is empty. Clicking opens the prompt stash picker.
     """
 
     GROUP_LABEL = "prompts"
@@ -63,7 +64,7 @@ class StashedPromptsIndicator(TopBarGroup):
     @staticmethod
     def _build_content(count: int) -> Text:
         """Build the badge body; empty (hidden) when nothing is stashed."""
-        return filled_count_chip(count, _STASH_ACCENT)
+        return icon_count_chip(_STASH_GLYPH, count, _STASH_ACCENT)
 
     @staticmethod
     def _build_tooltip(count: int) -> str:

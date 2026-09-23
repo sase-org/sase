@@ -84,6 +84,10 @@ _LAZY_EXPORTS = {
         ".provider_disables_indicator",
         "ProviderDisablesIndicator",
     ),
+    "ProviderPriorityIndicator": (
+        ".provider_priority_indicator",
+        "ProviderPriorityIndicator",
+    ),
     "ProviderUsageIndicator": (
         ".provider_usage_indicator",
         "ProviderUsageIndicator",
@@ -164,6 +168,7 @@ __all__ = [
     "PatchOnboarding",
     "RelationPanel",
     "ProviderDisablesIndicator",
+    "ProviderPriorityIndicator",
     "ProviderUsageIndicator",
     "ChangeSpecDetail",  # legacy compatibility alias
     "ChangeSpecInfoPanel",  # legacy compatibility alias

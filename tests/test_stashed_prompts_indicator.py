@@ -10,10 +10,10 @@ def test_zero_count_renders_empty_hidden_badge() -> None:
     assert text.plain == ""
 
 
-def test_positive_count_renders_green_teal_badge() -> None:
-    text = StashedPromptsIndicator._build_content(3)
-    assert text.plain == " 3 "
-    assert "#00D7AF" in str(text.style)
+def test_positive_count_renders_pink_stack_badge() -> None:
+    text = StashedPromptsIndicator._build_content(4)
+    assert text.plain == " ≡ 4 "
+    assert text.style == "bold #1a1a1a on #FF87D7"
 
 
 def test_negative_count_is_treated_as_empty() -> None:
@@ -55,7 +55,7 @@ def test_set_count_tracks_pinned_count_without_changing_badge_text() -> None:
     indicator.set_count(3, pinned_count=2)
     assert indicator.count == 3
     assert indicator.pinned_count == 2
-    assert StashedPromptsIndicator._build_content(indicator.count).plain == " 3 "
+    assert StashedPromptsIndicator._build_content(indicator.count).plain == " ≡ 3 "
 
 
 def test_set_count_clamps_pinned_count_to_total() -> None:
