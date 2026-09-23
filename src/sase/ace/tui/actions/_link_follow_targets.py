@@ -54,6 +54,13 @@ class LinkFollowTargetsMixin:
         report leaves the transaction open for a later async one.
         """
         target = self._resolve_link_follow_target(ref, chip_target)
+        if self._is_unconfigured_artifacts_target(target.pane_id):
+            navigator = getattr(self, "_artifacts_entry_navigator", None)
+            pane = navigator(target.pane_id) if callable(navigator) else None
+            if pane is None:
+                record_link_follow_outcome("missing")
+                self._notify_unconfigured_link_pane(ref, target)
+                return
         if self._select_current_artifacts_target(target):
             record_link_follow_outcome("select")
             self._record_link_trail(origin)  # type: ignore[attr-defined]
@@ -147,6 +154,24 @@ class LinkFollowTargetsMixin:
         )
         resolved = resolver(kind, payload) if callable(resolver) else None
         return resolved if resolved is not None else chip_target
+
+    def _is_unconfigured_artifacts_target(self, pane_id: str) -> bool:
+        """Return whether *pane_id* names a document pane with no provider.
+
+        An unconfigured ``ref:<kind>`` must never normalize to Stitches
+        (the default sub-tab). The exact descriptor lookup distinguishes a
+        configured provider from a missing one; fixed panes never count.
+        """
+        if not pane_id.startswith("ref:"):
+            return False
+        try:
+            from ..artifact_tabs import descriptor_for_artifacts_pane_id
+        except Exception:  # noqa: BLE001 - fail open to the old Stitches path
+            return False
+        try:
+            return descriptor_for_artifacts_pane_id(pane_id) is None
+        except Exception:  # noqa: BLE001 - discovery errors are not unconfigured
+            return False
 
     def _select_current_artifacts_target(self, target: ArtifactEntryTarget) -> bool:
         if self.current_tab != ARTIFACTS_TAB:
@@ -306,10 +331,19 @@ class LinkFollowTargetsMixin:
         if not sep or not lumberjack or not base_chop:
             self._notify_dangling_link_ref(f"job:{payload}")
             return False
-        if self._expand_lumberjack_for_chop(lumberjack) and expanded is not None:
+        lumberjack_changed = self._expand_lumberjack_for_chop(lumberjack)
+        scheduler_changed = self._expand_scheduler_for_chop()
+        if lumberjack_changed and expanded is not None:
             expanded.append(lumberjack)
         idx = self._find_chop_index(lumberjack, base_chop)
         if idx is None:
+            if lumberjack_changed:
+                self._step_lumberjack_fold(lumberjack, expand=False)
+            if scheduler_changed:
+                self._step_scheduler_fold(expand=False)
+            build = getattr(self, "_build_axe_items", None)
+            if callable(build) and (lumberjack_changed or scheduler_changed):
+                build()
             self._notify_dangling_link_ref(f"job:{payload}")
             return False
         self._save_current_tab_position()  # type: ignore[attr-defined]
@@ -342,6 +376,27 @@ class LinkFollowTargetsMixin:
         if manager is None:
             return False
         key = f"lumberjack:{lumberjack}"
+        return bool(manager.expand(key) if expand else manager.collapse(key))
+
+    def _expand_scheduler_for_chop(self) -> bool:
+        """Expand ``service:scheduler`` so collapsed scheduler chops resolve.
+
+        Mirrors the pending-selection path in
+        ``axe_display/_loader_items.py``: a chop under a collapsed scheduler
+        fold is invisible until both the scheduler service fold and its
+        lumberjack fold are expanded.
+        """
+        changed = self._step_scheduler_fold(expand=True)
+        build = getattr(self, "_build_axe_items", None)
+        if callable(build):
+            build()
+        return changed
+
+    def _step_scheduler_fold(self, *, expand: bool) -> bool:
+        manager = getattr(self, "_axe_fold_manager", None)
+        if manager is None:
+            return False
+        key = "service:scheduler"
         return bool(manager.expand(key) if expand else manager.collapse(key))
 
     def collapse_lumberjack_after_link_trail(self, lumberjack: str) -> None:

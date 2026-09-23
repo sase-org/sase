@@ -317,6 +317,26 @@ class TreeNavigationMixin(NavigationMixinBase):
         origin = pane.selected_entry_target()
         if origin is not None and origin != target:
             pane.record_relation_origin(origin)
+        if target.pane_id != "patches":
+            follow = getattr(self, "_follow_artifacts_target", None)
+            trail_origin = getattr(self, "_current_link_trail_origin", None)
+            if callable(follow) and callable(trail_origin):
+                try:
+                    from ...relations.link_subject import ref_for_target
+                except Exception:  # noqa: BLE001 - fall back to direct reveal
+                    ref_for_target = None  # type: ignore[assignment]
+                ref = ref_for_target(target) if ref_for_target is not None else None
+                if ref is not None:
+                    hop = trail_origin()
+                    guard_attr = hasattr(self, "_link_trail_guard")
+                    if guard_attr:
+                        self._link_trail_guard = True  # type: ignore[attr-defined]
+                    try:
+                        follow(ref, target, hop)
+                    finally:
+                        if guard_attr:
+                            self._link_trail_guard = False  # type: ignore[attr-defined]
+                    return
         contract = self._relation_contract()
         pane_id = (
             contract.id

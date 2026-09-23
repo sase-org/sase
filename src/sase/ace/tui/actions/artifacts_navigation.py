@@ -109,6 +109,16 @@ class ArtifactsNavigationActionsMixin:
         pane_key: ArtifactsPaneKey | None = None,
     ) -> ArtifactEntryNavigator | None:
         target_pane = pane_key or self.current_artifacts_pane_key
+        if isinstance(target_pane, str) and target_pane.startswith("ref:"):
+            try:
+                from ..artifact_tabs import descriptor_for_artifacts_pane_id
+            except Exception:  # noqa: BLE001 - fail open to the old path
+                descriptor_for_artifacts_pane_id = None  # type: ignore[assignment]
+            if (
+                descriptor_for_artifacts_pane_id is not None
+                and descriptor_for_artifacts_pane_id(target_pane) is None
+            ):
+                return None
         view = self._artifacts_view()
         if view is None:
             return None
@@ -133,6 +143,16 @@ class ArtifactsNavigationActionsMixin:
         """Switch to the target's owning pane and select it when ready."""
 
         pane_key = target.pane_id
+        if pane_key.startswith("ref:"):
+            try:
+                from ..artifact_tabs import descriptor_for_artifacts_pane_id
+            except Exception:  # noqa: BLE001 - fail open to the old path
+                descriptor_for_artifacts_pane_id = None  # type: ignore[assignment]
+            if (
+                descriptor_for_artifacts_pane_id is not None
+                and descriptor_for_artifacts_pane_id(pane_key) is None
+            ):
+                return LinkRequestState.MISSING
         self._switch_artifacts_subtab(cast(ArtifactsSubTab, pane_key))
         pane = self._artifacts_entry_navigator(pane_key)
         if pane is None:
