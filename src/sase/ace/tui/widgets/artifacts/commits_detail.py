@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from dataclasses import replace
 from typing import TYPE_CHECKING, Any, cast
 
 from rich.console import RenderableType
@@ -49,6 +48,8 @@ class CommitsDetailMixin(_MixinBase):
     _syntax_render_cache: LazySyntaxRenderCache
     _pending_entry_target: ArtifactEntryTarget | None
     _pending_entry_generation: int | None
+    _stitch_repo_info_cache: dict[str, tuple[str, tuple[str, ...]]]
+    _stitch_inventory_kinds_cache: dict[str, tuple[str, tuple[str, ...]]]
 
     if TYPE_CHECKING:
 
@@ -78,6 +79,8 @@ class CommitsDetailMixin(_MixinBase):
         self._syntax_render_cache = LazySyntaxRenderCache()
         self._pending_entry_target = None
         self._pending_entry_generation = None
+        self._stitch_repo_info_cache = {}
+        self._stitch_inventory_kinds_cache = {}
 
     def move_selection(self, step: int) -> None:
         timeline = self.query_one("#stitches-timeline", CommitsTimeline)
@@ -123,9 +126,17 @@ class CommitsDetailMixin(_MixinBase):
         return self._complete_entry_request(LinkRequestState.MISSING)
 
     def _collection_in_flight(self) -> bool:
-        """Return whether Stitches collection or query evaluation is still running."""
-        worker = getattr(self, "_collection_worker", None)
-        if worker is not None and getattr(worker, "is_running", False):
+        """Return whether a Stitches collection or query evaluation is outstanding.
+
+        A collection counts from the tick it is scheduled until its
+        results are applied: a scheduled-but-not-yet-running worker and a
+        finished-but-undelivered one both still count, so the link-follow
+        Context step's same-tick re-request — and any later _display_result
+        racing delivery — waits instead of reporting a premature miss.
+        """
+        if getattr(self, "_collection_generation", None) is not None:
+            return True
+        if getattr(self, "_collection_pending", False):
             return True
         return bool(getattr(self, "_query_result_pending", False))
 
@@ -135,15 +146,20 @@ class CommitsDetailMixin(_MixinBase):
         Requests exactly this revision through the repo's own VCS
         provider -- no ``since``/``until``/sidecar/merges window, no
         remote-ref resolution -- so it never grows the collected inventory.
+        The checkout resolves from the project's full repo inventory
+        (primary, linked, and sidecar repos), not only from repos in the
+        displayed result, so sidecar and linked repos hydrate even when
+        the current window excludes them.
         """
         if kind != "stitch":
             return HydrationResult(HydrationOutcome.UNSUPPORTED)
         repo, sep, sha = payload.partition("@")
         if not sep or not repo or not sha:
             return HydrationResult(HydrationOutcome.UNSUPPORTED)
-        checkout_path = self._stitch_checkout_path(repo)
-        if checkout_path is None:
+        checkout = self._stitch_repo_checkout(repo)
+        if checkout is None:
             return HydrationResult(HydrationOutcome.UNSUPPORTED)
+        checkout_path, repo_kind, repo_labels = checkout
         from sase.vcs_provider import VCSOperationError, get_vcs_provider
 
         try:
@@ -164,43 +180,149 @@ class CommitsDetailMixin(_MixinBase):
             return HydrationResult(HydrationOutcome.FAILED, error=str(exc))
         if not commits:
             return HydrationResult(HydrationOutcome.ABSENT)
+        self._remember_stitch_repo_info(repo, repo_kind, repo_labels)
         return HydrationResult(
             HydrationOutcome.FETCHED,
             payload=AggregatedCommitWire(repo=repo, commit=commits[0]),
         )
 
-    def _stitch_checkout_path(self, repo: str) -> str | None:
+    def _stitch_repo_checkout(
+        self, repo: str
+    ) -> tuple[str, str, tuple[str, ...]] | None:
+        """Return ``(checkout path, kind, labels)`` for *repo*.
+
+        Reads the displayed result first, then the project's full repo
+        inventory, so checkouts resolve even when the current collection
+        window excludes their repo.
+        """
         result = self.result
-        if result is None:
+        if result is not None:
+            for log_repo in result.repos:
+                if log_repo.name == repo or repo in log_repo.aliases:
+                    return (
+                        log_repo.path,
+                        log_repo.kind,
+                        tuple(dict.fromkeys((log_repo.name, *log_repo.aliases))),
+                    )
+        cached = getattr(self, "_stitch_repo_info_cache", None)
+        if isinstance(cached, dict) and repo in cached:
+            kind, labels = cached[repo]
+            path = self._stitch_inventory_checkout(repo)
+            if path is not None:
+                return (path, kind, labels)
+        path = self._stitch_inventory_checkout(repo)
+        if path is None:
             return None
-        for log_repo in result.repos:
-            if log_repo.name == repo or repo in log_repo.aliases:
-                return log_repo.path
+        info = self._stitch_inventory_repo_info(repo)
+        if info is None:
+            return (path, "primary", (repo,))
+        return (path, *info)
+
+    def _stitch_checkout_path(self, repo: str) -> str | None:
+        checkout = self._stitch_repo_checkout(repo)
+        return None if checkout is None else checkout[0]
+
+    def _remember_stitch_repo_info(
+        self, repo: str, kind: str, labels: tuple[str, ...]
+    ) -> None:
+        """Cache one repo's kind and labels beside the acquired facts.
+
+        Runs off the UI thread inside :meth:`hydrate_ref`; the cache lets
+        the UI-thread install recover sidecar/kind facts for repos the
+        displayed result never contained, with no inventory I/O of its own.
+        """
+        cache = getattr(self, "_stitch_repo_info_cache", None)
+        if not isinstance(cache, dict):
+            cache = {}
+            self._stitch_repo_info_cache = cache
+        cache[repo] = (kind, tuple(labels) or (repo,))
+
+    def _stitch_inventory_checkout(self, repo: str) -> str | None:
+        """Return *repo*'s checkout path from the project repo inventory."""
+        info = self._stitch_inventory_repos()
+        if info is None:
+            return None
+        return info.get(repo) or info.get(repo.casefold())
+
+    def _stitch_inventory_repo_info(
+        self, repo: str
+    ) -> tuple[str, tuple[str, ...]] | None:
+        """Return ``(kind, labels)`` for *repo* from the repo inventory."""
+        kinds = getattr(self, "_stitch_inventory_kinds_cache", None)
+        if isinstance(kinds, dict) and repo in kinds:
+            return kinds[repo]
         return None
 
+    def _stitch_inventory_repos(self) -> dict[str, str] | None:
+        """Return checkout paths by repo name and alias for the pane scope.
+
+        Resolves through the same project inventory the collector uses,
+        always including sidecars, so hydration is not limited to repos
+        the displayed window happens to contain.
+        """
+        import os
+
+        from sase.vcs_log.resolve import resolve_log_repos
+
+        filters = getattr(self, "filters", None)
+        project = getattr(filters, "project", None)
+        try:
+            resolved = resolve_log_repos(
+                cwd=os.getcwd(),
+                all_projects=project is None,
+                project_scope=project,
+                include_sidecars=True,
+            )
+        except Exception:  # noqa: BLE001 - fall back to the displayed result
+            return None
+        by_label: dict[str, str] = {}
+        kinds: dict[str, tuple[str, tuple[str, ...]]] = {}
+        for log_repo in resolved.repos:
+            labels = tuple(dict.fromkeys((log_repo.name, *log_repo.aliases)))
+            for label in (log_repo.name, *log_repo.aliases):
+                by_label.setdefault(label, log_repo.path)
+                by_label.setdefault(label.casefold(), log_repo.path)
+            kinds[log_repo.name] = (log_repo.kind, labels)
+            for alias in log_repo.aliases:
+                kinds.setdefault(alias, (log_repo.kind, labels))
+        self._stitch_inventory_kinds_cache = kinds
+        return by_label
+
     def install_hydrated_row(self, payload: Any) -> ArtifactEntryTarget | None:
-        """Merge one fetched commit into the current result, then re-render."""
+        """Store one fetched commit's facts without touching the display.
+
+        The row is deliberately not injected into the displayed timeline:
+        the link-follow Context step that follows builds a repo-and-day
+        window whose re-collection fetches the commit through the normal
+        collection path and reports ``SELECTED`` when it completes.
+        """
         if not isinstance(payload, AggregatedCommitWire):
             return None
-        result = self.result
-        if result is None:
+        remember = getattr(self, "remember_acquired_stitch_facts", None)
+        if not callable(remember):
             return None
-        for entry in result.commits:
-            if (
-                entry.repo == payload.repo
-                and entry.commit.full_id == payload.commit.full_id
-            ):
-                self._display_result(result)
-                return commit_row_target(entry)
-        commits = list(result.commits)
-        insert_at = len(commits)
-        for index, entry in enumerate(commits):
-            if entry.commit.timestamp < payload.commit.timestamp:
-                insert_at = index
-                break
-        commits.insert(insert_at, payload)
-        merged = replace(result, commits=tuple(commits))
-        self._display_result(merged)
+        kinds = getattr(self, "_stitch_inventory_kinds_cache", None)
+        kind: str = "primary"
+        labels: tuple[str, ...] = (payload.repo,)
+        if isinstance(kinds, dict) and payload.repo in kinds:
+            kind, labels = kinds[payload.repo]
+        else:
+            result = self.result
+            if result is not None:
+                for log_repo in result.repos:
+                    if (
+                        log_repo.name == payload.repo
+                        or payload.repo in log_repo.aliases
+                    ):
+                        kind = log_repo.kind
+                        labels = tuple(
+                            dict.fromkeys((log_repo.name, *log_repo.aliases))
+                        )
+                        break
+        cached = getattr(self, "_stitch_repo_info_cache", None)
+        if isinstance(cached, dict) and payload.repo in cached:
+            kind, labels = cached[payload.repo]
+        remember(payload, repo_kind=kind, repo_labels=labels)
         return commit_row_target(payload)
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
@@ -255,7 +377,13 @@ class CommitsDetailMixin(_MixinBase):
         sync_grouping = getattr(self, "_sync_timeline_grouping", None)
         if callable(sync_grouping):
             sync_grouping(timeline)
-        self._selected_commit_index = timeline.update_result(result)
+        if result.commits or not self._collection_in_flight():
+            # While a collection or query evaluation is still outstanding,
+            # an empty intermediate result must not wipe the timeline:
+            # dropping the selection to None reads as user navigation to
+            # the link-trail watcher and cancels the very follow the load
+            # belongs to. The load's own completion re-renders.
+            self._selected_commit_index = timeline.update_result(result)
         pending = self._pending_entry_target
         if pending is not None:
             if timeline.select_entry_target(pending):

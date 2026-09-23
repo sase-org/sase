@@ -138,8 +138,11 @@ def _reveal_context_query(app: Any, pane: Any, transaction: Any) -> bool:
         remainder, _cap = extract_limit(rendered)
     except LimitTokenError:
         return False
+    verify_fn = getattr(pane, "host_reveal_verify_terms", None)
+    verify_terms = verify_fn(context) if callable(verify_fn) else None
+    check = verify_terms or remainder
     try:
-        if not probe.matches(remainder):
+        if not probe.matches(check):
             return False
     except Exception:  # noqa: BLE001 - verification failure falls through
         return False

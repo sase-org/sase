@@ -71,6 +71,21 @@ class CommitCollectionPayload:
     relation_index: RelationIndex | None = None
 
 
+@dataclass(frozen=True)
+class _AcquiredStitchFacts:
+    """Facts about one hydrated commit, kept outside the displayed result.
+
+    The link-follow Acquire step stores these instead of injecting the
+    fetched row into the displayed timeline, so the later Context step can
+    build a repo-and-day window whose re-collection fetches the commit
+    through the normal collection path.
+    """
+
+    entry: Any
+    repo_kind: str
+    repo_labels: tuple[str, ...]
+
+
 class CommitsCollectionMixin(_MixinBase):
     """Own commit collection, invalidation, and authoritative snapshots."""
 
@@ -88,6 +103,7 @@ class CommitsCollectionMixin(_MixinBase):
     ]
     _authoritative_query_indexes: dict[int, ArtifactQueryIndex]
     _relation_indexes_by_result: dict[int, RelationIndex]
+    _acquired_stitch_facts: dict[tuple[str, str], _AcquiredStitchFacts]
     _preview_base: AuthoritativeCommitSnapshot | None
     _filter_session_open: bool
     _live_filter_values: CommitLogFilterValues | None
@@ -151,6 +167,7 @@ class CommitsCollectionMixin(_MixinBase):
         self._authoritative_results = {}
         self._authoritative_query_indexes: dict[int, ArtifactQueryIndex] = {}
         self._relation_indexes_by_result: dict[int, RelationIndex] = {}
+        self._acquired_stitch_facts = {}
         self._preview_base = None
 
     @property
@@ -414,8 +431,41 @@ class CommitsCollectionMixin(_MixinBase):
             return None
         return self._relation_indexes_by_result.get(id(snap.result))
 
+    def remember_acquired_stitch_facts(
+        self,
+        entry: Any,
+        *,
+        repo_kind: str,
+        repo_labels: tuple[str, ...],
+    ) -> None:
+        """Store one hydrated commit's facts without touching the display.
+
+        The row stays out of the displayed timeline on purpose: the Context
+        step that follows builds a repo-and-day window whose re-collection
+        fetches the commit through the normal collection path.
+        """
+        from .commits_timeline import commit_row_target
+
+        target = commit_row_target(entry)
+        key = (target.parts[0], target.parts[1].lower())
+        self._acquired_stitch_facts[key] = _AcquiredStitchFacts(
+            entry=entry,
+            repo_kind=repo_kind,
+            repo_labels=tuple(repo_labels) or (target.parts[0],),
+        )
+        while len(self._acquired_stitch_facts) > 128:
+            self._acquired_stitch_facts.pop(
+                next(iter(self._acquired_stitch_facts)), None
+            )
+
     def host_query_row_for_target(self, target: Any) -> dict[str, Any] | None:
-        """Return the unfiltered Stitches query row backing *target*."""
+        """Return the unfiltered Stitches query row backing *target*.
+
+        Answered from the last unfiltered collection, plus any facts the
+        Acquire step stored — never from the filtered displayed result, so
+        a filtered-out commit still resolves and the Context step can
+        build its window.
+        """
         from .entry_navigation import ArtifactEntryTarget
         from .query_rows import commit_query_entry
 
@@ -425,23 +475,94 @@ class CommitsCollectionMixin(_MixinBase):
             or len(target.parts) < 2
         ):
             return None
-        result = self.result
-        if result is None:
+        repo, sha = target.parts[0], target.parts[1].lower()
+        if not repo or not sha:
             return None
-        repo, full_sha = target.parts[0], target.parts[1]
-        repo_kind_by_name = {item.name: item.kind for item in result.repos}
-        repo_labels_by_name = {
-            item.name: tuple(dict.fromkeys((item.name, *item.aliases)))
-            for item in result.repos
-        }
-        for entry in result.commits:
-            if entry.repo == repo and entry.commit.full_id == full_sha:
+        for result in reversed(list(self._authoritative_results.values())):
+            repo_kind_by_name = {item.name: item.kind for item in result.repos}
+            repo_labels_by_name = {
+                item.name: tuple(dict.fromkeys((item.name, *item.aliases)))
+                for item in result.repos
+            }
+            for entry in result.commits:
+                if entry.repo == repo and _sha_matches(entry.commit.full_id, sha):
+                    return commit_query_entry(
+                        entry,
+                        repo_labels=repo_labels_by_name.get(entry.repo, (entry.repo,)),
+                        repo_kind=repo_kind_by_name.get(entry.repo, "primary"),
+                    )
+        for (fact_repo, fact_sha), facts in self._acquired_stitch_facts.items():
+            if fact_repo == repo and fact_sha.startswith(sha):
                 return commit_query_entry(
-                    entry,
-                    repo_labels=repo_labels_by_name.get(entry.repo, (entry.repo,)),
-                    repo_kind=repo_kind_by_name.get(entry.repo, "primary"),
+                    facts.entry,
+                    repo_labels=facts.repo_labels,
+                    repo_kind=facts.repo_kind,
                 )
         return None
+
+    def host_reveal_context(self, target: Any) -> Any | None:
+        """Return the repo-and-day window context query for *target*."""
+        from .entry_navigation import ArtifactEntryTarget
+        from sase.ace.link_reveal_context import RevealContext
+        from sase.filter_tokens import quote_value
+        from sase.vcs_log._render_util import to_local
+
+        if (
+            not isinstance(target, ArtifactEntryTarget)
+            or target.pane_id != "stitches"
+            or len(target.parts) < 2
+        ):
+            return None
+        row = self.host_query_row_for_target(target)
+        if row is None:
+            return None
+        fields = row.get("fields", {})
+        stamps = fields.get("since", ())
+        timestamp = next(
+            (int(stamp) for stamp in stamps if str(stamp).lstrip("-").isdigit()),
+            None,
+        )
+        if timestamp is None:
+            return None
+        day = to_local(timestamp).date().isoformat()
+        repo = target.parts[0]
+        constraints = [f"since:{day}", f"until:{day}"]
+        if bool(fields.get("sidecar", False)):
+            constraints.append("sidecar:true")
+        if str(fields.get("merges", "hide")) == "only":
+            constraints.append("merges:show")
+        project = self.entry_target_project(target)
+        if project:
+            constraints.append(f"project:{quote_value(project, keyed=True)}")
+        return RevealContext(
+            alternatives=(("repo", repo),),
+            constraints=tuple(constraints),
+            label=f"{repo} · {day}",
+        )
+
+    def host_reveal_verify_terms(self, context: Any) -> str | None:
+        """Return the row-verifiable subset of a Stitches window.
+
+        ``merges:show`` is collection-level (it matches no row) and
+        ``project:`` is not a row field, so neither can verify against the
+        target's own row — but both must stay in the committed query so the
+        re-collection it triggers fetches the commit.
+        """
+        alternatives = getattr(context, "alternatives", ())
+        constraints = getattr(context, "constraints", ())
+        if not alternatives:
+            return None
+        from sase.filter_tokens import quote_value
+
+        tokens = [
+            f"{field}:{quote_value(value, keyed=True)}" for field, value in alternatives
+        ]
+        tokens.extend(
+            token
+            for token in constraints
+            if not token.startswith("merges:") and not token.startswith("project:")
+        )
+        return " ".join(tokens) or None
 
     def entry_target_project(self, target: Any) -> str | None:
         """Return the owning project when *target* names the primary repo.
@@ -555,6 +676,12 @@ def _backend_collection_limit(values: CommitLogFilterValues) -> int:
 def _scope_key_for(values: CommitLogFilterValues) -> CommitScopeKey:
     project = values.project
     return (project, project is None)
+
+
+def _sha_matches(full_id: str, wanted: str) -> bool:
+    """Return whether *full_id* satisfies a full or abbreviated *wanted* SHA."""
+    normalized = full_id.lower()
+    return bool(wanted) and (normalized == wanted or normalized.startswith(wanted))
 
 
 __all__ = [

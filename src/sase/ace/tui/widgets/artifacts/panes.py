@@ -47,6 +47,9 @@ class ArtifactsPatchesPane(
 ):
     """The specialized Patch surface hosted inside the shared Artifacts chrome."""
 
+    _pending_entry_target: ArtifactEntryTarget | None
+    _pending_entry_generation: int | None
+
     def __init__(
         self,
         *,
@@ -93,8 +96,23 @@ class ArtifactsPatchesPane(
             self.query_one("#list-panel", PatchList).focus()
 
     def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
+        """Return visible Patch row identities in visual order.
+
+        Members hidden under a collapsed group banner are not stops: like
+        the other panes' rendered-row indexes, this is what lets the
+        link-follow Fold step (and the same-pane fast path) tell a hidden
+        row from a visible one.
+        """
         app = cast(Any, self.app)
-        return tuple(patch_row_target(patch) for patch in getattr(app, "patches", ()))
+        patches = tuple(getattr(app, "patches", ()))
+        visible = self._visible_patch_indices()
+        if visible is None:
+            return tuple(patch_row_target(patch) for patch in patches)
+        return tuple(
+            patch_row_target(patch)
+            for index, patch in enumerate(patches)
+            if index in visible
+        )
 
     def selected_entry_target(self) -> ArtifactEntryTarget | None:
         app = cast(Any, self.app)
@@ -134,12 +152,59 @@ class ArtifactsPatchesPane(
         Unlike the async-loaded non-PR panes, Patches are already loaded
         into app state by the time this pane can be queried, so there is
         no later row model to defer to — a miss here means the Patch is
-        genuinely not in the current filtered list.
+        genuinely not in the current filtered list, or it hides under a
+        collapsed group banner (the link-follow Fold step expands it).
         """
-        del generation
         if self.select_entry_target(target):
-            return LinkRequestState.SELECTED
+            if self._patch_target_visible_in_list(target):
+                self._pending_entry_generation = generation
+                return self._complete_entry_request(LinkRequestState.SELECTED)
+            self._pending_entry_target = target
+            self._pending_entry_generation = generation
+            return self._complete_entry_request(LinkRequestState.MISSING)
         return LinkRequestState.MISSING
+
+    def _visible_patch_indices(self) -> frozenset[int] | None:
+        """Return visible list positions, or ``None`` when unknown.
+
+        ``None`` (no grouping mode, no registry, or any helper failure)
+        means "treat every row as visible", so selection never breaks on a
+        helper error.
+        """
+        try:
+            app = cast(Any, self.app)
+            patches = list(getattr(app, "patches", ()))
+            mode = getattr(app, "_patch_grouping_mode", None)
+            registry = getattr(app, "_patch_group_fold_registry", None)
+            if mode is None or registry is None:
+                return None
+            from ...models.patch_groups import build_patch_tree
+
+            entries = build_patch_tree(patches, mode=mode, fold_registry=registry)
+            return frozenset(
+                entry.patch_idx
+                for entry in entries
+                if entry.kind == "patch" and entry.patch_idx is not None
+            )
+        except Exception:  # noqa: BLE001 - never break selection on a helper error
+            return None
+
+    def _patch_target_visible_in_list(self, target: ArtifactEntryTarget) -> bool:
+        """Return whether *target* has a visible row in the grouped list."""
+        app = cast(Any, self.app)
+        patches = tuple(getattr(app, "patches", ()))
+        index = next(
+            (
+                position
+                for position, patch in enumerate(patches)
+                if patch_row_target(patch) == target
+            ),
+            None,
+        )
+        if index is None:
+            return False
+        visible = self._visible_patch_indices()
+        return visible is None or index in visible
 
     def host_query_row_for_target(self, target: ArtifactEntryTarget) -> Any | None:
         """Return the Patch object backing *target* from the unfiltered inventory."""
@@ -150,6 +215,122 @@ class ArtifactsPatchesPane(
             if patch_row_target(patch) == target:
                 return patch
         return None
+
+    def expand_fold_for_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        """Expand the minimum Patch group banner hiding *target*.
+
+        Unlike the async-loaded panes, Patches render their groups from the
+        already-filtered list, so selecting a member of a collapsed group
+        leaves the highlight on a hidden row. Expanding the target's own
+        enclosing banners first lets the re-request select it for real.
+        """
+        if target.pane_id != "patches" or len(target.parts) < 2:
+            return False
+        app = cast(Any, self.app)
+        patches = list(getattr(app, "patches", ()))
+        index = next(
+            (
+                position
+                for position, patch in enumerate(patches)
+                if patch_row_target(patch) == target
+            ),
+            None,
+        )
+        if index is None:
+            return False
+        from ...models.group_fold import GroupFoldRegistry
+        from ...models.patch_groups import build_patch_tree
+
+        mode = getattr(app, "_patch_grouping_mode", None)
+        if mode is None:
+            return False
+        entries = build_patch_tree(
+            patches, mode=mode, fold_registry=GroupFoldRegistry()
+        )
+        keys = [
+            entry.group.group_key
+            for entry in entries
+            if entry.kind == "group"
+            and entry.group is not None
+            and index in entry.group.patch_indices
+        ]
+        registry = getattr(app, "_patch_group_fold_registry", None)
+        if registry is None or not keys:
+            return False
+        changed = bool(registry.expand_keys(keys))
+        if changed:
+            refresh = getattr(app, "_refresh_display", None)
+            if callable(refresh):
+                refresh()
+        return changed
+
+    def host_reveal_context(self, target: ArtifactEntryTarget) -> Any | None:
+        """Return the stack or identity context query for *target*.
+
+        Non-terminal targets show the whole stack through the root of
+        their parent chain; terminal (Submitted/Reverted/Archived) targets
+        use ``name:``, which lifts the hide toggles through query
+        introspection.
+        """
+        from sase.ace.link_reveal_context import RevealContext
+        from sase.ace.query.matchers import get_base_status
+
+        if target.pane_id != "patches" or len(target.parts) < 2:
+            return None
+        app = cast(Any, self.app)
+        patches = list(getattr(app, "_all_patches", ()))
+        project, name = target.parts[0], target.parts[1]
+        patch = next(
+            (
+                item
+                for item in patches
+                if item.project_name == project and item.name == name
+            ),
+            None,
+        )
+        if patch is None:
+            return None
+        by_name: dict[str, Any] = {}
+        for item in patches:
+            by_name.setdefault(item.name.casefold(), item)
+        root = patch.name
+        current = patch
+        seen = {patch.name.casefold()}
+        while current.parent:
+            parent = by_name.get(current.parent.casefold())
+            if parent is None or parent.name.casefold() in seen:
+                break
+            seen.add(parent.name.casefold())
+            root = parent.name
+            current = parent
+        if get_base_status(patch.status) in ("Submitted", "Reverted", "Archived"):
+            return RevealContext(
+                alternatives=(("name", patch.name),),
+                label=f"patch {patch.name}",
+                member_count=1,
+            )
+        return RevealContext(
+            alternatives=(("ancestor", root),),
+            label=f"stack {root}",
+            member_count=_patch_stack_size(patches, by_name, root),
+        )
+
+    def host_query_probe(self, target: ArtifactEntryTarget) -> Any | None:
+        """Build a Patch-native one-row matcher for *target*.
+
+        Patches evaluate through their own boolean query engine rather
+        than the shared Rust corpus, so the default Rust probe cannot
+        answer here. The probe mirrors visible membership exactly,
+        including the hide toggles the committed query may lift.
+        """
+        patch = self.host_query_row_for_target(target)
+        if patch is None:
+            return None
+        app = cast(Any, self.app)
+        parse = getattr(app, "_parse_patch_query", None)
+        if not callable(parse):
+            return None
+        return _PatchMembershipProbe(patch=patch, app=app, parse=parse)
 
     def host_limit_query(self) -> str:
         """Return the live or committed Patch query used for ``limit:`` paging."""
@@ -269,6 +450,82 @@ class ArtifactsPatchesPane(
 
 def _patch_relation_status_hidden(status: str) -> bool:
     return status.startswith("Reverted") or status.startswith("Archived")
+
+
+def _patch_stack_size(
+    patches: list[Any],
+    by_name: dict[str, Any],
+    root: str,
+) -> int | None:
+    """Count the stack rooted at *root*: the root plus its descendants."""
+    folded = root.casefold()
+    count = 0
+    for item in patches:
+        seen = {item.name.casefold()}
+        current = item
+        while current.name.casefold() != folded:
+            parent_name = getattr(current, "parent", None)
+            if not parent_name:
+                break
+            parent = by_name.get(str(parent_name).casefold())
+            if parent is None or parent.name.casefold() in seen:
+                break
+            seen.add(parent.name.casefold())
+            current = parent
+        if current.name.casefold() == folded:
+            count += 1
+    return count or None
+
+
+class _PatchMembershipProbe:
+    """One-row Patch matcher mirroring visible list membership.
+
+    Uses the pane's own boolean query engine (not the shared Rust corpus)
+    plus the same hide-toggle lifting the list applies, so Context
+    verification and hidden-reason analysis agree with what the user sees.
+    """
+
+    def __init__(self, *, patch: Any, app: Any, parse: Any) -> None:
+        self._patch = patch
+        self._app = app
+        self._parse = parse
+
+    def matches(self, query: str) -> bool:
+        """Return whether *query* would show this probe's Patch."""
+        from sase.ace.query import QueryParseError
+        from sase.ace.query.evaluator import evaluate_query
+        from sase.ace.query.introspection import (
+            query_explicitly_targets_submitted,
+            query_explicitly_targets_terminal,
+        )
+        from sase.ace.query.matchers import get_base_status
+
+        try:
+            parsed = self._parse(query)
+        except QueryParseError:
+            return False
+        except Exception:  # noqa: BLE001 - a probe failure is not absence
+            return False
+        try:
+            all_patches = list(getattr(self._app, "_all_patches", ()))
+            if not evaluate_query(parsed, self._patch, all_patches):
+                return False
+        except Exception:  # noqa: BLE001 - treat probe errors as excluding
+            return False
+        base_status = get_base_status(self._patch.status)
+        if (
+            bool(getattr(self._app, "hide_reverted", False))
+            and base_status in ("Reverted", "Archived")
+            and not query_explicitly_targets_terminal(parsed, all_patches)
+        ):
+            return False
+        if (
+            bool(getattr(self._app, "hide_submitted", False))
+            and base_status == "Submitted"
+            and not query_explicitly_targets_submitted(parsed, all_patches)
+        ):
+            return False
+        return True
 
 
 _PLACEHOLDER_COPY: dict[ArtifactsSubTab, tuple[str, str, str]] = {

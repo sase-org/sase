@@ -107,6 +107,8 @@ class PlansOptionsMixin(_MixinBase):
 
         def _invalidate_deep_archive_request(self) -> None: ...
 
+        def _deep_archive_scan_outstanding(self) -> bool: ...
+
         def _close_filter_session(self) -> None: ...
 
         def _sync_artifacts_footer(self) -> None: ...
@@ -380,6 +382,11 @@ class PlansOptionsMixin(_MixinBase):
             self._refresh_options(update_detail=update_detail)
             return
         if pending_id is None and pending_target is not None:
+            if self._deep_archive_scan_outstanding():
+                # A scan for the live values has not resolved yet: keep the
+                # pending target so the link-follow transaction waits, and
+                # report when the scan's refresh re-renders.
+                return
             if self._loaded_current_snapshot():
                 state = (
                     LinkRequestState.FAILED

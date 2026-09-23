@@ -341,6 +341,19 @@ class PlansFilterSessionMixin(_MixinBase):
         request = self._deep_archive_request_for(values)
         return None if request is None else self._deep_archive_cache.get(request)
 
+    def _deep_archive_scan_outstanding(self) -> bool:
+        """Return whether a deep-archive scan for the live values is unresolved.
+
+        A committed ``path:`` context query triggers exactly such a scan;
+        while it is outstanding the link-follow transaction must wait
+        rather than reading the scan's absence as the target's absence.
+        """
+        values = self._display_filter_values()
+        request = self._deep_archive_request_for(values)
+        if request is None:
+            return False
+        return self._deep_archive_cache.get(request) is None
+
     def _schedule_deep_archive(self, values: PlanFilterValues) -> None:
         request = self._deep_archive_request_for(values)
         if request is None:
@@ -410,6 +423,14 @@ class PlansFilterSessionMixin(_MixinBase):
         request = self._deep_archive_in_flight
         self._deep_archive_worker = None
         self._deep_archive_in_flight = None
+        if event.state == WorkerState.ERROR and self.is_mounted:
+            # A failed scan never resolves: drop the outstanding request so
+            # a waiting link-follow target re-evaluates to its honest miss
+            # instead of hanging on a report that will never arrive.
+            if getattr(self, "_pending_entry_target", None) is not None:
+                self._invalidate_deep_archive_request()
+                self._refresh_options()
+                return
         if event.state == WorkerState.SUCCESS:
             result = event.worker.result
             if (

@@ -262,6 +262,38 @@ class PlansNavigationMixin(_MixinBase):
             return None
         return plan_query_entry(snapshot, record)
 
+    def host_reveal_context(self, target: ArtifactEntryTarget) -> Any | None:
+        """Return the ``path:`` context query for *target*.
+
+        The substring match also shows the document's lifecycle rows
+        (proposal, active, archive sharing one path). Proposal refs carry
+        a notification id rather than a path, so they answer ``None`` and
+        the engine falls back to the row's full identity.
+        """
+        from sase.ace.link_reveal_context import RevealContext
+
+        pane_id = getattr(self, "pane_key", None)
+        if pane_id is None and self.contract is not None:
+            pane_id = self.contract.id
+        if target.pane_id != (pane_id or "ref:plan") or len(target.parts) < 3:
+            return None
+        identity = target.parts[2]
+        if not identity or "/" not in identity:
+            return None
+        if self.host_query_row_for_target(target) is None:
+            return None
+        basename = identity.rsplit("/", 1)[-1] or identity
+        provider_kind = getattr(self, "provider_kind", "plan")
+        if provider_kind == "plan":
+            label = f"plan {basename}"
+        else:
+            provider_label = getattr(self, "provider_label", None) or "plan"
+            label = f"{provider_label} {basename}"
+        return RevealContext(
+            alternatives=(("path", identity),),
+            label=label,
+        )
+
     def hydrate_ref(self, kind: str, payload: str) -> HydrationResult:
         """Resolve one archived document directly, without a deep-archive scan.
 

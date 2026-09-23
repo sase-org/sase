@@ -492,6 +492,12 @@ class CommitsFilteringMixin(_MixinBase):
             )
             return
 
+        if not self._collection_matches(values):
+            # Schedule before the preview display below: the fresh worker
+            # marks the pane in-flight, so the transient preview (which
+            # cannot contain a not-yet-collected row) keeps the timeline
+            # instead of wiping the selection a link follow is standing on.
+            self._schedule_collection()
         snapshot = self._authoritative_snapshot(values)
         if snapshot is not None:
             displayed = self._filtered_result(
@@ -509,8 +515,6 @@ class CommitsFilteringMixin(_MixinBase):
                 and not self._query_result_pending,
                 values=values,
             )
-        if not self._collection_matches(values):
-            self._schedule_collection()
 
     def on_commit_filter_bar_dismissed(
         self,

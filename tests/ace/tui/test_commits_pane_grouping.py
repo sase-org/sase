@@ -107,7 +107,12 @@ async def test_collapsing_a_repo_group_hides_its_commit(
 async def test_hydrate_ref_resolves_exact_commit_bypassing_collection_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A never-collected commit is fetched directly and merged in as one row."""
+    """A never-collected commit's facts are stored without touching the display.
+
+    The Acquire step keeps hydrated facts outside the displayed timeline so
+    the later Context step can build a repo-and-day window whose
+    re-collection fetches the commit through the normal collection path.
+    """
     result = _result()
     page, pane = await _mounted_pane(monkeypatch, result)
     try:
@@ -154,18 +159,28 @@ async def test_hydrate_ref_resolves_exact_commit_bypassing_collection_window(
         assert payload.repo == "alpha-platform-repository"
         assert payload.commit.full_id == "c" * 40
 
-        before_count = len(pane.result.commits)
-        before_repos = pane.result.repos
+        before = pane.result
+        assert before is not None
+        before_count = len(before.commits)
         target = pane.install_hydrated_row(payload)
 
         assert target == commit_row_target(payload)
-        assert len(pane.result.commits) == before_count + 1
-        assert pane.result.repos == before_repos
-        assert any(
+        # The displayed timeline is untouched; the facts answer instead.
+        assert pane.result is before
+        assert len(before.commits) == before_count
+        assert not any(
             entry.repo == "alpha-platform-repository"
             and entry.commit.full_id == "c" * 40
-            for entry in pane.result.commits
+            for entry in before.commits
         )
+        row = pane.host_query_row_for_target(target)
+        assert row is not None
+        assert row["fields"]["sha"] == "c" * 40
+        context = pane.host_reveal_context(target)
+        assert context is not None
+        assert context.alternatives == (("repo", "alpha-platform-repository"),)
+        assert context.constraints[0].startswith("since:")
+        assert context.constraints[1].startswith("until:")
     finally:
         await page.__aexit__(None, None, None)
 

@@ -89,6 +89,8 @@ class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
     """
 
     _last_entry_request_state: LinkRequestState | None
+    _pending_entry_target: ArtifactEntryTarget | None
+    _pending_entry_generation: int | None
 
     @abstractmethod
     def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
@@ -255,6 +257,19 @@ class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
         patch stacks) override this to land the jump inside that family.
         """
         del target
+        return None
+
+    def host_reveal_verify_terms(self, context: RevealContext) -> str | None:
+        """Return the row-verifiable terms for *context*, if narrowed.
+
+        The default is ``None``, which means the engine verifies the full
+        rendered remainder against the target's own row. Panes whose
+        context carries collection-level constraints no single row can
+        match (Stitches' ``merges:``/``project:`` window tokens) override
+        this to exclude those terms from verification, while the committed
+        query keeps them so the re-collection fetches the target.
+        """
+        del context
         return None
 
     def _complete_entry_request(
