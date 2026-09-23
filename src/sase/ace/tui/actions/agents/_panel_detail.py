@@ -437,6 +437,18 @@ class AgentPanelDetailMixin:
         agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
         agent_detail.toggle_header_expanded()
 
+    def action_toggle_agent_jump_panel(self) -> None:
+        """Toggle the agent jump panel between collapsed and expanded."""
+        if self.current_tab != "agents":
+            return
+
+        from ...widgets import AgentDetail
+
+        agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        toggle = getattr(agent_detail, "toggle_jump_panel_expanded", None)
+        if callable(toggle):
+            toggle()
+
     def action_toggle_thinking(self) -> None:
         """Retired app action; open the Agent view picker instead."""
         chooser = getattr(self, "action_choose_agent_view", None)

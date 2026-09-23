@@ -101,6 +101,10 @@ _CONTEXTUAL_APP_DUPLICATES: frozenset[frozenset[str]] = frozenset(
         frozenset({"agents_revive", "beads_launch_work"}),
         frozenset({"agents_revive", "reword"}),
         frozenset({"toggle_relation_panel", "toggle_hide_reverted"}),
+        # Tab-disjoint by construction: Agents-only jump panel toggle vs the
+        # Services `.` and Artifacts `.` owners.
+        frozenset({"toggle_agent_jump_panel", "toggle_hide_reverted"}),
+        frozenset({"toggle_agent_jump_panel", "toggle_relation_panel"}),
         frozenset({"open_agent_cleanup_panel", "patches_toggle_reverted"}),
         # Pane-disjoint by construction: Agents-only attempt history vs
         # Artifacts-only pane brief cycling.

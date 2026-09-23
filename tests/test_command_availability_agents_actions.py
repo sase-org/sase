@@ -245,6 +245,34 @@ def test_toggle_agent_header_hidden_until_panel_available() -> None:
     )
 
 
+def test_toggle_agent_jump_panel_hidden_until_panel_available() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.toggle_agent_jump_panel"]
+    agent = _make_agent(status="RUNNING")
+    assert spec.tabs == ("agents",)
+    assert not is_command_available(spec, CommandContext(tab="agents", agent=agent))
+    assert is_command_available(
+        spec,
+        CommandContext(tab="agents", agent=agent, jump_panel_toggle_available=True),
+    )
+    assert not is_command_available(
+        spec,
+        CommandContext(tab="services", agent=agent, jump_panel_toggle_available=True),
+    )
+
+
+def test_toggle_hide_non_run_agents_is_agents_only() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.toggle_hide_non_run_agents"]
+    agent = _make_agent(status="RUNNING")
+    assert spec.tabs == ("agents",)
+    assert is_command_available(spec, CommandContext(tab="agents", agent=agent))
+    assert not is_command_available(spec, CommandContext(tab="services", agent=None))
+    assert not is_command_available(
+        catalog["app.toggle_hide_reverted"], CommandContext(tab="agents", agent=agent)
+    )
+
+
 def test_toggle_attempt_view_requires_history_and_no_pin() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.toggle_attempt_view"]

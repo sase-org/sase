@@ -179,11 +179,23 @@ def test_capital_x_binds_agent_cleanup_panel() -> None:
     assert by_action["patches_toggle_reverted"].key == "X"
 
 
-def test_full_stop_binds_relation_toggle_and_hide_reverted() -> None:
+def test_full_stop_binds_relation_toggle_hide_reverted_and_jump_panel() -> None:
+    """`.` is shared by the tab-disjoint Artifacts, Services, Agents owners."""
     bindings = build_app_bindings(default_app_keymaps())
     assert [binding.action for binding in bindings if binding.key == "full_stop"] == [
         "toggle_relation_panel",
         "toggle_hide_reverted",
+        "toggle_agent_jump_panel",
+    ]
+
+
+def test_capital_i_binds_hide_non_run_agents() -> None:
+    """Capital ``I`` owns the Agents show/hide non-run agents toggle."""
+    bindings = build_app_bindings(default_app_keymaps())
+    by_action = {b.action: b for b in bindings}
+    assert by_action["toggle_hide_non_run_agents"].key == "I"
+    assert [b.action for b in bindings if b.key == "I"] == [
+        "toggle_hide_non_run_agents",
     ]
 
 

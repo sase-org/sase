@@ -228,6 +228,8 @@ DEFAULT_BINDINGS: list[BindingType] = [
     Binding("a", "open_artifact_files", "Artifact Files", show=False),
     Binding("D", "toggle_attempt_view", "Attempt View", show=False),
     Binding("d", "toggle_agent_header", "Toggle Agent Header", show=False),
+    Binding("full_stop", "toggle_agent_jump_panel", "Toggle Jump Panel", show=False),
+    Binding("I", "toggle_hide_non_run_agents", "Show/Hide Non-Run Agents", show=False),
     Binding("U", "toggle_agent_unread", "Toggle Agent Unread", show=False),
     Binding("N", "edit_agent_tribe", "Edit Agent Tribe", show=False),
     # Tribe-driven side-panel focus cycling (agents tab)

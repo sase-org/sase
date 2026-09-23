@@ -153,6 +153,8 @@ class AppKeymaps:
     open_artifact_files: str
     toggle_attempt_view: str
     toggle_agent_header: str
+    toggle_agent_jump_panel: str
+    toggle_hide_non_run_agents: str
     toggle_agent_unread: str
     edit_agent_tribe: str
     focus_next_agent_panel: str

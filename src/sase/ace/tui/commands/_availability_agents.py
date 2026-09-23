@@ -212,6 +212,11 @@ def agents_available(spec: CommandSpec, ctx: CommandContext) -> bool:
     if spec.id == "app.toggle_agent_header":
         return bool(ctx.header_toggle_available)
 
+    # toggle_agent_jump_panel needs the jump panel (a document with live
+    # numbered targets); unavailable until the panel exists.
+    if spec.id == "app.toggle_agent_jump_panel":
+        return bool(ctx.jump_panel_toggle_available)
+
     # jump_to_agent_patch needs a resolvable target.
     if spec.id == "app.jump_to_agent_patch":
         return agent is not None and ctx.can_jump_to_patch

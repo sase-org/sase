@@ -231,6 +231,7 @@ class CommandContext:
     agent_enter_available: bool = False
     attempt_pinned: bool = False
     header_toggle_available: bool = False
+    jump_panel_toggle_available: bool = False
     panel_focused: bool = False
     panel_collapsed: bool = False
     focused_panel_key: str | None = None

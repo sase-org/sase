@@ -1323,6 +1323,7 @@ a warning rather than landing somewhere stale.
 | `v`                 | View files (hint mode; annotates clan/family containers in place)                                               |
 | `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                               |
 | `d`                 | Expand / collapse the agent header panel (sticky identity header above the detail panels)                       |
+| `I`                 | Show/hide non-run agents                                                                                        |
 | `V`                 | Open the focused agent's metadata as a sectioned document in the pager (see below)                              |
 | `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                                 |
 | `W`                 | Prepare a prompt that waits for the selected agent/family, clan, or named tribe; marks produce `%w:a,b,c`       |
@@ -3295,7 +3296,7 @@ These work on all tabs:
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Tab` / `Shift+Tab`     | Switch between Agents, Artifacts, and Services tabs                                                                                                                    |
 | `#`                     | Open SASE Admin Center home (repeat on home to resume the last section); inside a working section, jump to the alternate section (repeat to toggle back)               |
-| `.`                     | Artifacts: collapse/expand the relations panel; Agents: show/hide non-run agents; Services: show/hide axe commands                                                     |
+| `.`                     | Artifacts: collapse/expand the relations panel; Services: show/hide axe commands                                                                                       |
 | `:` / `;`               | Open the context-aware [Command Palette](#command-palette)                                                                                                             |
 | `i`                     | Show notifications inbox                                                                                                                                               |
 | `+`                     | Run a custom agent (opens project/Patch selection)                                                                                                                     |

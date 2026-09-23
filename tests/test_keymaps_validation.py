@@ -214,6 +214,28 @@ def test_agent_header_toggle_collision_with_unrelated_action_reverts() -> None:
     assert reg.app.quit == "q"
 
 
+def test_jump_panel_toggle_may_share_custom_key_with_each_dot_owner() -> None:
+    """The jump toggle keeps its exemption against every tab-disjoint `.` owner."""
+    for partner in ("toggle_hide_reverted", "toggle_relation_panel"):
+        reg = load_keymap_registry(
+            {"keymaps": {"app": {"toggle_agent_jump_panel": "f11", partner: "f11"}}}
+        )
+        assert reg.app.toggle_agent_jump_panel == "f11"
+        assert getattr(reg.app, partner) == "f11"
+
+
+def test_jump_panel_toggle_explicit_full_stop_override_keeps_exemption(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Pinning the jump toggle to ``.`` does not warn about its tab owners."""
+    with caplog.at_level(logging.WARNING):
+        reg = load_keymap_registry(
+            {"keymaps": {"app": {"toggle_agent_jump_panel": "full_stop"}}}
+        )
+    assert reg.app.toggle_agent_jump_panel == "full_stop"
+    assert not any("Duplicate key" in r.message for r in caplog.records)
+
+
 def test_agents_refresh_and_run_workflow_may_share_a_custom_key() -> None:
     """Agents refresh and Artifacts/Axe run are tab-disjoint."""
     reg = load_keymap_registry(

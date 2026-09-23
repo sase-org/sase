@@ -330,6 +330,13 @@ ACTION_COMMAND_META: tuple[AppCommandMeta, ...] = (
         ("header", "expand header", "collapse header"),
     ),
     (
+        "toggle_agent_jump_panel",
+        "Toggle jump panel",
+        "Agents",
+        AGENTS_ONLY,
+        ("jump panel", "expand jump panel", "collapse jump panel"),
+    ),
+    (
         "toggle_agent_unread",
         "Toggle agent unread marker",
         "Agents",

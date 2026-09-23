@@ -506,6 +506,15 @@ def test_agent_header_toggle_default_binding() -> None:
     assert reg.app.toggle_agent_header == "d"
 
 
+def test_agent_jump_panel_and_non_run_toggle_default_bindings() -> None:
+    """The jump panel ships on ``.`` and the non-run toggle moved to ``I``."""
+    reg = load_keymap_registry({})
+    assert reg.app.toggle_agent_jump_panel == "full_stop"
+    assert reg.app.toggle_hide_non_run_agents == "I"
+    assert reg.app.toggle_hide_reverted == "full_stop"
+    assert reg.app.toggle_relation_panel == "full_stop"
+
+
 def test_default_config_covers_all_statistics_keymaps() -> None:
     """The bundled config is the source of truth for Statistics-pane keys."""
     defaults = load_builtin_statistics_defaults()

@@ -154,6 +154,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.open_artifact_files), "Artifact files (or marked set)"),
                 (d(a.toggle_attempt_view), "Toggle attempt history view"),
                 (d(a.toggle_agent_header), "Expand / collapse agent header"),
+                (d(a.toggle_hide_non_run_agents), "Show/hide non-run agents"),
                 (
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",
                     "Next / prev commit/link/file",
@@ -595,7 +596,6 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
             [
                 (f"{d(a.next_tab)} / {d(a.prev_tab)}", "Switch tabs"),
                 ("[ / ]", "Switch Keymaps / Guide"),
-                (d(a.toggle_hide_reverted), "Show/hide non-run agents"),
                 (
                     d(a.open_config_center),
                     admin_center_opener_help_label(),

@@ -515,10 +515,7 @@ class PatchMixin(
                 return
 
     def action_toggle_hide_reverted(self) -> None:
-        """Toggle visibility of non-run agents or axe commands."""
-        if self.current_tab == "agents":
-            self._toggle_hide_non_run_agents()  # type: ignore[attr-defined]
-            return
+        """Toggle visibility of axe commands (Services tab only)."""
         if self.current_tab == "services":
             self._axe_cmds_hidden = not self._axe_cmds_hidden  # type: ignore[attr-defined]
             # If hiding and current selection is a bgcmd, navigate to axe parent

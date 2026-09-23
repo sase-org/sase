@@ -223,6 +223,20 @@ def test_palette_catalog_registers_inert_header_toggle() -> None:
     assert spec.key_display == "d"
 
 
+def test_palette_catalog_registers_inert_jump_panel_toggle() -> None:
+    """The jump toggle is an Agents-only palette entry showing its ``.`` key."""
+    from sase.ace.tui.commands import build_command_catalog
+    from sase.ace.tui.keymaps import load_keymap_registry
+
+    catalog = {c.id: c for c in build_command_catalog(load_keymap_registry({}))}
+    spec = catalog["app.toggle_agent_jump_panel"]
+    assert spec.tabs == ("agents",)
+    assert spec.key_display == "."
+    non_run = catalog["app.toggle_hide_non_run_agents"]
+    assert non_run.tabs == ("agents",)
+    assert non_run.key_display == "I"
+
+
 def test_action_open_command_palette_noop_on_cancel() -> None:
     """Cancelling the palette (None result) runs no action."""
     app = AceApp(auto_start_axe=False)

@@ -6,9 +6,9 @@ Split out of ``_app_metadata.py`` to keep each module under the 500-line cap.
 from __future__ import annotations
 
 from sase.ace.tui.commands._tabs import (
-    AGENTS_AXE,
     AGENTS_ONLY,
     ALL_TABS,
+    AXE_ONLY,
     CL_AGENTS,
     CL_ONLY,
 )
@@ -97,7 +97,14 @@ DISPLAY_COMMAND_META: tuple[AppCommandMeta, ...] = (
     ("prev_query", "Previous saved query", "Queries", ALL_TABS, ()),
     ("next_query", "Next saved query", "Queries", ALL_TABS, ()),
     # Display / misc
-    ("toggle_hide_reverted", "Toggle hide reverted", "Display", AGENTS_AXE, ()),
+    ("toggle_hide_reverted", "Toggle hide reverted", "Display", AXE_ONLY, ()),
+    (
+        "toggle_hide_non_run_agents",
+        "Toggle hide non-run agents",
+        "Display",
+        AGENTS_ONLY,
+        ("non-run agents", "hide inactive", "inactive agents"),
+    ),
     (
         "patches_toggle_reverted",
         "Toggle hide reverted",

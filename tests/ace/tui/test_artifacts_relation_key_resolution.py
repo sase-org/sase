@@ -54,8 +54,28 @@ def test_full_stop_resolves_to_one_action_per_tab() -> None:
 
     assert _available_for_key(artifacts, "full_stop") == ("toggle_relation_panel",)
     assert _available_for_key(beads, "full_stop") == ("toggle_relation_panel",)
-    assert _available_for_key(agents, "full_stop") == ("toggle_hide_reverted",)
+    # On Agents `.` is a no-op until the jump panel exists (see below).
+    assert _available_for_key(agents, "full_stop") == ()
     assert _available_for_key(axe, "full_stop") == ("toggle_hide_reverted",)
+
+
+def test_full_stop_resolves_to_jump_panel_once_it_exists() -> None:
+    agents = _KeyResolutionApp(tab="agents")
+    agents.query_one = lambda *args, **kwargs: SimpleNamespace(  # type: ignore[attr-defined]
+        jump_panel_toggle_available=lambda: True
+    )
+
+    assert _available_for_key(agents, "full_stop") == ("toggle_agent_jump_panel",)
+
+
+def test_capital_i_resolves_to_hide_non_run_agents_on_agents_only() -> None:
+    agents = _KeyResolutionApp(tab="agents")
+    axe = _KeyResolutionApp(tab="services")
+    artifacts = _KeyResolutionApp(tab="artifacts", pane_key="patches")
+
+    assert _available_for_key(agents, "I") == ("toggle_hide_non_run_agents",)
+    assert _available_for_key(axe, "I") == ()
+    assert _available_for_key(artifacts, "I") == ()
 
 
 def test_capital_x_resolves_to_one_action_per_tab() -> None:
@@ -70,10 +90,34 @@ def test_capital_x_resolves_to_one_action_per_tab() -> None:
     assert _available_for_key(axe, "X") == ("open_agent_cleanup_panel",)
 
 
-def test_toggle_hide_reverted_is_unavailable_on_artifacts() -> None:
-    app = _KeyResolutionApp(tab="artifacts", pane_key="patches")
+def test_toggle_hide_reverted_is_services_only() -> None:
+    artifacts = _KeyResolutionApp(tab="artifacts", pane_key="patches")
+    agents = _KeyResolutionApp(tab="agents")
+    axe = _KeyResolutionApp(tab="services")
     assert (
-        check_app_action(app, "toggle_hide_reverted", (), lambda _a, _p: True) is False
+        check_app_action(artifacts, "toggle_hide_reverted", (), lambda _a, _p: True)
+        is False
+    )
+    assert (
+        check_app_action(agents, "toggle_hide_reverted", (), lambda _a, _p: True)
+        is False
+    )
+    assert (
+        check_app_action(axe, "toggle_hide_reverted", (), lambda _a, _p: True)
+        is not False
+    )
+
+
+def test_toggle_hide_non_run_agents_is_agents_only() -> None:
+    agents = _KeyResolutionApp(tab="agents")
+    axe = _KeyResolutionApp(tab="services")
+    assert (
+        check_app_action(agents, "toggle_hide_non_run_agents", (), lambda _a, _p: True)
+        is not False
+    )
+    assert (
+        check_app_action(axe, "toggle_hide_non_run_agents", (), lambda _a, _p: True)
+        is False
     )
 
 

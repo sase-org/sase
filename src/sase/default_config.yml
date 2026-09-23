@@ -745,6 +745,12 @@ ace:
       # (Artifacts), toggle_axe_description (Services), and
       # stitches_toggle_sdd (Artifacts Stitches).
       toggle_agent_header: "d"
+      # Agents-only jump panel toggle. Shares "." with toggle_hide_reverted
+      # (Services) and toggle_relation_panel (Artifacts).
+      toggle_agent_jump_panel: "full_stop"
+      # Agents-only show/hide non-run agents toggle. Moved off "." (which now
+      # toggles the Agents jump panel) to I (mnemonic: inactive).
+      toggle_hide_non_run_agents: "I"
       # Manual unread marker (agents tab)
       toggle_agent_unread: "U"
       # Agent tribe modal (agents tab)
@@ -770,7 +776,8 @@ ace:
       next_query: "underscore"
       # Display / misc
       show_help: "question_mark"
-      # Agents/Axe only; Artifacts uses toggle_relation_panel on the same key.
+      # Services axe commands only; Artifacts uses toggle_relation_panel and
+      # Agents uses toggle_agent_jump_panel on the same key.
       toggle_hide_reverted: "full_stop"
       toggle_hide_submitted: "x"
       patches_toggle_reverted: "X"
@@ -787,7 +794,8 @@ ace:
       start_ancestor_mode: "<"
       start_child_mode: ">"
       start_sibling_mode: "~"
-      # Shares `.` with toggle_hide_reverted; disambiguated by tab availability
+      # Shares `.` with toggle_hide_reverted (Services) and
+      # toggle_agent_jump_panel (Agents); disambiguated by tab availability
       # (the same arrangement `x` already uses for kill_agent/toggle_hide_submitted).
       toggle_relation_panel: "full_stop"
       follow_artifact_link: "dollar_sign"

@@ -232,6 +232,27 @@ def check_app_action(
             return bool(detail.header_toggle_available())
         except Exception:
             return False
+    if action == "toggle_agent_jump_panel":
+        if app.current_tab != "agents" or _prompt_input_owns_keys(app):
+            return False
+        try:
+            from .widgets import AgentDetail
+
+            detail = app.query_one("#agent-detail-panel", AgentDetail)
+        except Exception:
+            return False
+        # Unavailable until the panel phase adds the method and while the
+        # jump panel is hidden, so `.` stays a no-op and the tab-gated `.`
+        # bindings on other tabs keep the key.
+        available = getattr(detail, "jump_panel_toggle_available", None)
+        if not callable(available):
+            return False
+        try:
+            return bool(available())
+        except Exception:
+            return False
+    if action == "toggle_hide_non_run_agents" and app.current_tab != "agents":
+        return False
     if action == "show_diff" and app.current_tab != ARTIFACTS_TAB:
         return False
     if action == "open_artifact_files" and app.current_tab != "agents":
@@ -417,7 +438,7 @@ def check_app_action(
         if callable(available):
             return bool(available())
         return bool(app.link_edges_for_selection())
-    if action == "toggle_hide_reverted" and app.current_tab == ARTIFACTS_TAB:
+    if action == "toggle_hide_reverted" and app.current_tab != SERVICES_TAB:
         return False
     if action == "open_agent_cleanup_panel" and app.current_tab not in {
         "agents",

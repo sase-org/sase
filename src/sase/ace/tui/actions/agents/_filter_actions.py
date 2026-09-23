@@ -6,9 +6,16 @@ from __future__ import annotations
 class AgentFilterActionsMixin:
     """Mixin providing agent visibility and query filter actions."""
 
+    current_tab: str
     hide_non_run_agents: bool
     _agent_search_query: str
     _agent_search_query_seeded: bool
+
+    def action_toggle_hide_non_run_agents(self) -> None:
+        """Toggle visibility of non-run agents (Agents tab only)."""
+        if self.current_tab != "agents":
+            return
+        self._toggle_hide_non_run_agents()
 
     def action_agents_filters(self) -> None:
         """Open the auto-hiding Agents-tab filter bar directly (bound to ``f``)."""
