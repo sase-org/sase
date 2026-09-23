@@ -11,10 +11,10 @@ literal pass-through text and are never part of launch processing.
 from __future__ import annotations
 
 from bisect import bisect_left
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 import re
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 from ._directive_types import (
     _DIRECTIVE_ALIASES,
@@ -37,6 +37,8 @@ XPromptSpanKind = Literal[
     "directive_arg",
     "separator",
     "skill",
+    "project_tag",
+    "project_tag_unknown",
 ]
 
 _DIRECTIVE_RE = re.compile(_DIRECTIVE_PATTERN, re.MULTILINE)
@@ -49,11 +51,21 @@ _SKILL_REFERENCE_RE = re.compile(
 
 @dataclass(frozen=True, slots=True)
 class XPromptSpan:
-    """A highlightable xprompt span using character offsets."""
+    """A highlightable xprompt span using character offsets.
+
+    ``project_tag`` spans are resolved tags and carry the project's
+    accent (``None`` renders neutral, e.g. disabled projects and
+    ``home``), its catalog state, and the ``name_start`` split between
+    the ``+`` sigil and the name. ``project_tag_unknown`` spans are
+    anchored tags that did not resolve.
+    """
 
     start: int
     end: int
     kind: XPromptSpanKind
+    accent: str | None = None
+    tag_state: str | None = None
+    name_start: int | None = None
 
 
 def tokenize(
@@ -72,6 +84,7 @@ def tokenize(
         "#" not in text
         and "%" not in text
         and "---" not in text
+        and "+" not in text
         and (not known_skills or "/" not in text)
     ):
         return []
@@ -134,8 +147,110 @@ def tokenize(
                 continue
             spans.append(XPromptSpan(match.start(), match.end(), "skill"))
 
+    if "+" in text:
+        spans.extend(_project_tag_spans(text, protected))
+
     spans.sort(key=lambda span: (span.start, span.end))
     return spans
+
+
+def _project_tag_spans(
+    text: str,
+    protected: list[tuple[int, int]],
+) -> list[XPromptSpan]:
+    """Return resolved-tag and anchored-unknown-tag spans (D5/D6).
+
+    Uses the core expansion report against the warm catalog snapshot, so
+    only tags that launch would resolve are styled. Unanchored unknown
+    tags are plain text. Fails open to no spans when the catalog is cold
+    or the binding is unavailable; the next highlight rebuild after
+    warm-up picks tags up.
+    """
+    if "+" not in text:
+        return []
+    try:
+        from sase.project_tags.catalog import peek_project_tag_catalog
+
+        catalog = peek_project_tag_catalog()
+    except Exception:
+        return []
+    if catalog is None:
+        return []
+    try:
+        targets = catalog.targets
+        if not targets:
+            return []
+        from sase.core.rust import require_rust_binding
+
+        report = require_rust_binding("project_tag_expand")(
+            text, catalog.wire_targets()
+        )
+    except Exception:
+        return []
+    if not isinstance(report, Mapping):
+        return []
+    raw_tags = report.get("tags")
+    if not isinstance(raw_tags, list):
+        return []
+    spans: list[XPromptSpan] = []
+    for raw_tag in raw_tags:
+        span = _project_tag_span(raw_tag, text, catalog, protected)
+        if span is not None:
+            spans.append(span)
+    return spans
+
+
+def _project_tag_span(
+    raw_tag: object,
+    text: str,
+    catalog: Any,
+    protected: list[tuple[int, int]],
+) -> XPromptSpan | None:
+    """Convert one core expansion tag to a span, or ``None`` to skip."""
+    if not isinstance(raw_tag, Mapping):
+        return None
+    start = raw_tag.get("start")
+    end = raw_tag.get("end")
+    name_start = raw_tag.get("name_start")
+    if (
+        not isinstance(start, int)
+        or isinstance(start, bool)
+        or not isinstance(end, int)
+        or isinstance(end, bool)
+        or not isinstance(name_start, int)
+        or isinstance(name_start, bool)
+    ):
+        return None
+    if not 0 <= start < name_start < end <= len(text):
+        return None
+    if _overlaps_protected(start, end, protected):
+        return None
+    resolution = raw_tag.get("resolution")
+    kind = resolution.get("kind") if isinstance(resolution, Mapping) else None
+    anchored = raw_tag.get("anchored") is True
+    if kind == "resolved":
+        index = (
+            resolution.get("target_index") if isinstance(resolution, Mapping) else None
+        )
+        if not isinstance(index, int) or isinstance(index, bool):
+            return None
+        try:
+            target = catalog.target(index)
+        except Exception:
+            return None
+        accent = getattr(target, "accent", None)
+        state = getattr(target, "state", None)
+        return XPromptSpan(
+            start,
+            end,
+            "project_tag",
+            accent=accent if isinstance(accent, str) else None,
+            tag_state=state if isinstance(state, str) else None,
+            name_start=name_start,
+        )
+    if not anchored:
+        return None
+    return XPromptSpan(start, end, "project_tag_unknown", name_start=name_start)
 
 
 def _directive_end(text: str, match: re.Match[str]) -> int:

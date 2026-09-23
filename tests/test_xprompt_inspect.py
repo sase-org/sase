@@ -200,3 +200,68 @@ def test_tokenize_slash_skill_coexists_in_sorted_source_order() -> None:
         "separator",
     ]
     assert spans == sorted(spans, key=lambda span: (span.start, span.end))
+
+
+def _warm_tag_catalog(monkeypatch, targets) -> object:
+    """Point the tokenizer's catalog peek at *targets* (real core scan)."""
+    from sase.project_tags.catalog import ProjectTagCatalog
+
+    catalog = ProjectTagCatalog(targets=tuple(targets), accent_palette=())
+    monkeypatch.setattr(
+        "sase.project_tags.catalog.peek_project_tag_catalog",
+        lambda: catalog,
+    )
+    return catalog
+
+
+def _tag_target(key: str, workflow: str, **fields) -> object:
+    from sase.project_tags.catalog import ProjectTagTarget
+
+    return ProjectTagTarget(
+        key=key, name=key, **{"tag": f"+{key}", "workflow_type": workflow, **fields}
+    )
+
+
+def test_tokenize_project_tag_carries_accent_state_and_sigil_split(
+    monkeypatch,
+) -> None:
+    _warm_tag_catalog(
+        monkeypatch,
+        [_tag_target("sase", "gh", accent="#C75A31", accent_index=2)],
+    )
+
+    assert xprompt_inspect.tokenize("+sase run") == [
+        XPromptSpan(
+            0,
+            5,
+            "project_tag",
+            accent="#C75A31",
+            tag_state="enabled",
+            name_start=1,
+        )
+    ]
+
+
+def test_tokenize_project_tag_unknown_only_when_anchored(monkeypatch) -> None:
+    _warm_tag_catalog(monkeypatch, [_tag_target("sase", "gh")])
+
+    assert xprompt_inspect.tokenize("+ssae run") == [
+        XPromptSpan(0, 5, "project_tag_unknown", name_start=1)
+    ]
+    assert xprompt_inspect.tokenize("run +ssae") == []
+
+
+def test_tokenize_project_tag_needs_warm_catalog(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "sase.project_tags.catalog.peek_project_tag_catalog",
+        lambda: None,
+    )
+
+    assert xprompt_inspect.tokenize("+sase run") == []
+
+
+def test_tokenize_project_tag_skips_literal_zones(monkeypatch) -> None:
+    _warm_tag_catalog(monkeypatch, [_tag_target("sase", "gh")])
+    text = "```text\n+sase\n```\n`+sase` +sase"
+
+    assert _source_by_kind(text, "project_tag") == ["+sase"]

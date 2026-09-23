@@ -61,7 +61,7 @@ from ._helpers import append_section_heading, format_output
 from ._member_roster import member_jump_map_publisher_for
 
 _HUMANIZED_TEXT_CACHE_LIMIT = 24
-_HumanizedTextCacheKey = tuple[int, int, tuple[tuple[str, str], ...]]
+_HumanizedTextCacheKey = tuple[int, int, tuple[tuple[str, str], ...], object]
 _XPROMPT_HIGHLIGHT_CACHE_LIMIT = 24
 _XPromptHighlightCacheKey = tuple[int, int, tuple[object, ...]]
 _AGENT_PROMPT_HIGHLIGHT_CACHE_LIMIT = 24
@@ -228,7 +228,13 @@ class AgentDisplayRenderMixin(
         if "#" not in content:
             return content
         signature = project_display_name_map_signature()
-        key = (len(content), hash(content), signature)
+        try:
+            from sase.project_tags.catalog import peek_project_tag_catalog_signature
+
+            tag_signature = peek_project_tag_catalog_signature()
+        except Exception:
+            tag_signature = None
+        key = (len(content), hash(content), signature, tag_signature)
         cache = self._humanized_text_cache()
         cached = cache.get(key)
         if cached is not None:

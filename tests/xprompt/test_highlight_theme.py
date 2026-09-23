@@ -44,6 +44,9 @@ def test_flexoki_role_palette_is_complete_and_stable() -> None:
         "artifact_ref": HighlightStyle("#A3B166"),
         "code.fence": HighlightStyle("#ABA9A1"),
         "code.inline": HighlightStyle("#ABA9A1"),
+        "xprompt.project_tag.sigil": HighlightStyle("#ABA9A1", dim=True),
+        "xprompt.project_tag.name": HighlightStyle("#ABA9A1", dim=True),
+        "xprompt.project_tag.unknown": HighlightStyle("#AD8301", underline=True),
     }
 
 
@@ -113,3 +116,32 @@ def test_invalid_argument_style_preserves_foreground_and_underlines() -> None:
     )
 
     assert style == HighlightStyle("#CDB360", underline=True)
+
+
+def test_project_tag_styles_match_the_project_chip() -> None:
+    sigil = highlight_style_for_span(
+        HighlightSpan(0, 1, "xprompt.project_tag.sigil", accent="#C75A31")
+    )
+    name = highlight_style_for_span(
+        HighlightSpan(1, 5, "xprompt.project_tag.name", accent="#C75A31")
+    )
+
+    assert sigil == HighlightStyle("#C75A31", dim=True)
+    assert name == HighlightStyle("#C75A31", bold=True)
+    assert sigil.rich_style == "dim #C75A31"
+    assert name.rich_style == "bold #C75A31"
+
+
+def test_project_tag_without_accent_renders_neutral_dim() -> None:
+    for role in ("xprompt.project_tag.sigil", "xprompt.project_tag.name"):
+        style = highlight_style_for_span(HighlightSpan(0, 4, role))
+
+        assert style == highlight_theme()[role]
+        assert style.dim is True
+
+
+def test_project_tag_unknown_uses_warning_and_underline() -> None:
+    style = highlight_style_for_span(HighlightSpan(0, 5, "xprompt.project_tag.unknown"))
+
+    assert style == highlight_theme()["xprompt.project_tag.unknown"]
+    assert style.underline is True

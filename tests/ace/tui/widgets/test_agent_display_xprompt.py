@@ -140,6 +140,54 @@ class TestAgentXPromptRendering:
             "#gh:widgets",
         )
 
+    def test_agent_xprompt_body_renders_project_tags_with_accents(
+        self,
+        tmp_path: Path,
+        monkeypatch,
+    ) -> None:
+        from sase.project_tags.catalog import ProjectTagCatalog, ProjectTagTarget
+
+        monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+        monkeypatch.setattr(
+            pdn,
+            "_project_display_name_map_cached",
+            lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
+        )
+        monkeypatch.setattr(
+            "sase.project_tags.catalog.peek_project_tag_catalog",
+            lambda: ProjectTagCatalog(
+                targets=(
+                    ProjectTagTarget(
+                        key="gh_acme__widgets",
+                        name="widgets",
+                        tag="+widgets",
+                        workflow_type="gh",
+                        accent="#C75A31",
+                    ),
+                ),
+                accent_palette=(),
+                signature="tag-test",
+            ),
+        )
+        panel = FakePromptPanel()
+        agent = make_artifact_agent(
+            tmp_path,
+            status="DONE",
+            raw_xprompt="#gh:gh_acme__widgets fix the bug",
+        )
+        agent.project_file = "/tmp/projects/gh_acme__widgets/gh_acme__widgets.sase"
+        agent.project_display_name = "widgets"
+
+        panel.update_display(agent)
+
+        plain = plain_of(panel.captured[-1])
+        assert "+widgets fix the bug" in plain
+        assert "#gh:gh_acme__widgets" not in plain
+
+        header = _header_text(panel.captured[-1])
+        assert "dim #C75A31" in _styles_at(header, "+widgets")
+        assert "bold #C75A31" in _styles_at(header, "widgets")
+
     def test_agent_xprompt_highlights_warm_catalog_skills(
         self,
         tmp_path: Path,

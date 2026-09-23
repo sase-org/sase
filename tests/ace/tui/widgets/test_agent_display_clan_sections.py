@@ -255,3 +255,126 @@ def test_clan_section_override_and_scanning_tail() -> None:
     assert "PROMPTS" not in loading
     assert "loading…" not in loading
     assert loading.count("⋯ scanning member data…") == 1
+
+
+def _warm_tag_catalog(monkeypatch, *pairs: tuple[str, str | None]) -> None:
+    """Point clan tag rendering at fake ``(key, accent)`` targets."""
+    from sase.project_tags.catalog import ProjectTagCatalog, ProjectTagTarget
+
+    catalog = ProjectTagCatalog(
+        targets=tuple(
+            ProjectTagTarget(
+                key=key,
+                name=key,
+                tag=f"+{key}",
+                workflow_type="gh",
+                accent=accent,
+            )
+            for key, accent in pairs
+        ),
+        accent_palette=(),
+    )
+    monkeypatch.setattr(
+        "sase.project_tags.catalog.peek_project_tag_catalog",
+        lambda: catalog,
+    )
+
+
+def test_prompt_entries_render_tagified_with_accents(monkeypatch) -> None:
+    from rich.text import Text
+
+    from sase import project_display_names as pdn
+    from sase.ace.tui.models._agent_clan_sections import ClanTextEntry
+    from sase.ace.tui.widgets.prompt_panel._agent_display_clan_sections import (
+        append_text_section,
+    )
+    from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
+
+    monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+    monkeypatch.setattr(
+        pdn,
+        "_project_display_name_map_cached",
+        lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
+    )
+    _warm_tag_catalog(monkeypatch, ("widgets", "#C75A31"))
+    member = make_clan_agent(
+        "research.one", status="DONE", start=datetime(2026, 7, 17, 12, 0, 0)
+    )
+    entries = (
+        ClanTextEntry(
+            member_identity=member.identity,
+            member_label=".one",
+            kind="AGENT XPROMPT",
+            preview="#gh:gh_acme__widgets fix",
+            body="#gh:gh_acme__widgets fix the bug",
+        ),
+        ClanTextEntry(
+            member_identity=member.identity,
+            member_label=".one",
+            kind="AGENT REPLY",
+            preview="Reply summary",
+            body="Reply body stays #gh:gh_acme__widgets plain",
+        ),
+    )
+
+    text = Text()
+    append_text_section(
+        text,
+        entries,
+        title="PROMPTS",
+        section_id="prompts",
+        level=FoldLevel.FULLY_EXPANDED,
+    )
+
+    assert "+widgets fix the bug" in text.plain
+    assert "#gh:gh_acme__widgets fix the bug" not in text.plain
+    assert "Reply body stays #gh:gh_acme__widgets plain" in text.plain
+    tag_styles = {
+        str(span.style)
+        for span in text.spans
+        if span.style is not None and "#C75A31" in str(span.style)
+    }
+    assert "dim #C75A31" in tag_styles
+    assert "bold #C75A31" in tag_styles
+
+
+def test_prompt_entry_previews_tagify_in_triage(monkeypatch) -> None:
+    from rich.text import Text
+
+    from sase import project_display_names as pdn
+    from sase.ace.tui.models._agent_clan_sections import ClanTextEntry
+    from sase.ace.tui.widgets.prompt_panel._agent_display_clan_sections import (
+        append_text_section,
+    )
+    from tests.ace.tui.widgets._agent_display_clan_helpers import make_clan_agent
+
+    monkeypatch.setattr("sase.project_aliases._vcs_workflow_names", lambda: {"gh"})
+    monkeypatch.setattr(
+        pdn,
+        "_project_display_name_map_cached",
+        lambda *_args, **_kwargs: {"gh_acme__widgets": "widgets"},
+    )
+    _warm_tag_catalog(monkeypatch, ("widgets", "#C75A31"))
+    member = make_clan_agent(
+        "research.one", status="DONE", start=datetime(2026, 7, 17, 12, 0, 0)
+    )
+    entries = (
+        ClanTextEntry(
+            member_identity=member.identity,
+            member_label=".one",
+            kind="AGENT XPROMPT",
+            preview="#gh:gh_acme__widgets fix",
+            body="#gh:gh_acme__widgets fix the bug",
+        ),
+    )
+
+    text = Text()
+    append_text_section(
+        text,
+        entries,
+        title="PROMPTS",
+        section_id="prompts",
+        level=FoldLevel.EXPANDED,
+    )
+
+    assert "+widgets fix" in text.plain

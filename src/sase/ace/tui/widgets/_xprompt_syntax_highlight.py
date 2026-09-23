@@ -21,9 +21,18 @@ from sase.xprompt.highlight import (
     XPromptHighlightRole,
     highlight_spans,
 )
+from sase.project_accents import PROJECT_ACCENTS
 from sase.xprompt.highlight_theme import (
     derive_argument_color,
     xprompt_argument_palette,
+)
+
+_PROJECT_TAG_ROLES = frozenset(
+    {
+        "xprompt.project_tag.sigil",
+        "xprompt.project_tag.name",
+        "xprompt.project_tag.unknown",
+    }
 )
 
 _INVALID_ARGUMENT_VALIDITIES = frozenset(
@@ -94,7 +103,13 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
         super()._build_highlight_map()
         text = self.text
         has_slash = "/" in text
-        if "#" not in text and "%" not in text and "---" not in text and not has_slash:
+        if (
+            "#" not in text
+            and "%" not in text
+            and "---" not in text
+            and "+" not in text
+            and not has_slash
+        ):
             return
         if len(text.encode("utf-8")) > _MAX_OVERLAY_BYTES:
             return
@@ -249,6 +264,7 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
             directive_argument_colors,
             source="directive",
         )
+        _update_project_tag_syntax_styles(syntax_styles, app_theme.warning)
         theme = dataclasses.replace(
             base,
             name=active_name,
@@ -271,10 +287,32 @@ class XPromptSyntaxHighlightMixin(_MixinBase):
 
 
 def _text_area_style_name(span: HighlightSpan) -> str:
+    if span.role in _PROJECT_TAG_ROLES:
+        return _project_tag_style_name(span.role, span.accent)
     style_name = _argument_style_name(span.role, span.source)
     if span.role in _ARGUMENT_ROLES and span.validity in _INVALID_ARGUMENT_VALIDITIES:
         return f"{style_name}.invalid"
     return style_name
+
+
+def _project_tag_style_name(
+    role: XPromptHighlightRole,
+    accent: str | None,
+) -> str:
+    """Return the registered TextArea style for a project-tag span (D6)."""
+    if role == "xprompt.project_tag.unknown":
+        return "project_tag.unknown"
+    base = (
+        "project_tag.sigil"
+        if role == "xprompt.project_tag.sigil"
+        else "project_tag.name"
+    )
+    if accent is None:
+        return f"{base}.neutral"
+    try:
+        return f"{base}.{PROJECT_ACCENTS.index(accent)}"
+    except ValueError:
+        return f"{base}.neutral"
 
 
 def _argument_style_name(
@@ -296,3 +334,23 @@ def _update_argument_syntax_styles(
         style_name = _argument_style_name(role, source)
         syntax_styles[style_name] = Style(color=color)
         syntax_styles[f"{style_name}.invalid"] = Style(color=color, underline=True)
+
+
+def _update_project_tag_syntax_styles(
+    syntax_styles: dict[str, Style],
+    warning: str | None,
+) -> None:
+    """Register per-accent project-tag styles (D6).
+
+    ``project_tag.sigil.<0-17>`` renders ``dim`` in the accent and
+    ``project_tag.name.<0-17>`` renders ``bold`` in the accent, matching
+    the top-right project chip. The ``.neutral`` styles cover disabled
+    projects and ``home``; ``project_tag.unknown`` covers anchored
+    unknown tags in the theme warning color with an underline.
+    """
+    for index, accent in enumerate(PROJECT_ACCENTS):
+        syntax_styles[f"project_tag.sigil.{index}"] = Style(color=accent, dim=True)
+        syntax_styles[f"project_tag.name.{index}"] = Style(color=accent, bold=True)
+    syntax_styles["project_tag.sigil.neutral"] = Style(dim=True)
+    syntax_styles["project_tag.name.neutral"] = Style(dim=True)
+    syntax_styles["project_tag.unknown"] = Style(color=warning, underline=True)

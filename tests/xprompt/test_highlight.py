@@ -288,6 +288,87 @@ def test_output_is_strictly_ordered_and_non_overlapping() -> None:
     )
 
 
+def _warm_tag_catalog(
+    monkeypatch: pytest.MonkeyPatch,
+    *accents: tuple[str, str],
+) -> None:
+    """Point the tag tokenizer's catalog peek at fake targets.
+
+    Each ``(key, accent)`` pair becomes one enabled ``gh`` target, so
+    adjacent tags keep distinguishable accents through flattening.
+    """
+    from sase.project_tags.catalog import ProjectTagCatalog, ProjectTagTarget
+
+    pairs = accents or (("sase", "#C75A31"),)
+    catalog = ProjectTagCatalog(
+        targets=tuple(
+            ProjectTagTarget(
+                key=key,
+                name=key,
+                tag=f"+{key}",
+                workflow_type="gh",
+                accent=accent,
+            )
+            for key, accent in pairs
+        ),
+        accent_palette=(),
+    )
+    monkeypatch.setattr(
+        "sase.project_tags.catalog.peek_project_tag_catalog",
+        lambda: catalog,
+    )
+
+
+def test_project_tag_splits_sigil_and_name_with_accent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _warm_tag_catalog(monkeypatch)
+
+    assert highlight_spans("+sase run") == [
+        HighlightSpan(0, 1, "xprompt.project_tag.sigil", accent="#C75A31"),
+        HighlightSpan(1, 5, "xprompt.project_tag.name", accent="#C75A31"),
+    ]
+
+
+def test_project_tag_unknown_only_for_anchored_tags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _warm_tag_catalog(monkeypatch)
+
+    assert _parts("+ssae run") == [("+ssae", "xprompt.project_tag.unknown")]
+    assert _parts("run +ssae") == []
+
+
+def test_project_tag_spans_keep_their_accents_through_flattening(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _warm_tag_catalog(monkeypatch, ("sase", "#C75A31"), ("bob", "#4379D3"))
+
+    assert highlight_spans("+sase +bob") == [
+        HighlightSpan(0, 1, "xprompt.project_tag.sigil", accent="#C75A31"),
+        HighlightSpan(1, 5, "xprompt.project_tag.name", accent="#C75A31"),
+        HighlightSpan(6, 7, "xprompt.project_tag.sigil", accent="#4379D3"),
+        HighlightSpan(7, 10, "xprompt.project_tag.name", accent="#4379D3"),
+    ]
+
+
+def test_project_tags_coexist_with_alt_structure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _warm_tag_catalog(monkeypatch, ("sase", "#C75A31"), ("bob", "#4379D3"))
+    text = "%{+sase | +bob}"
+
+    assert _parts(text) == [
+        ("%{", "alt.delimiter"),
+        ("+", "xprompt.project_tag.sigil"),
+        ("sase", "xprompt.project_tag.name"),
+        ("|", "alt.separator"),
+        ("+", "xprompt.project_tag.sigil"),
+        ("bob", "xprompt.project_tag.name"),
+        ("}", "alt.delimiter"),
+    ]
+
+
 def _isolate_scanners(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         highlight.xprompt_inspect,

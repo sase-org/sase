@@ -29,6 +29,13 @@ _ARGUMENT_ROLES: frozenset[XPromptHighlightRole] = frozenset(
 _INVALID_ARGUMENT_VALIDITIES = frozenset(
     {"unknown_key", "type_mismatch", "duplicate_key"}
 )
+_PROJECT_TAG_ROLES: frozenset[XPromptHighlightRole] = frozenset(
+    {
+        "xprompt.project_tag.sigil",
+        "xprompt.project_tag.name",
+        "xprompt.project_tag.unknown",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,6 +205,8 @@ def highlight_style_for_span(
     styles: Mapping[XPromptHighlightRole, HighlightStyle] | None = None,
 ) -> HighlightStyle:
     """Return the Rich/ANSI style for a concrete semantic highlight span."""
+    if span.role in _PROJECT_TAG_ROLES:
+        return _project_tag_style_for_span(span)
     if span.source == "directive" and span.role in _ARGUMENT_ROLES:
         style = _argument_highlight_theme("directive")[span.role]
     else:
@@ -205,6 +214,43 @@ def highlight_style_for_span(
     if span.role in _ARGUMENT_ROLES and span.validity in _INVALID_ARGUMENT_VALIDITIES:
         return replace(style, underline=True)
     return style
+
+
+def _project_tag_style_for_span(span: HighlightSpan) -> HighlightStyle:
+    """Return the D6 chip-matched style for a project-tag span.
+
+    The ``+`` sigil renders dim in the accent and the name bold in the
+    accent. Spans without an accent (disabled projects and ``home``)
+    render neutral dim. Unknown anchored tags render in the theme
+    warning color with an underline.
+    """
+    neutral, warning = _project_tag_base_colors()
+    if span.role == "xprompt.project_tag.unknown":
+        return HighlightStyle(warning, underline=True)
+    accent = span.accent
+    if accent is None:
+        return HighlightStyle(neutral, dim=True)
+    if span.role == "xprompt.project_tag.sigil":
+        return HighlightStyle(accent, dim=True)
+    return HighlightStyle(accent, bold=True)
+
+
+@functools.cache
+def _project_tag_base_colors() -> tuple[str, str | None]:
+    """Return the (neutral, warning) theme colors for project tags."""
+    from textual.theme import BUILTIN_THEMES
+
+    theme = BUILTIN_THEMES[ACE_THEME_NAME]
+    background = theme.background or "#000000"
+    neutral = (
+        Color.parse(theme.foreground or "#ffffff")
+        .blend(
+            Color.parse(background),
+            0.35,
+        )
+        .hex
+    )
+    return neutral, theme.warning
 
 
 @functools.cache
@@ -270,6 +316,11 @@ def highlight_theme() -> Mapping[XPromptHighlightRole, HighlightStyle]:
         "artifact_ref": HighlightStyle(invocation_arg),
         "code.fence": HighlightStyle(neutral_code),
         "code.inline": HighlightStyle(neutral_code),
+        # Neutral fallbacks so direct theme indexing never fails; the
+        # accent-aware path is highlight_style_for_span().
+        "xprompt.project_tag.sigil": HighlightStyle(neutral_code, dim=True),
+        "xprompt.project_tag.name": HighlightStyle(neutral_code, dim=True),
+        "xprompt.project_tag.unknown": HighlightStyle(theme.warning, underline=True),
     }
     return MappingProxyType(styles)
 

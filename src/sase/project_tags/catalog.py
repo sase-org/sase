@@ -263,6 +263,19 @@ def _clear_project_tag_catalog_cache() -> None:
     _CATALOG_CACHE = None
 
 
+def peek_project_tag_catalog_signature() -> object | None:
+    """Return the warm catalog signature without building, or ``None``.
+
+    Render paths key this into their caches so tagify and tag colors
+    refresh once the catalog warms instead of serving the cold ``#``
+    rendering forever. Never touches disk or spawns processes.
+    """
+
+    if _CATALOG_CACHE is None:
+        return None
+    return _CATALOG_CACHE[1].signature
+
+
 def catalog_cache_signature(projects_dir: Path | str | None = None) -> object | None:
     """Return the cache signature for *projects_dir*, or ``None``."""
 
@@ -278,4 +291,5 @@ __all__ = [
     "is_project_tag_name",
     "load_project_tag_catalog",
     "peek_project_tag_catalog",
+    "peek_project_tag_catalog_signature",
 ]

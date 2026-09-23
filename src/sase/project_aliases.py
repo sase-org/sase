@@ -351,8 +351,17 @@ def canonicalize_project_aliases_in_prompt(
 def humanize_project_refs_in_prompt(
     prompt: str,
     display_name_by_project: Mapping[str, str],
+    *,
+    project_tags: bool = True,
 ) -> str:
-    """Rewrite canonical project refs in VCS launch tags to display names."""
+    """Rewrite canonical project refs in VCS launch tags to display names.
+
+    When *project_tags* is true (default), project refs that resolve to a
+    taggable project are tagified to ``+<name>`` (D5). Pass
+    ``project_tags=False`` only where the result is re-parsed by a reader
+    that cannot understand tags; every launch-path reader is tag-aware,
+    so display callers keep the default.
+    """
     if "#" not in prompt or not display_name_by_project:
         return prompt
     pattern = _project_alias_ref_pattern()
@@ -366,6 +375,7 @@ def humanize_project_refs_in_prompt(
         prompt,
         display_name_by_project,
         pattern=pattern,
+        project_tags=project_tags,
     )
 
 

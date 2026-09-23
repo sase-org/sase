@@ -147,6 +147,7 @@ def agent_prompt_highlight_context(
         styles.signature if styles is not None else "",
         artifact_ref_styles.signature,
         artifact_ref_known_kinds,
+        _project_tag_catalog_signature(),
     )
     return AgentPromptHighlightContext(
         project=project,
@@ -214,6 +215,16 @@ def _artifact_ref_known_kinds() -> frozenset[str]:
         return frozenset(parsable_artifact_ref_kinds())
     except Exception:
         return frozenset()
+
+
+def _project_tag_catalog_signature() -> object:
+    """Return the warm tag-catalog signature for the cache fingerprint."""
+    try:
+        from sase.project_tags.catalog import peek_project_tag_catalog_signature
+
+        return peek_project_tag_catalog_signature()
+    except Exception:
+        return None
 
 
 def _known_skills_for_project(

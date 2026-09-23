@@ -301,6 +301,74 @@ async def test_xprompt_overlay_reregisters_after_app_theme_switch() -> None:
         assert after != sentinel
 
 
+def _warm_tag_catalog(monkeypatch, *pairs: tuple[str, str | None]) -> None:
+    """Point the editor tag spans at fake ``(key, accent)`` targets."""
+    from sase.project_tags.catalog import ProjectTagCatalog, ProjectTagTarget
+
+    catalog = ProjectTagCatalog(
+        targets=tuple(
+            ProjectTagTarget(
+                key=key,
+                name=key,
+                tag=f"+{key}",
+                workflow_type="gh",
+                accent=accent,
+            )
+            for key, accent in pairs
+        ),
+        accent_palette=(),
+    )
+    monkeypatch.setattr(
+        "sase.project_tags.catalog.peek_project_tag_catalog",
+        lambda: catalog,
+    )
+
+
+async def test_xprompt_overlay_styles_project_tags_with_accents(
+    monkeypatch,
+) -> None:
+    from sase.project_accents import PROJECT_ACCENTS
+
+    accent = PROJECT_ACCENTS[2]
+    _warm_tag_catalog(monkeypatch, ("sase", accent))
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("+sase fix the bug")
+        ta._build_highlight_map()
+
+        names = _highlight_names(ta)
+        assert f"project_tag.sigil.{2}" in names
+        assert f"project_tag.name.{2}" in names
+
+        styles = ta._theme.syntax_styles
+        sigil = styles["project_tag.sigil.2"]
+        name = styles["project_tag.name.2"]
+        assert sigil.color == Color.parse(accent)
+        assert sigil.dim is True
+        assert name.color == Color.parse(accent)
+        assert name.bold is True
+
+
+async def test_xprompt_overlay_styles_unknown_tags_and_neutral_accents(
+    monkeypatch,
+) -> None:
+    _warm_tag_catalog(monkeypatch, ("home", None))
+    app = CompletionTestApp()
+    async with app.run_test():
+        ta = app.query_one(PromptTextArea)
+        ta.load_text("+home check\n+ssae typo")
+        ta._build_highlight_map()
+
+        names = _highlight_names(ta)
+        assert "project_tag.sigil.neutral" in names
+        assert "project_tag.name.neutral" in names
+        assert "project_tag.unknown" in names
+
+        styles = ta._theme.syntax_styles
+        assert styles["project_tag.unknown"].underline is True
+
+
 async def test_xprompt_overlay_tokenizer_failure_is_fail_open(monkeypatch) -> None:
     app = CompletionTestApp()
     async with app.run_test():

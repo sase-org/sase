@@ -10,6 +10,7 @@ from sase.project_tags.catalog import (
     is_project_tag_name as is_project_tag_name,
     load_project_tag_catalog as load_project_tag_catalog,
     peek_project_tag_catalog as peek_project_tag_catalog,
+    peek_project_tag_catalog_signature as peek_project_tag_catalog_signature,
 )
 from sase.project_tags.tags import (
     ProjectTagError as ProjectTagError,
@@ -44,6 +45,7 @@ __all__ = [
     "known_project_tag_for",
     "load_project_tag_catalog",
     "peek_project_tag_catalog",
+    "peek_project_tag_catalog_signature",
     "project_tag_for",
     "validate_project_tags_for_launch",
     "validate_project_tags_with_catalog",

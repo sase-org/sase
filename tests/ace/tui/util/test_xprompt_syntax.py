@@ -205,3 +205,84 @@ def test_highlight_markdown_text_reuses_unchanged_content() -> None:
 
     assert first is second
     assert first.plain.startswith("---")
+
+
+def _warm_tag_catalog(monkeypatch, *pairs: tuple[str, str | None]) -> None:
+    """Point tag rendering at fake targets: ``(key, accent)`` pairs."""
+    from sase.project_tags.catalog import ProjectTagCatalog, ProjectTagTarget
+
+    catalog = ProjectTagCatalog(
+        targets=tuple(
+            ProjectTagTarget(
+                key=key,
+                name=key,
+                tag=f"+{key}",
+                workflow_type="gh",
+                accent=accent,
+            )
+            for key, accent in pairs
+        ),
+        accent_palette=(),
+    )
+    monkeypatch.setattr(
+        "sase.project_tags.catalog.peek_project_tag_catalog",
+        lambda: catalog,
+    )
+
+
+def test_project_tags_render_like_the_project_chip(monkeypatch) -> None:
+    from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
+
+    _warm_tag_catalog(monkeypatch, ("sase", "#C75A31"))
+    highlighted = highlight_prompt_text("+sase launch chip-style")
+
+    assert "dim #C75A31" in _styles_at(highlighted, "+sase")
+    assert "bold #C75A31" in _styles_at(highlighted, "sase", offset=1)
+
+
+def test_project_tag_without_accent_renders_neutral_dim(monkeypatch) -> None:
+    from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
+
+    _warm_tag_catalog(monkeypatch, ("home", None))
+    highlighted = highlight_prompt_text("+home neutral check")
+
+    overlay_styles = {
+        (span.start, span.end): str(span.style) for span in highlighted.spans
+    }
+    assert overlay_styles.get((0, 1)) == "dim"
+    assert overlay_styles.get((1, 5)) == "dim"
+
+
+def test_project_tag_unknown_renders_warning_underline(monkeypatch) -> None:
+    from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
+
+    _warm_tag_catalog(monkeypatch, ("sase", "#C75A31"))
+    highlighted = highlight_prompt_text("+ssae unknown tag check")
+
+    assert _has_style_fragment(highlighted, "+ssae", "underline")
+    assert _has_style_fragment(highlighted, "+ssae", "#FFD75F")
+
+
+def test_project_tags_stay_plain_when_catalog_is_cold(monkeypatch) -> None:
+    from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
+
+    monkeypatch.setattr(
+        "sase.project_tags.catalog.peek_project_tag_catalog",
+        lambda: None,
+    )
+    highlighted = highlight_prompt_text("+sase cold catalog check")
+
+    assert not _has_style_fragment(highlighted, "+sase", "dim #")
+    assert not _has_style_fragment(highlighted, "+sase", "bold #")
+
+
+def test_stylize_project_tags_applies_region_offsets(monkeypatch) -> None:
+    from sase.ace.tui.util.xprompt_syntax import stylize_project_tags
+
+    _warm_tag_catalog(monkeypatch, ("sase", "#C75A31"))
+    highlighted = Text("..+sase run")
+
+    stylize_project_tags(highlighted, "+sase run", region_start=2)
+
+    assert "dim #C75A31" in _styles_at(highlighted, "+sase")
+    assert "bold #C75A31" in _styles_at(highlighted, "sase", offset=1)

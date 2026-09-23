@@ -140,6 +140,28 @@ def test_context_schedules_cold_catalogs_and_fingerprints_warm_state(
     assert warm.styles is not None
 
 
+def test_context_fingerprint_tracks_project_tag_catalog(tmp_path: Path) -> None:
+    import sase.project_tags.catalog as tag_catalog_module
+    from sase.project_tags.catalog import ProjectTagCatalog
+
+    panel = FakePromptPanel()
+    agent = make_artifact_agent(tmp_path, status="DONE", raw_xprompt="#gh:sase")
+
+    saved = tag_catalog_module._CATALOG_CACHE
+    tag_catalog_module._clear_project_tag_catalog_cache()
+    try:
+        cold = agent_prompt_highlight_context(panel, agent, "#gh:sase")
+        assert cold.fingerprint[-1] is None
+
+        catalog = ProjectTagCatalog(targets=(), accent_palette=(), signature="sig-1")
+        tag_catalog_module._CATALOG_CACHE = ("sig-1", catalog)
+        warmed = agent_prompt_highlight_context(panel, agent, "#gh:sase")
+        assert warmed.fingerprint[-1] == "sig-1"
+        assert warmed.fingerprint != cold.fingerprint
+    finally:
+        tag_catalog_module._CATALOG_CACHE = saved
+
+
 def test_agent_xprompt_and_prompt_receive_roles_replies_do_not(
     tmp_path: Path,
 ) -> None:

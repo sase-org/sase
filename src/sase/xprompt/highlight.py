@@ -49,6 +49,9 @@ XPromptHighlightRole = Literal[
     "artifact_ref",
     "code.fence",
     "code.inline",
+    "xprompt.project_tag.sigil",
+    "xprompt.project_tag.name",
+    "xprompt.project_tag.unknown",
 ]
 
 XPromptArgumentSpanValidity = Literal[
@@ -64,13 +67,19 @@ XPromptArgumentSource = Literal["xprompt", "directive"]
 
 @dataclass(frozen=True, slots=True)
 class HighlightSpan:
-    """A half-open character range carrying one semantic highlight role."""
+    """A half-open character range carrying one semantic highlight role.
+
+    ``accent`` carries the project accent hex for
+    ``xprompt.project_tag`` roles; ``None`` renders the neutral style
+    (disabled projects and ``home``).
+    """
 
     start: int
     end: int
     role: XPromptHighlightRole
     validity: XPromptArgumentSpanValidity = "ok"
     source: XPromptArgumentSource | None = None
+    accent: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,6 +90,7 @@ class _Candidate:
     role: XPromptHighlightRole
     validity: XPromptArgumentSpanValidity
     source: XPromptArgumentSource | None
+    accent: str | None
 
 
 # Lower numbers win. Keeping every role explicit makes precedence additions
@@ -92,6 +102,9 @@ _ROLE_PRECEDENCE: dict[XPromptHighlightRole, int] = {
     "xprompt.directive": 11,
     "xprompt.separator": 12,
     "xprompt.skill": 13,
+    "xprompt.project_tag.sigil": 14,
+    "xprompt.project_tag.name": 15,
+    "xprompt.project_tag.unknown": 16,
     "xprompt.arg_key": 20,
     "xprompt.arg_assign": 21,
     "xprompt.arg_delimiter": 22,
@@ -177,14 +190,21 @@ def highlight_spans(
         )
     except Exception:
         xprompt_tokens = []
-    collected.extend(
-        HighlightSpan(
-            span.start,
-            span.end,
-            cast(XPromptHighlightRole, f"xprompt.{span.kind}"),
-        )
-        for span in xprompt_tokens
-    )
+    for token in xprompt_tokens:
+        if token.kind == "project_tag":
+            collected.extend(_project_tag_highlight_spans(token))
+        elif token.kind == "project_tag_unknown":
+            collected.append(
+                HighlightSpan(token.start, token.end, "xprompt.project_tag.unknown")
+            )
+        else:
+            collected.append(
+                HighlightSpan(
+                    token.start,
+                    token.end,
+                    cast(XPromptHighlightRole, f"xprompt.{token.kind}"),
+                )
+            )
 
     collected.extend(
         _xprompt_argument_highlight_spans(
@@ -264,6 +284,31 @@ def highlight_spans(
     return _flatten_spans(collected, text_length=len(text))
 
 
+def _project_tag_highlight_spans(span: XPromptSpan) -> list[HighlightSpan]:
+    """Split a resolved tag token into sigil and name spans (D6).
+
+    The ``+`` renders dim in the accent and the name bold in the accent,
+    exactly like the top-right project chip.
+    """
+    name_start = span.name_start
+    if name_start is None or not span.start < name_start < span.end:
+        name_start = span.start + 1
+    return [
+        HighlightSpan(
+            span.start,
+            name_start,
+            "xprompt.project_tag.sigil",
+            accent=span.accent,
+        ),
+        HighlightSpan(
+            name_start,
+            span.end,
+            "xprompt.project_tag.name",
+            accent=span.accent,
+        ),
+    ]
+
+
 def _flatten_spans(
     spans: list[HighlightSpan],
     *,
@@ -283,6 +328,7 @@ def _flatten_spans(
                 span.role,
                 span.validity,
                 span.source,
+                span.accent,
             )
         )
     if not candidates:
@@ -323,6 +369,7 @@ def _flatten_spans(
             role=candidate.role,
             validity=candidate.validity,
             source=candidate.source,
+            accent=candidate.accent,
         )
         for candidate, start, end in pieces
     ]

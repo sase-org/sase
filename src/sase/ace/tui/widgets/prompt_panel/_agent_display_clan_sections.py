@@ -11,6 +11,7 @@ from rich.text import Text
 from sase.ace.tui.glossary_reads import GlossaryReadDisplayEvent
 from sase.ace.tui.memory_reads import MemoryReadDisplayEvent
 from sase.core.output_variable_display import var_value_preview
+from sase.project_display_names import humanize_vcs_refs_in_text
 
 from ...models._agent_clan_sections import (
     CLAN_CONTEXT_LANE_ORDER,
@@ -50,6 +51,19 @@ _TRIAGE_SLOW_TOOL_LIMIT = 5
 _CLAN_SECTION_HEADING_STYLE = "bold #D7AF5F underline"
 _CLAN_MEMBER_SUBHEADING_STYLE = "bold #D75FFF"
 _CLAN_BODY_STYLE = "#D7D7FF"
+
+# Member prompt bodies render tagified and accent-colored like every other
+# AGENT XPROMPT surface (D5/D6). Replies stay plain prose.
+_PROMPT_ENTRY_KINDS = frozenset({"AGENT XPROMPT", "AGENT PROMPT"})
+
+
+def _humanize_prompt_body(body: str) -> str:
+    """Tagify project refs in a clan prompt body, failing open."""
+    try:
+        return humanize_vcs_refs_in_text(body)
+    except Exception:
+        return body
+
 
 type ClanMemberHintWorkspace = Callable[[ClanAgentIdentity, str], str | None]
 
@@ -214,10 +228,13 @@ def append_text_section(
             label = entry.member_label
             if entry.kind == "AGENT XPROMPT":
                 label += " [XPROMPT]"
+            preview = entry.preview or "—"
+            if entry.kind in _PROMPT_ENTRY_KINDS:
+                preview = _humanize_prompt_body(preview)
             _append_triage_line(
                 text,
                 label,
-                entry.preview or "—",
+                preview,
                 kind=entry.kind,
                 member_identity=entry.member_identity,
                 hint_state=hint_state,
@@ -244,6 +261,7 @@ def append_text_section(
                 hint_state=hint_state,
                 hint_budget=hint_budget,
                 member_hint_workspace=member_hint_workspace,
+                highlight_project_tags=entry.kind in _PROMPT_ENTRY_KINDS,
             )
 
 
@@ -518,13 +536,17 @@ def _append_full_body(
     hint_state: HeaderHintState | None = None,
     hint_budget: HintContentBudget | None = None,
     member_hint_workspace: ClanMemberHintWorkspace | None = None,
+    highlight_project_tags: bool = False,
 ) -> None:
     body_text = Text()
-    lines = body.splitlines() or ["—"]
-    for line in lines:
-        body_text.append(indent, style="dim")
-        body_text.append(line or " ", style=style)
-        body_text.append("\n")
+    if highlight_project_tags:
+        _append_tag_highlighted_lines(body_text, body, style=style, indent=indent)
+    else:
+        lines = body.splitlines() or ["—"]
+        for line in lines:
+            body_text.append(indent, style="dim")
+            body_text.append(line or " ", style=style)
+            body_text.append("\n")
     text.append_text(
         _text_with_member_hints(
             body_text,
@@ -534,6 +556,36 @@ def _append_full_body(
             member_hint_workspace=member_hint_workspace,
         )
     )
+
+
+def _append_tag_highlighted_lines(
+    body_text: Text,
+    body: str,
+    *,
+    style: str,
+    indent: str,
+) -> None:
+    """Append tagified, accent-styled prompt lines (D5/D6).
+
+    The whole humanized body is tokenized at once so multi-line literal
+    zones stay inert, then split back into the same indented line
+    structure as the plain path. Fails open to the plain rendering.
+    """
+    from sase.ace.tui.util.xprompt_syntax import stylize_project_tags
+
+    humanized = _humanize_prompt_body(body)
+    display_lines = humanized.splitlines() or ["—"]
+    try:
+        source = "\n".join(line or " " for line in display_lines)
+        flat = Text(source, style=style)
+        stylize_project_tags(flat, source)
+        split_lines: list[Text] = list(flat.split("\n", allow_blank=True))
+    except Exception:
+        split_lines = [Text(line or " ", style=style) for line in display_lines]
+    for line in split_lines:
+        body_text.append(indent, style="dim")
+        body_text.append_text(line)
+        body_text.append("\n")
 
 
 def _append_traceback(

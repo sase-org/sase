@@ -39,7 +39,10 @@ XPROMPT_TOKEN_STYLES: dict[str, str] = {
     "branch_name": "bold #87D787",
     "error": "underline #FF5F5F",
     "separator": "dim bold #87AFFF",
+    "project_tag_unknown": "underline #FFD75F",
 }
+
+_PROJECT_TAG_NEUTRAL_STYLE = "dim"
 
 _ALT_TOKEN_STYLE_KEYS = {
     "delimiter": "alt_delimiter",
@@ -68,6 +71,22 @@ _markdown_text_cache: OrderedDict[tuple[object, ...], Text] = OrderedDict()
 
 def _text_digest(text: str) -> str:
     return blake2b(text.encode("utf-8", errors="replace"), digest_size=16).hexdigest()
+
+
+def _project_tag_catalog_signature() -> object:
+    """Return the warm tag-catalog signature, or ``None`` when cold.
+
+    Keyed into the highlight LRU so tagify and tag colors refresh once
+    the catalog warms instead of serving the cold ``#`` rendering
+    forever. Reads only the in-memory peek snapshot: render paths must
+    never touch disk or spawn provider detection.
+    """
+    try:
+        from sase.project_tags.catalog import peek_project_tag_catalog_signature
+
+        return peek_project_tag_catalog_signature()
+    except Exception:
+        return None
 
 
 def _cached_highlighted_text(
@@ -116,6 +135,7 @@ def apply_xprompt_overlays(
     overlays = [
         (XPROMPT_TOKEN_STYLES[span.kind], span.start, span.end)
         for span in xprompt_inspect.tokenize(source, known_skills=known_skills)
+        if span.kind in XPROMPT_TOKEN_STYLES
     ]
     overlays.extend(
         (
@@ -131,6 +151,70 @@ def apply_xprompt_overlays(
             region_start + start,
             region_start + end,
         )
+    stylize_project_tags(highlighted, source, region_start=region_start)
+
+
+def stylize_project_tags(
+    highlighted: _StylizableText,
+    source: str,
+    *,
+    region_start: int = 0,
+) -> None:
+    """Style ``+<project>`` tags in a Rich text region (D5/D6).
+
+    Resolved tags render exactly like the top-right project chip: the
+    ``+`` in ``dim <accent>`` and the name in ``bold <accent>``.
+    Tags without an accent (disabled projects and ``home``) render
+    neutral dim; anchored unknown tags render in the warning color with
+    an underline. Unresolvable text is left untouched. Tokenization
+    finishes before the target is mutated so callers fail open without
+    partial overlays.
+    """
+    if "+" not in source:
+        return
+    try:
+        tag_spans = [
+            span
+            for span in xprompt_inspect.tokenize(source)
+            if span.kind in ("project_tag", "project_tag_unknown")
+        ]
+        overlays = [
+            overlay for span in tag_spans for overlay in _project_tag_overlays(span)
+        ]
+    except Exception:
+        return
+    for style, start, end in overlays:
+        highlighted.stylize(
+            style,
+            region_start + start,
+            region_start + end,
+        )
+
+
+def _project_tag_overlays(span: object) -> list[tuple[str, int, int]]:
+    """Return ``(style, start, end)`` overlays for one tag span."""
+    kind = getattr(span, "kind", None)
+    start = getattr(span, "start", None)
+    end = getattr(span, "end", None)
+    if not isinstance(start, int) or not isinstance(end, int) or end <= start:
+        return []
+    if kind == "project_tag_unknown":
+        return [(XPROMPT_TOKEN_STYLES["project_tag_unknown"], start, end)]
+    if kind != "project_tag":
+        return []
+    name_start = getattr(span, "name_start", None)
+    if not isinstance(name_start, int) or not start < name_start < end:
+        name_start = start + 1
+    accent = getattr(span, "accent", None)
+    if not isinstance(accent, str):
+        return [
+            (_PROJECT_TAG_NEUTRAL_STYLE, start, name_start),
+            (_PROJECT_TAG_NEUTRAL_STYLE, name_start, end),
+        ]
+    return [
+        (f"dim {accent}", start, name_start),
+        (f"bold {accent}", name_start, end),
+    ]
 
 
 def highlight_prompt_text(
@@ -161,6 +245,7 @@ def highlight_prompt_text(
         id(repo_catalog) if repo_catalog is not None else 0,
         frozenset(artifact_ref_known_kinds or ()),
         getattr(artifact_ref_styles, "signature", ""),
+        _project_tag_catalog_signature(),
     )
     try:
         return _cached_highlighted_text(
@@ -297,4 +382,5 @@ __all__ = [
     "apply_xprompt_overlays",
     "highlight_markdown_text",
     "highlight_prompt_text",
+    "stylize_project_tags",
 ]

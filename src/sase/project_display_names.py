@@ -430,18 +430,24 @@ def humanize_vcs_refs_in_text(
     projects_root: Path | str | None = None,
     *,
     snapshot: ProjectDisplaySnapshot | None = None,
+    project_tags: bool = True,
 ) -> str:
     """Project canonical project keys in VCS tags to display labels.
 
     A supplied snapshot makes the helper a pure presentation operation. The
     root-based compatibility path uses the explicit convenience cache and does
-    not inspect filesystem mtimes.
+    not inspect filesystem mtimes. When *project_tags* is true (default),
+    project refs that resolve to a taggable project render as ``+<name>``
+    (D5); tagify falls back to today's ``#`` form when the tag catalog is
+    cold. Pass ``project_tags=False`` only where the result is re-parsed
+    by a reader that cannot understand tags, with a comment saying why.
     """
     from sase.project_aliases import humanize_project_refs_in_prompt
 
     return humanize_project_refs_in_prompt(
         text,
         _display_names(projects_root, snapshot),
+        project_tags=project_tags,
     )
 
 
