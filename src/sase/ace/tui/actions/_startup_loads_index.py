@@ -1,0 +1,214 @@
+"""Startup mount-state and agent-index load workers for sase's TUI."""
+
+from __future__ import annotations
+
+import logging
+import time
+from typing import Any, cast
+
+log = logging.getLogger(__name__)
+
+
+class StartupLoadsIndexMixin:
+    """Mixin running mount-state reads and index rebuilds off the paint path."""
+
+    async def _run_mount_notification_state_loads(self: Any) -> None:
+        """Load startup notification state before unrelated mount-state reads."""
+        import asyncio
+
+        try:
+            notif_state = await asyncio.to_thread(self._read_notifications_for_startup)
+            self._initialize_agent_tracking(notif_state)
+            # Seed existing unread IDs first so startup does not replay old
+            # alerts, then reconcile overdue snoozes and arm the nearest
+            # deadline independently of the general refresh setting.
+            self._schedule_notification_poll(source="startup")
+        finally:
+            self._mount_notification_state_load_done = True
+            self._maybe_mark_mount_state_loads_done()
+
+    async def _run_deferred_mount_state_loads(self: Any) -> None:
+        """Load deferred mount-time disk state off the App message pump."""
+        import asyncio
+
+        try:
+            stash_counts = await asyncio.to_thread(self._read_prompt_stash_counts)
+            self._apply_prompt_stash_counts(*stash_counts)
+
+            if not getattr(self, "_patches_first_load_done", False):
+                all_cs = await asyncio.to_thread(self._read_patches_from_disk)
+                self._apply_patches(all_cs)
+
+            last_name = await asyncio.to_thread(self._read_last_selection_name)
+            self._restore_last_selection(last_name)
+            await asyncio.to_thread(self._save_startup_query)
+
+            # Resolving a git-derived dev version can block on subprocesses for
+            # editable installs. Wheel installs usually keep the instant title.
+            from ..util.app_version import (
+                format_app_title,
+                initial_app_version,
+                resolved_app_version,
+            )
+
+            version = await asyncio.to_thread(resolved_app_version)
+            if version and version != initial_app_version():
+                self.title = format_app_title(version)
+        finally:
+            self._mount_deferred_state_load_done = True
+            self._maybe_mark_mount_state_loads_done()
+
+    async def _run_agent_index_startup_prepare_and_refresh(self: Any) -> None:
+        """Paint from a bounded scan before rebuilding a stale index."""
+        import asyncio
+
+        from sase.core.agent_artifact_index_lifecycle import (
+            read_agent_artifact_index_schema_status,
+        )
+
+        try:
+            status = await asyncio.to_thread(read_agent_artifact_index_schema_status)
+        except Exception:
+            log.exception("Startup artifact-index schema check failed")
+            await self._run_agents_async_refresh()
+            return
+
+        if not status.stale:
+            await self._run_agents_async_refresh()
+            return
+
+        self._artifact_index_schema_rebuild_in_flight = True
+        self._artifact_index_schema_bypass = True
+        index_ready = False
+        try:
+            try:
+                # The bypass makes this first load take the bounded source-scan
+                # branch directly instead of waiting behind the rebuild lock.
+                await self._run_agents_async_refresh()
+            finally:
+                # This coroutine is already a post-mount worker. Keeping the
+                # rebuild here makes first paint independent while preserving
+                # one reliable completion path for the follow-up refresh.
+                index_ready = await self._run_agent_index_startup_prepare()
+        finally:
+            self._artifact_index_schema_rebuild_in_flight = False
+            if index_ready:
+                self._artifact_index_schema_bypass = False
+
+        if index_ready:
+            self._schedule_agents_async_refresh(
+                source="index_schema_rebuilt",
+                on_complete=self._resume_startup_index_work_after_schema_rebuild,
+            )
+            return
+
+        # Keep bypassing the stale index for this session. The bounded first
+        # load remains interactive; a quiet-time Tier 2 scan can restore full
+        # history without opening the stale index.
+        self._agents_history_reconcile_pending = True
+        self._agents_history_reconcile_armed_mono = time.monotonic()
+        try:
+            self.notify(
+                "Agent artifact index schema rebuild failed; using a bounded scan",
+                severity="warning",
+                timeout=10,
+            )
+        except Exception:
+            log.debug("Failed to show schema-rebuild warning", exc_info=True)
+
+    async def _run_agent_index_startup_prepare(self: Any) -> bool:
+        """Make a known-stale index safe to query after the first agents paint."""
+        import asyncio
+
+        from sase.core.agent_artifact_index_lifecycle import (
+            refresh_agent_artifact_index_if_schema_stale,
+        )
+        from sase.core.agent_scan_wire import AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
+
+        try:
+            report = await asyncio.to_thread(
+                refresh_agent_artifact_index_if_schema_stale
+            )
+        except Exception:
+            log.exception("Startup artifact-index schema refresh failed")
+            return False
+        if report.refreshed:
+            log.info(
+                "rebuilt stale agent artifact index: schema %s -> %s, rows=%s",
+                report.stored_schema_version,
+                AGENT_ARTIFACT_INDEX_SCHEMA_VERSION,
+                report.rows_indexed,
+            )
+        return bool(
+            report.refreshed
+            or (
+                report.checked
+                and report.stored_schema_version is not None
+                and report.stored_schema_version >= AGENT_ARTIFACT_INDEX_SCHEMA_VERSION
+            )
+        )
+
+    def _resume_startup_index_work_after_schema_rebuild(self: Any) -> None:
+        """Resume index consumers only after the rebuilt index was queried."""
+        if self._dismissed_index_sync_pending_after_schema_rebuild:
+            self._dismissed_index_sync_pending_after_schema_rebuild = False
+            self._schedule_dismissed_index_startup_sync()
+        resume_maintenance = getattr(
+            self, "_resume_artifact_index_maintenance_after_schema_rebuild", None
+        )
+        if callable(resume_maintenance):
+            resume_maintenance()
+
+    def _schedule_dismissed_index_startup_sync(self: Any) -> None:
+        """Schedule dismissed-index maintenance after startup agents load."""
+        if getattr(self, "_artifact_index_schema_bypass", False):
+            self._dismissed_index_sync_pending_after_schema_rebuild = True
+            return
+        try:
+            self.run_worker(
+                cast(Any, self._run_dismissed_index_startup_sync),
+                thread=False,
+                exclusive=False,
+                group="startup-loads",
+            )
+        except Exception:
+            log.exception("Failed to schedule startup dismissed-index sync")
+
+    async def _run_dismissed_index_startup_sync(self: Any) -> None:
+        """Run dismissed-projection index maintenance off the paint path.
+
+        ``_init_app_state`` only captures the cheap in-memory dismissed
+        state; the artifact-index sync - O(archive) on signature drift and
+        unbounded when the index is corrupt - runs here in a thread so
+        first paint never waits on it. A projection rewrite means
+        dismissed visibility may have drifted out-of-band since the last
+        session, so nudge an agents refresh to reconcile shortly after
+        first paint; a heal additionally gets a user-visible notification.
+        """
+        import asyncio
+
+        from sase.core.agent_artifact_index_lifecycle import (
+            DismissedProjectionSyncReport,
+            sync_dismissed_agent_artifact_index_report,
+        )
+
+        dismissed_snapshot = set(self._dismissed_agents)
+        try:
+            report: DismissedProjectionSyncReport = await asyncio.to_thread(
+                sync_dismissed_agent_artifact_index_report,
+                dismissed_snapshot,
+            )
+        except Exception:
+            log.exception("Startup dismissed-index sync failed")
+            return
+        self._artifact_index_maintenance_last_mono = time.monotonic()
+        if report.healed:
+            quarantined = report.quarantined_path
+            suffix = f" (old copy: {quarantined.name})" if quarantined else ""
+            self.notify(
+                f"Agent artifact index was corrupt; rebuilt it{suffix}",
+                severity="warning",
+                timeout=10,
+            )
+        if report.changed:
+            self._schedule_agents_async_refresh(source="dismissed_index_sync")
