@@ -422,11 +422,13 @@ class LinkFollowTransactionMixin:
         app_keys = getattr(registry, "app", None)
         restore_raw = getattr(app_keys, "prev_query", "") or ""
         back_raw = getattr(app_keys, "jump_to_entry_fast", "") or ""
+        choices = getattr(self, "_artifacts_project_choices", None)
         title, message = format_reveal_toast(
             outcome,
             restore_key=key_display_name(restore_raw) if restore_raw else "",
             back_key=key_display_name(back_raw) if back_raw else "",
             accent=_pane_accent(pane, transaction.target.pane_id),
+            scope_names=getattr(choices, "display_names", None),
         )
         self.notify(  # type: ignore[attr-defined]
             message,

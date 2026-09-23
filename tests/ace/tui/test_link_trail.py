@@ -186,7 +186,15 @@ class _App(LinkFollowMixin, LinkTrailMixin):
             return self._agents[self.current_idx]
         return None
 
-    def notify(self, message: str, *, severity: str | None = None) -> None:
+    def notify(
+        self,
+        message: str,
+        *,
+        title: str = "",
+        severity: str | None = None,
+        timeout: float | None = None,
+    ) -> None:
+        del title, timeout
         self.notifications.append((message, severity))
 
 

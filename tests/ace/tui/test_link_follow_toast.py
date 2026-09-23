@@ -8,6 +8,9 @@ renderer, so unbalanced tags fail here instead of in the live toast.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+from typing import Any
+
 from textual.content import Content
 
 from sase.ace.link_reveal_context import HiddenReason, RevealOutcome
@@ -16,6 +19,8 @@ from sase.ace.tui.actions._link_follow_toast import (
     format_link_failure,
     format_reveal_toast,
 )
+from sase.ace.tui.actions._link_follow_transaction import LinkFollowTransactionMixin
+from sase.core.artifact_entry_target import ArtifactEntryTarget
 from sase.ace.tui.keymaps.display import key_display_name
 from sase.ace.tui.widgets.artifacts.shell import build_reveal_chip_label
 
@@ -134,6 +139,60 @@ def test_optional_scope_fetched_and_fallback_lines() -> None:
     assert "scope  sase → All projects" in message
     assert "fetched  outside the loaded rows" in message
     _assert_valid_markup(message)
+
+
+def _scope_outcome(scope_change: tuple[str | None, str | None]) -> RevealOutcome:
+    return RevealOutcome(
+        pane_label="Bead",
+        ref="bead:sase-16n.7",
+        old_canonical="-status:closed limit:100",
+        new_canonical="id:sase-16n.* limit:100",
+        hidden=HiddenReason(kind="filtered", terms=("-status:closed",)),
+        scope_change=scope_change,
+        context_label="epic sase-16n",
+        outcome="context",
+    )
+
+
+def test_scope_line_uses_project_display_names_not_directory_keys() -> None:
+    names = {"gh_sase-org__sase": "sase", "gh_sase-org__core": "sase-core"}
+
+    _, widened = format_reveal_toast(
+        _scope_outcome(("gh_sase-org__sase", None)), scope_names=names
+    )
+    _, switched = format_reveal_toast(
+        _scope_outcome(("gh_sase-org__core", "gh_sase-org__sase")), scope_names=names
+    )
+    _, unknown = format_reveal_toast(_scope_outcome(("gh_x__y", None)))
+
+    assert "scope  sase → All projects" in widened
+    assert "gh_sase-org__sase" not in widened
+    assert "scope  sase-core → sase" in switched
+    # A key with no known display name still names the scope honestly.
+    assert "scope  gh_x__y → All projects" in unknown
+
+
+def test_live_reveal_toast_resolves_scope_through_project_choices() -> None:
+    notifications: list[str] = []
+
+    class _App(LinkFollowTransactionMixin):
+        _keymap_registry = None
+        _artifacts_project_choices = SimpleNamespace(
+            display_names={"gh_sase-org__sase": "sase"}
+        )
+
+        def notify(self, message: str, **_kwargs: Any) -> None:
+            notifications.append(message)
+
+    transaction: Any = SimpleNamespace(
+        target=ArtifactEntryTarget("beads", ("sase", "phase", "sase-16n.7"))
+    )
+    _App()._notify_reveal_toast(
+        _scope_outcome(("gh_sase-org__sase", None)), transaction
+    )
+
+    assert len(notifications) == 1
+    assert "scope  sase → All projects" in notifications[0]
 
 
 def test_agents_tab_fallback_line() -> None:

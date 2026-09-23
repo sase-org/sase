@@ -19,6 +19,7 @@ from the live keymap registry -- they are never hard-coded here.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Literal
 
 from textual.markup import escape
@@ -37,13 +38,21 @@ ALL_PROJECTS_LABEL = "All projects"
 LinkFailureKind = Literal["dangling", "load", "unconfigured", "missing"]
 
 
-def _scope_display_name(scope: str | None) -> str:
-    """Return the toast-facing name for an Artifacts project *scope*."""
-    return ALL_PROJECTS_LABEL if scope is None else scope
+def _scope_display_name(scope: str | None, names: Mapping[str, str]) -> str:
+    """Return the toast-facing name for an Artifacts project *scope*.
+
+    *names* maps canonical project keys to the display names the Artifacts
+    pane itself shows, so the toast never prints a raw directory key; an
+    unknown key falls back to itself.
+    """
+    if scope is None:
+        return ALL_PROJECTS_LABEL
+    return names.get(scope) or scope
 
 
 def _describe_scope_change(
     change: tuple[str | None, str | None] | None,
+    names: Mapping[str, str],
 ) -> str | None:
     """Return the ``scope`` toast line for *change*, or ``None``.
 
@@ -53,7 +62,9 @@ def _describe_scope_change(
     if change is None:
         return None
     old, new = change
-    return f"scope  {escape(_scope_display_name(old))} → {escape(_scope_display_name(new))}"
+    old_name = escape(_scope_display_name(old, names))
+    new_name = escape(_scope_display_name(new, names))
+    return f"scope  {old_name} → {new_name}"
 
 
 def _describe_hidden_reason(hidden: HiddenReason) -> str:
@@ -79,6 +90,7 @@ def format_reveal_toast(
     restore_key: str = "",
     back_key: str = "",
     accent: str = "cyan",
+    scope_names: Mapping[str, str] | None = None,
 ) -> tuple[str, str]:
     """Return the ``(title, markup message)`` toast for one reveal.
 
@@ -86,7 +98,8 @@ def format_reveal_toast(
     *back_key* names the binding that dispatches ``_walk_link_trail_back``
     (``ctrl+o``); either segment is dropped when its key is unknown rather
     than guessed. *accent* is the destination pane's accent color, used for
-    the new-query line only.
+    the new-query line only. *scope_names* maps project keys in the
+    outcome's scope change to their display names.
     """
     title = f"↪ {outcome.pane_label} {short_ref_label(outcome.ref)}"
     lines = [
@@ -102,7 +115,7 @@ def format_reveal_toast(
         key_segments.append(f"{escape(back_key)} back")
     if key_segments:
         lines.append(" · ".join(key_segments))
-    scope_line = _describe_scope_change(outcome.scope_change)
+    scope_line = _describe_scope_change(outcome.scope_change, scope_names or {})
     if scope_line is not None:
         lines.append(scope_line)
     if outcome.hydrated:

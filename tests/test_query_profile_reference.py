@@ -497,7 +497,9 @@ def _glob_query_schema(*, boolean: bool):
             pane_id="glob-bool" if boolean else "glob-flat",
             boolean=boolean,
             fields=(
-                QueryFieldSpec(key="id", exact_match=True),
+                QueryFieldSpec(
+                    key="id", exact_match=True, repeatable=True, negatable=True
+                ),
                 QueryFieldSpec(key="path"),
                 QueryFieldSpec(key="sha"),
                 QueryFieldSpec(
