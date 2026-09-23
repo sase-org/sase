@@ -33,6 +33,24 @@ class PluginsBrowserOperationsMixin:
     module at call time, preserving those patch points after the file split.
     """
 
+    def _make_agent_cli_install_plan(
+        self, names: tuple[str, ...], *, offline: bool
+    ) -> Any:
+        from . import plugins_browser_pane as pane_module
+
+        statuses = getattr(self, "_agent_cli_statuses", ())
+        return pane_module._plan_agent_cli_installs(
+            names,
+            offline=offline,
+            status_fn=lambda **_kwargs: statuses,
+        )
+
+    @staticmethod
+    def _execute_agent_cli_installs(plan: Any, **kwargs: Any) -> Any:
+        from . import plugins_browser_pane as pane_module
+
+        return pane_module._execute_agent_cli_installs(plan, **kwargs)
+
     def _make_install_preview(self, name: str, *, offline: bool) -> InstallPreview:
         from . import plugins_browser_pane as pane_module
 

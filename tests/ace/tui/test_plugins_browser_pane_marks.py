@@ -204,7 +204,7 @@ async def test_prune_marks_drops_rows_that_lost_capability(
             }
         )
         pane._render_all()
-        assert pane._marked == {"plugin:nvim", "cli:claude"}
+        assert pane._marked == {"plugin:nvim", "cli:claude", "cli:qwen"}
 
 
 async def test_i_marks_updatable_cli_rows(
@@ -226,3 +226,53 @@ async def test_i_marks_updatable_cli_rows(
         assert pane._marked == {"cli:claude"}
         assert "Marked: 1 CLI update" in pane._hints()
         assert "I/space mark" in pane._hints()
+
+
+async def test_cli_install_mark_stays_inside_agent_cli_section(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+        uv_tool=_uv_tool(),
+    )
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        _highlight_row(pane, "cli:qwen")
+        pane.action_toggle_mark()
+        assert pane._marked == {"cli:qwen"}
+        assert pane._marked_cli_install_names() == ("qwen",)
+        assert pane._marked_plugin_names() == ()
+        assert "Marked: 1 CLI install" in pane._hints()
+        # The cursor advances to the next installable CLI, never into plugins.
+        highlighted = pane._highlighted_row()
+        assert highlighted is not None
+        assert highlighted.kind == "agent-cli"
+        assert highlighted.key != "cli:qwen"
+        assert "install" in highlighted.capabilities
+
+
+async def test_manual_cli_mark_warns_with_vendor_reason(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+        uv_tool=_uv_tool(),
+    )
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        messages = _spy_notify(monkeypatch, pane)
+        _highlight_row(pane, "cli:antigravity")
+        assert pane.check_action("toggle_install_mark", ()) is False
+        pane.action_toggle_mark()
+        await page.pause()
+        assert pane._marked == set()
+        assert messages and messages[0][1] == "warning"
+        assert "Antigravity CLI can't be installed by SASE" in messages[0][0]

@@ -10,7 +10,12 @@ from rich.table import Table
 from rich.text import Text
 
 from sase.agent_clis.history import AgentCliUpdateRun, AgentCliUpdateRunEntry
-from sase.agent_clis.models import AgentCliStatus, UpdateResultStatus, UpdateTrigger
+from sase.agent_clis.models import (
+    AgentCliOperation,
+    AgentCliStatus,
+    UpdateResultStatus,
+    UpdateTrigger,
+)
 from sase.core.time import format_local
 
 _ACCENT = "#87D7FF"
@@ -26,12 +31,14 @@ _GLYPHS: dict[UpdateResultStatus, tuple[str, str]] = {
     UpdateResultStatus.ALREADY_CURRENT: ("·", "dim"),
     UpdateResultStatus.SKIPPED: ("○", "dim"),
 }
+_INSTALL_GLYPH = ("↓", f"bold {_SUCCESS}")
 _TRIGGER_BADGES: dict[UpdateTrigger, str] = {
     UpdateTrigger.COMPREHENSIVE: ",U",
     UpdateTrigger.ADMIN_CENTER: "A",
     UpdateTrigger.CLI: "CLI",
     UpdateTrigger.UNKNOWN: "—",
 }
+_INSTALL_BADGE = "i"
 
 
 def build_agent_cli_history_panel(
@@ -49,7 +56,7 @@ def build_agent_cli_history_panel(
     if not enabled or status is None:
         return Text()
 
-    title = "Update history · all agent CLIs" if all_clis else "Update history"
+    title = "History · all agent CLIs" if all_clis else "History"
     title_text = Text(title, style=f"bold {colors.get(status.name, _ACCENT)}")
     toggle_hint = "H this CLI" if all_clis else "H all CLIs"
 
@@ -88,7 +95,7 @@ def build_agent_cli_history_panel(
         other_run_count = sum(
             any(entry.name != status.name for entry in run.entries) for run in runs
         )
-        body = Text(f"No recorded updates for {status.display_name}.")
+        body = Text(f"No recorded installs or updates for {status.display_name}.")
         if other_run_count:
             body.append("\n")
             body.append(
@@ -127,9 +134,10 @@ def _panel(
 
 
 def _empty_history_text() -> Text:
-    body = Text("No sase-managed agent CLI updates recorded yet.")
+    body = Text("No sase-managed agent CLI installs or updates recorded yet.")
     body.append(
-        "\nPress A to update agent CLIs, ,U for the panel, or ,E for everything.",
+        "\nPress i to install a missing agent CLI, A to update agent CLIs, "
+        ",U for the panel, or ,E for everything.",
         style="dim",
     )
     return body
@@ -148,12 +156,12 @@ def _per_cli_body(
     table.add_column(no_wrap=True)
     table.add_column(ratio=1, no_wrap=True, overflow="ellipsis")
     for run, entry in rows:
-        glyph, glyph_style = _GLYPHS[entry.status]
+        glyph, glyph_style = _entry_glyph(entry)
         table.add_row(
             Text(glyph, style=glyph_style),
             _version_text(entry),
             Text(_relative_time(run.epoch, now=now), style="dim"),
-            Text(_trigger_badge(run.trigger), style=f"bold {_TRIGGER}"),
+            Text(_run_badge(run), style=f"bold {_TRIGGER}"),
             Text(_elapsed(entry.elapsed_seconds), style="dim"),
             _failure_reason(entry),
         )
@@ -172,7 +180,7 @@ def _all_clis_body(
             lines.append(Text())
         header = Text(_relative_time(run.epoch, now=now), style="dim")
         header.append(" · ", style="dim")
-        header.append(_trigger_badge(run.trigger), style=f"bold {_TRIGGER}")
+        header.append(_run_badge(run), style=f"bold {_TRIGGER}")
         header.append(" · ", style="dim")
         header.append(_elapsed(run.elapsed_seconds), style="dim")
         lines.append(header)
@@ -189,7 +197,7 @@ def _all_clis_entry(
     *,
     colors: Mapping[str, str],
 ) -> Text:
-    glyph, glyph_style = _GLYPHS[entry.status]
+    glyph, glyph_style = _entry_glyph(entry)
     line = Text("  ")
     line.append(glyph, style=glyph_style)
     line.append(" ")
@@ -227,7 +235,24 @@ def _nonexecuted_summary(run: AgentCliUpdateRun) -> Text | None:
     return line
 
 
+def _entry_glyph(entry: AgentCliUpdateRunEntry) -> tuple[str, str]:
+    """The history glyph for one entry; successful installs use ``↓``."""
+    if (
+        entry.operation is AgentCliOperation.INSTALL
+        and entry.status is UpdateResultStatus.UPDATED
+    ):
+        return _INSTALL_GLYPH
+    return _GLYPHS[entry.status]
+
+
 def _version_text(entry: AgentCliUpdateRunEntry) -> Text:
+    if (
+        entry.operation is AgentCliOperation.INSTALL
+        and entry.status is UpdateResultStatus.UPDATED
+    ):
+        return Text(
+            f"installed {entry.new_version or 'unknown'}", style=f"bold {_SUCCESS}"
+        )
     old = entry.old_version or entry.new_version or "unknown"
     text = Text(old, style="dim")
     if entry.status is UpdateResultStatus.UPDATED:
@@ -269,6 +294,17 @@ def _relative_time(epoch: float, *, now: float) -> str:
 
 def _trigger_badge(trigger: UpdateTrigger) -> str:
     return _TRIGGER_BADGES.get(trigger, "—")
+
+
+def _run_badge(run: AgentCliUpdateRun) -> str:
+    """The history badge for one run; Admin Center install runs get ``i``."""
+    if run.trigger is UpdateTrigger.ADMIN_CENTER:
+        executed = run.executed_entries
+        if executed and all(
+            entry.operation is AgentCliOperation.INSTALL for entry in executed
+        ):
+            return _INSTALL_BADGE
+    return _trigger_badge(run.trigger)
 
 
 def _elapsed(seconds: float) -> str:

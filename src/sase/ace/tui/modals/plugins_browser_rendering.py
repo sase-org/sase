@@ -36,13 +36,31 @@ from .plugins_browser_constants import (
     _HEADER_PREFIX,
     _ROW_PREFIX,
 )
-from .plugins_browser_rows import UpdateRow, UpdateScope, dev_state_label, select_rows
+from .plugins_browser_rows import (
+    UpdateRow,
+    UpdateScope,
+    dev_state_label,
+    select_rows,
+)
+
+#: Mark-advance groups: the two plugin sections share one cursor group so
+#: plugin marking behaves as it always has; every other section is its own
+#: group, keeping CLI install marking inside the Agent CLIs section.
+_MARK_SECTION_GROUPS: dict[str, str] = {
+    "sase": "sase",
+    "plugins-builtin": "plugins",
+    "plugins-community": "plugins",
+    "agent-clis": "agent-clis",
+}
 
 
 class PluginsBrowserRenderingMixin:
     """Rendering and selection helpers for :class:`PluginsBrowserPane`."""
 
     if TYPE_CHECKING:
+        from sase.agent_clis.models import AgentCliUpdateResult
+
+        _agent_cli_results: dict[str, AgentCliUpdateResult]
         _catalog: PluginCatalog | None
         _core_incoming_commits: dict[str, IncomingCommits]
         _core_versions: CoreVersions
@@ -232,6 +250,24 @@ class PluginsBrowserRenderingMixin:
             return label
         return apply_jump_hint_prefix(label, hint)
 
+    def _cli_install_not_on_path(self, key: str) -> bool:
+        """Whether *key*'s last session install succeeded off ``PATH``.
+
+        Pure in-memory lookup over the session's install results: true only
+        when the last result for the CLI is a successful install whose
+        install directory is known not to be on ``PATH``.
+        """
+        from sase.agent_clis.models import AgentCliOperation, UpdateResultStatus
+
+        results = getattr(self, "_agent_cli_results", None) or {}
+        result = results.get(key.removeprefix("cli:"))
+        return (
+            result is not None
+            and result.operation is AgentCliOperation.INSTALL
+            and result.status is UpdateResultStatus.UPDATED
+            and result.install_dir_on_path is False
+        )
+
     def _row_text(self, row: UpdateRow) -> Text:
         """A single list row: mark + status glyph + name + version + extras."""
         text = Text()
@@ -251,6 +287,8 @@ class PluginsBrowserRenderingMixin:
         if row.kind == "agent-cli":
             text.append("  ")
             text.append(f"[{row.source.replace('_', ' ')}]", style="bold dim")
+            if not row.installed and self._cli_install_not_on_path(row.key):
+                text.append("  ⚠ not on PATH", style="yellow")
         if row.update_available:
             text.append("  ")
             text.append(_UPDATE_GLYPH, style="bold cyan")
@@ -512,7 +550,17 @@ class PluginsBrowserRenderingMixin:
     def _marked_plugin_names(self) -> tuple[str, ...]:
         """Plugin names currently marked for install."""
         return tuple(
-            key.removeprefix("plugin:") for key in self._marked_keys_with("install")
+            key.removeprefix("plugin:")
+            for key in self._marked_keys_with("install")
+            if key.startswith("plugin:")
+        )
+
+    def _marked_cli_install_names(self) -> tuple[str, ...]:
+        """Agent-CLI provider names currently marked for install."""
+        return tuple(
+            key.removeprefix("cli:")
+            for key in self._marked_keys_with("install")
+            if key.startswith("cli:")
         )
 
     def _marked_cli_names(self) -> tuple[str, ...]:
@@ -531,11 +579,17 @@ class PluginsBrowserRenderingMixin:
         option_list.replace_option_prompt_at_index(index, self._row_text(row))
         return True
 
-    def _advance_mark_selection(self, capability: str) -> None:
-        """Move the cursor to the next row carrying *capability* after a toggle."""
+    def _advance_mark_selection(self, capability: str, *, section: str) -> None:
+        """Move to the next row with *capability* in *section* after a toggle.
+
+        Built-in and Community plugin rows share one mark group, so existing
+        plugin marking behaves exactly as before; agent-CLI marking wraps
+        within the Agent CLIs section and never jumps into the plugins.
+        """
         option_list = self._option_list()
         if option_list is None or option_list.highlighted is None:
             return
+        group = _MARK_SECTION_GROUPS.get(section, section)
         start = option_list.highlighted
         for offset in range(1, option_list.option_count + 1):
             index = (start + offset) % option_list.option_count
@@ -544,7 +598,11 @@ class PluginsBrowserRenderingMixin:
             option = option_list.get_option_at_index(index)
             key = str(option.id).removeprefix(_ROW_PREFIX)
             row = self._rows_by_key.get(key)
-            if row is not None and capability in row.capabilities:
+            if (
+                row is not None
+                and _MARK_SECTION_GROUPS.get(row.section, row.section) == group
+                and capability in row.capabilities
+            ):
                 option_list.highlighted = index
                 return
 

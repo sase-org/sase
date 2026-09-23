@@ -14,6 +14,7 @@ from sase.ace.tui.actions.proc_actions import (
 from sase.ace.tui.session_proc_reporter import SessionProcReporter
 from sase.agent_clis.models import (
     AgentCliNothingToUpdate,
+    AgentCliOperation,
     AgentCliStatus,
     AgentCliUnknownName,
     AgentCliUpdateEntry,
@@ -52,7 +53,7 @@ class AgentCliBrowserActionsMixin:
         app: App[Any]
         is_mounted: bool
 
-        def _advance_mark_selection(self, capability: str) -> None: ...
+        def _advance_mark_selection(self, capability: str, *, section: str) -> None: ...
 
         def _clear_marks(self, keys: object = None) -> None: ...
 
@@ -108,7 +109,7 @@ class AgentCliBrowserActionsMixin:
         else:
             self._marked.add(row.key)
         self._refresh_row(row.key)
-        self._advance_mark_selection(capability)
+        self._advance_mark_selection(capability, section=row.section)
         self._update_static("#updates-hints", self._hints())
 
     def action_clear_marks_or_close(self) -> None:
@@ -281,11 +282,20 @@ def _unmarkable_message(row: UpdateRow) -> str:
     if row.kind == "plugin":
         return "Select an installable plugin to mark."
     if row.kind == "agent-cli":
+        from sase.agent_clis.install import describe_agent_cli_install
+
+        payload = row.payload
+        if isinstance(payload, AgentCliStatus) and not payload.installed:
+            option = describe_agent_cli_install(payload)
+            if not option.installable:
+                return f"{row.label} can't be installed by SASE — {option.reason}"
         return "Select an updatable agent CLI to mark."
     return "Select an installable plugin or an updatable agent CLI to mark."
 
 
 def agent_cli_result_line(result: AgentCliUpdateResult) -> str:
+    if result.operation is AgentCliOperation.INSTALL:
+        return _agent_cli_install_result_line(result)
     if result.status is UpdateResultStatus.UPDATED:
         old = result.old_version or "unknown"
         new = result.new_version or "unknown"
@@ -300,8 +310,63 @@ def agent_cli_result_line(result: AgentCliUpdateResult) -> str:
     return f"{result.display_name}: skipped — {detail}"
 
 
+def _agent_cli_install_result_line(result: AgentCliUpdateResult) -> str:
+    """The result line for one install outcome (success, failure, or skip)."""
+    if result.status is UpdateResultStatus.UPDATED:
+        line = f"{result.display_name}: installed {result.new_version or 'unknown'}"
+        return f"{line} — {result.reason}" if result.reason else line
+    if result.status is UpdateResultStatus.FAILED:
+        detail = result.reason or "install failed"
+        return f"{result.display_name}: install failed — {detail}"
+    detail = result.reason or "skipped"
+    return f"{result.display_name}: skipped — {detail}"
+
+
 def _agent_cli_update_summary(results: tuple[AgentCliUpdateResult, ...]) -> str:
     """Build the concise completion toast for a batch agent-CLI update."""
     if not results:
         return "No agent CLIs needed an update."
     return "\n".join(agent_cli_result_line(result) for result in results)
+
+
+def agent_cli_install_summary(
+    results: tuple[AgentCliUpdateResult, ...],
+) -> tuple[str, Literal["information", "warning", "error"]]:
+    """Build the completion toast for a batch agent-CLI install.
+
+    Returns the message plus its severity: information when everything
+    installed cleanly, warning when a target is not on ``PATH``, and error
+    when any install failed.
+    """
+    lines = tuple(agent_cli_result_line(result) for result in results)
+    if any(result.status is UpdateResultStatus.FAILED for result in results):
+        return "\n".join(lines), "error"
+    off_path = tuple(
+        result
+        for result in results
+        if result.status is UpdateResultStatus.UPDATED
+        and result.install_dir_on_path is False
+    )
+    if off_path:
+        message_lines = list(lines)
+        for result in off_path:
+            location = result.install_dir or "its install directory"
+            message_lines.append(
+                f'{location} is not on PATH; add `export PATH="{location}:$PATH"` '
+                "to your shell startup file. SASE did not edit any shell rc file."
+            )
+        return "\n".join(message_lines), "warning"
+    succeeded = tuple(
+        result for result in results if result.status is UpdateResultStatus.UPDATED
+    )
+    if succeeded:
+        installed = " · ".join(
+            f"{result.display_name} {result.new_version or 'unknown'}"
+            for result in succeeded
+        )
+        if len(lines) > len(succeeded):
+            return "\n".join([f"Installed {installed}", *lines]), "information"
+        return f"Installed {installed}", "information"
+    if lines:
+        return "\n".join(lines), "information"
+    return "No agent CLIs were installed.", "information"

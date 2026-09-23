@@ -158,7 +158,7 @@ def test_provider_plan_intersects_capture_without_broadening() -> None:
 
 
 def test_provider_revalidation_keeps_current_and_manual_outcomes() -> None:
-    claude, codex, _qwen = _agent_cli_statuses()
+    claude, codex, _qwen, *_rest = _agent_cli_statuses()
     current_claude = replace(
         claude,
         latest_version=claude.installed_version,
@@ -255,7 +255,7 @@ def test_comprehensive_sase_preview_leads_with_dev_components() -> None:
 
 
 def test_comprehensive_provider_preview_marks_current_and_manual_rows() -> None:
-    claude, codex, _qwen = _agent_cli_statuses()
+    claude, codex, _qwen, *_rest = _agent_cli_statuses()
     current_claude = replace(
         claude,
         latest_version=claude.installed_version,

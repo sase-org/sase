@@ -7726,17 +7726,26 @@ detail. Plugin rows bring the full
 filter the catalog, inspect a plugin, and install, update, uninstall, or switch install
 mode. Agent CLI rows are provider-colored, showing installed → latest versions, exact
 update or manual commands, vendor docs links, update marks, and durable update history.
-Providers that opt out of independent CLI management, including the bundled internal
-Fakey provider, are omitted from the Agent CLIs section. The plain substring filter
-(`/`) searches every row's own fields — name, description, topics for plugins; binary
-and install method for agent CLIs — across all sections at once.
+Missing agent CLIs that SASE can install show `latest v…` with an `[npm]` or `[script]`
+badge and carry the same install verb as plugins: `i` installs the highlighted CLI (or
+every install-marked row), `Space` / `I` marks it for a bulk install. Every install
+opens a confirm preview first — exact command, script URL, full SHA-256, target
+directory, and PATH status — then runs the previewed plan sequentially in one tracked
+proc, CLIs before plugins when a marked set mixes both. CLIs SASE cannot install toast
+their manual instructions instead. Providers that opt out of independent CLI management,
+including the bundled internal Fakey provider, are omitted from the Agent CLIs section.
+The plain substring filter (`/`) searches every row's own fields — name, description,
+topics for plugins; binary, install method, route, and package for agent CLIs — across
+all sections at once.
 
 Every sase-managed agent-CLI update run from `,U`, `,E`, `A`, or `sase agent-cli update`
-is appended to `~/.sase/logs/agent_cli_updates.jsonl`. Runs where no command reaches a
-terminal outcome are not recorded. Highlighting an Agent CLI row renders that journal
-below its details; `H` toggles between this CLI's executed update rows and a run-grouped
-timeline across all CLIs. Configure the panel with `ace.updates.agent_cli_history` and
-`agent_cli_history_max_rows`.
+— and every install run from the Updates tab — is appended to
+`~/.sase/logs/agent_cli_updates.jsonl`. Runs where no command reaches a terminal outcome
+are not recorded. Install runs show a green `↓` with `installed <version>` and carry the
+`i` badge; update runs keep their existing glyphs and badges. Highlighting an Agent CLI
+row renders that journal below its details; `H` toggles between this CLI's executed
+install/update rows and a run-grouped timeline across all CLIs. Configure the panel with
+`ace.updates.agent_cli_history` and `agent_cli_history_max_rows`.
 
 Automatic checks publish one composite snapshot after first paint. Ten-minute session
 ticks only revalidate cached SASE/plugin rows and provider names already known outdated;
@@ -7789,7 +7798,9 @@ persistent Telegram receiver — never delay the restart.
 
 `u` remains pane-wide and updates SASE core plus installed plugins. `A` is the separate
 pane-wide agent-CLI action: it updates `Space`-marked agent CLIs from anywhere in the
-pane, and with no marks it targets every safely updatable installed CLI. See the
+pane, and with no marks it targets every safely updatable installed CLI. `i` installs
+`Space`/`I`-marked plugins and agent CLIs together — agent CLIs first, then plugins, in
+one tracked proc — or the highlighted row when nothing is marked. See the
 [Updates tab reference](configuration.md#updates-tab) for the full keymap and behavior,
 [Plugins](plugins.md) for the equivalent `sase plugin` CLI, and
 [Agent providers](agent_providers.md#inventory-and-updates) for the equivalent

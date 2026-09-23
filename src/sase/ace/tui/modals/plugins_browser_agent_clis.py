@@ -5,16 +5,24 @@ from __future__ import annotations
 import shlex
 from typing import TYPE_CHECKING, Any
 
-from rich.console import Group
+from rich.console import Group, RenderableType
+from rich.text import Text
 from rich.panel import Panel
 from rich.table import Table
 from textual.widgets import Static
 
+from sase.agent_clis.history import AgentCliUpdateRun
+from sase.agent_clis.install import (
+    AgentCliInstallOption,
+    describe_agent_cli_install,
+)
 from sase.agent_clis.models import (
+    AgentCliOperation,
     AgentCliStatus,
     AgentCliUpdateResult,
+    InstallRoute,
+    UpdateResultStatus,
 )
-from sase.agent_clis.history import AgentCliUpdateRun
 
 from .plugins_browser_agent_clis_actions import (
     AgentCliBrowserActionsMixin,
@@ -94,6 +102,8 @@ class AgentCliBrowserMixin(AgentCliBrowserActionsMixin):
         self._render_agent_cli_history(force=True)
 
     def _agent_cli_detail_panel(self, status: AgentCliStatus) -> Panel:
+        if not status.installed:
+            return self._agent_cli_install_panel(status)
         entry = self._agent_cli_update_entry(status)
         table = Table.grid(padding=(0, 2))
         table.add_column(style="dim", no_wrap=True)
@@ -126,3 +136,86 @@ class AgentCliBrowserMixin(AgentCliBrowserActionsMixin):
             title=status.display_name,
             border_style=self._agent_cli_color(status),
         )
+
+    def _agent_cli_install_panel(self, status: AgentCliStatus) -> Panel:
+        """Detail panel for a missing CLI: route, target, and call to action.
+
+        Pure: the install option is I/O-free and results come from memory, so
+        this never stats or probes on a render path.
+        """
+        option = describe_agent_cli_install(status)
+        table = Table.grid(padding=(0, 2))
+        table.add_column(style="dim", no_wrap=True)
+        table.add_column()
+        table.add_row("Provider", status.name)
+        table.add_row("Binary", status.binary)
+        table.add_row("Status", "not installed")
+        table.add_row("Latest", status.latest_version or "unknown")
+        if option.route is InstallRoute.NPM:
+            table.add_row("Install via", f"npm · {option.source}")
+            table.add_row("Install command", option.command_hint)
+        elif option.route is InstallRoute.SCRIPT:
+            table.add_row("Install via", "install script")
+            table.add_row("Script", option.source or "unknown")
+            table.add_row(
+                "Runs", "bash <downloaded script> — SHA-256 shown before it runs"
+            )
+            table.add_row("Target", _declared_install_target(status))
+        else:
+            if option.command_hint:
+                table.add_row("How to install", option.command_hint)
+        if status.docs_url:
+            table.add_row("Documentation", status.docs_url)
+        outcome = self._agent_cli_results.get(status.name)
+        if outcome is not None:
+            table.add_row("Last outcome", agent_cli_result_line(outcome))
+        parts: list[RenderableType] = [table]
+        call_to_action: Text | None = self._agent_cli_install_call_to_action(
+            status, option
+        )
+        if call_to_action is not None:
+            parts.append(Text(""))
+            parts.append(call_to_action)
+        return Panel(
+            Group(*parts),
+            title=f"{status.display_name} · not installed",
+            border_style=self._agent_cli_color(status),
+        )
+
+    def _agent_cli_install_call_to_action(
+        self, status: AgentCliStatus, option: AgentCliInstallOption
+    ) -> Text | None:
+        """The install/manual/off-PATH call to action for a missing CLI."""
+        if not option.installable:
+            note = Text(
+                "○ SASE can't run this installer — follow the documentation above",
+                style="yellow",
+            )
+            return note
+        outcome = self._agent_cli_results.get(status.name)
+        if (
+            outcome is not None
+            and outcome.operation is AgentCliOperation.INSTALL
+            and outcome.status is UpdateResultStatus.UPDATED
+            and outcome.install_dir_on_path is False
+        ):
+            location = outcome.install_dir or _declared_install_target(status)
+            note = Text(
+                f"⚠ Installed to {location}, which is not on PATH — add "
+                f'export PATH="{location}:$PATH" to your shell startup file, '
+                "then restart sase",
+                style="yellow",
+            )
+            return note
+        action = Text()
+        action.append("↓ i install now", style="bold")
+        action.append(" · Space mark for a bulk install", style="dim")
+        return action
+
+
+def _declared_install_target(status: AgentCliStatus) -> str:
+    """The declared script-install target, with an env-override note."""
+    target = status.install_dir or "unknown"
+    if status.install_dir_env:
+        return f"{target} ({status.install_dir_env} overrides)"
+    return target

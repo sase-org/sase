@@ -152,7 +152,14 @@ class PluginsBrowserLayoutMixin(_MixinBase):
         }
         if action in row_capability:
             row = self._highlighted_row()
-            return row is not None and row_capability[action] in row.capabilities
+            if row is None:
+                return False
+            if action == "install" and row.kind == "agent-cli":
+                # Every key on a missing CLI row gives visible feedback, so
+                # `i` always reaches the pane and never falls through to the
+                # app-level notifications binding.
+                return True
+            return row_capability[action] in row.capabilities
         if action in _ROW_NAV_ACTIONS:
             return self._has_item_rows()
         return super().check_action(action, parameters)

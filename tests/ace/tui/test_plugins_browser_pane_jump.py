@@ -52,7 +52,7 @@ async def test_updates_apostrophe_paints_hints_across_all_kinds(
         labels = _option_labels(pane)
         hinted = [label for label in labels if label.startswith("[")]
         assert len(hinted) == pane._jump_target_count()
-        assert pane._jump_target_count() == 2 + 4 + 3
+        assert pane._jump_target_count() == 2 + 4 + 5
         kinds = {row.kind for row in pane._flat_rows()}
         assert kinds == {"core", "plugin", "agent-cli"}
         headers = [label for label in labels if "──" in label]

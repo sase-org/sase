@@ -33,6 +33,7 @@ class PluginsBrowserWorkersMixin(_MixinBase):
         _agent_cli_history: tuple[Any, ...]
         _agent_cli_history_config: Any
         _agent_cli_history_error: str | None
+        _agent_cli_install_plan_worker: Worker[Any] | None
         _agent_cli_plan_worker: Worker[Any] | None
         _agent_cli_statuses: tuple[Any, ...]
         _catalog: Any
@@ -72,6 +73,8 @@ class PluginsBrowserWorkersMixin(_MixinBase):
             *,
             severity: Literal["information", "warning", "error"] = "information",
         ) -> None: ...
+
+        def _on_agent_cli_install_preview(self, result: Any) -> None: ...
 
         def _on_agent_cli_update_preview(self, result: Any) -> None: ...
 
@@ -226,6 +229,17 @@ class PluginsBrowserWorkersMixin(_MixinBase):
                 self._agent_cli_plan_worker = None
                 self._notify(
                     self._worker_error_text(event.worker, kind="agent CLI update"),
+                    severity="error",
+                )
+            return
+        if event.worker is self._agent_cli_install_plan_worker:
+            if event.state == WorkerState.SUCCESS:
+                self._agent_cli_install_plan_worker = None
+                self._on_agent_cli_install_preview(event.worker.result)
+            elif event.state == WorkerState.ERROR:
+                self._agent_cli_install_plan_worker = None
+                self._notify(
+                    self._worker_error_text(event.worker, kind="agent CLI install"),
                     severity="error",
                 )
             return

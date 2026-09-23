@@ -466,7 +466,15 @@ def test_agent_cli_version_label_variants() -> None:
     assert (
         _agent_cli_version_label(_ready_cli_status(update_available=False)) == "v1.0.0"
     )
-    assert _agent_cli_version_label(_not_installed_cli_status()) == "not installed"
+    assert _agent_cli_version_label(_not_installed_cli_status()) == "latest v0.8.0"
+    assert (
+        _agent_cli_version_label(
+            AgentCliStatus(
+                **{**_not_installed_cli_status().__dict__, "latest_version": None}
+            )
+        )
+        == "not installed"
+    )
 
 
 def test_core_version_label_variants() -> None:
@@ -645,3 +653,83 @@ def test_scope_counts_ignore_filter_and_count_each_row_once() -> None:
     assert counts["all"] == 2
     assert counts["installed"] == 1
     assert counts["outdated"] == 1
+
+
+# -- agent-CLI install capability, badge, and label per route ------------------
+
+
+def _installable_cli_status(*, route: str) -> AgentCliStatus:
+    base = _not_installed_cli_status().__dict__
+    if route == "npm":
+        return AgentCliStatus(
+            **{
+                **base,
+                "install_manager": "npm",
+                "package": "@qwen-code/qwen-code",
+            }
+        )
+    if route == "script":
+        return AgentCliStatus(
+            **{
+                **base,
+                "install_manager": InstallMethod.SCRIPT,
+                "install_script_url": "https://dev.meta.ai/install.sh",
+            }
+        )
+    if route == "bundled":
+        return AgentCliStatus(**{**base, "install_manager": InstallMethod.BUNDLED})
+    return AgentCliStatus(**{**base, "install_manager": "native"})
+
+
+def _cli_row(status: AgentCliStatus):  # -> UpdateRow
+    rows = build_update_rows(
+        _load_result(agent_cli_statuses=(status,)),
+        uv_tool=None,
+        offline=False,
+        plan_fn=plan_agent_cli_updates,
+    )
+    assert len(rows) == 1
+    return rows[0]
+
+
+def test_agent_cli_install_capability_badge_and_label_per_route() -> None:
+    npm_row = _cli_row(_installable_cli_status(route="npm"))
+    assert "install" in npm_row.capabilities
+    assert npm_row.source == "npm"
+    assert npm_row.version_label == "latest v0.8.0"
+
+    script_row = _cli_row(_installable_cli_status(route="script"))
+    assert "install" in script_row.capabilities
+    assert script_row.source == "script"
+    assert script_row.version_label == "latest v0.8.0"
+
+    manual_row = _cli_row(_installable_cli_status(route="manual"))
+    assert "install" not in manual_row.capabilities
+    assert manual_row.source == "manual"
+    assert manual_row.version_label == "latest v0.8.0"
+
+    bundled_row = _cli_row(_installable_cli_status(route="bundled"))
+    assert "install" not in bundled_row.capabilities
+    assert bundled_row.source == "bundled"
+
+
+def test_agent_cli_installed_rows_keep_install_method_badge() -> None:
+    row = _cli_row(_ready_cli_status())
+    assert "install" not in row.capabilities
+    assert row.source == "self_managed"
+
+
+def test_agent_cli_install_never_coexists_with_mark_update() -> None:
+    for route in ("npm", "script", "manual", "bundled"):
+        row = _cli_row(_installable_cli_status(route=route))
+        assert not ({"install", "mark_update"} <= row.capabilities)
+
+
+def test_agent_cli_haystack_covers_install_route_and_package() -> None:
+    row = _cli_row(_installable_cli_status(route="npm"))
+    assert "not installed" in row.haystack
+    assert "npm" in row.haystack
+    assert "@qwen-code/qwen-code" in row.haystack
+
+    manual_row = _cli_row(_installable_cli_status(route="manual"))
+    assert "manual" in manual_row.haystack

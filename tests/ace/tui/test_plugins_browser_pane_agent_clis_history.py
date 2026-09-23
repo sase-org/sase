@@ -288,9 +288,10 @@ def test_history_error_and_empty_states() -> None:
     assert "Could not read update history:" in error
     assert "disk gone" in error
     for rendered in (empty_selected, empty_all):
-        assert "No sase-managed agent CLI updates recorded yet." in rendered
+        assert "No sase-managed agent CLI installs or updates recorded yet." in rendered
+        assert "Press i to install a missing agent CLI" in rendered
         assert (
-            "Press A to update agent CLIs, ,U for the panel, or ,E for everything."
+            "A to update agent CLIs, ,U for the panel, or ,E for everything."
             in rendered
         )
 
@@ -308,7 +309,7 @@ def test_history_selected_cli_empty_points_to_other_cli_runs() -> None:
 
     rendered = _render_panel(runs)
 
-    assert "No recorded updates for Claude Code." in rendered
+    assert "No recorded installs or updates for Claude Code." in rendered
     assert "3 runs recorded for other CLIs — press H to see them." in rendered
 
 
@@ -348,6 +349,6 @@ async def test_history_scope_toggle_repaints_only_history_and_is_gated(
 
         assert state.updates.agent_cli_history_all is True
         assert pane._detail_key == detail_key
-        assert "Update history · all agent CLIs" in _render(history.content)
+        assert "History · all agent CLIs" in _render(history.content)
         _highlight_row(pane, "core:sase")
         assert pane.check_action("toggle_history_scope", ()) is False

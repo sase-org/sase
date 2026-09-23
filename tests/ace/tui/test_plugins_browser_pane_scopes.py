@@ -288,7 +288,7 @@ async def test_scope_strip_counts_and_tab_click_select_scope(
         folded = labels.casefold()
         for scope in SCOPE_ORDER:
             assert SCOPE_LABELS[scope].casefold() in folded
-        assert "9" in labels
+        assert "11" in labels
         pane._on_scope_clicked(PanelTabStrip.TabClicked("outdated"))
         assert pane._scope == "outdated"
         assert pane._session_state.scope == "outdated"

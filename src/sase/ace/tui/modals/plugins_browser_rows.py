@@ -13,6 +13,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Literal
 
+from sase.agent_clis.install import describe_agent_cli_install
 from sase.agent_clis.models import (
     AgentCliNothingToUpdate,
     AgentCliStatus,
@@ -186,6 +187,8 @@ def _agent_cli_version_label(status: AgentCliStatus) -> str:
         return f"v{installed}"
     if status.installed:
         return "version unknown"
+    if latest:
+        return f"latest v{latest}"
     return "not installed"
 
 
@@ -239,6 +242,7 @@ def _core_haystack(package: CorePackageVersion) -> str:
 
 
 def _agent_cli_haystack(status: AgentCliStatus) -> str:
+    option = describe_agent_cli_install(status)
     return "\n".join(
         part
         for part in (
@@ -246,6 +250,10 @@ def _agent_cli_haystack(status: AgentCliStatus) -> str:
             status.display_name,
             status.binary,
             status.install_method.value,
+            "not installed" if not status.installed else None,
+            option.route.value,
+            option.source,
+            status.package,
         )
         if part
     ).casefold()
@@ -337,6 +345,12 @@ def _build_agent_cli_row(
     capabilities: set[UpdateCapability] = {"history"}
     if update_entry is not None and update_entry.ready:
         capabilities.add("mark_update")
+    option = describe_agent_cli_install(status)
+    if not status.installed and option.installable:
+        capabilities.add("install")
+    # Missing rows wear the install-route badge ([npm] / [script] / [manual]);
+    # installed rows keep the detected install-method badge ([self managed]).
+    source = option.route.value if not status.installed else status.install_method.value
     if (
         status.update_available
         and update_entry is not None
@@ -355,7 +369,7 @@ def _build_agent_cli_row(
         latest_version=status.latest_version,
         version_label=_agent_cli_version_label(status),
         update_available=status.update_available,
-        source=status.install_method.value,
+        source=source,
         capabilities=frozenset(capabilities),
         error=status.latest_error or status.version_error,
         haystack=_agent_cli_haystack(status),

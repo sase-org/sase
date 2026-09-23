@@ -84,7 +84,7 @@ def _section_titles(preview: ComprehensiveUpdatePreview) -> list[str]:
 def _manual_provider_preview(
     *, scope: UpdateScope = UpdateScope.EVERYTHING
 ) -> ComprehensiveUpdatePreview:
-    claude, codex, _qwen = _agent_cli_statuses()
+    claude, codex, _qwen, *_rest = _agent_cli_statuses()
     current_claude = replace(
         claude,
         latest_version=claude.installed_version,

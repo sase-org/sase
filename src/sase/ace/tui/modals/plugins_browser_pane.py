@@ -15,6 +15,10 @@ from textual.containers import Vertical
 from textual.worker import Worker
 
 from sase.agent_clis.history import AgentCliUpdateRun, read_agent_cli_update_runs
+from sase.agent_clis.install import (
+    execute_agent_cli_installs,
+    plan_agent_cli_installs,
+)
 from sase.agent_clis.models import AgentCliUpdateResult
 from sase.agent_clis.operations import (
     execute_agent_cli_updates,
@@ -45,6 +49,11 @@ from .plugins_browser_agent_clis import (
     AgentCliHistoryConfig,
     load_agent_cli_history_config,
 )
+from .plugins_browser_agent_clis_install import (
+    AgentCliInstallActionsMixin,
+    agent_cli_install_modal_title,
+    agent_cli_install_variant,
+)
 from .plugins_browser_controls import PluginsBrowserControlsMixin
 from .plugins_browser_dev_update import (
     DevUpdatePreview,
@@ -61,6 +70,7 @@ from .plugins_browser_latest import PluginsBrowserLatestMixin
 from .plugins_browser_input import PluginsFilterInput
 from .plugins_browser_jump import PluginsBrowserJumpMixin
 from .plugins_browser_install import (
+    CombinedInstallPreview,
     InstallManyPreview,
     InstallPreview,
     PluginInstallActionsMixin,
@@ -126,6 +136,7 @@ _PluginsFilterInput = PluginsFilterInput
 _PluginList = PluginsBrowserList
 _InstallPreview = InstallPreview
 _InstallManyPreview = InstallManyPreview
+_CombinedInstallPreview = CombinedInstallPreview
 _install_success_message = install_success_message
 _install_many_success_message = install_many_success_message
 _install_summary = install_summary
@@ -168,6 +179,10 @@ _enrich_entry_latest = enrich_entry_latest
 _callable_accepts_keyword = callable_accepts_keyword
 _plan_agent_cli_updates = plan_agent_cli_updates
 _execute_agent_cli_updates = execute_agent_cli_updates
+_plan_agent_cli_installs = plan_agent_cli_installs
+_execute_agent_cli_installs = execute_agent_cli_installs
+_agent_cli_install_variant = agent_cli_install_variant
+_agent_cli_install_modal_title = agent_cli_install_modal_title
 _read_agent_cli_update_runs = read_agent_cli_update_runs
 _AgentCliHistoryConfig = AgentCliHistoryConfig
 _load_agent_cli_history_config = load_agent_cli_history_config
@@ -181,6 +196,7 @@ class PluginsBrowserPane(
     PluginsBrowserLayoutMixin,
     PluginsBrowserWorkersMixin,
     AgentCliBrowserMixin,
+    AgentCliInstallActionsMixin,
     ModeSwitchActionsMixin,
     SaseUpdateActionsMixin,
     PluginInstallActionsMixin,
@@ -285,6 +301,8 @@ class PluginsBrowserPane(
         self._mode_switch_plan_worker: Worker[Any] | None = None
         #: Worker computing the pane-wide agent-CLI update preview.
         self._agent_cli_plan_worker: Worker[Any] | None = None
+        #: Worker computing an agent-CLI install preview before the confirm modal.
+        self._agent_cli_install_plan_worker: Worker[Any] | None = None
         #: One-shot uv-tool detection: gates whether mutations are possible.
         #: ``None`` until the first real load probes it.
         self._uv_tool: UvToolInstall | NotUvToolInstall | None = None

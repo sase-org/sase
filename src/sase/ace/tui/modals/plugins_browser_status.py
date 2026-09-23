@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 from rich.console import Group, RenderableType
 from rich.panel import Panel
@@ -24,10 +24,13 @@ class PluginsBrowserStatusMixin:
     """Summary, empty-state, and action-affordance text."""
 
     if TYPE_CHECKING:
+        from textual.worker import Worker as _Worker
+
         from sase.agent_clis.models import AgentCliStatus
         from sase.uv_tool.versions import CoreVersions
 
         _agent_cli_error: str | None
+        _agent_cli_install_plan_worker: _Worker[Any] | None
         _agent_cli_statuses: tuple[AgentCliStatus, ...]
         _catalog: PluginCatalog | None
         _core_error: str | None
@@ -379,6 +382,7 @@ class PluginsBrowserStatusMixin:
         if self.jump_mode_active:
             action = "back" if self.jump_back_stack else "first"
             return f"JUMP ' {action} · esc cancel"
+        preparing = getattr(self, "_agent_cli_install_plan_worker", None) is not None
         offline = " (on)" if self._offline else " off"
         verbose = " (on)" if self._verbose else " verb"
         parts: list[str] = []
@@ -424,6 +428,12 @@ class PluginsBrowserStatusMixin:
         else:
             parts.append("esc")
         body = " · ".join(parts)
+        if preparing:
+            body = (
+                f"↓ preparing install preview… · {body}"
+                if body
+                else "↓ preparing install preview…"
+            )
         aggregate = self._marked_work_line()
         if aggregate is None:
             return body
@@ -433,23 +443,29 @@ class PluginsBrowserStatusMixin:
         """The always-visible marked-work aggregate; None when nothing is marked."""
         if not self._marked:
             return None
-        install_count = 0
-        cli_count = 0
+        plugin_installs = 0
+        cli_installs = 0
+        cli_updates = 0
         for key in self._marked:
             row = self._rows_by_key.get(key)
             if row is None:
                 continue
             if "install" in row.capabilities:
-                install_count += 1
+                if row.kind == "agent-cli":
+                    cli_installs += 1
+                else:
+                    plugin_installs += 1
             elif "mark_update" in row.capabilities:
-                cli_count += 1
+                cli_updates += 1
         chunks: list[str] = []
-        if install_count:
+        if plugin_installs:
             chunks.append(
-                f"{install_count} {self._plural(install_count, 'plugin install')}"
+                f"{plugin_installs} {self._plural(plugin_installs, 'plugin install')}"
             )
-        if cli_count:
-            chunks.append(f"{cli_count} {self._plural(cli_count, 'CLI update')}")
+        if cli_installs:
+            chunks.append(f"{cli_installs} {self._plural(cli_installs, 'CLI install')}")
+        if cli_updates:
+            chunks.append(f"{cli_updates} {self._plural(cli_updates, 'CLI update')}")
         if not chunks:
             chunks.append(f"{len(self._marked)} marked")
         visible = {row.key for row in self._flat_rows()}
