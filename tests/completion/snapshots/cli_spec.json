@@ -2904,7 +2904,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "ccb609eafc003e62",
+            "description_digest": "161c862d96746609",
             "hidden": false,
             "mutex_groups": [],
             "name": "install",
@@ -21667,7 +21667,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "4a82c9123ec34ad7",
+            "description_digest": "2198a71b73ca9c32",
             "hidden": false,
             "mutex_groups": [],
             "name": "edit",
@@ -21977,7 +21977,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "5559f2599b695591",
+            "description_digest": "3b86ad6cfdf46116",
             "hidden": false,
             "mutex_groups": [],
             "name": "run",
@@ -22293,7 +22293,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "6d3b1efb3803db3a",
+            "description_digest": "5bf3445d13772303",
             "hidden": false,
             "mutex_groups": [],
             "name": "select",

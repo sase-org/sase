@@ -13,6 +13,7 @@ import pytest
 from sase.bead import db
 from sase.bead.model import BeadTier, Issue, IssueType
 from sase.bead.project import BeadProject
+from sase.project_tags.catalog import ProjectTagCatalog, ProjectTagTarget
 from sase.xprompt.models import InputArg, InputType, XPrompt
 from sase.xprompt.workflow_models import Workflow
 from tests.test_bead.resolution_test_helpers import isolate_bead_store_resolution
@@ -53,6 +54,33 @@ def pinned_bead_clock(monkeypatch: pytest.MonkeyPatch) -> None:
     would drift with wall-clock time and rot the goldens overnight.
     """
     monkeypatch.setattr("sase.core.time.local_now", lambda: FIXED_BEAD_NOW)
+
+
+@pytest.fixture(autouse=True)
+def pinned_project_tag_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin a tag catalog that knows the ``sase`` and ``owner`` test projects.
+
+    Launch prefixes spell known projects as ``+<project>`` and unknown ones as
+    ``#<workflow>:<name>``, so without a pin the rendered prompts would depend
+    on the host's real project specs.
+    """
+    catalog = ProjectTagCatalog(
+        targets=tuple(
+            ProjectTagTarget(
+                key=name,
+                name=name,
+                tag=f"+{name}",
+                workflow_type="git",
+                vcs_ref=f"#git:{name}",
+            )
+            for name in ("sase", "owner")
+        ),
+        signature=("test_bead",),
+    )
+    monkeypatch.setattr(
+        "sase.project_tags.catalog.load_project_tag_catalog",
+        lambda *args, **kwargs: catalog,
+    )
 
 
 @pytest.fixture
