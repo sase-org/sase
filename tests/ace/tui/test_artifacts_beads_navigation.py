@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from sase.ace.testing import AcePage
-from sase.ace.tui.widgets.artifacts import beads_navigation
+from sase.ace.tui.widgets.artifacts import beads_navigation_hydration
 from sase.ace.tui.widgets.artifacts.beads_pane import ArtifactsBeadsPane
 from sase.ace.tui.widgets.artifacts.entry_navigation import (
     ArtifactEntryTarget,
@@ -71,12 +71,12 @@ async def test_hydrate_ref_resolves_exact_bead_and_preserves_phase_grouping(
     )
     beads_dir = Path(value.beads_dirs["alpha"])
     monkeypatch.setattr(
-        beads_navigation,
+        beads_navigation_hydration,
         "_resolve_projects",
         lambda _scope: (PlansProject("alpha", "Alpha", str(tmp_path / "workspace")),),
     )
     monkeypatch.setattr(
-        beads_navigation, "_project_beads_dir", lambda _project: beads_dir
+        beads_navigation_hydration, "_project_beads_dir", lambda _project: beads_dir
     )
 
     hydrated_epic = Issue(
@@ -156,12 +156,12 @@ async def test_hydrate_ref_reports_absent_for_unknown_bead_id(
     )
     beads_dir = Path(value.beads_dirs["alpha"])
     monkeypatch.setattr(
-        beads_navigation,
+        beads_navigation_hydration,
         "_resolve_projects",
         lambda _scope: (PlansProject("alpha", "Alpha", str(tmp_path / "workspace")),),
     )
     monkeypatch.setattr(
-        beads_navigation, "_project_beads_dir", lambda _project: beads_dir
+        beads_navigation_hydration, "_project_beads_dir", lambda _project: beads_dir
     )
 
     def fake_resolve_id(dir_path: Path, issue_id: str) -> str:

@@ -1,94 +1,37 @@
-"""Selection, stable-target navigation, and detail behavior for Beads."""
+"""Selection, stable-target navigation, and epic fold behavior for Beads."""
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
-from textual.widgets import Markdown, OptionList, Static
-from textual.widgets.option_list import Option
-
-from sase.ace.tui.util.debounce import DetailPanelDebouncer
 from sase.ace.tui.keymaps import KeymapRegistry
-from sase.bead.flag_fields import is_flag_bead
-from sase.bead.model import Issue, IssueType, Status
-from sase.core.artifact_relation_layout import RelationKeymap
+from sase.ace.tui.util.debounce import DetailPanelDebouncer
 
 from ...models.group_fold import GroupFoldRegistry, GroupKey
-from .._prompt_preview_target import PreviewPayload
 from .beads_data import BeadsSnapshot
-from .beads_data_models import ProjectBead
-from .beads_data_sources import (
-    _hierarchical_id_key,
-    _project_beads_dir,
-    _resolve_projects,
-)
-from .beads_detail import (
-    bead_body_markdown,
-    bead_preview_markdown,
-    bead_properties_header,
-    resolved_plan_path,
-)
-from .beads_list import BeadRow, BeadRowKind, bead_row_target, row_option_id
+from .beads_list import BeadRow, bead_row_target, row_option_id
+from .beads_navigation_detail import BeadsNavigationDetailMixin
+from .beads_navigation_hydration import BeadsNavigationHydrationMixin
+from .beads_option_list import BeadsOptionList
 from .entry_navigation import (
     ArtifactEntryNavigator,
     ArtifactEntryTarget,
-    HydrationOutcome,
-    HydrationResult,
     LinkRequestState,
     prewarm_option_render_cache,
-    reveal_option_list_highlight,
     schedule_option_list_highlight_reveal,
 )
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
-
-    from .beads_data_models import ExternalIssueLink
+    from textual.widgets.option_list import Option
 else:
     _MixinBase = ArtifactEntryNavigator
 
 
-class BeadsOptionList(OptionList):
-    """Bead rows whose guarded highlights retain viewport following."""
-
-    def __init__(self, **kwargs: Any) -> None:
-        super().__init__(**kwargs)
-        self._programmatic_update = False
-
-    def set_highlight(self, index: int | None) -> None:
-        self._programmatic_update = True
-        try:
-            self._assign_highlight(index)
-        finally:
-            self._programmatic_update = False
-
-    def replace_options(
-        self,
-        options: list[Option],
-        *,
-        highlighted: int | None,
-    ) -> None:
-        self._programmatic_update = True
-        try:
-            self.clear_options()
-            self.add_options(options)
-            self._assign_highlight(highlighted)
-            prewarm_option_render_cache(self)
-        finally:
-            self._programmatic_update = False
-
-    def _assign_highlight(self, index: int | None) -> None:
-        self.highlighted = index
-        reveal_option_list_highlight(self)
-
-    def watch_highlighted(self, highlighted: int | None) -> None:
-        if self._programmatic_update:
-            return
-        super().watch_highlighted(highlighted)
-
-
-class BeadsNavigationMixin(_MixinBase):
+class BeadsNavigationMixin(
+    BeadsNavigationHydrationMixin, BeadsNavigationDetailMixin, _MixinBase
+):
     """Own bead selection, jump targets, expansion, and detail content."""
 
     project_scope: str | None
@@ -116,8 +59,6 @@ class BeadsNavigationMixin(_MixinBase):
 
     if TYPE_CHECKING:
 
-        def _empty_detail(self) -> str: ...
-
         def _refresh_options(
             self,
             *,
@@ -128,17 +69,6 @@ class BeadsNavigationMixin(_MixinBase):
         def _expand_parent_for_target(self, target: ArtifactEntryTarget) -> bool: ...
 
         def _refresh_for_entry_request(self, refresh: Any) -> LinkRequestState: ...
-
-        def refresh_relation_panel(self, *, refresh_footer: bool = True) -> Any: ...
-
-        def relation_footer_entries(
-            self, keymap: Any = None
-        ) -> tuple[tuple[str, str], ...]: ...
-
-        def external_links_for_row(
-            self,
-            row: BeadRow,
-        ) -> tuple[ExternalIssueLink, ...]: ...
 
         def _complete_entry_request(
             self, state: LinkRequestState
@@ -240,7 +170,7 @@ class BeadsNavigationMixin(_MixinBase):
             else:
                 self._detail_debouncer.schedule(self._update_detail)
             keymap = self.refresh_relation_panel(refresh_footer=False)
-            footer_entries = BeadsNavigationMixin._conditional_footer_entries(
+            footer_entries = BeadsNavigationDetailMixin._conditional_footer_entries(
                 self, keymap
             )
             has_relation_panel = bool(getattr(relation_panel, "display", False))
@@ -284,244 +214,6 @@ class BeadsNavigationMixin(_MixinBase):
             return False
         self._refresh_options()
         return True
-
-    def host_reveal_context(self, target: ArtifactEntryTarget) -> Any | None:
-        """Return the Beads family context query for *target*."""
-        from sase.ace.link_reveal_context import RevealContext
-
-        if target.pane_id != "beads" or len(target.parts) < 3:
-            return None
-        snapshot = self._snapshot
-        if snapshot is None:
-            return None
-        project, kind, bead_id = target.parts[0], target.parts[1], target.parts[2]
-        if kind == "phase":
-            for (phase_project, epic_id), phases in snapshot.phases_by_epic.items():
-                if phase_project != project:
-                    continue
-                if any(phase.issue.id == bead_id for phase in phases):
-                    return RevealContext(
-                        alternatives=(("id", f"{epic_id}.*"),),
-                        label=f"epic {epic_id}",
-                        member_count=len(phases),
-                    )
-            return None
-        if kind == "epic":
-            phases = snapshot.phases_by_epic.get((project, bead_id), ())
-            return RevealContext(
-                alternatives=(("id", bead_id), ("id", f"{bead_id}.*")),
-                label=f"epic {bead_id}",
-                member_count=1 + len(phases),
-                expand_target_fold=True,
-            )
-        if kind in ("task", "flag"):
-            return RevealContext(
-                alternatives=(("id", bead_id),),
-                label=f"bead {bead_id}",
-                member_count=1,
-            )
-        return None
-
-    def host_query_row_for_target(
-        self, target: ArtifactEntryTarget
-    ) -> dict[str, Any] | None:
-        """Return the unfiltered Beads query row backing *target*."""
-        snapshot = self._snapshot
-        index = getattr(self, "_filter_index", None)
-        if (
-            snapshot is None
-            or index is None
-            or target.pane_id != "beads"
-            or len(target.parts) < 3
-        ):
-            return None
-        from .beads_list import row_option_id
-        from .query_rows import bead_query_entry
-
-        project, kind, bead_id = target.parts[0], target.parts[1], target.parts[2]
-        option_id = row_option_id(snapshot, kind, project, bead_id)  # type: ignore[arg-type]
-        record = index.by_option_id.get(option_id)
-        if record is None:
-            return None
-        return bead_query_entry(record)
-
-    def hydrate_ref(self, kind: str, payload: str) -> HydrationResult:
-        """Resolve one bead by exact id, searching only the current scope.
-
-        Scoping the store search to ``self.project_scope`` (one project, or
-        every enabled project when unscoped) guarantees the resolved
-        project is always compatible with the current snapshot, so the
-        merge in :meth:`install_hydrated_row` never has to reconcile a
-        foreign project scope.
-        """
-        if kind != "bead":
-            return HydrationResult(HydrationOutcome.UNSUPPORTED)
-        from sase.core.bead_read_facade import resolve_id, show
-
-        found: tuple[str, Issue] | None = None
-        for item in _resolve_projects(self.project_scope):
-            beads_dir = _project_beads_dir(item.project)
-            if beads_dir is None:
-                continue
-            try:
-                full_id = resolve_id(beads_dir, payload)
-                issue = show(beads_dir, full_id)
-            except KeyError:
-                continue
-            except Exception as exc:  # noqa: BLE001 - reported as FAILED below
-                return HydrationResult(HydrationOutcome.FAILED, error=str(exc))
-            found = (item.project, issue)
-            break
-        if found is None:
-            return HydrationResult(HydrationOutcome.ABSENT)
-        project, issue = found
-        parent_epic: Issue | None = None
-        if issue.issue_type is IssueType.PHASE and issue.parent_id:
-            beads_dir = _project_beads_dir(project)
-            if beads_dir is not None:
-                try:
-                    parent_epic = show(beads_dir, issue.parent_id)
-                except KeyError:
-                    parent_epic = None
-                except Exception as exc:  # noqa: BLE001 - reported as FAILED below
-                    return HydrationResult(HydrationOutcome.FAILED, error=str(exc))
-        return HydrationResult(
-            HydrationOutcome.FETCHED, payload=(project, issue, parent_epic)
-        )
-
-    def install_hydrated_row(self, payload: Any) -> ArtifactEntryTarget | None:
-        """Merge one fetched bead (plus its parent epic, if needed) in.
-
-        Rebuilds the filter and query indexes around the merged snapshot so
-        the rewritten query the coordinator re-requests with can actually
-        match the new row. Leaves rebuilding ``_rows``/options to the
-        request that follows: the coordinator immediately re-requests the
-        returned target, whose ``request_entry_target`` miss path already
-        calls ``_refresh_options()`` with ``_pending_entry_target`` set,
-        which expands the owning epic fold for a phase for free.
-        """
-        if not isinstance(payload, tuple) or len(payload) != 3:
-            return None
-        project, issue, parent_epic = payload
-        snapshot = self._snapshot
-        if snapshot is None:
-            return None
-        if parent_epic is not None and not any(
-            bead.project == project and bead.issue.id == parent_epic.id
-            for bead in snapshot.epics
-        ):
-            snapshot = _merge_bead_into_snapshot(snapshot, project, parent_epic)
-        merged = _merge_bead_into_snapshot(snapshot, project, issue)
-        if merged is not self._snapshot:
-            self._snapshot = merged
-            self._reindex_after_hydration()
-        return ArtifactEntryTarget("beads", (project, _bead_row_kind(issue), issue.id))
-
-    def _reindex_after_hydration(self) -> None:
-        """Rebuild the filter and query indexes for the merged snapshot.
-
-        The merged snapshot keeps its ``source_key``, so without a rebuild
-        the stale indexes would keep hiding the hydrated row from the
-        rewritten query. The query session cache is cleared alongside so no
-        same-generation entry can answer from the pre-merge corpus.
-        """
-        from .query_rows import build_beads_query_index
-
-        snapshot = self._snapshot
-        profile = getattr(self, "_query_profile", None)
-        index = getattr(self, "_query_index", None)
-        session = getattr(self, "_query_session", None)
-        if snapshot is None or profile is None or index is None or session is None:
-            return
-        filter_index, query_index = build_beads_query_index(
-            snapshot,
-            pane_id=profile.pane_id,
-            generation=index.generation,
-            profile=profile,
-        )
-        session.clear()
-        self._filter_index = filter_index
-        self._filter_index_source_key = filter_index.source_key
-        self._query_index = query_index
-
-    def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
-        row = self.selected_row()
-        refresh_relation_panel = getattr(self, "refresh_relation_panel", None)
-        keymap = getattr(
-            getattr(self, "app", None),
-            "_relation_footer_keymap_override",
-            None,
-        )
-        if row is None:
-            if keymap is None and callable(refresh_relation_panel):
-                refresh_relation_panel(refresh_footer=False)
-            return ()
-        if keymap is None:
-            keymap = (
-                refresh_relation_panel(refresh_footer=False)
-                if callable(refresh_relation_panel)
-                else None
-            )
-        return BeadsNavigationMixin._conditional_footer_entries(self, keymap)
-
-    def _conditional_footer_entries(
-        self,
-        keymap: Any = None,
-    ) -> tuple[tuple[str, str], ...]:
-        row = self.selected_row()
-        if row is None:
-            return ()
-        entries: list[tuple[str, str]] = []
-        snapshot = self._snapshot
-        if _can_launch_bead_row(row, snapshot):
-            entries.append(("beads_launch_work", "launch"))
-        entries.append(
-            (
-                "beads_close",
-                "reopen" if row.issue.status is Status.CLOSED else "close",
-            )
-        )
-        if _bead_row_is_snoozable(row):
-            entries.append(
-                (
-                    "beads_snooze",
-                    "re-snooze" if row.issue.status is Status.SNOOZED else "snooze",
-                )
-            )
-        external_links_for_row = getattr(self, "external_links_for_row", None)
-        if callable(external_links_for_row) and external_links_for_row(row):
-            entries.append(("beads_open_bug", "open issue"))
-        entries.append(("start_bead_issue_mode", "issue"))
-        relation_footer_entries = getattr(self, "relation_footer_entries", None)
-        if callable(relation_footer_entries):
-            entries.extend(relation_footer_entries(keymap))
-        return tuple(entries)
-
-    def _sync_artifacts_footer_if_changed(
-        self,
-        footer_entries: tuple[tuple[str, str], ...],
-        keymap: RelationKeymap,
-    ) -> None:
-        if self._conditional_footer_signature == footer_entries:
-            return
-        self._conditional_footer_signature = footer_entries
-        if not getattr(self, "artifacts_active", False):
-            return
-        app = getattr(self, "app", None)
-        sync = getattr(app, "_sync_active_artifacts_entry_state", None)
-        if app is None or not callable(sync):
-            return
-        attr = "_relation_footer_keymap_override"
-        had_previous = hasattr(app, attr)
-        previous = getattr(app, attr, None)
-        setattr(app, attr, keymap)
-        try:
-            sync()
-        finally:
-            if had_previous:
-                setattr(app, attr, previous)
-            else:
-                delattr(app, attr)
 
     def apply_entry_jump_hints(
         self,
@@ -609,76 +301,6 @@ class BeadsNavigationMixin(_MixinBase):
         )
         self._refresh_options(preferred_id=preferred_id)
 
-    def preview_for_row(self, row: BeadRow) -> PreviewPayload:
-        issue = row.issue
-        return PreviewPayload(
-            content=bead_preview_markdown(
-                issue,
-                self._snapshot,
-                project=row.project,
-                registry=self._registry,
-                external_links=self.external_links_for_row(row),
-            ),
-            lexer="markdown",
-            title=f"{issue.id} · {issue.title}",
-            kind_label=f"{row.kind} bead",
-            icon="◈",
-            source_path=resolved_plan_path(
-                issue,
-                self._snapshot,
-                project=row.project,
-            ),
-            reference=issue.design.strip() or None,
-            default_view="rendered",
-        )
-
-    def selected_preview(self) -> PreviewPayload | None:
-        row = self.selected_row()
-        return None if row is None else self.preview_for_row(row)
-
-    def _update_detail(self) -> None:
-        try:
-            properties = self.query_one("#beads-detail-properties", Static)
-            body = self.query_one("#beads-detail", Markdown)
-        except Exception:
-            return
-        row = self.selected_row()
-        if row is None:
-            properties.display = False
-            properties.update("")
-            body.update(self._empty_detail())
-            self.refresh_relation_panel()
-            return
-        properties.display = True
-        properties.update(
-            bead_properties_header(
-                row.issue,
-                self._snapshot,
-                project=row.project,
-                project_name=self._project_name(row.project),
-                external_links=self.external_links_for_row(row),
-            )
-        )
-        triage = (
-            None
-            if self._snapshot is None
-            else self._snapshot.triage_gates.get((row.project, row.issue.id))
-        )
-        body.update(
-            bead_body_markdown(
-                row.issue,
-                triage,
-                registry=self._registry,
-                external_links=self.external_links_for_row(row),
-            )
-        )
-        self.refresh_relation_panel()
-
-    def _project_name(self, project: str) -> str:
-        if self._snapshot is None:
-            return project
-        return self._snapshot.display_names.get(project, project)
-
     def _option_list(self) -> BeadsOptionList | None:
         try:
             return self.query_one("#beads-list", BeadsOptionList)
@@ -717,89 +339,9 @@ class BeadsNavigationMixin(_MixinBase):
         return None
 
 
-def _can_launch_bead_row(
-    row: BeadRow,
-    snapshot: BeadsSnapshot | None,
-) -> bool:
-    issue = row.issue
-    if issue.status is Status.CLOSED:
-        return False
-    if issue.issue_type is IssueType.PHASE:
-        return False
-    if issue.issue_type is IssueType.TASK:
-        return issue.status in {Status.OPEN, Status.READY}
-    if snapshot is None:
-        return False
-    key = (row.project, issue.id)
-    return bool(snapshot.phases_by_epic.get(key)) and key not in snapshot.blocked_ids
-
-
-def _bead_row_is_snoozable(row: BeadRow) -> bool:
-    """Return whether *row* is a task bead the store would let us snooze."""
-    return row.issue.issue_type is IssueType.TASK and row.issue.status in {
-        Status.OPEN,
-        Status.READY,
-        Status.SNOOZED,
-    }
-
-
-def _bead_row_kind(issue: Issue) -> BeadRowKind:
-    if issue.issue_type is IssueType.PLAN:
-        return "epic"
-    if issue.issue_type is IssueType.PHASE:
-        return "phase"
-    if is_flag_bead(issue):
-        return "flag"
-    return "task"
-
-
-def _merge_bead_into_snapshot(
-    snapshot: BeadsSnapshot,
-    project: str,
-    issue: Issue,
-) -> BeadsSnapshot:
-    """Append one hydrated bead into *snapshot*, preserving phase grouping."""
-    from dataclasses import replace as _replace
-
-    if issue.issue_type is IssueType.PLAN:
-        if any(
-            bead.project == project and bead.issue.id == issue.id
-            for bead in snapshot.epics
-        ):
-            return snapshot
-        epics = (*snapshot.epics, ProjectBead(project, issue))
-        key = (project, issue.id)
-        phases_by_epic = snapshot.phases_by_epic
-        if key not in phases_by_epic:
-            phases_by_epic = {**phases_by_epic, key: ()}
-        return _replace(snapshot, epics=epics, phases_by_epic=phases_by_epic)
-    if issue.issue_type is IssueType.PHASE:
-        if not issue.parent_id:
-            return snapshot  # an orphan phase has no epic to group under
-        key = (project, issue.parent_id)
-        existing = snapshot.phases_by_epic.get(key, ())
-        if any(bead.issue.id == issue.id for bead in existing):
-            return snapshot
-        phases = tuple(
-            sorted(
-                (*existing, ProjectBead(project, issue)),
-                key=lambda bead: _hierarchical_id_key(bead.issue.id),
-            )
-        )
-        phases_by_epic = {**snapshot.phases_by_epic, key: phases}
-        return _replace(snapshot, phases_by_epic=phases_by_epic)
-    if is_flag_bead(issue):
-        if any(
-            bead.project == project and bead.issue.id == issue.id
-            for bead in snapshot.flags
-        ):
-            return snapshot
-        return _replace(snapshot, flags=(*snapshot.flags, ProjectBead(project, issue)))
-    if any(
-        bead.project == project and bead.issue.id == issue.id for bead in snapshot.tasks
-    ):
-        return snapshot
-    return _replace(snapshot, tasks=(*snapshot.tasks, ProjectBead(project, issue)))
-
-
-__all__ = ["BeadsNavigationMixin", "BeadsOptionList"]
+__all__ = [
+    "BeadsNavigationDetailMixin",
+    "BeadsNavigationHydrationMixin",
+    "BeadsNavigationMixin",
+    "BeadsOptionList",
+]
