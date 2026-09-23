@@ -50,6 +50,28 @@ class _NpmEnvironment:
     root_writable: bool | None
 
 
+@dataclass(frozen=True)
+class _NpmGlobalEnvironment:
+    """The npm global tree locations, without any package inventory."""
+
+    root: str | None
+    prefix: str | None
+
+
+def probe_npm_global_environment(
+    *,
+    run_fn: RunnerFn = run_command,
+) -> _NpmGlobalEnvironment:
+    """Probe ``npm root -g`` and ``npm prefix -g`` without touching packages.
+
+    Install planning shares this helper so detection and installs agree on
+    where the npm global tree lives.
+    """
+    root = _probe_single_line(("npm", "root", "-g"), run_fn=run_fn)
+    prefix = _probe_single_line(("npm", "prefix", "-g"), run_fn=run_fn)
+    return _NpmGlobalEnvironment(root=root, prefix=prefix)
+
+
 def _resolve_provider_executable(
     provider_name: str,
     cli_name: str | None,
@@ -132,8 +154,8 @@ def _probe_npm_environment(
     writable_fn: WritableFn = os.access,
 ) -> _NpmEnvironment:
     """Probe npm root/prefix and declared packages once for one detection run."""
-    root = _probe_single_line(("npm", "root", "-g"), run_fn=run_fn)
-    prefix = _probe_single_line(("npm", "prefix", "-g"), run_fn=run_fn)
+    paths = probe_npm_global_environment(run_fn=run_fn)
+    root, prefix = paths.root, paths.prefix
     installed: set[str] = set()
     unique_packages = tuple(dict.fromkeys(package for package in packages if package))
     if unique_packages:
@@ -357,7 +379,7 @@ def _install_hint(
     if manager == "bundled":
         return "bundled with SASE — nothing to install"
     if manager == "npm" and package:
-        return f"npm install -g {package}"
+        return f"run `sase agent-cli install {name}` (npm install -g {package})"
     if manager == InstallMethod.SCRIPT:
         return f"run `sase agent-cli install {name}`"
     if docs_url:
@@ -406,6 +428,7 @@ def _version_compare(value: Any) -> VersionCompare:
 
 __all__ = [
     "detect_agent_cli_statuses",
+    "probe_npm_global_environment",
     "probe_version",
     "resolve_executable",
 ]

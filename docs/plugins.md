@@ -643,7 +643,7 @@ no changes.
 | Key                         | Purpose                                                                                                               |
 | --------------------------- | --------------------------------------------------------------------------------------------------------------------- |
 | `manager`                   | `npm`, `homebrew`, `bundled`, or `script` (installed by a remote install script).                                     |
-| `package` / `brew_package`  | Package identity for the npm and Homebrew managers.                                                                   |
+| `package` / `brew_package`  | Package identity for the npm and Homebrew managers. An npm `package` also drives `sase agent-cli install`.            |
 | `display_name` / `docs_url` | Human-facing name and canonical vendor docs link.                                                                     |
 | `vendor`                    | Secondary label shown by tmux Agent (`"Anthropic"`, `"OpenAI"`, `"Google"`, `"Alibaba"`, `"SST"`, `"xAI"`, `"Meta"`). |
 | `version_argv`              | Argv used to probe the installed version (default `["--version"]`).                                                   |

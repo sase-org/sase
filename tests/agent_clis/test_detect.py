@@ -270,6 +270,31 @@ def test_channel_install_metadata_is_read_and_hints_the_install_subcommand(
     assert status.install_method is InstallMethod.SELF_MANAGED
 
 
+def test_npm_hint_points_at_the_install_subcommand() -> None:
+    providers = {
+        "qwen": {
+            "autodetect_cli_name": "qwen",
+            "install": {
+                "manager": "npm",
+                "package": "@qwen-code/qwen-code",
+                "display_name": "Qwen Code",
+            },
+        }
+    }
+
+    statuses = detect_agent_cli_statuses(
+        providers,
+        env={"PATH": ""},
+        run_fn=lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("must not invoke a subprocess")
+        ),
+    )
+
+    assert statuses[0].install_hint == (
+        "run `sase agent-cli install qwen` (npm install -g @qwen-code/qwen-code)"
+    )
+
+
 def test_unknown_version_compare_and_malformed_env_fall_back_to_defaults(
     tmp_path: Path,
 ) -> None:

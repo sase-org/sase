@@ -1,9 +1,11 @@
-"""Plan and execute provider-declared agent-CLI install scripts.
+"""Plan and execute provider-declared agent-CLI installs.
 
-SASE fetches the installer itself, shows its SHA-256 before running it, and
-runs it through the shell-free runner.  It never pipes a URL into a shell and
-never edits the user's shell startup files; when the install directory is not
-on ``PATH`` it reports the exact line to add and leaves the dotfiles alone.
+Script CLIs are fetched by SASE itself, shown with their SHA-256 before
+running, and run through the shell-free runner.  npm CLIs install through the
+system ``npm`` with an exact ``npm install -g`` command.  SASE never pipes a
+URL into a shell and never edits the user's shell startup files; when the
+install directory is not on ``PATH`` it reports the exact line to add and
+leaves the dotfiles alone.
 """
 
 from __future__ import annotations
@@ -21,7 +23,12 @@ from typing import Protocol
 
 from sase.core.paths import get_sase_managed_tmpdir
 
-from .detect import probe_version, resolve_executable
+from .detect import (
+    WritableFn,
+    probe_npm_global_environment,
+    probe_version,
+    resolve_executable,
+)
 from .history import RecordFn, record_agent_cli_update_run
 from .models import (
     AgentCliOperation,
@@ -29,6 +36,8 @@ from .models import (
     AgentCliUnknownName,
     AgentCliUpdateResult,
     EnvOverlay,
+    InstallMethod,
+    InstallRoute,
     UpdateResultStatus,
     UpdateTrigger,
 )
@@ -62,6 +71,8 @@ class _Response(Protocol):
 
 UrlOpenFn = Callable[..., _Response]
 FetchFn = Callable[..., "InstallScript"]
+# Per-entry install progress hook: 1-based position, runnable total, entry.
+ProgressFn = Callable[[int, int, "AgentCliInstallEntry"], None]
 
 
 class AgentCliInstallError(Exception):
@@ -83,14 +94,65 @@ class InstallScript:
 
 
 @dataclass(frozen=True)
+class AgentCliInstallOption:
+    """The install route for one CLI, decided without any I/O."""
+
+    route: InstallRoute
+    installable: bool
+    source: str | None
+    command_hint: str
+    reason: str | None = None
+
+
+def describe_agent_cli_install(status: AgentCliStatus) -> AgentCliInstallOption:
+    """Classify how *status* installs without touching the network or disk.
+
+    The result ignores whether the CLI is already installed; callers combine
+    the route with ``status.installed``.  It stays pure so render paths (the
+    TUI's row builder and detail panel) can call it on every frame.
+    """
+    if status.install_manager == InstallMethod.BUNDLED:
+        return AgentCliInstallOption(
+            route=InstallRoute.BUNDLED,
+            installable=False,
+            source=None,
+            command_hint=status.install_hint,
+            reason=reason_with_docs(status.install_hint, status.docs_url),
+        )
+    if status.installs_from_script:
+        return AgentCliInstallOption(
+            route=InstallRoute.SCRIPT,
+            installable=True,
+            source=status.install_script_url,
+            command_hint=status.install_hint,
+        )
+    if status.install_manager == "npm" and status.package:
+        return AgentCliInstallOption(
+            route=InstallRoute.NPM,
+            installable=True,
+            source=status.package,
+            command_hint=f"npm install -g {status.package}",
+        )
+    return AgentCliInstallOption(
+        route=InstallRoute.MANUAL,
+        installable=False,
+        source=None,
+        command_hint=status.install_hint,
+        reason=reason_with_docs(status.install_hint, status.docs_url),
+    )
+
+
+@dataclass(frozen=True)
 class AgentCliInstallEntry:
     """One selected CLI's exact install command, skip reason, or fetch error."""
 
     status: AgentCliStatus
+    route: InstallRoute = InstallRoute.SCRIPT
     argv: tuple[str, ...] | None = None
     env_overlay: EnvOverlay = ()
     script: InstallScript | None = None
     install_dir: str | None = None
+    install_dir_on_path: bool | None = None
     skip_reason: str | None = None
     error: str | None = None
 
@@ -175,6 +237,8 @@ def plan_agent_cli_installs(
     env: Mapping[str, str] | None = None,
     status_fn: StatusFn = collect_agent_cli_statuses,
     fetch_fn: FetchFn = fetch_install_script,
+    run_fn: RunnerFn = run_command,
+    writable_fn: WritableFn = os.access,
 ) -> AgentCliInstallPlan:
     """Resolve names, fetch each declared installer, and decide every skip.
 
@@ -197,7 +261,12 @@ def plan_agent_cli_installs(
     return AgentCliInstallsPlanned(
         entries=tuple(
             plan_agent_cli_install_status(
-                status, force=force, env=env, fetch_fn=fetch_fn
+                status,
+                force=force,
+                env=env,
+                fetch_fn=fetch_fn,
+                run_fn=run_fn,
+                writable_fn=writable_fn,
             )
             for status in resolved
         )
@@ -210,23 +279,30 @@ def plan_agent_cli_install_status(
     force: bool = False,
     env: Mapping[str, str] | None = None,
     fetch_fn: FetchFn = fetch_install_script,
+    run_fn: RunnerFn = run_command,
+    writable_fn: WritableFn = os.access,
 ) -> AgentCliInstallEntry:
     """Project one live status into an install command or an explicit skip."""
-    install_dir = _resolve_install_dir(status, env=env)
-    if not status.installs_from_script:
-        return AgentCliInstallEntry(
-            status,
-            skip_reason=(
-                f"{status.display_name} declares no SASE-runnable install "
-                f"script; {status.install_hint}"
-            ),
+    option = describe_agent_cli_install(status)
+    if option.route is InstallRoute.NPM:
+        return _plan_npm_install(
+            status, force=force, env=env, run_fn=run_fn, writable_fn=writable_fn
         )
+    if not option.installable:
+        assert option.reason is not None
+        return AgentCliInstallEntry(
+            status, route=option.route, skip_reason=option.reason
+        )
+    install_dir = _resolve_install_dir(status, env=env)
+    on_path = _directory_on_path(install_dir, env=env) if install_dir else None
     if status.installed and not force:
         version = status.installed_version or "unknown version"
         location = status.executable or "an unresolved path"
         return AgentCliInstallEntry(
             status,
+            route=InstallRoute.SCRIPT,
             install_dir=install_dir,
+            install_dir_on_path=on_path,
             skip_reason=(
                 f"already installed ({version}) at {location}; pass "
                 "-f|--force to reinstall"
@@ -236,14 +312,111 @@ def plan_agent_cli_install_status(
     try:
         script = fetch_fn(status.install_script_url)
     except AgentCliInstallError as exc:
-        return AgentCliInstallEntry(status, install_dir=install_dir, error=str(exc))
+        return AgentCliInstallEntry(
+            status,
+            route=InstallRoute.SCRIPT,
+            install_dir=install_dir,
+            install_dir_on_path=on_path,
+            error=str(exc),
+        )
     return AgentCliInstallEntry(
         status,
+        route=InstallRoute.SCRIPT,
         argv=(INSTALL_SCRIPT_INTERPRETER, str(script.path)),
         env_overlay=status.install_env,
         script=script,
         install_dir=install_dir,
+        install_dir_on_path=on_path,
     )
+
+
+def _plan_npm_install(
+    status: AgentCliStatus,
+    *,
+    force: bool,
+    env: Mapping[str, str] | None,
+    run_fn: RunnerFn,
+    writable_fn: WritableFn,
+) -> AgentCliInstallEntry:
+    """Project one npm-managed status into an install command or a skip."""
+    package = status.package
+    assert package is not None
+    if resolve_executable("npm", env=env) is None:
+        return AgentCliInstallEntry(
+            status,
+            route=InstallRoute.NPM,
+            skip_reason=reason_with_docs(
+                "npm is not on PATH; install Node.js (which ships npm) and retry",
+                status.docs_url,
+            ),
+        )
+    paths = probe_npm_global_environment(run_fn=run_fn)
+    prefix = paths.prefix
+    if prefix is None:
+        return AgentCliInstallEntry(
+            status,
+            route=InstallRoute.NPM,
+            skip_reason=reason_with_docs(
+                "could not determine the npm global prefix "
+                "(`npm prefix -g` produced no output); install Node.js "
+                "(which ships npm) and retry",
+                status.docs_url,
+            ),
+        )
+    install_dir = os.path.join(prefix, "bin")
+    on_path = _directory_on_path(install_dir, env=env)
+    if status.installed and not force:
+        version = status.installed_version or "unknown version"
+        location = status.executable or "an unresolved path"
+        return AgentCliInstallEntry(
+            status,
+            route=InstallRoute.NPM,
+            install_dir=install_dir,
+            install_dir_on_path=on_path,
+            skip_reason=(
+                f"already installed ({version}) at {location}; pass "
+                "-f|--force to reinstall"
+            ),
+        )
+    npm_root = paths.root or prefix
+    writable_dir = _nearest_existing_ancestor(npm_root)
+    if not writable_fn(writable_dir, os.W_OK):
+        command = f"npm install -g {package}"
+        return AgentCliInstallEntry(
+            status,
+            route=InstallRoute.NPM,
+            install_dir=install_dir,
+            install_dir_on_path=on_path,
+            skip_reason=reason_with_docs(
+                f"npm global root is not writable; run `{command}` manually "
+                "with an npm setup owned by your user (SASE never runs sudo "
+                "without a reviewed request)",
+                status.docs_url,
+            ),
+        )
+    return AgentCliInstallEntry(
+        status,
+        route=InstallRoute.NPM,
+        argv=("npm", "install", "-g", package),
+        env_overlay=status.install_env,
+        install_dir=install_dir,
+        install_dir_on_path=on_path,
+    )
+
+
+def _nearest_existing_ancestor(directory: str) -> str:
+    """Walk up to the nearest existing ancestor of *directory*.
+
+    A fresh user prefix may not have ``lib/node_modules`` yet, so writability
+    is checked where the tree actually exists.
+    """
+    current = Path(directory).expanduser()
+    while not current.exists():
+        parent = current.parent
+        if parent == current:
+            break
+        current = parent
+    return str(current)
 
 
 def execute_agent_cli_installs(
@@ -253,15 +426,28 @@ def execute_agent_cli_installs(
     run_fn: RunnerFn = run_command,
     trigger: UpdateTrigger = UpdateTrigger.UNKNOWN,
     record_fn: RecordFn | None = record_agent_cli_update_run,
+    progress_fn: ProgressFn | None = None,
 ) -> tuple[AgentCliUpdateResult, ...]:
-    """Run each planned installer sequentially and re-probe what it produced."""
+    """Run each planned installer sequentially and re-probe what it produced.
+
+    ``progress_fn`` runs before each runnable entry with its 1-based position
+    among the runnable entries, the runnable total, and the entry itself, so
+    session procs can narrate multi-CLI installs.
+    """
     started_at = time.monotonic()
-    results = tuple(
-        _execute_entry(entry, env=env, run_fn=run_fn) for entry in plan.entries
-    )
+    runnable_total = len(plan.runnable_entries)
+    position = 0
+    results: list[AgentCliUpdateResult] = []
+    for entry in plan.entries:
+        if entry.ready:
+            position += 1
+            if progress_fn is not None:
+                progress_fn(position, runnable_total, entry)
+        results.append(_execute_entry(entry, env=env, run_fn=run_fn))
+    completed = tuple(results)
     if record_fn is not None:
-        record_fn(results, trigger=trigger, elapsed=time.monotonic() - started_at)
-    return results
+        record_fn(completed, trigger=trigger, elapsed=time.monotonic() - started_at)
+    return completed
 
 
 def _resolve_install_dir(
@@ -451,9 +637,12 @@ __all__ = [
     "INSTALL_SCRIPT_MAX_BYTES",
     "AgentCliInstallEntry",
     "AgentCliInstallError",
+    "AgentCliInstallOption",
     "AgentCliInstallPlan",
     "AgentCliInstallsPlanned",
     "InstallScript",
+    "ProgressFn",
+    "describe_agent_cli_install",
     "execute_agent_cli_installs",
     "fetch_install_script",
     "plan_agent_cli_install_status",

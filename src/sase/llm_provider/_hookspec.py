@@ -106,8 +106,10 @@ class LLMHookSpec:
         """Provider CLI install and update metadata.
 
         ``manager`` names the external package manager needed to install this
-        provider CLI, such as ``npm``. ``package`` and ``scope`` are optional
-        descriptive fields used in diagnostic output. Providers may also
+        provider CLI, such as ``npm``. ``package`` names the npm package
+        ``sase agent-cli install`` runs ``npm install -g`` against when
+        ``manager`` is ``npm``, and ``scope`` is an optional descriptive field
+        used in diagnostic output. Providers may also
         declare ``display_name``, ``docs_url``, ``vendor`` (a secondary label
         such as ``"Anthropic"``, ``"OpenAI"``, ``"Google"``, ``"Alibaba"``,
         ``"SST"``, ``"xAI"``, or ``"Meta"``), ``self_update_argv``,

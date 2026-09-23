@@ -45,6 +45,15 @@ class UpdateStrategy(StrEnum):
     NONE = "none"
 
 
+class InstallRoute(StrEnum):
+    """Which installer backs ``sase agent-cli install`` for one CLI."""
+
+    SCRIPT = "script"
+    NPM = "npm"
+    MANUAL = "manual"
+    BUNDLED = "bundled"
+
+
 class UpdateResultStatus(StrEnum):
     """Terminal state of one planned agent-CLI update."""
 
@@ -216,6 +225,7 @@ __all__ = [
     "AgentCliUpdatesReady",
     "EnvOverlay",
     "InstallMethod",
+    "InstallRoute",
     "NothingToUpdate",
     "UnknownName",
     "UpdateEntry",

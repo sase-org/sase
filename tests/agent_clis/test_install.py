@@ -11,9 +11,11 @@ from typing import Any
 import pytest
 
 from sase.agent_clis.install import (
+    AgentCliInstallEntry,
     AgentCliInstallError,
     AgentCliInstallsPlanned,
     InstallScript,
+    describe_agent_cli_install,
     execute_agent_cli_installs,
     fetch_install_script,
     plan_agent_cli_install_status,
@@ -24,6 +26,7 @@ from sase.agent_clis.models import (
     AgentCliStatus,
     AgentCliUnknownName,
     InstallMethod,
+    InstallRoute,
     UpdateResultStatus,
 )
 from sase.agent_clis.runner import AgentCliRunnerError, CommandResult
@@ -90,6 +93,63 @@ def _status(
     )
 
 
+def _npm_status(
+    name: str = "qwen",
+    *,
+    executable: str | None = None,
+    installed_version: str | None = None,
+    package: str | None = "@qwen-code/qwen-code",
+) -> AgentCliStatus:
+    return AgentCliStatus(
+        name=name,
+        display_name="Qwen Code",
+        binary=name,
+        executable=executable,
+        installed_version=installed_version,
+        latest_version=None,
+        install_method=(
+            InstallMethod.NPM if executable else InstallMethod.NOT_INSTALLED
+        ),
+        update_available=False,
+        docs_url="https://example.test/qwen",
+        install_hint=(
+            f"run `sase agent-cli install {name}` (npm install -g {package})"
+            if package
+            else "install from https://example.test/qwen"
+        ),
+        package=package,
+        install_manager="npm",
+    )
+
+
+def _npm_bin(tmp_path: Path) -> Path:
+    """A directory with a fake `npm` executable for PATH resolution."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir(exist_ok=True)
+    npm = bin_dir / "npm"
+    npm.write_text("#!/bin/sh\n")
+    npm.chmod(0o755)
+    return bin_dir
+
+
+def _npm_probe(prefix: str, root: str) -> Any:
+    """A run_fn answering only `npm prefix -g` and `npm root -g`."""
+
+    def run(argv: Any, **_kwargs: Any) -> CommandResult:
+        args = tuple(argv)
+        if args[1:3] == ("prefix", "-g"):
+            return CommandResult(argv=args, returncode=0, stdout=f"{prefix}\n")
+        if args[1:3] == ("root", "-g"):
+            return CommandResult(argv=args, returncode=0, stdout=f"{root}\n")
+        raise AssertionError(f"unexpected npm probe: {args}")
+
+    return run
+
+
+def _never_run(argv: Any, **_kwargs: Any) -> CommandResult:
+    raise AssertionError(f"must not run a subprocess: {tuple(argv)}")
+
+
 def _script(tmp_path: Path) -> InstallScript:
     path = tmp_path / "install.sh"
     path.write_bytes(SCRIPT_BODY)
@@ -146,19 +206,179 @@ def test_fetch_reports_a_transport_failure_as_an_install_error() -> None:
         fetch_install_script(SCRIPT_URL, urlopen_fn=opener)
 
 
-def test_plan_skips_a_cli_that_declares_no_install_script(tmp_path: Path) -> None:
+def test_plan_skips_a_cli_with_no_runnable_installer() -> None:
     status = replace(
-        _status("codex", install_script_url=None),
-        install_manager="npm",
-        install_hint="npm install -g @openai/codex",
+        _status("antigravity", install_script_url=None),
+        install_manager="native",
+        install_hint="install from https://example.test/antigravity",
+        docs_url="https://example.test/antigravity",
     )
 
-    entry = plan_agent_cli_install_status(status, fetch_fn=_fetch(tmp_path))
+    entry = plan_agent_cli_install_status(
+        status,
+        fetch_fn=lambda _url: (_ for _ in ()).throw(AssertionError("must not fetch")),
+        run_fn=_never_run,
+    )
 
     assert entry.ready is False
+    assert entry.route is InstallRoute.MANUAL
     assert entry.script is None
     assert entry.skip_reason is not None
-    assert "npm install -g @openai/codex" in entry.skip_reason
+    assert "install from https://example.test/antigravity" in entry.skip_reason
+
+
+def test_classifier_routes_script_npm_manual_and_bundled() -> None:
+    script = describe_agent_cli_install(_status())
+    assert script.route is InstallRoute.SCRIPT
+    assert script.installable is True
+    assert script.source == SCRIPT_URL
+    assert script.reason is None
+
+    npm = describe_agent_cli_install(_npm_status())
+    assert npm.route is InstallRoute.NPM
+    assert npm.installable is True
+    assert npm.source == "@qwen-code/qwen-code"
+    assert npm.command_hint == "npm install -g @qwen-code/qwen-code"
+    assert npm.reason is None
+
+    manual = describe_agent_cli_install(
+        replace(_npm_status(), install_manager="native", package=None)
+    )
+    assert manual.route is InstallRoute.MANUAL
+    assert manual.installable is False
+    assert manual.source is None
+    assert manual.reason is not None
+    assert "https://example.test/qwen" in manual.reason
+
+    bundled = describe_agent_cli_install(
+        replace(_npm_status(), install_manager="bundled")
+    )
+    assert bundled.route is InstallRoute.BUNDLED
+    assert bundled.installable is False
+    assert bundled.source is None
+
+
+def test_classifier_ignores_whether_the_cli_is_installed() -> None:
+    installed = describe_agent_cli_install(
+        _npm_status(executable="/opt/bin/qwen", installed_version="0.8.0")
+    )
+
+    assert installed.route is InstallRoute.NPM
+    assert installed.installable is True
+
+
+def test_npm_plan_builds_argv_target_and_path_status(tmp_path: Path) -> None:
+    bin_dir = _npm_bin(tmp_path)
+    prefix = tmp_path / "npm-global"
+    (prefix / "lib" / "node_modules").mkdir(parents=True)
+    env = {"PATH": f"{bin_dir}{os.pathsep}{prefix / 'bin'}"}
+
+    entry = plan_agent_cli_install_status(
+        _npm_status(),
+        env=env,
+        run_fn=_npm_probe(str(prefix), str(prefix / "lib" / "node_modules")),
+        writable_fn=lambda *_args: True,
+    )
+
+    assert entry.route is InstallRoute.NPM
+    assert entry.ready is True
+    assert entry.argv == ("npm", "install", "-g", "@qwen-code/qwen-code")
+    assert entry.install_dir == str(prefix / "bin")
+    assert entry.install_dir_on_path is True
+
+
+def test_npm_plan_marks_an_off_path_target(tmp_path: Path) -> None:
+    bin_dir = _npm_bin(tmp_path)
+    prefix = tmp_path / "npm-global"
+    (prefix / "lib" / "node_modules").mkdir(parents=True)
+
+    entry = plan_agent_cli_install_status(
+        _npm_status(),
+        env={"PATH": str(bin_dir)},
+        run_fn=_npm_probe(str(prefix), str(prefix / "lib" / "node_modules")),
+        writable_fn=lambda *_args: True,
+    )
+
+    assert entry.ready is True
+    assert entry.install_dir_on_path is False
+
+
+def test_npm_plan_skips_when_npm_is_missing() -> None:
+    entry = plan_agent_cli_install_status(
+        _npm_status(), env={"PATH": ""}, run_fn=_never_run
+    )
+
+    assert entry.ready is False
+    assert entry.route is InstallRoute.NPM
+    assert entry.skip_reason is not None
+    assert "npm is not on PATH" in entry.skip_reason
+    assert "Node.js" in entry.skip_reason
+    assert "https://example.test/qwen" in entry.skip_reason
+
+
+def test_npm_plan_skips_when_the_global_root_is_not_writable(
+    tmp_path: Path,
+) -> None:
+    bin_dir = _npm_bin(tmp_path)
+    prefix = tmp_path / "npm-global"
+    (prefix / "lib" / "node_modules").mkdir(parents=True)
+
+    entry = plan_agent_cli_install_status(
+        _npm_status(),
+        env={"PATH": str(bin_dir)},
+        run_fn=_npm_probe(str(prefix), str(prefix / "lib" / "node_modules")),
+        writable_fn=lambda *_args: False,
+    )
+
+    assert entry.ready is False
+    assert entry.skip_reason is not None
+    assert "npm global root is not writable" in entry.skip_reason
+    assert "npm install -g @qwen-code/qwen-code" in entry.skip_reason
+    assert "never runs sudo" in entry.skip_reason
+
+
+def test_npm_plan_uses_a_writable_ancestor_for_a_fresh_prefix(
+    tmp_path: Path,
+) -> None:
+    bin_dir = _npm_bin(tmp_path)
+    prefix = tmp_path / "fresh"
+    prefix.mkdir()
+    missing_root = prefix / "lib" / "node_modules"
+
+    entry = plan_agent_cli_install_status(
+        _npm_status(),
+        env={"PATH": str(bin_dir)},
+        run_fn=_npm_probe(str(prefix), str(missing_root)),
+        writable_fn=lambda *_args: True,
+    )
+
+    assert entry.ready is True
+    assert entry.argv == ("npm", "install", "-g", "@qwen-code/qwen-code")
+    assert entry.install_dir == os.path.join(str(prefix), "bin")
+
+
+def test_npm_plan_skips_an_installed_cli_unless_forced(tmp_path: Path) -> None:
+    bin_dir = _npm_bin(tmp_path)
+    prefix = tmp_path / "npm-global"
+    (prefix / "lib" / "node_modules").mkdir(parents=True)
+    env = {"PATH": str(bin_dir)}
+    run_fn = _npm_probe(str(prefix), str(prefix / "lib" / "node_modules"))
+    status = _npm_status(executable="/opt/bin/qwen", installed_version="0.8.0")
+
+    skipped = plan_agent_cli_install_status(
+        status, env=env, run_fn=run_fn, writable_fn=lambda *_args: True
+    )
+    forced = plan_agent_cli_install_status(
+        status, force=True, env=env, run_fn=run_fn, writable_fn=lambda *_args: True
+    )
+
+    assert skipped.ready is False
+    assert skipped.route is InstallRoute.NPM
+    assert skipped.skip_reason is not None
+    assert "already installed (0.8.0)" in skipped.skip_reason
+    assert "--force" in skipped.skip_reason
+    assert forced.ready is True
+    assert forced.argv == ("npm", "install", "-g", "@qwen-code/qwen-code")
 
 
 def test_plan_skips_an_installed_cli_unless_forced(tmp_path: Path) -> None:
@@ -186,6 +406,7 @@ def test_plan_carries_the_declared_env_and_resolved_target(tmp_path: Path) -> No
     assert entry.argv == ("bash", str(tmp_path / "install.sh"))
     assert entry.env_overlay == (("MUSE_UPGRADE_MODE", "1"),)
     assert entry.install_dir == str(tmp_path / "bin")
+    assert entry.install_dir_on_path is False
     assert entry.script is not None
     assert entry.script.digest == SCRIPT_DIGEST
 
@@ -404,6 +625,97 @@ def test_execute_journals_the_install_with_its_script_digest(tmp_path: Path) -> 
     assert results[0].operation is AgentCliOperation.INSTALL
     assert results[0].script_digest == SCRIPT_DIGEST
     assert "elapsed" in kwargs
+
+
+def test_execute_reports_progress_for_runnable_entries_only(tmp_path: Path) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    for binary in ("qwen", "codex"):
+        path = bin_dir / binary
+        path.write_text("#!/bin/sh\n")
+        path.chmod(0o755)
+
+    def runner(argv: Any, **_kwargs: Any) -> CommandResult:
+        args = tuple(argv)
+        if args[0] == "npm":
+            return CommandResult(argv=args, returncode=0)
+        return CommandResult(argv=args, returncode=0, stdout=f"{args[0]} 1.2.3\n")
+
+    first = AgentCliInstallEntry(
+        _npm_status(),
+        route=InstallRoute.NPM,
+        argv=("npm", "install", "-g", "@qwen-code/qwen-code"),
+        install_dir=str(bin_dir),
+        install_dir_on_path=True,
+    )
+    skipped = AgentCliInstallEntry(
+        _npm_status("antigravity", package=None),
+        route=InstallRoute.MANUAL,
+        skip_reason="manual",
+    )
+    second = AgentCliInstallEntry(
+        _npm_status("codex", package="@openai/codex"),
+        route=InstallRoute.NPM,
+        argv=("npm", "install", "-g", "@openai/codex"),
+        install_dir=str(bin_dir),
+        install_dir_on_path=True,
+    )
+    calls: list[tuple[int, int, str]] = []
+    results = execute_agent_cli_installs(
+        AgentCliInstallsPlanned(entries=(first, skipped, second)),
+        env={"PATH": str(bin_dir)},
+        run_fn=runner,
+        record_fn=None,
+        progress_fn=lambda position, total, entry: calls.append(
+            (position, total, entry.name)
+        ),
+    )
+
+    assert [(position, total) for position, total, _ in calls] == [(1, 2), (2, 2)]
+    assert [name for _, _, name in calls] == ["qwen", "codex"]
+    assert tuple(result.status for result in results) == (
+        UpdateResultStatus.UPDATED,
+        UpdateResultStatus.SKIPPED,
+        UpdateResultStatus.UPDATED,
+    )
+
+
+def test_execute_npm_install_reports_the_export_line_off_path(
+    tmp_path: Path,
+) -> None:
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    binary = bin_dir / "qwen"
+    binary.write_text("#!/bin/sh\n")
+    binary.chmod(0o755)
+
+    def runner(argv: Any, **_kwargs: Any) -> CommandResult:
+        args = tuple(argv)
+        if args[0] == "npm":
+            return CommandResult(argv=args, returncode=0)
+        return CommandResult(argv=args, returncode=0, stdout="qwen 1.2.3\n")
+
+    entry = AgentCliInstallEntry(
+        _npm_status(),
+        route=InstallRoute.NPM,
+        argv=("npm", "install", "-g", "@qwen-code/qwen-code"),
+        install_dir=str(bin_dir),
+        install_dir_on_path=False,
+    )
+    results = execute_agent_cli_installs(
+        AgentCliInstallsPlanned(entries=(entry,)),
+        env={"PATH": str(tmp_path / "elsewhere")},
+        run_fn=runner,
+        record_fn=None,
+    )
+
+    result = results[0]
+    assert result.status is UpdateResultStatus.UPDATED
+    assert result.new_version == "1.2.3"
+    assert result.install_dir == str(bin_dir)
+    assert result.install_dir_on_path is False
+    assert result.reason is not None
+    assert f'export PATH="{bin_dir}:$PATH"' in result.reason
 
 
 def test_install_dir_prefers_the_declared_env_var_over_the_default(

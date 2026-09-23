@@ -7,8 +7,10 @@ command, the authentication command, and a link to each vendor's canonical docum
 for every provider SASE currently supports. Claude Code, Codex CLI, Qwen Code, and Grok
 Build install via `npm` (so they need `node` and `npm` on your `PATH`); OpenCode, the
 Antigravity CLI, and Muse Code use their own install methods, shown in their sections
-below. Muse Code is the one provider SASE can install for you, with
-[`sase agent-cli install muse`](#inventory-and-updates).
+below. SASE can install providers for you with
+[`sase agent-cli install`](#inventory-and-updates): every npm-packaged CLI (Claude Code,
+Codex CLI, Qwen Code, Grok Build) installs via `npm install -g <package>`, and Muse Code
+installs from its provider-declared install script.
 
 `sase doctor` — specifically `sase doctor -C llm.auth -v` — is the authoritative
 readiness check. It prints the same per-provider install and auth hints documented here,
@@ -412,18 +414,22 @@ Anything already at its latest known version is reported as an explicit
 `already up to date` skip rather than being reinstalled. Skips carry the provider's
 canonical docs URL where one is known.
 
-`install` takes CLI names and installs each from the install script its provider
-declares. SASE fetches the script itself over HTTPS into a `0o600` temp file with a
-timeout and a size cap, refuses non-HTTPS URLs and redirects off HTTPS, computes its
-SHA-256, and shows the URL, digest, byte count, env overlay, target directory, and the
-exact `bash <tmpfile>` command before running it — never `curl | bash`, and never
-through a shell. Running a remote script always needs confirmation: pass `-y/--yes` or
-answer the interactive prompt. `-n/--dry-run` prints the plan, digest included, and
-executes nothing. An already-installed CLI is skipped unless you pass `-f/--force`, and
-a CLI whose provider declares no install script is skipped with the manual command to
-run instead. After a successful install SASE re-probes the version, reports where the
-binary landed and whether that directory is on `PATH`, and prints the exact export line
-to add when it is not. **SASE never edits your shell startup files.**
+`install` takes CLI names and installs each from the install script or npm package its
+provider declares. For a script CLI, SASE fetches the script itself over HTTPS into a
+`0o600` temp file with a timeout and a size cap, refuses non-HTTPS URLs and redirects
+off HTTPS, computes its SHA-256, and shows the URL, digest, byte count, env overlay,
+target directory, and the exact `bash <tmpfile>` command before running it — never
+`curl | bash`, and never through a shell. For an npm CLI, SASE checks that `npm` is on
+`PATH` and that the global root is writable, then shows the package, the exact
+`npm install -g <package>` command, and the targeted global bin directory with its
+on-PATH status before running it — never with `sudo`. Running an installer always needs
+confirmation: pass `-y/--yes` or answer the interactive prompt. `-n/--dry-run` prints
+the plan, digest included, and executes nothing. An already-installed CLI is skipped
+unless you pass `-f/--force`, and a CLI whose provider declares neither a script nor an
+npm package is skipped with the manual command to run instead. After a successful
+install SASE re-probes the version, reports where the binary landed and whether that
+directory is on `PATH`, and prints the exact export line to add when it is not. **SASE
+never edits your shell startup files.**
 
 Runs from `sase agent-cli install` and `sase agent-cli update` are journaled with the
 same bounded history used by sase's TUI, `,U`, and `,E` at

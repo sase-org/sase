@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -25,6 +27,7 @@ from sase.agent_clis.models import (
     AgentCliUnknownName,
     AgentCliUpdateResult,
     InstallMethod,
+    InstallRoute,
     UpdateResultStatus,
 )
 from sase.main.parser import create_parser
@@ -64,6 +67,37 @@ def _ready_plan(tmp_path: Path) -> AgentCliInstallsPlanned:
                     url=SCRIPT_URL, path=path, digest=DIGEST, size_bytes=8
                 ),
                 install_dir="/home/user/.local/bin",
+            ),
+        )
+    )
+
+
+def _npm_status() -> AgentCliStatus:
+    return AgentCliStatus(
+        name="qwen",
+        display_name="Qwen Code",
+        binary="qwen",
+        executable=None,
+        installed_version=None,
+        latest_version=None,
+        install_method=InstallMethod.NOT_INSTALLED,
+        update_available=False,
+        docs_url="https://example.test/qwen",
+        install_hint="run `sase agent-cli install qwen` (npm install -g @qwen-code/qwen-code)",
+        install_manager="npm",
+        package="@qwen-code/qwen-code",
+    )
+
+
+def _npm_plan() -> AgentCliInstallsPlanned:
+    return AgentCliInstallsPlanned(
+        entries=(
+            AgentCliInstallEntry(
+                _npm_status(),
+                route=InstallRoute.NPM,
+                argv=("npm", "install", "-g", "@qwen-code/qwen-code"),
+                install_dir="/home/user/.npm-global/bin",
+                install_dir_on_path=True,
             ),
         )
     )
@@ -175,7 +209,10 @@ def test_dry_run_shows_url_digest_command_and_target_without_executing(
     assert code == 0
     assert SCRIPT_URL in rendered
     assert DIGEST in rendered
-    assert f"MUSE_UPGRADE_MODE=1 bash {tmp_path / 'install.sh'}" in rendered
+    # The command and the script path are asserted separately because a long
+    # workspace tmpdir can wrap the 180-column console between them.
+    assert "MUSE_UPGRADE_MODE=1 bash" in rendered
+    assert str(tmp_path / "install.sh") in rendered
     assert "/home/user/.local/bin" in rendered
     assert "nothing executed" in rendered
     assert "SASE never edits your shell startup files." in rendered
@@ -263,7 +300,105 @@ def test_missing_yes_refuses_to_execute_without_a_tty(tmp_path: Path) -> None:
 
     assert code == 2
     assert DIGEST in _output(console)
+    assert "Installing agent CLIs needs confirmation" in _output(err)
     assert "Re-run with -y|--yes" in _output(err)
+
+
+def test_dry_run_renders_npm_package_command_target_and_path() -> None:
+    console = _console()
+
+    code = handle_agent_cli_install_command(
+        _args(dry_run=True),
+        console=console,
+        plan_fn=lambda *_a, **_k: _npm_plan(),
+        execute_fn=_never_execute,
+    )
+
+    rendered = _output(console)
+    assert code == 0
+    assert "Qwen Code" in rendered
+    assert "package: @qwen-code/qwen-code (on PATH)" in rendered
+    assert "command: npm install -g @qwen-code/qwen-code (on PATH)" in rendered
+    assert "/home/user/.npm-global/bin (on PATH)" in rendered
+
+
+def test_dry_run_marks_the_script_target_path_state(tmp_path: Path) -> None:
+    plan = _ready_plan(tmp_path)
+    unknown = _console()
+    handle_agent_cli_install_command(
+        _args(dry_run=True),
+        console=unknown,
+        plan_fn=lambda *_a, **_k: plan,
+        execute_fn=_never_execute,
+    )
+    assert "(on PATH)" not in _output(unknown)
+    assert "(not on PATH)" not in _output(unknown)
+
+    off_path = AgentCliInstallsPlanned(
+        entries=(replace(plan.entries[0], install_dir_on_path=False),)
+    )
+    rendered_off = _console()
+    handle_agent_cli_install_command(
+        _args(dry_run=True),
+        console=rendered_off,
+        plan_fn=lambda *_a, **_k: off_path,
+        execute_fn=_never_execute,
+    )
+    assert "/home/user/.local/bin (not on PATH)" in _output(rendered_off)
+
+
+def test_dry_run_json_carries_method_and_path_status(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    code = handle_agent_cli_install_command(
+        _args(dry_run=True, json=True),
+        plan_fn=lambda *_a, **_k: _ready_plan(tmp_path),
+        execute_fn=_never_execute,
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    entry = payload["agent_clis"][0]
+    assert entry["method"] == "script"
+    assert entry["install_dir_on_path"] is None
+
+
+def test_dry_run_json_carries_the_npm_method(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = handle_agent_cli_install_command(
+        _args(dry_run=True, json=True),
+        plan_fn=lambda *_a, **_k: _npm_plan(),
+        execute_fn=_never_execute,
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert code == 0
+    entry = payload["agent_clis"][0]
+    assert entry["method"] == "npm"
+    assert entry["command"] == ["npm", "install", "-g", "@qwen-code/qwen-code"]
+    assert entry["install_dir"] == "/home/user/.npm-global/bin"
+    assert entry["install_dir_on_path"] is True
+
+
+def test_interactive_prompt_names_install_commands(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(sys, "stdin", io.StringIO(""))
+    console, err = _console(), _console()
+
+    code = handle_agent_cli_install_command(
+        _args(),
+        console=console,
+        err_console=err,
+        plan_fn=lambda *_a, **_k: _ready_plan(tmp_path),
+        execute_fn=_never_execute,
+        is_tty_fn=lambda: True,
+    )
+
+    assert code == 2
+    assert "Run the install command(s) above?" in _output(console)
+    assert "Aborted" in _output(err)
 
 
 def test_json_never_prompts_and_reports_the_confirmation_requirement(

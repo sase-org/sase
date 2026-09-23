@@ -24,6 +24,7 @@ from .install import (
 from .models import (
     AgentCliUnknownName,
     AgentCliUpdateResult,
+    InstallRoute,
     UpdateResultStatus,
     UpdateTrigger,
 )
@@ -48,7 +49,7 @@ def handle_agent_cli_install_command(
     confirm_fn: ConfirmFn | None = None,
     is_tty_fn: IsTtyFn | None = None,
 ) -> int:
-    """Fetch, preview, confirm, and run provider-declared install scripts."""
+    """Fetch, preview, confirm, and run provider-declared installers."""
     names = tuple(getattr(args, "names", ()) or ())
     as_json = bool(getattr(args, "json", False))
     dry_run = bool(getattr(args, "dry_run", False))
@@ -146,7 +147,7 @@ def _stdin_is_tty() -> bool:
 def _confirm_interactively(plan: AgentCliInstallsPlanned, out: Console) -> bool:
     _render_plan(plan.entries, console=out, dry_run=False)
     try:
-        answer = out.input("Run the install script(s) above? [y/N] ")
+        answer = out.input("Run the install command(s) above? [y/N] ")
     except EOFError:
         return False
     return answer.strip().lower() in {"y", "yes"}
@@ -156,7 +157,7 @@ def _confirmation_required(
     plan: AgentCliInstallsPlanned, *, as_json: bool, out: Console, err: Console
 ) -> int:
     message = (
-        "Running a remote install script needs confirmation. Re-run with "
+        "Installing agent CLIs needs confirmation. Re-run with "
         "-y|--yes, or preview it first with -n|--dry-run."
     )
     if as_json:
@@ -190,12 +191,14 @@ def _plan_entry_json(entry: AgentCliInstallEntry) -> dict[str, Any]:
     return {
         "name": status.name,
         "display_name": status.display_name,
+        "method": entry.route.value,
         "command": list(entry.argv) if entry.argv else None,
         "env": dict(entry.env_overlay),
         "install_script_url": status.install_script_url,
         "script_sha256": script.digest if script is not None else None,
         "script_bytes": script.size_bytes if script is not None else None,
         "install_dir": entry.install_dir,
+        "install_dir_on_path": entry.install_dir_on_path,
         "installed_version": status.installed_version,
         "docs_url": status.docs_url,
         "reason": render_reason(entry.error or entry.skip_reason, status.docs_url),
@@ -244,7 +247,25 @@ def _render_plan(
         if index:
             body.append("\n")
         status = entry.status
-        if entry.script is not None and entry.argv is not None:
+        if entry.route is InstallRoute.NPM and entry.argv is not None:
+            path_text, path_style = _path_marker(entry.install_dir_on_path)
+            body.append("● ", style="bold cyan")
+            body.append(status.display_name, style="bold")
+            body.append("\n  package: ", style="dim")
+            body.append(status.package or "unknown package", style="cyan")
+            body.append(path_text, style=path_style)
+            body.append("\n  command: ", style="dim")
+            body.append(command_text(entry.argv, entry.env_overlay), style="cyan")
+            body.append(path_text, style=path_style)
+            if entry.install_dir:
+                body.append("\n  target:  ", style="dim")
+                body.append(entry.install_dir, style="cyan")
+                body.append(path_text, style=path_style)
+        elif (
+            entry.route is InstallRoute.SCRIPT
+            and entry.script is not None
+            and entry.argv is not None
+        ):
             body.append("● ", style="bold cyan")
             body.append(status.display_name, style="bold")
             body.append("\n  url:     ", style="dim")
@@ -255,8 +276,10 @@ def _render_plan(
             body.append("\n  command: ", style="dim")
             body.append(command_text(entry.argv, entry.env_overlay), style="cyan")
             if entry.install_dir:
+                path_text, path_style = _path_marker(entry.install_dir_on_path)
                 body.append("\n  target:  ", style="dim")
                 body.append(entry.install_dir, style="cyan")
+                body.append(path_text, style=path_style)
         else:
             body.append("○ ", style="yellow")
             body.append(status.display_name, style="bold")
@@ -277,6 +300,15 @@ def _render_plan(
             border_style="cyan",
         )
     )
+
+
+def _path_marker(on_path: bool | None) -> tuple[str, str]:
+    """Render the on-PATH / not-on-PATH suffix for an install target."""
+    if on_path is None:
+        return "", "dim"
+    if on_path:
+        return " (on PATH)", "green"
+    return " (not on PATH)", "yellow"
 
 
 def _render_results(

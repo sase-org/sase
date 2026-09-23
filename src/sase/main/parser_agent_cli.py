@@ -69,17 +69,19 @@ def register_agent_cli_parser(subparsers: argparse._SubParsersAction) -> None:
 
     install_parser = agent_cli_sub.add_parser(
         "install",
-        help="Install agent CLIs that declare an install script",
+        help="Install agent CLIs that declare an install script or npm package",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description=(
             "Install one or more supported coding-agent CLIs from the install "
-            "script their provider declares. SASE downloads the script itself, "
-            "shows the URL, its SHA-256 digest, the exact command, and the "
-            "target directory, and only then runs it without a shell. CLIs that "
-            "declare no install script are reported as explicit skips with the "
-            "manual command to run instead.\n"
+            "script or npm package their provider declares. For a script CLI, "
+            "SASE downloads the script itself, shows the URL, its SHA-256 "
+            "digest, the exact command, and the target directory, and only "
+            "then runs it without a shell. For an npm CLI, SASE runs the exact "
+            "`npm install -g <package>` command and names the global bin "
+            "directory it targets. CLIs that declare neither are reported as "
+            "explicit skips with the manual command to run instead.\n"
             "\n"
-            "Running a remote script always needs confirmation: pass `-y|--yes` "
+            "Running an installer always needs confirmation: pass `-y|--yes` "
             "or answer the interactive prompt. Use `-n|--dry-run` to see the "
             "plan, digest included, without executing anything.\n"
             "\n"
@@ -93,7 +95,8 @@ def register_agent_cli_parser(subparsers: argparse._SubParsersAction) -> None:
             "  sase agent-cli install muse --dry-run\n"
             "  sase agent-cli install muse --yes\n"
             "  sase agent-cli install muse --force --yes\n"
-            "  sase agent-cli install muse --dry-run --json"
+            "  sase agent-cli install muse --dry-run --json\n"
+            "  sase agent-cli install claude codex -n"
         ),
     )
     install_parser.add_argument(
