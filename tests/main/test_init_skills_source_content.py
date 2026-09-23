@@ -254,7 +254,14 @@ def test_sase_final_skill_documents_declaration_commands() -> None:
     )
     assert "mandatory for final answers" in flat
     assert "incomplete-status responses" in flat
-    assert "replies that intend to resume in a later turn" in flat
+    assert "Never use it to wait for a command" in flat
+    assert "Never end a turn to wait for a command" in flat
+    assert (
+        "Never submit a declaration while a command you started is still running"
+        in flat
+    )
+    assert "I will wait" not in flat
+    assert "replies that intend to resume in a later turn" not in flat
     assert (
         "Only a successfully executed plan, monitor, pipe, or questions handoff" in flat
     )

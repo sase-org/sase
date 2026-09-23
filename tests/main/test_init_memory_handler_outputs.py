@@ -26,9 +26,8 @@ _FINAL_DECLARATION_MARKERS = (
     "/sase_final",
     "Before any normal response that ends this SASE provider turn",
     "incomplete-status response",
-    "I will wait",
+    "Never end a turn to wait for a command or to resume later",
     "plan, monitor, pipe, or questions handoff",
-    "Intending to resume later is not an exemption",
 )
 
 

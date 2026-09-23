@@ -52,9 +52,17 @@ remaining product or landing work.
 
 When `just check-full` **is** explicitly requested, it routinely outruns a single agent
 turn, so run it **only** through your `/sase_monitor` skill, never inline, using the
-`TESTING` / `TESTED` status pair. `just check` may be run inline, but hand it to a
-monitor the same way whenever it is taking a long time.
+`TESTING` / `TESTED` status pair. Decide where `just check` runs before starting it: run
+it inline when it fits your provider's synchronous limit; for final verification, prefer
+a prepared-completion monitor (see your `/sase_final` skill); never cancel or rerun an
+in-flight check to move it to a monitor — let it finish.
 [[decisions/check-full-is-explicit]] is the rule.
+
+This repo's known-long commands often exceed 10 minutes on the shared host:
+`just install`, `just rust-install`, `just test-scoped`, full `just test-visual` or
+`just fix-tui-screenshots` runs, and `just check-full`. `sase tool run check` itself
+exceeded 10 minutes in about 19% of Muse runs, so route defensively when the turn is a
+final gate.
 
 ## Run Verification Through `sase tool run`
 
@@ -63,9 +71,10 @@ explicitly requested) to raw `just check`: it runs the same declared argv and re
 [[glossary:tool-run]] with stage timings and evidence. Direct agent runs default to
 compact output; `-q` forces it, `-T N` keeps N failure lines (default 200), `-v`
 streams, and `sase tool show RUN -l` replays the full retained output. Inside a verify
-monitor, wrap the command: `-- sase tool run check-full`. Prepared-completion `-f`
-monitors still use the raw `just check` / `just check-full` command, whose exact-command
-contract is separate. If `sase tool` is unavailable (stale install), run
+monitor, plain `-- just check-full` is upgraded to the named run automatically
+(`-- sase tool run check-full` works identically); prepared-completion `-f` monitors are
+recorded the same way while their recorded command stays the raw one for the
+exact-command contract. If `sase tool` is unavailable (stale install), run
 `SASE_TOOL_BYPASS='<why>' just check` (or `check-full` where that command is explicitly
 requested) and record `sase update` as the remedy; never bypass binding validation or
 re-run a child whose result is uncertain. See [[glossary:tool-catalog]].

@@ -108,16 +108,16 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Type: `core`
 - Parent: `AGENTS.md`
 - Description: No description set.
-- Lines: 80
-- Approx. tokens: 1037
+- Lines: 81
+- Approx. tokens: 1057
 
 ### `sase/memory/decisions.md`
 
 - Kind: memory web descriptor
 - Description: Architectural decision records — accepted choices, their rejected
   alternatives, and what would reopen them.
-- Lines: 80
-- Approx. tokens: 1138
+- Lines: 84
+- Approx. tokens: 1193
 
 ### `sase/memory/glossary.md`
 
@@ -158,8 +158,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Description: If you changed any file tracked by git in the sase repo (excluding file
   changes in the separate repos contained in the sase/repos/ directory), you MUST read
   this note before you finish your turn.
-- Lines: 122
-- Approx. tokens: 1760
+- Lines: 131
+- Approx. tokens: 1911
 
 ### `sase/memory/sase_artifacts.md`
 
@@ -252,8 +252,8 @@ strand inherits no `type:` of its own and never inlines into `AGENTS.md`.
 - Core notes: 3
 - Reference notes: 12
 - Web descriptor notes: 3
-- Total lines: 1324
-- Total approx. tokens: 17452
+- Total lines: 1338
+- Total approx. tokens: 17678
 
 ## Commands
 

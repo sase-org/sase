@@ -73,11 +73,12 @@ by using `/sase_repo` or `sase artifact read`!
 #### 1.1.4 SASE Final Declaration
 
 Before any normal response that ends this SASE provider turn, use your `/sase_final`
-skill as the last action. This includes a final answer, an incomplete-status response,
-an "I will wait" response, or any reply that intends to resume in a later turn. Only a
-successfully executed plan, monitor, pipe, or questions handoff is exempt, because those
-commands terminate the runner mechanically. Intending to resume later is not an
-exemption.
+skill as the last action. This includes a final answer and an incomplete-status
+response; an unfinished turn still declares so its work is committed. Never end a turn
+to wait for a command or to resume later: nothing can wake you, so hand long commands to
+`/sase_monitor` before starting them. Only a successfully executed plan, monitor, pipe,
+or questions handoff is exempt, because those commands terminate the runner
+mechanically.
 
 ### 1.2 Code Conventions and Gotchas (gotchas)
 
@@ -152,51 +153,55 @@ costs, and the condition that would reopen it.
 1. **A Gate Never Blocks An Agent** (`gates-never-block`) - Creating a gate from inside
    an agent ends that agent's turn; continuation is a gate shell's follow-up, never a
    wait.
-2. **Agents Are Single-Turn** (`single-turn-agents`) - A SASE agent run is one provider
+2. **Adapters Normalize Harnesses** (`adapters-normalize-harnesses`) - Each provider
+   adapter makes its CLI harness conform to the single-turn contract instead of the host
+   modeling private wait semantics.
+3. **Agents Are Single-Turn** (`single-turn-agents`) - A SASE agent run is one provider
    turn; continuation is always mechanical, never a promise to resume.
-3. **Agents-Sync Is Publish-Only, The Import Leg Is Deleted**
+4. **Agents-Sync Is Publish-Only, The Import Leg Is Deleted**
    (`agents-sync-publish-only`) - Epic sase-ws deleted the entire agents-sync import leg
    (v1, v2, and the ACE incomplete-import UI); the module only publishes agent
    prompts/pages outward now, and one explicit purge command is the sole supported
    operation on leftover imported local state.
-4. **Check-Full Is Explicit-Only** (`check-full-is-explicit`) - just check is the only
+5. **Check-Full Is Explicit-Only** (`check-full-is-explicit`) - just check is the only
    agent-initiated verification recipe; just check-full runs only when explicitly
    instructed, typically to repair a CI failure.
-5. **CI Is Two-Speed** (`ci-two-speed-split`) - Master pushes run a per-SHA fast gate,
+6. **CI Is Two-Speed** (`ci-two-speed-split`) - Master pushes run a per-SHA fast gate,
    while the exhaustive CI matrix runs off the push path on a schedule and remains a
    release prerequisite through ci_watch freshness checks.
-6. **Completion Is Host-Owned** (`host-owned-completion`) - An agent never creates
+7. **Completion Is Host-Owned** (`host-owned-completion`) - An agent never creates
    commits, branches, or PRs; it submits a declaration and host-owned finalizers act.
-7. **Expensive Commands Are Recorded Before They Are Admitted**
+8. **Expensive Commands Are Recorded Before They Are Admitted**
    (`record-before-admit`) - _[partly superseded by `guarded-recipes`]_ The sase tool
    control plane lands its ToolRun record first; prediction and admission only ever
    consume a corpus that already exists.
-8. **Guarded Recipes Refuse Raw Agent Runs** (`guarded-recipes`) - A SASE agent runs a
+9. **Guarded Recipes Refuse Raw Agent Runs** (`guarded-recipes`) - A SASE agent runs a
    guarded recipe only inside sase tool run for that project root, or with an explicit
    bypass; the guard refuses anything else.
-9. **Legacy V1 Agent Transport Is Read-Only History, Not An Import Source**
-   (`v1-import-retired`) - _[superseded by `agents-sync-publish-only`]_ The legacy v1
-   agents-sync import leg is sunset behind v1_import_retired; v1 payloads stay readable
-   as v2-adoption matcher evidence but are never materialized as new imported artifacts.
-10. **Memory Links Are Authored** (`memory-links-are-authored`) - A memory file declares
+10. **Legacy V1 Agent Transport Is Read-Only History, Not An Import Source**
+    (`v1-import-retired`) - _[superseded by `agents-sync-publish-only`]_ The legacy v1
+    agents-sync import leg is sunset behind v1_import_retired; v1 payloads stay readable
+    as v2-adoption matcher evidence but are never materialized as new imported
+    artifacts.
+11. **Memory Links Are Authored** (`memory-links-are-authored`) - A memory file declares
     how its links are detected and rendered, and authors links inline as `[[target]]` /
     `![[target]]`.
-11. **Memory Webs** (`memory-webs`) - _[partly superseded by
+12. **Memory Webs** (`memory-webs`) - _[partly superseded by
     `webs-render-in-their-own-section`, `memory-links-are-authored`]_ A keyed memory
     collection is a flat descriptor note plus a sibling strand directory, addressed
     web:keyword.
-12. **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`) - A
+13. **Memory Webs Render In Their Own Section** (`webs-render-in-their-own-section`) - A
     memory web's placement in generated agent instructions follows from its kind, not
     from a `type:` declaration on its descriptor.
-13. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
+14. **No Retrieval Mechanism Before Its Corpus** (`corpus-before-mechanism`) - SASE does
     not build memory retrieval or linking machinery ahead of a corpus that demonstrably
     needs it.
-14. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`) - Built-in
+15. **Size Aliases Descend The Effort Ladder** (`size-alias-effort-ladder`) - Built-in
     size aliases run a model at xhigh on its first appearance from @xlarge down and one
     rung lower on each reappearance; every alias should span more than one provider.
-15. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
+16. **The Rust Core Is Required** (`rust-core-required`) - Shared backend behavior lives
     in sase-core with no Python fallback and no env-var backend switch.
-16. **Verification Is Two-Speed** (`two-speed-verification`) - _[superseded by
+17. **Verification Is Two-Speed** (`two-speed-verification`) - _[superseded by
     `check-full-is-explicit`]_ just check is the agent default and just check-full gates
     landing, because host capacity is the constraint, not test speed.
 
