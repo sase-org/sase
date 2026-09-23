@@ -73,12 +73,21 @@ def test_warmed_message_refreshes_once_per_snapshot(
         project_tags, "peek_project_tag_catalog_signature", lambda: "sig-1"
     )
     refreshes: list[str] = []
-    fake = SimpleNamespace(refresh=lambda: refreshes.append("refresh"))
+    rebuilds: list[bool] = []
+    fake = SimpleNamespace(
+        refresh=lambda: refreshes.append("refresh"),
+        _refresh_agent_focus_detail=lambda *, render_immediate=True: rebuilds.append(
+            render_immediate
+        ),
+        screen_stack=[],
+        screen=None,
+    )
 
     StartupLoadsMixin.on_project_tag_catalog_warmed(fake, ProjectTagCatalogWarmed())
     StartupLoadsMixin.on_project_tag_catalog_warmed(fake, ProjectTagCatalogWarmed())
 
     assert refreshes == ["refresh"]
+    assert rebuilds == [False]
     assert fake._project_tag_warm_refresh_signature == "sig-1"
 
     monkeypatch.setattr(
@@ -87,3 +96,76 @@ def test_warmed_message_refreshes_once_per_snapshot(
     StartupLoadsMixin.on_project_tag_catalog_warmed(fake, ProjectTagCatalogWarmed())
 
     assert refreshes == ["refresh", "refresh"]
+    assert rebuilds == [False, False]
+
+
+async def test_warmed_message_rebuilds_cold_detail_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A real app re-renders cold ``#`` detail as ``+`` once warm."""
+    import sase.project_display_names as display_names
+    import sase.project_tags.catalog as tag_catalog_module
+    from sase.project_tags.catalog import ProjectTagCatalog, ProjectTagTarget
+    from textual.app import App, ComposeResult
+    from textual.widgets import Label
+
+    monkeypatch.setattr(
+        display_names,
+        "_project_display_name_map_cached",
+        lambda _root=None: {"sase": "sase"},
+    )
+    tag_catalog_module._CATALOG_CACHE = None  # noqa: SLF001
+
+    class WarmApp(StartupLoadsMixin, App[None]):
+        def __init__(self) -> None:
+            super().__init__()
+            self.rebuilds: list[bool] = []
+
+        def compose(self) -> ComposeResult:
+            yield Label("#gh:sase do things", id="detail")
+
+        def _refresh_agent_focus_detail(self, *, render_immediate: bool = True) -> None:
+            from sase.project_display_names import humanize_vcs_refs_in_text
+
+            self.rebuilds.append(render_immediate)
+            try:
+                text = humanize_vcs_refs_in_text("#gh:sase do things")
+            except Exception:
+                text = "#gh:sase do things"
+            try:
+                self.query_one("#detail", Label).update(text)
+            except Exception:
+                pass
+
+    app = WarmApp()
+    async with app.run_test() as pilot:
+        await pilot.pause()
+        assert str(app.query_one("#detail", Label).content) == "#gh:sase do things"
+
+        catalog = ProjectTagCatalog(
+            targets=(
+                ProjectTagTarget(
+                    key="sase",
+                    name="sase",
+                    tag="+sase",
+                    workflow_type="gh",
+                    vcs_ref="#gh:sase",
+                    accent="#123456",
+                ),
+            ),
+            accent_palette=("#123456",),
+            signature=("warm-test",),
+        )
+        tag_catalog_module._CATALOG_CACHE = (catalog.signature, catalog)  # noqa: SLF001
+        app.post_message(ProjectTagCatalogWarmed())
+        await pilot.pause()
+        await pilot.pause()
+
+        assert str(app.query_one("#detail", Label).content) == "+sase do things"
+        assert app.rebuilds and all(flag is False for flag in app.rebuilds)
+
+        rebuild_count = len(app.rebuilds)
+        app.post_message(ProjectTagCatalogWarmed())
+        await pilot.pause()
+        assert len(app.rebuilds) == rebuild_count
+    tag_catalog_module._CATALOG_CACHE = None  # noqa: SLF001

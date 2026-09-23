@@ -216,8 +216,92 @@ def test_pager_markdown_highlights_tags_and_markdown_together(
     roles = {span.role for span in result.spans}
     assert SyntaxRole.MARKDOWN_HEADING in roles
     assert SyntaxRole.PROJECT_TAG in roles
-    tag = next(span for span in result.spans if span.role is SyntaxRole.PROJECT_TAG)
-    assert source[tag.start : tag.end] == "+sase"
+    tag_spans = [span for span in result.spans if span.role is SyntaxRole.PROJECT_TAG]
+    assert len(tag_spans) == 2
+    assert source[tag_spans[0].start : tag_spans[0].end] == "+"
+    assert source[tag_spans[1].start : tag_spans[1].end] == "sase"
+    accent = next(
+        target.accent for target in warm_catalog.targets if target.key == "sase"
+    )
+    assert accent is not None
+    assert tag_spans[0].style == f"dim {accent}"
+    assert tag_spans[1].style == f"bold {accent}"
+
+
+def test_pager_ignores_unknown_tags(warm_catalog) -> None:
+    from sase.pager.syntax import SyntaxRole, highlight_source
+
+    source = "fix +no-such-project-xyz now\n"
+    result = highlight_source(source, "markdown", base_text=Text(source))
+
+    assert all(span.role is not SyntaxRole.PROJECT_TAG for span in result.spans)
+
+
+def test_pager_never_styles_tags_inside_fences(warm_catalog) -> None:
+    from sase.pager.syntax import SyntaxRole, highlight_source
+
+    source = "# Title\n\n```md\n+sase in fence\n```\n\n+sase in prose\n"
+    result = highlight_source(source, "markdown", base_text=Text(source))
+
+    tag_texts = [
+        source[span.start : span.end]
+        for span in result.spans
+        if span.role is SyntaxRole.PROJECT_TAG
+    ]
+    assert "".join(tag_texts) == "+sase"
+    assert source.index("+sase in prose") < result.spans[-1].end
+
+
+def test_pager_home_tag_uses_neutral_style(warm_catalog) -> None:
+    import sase.project_tags.catalog as tag_catalog_module
+    from sase.core.project_lifecycle_wire import PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION
+    from sase.core.project_lifecycle_wire import ProjectRecordWire
+    from sase.pager.syntax import SyntaxRole, highlight_source
+    from sase.project_tags import ProjectTagCatalog, build_targets
+
+    targets = tuple(
+        build_targets(
+            [
+                ProjectRecordWire(
+                    schema_version=PROJECT_LIFECYCLE_WIRE_SCHEMA_VERSION,
+                    project_name="home",
+                    project_dir="/tmp/projects/home",
+                    project_file="/tmp/projects/home/home.sase",
+                    archive_file=None,
+                    workspace_dir="/tmp/workspaces/home",
+                    state="enabled",
+                    state_explicit=False,
+                    system_managed=False,
+                    active_claim_count=0,
+                    launchable=True,
+                    aliases=[],
+                    warnings=[],
+                    parse_warnings=[],
+                    display_name=None,
+                    is_project=True,
+                    vcs_kind="gh",
+                )
+            ],
+            detect_workflow_type=lambda _pf: "gh",
+            get_display_name=lambda wf: "GitHub" if wf == "gh" else wf,
+        )
+    )
+    catalog = ProjectTagCatalog(targets=targets, accent_palette=(), signature=("home",))
+    tag_catalog_module._CATALOG_CACHE = (catalog.signature, catalog)  # noqa: SLF001
+    try:
+        source = "+home do things\n"
+        result = highlight_source(source, "markdown", base_text=Text(source))
+    finally:
+        from sase.project_tags.catalog import _clear_project_tag_catalog_cache
+
+        _clear_project_tag_catalog_cache()
+
+    tag_spans = [span for span in result.spans if span.role is SyntaxRole.PROJECT_TAG]
+    # Neutral sigil and name share the same ``dim`` style, so the budget
+    # merges them into one span covering the whole tag.
+    assert len(tag_spans) == 1
+    assert source[tag_spans[0].start : tag_spans[0].end] == "+home"
+    assert tag_spans[0].style == "dim"
 
 
 def test_launch_preview_styles_tags(warm_catalog) -> None:

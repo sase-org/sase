@@ -26,6 +26,7 @@ from sase.ace.tui.widgets.prompt_panel._agent_tribe_prompts import (
     TribePromptGroup,
     TribePromptMember,
     TribePromptsSnapshot,
+    _digest_project,
 )
 from sase.ace.tui.widgets.prompt_panel._section_navigation import (
     SECTION_FOLD_ONLY_META_KEY,
@@ -245,7 +246,33 @@ def test_level2_adds_unit_labels_and_tags() -> None:
     assert " 0  build  Tagged headline. · #bd · 5 lines" in rendered
 
 
-def test_level2_project_tag_renders_only_for_multi_project() -> None:
+def _warm_tribe_catalog(monkeypatch: Any, *keys: str) -> None:
+    """Point tribe digests at fake catalog targets for *keys*."""
+    import sase.project_tags.catalog as tag_catalog_module
+    from sase.project_tags.catalog import ProjectTagCatalog, ProjectTagTarget
+
+    catalog = ProjectTagCatalog(
+        targets=tuple(
+            ProjectTagTarget(
+                key=key,
+                name=key,
+                tag=f"+{key}",
+                workflow_type="gh",
+                vcs_ref=f"#gh:{key}",
+                accent="#123456",
+            )
+            for key in keys
+        ),
+        accent_palette=("#123456",),
+        signature=("tribe-test",),
+    )
+    monkeypatch.setattr(
+        tag_catalog_module, "_CATALOG_CACHE", (catalog.signature, catalog)
+    )
+
+
+def test_level2_project_tag_renders_only_for_multi_project(monkeypatch: Any) -> None:
+    _warm_tribe_catalog(monkeypatch, "alpha", "beta")
     tribe = make_tribe_snapshot()
     first = tribe.units[0].identity
     multi = _prompts_snapshot(
@@ -273,6 +300,22 @@ def test_level2_project_tag_renders_only_for_multi_project() -> None:
         )
     )
     assert "+alpha" not in _render(single, level=FoldLevel.EXPANDED).plain
+
+
+def test_digest_project_ignores_patch_unknown_and_cold(monkeypatch: Any) -> None:
+    import sase.project_tags.catalog as tag_catalog_module
+
+    _warm_tribe_catalog(monkeypatch, "sase")
+    assert _digest_project("#gh:sase do work") == "sase"
+    # Patch refs never tagify (D5).
+    assert _digest_project("#gh:sase_fix_parser do work") is None
+    # Unknown names never gain a made-up tag.
+    assert _digest_project("#gh:no-such-xyz do work") is None
+    # owner/repo refs never tagify.
+    assert _digest_project("#gh:owner/repo do work") is None
+
+    monkeypatch.setattr(tag_catalog_module, "_CATALOG_CACHE", None)
+    assert _digest_project("#gh:sase do work") is None
 
 
 def test_level3_previews_bodies_with_gutter_and_truncation_tail() -> None:

@@ -82,6 +82,7 @@ class SyntaxSpan:
     start: int
     end: int
     role: SyntaxRole
+    style: str | None = None
 
     def __post_init__(self) -> None:
         if self.start < 0 or self.end < 0:
@@ -355,6 +356,14 @@ def style_source_text(
     if result.disposition is not SyntaxDisposition.HIGHLIGHTED:
         return styled
     for span in result.spans:
+        if span.style is not None:
+            try:
+                styled.stylize(Style.parse(span.style), span.start, span.end)
+            except Exception:
+                style = styles.get(span.role)
+                if style is not None:
+                    styled.stylize(style, span.start, span.end)
+            continue
         style = styles.get(span.role)
         if style is not None:
             styled.stylize(style, span.start, span.end)
@@ -469,8 +478,15 @@ class SpanBudget:
         self._count = 0
 
     def append(self, spans: list[SyntaxSpan], span: SyntaxSpan) -> None:
-        if spans and spans[-1].end == span.start and spans[-1].role is span.role:
-            spans[-1] = SyntaxSpan(spans[-1].start, span.end, span.role)
+        if (
+            spans
+            and spans[-1].end == span.start
+            and spans[-1].role is span.role
+            and spans[-1].style == span.style
+        ):
+            spans[-1] = SyntaxSpan(
+                spans[-1].start, span.end, span.role, spans[-1].style
+            )
             return
         if self._count >= self._max_spans:
             raise SpanBudgetExceeded

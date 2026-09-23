@@ -250,7 +250,15 @@ def _fallback_digest(raw: str) -> PromptDigest:
 
 
 def _digest_project(raw: str) -> str | None:
-    """Return the short display project for one raw prompt, failing open."""
+    """Return the display project for one raw prompt, failing open.
+
+    Only catalog-known targets count (D5): Patch refs, ``owner/repo``
+    refs, and unknown names return ``None`` so they never gain a
+    made-up ``+`` chip and never flip ``multi_project``. A known
+    ``+<project>`` tag returns its bare name; a known but untaggable
+    name returns its ``#<workflow>:`` spelling. A cold catalog returns
+    ``None``.
+    """
     try:
         tag = extract_vcs_workflow_tag(raw)
     except Exception:
@@ -264,11 +272,23 @@ def _digest_project(raw: str) -> str | None:
     if not ref:
         return None
     try:
-        from sase.xprompt.project_identity import canonical_xprompt_project
+        from sase.project_tags import known_project_tag_for
+        from sase.project_tags.catalog import peek_project_tag_catalog
 
-        return canonical_xprompt_project(ref) or ref
+        catalog = peek_project_tag_catalog()
     except Exception:
-        return ref
+        return None
+    if catalog is None:
+        return None
+    try:
+        spelling = known_project_tag_for(catalog, ref)
+    except Exception:
+        return None
+    if not spelling:
+        return None
+    if spelling.startswith("+"):
+        return spelling[1:] or None
+    return spelling
 
 
 def _first_paragraph_headline(body: str) -> str:

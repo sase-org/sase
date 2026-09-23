@@ -162,9 +162,18 @@ def _append_entry_tags(
     if digest.body_line_count > 1:
         tags.append(Text(f"{digest.body_line_count} lines", style=_SIZE_STYLE))
     if multi_project and digest.project is not None:
-        tags.append(
-            Text(f"+{digest.project}", style=project_column_style(digest.project))
-        )
+        if digest.project.startswith("#"):
+            try:
+                from sase.xprompt import extract_project_from_vcs_tag
+
+                bare = extract_project_from_vcs_tag(digest.project) or digest.project
+            except Exception:
+                bare = digest.project
+            tags.append(Text(digest.project, style=project_column_style(bare)))
+        else:
+            tags.append(
+                Text(f"+{digest.project}", style=project_column_style(digest.project))
+            )
     if not tags:
         return
     line.append(" · ", style="dim")

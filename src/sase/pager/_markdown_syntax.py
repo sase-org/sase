@@ -77,8 +77,9 @@ def markdown_syntax_spans(
     as literal zones, and child-lexer regions never emit tag spans.
     """
 
+    regions = _regions(source)
     spans: list[SyntaxSpan] = []
-    for region in _regions(source):
+    for region in regions:
         if region.kind == "prose":
             _extend_spans(
                 spans,
@@ -110,10 +111,15 @@ def markdown_syntax_spans(
                     depth=depth,
                 ),
             )
-    if "+" in source:
+    if depth == 0 and "+" in source:
+        prose_ranges = tuple(
+            (region.start, region.end) for region in regions if region.kind == "prose"
+        )
         _extend_spans(
             spans,
-            _project_tag_spans(source, budget=budget, offset=offset),
+            _project_tag_spans(
+                source, budget=budget, offset=offset, prose_ranges=prose_ranges
+            ),
         )
     return tuple(spans)
 
@@ -123,32 +129,59 @@ def _project_tag_spans(
     *,
     budget: SpanBudget,
     offset: int,
+    prose_ranges: tuple[tuple[int, int], ...] = (),
 ) -> tuple[SyntaxSpan, ...]:
     """Return ``PROJECT_TAG`` spans for resolved ``+<project>`` tags.
 
     Uses the same tag tokenizer as the editor, against the warm catalog
     snapshot, so the pager styles exactly the tags launch would resolve.
-    Fails open to no spans when the catalog is cold. Never raises.
+    Only resolved tags emit spans (D3: unknown tags are plain text); each
+    tag splits into a ``dim`` sigil and a ``bold`` name in the project's
+    own accent, with a neutral dim style for accent-less projects (D6).
+    Spans are limited to top-level prose ranges, so fenced code and
+    frontmatter stay tag-free. Fails open to no spans when the catalog is
+    cold. Never raises (except ``SpanBudgetExceeded``).
     """
     try:
         from sase.xprompt.xprompt_inspect import tokenize
     except Exception:
         return ()
     try:
-        tag_spans = [
-            span
-            for span in tokenize(source)
-            if span.kind in ("project_tag", "project_tag_unknown")
-        ]
+        tag_spans = [span for span in tokenize(source) if span.kind == "project_tag"]
     except Exception:
         return ()
     spans: list[SyntaxSpan] = []
     try:
         for span in tag_spans:
+            if prose_ranges and not _in_prose(span.start, span.end, prose_ranges):
+                continue
+            name_start = getattr(span, "name_start", None)
+            if (
+                not isinstance(name_start, int)
+                or not span.start < name_start < span.end
+            ):
+                name_start = span.start + 1
+            accent = getattr(span, "accent", None)
+            if not isinstance(accent, str):
+                accent = None
+            sigil_style = f"dim {accent}" if accent else "dim"
+            name_style = f"bold {accent}" if accent else "dim"
             budget.append(
                 spans,
                 SyntaxSpan(
-                    offset + span.start, offset + span.end, SyntaxRole.PROJECT_TAG
+                    offset + span.start,
+                    offset + name_start,
+                    SyntaxRole.PROJECT_TAG,
+                    sigil_style,
+                ),
+            )
+            budget.append(
+                spans,
+                SyntaxSpan(
+                    offset + name_start,
+                    offset + span.end,
+                    SyntaxRole.PROJECT_TAG,
+                    name_style,
                 ),
             )
     except SpanBudgetExceeded:
@@ -156,6 +189,14 @@ def _project_tag_spans(
     except Exception:
         return tuple(spans)
     return tuple(spans)
+
+
+def _in_prose(start: int, end: int, prose_ranges: tuple[tuple[int, int], ...]) -> bool:
+    """Return whether ``[start, end)`` sits fully inside one prose range."""
+    for prose_start, prose_end in prose_ranges:
+        if prose_start <= start and end <= prose_end:
+            return True
+    return False
 
 
 def _lex_markdown_prose(

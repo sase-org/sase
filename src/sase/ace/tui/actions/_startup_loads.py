@@ -150,11 +150,14 @@ class StartupLoadsMixin:
             log.debug("No running event loop for project-tag catalog warm")
 
     def on_project_tag_catalog_warmed(self: Any, message: object) -> None:
-        """Repaint tag surfaces that rendered while the catalog was cold.
+        """Rebuild tag surfaces that rendered while the catalog was cold.
 
         Render and highlight caches already key on the catalog signature,
-        so one repaint per fresh snapshot is enough; repeat announcements
-        for an unchanged snapshot are ignored.
+        so one rebuild per fresh snapshot is enough; repeat announcements
+        for an unchanged snapshot are ignored. ``App.refresh()`` alone
+        only repaints the Screen: the agent detail is prebuilt ``Text``
+        set through ``update_display``, so it stays ``#`` until the
+        selection or data changes without an explicit rebuild.
         """
         del message
         try:
@@ -169,9 +172,98 @@ class StartupLoadsMixin:
             return
         self._project_tag_warm_refresh_signature = signature
         try:
+            refresh_detail = getattr(self, "_refresh_agent_focus_detail", None)
+            if callable(refresh_detail):
+                refresh_detail(render_immediate=False)
+        except Exception:  # noqa: BLE001 - teardown races degrade silently.
+            log.debug("Project-tag warmed detail rebuild failed", exc_info=True)
+        try:
+            self._refresh_warmed_tag_modals()
+        except Exception:  # noqa: BLE001 - teardown races degrade silently.
+            log.debug("Project-tag warmed modal refresh failed", exc_info=True)
+        try:
             self.refresh()
         except Exception:  # noqa: BLE001 - teardown races degrade silently.
             log.debug("Project-tag warmed refresh failed", exc_info=True)
+
+    def _refresh_warmed_tag_modals(self: Any) -> None:
+        """Rebuild open history/stash modals that cached cold tag text."""
+        screens: list[Any] = []
+        try:
+            stack = getattr(self, "screen_stack", None)
+            if stack:
+                screens.extend(list(stack))
+        except Exception:
+            pass
+        try:
+            current = getattr(self, "screen", None)
+            if current is not None and current not in screens:
+                screens.append(current)
+        except Exception:
+            pass
+        for screen in screens:
+            try:
+                self._refresh_one_warmed_tag_modal(screen)
+            except Exception:  # noqa: BLE001 - one modal never blocks others.
+                continue
+
+    def _refresh_one_warmed_tag_modal(self: Any, screen: Any) -> None:
+        """Re-humanize and repaint one open modal, if it shows tag text."""
+        # Prompt history caches humanized display text per row at page
+        # append time; cold rows stay ``#`` until re-humanized.
+        items = getattr(screen, "_all_items", None)
+        if isinstance(items, list) and items:
+            try:
+                from sase.project_display_names import humanize_vcs_refs_in_text
+
+                for index, item in enumerate(items):
+                    try:
+                        entry = getattr(item, "entry", None)
+                        text = getattr(entry, "text", None)
+                        if not isinstance(text, str):
+                            continue
+                        display = humanize_vcs_refs_in_text(text)
+                        try:
+                            data = dict(getattr(item, "__dict__", {}))
+                            data["display_text"] = display
+                            # Summaries cache the cold preview; drop it so
+                            # the next label rebuild summarizes warm text.
+                            if "summary" in data:
+                                data["summary"] = None
+                            items[index] = type(item)(**data)
+                        except Exception:
+                            # Frozen dataclass or NamedTuple shapes vary;
+                            # fall back to attribute assignment.
+                            try:
+                                item.display_text = display
+                            except Exception:
+                                continue
+                            try:
+                                item.summary = None
+                            except Exception:
+                                pass
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+            refresh_options = getattr(screen, "_refresh_options", None)
+            if callable(refresh_options):
+                try:
+                    refresh_options(preserve_highlight=True)
+                except TypeError:
+                    try:
+                        refresh_options()
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+                return
+        refresh_rows = getattr(screen, "_refresh_rows", None)
+        if callable(refresh_rows):
+            try:
+                refresh_rows()
+            except Exception:
+                pass
 
     def _arm_startup_deferred_fallback(self: Any) -> None:
         """Arm the bounded release that prevents hidden startup starvation."""
