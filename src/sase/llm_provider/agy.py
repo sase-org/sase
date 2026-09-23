@@ -324,7 +324,11 @@ class AgyProvider(LLMProvider):
 
     @hookimpl
     def llm_usage_capabilities(self) -> dict[str, object]:
-        return {"probe": True, "passive_events": False}
+        return {
+            "probe": True,
+            "passive_events": False,
+            "min_probe_interval_seconds": 120,
+        }
 
     @hookimpl
     def llm_usage_probe(self, context: UsageProbeContext) -> dict[str, object] | None:

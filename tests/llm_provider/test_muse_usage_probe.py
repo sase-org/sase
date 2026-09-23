@@ -114,6 +114,7 @@ def test_muse_provider_declares_usage_probe_capability() -> None:
     assert MuseProvider().llm_usage_capabilities() == {
         "probe": True,
         "passive_events": False,
+        "min_probe_interval_seconds": 180,
     }
 
 

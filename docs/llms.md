@@ -1122,7 +1122,10 @@ on provider name.
 
 `llm_usage_capabilities()` is static: it must not touch the network, spawn processes, or
 read credential files. The registry may cache it. Live observations from
-`llm_usage_probe` must never enter that cache.
+`llm_usage_probe` must never enter that cache. Plugins may declare
+`min_probe_interval_seconds` (finite, 60..=86400; out-of-range values are dropped) as
+the fastest automatic re-probe cadence. Shipped floors are claude 300, muse 180, and
+agy/grok/codex 120.
 
 `llm_usage_probe(context)` receives a typed context with schema version, deadline,
 resolved executable, opaque auth-context fingerprint, account generation, and operation
@@ -1162,10 +1165,13 @@ without hard-coding the initial three providers.
 `submit_usage_refresh` is the shared durable refresh service for CLI, sase's TUI, the
 scheduler, and limit-event triggers. It coalesces work per provider and account
 generation, joins in-flight probes without dropping other requested providers, and
-bounds automatic retries with cadence-based backoff. The scheduler submits due work from
-the `usage_refresh` job on the five-minute checks routine. sase's TUI requests the same
-due work after first paint and while open when the scheduler is absent. A normal TUI
-tick never probes inline.
+bounds automatic retries with cadence-based backoff. Automatic admission passes
+`adaptive=True` with each provider's floor and CLI fingerprint; parked providers unpark
+early when the CLI changes. Limit events only mark the provider due — they never submit
+an explicit probe, so the next routine tick picks the provider up subject to its floor.
+The scheduler submits due work from the `usage_refresh` job on the five-minute checks
+routine. sase's TUI requests the same due work after first paint and while open when the
+scheduler is absent. A normal TUI tick never probes inline.
 
 ## Configuration
 

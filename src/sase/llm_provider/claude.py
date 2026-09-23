@@ -291,7 +291,11 @@ class ClaudeCodeProvider(LLMProvider):
 
     @hookimpl
     def llm_usage_capabilities(self) -> dict[str, object]:
-        return {"probe": True, "passive_events": True}
+        return {
+            "probe": True,
+            "passive_events": True,
+            "min_probe_interval_seconds": 300,
+        }
 
     @hookimpl
     def llm_usage_probe(self, context: UsageProbeContext) -> dict[str, object] | None:

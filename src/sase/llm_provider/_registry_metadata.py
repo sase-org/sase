@@ -109,14 +109,42 @@ def provider_metadata(name: str, plugin: object) -> dict[str, Any]:
     }
 
 
-def _usage_capabilities(value: Any) -> dict[str, bool]:
-    """Normalize static usage capability flags. Unknown keys are dropped."""
+MIN_USAGE_PROBE_INTERVAL_SECONDS = 60.0
+MAX_USAGE_PROBE_INTERVAL_SECONDS = 86_400.0
+
+
+def _usage_capabilities(value: Any) -> dict[str, Any]:
+    """Normalize static usage capability flags and the probe floor.
+
+    Unknown keys are dropped. ``min_probe_interval_seconds`` survives only
+    when finite and in [60, 86400]; anything else is dropped so a broken
+    third-party floor can never widen or disable provider protection.
+    """
     if not isinstance(value, dict):
         return {"probe": False, "passive_events": False}
-    return {
+    capabilities: dict[str, Any] = {
         "probe": value.get("probe") is True,
         "passive_events": value.get("passive_events") is True,
     }
+    floor = _usage_probe_floor_value(value.get("min_probe_interval_seconds"))
+    if floor is not None:
+        capabilities["min_probe_interval_seconds"] = floor
+    return capabilities
+
+
+def _usage_probe_floor_value(value: Any) -> float | None:
+    """Return *value* when it is a usable probe floor, else None."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    number = float(value)
+    if (
+        number != number
+        or number in (float("inf"), float("-inf"))
+        or number < MIN_USAGE_PROBE_INTERVAL_SECONDS
+        or number > MAX_USAGE_PROBE_INTERVAL_SECONDS
+    ):
+        return None
+    return number
 
 
 def _call_optional(plugin: object, method_name: str) -> Any:

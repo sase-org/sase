@@ -355,7 +355,11 @@ class CodexProvider(LLMProvider):
     def llm_usage_capabilities(self) -> dict[str, object]:
         # Normal `codex exec --json` token events are not subscription
         # capacity (epic sase-y5 plan); collection is probe-only.
-        return {"probe": True, "passive_events": False}
+        return {
+            "probe": True,
+            "passive_events": False,
+            "min_probe_interval_seconds": 120,
+        }
 
     @hookimpl
     def llm_usage_probe(self, context: UsageProbeContext) -> dict[str, object] | None:

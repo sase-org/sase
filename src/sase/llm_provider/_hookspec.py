@@ -214,8 +214,11 @@ class LLMHookSpec:
 
         Return ``{"probe": True}`` when ``llm_usage_probe`` is implemented,
         and ``{"passive_events": True}`` when the provider can emit fenced
-        stream observations. Omitting the hook means unsupported. The registry
-        may cache this result; it must never include live observations.
+        stream observations. ``min_probe_interval_seconds`` declares the
+        fastest automatic re-probe cadence in seconds (finite, 60..=86400;
+        out-of-range values are dropped). Omitting the hook means
+        unsupported. The registry may cache this result; it must never
+        include live observations.
         """
         ...
 

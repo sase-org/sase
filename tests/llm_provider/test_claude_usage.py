@@ -520,7 +520,11 @@ def test_claude_provider_exposes_usage_probe_hook(
     runner = _runner(
         usage_text="Current session: 10% used - resets Sep 7, 6:30pm (America/New_York)"
     )
-    assert provider.llm_usage_capabilities() == {"probe": True, "passive_events": True}
+    assert provider.llm_usage_capabilities() == {
+        "probe": True,
+        "passive_events": True,
+        "min_probe_interval_seconds": 300,
+    }
 
     with patch(
         "sase.llm_provider.usage.claude._run_claude_command",

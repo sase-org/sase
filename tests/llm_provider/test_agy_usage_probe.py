@@ -150,6 +150,7 @@ def test_agy_provider_declares_usage_probe_capability() -> None:
     assert AgyProvider().llm_usage_capabilities() == {
         "probe": True,
         "passive_events": False,
+        "min_probe_interval_seconds": 120,
     }
 
 

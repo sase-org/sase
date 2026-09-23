@@ -46,9 +46,25 @@ def load_provider_usage(
     cadence_seconds: float = DEFAULT_USAGE_CADENCE_SECONDS,
     warn_percent: float = DEFAULT_USAGE_WARN_PERCENT,
     critical_percent: float = DEFAULT_USAGE_CRITICAL_PERCENT,
+    provider_min_intervals: Mapping[str, float] | None = None,
 ) -> ProviderUsageStoreRead:
-    """Load the public usage snapshot without repairing or rewriting state."""
+    """Load the public usage snapshot without repairing or rewriting state.
+
+    Per-provider freshness uses ``max(cadence, floor)``. When
+    *provider_min_intervals* is None the current plugin floors are used; pass
+    an explicit (possibly empty) mapping to override them, e.g. ``{}`` for
+    legacy freshness.
+    """
     current = time.time() if now is None else now
+    if provider_min_intervals is None:
+        try:
+            from sase.llm_provider.usage._probe_meta import usage_probe_floors
+
+            floors: dict[str, float] | None = usage_probe_floors()
+        except Exception:
+            floors = None
+    else:
+        floors = dict(provider_min_intervals)
     binding = require_rust_binding("provider_usage_load")
     return ProviderUsageStoreRead.from_wire(
         binding(
@@ -57,6 +73,7 @@ def load_provider_usage(
             cadence_seconds,
             warn_percent,
             critical_percent,
+            floors,
         )
     )
 
@@ -278,6 +295,9 @@ def evaluate_provider_usage_refresh_due(
     *,
     cadence_seconds: float = DEFAULT_USAGE_CADENCE_SECONDS,
     explicit: bool = False,
+    adaptive: bool = False,
+    min_interval_seconds: float | None = None,
+    cli_fingerprint: str | None = None,
     now: float | None = None,
 ) -> ProviderUsageRefreshDueOutcome:
     """Return whether *provider* is due without reserving work."""
@@ -288,6 +308,14 @@ def evaluate_provider_usage_refresh_due(
         raise ValueError("cadence_seconds must be a finite positive number")
     if type(explicit) is not bool:
         raise ValueError("explicit must be a boolean")
+    if type(adaptive) is not bool:
+        raise ValueError("adaptive must be a boolean")
+    if min_interval_seconds is not None and not is_finite_number(min_interval_seconds):
+        raise ValueError("min_interval_seconds must be a finite number")
+    if cli_fingerprint is not None and (
+        not isinstance(cli_fingerprint, str) or not cli_fingerprint.strip()
+    ):
+        raise ValueError("cli_fingerprint must be a non-empty string")
     current = time.time() if now is None else now
     binding = require_rust_binding("provider_usage_refresh_due")
     return ProviderUsageRefreshDueOutcome.from_wire(
@@ -299,6 +327,15 @@ def evaluate_provider_usage_refresh_due(
                 "account_generation": account_generation,
                 "cadence_seconds": float(cadence_seconds),
                 "explicit": explicit,
+                "adaptive": adaptive,
+                "min_interval_seconds": (
+                    None
+                    if min_interval_seconds is None
+                    else float(min_interval_seconds)
+                ),
+                "cli_fingerprint": (
+                    None if cli_fingerprint is None else cli_fingerprint.strip()
+                ),
             },
             current,
         )
@@ -314,6 +351,9 @@ def admit_provider_usage_refresh(
     *,
     cadence_seconds: float = DEFAULT_USAGE_CADENCE_SECONDS,
     explicit: bool = False,
+    adaptive: bool = False,
+    min_interval_seconds: float | None = None,
+    cli_fingerprint: str | None = None,
     now: float | None = None,
 ) -> ProviderUsageRefreshAdmitOutcome:
     """Admit, join, or defer refresh work for one provider/account generation."""
@@ -327,6 +367,14 @@ def admit_provider_usage_refresh(
         raise ValueError("cadence_seconds must be a finite positive number")
     if type(explicit) is not bool:
         raise ValueError("explicit must be a boolean")
+    if type(adaptive) is not bool:
+        raise ValueError("adaptive must be a boolean")
+    if min_interval_seconds is not None and not is_finite_number(min_interval_seconds):
+        raise ValueError("min_interval_seconds must be a finite number")
+    if cli_fingerprint is not None and (
+        not isinstance(cli_fingerprint, str) or not cli_fingerprint.strip()
+    ):
+        raise ValueError("cli_fingerprint must be a non-empty string")
     current = time.time() if now is None else now
     binding = require_rust_binding("provider_usage_admit_refresh")
     return ProviderUsageRefreshAdmitOutcome.from_wire(
@@ -340,6 +388,15 @@ def admit_provider_usage_refresh(
                 "ttl_seconds": float(ttl_seconds),
                 "cadence_seconds": float(cadence_seconds),
                 "explicit": explicit,
+                "adaptive": adaptive,
+                "min_interval_seconds": (
+                    None
+                    if min_interval_seconds is None
+                    else float(min_interval_seconds)
+                ),
+                "cli_fingerprint": (
+                    None if cli_fingerprint is None else cli_fingerprint.strip()
+                ),
             },
             current,
         )

@@ -219,11 +219,23 @@ def _finish_job(
     *,
     reason_code: str | None = None,
     retry_after_seconds: float | None = None,
+    min_interval_seconds: float | None = None,
+    cli_fingerprint: str | None = None,
 ) -> None:
     provider = str(job.get("provider") or "")
     context_id = str(job.get("context_id") or "default")
     generation = int(job.get("account_generation") or 1)
     lease_id = job.get("lease_id")
+    floor = (
+        min_interval_seconds
+        if min_interval_seconds is not None
+        else _optional_seconds(job.get("min_interval_seconds"))
+    )
+    fingerprint = cli_fingerprint
+    if fingerprint is None:
+        raw_fingerprint = job.get("cli_fingerprint")
+        if isinstance(raw_fingerprint, str) and raw_fingerprint.strip():
+            fingerprint = raw_fingerprint.strip()
     try:
         record_provider_usage_refresh_attempt(
             provider,
@@ -233,6 +245,8 @@ def _finish_job(
             cadence_seconds=cadence,
             reason_code=reason_code,
             retry_after_seconds=retry_after_seconds,
+            min_interval_seconds=floor,
+            cli_fingerprint=fingerprint,
             adaptive=True,
             now=now,
         )

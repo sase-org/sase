@@ -165,7 +165,11 @@ def _dispatch_disable_followup(
 def _trigger_usage_refresh_after_limit(
     provider: str, outcome: ProviderDisableWriteOutcome
 ) -> None:
-    """Best-effort due mark and coalesced refresh after a usage-limit disable."""
+    """Best-effort due mark after a usage-limit disable.
+
+    Limit events never submit a probe; the next routine tick picks the
+    provider up subject to its polling floor.
+    """
     try:
         from sase.llm_provider.usage.refresh import (
             trigger_usage_refresh_after_limit_event,

@@ -22,7 +22,6 @@ from sase.llm_provider.usage.store import (
     evaluate_provider_usage_refresh_due,
     record_provider_usage_observation,
     record_provider_usage_refresh_attempt,
-    release_provider_usage_refresh,
 )
 from sase.procs import ProcSubmitRequest
 from sase.testing.usage_synthetic import SYNTHETIC_PLUGIN_SPEC
@@ -114,6 +113,9 @@ def usage_home(monkeypatch: pytest.MonkeyPatch, tmp_path) -> dict[str, object]:
         cadence_seconds: float = 300.0,
         explicit: bool = False,
         now: float | None = None,
+        adaptive: bool = False,
+        min_interval_seconds: float | None = None,
+        cli_fingerprint: str | None = None,
     ) -> ProviderUsageRefreshAdmitOutcome:
         key = (provider, context_id, account_generation)
         existing = reserved.get(key)
@@ -261,12 +263,23 @@ def test_limit_event_trigger_marks_due_and_submits(
             submitted.append(request) or SimpleNamespace(proc_id=request.proc_id)
         ),
     )
+    marked: list[tuple[str, str]] = []
+    import sase.llm_provider.usage.refresh as refresh_mod
+
+    real_mark = refresh_mod._mark_usage_refresh_due
+
+    def _capture_mark(provider: str, reason: str, **kwargs: object) -> None:
+        marked.append((provider, reason))
+        return real_mark(provider, reason, **kwargs)
+
+    monkeypatch.setattr(refresh_mod, "_mark_usage_refresh_due", _capture_mark)
     receipt = trigger_usage_refresh_after_limit_event(
         "synth", expires_at=1_800_000_100.0
     )
-    assert receipt is not None
-    assert submitted[0].origin == "limit_event"
-    assert receipt.providers[0].provider == "synth"
+    assert receipt is None
+    assert submitted == []
+    assert ("synth", "limit_event") in marked
+    assert ("synth", "disable_expiry") in marked
 
 
 def test_limit_event_future_expiry_does_not_block_next_cadence(
@@ -302,11 +315,8 @@ def test_limit_event_future_expiry_does_not_block_next_cadence(
     trigger_receipt = trigger_usage_refresh_after_limit_event(
         "synth", expires_at=disable_expiry, now=limit_now
     )
-    assert trigger_receipt is not None
-    trigger_result = trigger_receipt.providers[0]
-    assert trigger_result.status == "reserved"
-    assert trigger_result.lease_id is not None
-    assert submitted[-1].origin == "limit_event"
+    assert trigger_receipt is None
+    assert submitted == []
 
     record_provider_usage_observation(
         _usage_observation(
@@ -327,13 +337,6 @@ def test_limit_event_future_expiry_does_not_block_next_cadence(
     )
     assert schedule["due_at"] == pytest.approx(disable_expiry)
     assert schedule["due_reason"] == "disable_expiry"
-    release_provider_usage_refresh(
-        "synth",
-        trigger_result.context_id,
-        trigger_result.account_generation,
-        trigger_result.lease_id,
-        now=reset_now + 1.0,
-    )
 
     fresh = evaluate_provider_usage_refresh_due(
         "synth",
@@ -358,11 +361,13 @@ def test_limit_event_future_expiry_does_not_block_next_cadence(
     assert due.due is True
     assert due.reason == "cadence"
 
+    # The shared submit path is adaptive and jitters cadence by ±10%, so
+    # advance past the jitter band to assert the automatic pickup.
     automatic_receipt = submit_usage_refresh(
         ("synth",),
         explicit=False,
         origin="axe",
-        now=reset_now + 300.0,
+        now=reset_now + 330.0,
         plugin_specs={"synth": SYNTHETIC_PLUGIN_SPEC},
     )
     assert automatic_receipt.providers[0].status == "reserved"

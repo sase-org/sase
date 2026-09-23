@@ -70,6 +70,7 @@ def test_codex_capabilities_are_probe_only() -> None:
     assert CodexProvider().llm_usage_capabilities() == {
         "probe": True,
         "passive_events": False,
+        "min_probe_interval_seconds": 120,
     }
 
 

@@ -12,6 +12,9 @@ def test_usage_facade_rehydrates_store_envelopes(
     tmp_path,
 ) -> None:
     monkeypatch.setenv("SASE_HOME", str(tmp_path))
+    import sase.llm_provider.usage._probe_meta as probe_meta
+
+    monkeypatch.setattr(probe_meta, "usage_probe_floors", lambda: {"claude": 300.0})
     calls: list[tuple[str, object]] = []
 
     def provider_usage_state_path(home: str) -> str:
@@ -24,11 +27,19 @@ def test_usage_facade_rehydrates_store_envelopes(
         cadence_seconds: float,
         warn_percent: float,
         critical_percent: float,
+        provider_min_intervals: object = None,
     ) -> dict[str, object]:
         calls.append(
             (
                 "load",
-                (home, now, cadence_seconds, warn_percent, critical_percent),
+                (
+                    home,
+                    now,
+                    cadence_seconds,
+                    warn_percent,
+                    critical_percent,
+                    provider_min_intervals,
+                ),
             )
         )
         return {
@@ -204,7 +215,9 @@ def test_usage_facade_rehydrates_store_envelopes(
         now=127.0,
     )
 
-    assert calls[1] == ("load", (str(tmp_path), 123.0, 300.0, 75.0, 90.0))
+    assert calls[1][0] == "load"
+    assert calls[1][1][:5] == (str(tmp_path), 123.0, 300.0, 75.0, 90.0)
+    assert calls[1][1][5] == {"claude": 300.0}
     assert calls[-2][0] == "reserve"
     assert calls[-1] == (
         "release",

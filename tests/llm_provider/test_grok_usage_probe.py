@@ -106,6 +106,7 @@ def test_grok_provider_declares_usage_probe_capability() -> None:
     assert GrokProvider().llm_usage_capabilities() == {
         "probe": True,
         "passive_events": False,
+        "min_probe_interval_seconds": 120,
     }
 
 

@@ -13,6 +13,11 @@ from pathlib import Path
 from typing import Any
 
 from sase.core.paths import sase_home
+from sase.llm_provider.usage._probe_meta import (
+    usage_cli_fingerprint,
+    usage_probe_floor,
+    usage_probe_floors,
+)
 from sase.llm_provider.usage.config import (
     collection_skip_reason,
     get_usage_metrics_settings,
@@ -37,7 +42,7 @@ USAGE_REFRESH_PROVIDER_DEADLINE_SECONDS = 20.0
 USAGE_REFRESH_BATCH_DEADLINE_SECONDS = 45.0
 USAGE_REFRESH_LEASE_TTL_SECONDS = 75.0
 USAGE_REFRESH_CONTEXT_ID = "default"
-USAGE_REFRESH_ORIGINS = ("ace", "axe", "cli", "limit_event")
+USAGE_REFRESH_ORIGINS = ("ace", "axe", "cli")
 
 _RUNNER_MODULE = "sase.llm_provider.usage.refresh_runner"
 
@@ -255,8 +260,12 @@ def trigger_usage_refresh_after_limit_event(
     *,
     expires_at: float | None = None,
     now: float | None = None,
-) -> UsageRefreshReceipt | None:
-    """Best-effort due mark and submit after a usage-limit disable."""
+) -> None:
+    """Best-effort due mark after a usage-limit disable.
+
+    Limit events only mark the provider due; the next routine tick picks it
+    up subject to its polling floor. They never submit an explicit probe.
+    """
     try:
         _mark_usage_refresh_due(provider, "limit_event", now=now)
         if expires_at is not None:
@@ -266,15 +275,9 @@ def trigger_usage_refresh_after_limit_event(
                 due_at=expires_at,
                 now=now,
             )
-        return submit_usage_refresh(
-            (provider,),
-            explicit=True,
-            origin="limit_event",
-            now=now,
-        )
     except Exception:
         log.debug("usage-limit refresh trigger failed for %r", provider, exc_info=True)
-        return None
+    return None
 
 
 def eligible_usage_providers(*, include_hidden: bool = False) -> tuple[str, ...]:
@@ -329,6 +332,8 @@ def _admit_one(
     context = prepare_provider_usage_account_context(
         provider, USAGE_REFRESH_CONTEXT_ID, now=now
     )
+    floor = usage_probe_floor(provider)
+    fingerprint = usage_cli_fingerprint(provider)
     if not explicit:
         due = evaluate_provider_usage_refresh_due(
             provider,
@@ -336,6 +341,9 @@ def _admit_one(
             context.account_generation,
             cadence_seconds=cadence_seconds,
             explicit=False,
+            adaptive=True,
+            min_interval_seconds=floor,
+            cli_fingerprint=fingerprint,
             now=now,
         )
         if not due.due:
@@ -355,6 +363,9 @@ def _admit_one(
         USAGE_REFRESH_LEASE_TTL_SECONDS,
         cadence_seconds=cadence_seconds,
         explicit=explicit,
+        adaptive=True,
+        min_interval_seconds=floor,
+        cli_fingerprint=fingerprint,
         now=now,
     )
     reservation = admitted.reservation
@@ -400,6 +411,8 @@ def _submit_started_proc(
                 "lease_id": item.lease_id,
                 "plugin_spec": plugin_specs.get(item.provider),
                 "provider": item.provider,
+                "min_interval_seconds": usage_probe_floor(item.provider),
+                "cli_fingerprint": usage_cli_fingerprint(item.provider),
             }
             for item in started
         ],
@@ -528,6 +541,7 @@ __all__ = [
     "USAGE_REFRESH_CONTEXT_ID",
     "USAGE_REFRESH_LEASE_TTL_SECONDS",
     "USAGE_REFRESH_OPERATION",
+    "USAGE_REFRESH_ORIGINS",
     "USAGE_REFRESH_PROVIDER_DEADLINE_SECONDS",
     "USAGE_REFRESH_RECEIPT_SCHEMA_VERSION",
     "UsageRefreshReceipt",
@@ -535,4 +549,7 @@ __all__ = [
     "request_due_usage_refresh",
     "submit_usage_refresh",
     "trigger_usage_refresh_after_limit_event",
+    "usage_cli_fingerprint",
+    "usage_probe_floor",
+    "usage_probe_floors",
 ]

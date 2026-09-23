@@ -289,7 +289,11 @@ class MuseProvider(LLMProvider):
 
     @hookimpl
     def llm_usage_capabilities(self) -> dict[str, object]:
-        return {"probe": True, "passive_events": False}
+        return {
+            "probe": True,
+            "passive_events": False,
+            "min_probe_interval_seconds": 180,
+        }
 
     @hookimpl
     def llm_usage_probe(self, context: UsageProbeContext) -> dict[str, object] | None:
