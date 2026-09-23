@@ -24,6 +24,9 @@ from tests.ace.tui.visual._ace_png_snapshot_helpers import (
 from tests.ace.tui.visual._ace_prompt_png_snapshot_glossary_fixtures import (
     patch_visual_glossary_catalog,
 )
+from tests.ace.tui.visual._ace_prompt_png_snapshot_project_tag_fixtures import (
+    patch_visual_project_tag_catalog,
+)
 from tests.ace.tui.visual._ace_prompt_png_snapshot_repo_mention_fixtures import (
     patch_visual_repo_mention_catalog,
 )
@@ -141,6 +144,103 @@ async def test_agents_xprompt_panel_highlighting_png_snapshot(
             "sase_plan",
             "Agent Clan",
             "sase-core",
+        ):
+            assert_page_svg_contains(page, token)
+        ace_png_visual.assert_page_png(
+            page,
+            snapshot_name,
+            title=title,
+        )
+
+
+def _xprompt_tag_highlight_agent(artifacts_dir: Path) -> Agent:
+    artifacts_dir.mkdir()
+    (artifacts_dir / "raw_xprompt.md").write_text(
+        "+sase %auto #pr:my_change Ask Agent Clan; run `checks`\n"
+        "+home summarize the fresh-machine bootstrap\n"
+        "---\n"
+        "+no-such-project stays a warning use /sase_plan inspect sase-core",
+        encoding="utf-8",
+    )
+    (artifacts_dir / "01_prompt.md").write_text(
+        "Ask the Agent Clan to inspect sase-core before the Patch handoff.\n",
+        encoding="utf-8",
+    )
+    return Agent(
+        agent_type=AgentType.RUNNING,
+        cl_name="visual-xprompt-tag-highlight",
+        project_file="/workspace/sase/visual_project.sase",
+        status="RUNNING",
+        start_time=datetime(2026, 7, 16, 15, 30, 0),
+        raw_suffix="20260716153000",
+        agent_name="visual.xprompt-tag-highlight",
+        artifacts_dir=str(artifacts_dir),
+    )
+
+
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        (
+            "textual-dark",
+            "agents_xprompt_panel_tag_highlighting_120x40",
+            "ACE agents xprompt panel tag highlighting",
+        ),
+        (
+            "textual-light",
+            "agents_xprompt_panel_tag_highlighting_light_120x40",
+            "ACE agents xprompt panel tag highlighting, light theme",
+        ),
+    ],
+)
+async def test_agents_xprompt_panel_tag_highlighting_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    theme: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    agent = _xprompt_tag_highlight_agent(tmp_path / "xprompt-tag-artifacts")
+    patch_startup_loaders(monkeypatch, agents=[agent])
+    patch_visual_glossary_catalog(monkeypatch)
+    patch_visual_repo_mention_catalog(monkeypatch)
+    patch_visual_project_tag_catalog(monkeypatch)
+
+    def _entries(
+        _app: AceApp,
+        _project: str | None,
+        *,
+        schedule: bool = True,
+    ) -> list[XPromptAssistEntry]:
+        del schedule
+        return [_SKILL_ENTRY]
+
+    monkeypatch.setattr(AceApp, "get_prompt_catalog_assist_entries", _entries)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        page.app.theme = theme
+        await wait_for_startup(page)
+        await page.press("shift+tab")
+        await page.expect_state("tab", "agents")
+        await page.expect_state("agent_count", 1)
+        await wait_for_svg_contains(page, "AGENT XPROMPT")
+        await wait_for_svg_contains(page, "sase_plan")
+        await wait_for_svg_contains(page, "Agent Clan")
+        await wait_for_svg_contains(page, "sase-core")
+        await wait_for_svg_contains(page, "sase")
+        await wait_for_visual_idle(page)
+
+        for token in (
+            "sase",
+            "home",
+            "no-such-project",
+            "%auto",
+            "#pr",
+            "AGENT XPROMPT",
+            "Agent Clan",
+            "sase-core",
+            "sase_plan",
         ):
             assert_page_svg_contains(page, token)
         ace_png_visual.assert_page_png(

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import Counter
+
 import pytest
 
 from sase.ace.testing import AcePage
@@ -35,12 +37,16 @@ from tests.ace.tui.visual._ace_prompt_png_snapshot_prompts import (
     SEARCH_PROMPT,
     TODO_HIGHLIGHT_STACK,
     TODO_RESTORED_PROMPT,
+    PROJECT_TAG_HIGHLIGHT_SOLO,
     XPROMPT_ARGUMENT_HIGHLIGHT,
     XPROMPT_HIGHLIGHT_SOLO,
     XPROMPT_HIGHLIGHT_STACK,
 )
 from tests.ace.tui.visual._ace_prompt_png_snapshot_repo_mention_fixtures import (
     patch_visual_repo_mention_catalog,
+)
+from tests.ace.tui.visual._ace_prompt_png_snapshot_project_tag_fixtures import (
+    patch_visual_project_tag_catalog,
 )
 from tests.ace.tui.visual._ace_prompt_png_snapshot_xprompt_fixtures import (
     patch_visual_skill_catalog,
@@ -338,6 +344,66 @@ async def test_prompt_xprompt_highlight_stack_png_snapshot(
             "prompt_xprompt_highlight_stack_120x40",
             title="ACE prompt stack — xprompt highlighting",
         )
+
+
+@pytest.mark.parametrize(
+    ("theme", "snapshot_name", "title"),
+    [
+        (
+            "textual-dark",
+            "prompt_project_tag_highlight_dark_120x40",
+            "ACE prompt input — project tag highlighting, dark theme",
+        ),
+        (
+            "textual-light",
+            "prompt_project_tag_highlight_light_120x40",
+            "ACE prompt input — project tag highlighting, light theme",
+        ),
+    ],
+)
+async def test_prompt_project_tag_highlight_png_snapshot(
+    ace_png_visual: AcePngSnapshotFixture,
+    monkeypatch: pytest.MonkeyPatch,
+    theme: str,
+    snapshot_name: str,
+    title: str,
+) -> None:
+    patch_startup_loaders(monkeypatch)
+    patch_visual_skill_catalog(monkeypatch)
+    patch_visual_project_tag_catalog(monkeypatch)
+
+    async with AcePage(query='"visual"', patches=patches()) as page:
+        page.app.theme = theme
+        await wait_for_startup(page)
+        await page.press(page.artifacts_digit("patches"))
+        await page.expect_state("artifacts_subtab", "patches")
+        await page.expect_state("tab", "patches")
+        bar = await mount_prompt_bar(page, PROJECT_TAG_HIGHLIGHT_SOLO)
+        text_area = bar.active_text_area()
+        await wait_for_visual_idle(page)
+
+        names = [
+            name for row in text_area._highlights.values() for *_range, name in row
+        ]
+        counts = Counter(names)
+        accent_sigils = [
+            name
+            for name in names
+            if name.startswith("project_tag.sigil.")
+            and name != "project_tag.sigil.neutral"
+        ]
+        accent_names = [
+            name
+            for name in names
+            if name.startswith("project_tag.name.")
+            and name != "project_tag.name.neutral"
+        ]
+        assert len(accent_sigils) == 1, names  # +sase keeps its accent
+        assert len(accent_names) == 1, names
+        assert counts["project_tag.sigil.neutral"] == 2, names  # +home, +oldproj
+        assert counts["project_tag.name.neutral"] == 2, names
+        assert counts["project_tag.unknown"] == 1, names  # +no-such-project
+        ace_png_visual.assert_page_png(page, snapshot_name, title=title)
 
 
 @pytest.mark.parametrize(

@@ -70,6 +70,13 @@ XPROMPT_HIGHLIGHT_STACK = (
     "---\n"
     "%{%m:opus | %m:sonnet} #git:home summarize the fix use /sase_plan"
 )
+PROJECT_TAG_HIGHLIGHT_SOLO = (
+    "+sase %auto fix the prompt tag rendering use /sase_plan\n"
+    "+home summarize the fresh-machine bootstrap\n"
+    "+oldproj renders neutral while disabled\n"
+    "+no-such-project stays a warning\n"
+    "```text\n+literal stays inert here\n```"
+)
 XPROMPT_ARGUMENT_HIGHLIGHT = (
     "#visual(path=src/app.py)\n"
     '#visual_batch(owner, title="release notes", count=42, enabled=true)\n'

@@ -120,6 +120,22 @@ def _stub_projects_loader(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _pin_visual_project_tag_catalog(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the fixture tag catalog so goldens ignore host projects and order.
+
+    The catalog snapshot is process-global and the TUI warms it off-thread at
+    startup from the real projects directory. Pinning the fixed visual catalog
+    (and stubbing the loader so background warm cannot overwrite it) keeps
+    every snapshot deterministic; monkeypatch restores the cache afterwards.
+    """
+    from tests.ace.tui.visual._ace_prompt_png_snapshot_project_tag_fixtures import (
+        patch_visual_project_tag_catalog,
+    )
+
+    patch_visual_project_tag_catalog(monkeypatch)
+
+
+@pytest.fixture(autouse=True)
 def _stub_plugin_incoming_commits(monkeypatch: pytest.MonkeyPatch) -> None:
     """Keep visual snapshots from shelling out to ``gh api``."""
     from sase.ace.tui.modals import plugins_browser_pane as pbp
