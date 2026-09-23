@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from textual.events import Key
 from textual.widgets import Input
@@ -61,6 +61,9 @@ from ._link_follow_types import (
     LinkTrailHop,
     _link_follow_outcomes,
 )
+
+if TYPE_CHECKING:
+    from ..widgets.artifacts.entry_navigation import LinkRequestState
 
 
 class _LinkFollowPanelMixin:
@@ -227,6 +230,7 @@ class LinkFollowMixin(
     _link_follow_generation: int
     _link_follow_transaction: LinkFollowTransaction | None
     _link_follow_dispatching: bool
+    _link_follow_dispatch_slot: tuple[int, LinkRequestState] | None
     _link_reveals: dict[str, LinkReveal]
     _link_hydration_waiters: dict[tuple[str, str], int]
     _link_hydration_in_flight: set[tuple[str, str]]

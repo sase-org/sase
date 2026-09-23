@@ -255,24 +255,6 @@ class FilesOptionsMixin(_MixinBase):
                     changed = True
         return changed
 
-    def host_query_row_for_target(self, target: ArtifactEntryTarget) -> dict | None:
-        """Return the unfiltered Files query row backing *target*."""
-        if target.pane_id != "files" or not target.parts:
-            return None
-        snapshot = self._current_snapshot()
-        if snapshot is None:
-            return None
-        from .query_rows import file_query_entry
-
-        logical_id = target.parts[0]
-        for row in snapshot.rows:
-            if row.logical_id == logical_id:
-                return file_query_entry(
-                    row,
-                    project_ref_display=self._project_ref_display,
-                )
-        return None
-
     def _pending_entry_resolution_complete(self) -> bool:
         if self._loading or self._loading_full:
             return False

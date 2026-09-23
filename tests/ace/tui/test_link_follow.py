@@ -41,7 +41,8 @@ def test_action_double_dollar_follows_first_link_and_records_origin() -> None:
     assert app.current_tab == "artifacts"
     assert app.current_artifacts_pane_key == "beads"
     assert app._artifacts_entry_navigator("beads").selected_entry_target() == target
-    assert app.artifacts_project_scope == "demo"
+    # An All-projects scope is never narrowed by a follow.
+    assert app.artifacts_project_scope is None
     assert len(app._link_trail) == 1
     assert app._link_trail[0].origin == origin
 

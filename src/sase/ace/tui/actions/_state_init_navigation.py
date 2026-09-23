@@ -103,6 +103,7 @@ def init_navigation_state(self: Any) -> None:
     self._link_follow_generation = 0
     self._link_follow_transaction = None
     self._link_follow_dispatching = False
+    self._link_follow_dispatch_slot = None
     # Targeted-hydration coalescing state, keyed by (pane_id, ref): the
     # generation currently waiting on each in-flight blocking lookup, and
     # which lookups are still running.

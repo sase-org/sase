@@ -334,36 +334,6 @@ class BeadsOptionsMixin(_MixinBase):
         except Exception:
             pass
 
-    def expand_fold_for_entry_target(self, target: ArtifactEntryTarget) -> bool:
-        """Expand the epic fold hiding a pending phase target."""
-        if not self._expand_parent_for_target(target):
-            return False
-        self._refresh_options()
-        return True
-
-    def host_query_row_for_target(
-        self, target: ArtifactEntryTarget
-    ) -> dict[str, Any] | None:
-        """Return the unfiltered Beads query row backing *target*."""
-        snapshot = self._snapshot
-        index = getattr(self, "_filter_index", None)
-        if (
-            snapshot is None
-            or index is None
-            or target.pane_id != "beads"
-            or len(target.parts) < 3
-        ):
-            return None
-        from .beads_list import row_option_id
-        from .query_rows import bead_query_entry
-
-        project, kind, bead_id = target.parts[0], target.parts[1], target.parts[2]
-        option_id = row_option_id(snapshot, kind, project, bead_id)  # type: ignore[arg-type]
-        record = index.by_option_id.get(option_id)
-        if record is None:
-            return None
-        return bead_query_entry(record)
-
     def _expand_parent_for_pending_target(self) -> None:
         target = self._pending_entry_target
         if target is not None:

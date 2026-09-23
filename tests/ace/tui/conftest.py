@@ -22,9 +22,11 @@ def _reset_ace_shutdown_signal() -> Iterator[None]:
 
 @pytest.fixture(autouse=True)
 def _reset_link_follow_outcome_counts() -> Iterator[None]:
+    saved = link_follow._link_follow_outcomes.copy()
     link_follow._link_follow_outcomes.clear()
     yield
     link_follow._link_follow_outcomes.clear()
+    link_follow._link_follow_outcomes.update(saved)
 
 
 @pytest.fixture(autouse=True)

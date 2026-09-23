@@ -107,6 +107,12 @@ class BeadsNavigationMixin(_MixinBase):
     _conditional_footer_signature: tuple[tuple[str, str], ...] | None
     _pending_entry_target: ArtifactEntryTarget | None
     _pending_entry_generation: int | None
+    _query_profile: Any
+    _query_index: Any
+    _filter_index: Any
+    _filter_index_source_key: Any
+    _query_session: Any
+    _load_generation: int
 
     if TYPE_CHECKING:
 
@@ -118,6 +124,10 @@ class BeadsNavigationMixin(_MixinBase):
             preferred_id: str | None = None,
             update_detail: bool = True,
         ) -> None: ...
+
+        def _expand_parent_for_target(self, target: ArtifactEntryTarget) -> bool: ...
+
+        def _refresh_for_entry_request(self, refresh: Any) -> LinkRequestState: ...
 
         def refresh_relation_panel(self, *, refresh_footer: bool = True) -> Any: ...
 
@@ -253,12 +263,42 @@ class BeadsNavigationMixin(_MixinBase):
         self._pending_entry_target = target
         self._pending_entry_generation = generation
         if self._snapshot is not None and self._snapshot.project == self.project_scope:
-            self._refresh_options()
+            return self._refresh_for_entry_request(self._refresh_options)
         return LinkRequestState.PENDING
 
     def clear_pending_entry_target(self) -> None:
         self._pending_entry_target = None
         self._pending_entry_generation = None
+
+    def expand_fold_for_entry_target(self, target: ArtifactEntryTarget) -> bool:
+        """Expand the epic fold hiding a pending phase target."""
+        if not self._expand_parent_for_target(target):
+            return False
+        self._refresh_options()
+        return True
+
+    def host_query_row_for_target(
+        self, target: ArtifactEntryTarget
+    ) -> dict[str, Any] | None:
+        """Return the unfiltered Beads query row backing *target*."""
+        snapshot = self._snapshot
+        index = getattr(self, "_filter_index", None)
+        if (
+            snapshot is None
+            or index is None
+            or target.pane_id != "beads"
+            or len(target.parts) < 3
+        ):
+            return None
+        from .beads_list import row_option_id
+        from .query_rows import bead_query_entry
+
+        project, kind, bead_id = target.parts[0], target.parts[1], target.parts[2]
+        option_id = row_option_id(snapshot, kind, project, bead_id)  # type: ignore[arg-type]
+        record = index.by_option_id.get(option_id)
+        if record is None:
+            return None
+        return bead_query_entry(record)
 
     def hydrate_ref(self, kind: str, payload: str) -> HydrationResult:
         """Resolve one bead by exact id, searching only the current scope.
@@ -307,11 +347,13 @@ class BeadsNavigationMixin(_MixinBase):
     def install_hydrated_row(self, payload: Any) -> ArtifactEntryTarget | None:
         """Merge one fetched bead (plus its parent epic, if needed) in.
 
-        Leaves rebuilding ``_rows``/options to the request that follows:
-        the coordinator immediately re-requests the returned target, whose
-        ``request_entry_target`` miss path already calls
-        ``_refresh_options()`` with ``_pending_entry_target`` set, which
-        expands the owning epic fold for a phase for free.
+        Rebuilds the filter and query indexes around the merged snapshot so
+        the rewritten query the coordinator re-requests with can actually
+        match the new row. Leaves rebuilding ``_rows``/options to the
+        request that follows: the coordinator immediately re-requests the
+        returned target, whose ``request_entry_target`` miss path already
+        calls ``_refresh_options()`` with ``_pending_entry_target`` set,
+        which expands the owning epic fold for a phase for free.
         """
         if not isinstance(payload, tuple) or len(payload) != 3:
             return None
@@ -324,8 +366,38 @@ class BeadsNavigationMixin(_MixinBase):
             for bead in snapshot.epics
         ):
             snapshot = _merge_bead_into_snapshot(snapshot, project, parent_epic)
-        self._snapshot = _merge_bead_into_snapshot(snapshot, project, issue)
+        merged = _merge_bead_into_snapshot(snapshot, project, issue)
+        if merged is not self._snapshot:
+            self._snapshot = merged
+            self._reindex_after_hydration()
         return ArtifactEntryTarget("beads", (project, _bead_row_kind(issue), issue.id))
+
+    def _reindex_after_hydration(self) -> None:
+        """Rebuild the filter and query indexes for the merged snapshot.
+
+        The merged snapshot keeps its ``source_key``, so without a rebuild
+        the stale indexes would keep hiding the hydrated row from the
+        rewritten query. The query session cache is cleared alongside so no
+        same-generation entry can answer from the pre-merge corpus.
+        """
+        from .query_rows import build_beads_query_index
+
+        snapshot = self._snapshot
+        profile = getattr(self, "_query_profile", None)
+        index = getattr(self, "_query_index", None)
+        session = getattr(self, "_query_session", None)
+        if snapshot is None or profile is None or index is None or session is None:
+            return
+        filter_index, query_index = build_beads_query_index(
+            snapshot,
+            pane_id=profile.pane_id,
+            generation=index.generation,
+            profile=profile,
+        )
+        session.clear()
+        self._filter_index = filter_index
+        self._filter_index_source_key = filter_index.source_key
+        self._query_index = query_index
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
         row = self.selected_row()

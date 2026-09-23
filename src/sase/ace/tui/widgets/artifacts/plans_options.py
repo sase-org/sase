@@ -360,8 +360,26 @@ class PlansOptionsMixin(_MixinBase):
                 for key in known_group_keys
             }
         )
-        pending_id = self._pending_option_id()
-        if pending_id is None and self._pending_entry_target is not None:
+        # Resolve the pending target against the freshly built ``options``
+        # list -- not ``self._rows``, which also holds rows hidden under
+        # collapsed banners -- so a fold-hidden target expands its banner
+        # instead of reporting a false SELECTED.
+        rendered_ids = frozenset(
+            option.id
+            for option in options
+            if option.id is not None and not option.disabled
+        )
+        pending_target = self._pending_entry_target
+        pending_id = self._pending_option_id(rendered_ids)
+        if (
+            pending_id is None
+            and pending_target is not None
+            and registry is not None
+            and self._expand_group_for_pending_target(pending_target, registry)
+        ):
+            self._refresh_options(update_detail=update_detail)
+            return
+        if pending_id is None and pending_target is not None:
             if self._loaded_current_snapshot():
                 state = (
                     LinkRequestState.FAILED
@@ -526,7 +544,27 @@ class PlansOptionsMixin(_MixinBase):
         except Exception:
             pass
 
-    def _pending_option_id(self) -> str | None:
+    def _expand_group_for_pending_target(
+        self,
+        target: ArtifactEntryTarget,
+        registry: GroupFoldRegistry,
+    ) -> bool:
+        result = self._group_build_result(fold_registry=registry)
+        changed = False
+        for row in result.rows:
+            if (
+                row.kind == "banner"
+                and row.banner is not None
+                and row.banner.collapsed
+                and target in row.banner.member_targets
+            ):
+                if registry.expand(row.banner.group_key):
+                    changed = True
+        return changed
+
+    def _pending_option_id(
+        self, rendered_ids: frozenset[str] | None = None
+    ) -> str | None:
         target = self._pending_entry_target
         if target is None:
             return None
@@ -534,31 +572,11 @@ class PlansOptionsMixin(_MixinBase):
             (
                 option_id
                 for option_id, row in self._rows.items()
-                if plan_row_target(row) == target
+                if (rendered_ids is None or option_id in rendered_ids)
+                and plan_row_target(row) == target
             ),
             None,
         )
-
-    def host_query_row_for_target(self, target: ArtifactEntryTarget) -> dict | None:
-        """Return the unfiltered Plans query row backing *target*."""
-        pane_id = getattr(self, "pane_key", None)
-        if pane_id is None and self.contract is not None:
-            pane_id = self.contract.id
-        if target.pane_id != (pane_id or "ref:plan") or len(target.parts) < 3:
-            return None
-        snapshot = self._snapshot
-        index = getattr(self, "_filter_index", None)
-        if snapshot is None or index is None:
-            return None
-        from .plans_list import row_option_id
-        from .query_rows import plan_query_entry
-
-        project, kind, identity = target.parts[0], target.parts[1], target.parts[2]
-        option_id = row_option_id(snapshot, kind, project, identity)  # type: ignore[arg-type]
-        record = index.by_option_id.get(option_id)
-        if record is None:
-            return None
-        return plan_query_entry(snapshot, record)
 
     def _loaded_current_snapshot(self) -> bool:
         return (

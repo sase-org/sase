@@ -85,6 +85,10 @@ class FilesNavigationMixin(_MixinBase):
     _banner_target_by_option_id: dict[str, ArtifactEntryTarget]
     _pending_entry_target: ArtifactEntryTarget | None
     _pending_entry_generation: int | None
+    _query_profile: Any
+    _query_index: Any
+    _query_session: Any
+    _project_ref_display: Any
 
     if TYPE_CHECKING:
 
@@ -228,12 +232,45 @@ class FilesNavigationMixin(_MixinBase):
         self._pending_entry_target = target
         self._pending_entry_generation = generation
         if self._current_snapshot() is not None:  # type: ignore[attr-defined]
-            self._refresh_options()  # type: ignore[attr-defined]
+            return self._refresh_for_entry_request(  # type: ignore[attr-defined]
+                self._refresh_options  # type: ignore[attr-defined]
+            )
         return LinkRequestState.PENDING
 
     def clear_pending_entry_target(self) -> None:
         self._pending_entry_target = None
         self._pending_entry_generation = None
+
+    def entry_target_project(self, target: ArtifactEntryTarget) -> str | None:
+        """Return the project owning *target* from the unfiltered snapshot."""
+        if target.pane_id != "files" or not target.parts:
+            return None
+        snapshot = self._current_snapshot()  # type: ignore[attr-defined]
+        if snapshot is None:
+            return None
+        logical_id = target.parts[0]
+        for row in snapshot.rows:
+            if row.logical_id == logical_id:
+                return row.projects[0] if row.projects else None
+        return None
+
+    def host_query_row_for_target(self, target: ArtifactEntryTarget) -> dict | None:
+        """Return the unfiltered Files query row backing *target*."""
+        if target.pane_id != "files" or not target.parts:
+            return None
+        snapshot = self._current_snapshot()  # type: ignore[attr-defined]
+        if snapshot is None:
+            return None
+        from .query_rows import file_query_entry
+
+        logical_id = target.parts[0]
+        for row in snapshot.rows:
+            if row.logical_id == logical_id:
+                return file_query_entry(
+                    row,
+                    project_ref_display=self._project_ref_display,
+                )
+        return None
 
     def hydrate_ref(self, kind: str, payload: str) -> HydrationResult:
         """Resolve one file directly by exact logical id, off the UI thread."""
@@ -251,14 +288,53 @@ class FilesNavigationMixin(_MixinBase):
         return HydrationResult(HydrationOutcome.FETCHED, payload=row)
 
     def install_hydrated_row(self, payload: Any) -> ArtifactEntryTarget | None:
-        """Merge one fetched file into the current snapshot."""
+        """Merge one fetched file into the current snapshot.
+
+        Rebuilds the file query index around the merged snapshot so the
+        rewritten query the coordinator re-requests with can actually
+        match the new row.
+        """
         if not isinstance(payload, LogicalFile):
             return None
         snapshot = self._current_snapshot()  # type: ignore[attr-defined]
         if snapshot is None:
             return None
-        self._snapshot = merge_one_file_into_snapshot(snapshot, payload)
+        merged = merge_one_file_into_snapshot(snapshot, payload)
+        if merged is not snapshot:
+            self._snapshot = merged
+            self._reindex_after_hydration()
         return file_row_target(FileRow(option_id=payload.logical_id, entry=payload))
+
+    def _reindex_after_hydration(self) -> None:
+        """Rebuild the file query index for the merged snapshot.
+
+        The query session cache is cleared alongside so no same-generation
+        entry can answer from the pre-merge corpus.
+        """
+        from .query_rows import build_files_query_index
+
+        snapshot = self._current_snapshot()  # type: ignore[attr-defined]
+        profile = getattr(self, "_query_profile", None)
+        index = getattr(self, "_query_index", None)
+        session = getattr(self, "_query_session", None)
+        display = getattr(self, "_project_ref_display", None)
+        if (
+            snapshot is None
+            or profile is None
+            or index is None
+            or session is None
+            or display is None
+        ):
+            return
+        query_index = build_files_query_index(
+            snapshot,
+            pane_id=profile.pane_id,
+            generation=index.generation,
+            profile=profile,
+            project_ref_display=display,
+        )
+        session.clear()
+        self._query_index = query_index
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
         keymap = getattr(

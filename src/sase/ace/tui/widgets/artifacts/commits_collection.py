@@ -443,6 +443,30 @@ class CommitsCollectionMixin(_MixinBase):
                 )
         return None
 
+    def entry_target_project(self, target: Any) -> str | None:
+        """Return the owning project when *target* names the primary repo.
+
+        Only the primary repo's label is the project name; linked and
+        sidecar repos are shared across projects, so their owning project
+        is unknown here.
+        """
+        from .entry_navigation import ArtifactEntryTarget
+
+        if (
+            not isinstance(target, ArtifactEntryTarget)
+            or target.pane_id != "stitches"
+            or not target.parts
+        ):
+            return None
+        result = self.result
+        if result is None:
+            return None
+        repo = target.parts[0]
+        for item in result.repos:
+            if item.name == repo or repo in item.aliases:
+                return item.name if item.kind == "primary" else None
+        return None
+
     def _show_collection_error(self, error: BaseException | None) -> None:
         message = str(error).strip() if error is not None else "unknown error"
         self.query_one("#stitches-timeline", CommitsTimeline).update_result(

@@ -102,6 +102,8 @@ class AgentsNavigationMixin(_MixinBase):
             self, state: LinkRequestState
         ) -> LinkRequestState: ...
 
+        def _request_agents_query_index_rebuild(self) -> None: ...
+
     def _init_agents_navigation(self) -> None:
         self._rows = {}
         self._syncing_options = False
@@ -226,12 +228,51 @@ class AgentsNavigationMixin(_MixinBase):
         self._pending_entry_target = target
         self._pending_entry_generation = generation
         if self._current_snapshot() is not None:  # type: ignore[attr-defined]
-            self._refresh_options()  # type: ignore[attr-defined]
+            return self._refresh_for_entry_request(  # type: ignore[attr-defined]
+                self._refresh_options  # type: ignore[attr-defined]
+            )
         return LinkRequestState.PENDING
 
     def clear_pending_entry_target(self) -> None:
         self._pending_entry_target = None
         self._pending_entry_generation = None
+
+    def entry_target_project(self, target: ArtifactEntryTarget) -> str | None:
+        """Return the project owning *target* from the unfiltered snapshot."""
+        if target.pane_id != "agents" or not target.parts:
+            return None
+        snapshot = self._current_snapshot()  # type: ignore[attr-defined]
+        if snapshot is None:
+            return None
+        name = target.parts[0]
+        for row in snapshot.rows:
+            if row.name == name:
+                return row.project
+        return None
+
+    def host_query_row_for_target(self, target: ArtifactEntryTarget) -> dict | None:
+        """Return the unfiltered Agent query row backing *target*."""
+        if target.pane_id != "agents" or not target.parts:
+            return None
+        snapshot = self._current_snapshot()  # type: ignore[attr-defined]
+        if snapshot is None:
+            return None
+        from sase.project_display_names import ProjectRefDisplaySnapshot
+
+        from .query_rows import agent_query_entry
+
+        name = target.parts[0]
+        display = getattr(self, "_project_ref_display", None)
+        if display is None:
+            display = ProjectRefDisplaySnapshot()
+        for row in snapshot.rows:
+            if row.name == name:
+                return agent_query_entry(
+                    row,
+                    project_ref_display=display,
+                    link_facets=snapshot.link_facets,
+                )
+        return None
 
     def hydrate_ref(self, kind: str, payload: str) -> HydrationResult:
         """Resolve one agent directly from the persistent name registry.
@@ -270,7 +311,13 @@ class AgentsNavigationMixin(_MixinBase):
         return HydrationResult(HydrationOutcome.ABSENT)
 
     def install_hydrated_row(self, payload: Any) -> ArtifactEntryTarget | None:
-        """Merge one fetched agent row into the current snapshot."""
+        """Merge one fetched agent row into the current snapshot.
+
+        Refreshes the agent query index around the merged snapshot (via the
+        established async rebuild, which keeps the large registry corpus
+        off the UI thread) so the rewritten query the coordinator
+        re-requests with can actually match the new row.
+        """
         if not isinstance(payload, AgentCatalogRow):
             return None
         snapshot = self._current_snapshot()  # type: ignore[attr-defined]
@@ -282,6 +329,9 @@ class AgentsNavigationMixin(_MixinBase):
                 rows=(*snapshot.rows, payload),
                 total_row_count=snapshot.total_row_count + 1,
             )
+            rebuilder = getattr(self, "_request_agents_query_index_rebuild", None)
+            if callable(rebuilder):
+                rebuilder()
         return agent_row_target(AgentRow(option_id=payload.name, entry=payload))
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:

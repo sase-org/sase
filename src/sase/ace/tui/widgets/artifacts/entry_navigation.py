@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from abc import ABCMeta, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Any, cast
@@ -79,7 +79,15 @@ class _ArtifactEntryNavigatorMeta(ABCMeta, _MessagePumpMeta):
 
 
 class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
-    """Complete contract implemented by every live Artifacts pane."""
+    """Complete contract implemented by every live Artifacts pane.
+
+    Pane-specific hook overrides (fold expansion, query rows, project
+    lookup) must live on a mixin that precedes this base in the pane's
+    MRO -- in practice the ``*Navigation`` mixin -- otherwise this
+    base's defaults silently shadow them.
+    """
+
+    _last_entry_request_state: LinkRequestState | None
 
     @abstractmethod
     def entry_targets(self) -> tuple[ArtifactEntryTarget, ...]:
@@ -173,6 +181,16 @@ class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
 
         return known_target_for_ref(kind, payload, index.known_targets)
 
+    def entry_target_project(self, target: ArtifactEntryTarget) -> str | None:
+        """Return the project owning *target*, or ``None`` when unknown.
+
+        The default reads the leading identity part, which is the project
+        for panes whose identity leads with it (Beads, Plans/providers,
+        Patches). Panes with a different leading identity (Agents, Files,
+        Stitches) override this to answer from their unfiltered snapshot.
+        """
+        return target.parts[0] if target.parts else None
+
     def expand_fold_for_entry_target(self, target: ArtifactEntryTarget) -> bool:
         """Expand the minimum fold hiding *target*; no query change.
 
@@ -239,7 +257,12 @@ class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
         so the host link-follow coordinator sees a matching generation
         exactly once. Reports nothing when no generation was retained
         (a non-link-follow caller, or no pending request was open).
+
+        The completed *state* is remembered on
+        ``_last_entry_request_state`` so :meth:`_refresh_for_entry_request`
+        can return the outcome a synchronous refresh actually reached.
         """
+        self._last_entry_request_state = state
         generation = getattr(self, "_pending_entry_generation", None)
         self._pending_entry_target = None
         self._pending_entry_generation = None
@@ -249,6 +272,27 @@ class ArtifactEntryNavigator(metaclass=_ArtifactEntryNavigatorMeta):
             if callable(reporter):
                 reporter(generation, state)
         return state
+
+    def _refresh_for_entry_request(
+        self,
+        refresh: Callable[[], None],
+    ) -> LinkRequestState:
+        """Run one synchronous *refresh* and return what it resolved.
+
+        ``request_entry_target`` implementations call this for their
+        miss-path refresh instead of unconditionally returning ``PENDING``:
+        when the refresh resolves the pending target inline (a cached
+        result already answers it, or it is authoritatively absent), the
+        recorded completion is returned so the host never waits on a
+        report that already fired. ``PENDING`` is returned only when the
+        refresh completed nothing -- the pane is still loading and will
+        report later through :meth:`_complete_entry_request`.
+        """
+        self._last_entry_request_state = None
+        refresh()
+        return (
+            getattr(self, "_last_entry_request_state", None) or LinkRequestState.PENDING
+        )
 
     def record_relation_origin(self, origin: ArtifactEntryTarget) -> None:
         """Record a jump-back origin before relation navigation leaves it."""

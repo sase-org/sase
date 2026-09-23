@@ -38,6 +38,7 @@ class LinkFollowTransactionMixin:
     _link_follow_generation: int
     _link_follow_transaction: LinkFollowTransaction | None
     _link_follow_dispatching: bool
+    _link_follow_dispatch_slot: tuple[int, LinkRequestState] | None
     _link_hydration_waiters: dict[tuple[str, str], int]
     _link_hydration_in_flight: set[tuple[str, str]]
     _link_trail_guard: bool
@@ -47,6 +48,8 @@ class LinkFollowTransactionMixin:
         ref: str,
         target: ArtifactEntryTarget,
         origin: LinkTrailHop,
+        *,
+        scope_change: tuple[str | None, str | None] | None = None,
     ) -> int:
         self._link_follow_generation += 1
         generation = self._link_follow_generation
@@ -62,6 +65,7 @@ class LinkFollowTransactionMixin:
             rung=RUNG_FOLD,
             origin_query=origin_query,
             origin_target=origin_target,
+            scope_change=scope_change,
         )
         return generation
 
@@ -79,12 +83,21 @@ class LinkFollowTransactionMixin:
     ) -> None:
         """Shared completion seam entry point: reported by a pane's request.
 
-        A no-op while :attr:`_link_follow_dispatching` is set -- that means
-        this report arrived synchronously, reentrantly, from within the very
-        call that is about to receive *state* as a plain return value, so
-        the dispatching call site handles it directly instead.
+        While :attr:`_link_follow_dispatching` is set, the report arrived
+        synchronously, reentrantly, from within the very dispatch call that
+        is about to receive a return value -- it is recorded in the
+        dispatch slot instead of being finalized here, so
+        :meth:`_request_artifacts_target
+        <sase.ace.tui.actions._link_follow_targets.LinkFollowTargetsMixin._request_artifacts_target>`
+        can upgrade a returned ``PENDING`` to the recorded outcome. A pane
+        that already returned its synchronous outcome never reports again
+        (its pending target was cleared), so without the slot that report
+        would be lost and the transaction would hang open.
         """
-        if generation is None or self._link_follow_dispatching:
+        if generation is None:
+            return
+        if self._link_follow_dispatching:
+            self._link_follow_dispatch_slot = (generation, state)
             return
         self._handle_link_follow_outcome(generation, state)
 
@@ -112,11 +125,45 @@ class LinkFollowTransactionMixin:
         self._handle_missing_link_follow(transaction)
 
     def _handle_missing_link_follow(self, transaction: LinkFollowTransaction) -> None:
-        """Walk the remaining reveal rungs, then hydrate or report absence."""
+        """Wait on loading panes, re-resolve stale targets, then walk rungs."""
         pane = self._artifacts_entry_navigator(  # type: ignore[attr-defined]
             transaction.target.pane_id
         )
-        if pane is not None and not pane_is_loading(pane):
+        if pane is not None and pane_is_loading(pane):
+            # Loading is never absence: keep the transaction open and put
+            # the target back into the pane, so it holds a pending target
+            # and reports after the load. At most one re-request, so a
+            # stuck loader keeps the transaction open without looping.
+            if not transaction.load_rerequested:
+                retried = replace(transaction, load_rerequested=True)
+                self._link_follow_transaction = retried
+                req = self._request_artifacts_target  # type: ignore[attr-defined]
+                state = req(
+                    transaction.target,
+                    generation=transaction.generation,
+                )
+                self._handle_link_follow_outcome(transaction.generation, state)
+            return
+        if pane is not None and not transaction.reresolved:
+            # The pane is loaded but reported MISSING: it may not have been
+            # loaded at dispatch, so the dispatched target is a stale
+            # chip-built identity (a Beads chip always says ``task``).
+            # Re-resolve once against the loaded pane.
+            resolve = self._resolve_link_follow_target  # type: ignore[attr-defined]
+            resolved = resolve(transaction.ref, transaction.target)
+            if resolved != transaction.target:
+                retried = replace(transaction, target=resolved, reresolved=True)
+                self._link_follow_transaction = retried
+                req = self._request_artifacts_target  # type: ignore[attr-defined]
+                state = req(
+                    resolved,
+                    generation=transaction.generation,
+                )
+                self._handle_link_follow_outcome(transaction.generation, state)
+                return
+            transaction = replace(transaction, reresolved=True)
+            self._link_follow_transaction = transaction
+        if pane is not None:
             rung = transaction.rung
             while rung < RUNG_TOAST:
                 if try_reveal_rung(self, pane, transaction, rung):

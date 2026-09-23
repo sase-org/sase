@@ -7,7 +7,6 @@ from typing import Any
 from sase.artifact_ref_entries import reference_for_agent_name
 from sase.core.artifact_entry_target import ArtifactEntryTarget
 
-from ..artifact_tabs import artifacts_pane_contract
 from ..relations.artifact_links import parse_link_ref
 from ..relations.link_index import LinkChip
 from ..relations.link_keys import LinkRailItem
@@ -45,18 +44,6 @@ def link_panel_reveal_flags(app: Any, chips: tuple[LinkChip, ...]) -> frozenset[
         if not callable(entry_targets) or resolved not in entry_targets():
             flags.add(index)
     return frozenset(flags)
-
-
-def target_project_scope(target: ArtifactEntryTarget) -> str | None:
-    contract = artifacts_pane_contract(target.pane_id)
-    project_scoped = (
-        contract.project_scoping
-        if contract is not None
-        else target.pane_id in {"patches", "beads"}
-    )
-    if project_scoped and target.parts:
-        return target.parts[0] or None
-    return None
 
 
 def pane_is_loading(pane: Any) -> bool:

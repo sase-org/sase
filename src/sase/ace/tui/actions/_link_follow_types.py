@@ -58,6 +58,11 @@ class LinkFollowTransaction:
     transaction (or the one it restarted from) already spent its one
     targeted-hydration attempt, so a fetched row that still misses every
     rung on re-entry reports absence instead of hydrating in a loop.
+    ``reresolved`` marks that the target was already re-resolved after a
+    load, ``load_rerequested`` that the target was already re-requested
+    into a loading pane, and ``scope_change`` records an
+    ``(old_scope, new_scope)`` project-scope switch made at dispatch so
+    later phases can report it -- ``None`` means the scope was untouched.
     """
 
     generation: int
@@ -68,6 +73,9 @@ class LinkFollowTransaction:
     origin_query: QueryRecord | None = None
     origin_target: ArtifactEntryTarget | None = None
     hydrated: bool = False
+    reresolved: bool = False
+    load_rerequested: bool = False
+    scope_change: tuple[str | None, str | None] | None = None
 
 
 __all__ = [

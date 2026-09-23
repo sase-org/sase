@@ -186,6 +186,11 @@ class AgentsOptionsMixin(_MixinBase):
         if pending_target is not None:
             if highlighted is not None:
                 self._complete_entry_request(LinkRequestState.SELECTED)
+            elif registry is not None and self._expand_group_for_pending_target(
+                pending_target, registry
+            ):
+                self._refresh_options(preferred_target=pending_target)
+                return
             elif self._pending_entry_resolution_complete():
                 state = (
                     LinkRequestState.FAILED
@@ -219,29 +224,23 @@ class AgentsOptionsMixin(_MixinBase):
             lower_bound=truncated,
         )
 
-    def host_query_row_for_target(self, target: ArtifactEntryTarget) -> dict | None:
-        """Return the unfiltered Agent query row backing *target*."""
-        if target.pane_id != "agents" or not target.parts:
-            return None
-        snapshot = self._current_snapshot()
-        if snapshot is None:
-            return None
-        from sase.project_display_names import ProjectRefDisplaySnapshot
-
-        from .query_rows import agent_query_entry
-
-        name = target.parts[0]
-        display = getattr(self, "_project_ref_display", None)
-        if display is None:
-            display = ProjectRefDisplaySnapshot()
-        for row in snapshot.rows:
-            if row.name == name:
-                return agent_query_entry(
-                    row,
-                    project_ref_display=display,
-                    link_facets=snapshot.link_facets,
-                )
-        return None
+    def _expand_group_for_pending_target(
+        self,
+        target: ArtifactEntryTarget,
+        registry: GroupFoldRegistry,
+    ) -> bool:
+        result = self._group_build_result(fold_registry=registry)
+        changed = False
+        for row in result.rows:
+            if (
+                row.kind == "banner"
+                and row.banner is not None
+                and row.banner.collapsed
+                and target in row.banner.member_targets
+            ):
+                if registry.expand(row.banner.group_key):
+                    changed = True
+        return changed
 
     def _pending_entry_resolution_complete(self) -> bool:
         if self._loading or getattr(self, "_loading_full", False):

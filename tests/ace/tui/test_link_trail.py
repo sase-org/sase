@@ -125,6 +125,7 @@ class _App(LinkFollowMixin, LinkTrailMixin):
         self._link_follow_generation = 0
         self._link_follow_transaction = None
         self._link_follow_dispatching = False
+        self._link_follow_dispatch_slot = None
         self._chips = chips
         self._panes = panes or {}
         self._agents = list(agents)
@@ -248,19 +249,22 @@ def test_back_restores_narrowed_query_widened_by_the_forward_hop() -> None:
 def test_back_restores_project_scope_changed_by_the_forward_hop() -> None:
     origin = ArtifactEntryTarget("files", ("origin.txt",))
     target = ArtifactEntryTarget("beads", ("demo", "task", "sase-ug.7"))
+    beads_pane = _Pane(targets=(target,))
+    beads_pane.entry_target_project = lambda _target: "demo"  # type: ignore[attr-defined]
     app = _App(
         chips=(_chip("bead:sase-ug.7", target),),
         panes={
             "files": _Pane(targets=(origin,), selected=origin),
-            "beads": _Pane(targets=(target,)),
+            "beads": beads_pane,
         },
     )
+    app.artifacts_project_scope = "other"
 
     _follow_first(app)
     assert app.artifacts_project_scope == "demo"
 
     assert app._walk_link_trail_back() is True
-    assert app.artifacts_project_scope is None
+    assert app.artifacts_project_scope == "other"
 
 
 def test_ctrl_o_restores_patches_origin_query_and_selection() -> None:

@@ -94,6 +94,12 @@ class PlansNavigationMixin(_MixinBase):
     _entry_marks: set[ArtifactEntryTarget]
     _pending_entry_target: ArtifactEntryTarget | None
     _pending_entry_generation: int | None
+    _query_profile: Any
+    _query_index: Any
+    _filter_index: Any
+    _filter_index_snapshot: Any
+    _query_session: Any
+    contract: Any
     provider_spec: Mapping[str, Any] | None
 
     if TYPE_CHECKING:
@@ -116,6 +122,8 @@ class PlansNavigationMixin(_MixinBase):
         def _complete_entry_request(
             self, state: LinkRequestState
         ) -> LinkRequestState: ...
+
+        def _refresh_for_entry_request(self, refresh: Any) -> LinkRequestState: ...
 
     def _init_plans_navigation(self) -> None:
         self._rows = {}
@@ -226,12 +234,33 @@ class PlansNavigationMixin(_MixinBase):
         self._pending_entry_target = target
         self._pending_entry_generation = generation
         if self._snapshot is not None and self._snapshot.project == self.project_scope:
-            self._refresh_options()
+            return self._refresh_for_entry_request(self._refresh_options)
         return LinkRequestState.PENDING
 
     def clear_pending_entry_target(self) -> None:
         self._pending_entry_target = None
         self._pending_entry_generation = None
+
+    def host_query_row_for_target(self, target: ArtifactEntryTarget) -> dict | None:
+        """Return the unfiltered Plans query row backing *target*."""
+        pane_id = getattr(self, "pane_key", None)
+        if pane_id is None and self.contract is not None:
+            pane_id = self.contract.id
+        if target.pane_id != (pane_id or "ref:plan") or len(target.parts) < 3:
+            return None
+        snapshot = self._snapshot
+        index = getattr(self, "_filter_index", None)
+        if snapshot is None or index is None:
+            return None
+        from .plans_list import row_option_id
+        from .query_rows import plan_query_entry
+
+        project, kind, identity = target.parts[0], target.parts[1], target.parts[2]
+        option_id = row_option_id(snapshot, kind, project, identity)  # type: ignore[arg-type]
+        record = index.by_option_id.get(option_id)
+        if record is None:
+            return None
+        return plan_query_entry(snapshot, record)
 
     def hydrate_ref(self, kind: str, payload: str) -> HydrationResult:
         """Resolve one archived document directly, without a deep-archive scan.
@@ -294,7 +323,13 @@ class PlansNavigationMixin(_MixinBase):
         return None
 
     def install_hydrated_row(self, payload: Any) -> ArtifactEntryTarget | None:
-        """Merge one fetched archive document into the current snapshot."""
+        """Merge one fetched archive document into the current snapshot.
+
+        Rebuilds the filter and query indexes around the merged snapshot --
+        without a rebuild the stale ``_filter_index_snapshot`` gate would
+        disable filtering entirely and the rewritten query could never
+        match the new row.
+        """
         if not isinstance(payload, tuple) or len(payload) != 3:
             return None
         project, role, match = payload
@@ -311,9 +346,35 @@ class PlansNavigationMixin(_MixinBase):
                 snapshot,
                 archive=(*snapshot.archive, ProjectArchive(project, match, role)),
             )
+            self._reindex_after_hydration()
         return ArtifactEntryTarget(
             f"ref:{snapshot.provider_kind}", (project, "archive", match.plan.path)
         )
+
+    def _reindex_after_hydration(self) -> None:
+        """Rebuild the filter and query indexes for the merged snapshot.
+
+        The query session cache is cleared alongside so no same-generation
+        entry can answer from the pre-merge corpus.
+        """
+        from .query_rows import build_plans_query_index
+
+        snapshot = self._snapshot
+        profile = getattr(self, "_query_profile", None)
+        index = getattr(self, "_query_index", None)
+        session = getattr(self, "_query_session", None)
+        if snapshot is None or profile is None or index is None or session is None:
+            return
+        filter_index, query_index = build_plans_query_index(
+            snapshot,
+            pane_id=profile.pane_id,
+            generation=index.generation,
+            profile=profile,
+        )
+        session.clear()
+        self._filter_index = filter_index
+        self._filter_index_snapshot = snapshot
+        self._query_index = query_index
 
     def conditional_footer_entries(self) -> tuple[tuple[str, str], ...]:
         row = self.selected_row()

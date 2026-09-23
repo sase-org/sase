@@ -305,6 +305,7 @@ class _App(LinkFollowMixin, ArtifactsQueryHistoryActionsMixin):
         self._link_follow_generation = 0
         self._link_follow_transaction = None
         self._link_follow_dispatching = False
+        self._link_follow_dispatch_slot = None
         self._link_reveals = {}
         self._collapsed_query_transitions = None
         self._collapsed_query_transition_recorded = False

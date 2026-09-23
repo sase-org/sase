@@ -13,7 +13,6 @@ from ._link_follow_helpers import (
     agent_matches_ref,
     chop_matches,
     pane_label,
-    target_project_scope,
 )
 from ._link_follow_types import LinkTrailHop, record_link_follow_outcome
 from .axe_display._loader_items import selected_axe_item_key
@@ -25,6 +24,7 @@ class LinkFollowTargetsMixin:
     current_tab: Any
     current_idx: int
     _link_follow_dispatching: bool
+    _link_follow_dispatch_slot: tuple[int, LinkRequestState] | None
 
     def _follow_artifacts_target(
         self,
@@ -45,14 +45,7 @@ class LinkFollowTargetsMixin:
             record_link_follow_outcome("select")
             self._record_link_trail(origin)  # type: ignore[attr-defined]
             return
-        project = target_project_scope(target)
-        if project is not None and project != getattr(
-            self, "artifacts_project_scope", None
-        ):
-            self._set_artifacts_project_scope(  # type: ignore[attr-defined]
-                project,
-                picked=True,
-            )
+        scope_change = self._switch_artifacts_scope_for_target(ref, target)
         if self.current_tab != ARTIFACTS_TAB:
             self._save_current_tab_position()  # type: ignore[attr-defined]
             self.current_tab = ARTIFACTS_TAB
@@ -60,10 +53,57 @@ class LinkFollowTargetsMixin:
             ref,
             target,
             origin,
+            scope_change=scope_change,
         )
         state = self._request_artifacts_target(target, generation=generation)
         handle = self._handle_link_follow_outcome  # type: ignore[attr-defined]
         handle(generation, state)
+
+    def _switch_artifacts_scope_for_target(
+        self,
+        ref: str,
+        target: ArtifactEntryTarget,
+    ) -> tuple[str | None, str | None] | None:
+        """Switch the Artifacts project scope for *target*, if required.
+
+        An All-projects scope is never narrowed. A specific scope that
+        excludes the target switches to the target's own project (answered
+        by the destination pane's
+        :meth:`~sase.ace.tui.widgets.artifacts.entry_navigation.ArtifactEntryNavigator.entry_target_project`,
+        never by guessing from the ref). When the project is unknown, the
+        scope widens to All projects only if the pane cannot resolve the
+        target under the current scope. Returns the ``(old, new)`` scope
+        change, or ``None`` when the scope was untouched.
+        """
+        current = getattr(self, "artifacts_project_scope", None)
+        if current is None:
+            return None
+        pane = self._artifacts_entry_navigator(  # type: ignore[attr-defined]
+            target.pane_id
+        )
+        projector = getattr(pane, "entry_target_project", None)
+        project = projector(target) if callable(projector) else None
+        if project is not None:
+            if project == current:
+                return None
+            self._set_artifacts_project_scope(  # type: ignore[attr-defined]
+                project,
+                picked=True,
+            )
+            return (current, project)
+        parsed = parse_link_ref(ref)
+        answered = False
+        if parsed is not None and pane is not None:
+            resolver = getattr(pane, "entry_target_for_ref", None)
+            if callable(resolver):
+                answered = resolver(*parsed) is not None
+        if answered:
+            return None
+        self._set_artifacts_project_scope(  # type: ignore[attr-defined]
+            None,
+            picked=True,
+        )
+        return (current, None)
 
     def _resolve_link_follow_target(
         self,
@@ -116,9 +156,13 @@ class LinkFollowTargetsMixin:
         """Dispatch one pane request without the completion seam reentering.
 
         ``_link_follow_dispatching`` marks this call's extent so a
-        synchronous report through :meth:`_complete_link_follow_request` is a
-        no-op; the resolved state returned here is what the caller (this
-        method's own caller, not the pane) uses to finalize instead.
+        synchronous report through :meth:`_complete_link_follow_request`
+        lands in the dispatch slot instead of finalizing reentrantly. A
+        returned ``PENDING`` is then upgraded to the recorded outcome for
+        this generation -- panes report the state their synchronous
+        refresh actually reached, but may still return ``PENDING``; the
+        slot is the defense-in-depth guarantee that no such report is
+        ever lost, whatever a pane returns.
         """
         request = getattr(self, "_request_artifacts_entry", None)
         if not callable(request):
@@ -129,10 +173,20 @@ class LinkFollowTargetsMixin:
                 return LinkRequestState.SELECTED
             return LinkRequestState.MISSING
         self._link_follow_dispatching = True
+        self._link_follow_dispatch_slot = None
         try:
-            return request(target, generation=generation)
+            state = request(target, generation=generation)
         finally:
+            slot = self._link_follow_dispatch_slot
             self._link_follow_dispatching = False
+            self._link_follow_dispatch_slot = None
+        if (
+            state is LinkRequestState.PENDING
+            and slot is not None
+            and slot[0] == generation
+        ):
+            return slot[1]
+        return state
 
     def _follow_loaded_agent(self, payload: str) -> bool:
         agents = getattr(self, "_agents", ())
