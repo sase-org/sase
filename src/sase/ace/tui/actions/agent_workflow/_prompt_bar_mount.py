@@ -299,7 +299,18 @@ class PromptBarMountMixin:
                 return widget
             candidates = (f"#{_MAIN_PANEL_ID}",)
         elif tab == "services":
-            candidates = ("#bgcmd-list-panel",)
+            focus_axe = getattr(self, "_focus_axe_focused_panel", None)
+            if callable(focus_axe):
+                try:
+                    focus_axe(force=True)
+                except Exception:
+                    pass
+                widget = getattr(self, "focused", None)
+                from ...widgets import BgCmdList
+
+                if isinstance(widget, BgCmdList):
+                    return widget
+            candidates = ("#service-procs-panel",)
         else:
             candidates = ("#list-panel",)
 

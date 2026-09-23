@@ -113,8 +113,9 @@ class BgCmdList(OptionList):
     class SelectionChanged(Message):
         """Message sent when selection changes."""
 
-        def __init__(self, index: int) -> None:
+        def __init__(self, index: int, panel_key: str = "service_procs") -> None:
             self.index = index
+            self.panel_key = panel_key
             super().__init__()
 
     class WidthChanged(Message):
@@ -129,13 +130,19 @@ class BgCmdList(OptionList):
             self.width = width
             super().__init__()
 
-    def __init__(self, **kwargs: Any) -> None:
+    def __init__(self, panel_key: str = "service_procs", **kwargs: Any) -> None:
         """Initialize the background command list."""
         super().__init__(**kwargs)
+        self.panel_key: str = panel_key
         self._item_count: int = 0
         self._programmatic_update: bool = False
         self._target_width: int = 0
+        self._content_requested_width: int = 0
         self._requested_width: int = 0
+        # Rendered content rows (options plus divider lines; 1 for a
+        # placeholder), used by the shared panel-height allocation.
+        self.rendered_line_count: int = 0
+        self._placeholder_shown: bool = False
 
     def update_list(
         self,
@@ -150,12 +157,15 @@ class BgCmdList(OptionList):
         chop_snapshots: "dict[tuple[str, str], ChopSnapshot] | None" = None,
         lumberjack_overruns: dict[str, int] | None = None,
         service_procs: "dict[str, ServiceStatusProc] | None" = None,
+        empty_placeholder: Text | None = None,
     ) -> None:
         """Update the list with current AXE items.
 
         Args:
-            items: Flat list of AxeItem entries to display.
-            current_idx: Index of currently selected item.
+            items: Panel-local slice of AxeItem entries to display.
+            current_idx: Panel-local index of the selected item, or ``-1``
+                for no highlight (the unfocused panel clears via
+                :meth:`clear_highlight`).
             axe_running: Whether axe daemon is running.
             lumberjack_names: Configured lumberjack names (ordered).
             bgcmd_infos: Mapping of slot -> info for bgcmds.
@@ -171,102 +181,153 @@ class BgCmdList(OptionList):
                 ``"over"``, keyed by lumberjack name. ``None`` or a missing
                 key renders no roll-up chip.
             service_procs: Cached service-proc statuses keyed by name.
+            empty_placeholder: Disabled placeholder row rendered when
+                ``items`` is empty. It is not a node: never selectable,
+                never counted, and never emits ``SelectionChanged``.
         """
         del axe_running, lumberjack_names  # accepted for callers; not rendered
         self._programmatic_update = True
-        self._item_count = len(items)
-
-        self.clear_options()
-
-        has_axe_rows = any(
-            isinstance(i, (ServiceProcItem, LumberjackItem, ChopItem)) for i in items
-        )
-        has_bgcmds = any(isinstance(i, BgCmdItem) for i in items)
-        # Spacer divider gets rendered on the first bgcmd row when the
-        # sidebar contains both lumberjack/chop rows and bgcmd rows, so
-        # the user/background commands group is visually separated from
-        # the AXE-managed tree above.
-        show_bgcmd_divider = has_axe_rows and has_bgcmds
-        bgcmd_seen = False
-
-        max_cell_len = 0
-        for idx, item in enumerate(items):
-            is_selected = idx == current_idx
-            hint_char = (jump_hints or {}).get(idx)
-            match item:
-                case ServiceProcItem(name=name):
-                    option = self._format_service_proc_option(
-                        name=name,
-                        proc=None if service_procs is None else service_procs.get(name),
-                        is_selected=is_selected,
-                        hint_char=hint_char,
-                    )
-                case LumberjackItem(name=name):
-                    if lumberjack_statuses is not None:
-                        lumberjack_status = lumberjack_statuses.get(name)
-                    else:
-                        from sase.axe.state import read_lumberjack_status
-
-                        lumberjack_status = read_lumberjack_status(name)
-                    overrun_count = (
-                        lumberjack_overruns.get(name, 0)
-                        if lumberjack_overruns is not None
-                        else 0
-                    )
-                    option = self._format_lumberjack_option(
-                        name=name,
-                        status=lumberjack_status,
-                        is_selected=is_selected,
-                        hint_char=hint_char,
-                        overrun_count=overrun_count,
-                    )
-                case ChopItem(lumberjack_name=lj_name, chop_name=chop_name):
-                    snap = (
-                        chop_snapshots.get((lj_name, chop_name))
-                        if chop_snapshots is not None
-                        else None
-                    )
-                    option = self._format_chop_option(
-                        lumberjack_name=lj_name,
-                        chop_name=chop_name,
-                        snapshot=snap,
-                        is_selected=is_selected,
-                        hint_char=hint_char,
-                    )
-                case BgCmdItem(slot=slot):
-                    info = bgcmd_infos.get(slot)
-                    if bgcmd_running is not None:
-                        running = bgcmd_running.get(slot, False)
-                    else:
-                        running = info is not None and info.running
-                    is_first_bgcmd = show_bgcmd_divider and not bgcmd_seen
-                    bgcmd_seen = True
-                    option = self._format_bgcmd_option(
-                        slot=slot,
-                        info=info,
-                        is_selected=is_selected,
-                        is_running=running,
-                        hint_char=hint_char,
-                        show_divider=is_first_bgcmd,
-                    )
-            prompt = option.prompt
-            if isinstance(prompt, Text):
-                content_len = _last_line_cell_len(prompt)
-                if content_len > max_cell_len:
-                    max_cell_len = content_len
-            self.add_option(option)
-
-        self._target_width = max_cell_len
-        optimal_width = max_cell_len + self._WIDTH_PADDING
-        self._requested_width = optimal_width
-        self.post_message(self.WidthChanged(optimal_width))
-
-        # Highlight the current item
         try:
+            self._item_count = len(items)
+            self._placeholder_shown = not items and empty_placeholder is not None
+
+            self.clear_options()
+
+            if not items:
+                if empty_placeholder is not None:
+                    self.add_option(Option(empty_placeholder, disabled=True))
+                    self.rendered_line_count = 1
+                else:
+                    self.rendered_line_count = 0
+                self.highlighted = None
+                self._target_width = 0
+                self._content_requested_width = 0
+                self._refresh_requested_width()
+                return
+
+            has_axe_rows = any(
+                isinstance(i, (ServiceProcItem, LumberjackItem, ChopItem))
+                for i in items
+            )
+            has_bgcmds = any(isinstance(i, BgCmdItem) for i in items)
+            # Spacer divider gets rendered on the first bgcmd row when the
+            # panel holds both daemon rows and oneshot rows, so the
+            # user/background commands group is visually separated from the
+            # service-proc tree above.
+            show_bgcmd_divider = has_axe_rows and has_bgcmds
+            bgcmd_seen = False
+
+            max_cell_len = 0
+            for idx, item in enumerate(items):
+                is_selected = idx == current_idx
+                hint_char = (jump_hints or {}).get(idx)
+                match item:
+                    case ServiceProcItem(name=name):
+                        option = self._format_service_proc_option(
+                            name=name,
+                            proc=None
+                            if service_procs is None
+                            else service_procs.get(name),
+                            is_selected=is_selected,
+                            hint_char=hint_char,
+                        )
+                    case LumberjackItem(name=name):
+                        if lumberjack_statuses is not None:
+                            lumberjack_status = lumberjack_statuses.get(name)
+                        else:
+                            from sase.axe.state import read_lumberjack_status
+
+                            lumberjack_status = read_lumberjack_status(name)
+                        overrun_count = (
+                            lumberjack_overruns.get(name, 0)
+                            if lumberjack_overruns is not None
+                            else 0
+                        )
+                        option = self._format_lumberjack_option(
+                            name=name,
+                            status=lumberjack_status,
+                            is_selected=is_selected,
+                            hint_char=hint_char,
+                            overrun_count=overrun_count,
+                        )
+                    case ChopItem(lumberjack_name=lj_name, chop_name=chop_name):
+                        snap = (
+                            chop_snapshots.get((lj_name, chop_name))
+                            if chop_snapshots is not None
+                            else None
+                        )
+                        option = self._format_chop_option(
+                            lumberjack_name=lj_name,
+                            chop_name=chop_name,
+                            snapshot=snap,
+                            is_selected=is_selected,
+                            hint_char=hint_char,
+                        )
+                    case BgCmdItem(slot=slot):
+                        info = bgcmd_infos.get(slot)
+                        if bgcmd_running is not None:
+                            running = bgcmd_running.get(slot, False)
+                        else:
+                            running = info is not None and info.running
+                        is_first_bgcmd = show_bgcmd_divider and not bgcmd_seen
+                        bgcmd_seen = True
+                        option = self._format_bgcmd_option(
+                            slot=slot,
+                            info=info,
+                            is_selected=is_selected,
+                            is_running=running,
+                            hint_char=hint_char,
+                            show_divider=is_first_bgcmd,
+                        )
+                prompt = option.prompt
+                if isinstance(prompt, Text):
+                    content_len = _last_line_cell_len(prompt)
+                    if content_len > max_cell_len:
+                        max_cell_len = content_len
+                self.add_option(option)
+
+            self._target_width = max_cell_len
+            self._content_requested_width = max_cell_len + self._WIDTH_PADDING
+            self.rendered_line_count = len(items) + (1 if show_bgcmd_divider else 0)
+            self._refresh_requested_width()
+
+            # Highlight the panel-local item. A negative index means this
+            # panel does not hold the selection, so clear the highlight.
             if 0 <= current_idx < len(items):
                 self.highlighted = current_idx
             else:
-                self.highlighted = 0
+                self.highlighted = None
+        finally:
+            self._programmatic_update = False
+
+    def update_border_title(self, title: Text) -> None:
+        """Set the panel title and include it in width negotiation."""
+        self.border_title = title
+        self._refresh_requested_width()
+
+    def _refresh_requested_width(self) -> None:
+        """Publish the larger of the content and border-title widths.
+
+        Posts ``WidthChanged`` only when the combined requested width
+        actually changed, mirroring ``AgentList``.
+        """
+        title = self.border_title
+        title_width = (
+            title.cell_len
+            if isinstance(title, Text)
+            else Text.from_markup(str(title or "")).cell_len
+        )
+        requested_width = max(self._content_requested_width, title_width + 4)
+        if requested_width == self._requested_width:
+            return
+        self._requested_width = requested_width
+        self.post_message(self.WidthChanged(requested_width))
+
+    def clear_highlight(self) -> None:
+        """Clear the row highlight without rebuilding options."""
+        self._programmatic_update = True
+        try:
+            self.highlighted = None
         finally:
             self._programmatic_update = False
 
@@ -505,21 +566,23 @@ class BgCmdList(OptionList):
         self, event: OptionList.OptionHighlighted
     ) -> None:
         """Handle option highlight (keyboard navigation)."""
-        if self._programmatic_update:
+        if self._programmatic_update or self._placeholder_shown:
             return
         if (
             event.option_index is not None
             and 0 <= event.option_index < self._item_count
         ):
-            self.post_message(self.SelectionChanged(event.option_index))
+            self.post_message(self.SelectionChanged(event.option_index, self.panel_key))
 
     def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
         """Handle option selection (mouse click or Enter)."""
+        if self._placeholder_shown:
+            return
         if (
             event.option_index is not None
             and 0 <= event.option_index < self._item_count
         ):
-            self.post_message(self.SelectionChanged(event.option_index))
+            self.post_message(self.SelectionChanged(event.option_index, self.panel_key))
 
 
 def _lumberjack_status_chip(status: Any) -> tuple[str, str] | None:

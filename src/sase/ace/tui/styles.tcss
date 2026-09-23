@@ -5646,11 +5646,22 @@ HookHistoryModal #hook-history-hints {
     height: 100%;
 }
 
-#bgcmd-list-panel {
+#bgcmd-list-container BgCmdList {
     width: 100%;
+    /* Fallback only — overridden per-refresh by the Services height
+       allocation, which sizes Service Procs to content and lets
+       Scheduled Routines absorb the remaining rows. */
     height: 1fr;
     border: solid $primary;
     padding: 0 1;
+}
+
+#scheduled-routines-panel {
+    margin-top: 1;
+}
+
+#bgcmd-list-container BgCmdList.-focused-panel {
+    border: solid #FFD700;
 }
 
 /* BgCmdList styling */

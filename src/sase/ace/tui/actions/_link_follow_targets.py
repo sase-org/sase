@@ -332,17 +332,14 @@ class LinkFollowTargetsMixin:
             self._notify_dangling_link_ref(f"job:{payload}")
             return False
         lumberjack_changed = self._expand_lumberjack_for_chop(lumberjack)
-        scheduler_changed = self._expand_scheduler_for_chop()
         if lumberjack_changed and expanded is not None:
             expanded.append(lumberjack)
         idx = self._find_chop_index(lumberjack, base_chop)
         if idx is None:
             if lumberjack_changed:
                 self._step_lumberjack_fold(lumberjack, expand=False)
-            if scheduler_changed:
-                self._step_scheduler_fold(expand=False)
             build = getattr(self, "_build_axe_items", None)
-            if callable(build) and (lumberjack_changed or scheduler_changed):
+            if callable(build) and lumberjack_changed:
                 build()
             self._notify_dangling_link_ref(f"job:{payload}")
             return False
@@ -376,27 +373,6 @@ class LinkFollowTargetsMixin:
         if manager is None:
             return False
         key = f"lumberjack:{lumberjack}"
-        return bool(manager.expand(key) if expand else manager.collapse(key))
-
-    def _expand_scheduler_for_chop(self) -> bool:
-        """Expand ``service:scheduler`` so collapsed scheduler chops resolve.
-
-        Mirrors the pending-selection path in
-        ``axe_display/_loader_items.py``: a chop under a collapsed scheduler
-        fold is invisible until both the scheduler service fold and its
-        lumberjack fold are expanded.
-        """
-        changed = self._step_scheduler_fold(expand=True)
-        build = getattr(self, "_build_axe_items", None)
-        if callable(build):
-            build()
-        return changed
-
-    def _step_scheduler_fold(self, *, expand: bool) -> bool:
-        manager = getattr(self, "_axe_fold_manager", None)
-        if manager is None:
-            return False
-        key = "service:scheduler"
         return bool(manager.expand(key) if expand else manager.collapse(key))
 
     def collapse_lumberjack_after_link_trail(self, lumberjack: str) -> None:

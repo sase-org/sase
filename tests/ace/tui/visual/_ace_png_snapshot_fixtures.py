@@ -374,6 +374,7 @@ def axe_collected_data(
     lumberjack_chop_names: dict[str, list[str]] | None = None,
     chop_snapshots: dict[tuple[str, str], ChopSnapshot] | None = None,
     lumberjack_snapshots: dict[str, LumberjackSnapshot] | None = None,
+    service_status: Any | None = None,
 ) -> AxeCollectedData:
     """Build a deterministic AxeCollectedData fixture for the Axe tab."""
     return AxeCollectedData(
@@ -388,4 +389,5 @@ def axe_collected_data(
         lumberjack_chop_names=dict(lumberjack_chop_names or {}),
         chop_snapshots=dict(chop_snapshots or {}),
         lumberjack_snapshots=dict(lumberjack_snapshots or {}),
+        service_status=service_status,
     )

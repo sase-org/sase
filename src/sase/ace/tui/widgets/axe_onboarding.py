@@ -131,8 +131,9 @@ class AxeOnboarding(VerticalScroll):
         text.append(" (unless --no-service) and keeps your service procs running.")
         text.append("\n")
         text.append(
-            "Each service proc is one supervised row. The Scheduler proc nests "
-            "its routines, and each routine nests the jobs it runs.",
+            "Each service proc is one supervised row in the Service Procs "
+            "panel. The Scheduled Routines panel holds every routine, and "
+            "each routine nests the jobs it runs.",
             style="dim",
         )
         text.append("\n")

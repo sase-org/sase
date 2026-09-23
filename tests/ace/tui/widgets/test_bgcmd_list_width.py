@@ -185,9 +185,8 @@ async def test_all_row_text_is_no_wrap() -> None:
 
 
 async def test_update_list_posts_width_changed_message() -> None:
-    """``update_list`` must always post a WidthChanged message — even for
-    a short label — so the container resizes back down when long rows
-    disappear."""
+    """``update_list`` posts WidthChanged when the requested width changes,
+    and stays silent on an identical repaint — mirroring ``AgentList``."""
     items: list[AxeItem] = [LumberjackItem(name="lj")]
     posted: list[BgCmdList.WidthChanged] = []
 
@@ -203,15 +202,20 @@ async def test_update_list_posts_width_changed_message() -> None:
 
         widget.post_message = _spy  # type: ignore[method-assign]
 
-        widget.update_list(
-            items=items,
-            current_idx=0,
-            axe_running=False,
-            lumberjack_names=["lj"],
-            bgcmd_infos={},
-            lumberjack_statuses={"lj": None},
-            bgcmd_running={},
-        )
+        def _paint() -> None:
+            widget.update_list(
+                items=items,
+                current_idx=0,
+                axe_running=False,
+                lumberjack_names=["lj"],
+                bgcmd_infos={},
+                lumberjack_statuses={"lj": None},
+                bgcmd_running={},
+            )
 
-    assert len(posted) == 1
-    assert posted[0].width > 0
+        _paint()
+        assert len(posted) == 1
+        assert posted[0].width > 0
+        # Identical repaint: no new message.
+        _paint()
+        assert len(posted) == 1

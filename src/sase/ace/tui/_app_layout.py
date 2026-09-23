@@ -68,6 +68,27 @@ MAX_BGCMD_LIST_WIDTH = 80
 BGCMD_LIST_RESERVED_FOR_DASHBOARD = 40
 
 
+def services_sidebar_width(
+    requested_widths: Iterable[int], *, terminal_width: int
+) -> int:
+    """Return the Services sidebar width for the mounted panels' requests.
+
+    The widest panel decides (content rows and border titles both count
+    toward each panel's request). The dashboard keeps at least
+    ``BGCMD_LIST_RESERVED_FOR_DASHBOARD`` cells; on pathologically narrow
+    terminals the minimum still wins so the panels never collapse.
+    """
+    desired = max((width for width in requested_widths if width > 0), default=0)
+    max_for_terminal = MAX_BGCMD_LIST_WIDTH
+    if terminal_width > 0:
+        terminal_cap = max(
+            MIN_BGCMD_LIST_WIDTH,
+            terminal_width - BGCMD_LIST_RESERVED_FOR_DASHBOARD,
+        )
+        max_for_terminal = min(MAX_BGCMD_LIST_WIDTH, terminal_cap)
+    return max(MIN_BGCMD_LIST_WIDTH, min(max_for_terminal, desired))
+
+
 class AppLayoutMixin:
     """Compose the top-level ACE widgets."""
 
@@ -121,7 +142,10 @@ class AppLayoutMixin:
                         )
             with Horizontal(id="axe-view", classes=axe_classes):
                 with Vertical(id="bgcmd-list-container"):
-                    yield BgCmdList(id="bgcmd-list-panel")
+                    yield BgCmdList(panel_key="service_procs", id="service-procs-panel")
+                    yield BgCmdList(
+                        panel_key="scheduled_routines", id="scheduled-routines-panel"
+                    )
                 with Vertical(id="axe-container"):
                     with AxeInfoRow(id="axe-info-row"):
                         yield AxeInfoPanel(id="axe-info-panel")

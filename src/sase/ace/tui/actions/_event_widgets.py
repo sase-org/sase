@@ -317,6 +317,9 @@ class EventWidgetHandlersMixin(EventHandlersBase):
         height-dependent, so recompute without rebuilding options.
         """
         self._apply_patch_list_width()
+        reapply_axe = getattr(self, "_reapply_axe_panel_heights", None)
+        if callable(reapply_axe):
+            reapply_axe()
         if not hasattr(self, "_panel_group"):
             return
         reapply = getattr(self, "_reapply_panel_heights", None)
@@ -326,34 +329,48 @@ class EventWidgetHandlersMixin(EventHandlersBase):
     def on_bg_cmd_list_selection_changed(
         self, event: BgCmdList.SelectionChanged
     ) -> None:
-        """Handle selection change in the BgCmdList widget."""
-        if self.current_tab == "services":
+        """Handle selection change in either Services panel widget."""
+        if self.current_tab != "services":
+            return
+        panel_key = getattr(event, "panel_key", "service_procs")
+        panel_index = getattr(self, "_axe_panel_index", None)
+        if panel_index is None:
             self.current_idx = event.index
+            return
+        try:
+            panel_slice = panel_index.slice_for(panel_key)
+            self.current_idx = panel_slice.global_indices[event.index]
+        except (IndexError, KeyError, AttributeError):
+            return
 
     def on_bg_cmd_list_width_changed(self, event: BgCmdList.WidthChanged) -> None:
-        """Resize the AXE sidebar to fit its widest formatted row."""
+        """Resize the AXE sidebar to fit the widest Services panel.
+
+        Services refreshes settle the sidebar themselves in the frame that
+        painted the rows (``_settle_axe_sidebar_width``); this covers
+        title-only updates and any other request made outside a refresh.
+        Both panels' current requests decide the width, so the message's
+        own width (possibly stale by now) only matters before any panel
+        has asked.
+        """
         from textual.css.query import NoMatches
 
-        from .._app_layout import (
-            BGCMD_LIST_RESERVED_FOR_DASHBOARD,
-            MAX_BGCMD_LIST_WIDTH,
-            MIN_BGCMD_LIST_WIDTH,
-        )
+        from .._app_layout import services_sidebar_width
 
         try:
             container = self.query_one("#bgcmd-list-container")  # type: ignore[attr-defined]
         except NoMatches:
             return
-        terminal_width = getattr(getattr(self, "size", None), "width", 0) or 0
-        max_for_terminal = MAX_BGCMD_LIST_WIDTH
-        if terminal_width > 0:
-            # Leave at least ``BGCMD_LIST_RESERVED_FOR_DASHBOARD`` cells for
-            # the right-hand AXE dashboard so a wide sidebar can never push
-            # the dashboard out of the viewport on tight terminals.
-            terminal_cap = max(
-                MIN_BGCMD_LIST_WIDTH,
-                terminal_width - BGCMD_LIST_RESERVED_FOR_DASHBOARD,
+        try:
+            panels = self.query("#bgcmd-list-container BgCmdList").results(  # type: ignore[attr-defined]
+                BgCmdList
             )
-            max_for_terminal = min(MAX_BGCMD_LIST_WIDTH, terminal_cap)
-        width = max(MIN_BGCMD_LIST_WIDTH, min(max_for_terminal, event.width))
-        container.styles.width = width
+            requested = [int(getattr(w, "_requested_width", 0)) for w in panels]
+        except Exception:
+            requested = []
+        if not any(width > 0 for width in requested):
+            requested = [event.width]
+        terminal_width = getattr(getattr(self, "size", None), "width", 0) or 0
+        container.styles.width = services_sidebar_width(
+            requested, terminal_width=terminal_width
+        )

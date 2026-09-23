@@ -40,6 +40,8 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
 
     def _apply_panel_heights(self, container: object, widgets: list[AgentList]) -> None:
         """Size each tribe panel based on its content."""
+        from ...util.panel_heights import PanelHeight, allocate_panel_heights
+
         if not widgets:
             return
 
@@ -48,7 +50,6 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
         if not container_height:
             return
 
-        border_rows = 2
         option_counts = [max(0, int(getattr(w, "option_count", 0))) for w in widgets]
         panel_keys = getattr(self._panel_group, "panel_keys", [])
         if len(panel_keys) == len(widgets):
@@ -58,72 +59,17 @@ class PanelLayoutMixin(PanelRefreshStateMixin):
             collapsed = [
                 bool(getattr(widget, "_panel_collapsed", False)) for widget in widgets
             ]
-        natural_heights = [
-            border_rows if collapsed[idx] else count + border_rows
-            for idx, count in enumerate(option_counts)
-        ]
-        separator_rows = max(0, len(widgets) - 1)
-        total_natural = sum(natural_heights) + separator_rows
-
-        from textual.css.scalar import Scalar, Unit
-
-        def cell_height(rows: float) -> Scalar:
-            return Scalar(float(rows), Unit.CELLS, Unit.HEIGHT)
-
-        def fraction_height(idx: int) -> Scalar:
-            weight = float(option_counts[idx] + 1)
-            return Scalar(weight, Unit.FRACTION, Unit.HEIGHT)
-
-        if total_natural <= container_height:
-            filler_idx = next(
-                (idx for idx, is_collapsed in enumerate(collapsed) if not is_collapsed),
-                None,
-            )
-            for idx, (widget, natural) in enumerate(
-                zip(widgets, natural_heights, strict=True)
-            ):
-                if idx == filler_idx:
-                    widget.styles.height = Scalar(1.0, Unit.FRACTION, Unit.HEIGHT)
-                else:
-                    widget.styles.height = cell_height(float(natural))
+        filler_idx = next(
+            (idx for idx, is_collapsed in enumerate(collapsed) if not is_collapsed),
+            0,
+        )
+        heights: list[PanelHeight] | None = allocate_panel_heights(
+            option_counts, collapsed, container_height, filler_idx=filler_idx
+        )
+        if heights is None:
             return
-
-        content_budget = max(0, container_height - separator_rows)
-        min_heights = [
-            border_rows if collapsed[idx] else border_rows + min(count, 2)
-            for idx, count in enumerate(option_counts)
-        ]
-        if content_budget < sum(min_heights):
-            for idx, widget in enumerate(widgets):
-                widget.styles.height = (
-                    cell_height(float(border_rows))
-                    if collapsed[idx]
-                    else fraction_height(idx)
-                )
-            return
-
-        fixed_heights: dict[int, float] = {
-            idx: float(border_rows)
-            for idx, is_collapsed in enumerate(collapsed)
-            if is_collapsed
-        }
-        fixed_total = sum(fixed_heights.values())
-        candidates = [idx for idx in range(len(widgets)) if idx not in fixed_heights]
-        for idx in sorted(candidates, key=lambda i: (natural_heights[i], i)):
-            remaining_min = sum(
-                min_heights[other]
-                for other in range(len(widgets))
-                if other not in fixed_heights and other != idx
-            )
-            if fixed_total + natural_heights[idx] + remaining_min <= content_budget:
-                fixed_heights[idx] = float(natural_heights[idx])
-                fixed_total += natural_heights[idx]
-
-        for idx, widget in enumerate(widgets):
-            if idx in fixed_heights:
-                widget.styles.height = cell_height(fixed_heights[idx])
-            else:
-                widget.styles.height = fraction_height(idx)
+        for widget, height in zip(widgets, heights, strict=True):
+            widget.styles.height = height.to_scalar()
 
     def _reapply_panel_heights(self) -> None:
         """Re-run the panel-height computation without rebuilding options."""

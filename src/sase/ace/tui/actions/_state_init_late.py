@@ -104,6 +104,10 @@ def init_late_startup_state(
     self._axe_items = []
     self._axe_last_idx = 0
     self._axe_last_item_key = None
+    from .axe_display._panels import build_services_panel_index
+
+    self._axe_panel_index = build_services_panel_index([])
+    self._axe_painted_panel_key = "service_procs"
     self._axe_pending_selection = None
     self._axe_config_restart_saved_path = None
     # Per-lumberjack fold keys ("lumberjack:<name>") are initialized

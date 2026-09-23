@@ -54,14 +54,15 @@ async def test_axe_chop_run_info_panel_png_snapshot(
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
-        # Items are: [hooks LJ, hooks/fast_lint chop, hooks/slow_typecheck chop,
-        # checks LJ, checks/smoke chop, bgcmd slot 1]. Two j presses from the
-        # default idx=0 lands on hooks/slow_typecheck (the chop with a
-        # failure run + non-empty output_tail).
+        # Items are: [bgcmd slot 1, hooks LJ, hooks/fast_lint chop,
+        # hooks/slow_typecheck chop, checks LJ, checks/smoke chop]. Three j
+        # presses from the default idx=0 land on hooks/slow_typecheck (the
+        # chop with a failure run + non-empty output_tail).
         await page.press("j")
         await page.press("j")
-        assert page.app.current_idx == 2, (
-            f"expected idx 2 (hooks/slow_typecheck), got {page.app.current_idx}"
+        await page.press("j")
+        assert page.app.current_idx == 3, (
+            f"expected idx 3 (hooks/slow_typecheck), got {page.app.current_idx}"
         )
         selected = page.app._axe_items[page.app.current_idx]
         assert isinstance(selected, ChopItem), (

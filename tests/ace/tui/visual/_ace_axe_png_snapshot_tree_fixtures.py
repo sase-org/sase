@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import dataclasses
+
 from sase.ace.tui.actions.axe_display._data import (
     AxeCollectedData,
     BgCmdSnapshot,
     ChopSnapshot,
     LumberjackSnapshot,
+)
+from sase.service.status import (
+    ServiceEnablement,
+    ServiceStatusHost,
+    ServiceStatusProc,
+    ServiceStatusSnapshot,
 )
 from sase.ace.tui.bgcmd import BackgroundCommandInfo
 from sase.axe.state import LumberjackMetrics
@@ -160,6 +168,124 @@ def axe_lumberjack_tree_data() -> AxeCollectedData:
         bgcmd_details={
             1: BgCmdSnapshot(info=bgcmd_info, running=True, output_tail="building...")
         },
+    )
+
+
+def _services_panels_proc(
+    name: str,
+    state: str,
+    *,
+    desired: str = "running",
+    available: bool = True,
+    enabled: bool = True,
+    enablement_summary: str = "enabled",
+    summary: str = "",
+    restarts: int = 0,
+) -> ServiceStatusProc:
+    return ServiceStatusProc(
+        name=name,
+        source="builtin",
+        declared_by="builtin",
+        mode="daemon",
+        available=available,
+        enablement=ServiceEnablement(
+            enabled=enabled, provenance="builtin", summary=enablement_summary
+        ),
+        desired=desired,
+        state=state,
+        summary=summary or state,
+        restarts=restarts,
+    )
+
+
+def _services_panels_status(
+    *, scheduler_state: str = "running"
+) -> ServiceStatusSnapshot:
+    return ServiceStatusSnapshot(
+        schema_version=1,
+        generated_at=0.0,
+        change_token="visual-services-panels",
+        host=ServiceStatusHost(state="running", summary="running"),
+        procs=(
+            _services_panels_proc("scheduler", scheduler_state),
+            _services_panels_proc("telegram", "running"),
+            _services_panels_proc(
+                "agents_sync",
+                "crash_loop",
+                summary="crash-looping",
+                restarts=0 if scheduler_state != "running" else 3,
+            ),
+            _services_panels_proc(
+                "web",
+                "stopped",
+                desired="stopped",
+                enabled=False,
+                enablement_summary="disabled here",
+                summary="stopped",
+            ),
+        ),
+        orphans=(),
+        diagnostics=(),
+    )
+
+
+def services_panels_data() -> AxeCollectedData:
+    """Services sidebar fixture: realistic service status plus routines/jobs.
+
+    The host is running. The procs are scheduler running, telegram running,
+    agents_sync ``crash_loop`` with 3 restarts, and a disabled proc. Two
+    oneshots (one running, one exit 0) sit below the daemons, and the
+    routine/job tree matches :func:`axe_lumberjack_tree_data`.
+    """
+    base = axe_lumberjack_tree_data()
+    running_info = BackgroundCommandInfo(
+        command="just check --all-targets",
+        project="visual_project",
+        workspace_num=1,
+        workspace_dir="/workspace/sase_1",
+        started_at="2026-07-06T11:57:00",
+        pid=12345,
+        proc_id="proc-panels-run",
+        status="running",
+    )
+    done_info = BackgroundCommandInfo(
+        command="make docs",
+        project="visual_project",
+        workspace_num=2,
+        workspace_dir="/workspace/sase_2",
+        started_at="2026-07-06T11:50:00",
+        pid=None,
+        finished_at="2026-07-06T11:56:00",
+        proc_id="proc-panels-done",
+        status="success",
+        exit_code=0,
+    )
+    return dataclasses.replace(
+        base,
+        bgcmd_slots=[(1, running_info), (2, done_info)],
+        bgcmd_details={
+            1: BgCmdSnapshot(
+                info=running_info, running=True, output_tail="checking..."
+            ),
+            2: BgCmdSnapshot(info=done_info, running=False, output_tail="docs built"),
+        },
+        service_status=_services_panels_status(),
+    )
+
+
+def services_panels_empty_routines_data() -> AxeCollectedData:
+    """Services sidebar with no routines, a stopped scheduler, and oneshots."""
+    base = services_panels_data()
+    return dataclasses.replace(
+        base,
+        lumberjack_names=[],
+        lumberjack_statuses={},
+        lumberjack_metrics={},
+        lumberjack_log_tails={},
+        lumberjack_chop_names={},
+        chop_snapshots={},
+        lumberjack_snapshots={},
+        service_status=_services_panels_status(scheduler_state="stopped"),
     )
 
 

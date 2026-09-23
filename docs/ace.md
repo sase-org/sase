@@ -2931,13 +2931,16 @@ which case the target wins.
 
 ## Keybindings: Services Tab
 
-The visible tab is **Services**. Its top-level rows are the effective machine service
-procs assembled from built-in, plugin, user, and machine-overlay configuration. The
-built-in `scheduler` row expands to the familiar routine/job tree, while other service
-procs show their lifecycle, enablement provenance, restart state, and bounded output.
-The dashboard status line reports the service host state (`Host: <state>`); background
-commands (oneshot service procs) form a separate `── oneshots ──` section below the
-daemon procs. Project-local `sase.yml` service entries are intentionally ignored.
+The visible tab is **Services**. Its sidebar is two stacked panels. The top **Service
+Procs** panel holds every service proc assembled from built-in, plugin, user, and
+machine-overlay configuration — daemon rows plus background commands (oneshot service
+procs) in a separate `── oneshots ──` section below the daemon procs. The lower
+**Scheduled Routines** panel holds every routine with its job rows nested under it. Each
+panel border title carries at-a-glance metadata (counts, status chips, and badges such
+as hidden oneshots or a non-running scheduler). Service proc rows show their lifecycle,
+enablement provenance, restart state, and bounded output. The dashboard status line
+reports the service host state (`Host: <state>`). Project-local `sase.yml` service
+entries are intentionally ignored.
 
 Once service status has loaded, the info panel leads with a host clause:
 `Services · host ● running 4d · sase.service` while the host runs (uptime in its largest
@@ -2953,13 +2956,14 @@ example `crash-looping (3)`) plus the restart count (`· 5r`) whatever the state
 
 On a selected top-level service proc, `x` starts or stops it, `r` restarts it, and `!e`
 enables or disables it on this machine. Those actions are no-ops when no service proc is
-selected; in particular, `x` does not toggle the host from a nested scheduler job or
-routine. Use `!x` to start or stop the service host itself. The `SVC` footer pill shows
-the running/desired service-proc count (`N/M`), or a red `!` when the host or a service
-proc is unhealthy (see [Service Health Pill](#service-health-pill)). The right-hand
-panel shows the selected proc's effective command, current and desired state, restart
-policy, dependencies, last exit, restart decision reason, stop provenance, any pending
-start/restart request, and output tail, plus the host config error when one is set.
+selected; in particular, `x` does not toggle the host from a routine or job row in the
+Scheduled Routines panel. Use `!x` to start or stop the service host itself. The `SVC`
+footer pill shows the running/desired service-proc count (`N/M`), or a red `!` when the
+host or a service proc is unhealthy (see [Service Health Pill](#service-health-pill)).
+The right-hand panel shows the selected proc's effective command, current and desired
+state, restart policy, dependencies, last exit, restart decision reason, stop
+provenance, any pending start/restart request, and output tail, plus the host config
+error when one is set.
 
 The canonical tab id is `services` (`axe` is still accepted as a legacy alias, for
 example `sase tui -t axe`). Configuration keys such as `ace.axe_description_expanded`
@@ -2968,22 +2972,29 @@ detailed scheduler reference below still uses “Axe.”
 
 ### Sidebar Row Taxonomy
 
-The Services sidebar renders three row types so the operational tree reads at a glance:
+The Services sidebar renders four row types across its two panels so the operational
+tree reads at a glance:
 
-- **Routine** rows are top-level sections with a solid left accent bar (`▌`) in the
-  routine hue, a `[*]` / `[!]` / `[·]` running/error/idle marker, the routine name, and
-  an optional compact `Nc / Ne` cycles/errors chip at the end.
+- **Service proc** rows live in the Service Procs panel with a solid left accent bar
+  (`▌`) in the service teal, a `[*]` / `[!]` / `[~]` / `[?]` / `[-]` / `[·]` status
+  marker, the proc name, and an optional state chip (restart count, disablement
+  provenance, or the core's human summary).
+- **Routine** rows live in the Scheduled Routines panel as top-level sections with a
+  solid left accent bar (`▌`) in the routine hue, a `[*]` / `[!]` / `[·]`
+  running/error/idle marker, the routine name, and an optional compact `Nc / Ne`
+  cycles/errors chip at the end.
 - **Job** rows are child rows indented under their parent with a `  └─` tree connector,
   a per-run status icon (`✓` success, `!` failure/timeout, `?` missing script, `●`
   running, `*` agent-launched, `·` no runs), and the job name in a dim-gold child hue.
   Disabled jobs remain visible with a quiet `disabled` chip but cannot be run manually.
-- **Oneshot** rows (background commands run via `!!`) live below the routine tree under
-  a dim `── oneshots ──` divider when both groups are present. Each row leads with a
-  state glyph (`▷` running, `✓` exit 0, `✗` failed or killed), a muted `#N` index, and
-  the command, and ends with a chip carrying the recorded exit code and age (for example
-  `exit 0 · 4m ago`), so they cannot be mistaken for scheduled AXE work. Commands
-  started before oneshots existed remain readable from their old slot directories (no
-  exit code) while the `bgcmd_legacy_slots` sunset flag is on.
+- **Oneshot** rows (background commands run via `!!`) live in the Service Procs panel
+  below the daemon procs under a dim `── oneshots ──` divider when both groups are
+  present. Each row leads with a state glyph (`▷` running, `✓` exit 0, `✗` failed or
+  killed), a muted `#N` index, and the command, and ends with a chip carrying the
+  recorded exit code and age (for example `exit 0 · 4m ago`), so they cannot be mistaken
+  for scheduled AXE work. Commands started before oneshots existed remain readable from
+  their old slot directories (no exit code) while the `bgcmd_legacy_slots` sunset flag
+  is on.
 
 ### Description Panel
 
@@ -3038,11 +3049,12 @@ Pressing `d` outside Patches no longer opens a diff for an unrelated Patch.
 ### Dynamic Sidebar Width and No-Wrap Rows
 
 Every sidebar row is rendered as single-line Rich `Text` with `no_wrap=True` and
-`overflow="ellipsis"`. After each refresh the widget computes the widest formatted row
-and emits a `WidthChanged` message; the AXE container resizes between a 35-cell minimum
-and an 80-cell maximum, clamped further so the right-hand dashboard always keeps at
-least 40 cells. On terminals too narrow to fit a label even at the clamped width, the
-row ellipsizes rather than wrapping onto a second line.
+`overflow="ellipsis"`. After each refresh each panel computes its widest formatted row
+and its border title, and the wider of the two panels decides the sidebar width: the AXE
+container resizes between a 35-cell minimum and an 80-cell maximum, clamped further so
+the right-hand dashboard always keeps at least 40 cells. On terminals too narrow to fit
+a label even at the clamped width, the row ellipsizes rather than wrapping onto a second
+line, and a long panel title truncates with Textual's border-title ellipsis.
 
 ### Controlled-Output Highlighting and ANSI Fallback
 
@@ -3085,18 +3097,18 @@ scrolled off screen on selection.
 
 ### Navigation
 
-| Key                       | Action                                                                    |
-| ------------------------- | ------------------------------------------------------------------------- |
-| `j` / `k`                 | Move to next / previous sidebar row (routine, job, or background command) |
-| `Ctrl+N` / `Ctrl+P`       | Page through the focused job's run history (older / newer)                |
-| `'`                       | Jump to a current-tab entry by adaptive hint                              |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack                |
-| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered job link, or open the complete links panel    |
-| `` ` ``                   | Jump to an entry across all tabs                                          |
-| `g`                       | Scroll to top                                                             |
-| `G`                       | Scroll to bottom (pins auto-scroll)                                       |
-| `Ctrl+D` / `Ctrl+U`       | Scroll output down / up by half a page                                    |
-| `Ctrl+F` / `Ctrl+B`       | Scroll output down / up by a full page                                    |
+| Key                       | Action                                                                                  |
+| ------------------------- | --------------------------------------------------------------------------------------- |
+| `j` / `k`                 | Move to next / previous sidebar row (service proc, routine, job, or background command) |
+| `Ctrl+N` / `Ctrl+P`       | Page through the focused job's run history (older / newer)                              |
+| `'`                       | Jump to a current-tab entry by adaptive hint                                            |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack                              |
+| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered job link, or open the complete links panel                  |
+| `` ` ``                   | Jump to an entry across all tabs                                                        |
+| `g`                       | Scroll to top                                                                           |
+| `G`                       | Scroll to bottom (pins auto-scroll)                                                     |
+| `Ctrl+D` / `Ctrl+U`       | Scroll output down / up by half a page                                                  |
+| `Ctrl+F` / `Ctrl+B`       | Scroll output down / up by a full page                                                  |
 
 ### Commands
 

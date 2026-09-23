@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from ...models.fold_state import FoldStateManager
     from ...util.debounce import DetailPanelDebouncer
     from ...widgets.bgcmd_list import AxeItem
+    from ._panels import ServicesPanelIndex
     from ._data import (
         AxeStatusDegradation,
         AxeViewType,
@@ -63,6 +64,12 @@ class AxeLoaderState:
     _axe_items: list[AxeItem]
     _axe_last_idx: int
     _axe_last_item_key: AxeItemKey | None
+    # Panel partition index rebuilt by ``_build_axe_items``; the focused
+    # panel is always derived from ``current_idx`` through it.
+    _axe_panel_index: ServicesPanelIndex
+    # Focused-panel key captured by the last full panel paint, so the
+    # highlight fast path can tell when focus crossed panels.
+    _axe_painted_panel_key: str
     _axe_pending_selection: Any
     _axe_fold_manager: FoldStateManager
     # Caches populated by the async collector so navigation paints without I/O.

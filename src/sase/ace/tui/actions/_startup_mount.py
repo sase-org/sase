@@ -198,13 +198,13 @@ class StartupMountMixin:
                 log.debug("startup focus normalization skipped: AgentList unfocusable")
             return
         elif self.current_tab == "services":
-            selector = "#bgcmd-list-panel"
+            try:
+                self._focus_axe_focused_panel(force=True)  # type: ignore[attr-defined]
+            except Exception:
+                log.debug("startup focus normalization skipped: axe panels missing")
+            return
         else:
             return
-        try:
-            self.query_one(selector).focus()
-        except Exception:
-            log.debug("startup focus normalization skipped: %s not found", selector)
 
     def _tui_stall_context(self: Any) -> dict[str, Any]:
         """Return side-effect-free context for the stall watchdog thread."""

@@ -155,13 +155,14 @@ def _chop_app(*, items, snapshots=None) -> _App:
 
 def test_chop_collapsed_scheduler_expands_and_selects() -> None:
     app = _chop_app(items=(ChopItem("lj", "chop"),))
-    # Both folds start collapsed (default); the chop row is present in the
-    # harness list to simulate a rebuilt item list.
+    # The lumberjack fold starts collapsed (default); the chop row is present
+    # in the harness list to simulate a rebuilt item list. Routines live in
+    # their own panel now, so no scheduler fold is touched.
     expanded: list[str] = []
     assert app._follow_chop_link("lj/chop", expanded=expanded) is True
     assert expanded == ["lj"]
     assert app._axe_fold_manager.get("lumberjack:lj").name != "COLLAPSED"
-    assert app._axe_fold_manager.get("service:scheduler").name != "COLLAPSED"
+    assert not app._axe_fold_manager.has("service:scheduler")
     assert app.current_tab == "services"
     assert app.current_idx == 0
 
@@ -172,7 +173,7 @@ def test_chop_failure_undoes_expansions() -> None:
     assert app._follow_chop_link("lj/missing", expanded=expanded) is False
     # The caller discards `expanded` on failure; the folds themselves roll back.
     assert app._axe_fold_manager.get("lumberjack:lj").name == "COLLAPSED"
-    assert app._axe_fold_manager.get("service:scheduler").name == "COLLAPSED"
+    assert not app._axe_fold_manager.has("service:scheduler")
     assert app.notifications
     assert "job:lj/missing" in app.notifications[0][0]
 

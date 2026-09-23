@@ -1368,13 +1368,14 @@ under their lifecycle owners.
 
 ### Services Tab Views
 
-The Services tab sidebar renders each routine as a top-level row with its configured
-jobs as indented children, followed by any background commands (`!!`). Each job row
-shows a status marker derived from its newest cached run: active `running` / `launched`,
-successful `success` / `action_succeeded`, healthy `no_op`, policy `skipped`, degraded
-`check_error`, failed `failure` / `timeout` / `action_failed`, or `missing_script`. Jobs
-with no history remain marked as never run. Selection drives three distinct dashboard
-views:
+The Services tab sidebar is two panels: **Service Procs** (daemon procs plus any
+background commands (`!!`) under a `── oneshots ──` divider) and **Scheduled Routines**
+(each routine as a top-level row with its configured jobs as indented children). Each
+job row shows a status marker derived from its newest cached run: active `running` /
+`launched`, successful `success` / `action_succeeded`, healthy `no_op`, policy
+`skipped`, degraded `check_error`, failed `failure` / `timeout` / `action_failed`, or
+`missing_script`. Jobs with no history remain marked as never run. Selection drives
+three distinct dashboard views:
 
 - **Routine overview** — selecting a routine row shows its status, interval, cycle
   count, error count, and a per-job table with each job's last-run status, relative
@@ -1631,8 +1632,9 @@ child escape.
 ## sase's TUI Integration
 
 The visible **Services** tab provides live monitoring of the service host, the
-configured service procs, and the scheduler. The scheduler tree is nested below the
-top-level `scheduler` service proc alongside any other configured services:
+configured service procs, and the scheduler. The sidebar splits into the Service Procs
+panel (every service proc, including the `scheduler` proc itself, plus oneshots) and the
+Scheduled Routines panel (the routine/job tree):
 
 - A routine tree sidebar (routine rows + their jobs as children + background-command
   rows)
@@ -1648,10 +1650,11 @@ top-level `scheduler` service proc alongside any other configured services:
   counted service procs, or a red `!` when the host is not running or a counted proc is
   unhealthy (see [Service Health Pill](ace.md#service-health-pill))
 
-Select the top-level scheduler row before pressing `x` or `r`; those keys intentionally
-do nothing on its nested routines and jobs. `!x` starts or stops the whole service host.
-`sase tui --restart-service` (`--restart-axe`, `-R`) restarts an already-running host in
-the background after the TUI's first status load (it is a no-op when the host is not
-running); the pill keeps showing health throughout.
+Select a service proc row in the Service Procs panel before pressing `x` or `r`; those
+keys intentionally do nothing on routine and job rows in the Scheduled Routines panel.
+`!x` starts or stops the whole service host. `sase tui --restart-service`
+(`--restart-axe`, `-R`) restarts an already-running host in the background after the
+TUI's first status load (it is a no-op when the host is not running); the pill keeps
+showing health throughout.
 
 See [`docs/ace.md`](ace.md) for the full Services tab keybinding reference.

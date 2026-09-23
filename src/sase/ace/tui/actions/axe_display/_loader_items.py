@@ -120,33 +120,30 @@ class AxeDisplayItemsMixin(AxeLoaderState):
                 pending_target = pending.target_key
                 if pending_target[0] == "chop":
                     self._axe_fold_manager.expand(f"lumberjack:{pending_target[1]}")
-                    self._axe_fold_manager.expand("service:scheduler")
 
         items: list[AxeItem] = []
 
-        # Top-level Services rows. The scheduler row owns the legacy
-        # routine/job tree underneath it so the internal AXE model stays
-        # intact while the visible hierarchy leads with actual service procs.
+        # Visual order matches the two sidebar panels: every service proc,
+        # then the oneshot rows, then every routine with its job rows.
+        # Routines always live in their own panel now, so the
+        # ``service:scheduler`` fold is gone regardless of status shape.
         service_status = getattr(self, "_service_status", None)
         if service_status is not None:
             for proc in service_status.procs:
                 items.append(ServiceProcItem(name=proc.name))
-                if proc.name == "scheduler":
-                    fold_key = "service:scheduler"
-                    if not self._axe_fold_manager.has(fold_key):
-                        self._axe_fold_manager.expand(fold_key)
-                    if self._axe_fold_manager.get(fold_key) != FoldLevel.COLLAPSED:
-                        self._append_lumberjack_items(items)
-        else:
-            self._append_lumberjack_items(items)
 
         # Add bgcmd entries when not hidden, visually separated below the
-        # lumberjack tree.
+        # service procs.
         if not self._axe_cmds_hidden:
             for slot, _ in sorted(self._bgcmd_slots, key=lambda x: x[0]):
                 items.append(BgCmdItem(slot=slot))
 
+        self._append_lumberjack_items(items)
+
         self._axe_items = items
+        from ._panels import build_services_panel_index
+
+        self._axe_panel_index = build_services_panel_index(items)
 
         restored_idx = restore_selection_by_identity(
             items,

@@ -62,6 +62,12 @@ async def test_axe_long_label_widening_png_snapshot(
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
+        # Items are: [bgcmd slot 1, review_pipeline LJ, ...]. One j press
+        # selects the lumberjack row whose summary the golden captures.
+        await page.press("j")
+        assert page.app.current_idx == 1, (
+            f"expected idx 1 (review_pipeline lumberjack), got {page.app.current_idx}"
+        )
 
         sidebar = page.app.query_one("#bgcmd-list-container")
         width = sidebar.styles.width
@@ -104,6 +110,12 @@ async def test_axe_constrained_width_no_wrap_png_snapshot(
         await wait_for_startup(page)
         await page.press("tab")
         await page.expect_state("tab", "axe")
+        # Items are: [bgcmd slot 1, review_pipeline LJ, ...]. One j press
+        # selects the lumberjack row whose summary the golden captures.
+        await page.press("j")
+        assert page.app.current_idx == 1, (
+            f"expected idx 1 (review_pipeline lumberjack), got {page.app.current_idx}"
+        )
         await wait_for_state(
             page,
             lambda: _axe_long_label_summary_populated(page),
