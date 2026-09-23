@@ -2,6 +2,7 @@
 
 Startup watches are shard-bounded and never include pre-existing 14-digit
 agent directories. After each agents load, install watches for live rows
+(including pending gate rows, whose meta keeps changing after first load)
 and prune watches for loaded terminal rows so coverage self-heals after
 ACE start, ``os.execvp`` hot-restart, or a missed ``IN_CREATE``.
 """
@@ -12,7 +13,10 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from ...models.agent_family_members import agent_row_is_in_flight
+from ...models.agent_family_members import (
+    agent_row_is_in_flight,
+    gate_row_is_settled,
+)
 
 if TYPE_CHECKING:
     from ...models import Agent
@@ -22,6 +26,17 @@ log = logging.getLogger(__name__)
 MAX_LIVE_AGENT_WATCHES = 256
 
 _live_watch_cap_warning_emitted = False
+
+
+def _row_needs_live_watch(agent: Agent) -> bool:
+    """Return whether one row must keep inotify coverage.
+
+    Pending gate rows are still live: after the first load their meta keeps
+    changing (gate result fields, claim holder, answer / settling state).
+    """
+    if agent_row_is_in_flight(agent):
+        return True
+    return bool(getattr(agent, "is_gate", False)) and not gate_row_is_settled(agent)
 
 
 def rearm_live_agent_watch_coverage(app: Any) -> None:
@@ -45,7 +60,7 @@ def rearm_live_agent_watch_coverage(app: Any) -> None:
         if artifact_dir is None:
             continue
         key = str(artifact_dir)
-        if agent_row_is_in_flight(agent):
+        if _row_needs_live_watch(agent):
             in_flight_by_dir[key] = (_live_watch_sort_key(agent), artifact_dir)
             terminal_by_dir.pop(key, None)
         elif key not in in_flight_by_dir:

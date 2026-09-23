@@ -37,6 +37,7 @@ def build_gate_notification_index(snapshot: Any) -> GateNotificationIndex:
     by_id: dict[str, Notification] = {}
     by_bundle_path: dict[str, Notification] = {}
     by_raw_suffix: dict[str, list[Notification]] = {}
+    by_request_id: dict[str, Notification] = {}
     gate_notifications: list[Notification] = []
     for notification in notifications:
         by_id.setdefault(notification.id, notification)
@@ -48,10 +49,14 @@ def build_gate_notification_index(snapshot: Any) -> GateNotificationIndex:
             by_raw_suffix.setdefault(str(raw_suffix), []).append(notification)
         if adapter_for_action(notification.action) is not None:
             gate_notifications.append(notification)
+            request_id = notification.action_data.get("request_id")
+            if request_id:
+                by_request_id.setdefault(str(request_id), notification)
     index = GateNotificationIndex(
         by_id=by_id,
         by_bundle_path=by_bundle_path,
         by_raw_suffix=by_raw_suffix,
+        by_request_id=by_request_id,
         gate_notifications=tuple(gate_notifications),
     )
     _INDEX_CACHE_REF = snapshot
@@ -73,6 +78,9 @@ def linked_notification(
     bundle_path = getattr(row, "gate_bundle_path", None)
     if bundle_path and str(bundle_path) in index.by_bundle_path:
         return index.by_bundle_path[str(bundle_path)]
+    gate_id = getattr(row, "gate_id", None)
+    if isinstance(gate_id, str) and gate_id and gate_id in index.by_request_id:
+        return index.by_request_id[gate_id]
     return None
 
 

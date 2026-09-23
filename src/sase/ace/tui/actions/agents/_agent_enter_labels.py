@@ -81,6 +81,10 @@ def notification_pending_status(notification: Notification) -> str | None:
         value = notification.action_data.get(key)
         if isinstance(value, str) and value.strip():
             return value.strip()
+    if notification.action == "PlanApproval":
+        plan_tier = notification.action_data.get("plan_tier")
+        if isinstance(plan_tier, str) and plan_tier.strip().upper() == "TALE":
+            return "TALE"
     return None
 
 

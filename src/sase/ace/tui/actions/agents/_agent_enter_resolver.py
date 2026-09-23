@@ -64,6 +64,8 @@ def _dedupe_notification_targets(
     seen_notification_ids: set[str],
     seen_bundle_paths: set[str],
     settled_bundle_paths: set[str],
+    seen_gate_ids: set[str],
+    settled_gate_ids: set[str],
 ) -> list[AgentEnterTarget]:
     targets: list[AgentEnterTarget] = []
     for notification in candidates:
@@ -75,9 +77,17 @@ def _dedupe_notification_targets(
             bundle_text in seen_bundle_paths or bundle_text in settled_bundle_paths
         ):
             continue
+        request_id = notification.action_data.get("request_id")
+        request_text = str(request_id) if request_id else None
+        if request_text and (
+            request_text in seen_gate_ids or request_text in settled_gate_ids
+        ):
+            continue
         seen_notification_ids.add(notification.id)
         if bundle_text:
             seen_bundle_paths.add(bundle_text)
+        if request_text:
+            seen_gate_ids.add(request_text)
         targets.append(notification_gate_target(notification, scope_agent=scope_agent))
     return targets
 
@@ -184,6 +194,9 @@ def resolve_agent_enter_targets(
             linked = linked_notification(row, gate_notifications)
             if linked is not None:
                 seen_notification_ids.add(linked.id)
+                linked_bundle = linked.action_data.get("bundle_path")
+                if linked_bundle:
+                    seen_bundle_paths.add(str(linked_bundle))
             bundle_path = getattr(row, "gate_bundle_path", None)
             if bundle_path:
                 seen_bundle_paths.add(str(bundle_path))
@@ -192,6 +205,11 @@ def resolve_agent_enter_targets(
             str(getattr(row, "gate_bundle_path", None))
             for row in roster
             if is_settled_gate_row(row) and getattr(row, "gate_bundle_path", None)
+        }
+        settled_gate_ids = {
+            str(getattr(row, "gate_id", None))
+            for row in roster
+            if is_settled_gate_row(row) and getattr(row, "gate_id", None)
         }
         member_shells: list[Agent] = [agent] + [
             row for row in roster if not row_is_family_shell(row)
@@ -206,6 +224,8 @@ def resolve_agent_enter_targets(
                 seen_notification_ids=seen_notification_ids,
                 seen_bundle_paths=seen_bundle_paths,
                 settled_bundle_paths=settled_bundle_paths,
+                seen_gate_ids=seen_gate_ids,
+                settled_gate_ids=settled_gate_ids,
             )
         )
         patch_name: str | None = None
@@ -248,6 +268,9 @@ def resolve_agent_enter_targets(
                 linked = linked_notification(row, gate_notifications)
                 if linked is not None:
                     seen_notification_ids.add(linked.id)
+                    linked_bundle = linked.action_data.get("bundle_path")
+                    if linked_bundle:
+                        seen_bundle_paths.add(str(linked_bundle))
                 bundle_path = getattr(row, "gate_bundle_path", None)
                 if bundle_path:
                     seen_bundle_paths.add(str(bundle_path))
@@ -260,10 +283,22 @@ def resolve_agent_enter_targets(
             candidates = identity_matched_gate_notifications(
                 [agent], gate_notifications
             )
+            pending_gate_ids = {
+                str(getattr(row, "gate_id", None))
+                for row in roster
+                if is_pending_gate_row(row) and getattr(row, "gate_id", None)
+            }
+            settled_gate_ids = {
+                str(getattr(row, "gate_id", None))
+                for row in roster
+                if is_settled_gate_row(row) and getattr(row, "gate_id", None)
+            }
         else:
             candidates = identity_matched_gate_notifications(
                 [agent], gate_notifications
             )
+            pending_gate_ids = set()
+            settled_gate_ids = set()
         gate_targets.extend(
             _dedupe_notification_targets(
                 candidates,
@@ -271,6 +306,8 @@ def resolve_agent_enter_targets(
                 seen_notification_ids=seen_notification_ids,
                 seen_bundle_paths=seen_bundle_paths,
                 settled_bundle_paths=settled_bundle_paths,
+                seen_gate_ids=pending_gate_ids,
+                settled_gate_ids=settled_gate_ids,
             )
         )
         if not gate_targets:

@@ -75,6 +75,7 @@ class GateNotificationIndex:
     by_id: dict[str, Notification] = field(default_factory=dict)
     by_bundle_path: dict[str, Notification] = field(default_factory=dict)
     by_raw_suffix: dict[str, list[Notification]] = field(default_factory=dict)
+    by_request_id: dict[str, Notification] = field(default_factory=dict)
     gate_notifications: tuple[Notification, ...] = ()
 
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -192,6 +193,50 @@ def test_apply_skips_watch_coverage_without_fs_watcher(
     _apply(app, [live])
 
     assert app._agents_with_children == [live]
+
+
+def test_apply_keeps_watch_for_pending_gate_row(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    pending_dir = tmp_path / "20260918010101"
+    pending_dir.mkdir()
+    monkeypatch.setattr(
+        "sase.ace.tui.models.artifact_files.get_artifacts_dir",
+        lambda agent: agent.artifacts_dir,
+    )
+    watcher = _FakeWatcher()
+    app = _ApplyHarness(watcher)
+    pending = replace(
+        _agent("0pt--gate", pending_dir.name, pending_dir, status="GATE"),
+        agent_family_role="gate",
+        gate_id="gate-pending-1",
+        gate_state="pending",
+        stop_time=None,
+    )
+    assert pending.is_gate
+
+    _apply(app, [pending])
+
+    assert watcher.ensure_calls == [[pending_dir]]
+    assert watcher.prune_calls == []
+
+    settled_dir = tmp_path / "20260918010202"
+    settled_dir.mkdir()
+    settled_watcher = _FakeWatcher()
+    settled_app = _ApplyHarness(settled_watcher)
+    settled = replace(
+        _agent("0pt--gate", settled_dir.name, settled_dir, status="GATE"),
+        agent_family_role="gate",
+        gate_id="gate-settled-1",
+        gate_state="answered",
+        stop_time=datetime(2026, 9, 18, 13, 0, 0),
+    )
+
+    _apply(settled_app, [settled])
+
+    assert settled_watcher.ensure_calls == []
+    assert settled_watcher.prune_calls == [[settled_dir]]
 
 
 def test_apply_caps_live_watches_newest_first(

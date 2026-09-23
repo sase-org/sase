@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 from datetime import datetime
 
+from sase.ace.tui.actions.agents._agent_enter_index import linked_notification
 from sase.ace.tui.actions.agents._agent_enter_targets import (
     build_gate_notification_index,
     enter_action_label_for_targets,
@@ -213,6 +214,80 @@ def test_project_level_plan_family_container_resolves_gate_only() -> None:
     assert target.kind == "gate"
     assert target.label == "Review tale plan"
     assert enter_action_label_for_targets(resolution.targets) != "choose action"
+
+
+def test_stale_pending_gate_row_links_notification_by_request_id() -> None:
+    """A stale pending gate row still claims its notification via gate id."""
+    member = make_agent(name="worker", raw_suffix="20260918010202")
+    gate = _gate_row(
+        "010101",
+        gate_id="gate-tale-1",
+        kind="plan",
+        start_status="TALE",
+        notification_id=None,
+        bundle_path=None,
+    )
+    root = _family(members=[member, gate], root_cl="~")
+    notification = _notification(
+        "n-tale",
+        "PlanApproval",
+        action_data={
+            **_matching_action_data(member),
+            "request_id": "gate-tale-1",
+            "bundle_path": "/tmp/bundles/gate-tale-1",
+            "plan_tier": "tale",
+        },
+    )
+    index = build_gate_notification_index([notification])
+    assert linked_notification(gate, index) is notification
+    resolution = resolve_agent_enter_targets(
+        root,
+        gate_notifications=index,
+        patch_name_for=lambda _agent: None,
+        patch_lookup=_summary_lookup,
+    )
+    assert len(resolution.targets) == 1
+    [target] = resolution.targets
+    assert target.source == "gate_row"
+    assert target.label == "Review tale plan"
+    assert target.notification_id == "n-tale"
+    assert target.bundle_path == "/tmp/bundles/gate-tale-1"
+
+
+def test_settled_gate_id_drops_notification_only_target() -> None:
+    member = make_agent(name="worker", raw_suffix="20260918010303")
+    settled_gate = _gate_row(
+        "040404",
+        gate_id="gate-settled-2",
+        state="answered",
+        stop_time=datetime(2026, 9, 18, 13, 0, 0),
+    )
+    assert settled_gate.gate_bundle_path is None
+    root = _family(members=[member, settled_gate], root_cl="~")
+    stale = _notification(
+        "n-stale-2",
+        "CustomGate",
+        action_data={
+            **_matching_action_data(member),
+            "request_id": "gate-settled-2",
+        },
+    )
+    resolution = _resolve(root, [stale])
+    assert "notification" not in _sources(resolution)
+
+
+def test_non_gate_notification_request_id_does_not_link() -> None:
+    gate = _gate_row("010101", gate_id="gate-tale-1")
+    notification = _notification(
+        "n-failed",
+        "GateExecutionFailed",
+        action_data={
+            **_matching_action_data(gate),
+            "request_id": "gate-tale-1",
+        },
+    )
+    index = build_gate_notification_index([notification])
+    assert linked_notification(gate, index) is None
 
 
 def test_ordering_gates_newest_first_patch_last() -> None:

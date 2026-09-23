@@ -29,6 +29,16 @@ if TYPE_CHECKING:
 def gate_row_target(row: Agent, *, linked: Notification | None) -> AgentEnterTarget:
     age = row_age_seconds(row)
     pending_status = getattr(row, "gate_start_status", None)
+    row_notification_id = getattr(row, "gate_notification_id", None)
+    row_bundle_path = getattr(row, "gate_bundle_path", None)
+    notification_id = row_notification_id or (linked.id if linked is not None else None)
+    if row_bundle_path:
+        bundle_path: str | None = str(row_bundle_path)
+    elif linked is not None:
+        linked_bundle = linked.action_data.get("bundle_path")
+        bundle_path = str(linked_bundle) if linked_bundle else None
+    else:
+        bundle_path = None
     return AgentEnterTarget(
         kind="gate",
         source="gate_row",
@@ -46,8 +56,8 @@ def gate_row_target(row: Agent, *, linked: Notification | None) -> AgentEnterTar
         ),
         badge_style=gate_badge_style(row),
         age_seconds=age,
-        notification_id=getattr(row, "gate_notification_id", None),
-        bundle_path=getattr(row, "gate_bundle_path", None),
+        notification_id=notification_id,
+        bundle_path=bundle_path,
         gate_id=getattr(row, "gate_id", None),
         row_identity=identity_of(row),
     )

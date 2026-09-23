@@ -14,6 +14,8 @@ from sase.ace.tui.models.agent import AgentType
 
 from ._agent_enter_targets_helpers import (
     _gate_row,
+    _matching_action_data,
+    _notification,
     _resolve,
     _sources,
 )
@@ -147,6 +149,28 @@ def test_clan_container_points_inside() -> None:
     resolution = _resolve(agent)
     assert resolution.targets == ()
     assert resolution.empty_message == "Select an agent inside this clan"
+
+
+def test_notification_only_tale_plan_approval_label() -> None:
+    agent = make_agent(name="demo", raw_suffix="20260918010101")
+    tale = _notification(
+        "n-tale",
+        "PlanApproval",
+        action_data={**_matching_action_data(agent), "plan_tier": "tale"},
+    )
+    [target, *_] = _resolve(agent, [tale]).targets
+    assert target.source == "notification"
+    assert target.label == "Review tale plan"
+    assert target.badge is not None and target.badge.startswith("TALE")
+
+    plain = _notification(
+        "n-plain",
+        "PlanApproval",
+        action_data=_matching_action_data(agent),
+    )
+    [plain_target, *_] = _resolve(agent, [plain]).targets
+    assert plain_target.label == "Review plan"
+    assert plain_target.badge is not None and plain_target.badge.startswith("PLAN")
 
 
 def test_monitor_and_proc_rows_are_silent() -> None:
