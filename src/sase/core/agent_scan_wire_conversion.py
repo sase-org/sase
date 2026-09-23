@@ -177,6 +177,11 @@ def _options_from_dict(data: dict[str, Any]) -> AgentArtifactScanOptionsWire:
         only_projects=tuple(data.get("only_projects") or ()),
         include_project_states=tuple(data.get("include_project_states") or ()),
         capacity_only=bool(data.get("capacity_only", False)),
+        clan_records_dir=(
+            str(data["clan_records_dir"])
+            if data.get("clan_records_dir") is not None
+            else None
+        ),
     )
 
 

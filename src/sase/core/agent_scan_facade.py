@@ -86,6 +86,12 @@ from sase.core.rust import require_rust_binding
 _DEFAULT_READ_LOCK_TIMEOUT_SECONDS = 0.05
 
 
+def _default_clan_records_dir_str() -> str:
+    from sase.core.agent_clan_record import clan_records_dir
+
+    return str(clan_records_dir())
+
+
 def _options_to_dict(options: AgentArtifactScanOptionsWire) -> dict[str, Any]:
     return {
         "include_prompt_step_markers": options.include_prompt_step_markers,
@@ -101,6 +107,11 @@ def _options_to_dict(options: AgentArtifactScanOptionsWire) -> dict[str, Any]:
         "only_projects": list(options.only_projects),
         "include_project_states": list(options.include_project_states),
         "capacity_only": options.capacity_only,
+        "clan_records_dir": (
+            options.clan_records_dir
+            if options.clan_records_dir is not None
+            else _default_clan_records_dir_str()
+        ),
     }
 
 

@@ -75,6 +75,91 @@ def _metadata_tribe(metadata: dict[str, Any], key: str) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def _record_clan_attributes_at_launch(
+    *,
+    artifacts_dir: str,
+    clan_membership_plan: Any,
+    directives: Any,
+    epic_clan_summary_script: str | None,
+    epic_work_metadata: dict[str, Any],
+    resolved_summary: str | None,
+    used_summary_script: str | None,
+) -> None:
+    """Record this member's clan attributes into the durable clan record.
+
+    Best-effort: record errors are logged and swallowed so they can never
+    block a launch. User-initiated edits use the strict facade path instead.
+    """
+    import logging
+
+    try:
+        from sase.core.agent_clan_record import (
+            clan_attribute_update,
+            record_clan_attributes,
+        )
+    except Exception as exc:  # noqa: BLE001 - launch is best-effort.
+        logging.getLogger(__name__).warning(
+            "Skipping clan record write for %r: %s",
+            getattr(clan_membership_plan, "clan_name", None),
+            exc,
+        )
+        return
+    clan_name = clan_membership_plan.clan_name
+    generation = clan_membership_plan.generation
+    source_identity = artifacts_dir
+    update: dict[str, Any] = {"clan": clan_name, "generation": generation}
+    if directives.clan_declared:
+        if directives.clan_tribe:
+            update["tribe"] = clan_attribute_update(
+                directives.clan_tribe,
+                "declared",
+                source_identity=source_identity,
+            )
+        if used_summary_script:
+            raw_script = directives.clan_summary_script or used_summary_script
+            update["summary_script"] = clan_attribute_update(
+                raw_script,
+                "declared",
+                source_identity=source_identity,
+            )
+            if resolved_summary:
+                update["summary"] = clan_attribute_update(
+                    resolved_summary,
+                    "script",
+                    source_identity=source_identity,
+                )
+        elif resolved_summary:
+            update["summary"] = clan_attribute_update(
+                resolved_summary,
+                "declared",
+                source_identity=source_identity,
+            )
+    elif epic_clan_summary_script:
+        if used_summary_script:
+            update["summary_script"] = clan_attribute_update(
+                used_summary_script,
+                "propagated",
+                source_identity=source_identity,
+            )
+        if resolved_summary:
+            update["summary"] = clan_attribute_update(
+                resolved_summary,
+                "script",
+                source_identity=source_identity,
+            )
+    if "tribe" not in update:
+        epic_tribe = epic_work_metadata.get("clan_tribe")
+        if isinstance(epic_tribe, str) and epic_tribe:
+            update["tribe"] = clan_attribute_update(
+                epic_tribe,
+                "propagated",
+                source_identity=source_identity,
+            )
+    if len(update) <= 2:
+        return
+    record_clan_attributes(update)
+
+
 def _stored_tribes_for_resolution() -> tuple[str, ...]:
     from sase.core.agent_tribe_evidence import stored_tribe_names_for_resolution
 
@@ -552,6 +637,8 @@ def extract_directives_and_write_meta(
     if batch_predecessor_context_payload is not None:
         agent_meta["batch_predecessor_context"] = batch_predecessor_context_payload
     clan_summary_resolution: ClanSummaryResolutionRequest | None = None
+    resolved_clan_summary: str | None = None
+    used_clan_summary_script: str | None = None
 
     if clan_membership_plan and (directives.clan_declared or epic_clan_summary_script):
         from sase.axe.clan_summary_script import (
@@ -591,11 +678,24 @@ def extract_directives_and_write_meta(
             )
         if clan_summary:
             agent_meta["clan_summary"] = clan_summary
+        resolved_clan_summary = clan_summary
+        used_clan_summary_script = summary_script
 
     # Write metadata after the name reservation succeeds. Summary scripts run
     # outside the allocation lock because their timeout is comparatively long.
     if agent_meta:
         write_agent_meta(artifacts_dir, agent_meta)
+
+    if clan_membership_plan is not None:
+        _record_clan_attributes_at_launch(
+            artifacts_dir=artifacts_dir,
+            clan_membership_plan=clan_membership_plan,
+            directives=directives,
+            epic_clan_summary_script=epic_clan_summary_script,
+            epic_work_metadata=epic_work_metadata,
+            resolved_summary=resolved_clan_summary,
+            used_summary_script=used_clan_summary_script,
+        )
 
     # Persist %id tribe= for the Agents tab's workflow identity.
     if pending_tribe_write is not None:

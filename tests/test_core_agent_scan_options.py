@@ -238,7 +238,14 @@ def test_scan_agent_artifact_dirs_honors_project_and_workflow_filters(
     assert [record.timestamp for record in workflow_only.records] == [TS_WORKFLOW_ROOT]
 
 
-def test_options_round_trip_through_snapshot(fixture_root: Path) -> None:
+def test_options_round_trip_through_snapshot(
+    fixture_root: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from dataclasses import replace
+
+    from sase.core.agent_clan_record import clan_records_dir
+
+    monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     options = AgentArtifactScanOptionsWire(
         include_prompt_step_markers=False,
         include_raw_prompt_snippets=False,
@@ -255,7 +262,15 @@ def test_options_round_trip_through_snapshot(fixture_root: Path) -> None:
         capacity_only=True,
     )
     snapshot = scan_agent_artifacts(fixture_root, options=options)
-    assert snapshot.options == options
+    # The facade fills an unset records dir with the default, and the echo
+    # carries that filled value back through the wire parser.
+    assert snapshot.options == replace(
+        options, clan_records_dir=str(clan_records_dir())
+    )
+
+    explicit = replace(options, clan_records_dir=str(tmp_path / "custom-clans"))
+    resnapshot = scan_agent_artifacts(fixture_root, options=explicit)
+    assert resnapshot.options == explicit
 
 
 def test_capacity_only_skips_done_dirs_and_keeps_active_ones(

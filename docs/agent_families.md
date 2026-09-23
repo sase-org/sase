@@ -140,12 +140,33 @@ SASE uses the last successful non-empty output: a successful post-preparation at
 replaces the extraction-time value, while a later failed or empty attempt leaves the
 newest successful summary untouched.
 
-SASE trims trailing whitespace and persists the result as `clan_summary` on the
-declaring agent's metadata. The scan contract resolves summaries within one clan
-generation deterministically, using the newest explicit declaration if it must read
-older or externally-authored artifacts with more than one. Rich markup is rendered when
-valid and shown as literal text when invalid. The saved description is distinct from the
-foldable sections that sase's TUI synthesizes below it from member artifacts and
+SASE trims trailing whitespace and records the result in the clan's durable record under
+`<sase_home>/agent_clans/<clan>.json`, keyed by clan generation. What is recorded and
+when: a `%clan` declarer records its declared `tribe=` and either its literal `summary=`
+(source `declared`) or its `summary_script=` (source `declared`) plus the script's
+non-empty output (source `script`); an epic-nominated joiner records its script output
+(source `script`) and script (source `propagated`); any member carrying the epic
+environment tribe records that tribe (source `propagated`, fill-only); every
+post-preparation summary refresh records the fresh non-empty output (source `script`);
+and just before any artifact directory is deleted, its clan attributes are captured into
+the record (source `captured`, fill-only).
+
+Precedence: for a `(clan, generation)` key, an attribute present in the record
+(including an explicit edited-unset tombstone) wins over member-derived values, so
+member artifacts that predate the record — legacy, imported, or remote artifacts — still
+resolve, but never override it. `declared`, `script`, `edited`, and `inherited`
+overwrites beat member values; `propagated` and `captured` only fill missing attributes,
+so a clan-level tribe edit sticks even when newer epic members carry `clan_tribe=epic`.
+An empty or failed summary never erases a recorded one. The scan contract therefore
+resolves summaries and tribes within one clan generation from the record first, falling
+back to the newest explicit member declaration only when the record is silent. Rich
+markup is rendered when valid and shown as literal text when invalid.
+
+Because the record outlives any single member, clan summaries and tribes survive kills,
+dismissals, relaunches, and full restarts: deleting the declaring agent's artifacts
+captures its attributes first, and later scans — full, bounded, and delta alike — apply
+the record over whatever member artifacts remain. The saved description is distinct from
+the foldable sections that sase's TUI synthesizes below it from member artifacts and
 activity.
 
 Clan membership is execution-neutral. It does not add waits, change launch order, choose

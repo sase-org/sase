@@ -269,6 +269,14 @@ def _remove_artifact_dirs(paths: set[Path], errors: list[str]) -> set[Path]:
         if not path.exists():
             continue
         try:
+            from sase.core.agent_clan_record import (
+                capture_clan_record_from_artifacts,
+            )
+
+            capture_clan_record_from_artifacts(path)
+        except Exception:  # noqa: BLE001 - capture never blocks a wipe.
+            pass
+        try:
             shutil.rmtree(path)
             removed.add(path)
         except FileNotFoundError:

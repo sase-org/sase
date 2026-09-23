@@ -40,6 +40,9 @@ from ._types import (
     WaitCandidate,
 )
 
+_NO_RECORDED_TRIBE: object = object()
+"""Sentinel for "the clan record carries no tribe for this generation"."""
+
 
 @dataclass
 class WaitDependencyIndex(WaitDependencyIndexQueries):
@@ -64,6 +67,12 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
         repr=False,
         compare=False,
         default=None,
+    )
+    _clan_record_cache: dict[str, dict[str, Any] | None] = field(
+        init=False,
+        repr=False,
+        compare=False,
+        default_factory=dict,
     )
 
     @classmethod
@@ -360,12 +369,70 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
                 return tribe
         return None
 
+    def _clan_record(self, clan_name: str) -> dict[str, Any] | None:
+        """Return one clan's durable record, loading it at most once."""
+        if clan_name in self._clan_record_cache:
+            return self._clan_record_cache[clan_name]
+        record: dict[str, Any] | None = None
+        try:
+            from sase.core.agent_clan_record import load_clan_record
+
+            loaded = load_clan_record(clan_name)
+            record = loaded if isinstance(loaded, dict) else None
+        except Exception:  # noqa: BLE001 - record overlay is best-effort.
+            record = None
+        self._clan_record_cache[clan_name] = record
+        return record
+
+    def _recorded_clan_tribe(
+        self,
+        clan_name: str,
+        generation: str,
+    ) -> str | None | object:
+        """Return the record's tribe for *(clan, generation)*.
+
+        Returns the ``_NO_RECORDED_TRIBE`` sentinel when the record has no
+        tribe for this generation, the tribe string when recorded, and
+        ``None`` for an explicit edited-unset tombstone.
+        """
+        record = self._clan_record(clan_name)
+        if record is None:
+            return _NO_RECORDED_TRIBE
+        generations = record.get("generations")
+        if not isinstance(generations, dict):
+            return _NO_RECORDED_TRIBE
+        generation_record = generations.get(generation)
+        if not isinstance(generation_record, dict):
+            return _NO_RECORDED_TRIBE
+        tribe_record = generation_record.get("tribe")
+        if not isinstance(tribe_record, dict):
+            return _NO_RECORDED_TRIBE
+        if "value" not in tribe_record:
+            return _NO_RECORDED_TRIBE
+        value = tribe_record.get("value")
+        if value is None:
+            if tribe_record.get("source") == "edited":
+                return None
+            return _NO_RECORDED_TRIBE
+        if not isinstance(value, str) or not value:
+            return _NO_RECORDED_TRIBE
+        valid = self._valid_tribe(value)
+        return valid if valid is not None else _NO_RECORDED_TRIBE
+
     def _refresh_effective_clan_tribe(
         self,
         clan_name: str,
         generation: str,
     ) -> None:
         members = self.clans[clan_name][generation]
+        key = (clan_name, generation)
+        recorded = self._recorded_clan_tribe(clan_name, generation)
+        if recorded is not _NO_RECORDED_TRIBE:
+            if recorded is None:
+                self.effective_clan_tribes.pop(key, None)
+            else:
+                self.effective_clan_tribes[key] = recorded  # type: ignore[assignment]
+            return
         resolution = resolve_clan_tribe(
             clan_name,
             generation,
@@ -380,7 +447,6 @@ class WaitDependencyIndex(WaitDependencyIndexQueries):
                 for member in members
             ],
         )
-        key = (clan_name, generation)
         if resolution.tribe is None:
             self.effective_clan_tribes.pop(key, None)
         else:

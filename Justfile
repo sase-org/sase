@@ -368,6 +368,7 @@ _lint-symvision *args: _setup
         --epic-symbol 'sase-16y(MemberJumpSection)' \
         --epic-symbol 'sase-16y(jump_legend_border_accent)' \
         --epic-symbol 'sase-16y(jump_legend_title)' \
+        --epic-symbol 'sase-170.5(resolve_clan_launch_defaults)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

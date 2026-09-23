@@ -36,6 +36,14 @@ def try_delete_agent_artifacts(artifacts_dir: str | None) -> bool:
     if not artifacts_dir:
         return True
     try:
+        from sase.core.agent_clan_record import (
+            capture_clan_record_from_artifacts,
+        )
+
+        capture_clan_record_from_artifacts(artifacts_dir)
+    except Exception:  # noqa: BLE001 - capture never blocks deletion.
+        pass
+    try:
         binding = require_rust_binding("delete_agent_artifacts")
     except (ImportError, AttributeError):
         return False

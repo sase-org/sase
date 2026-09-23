@@ -101,6 +101,12 @@ class AgentArtifactScanOptionsWire:
             still scanned. Every field the capacity snapshot consumes
             (``agent_meta``, ``running``, ``waiting``, ``workflow_state``,
             ``pending_question``) is still parsed for non-done dirs.
+        clan_records_dir: Directory holding per-clan JSON records. When set,
+            recorded clan attributes are applied over member-derived
+            ``clan_context`` in every scan and index query path. The scan
+            facade fills this with the default records dir when unset, so
+            every consumer sees recorded values. Index rebuilds and upserts
+            ignore it.
     """
 
     include_prompt_step_markers: bool = True
@@ -116,6 +122,7 @@ class AgentArtifactScanOptionsWire:
     only_projects: tuple[str, ...] = ()
     include_project_states: tuple[str, ...] = ()
     capacity_only: bool = False
+    clan_records_dir: str | None = None
 
 
 @dataclass(frozen=True)

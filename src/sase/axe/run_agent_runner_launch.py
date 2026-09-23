@@ -174,6 +174,30 @@ def _refresh_clan_summary(
             bootstrap.agent_meta,
             refreshed_clan_summary,
         )
+        try:
+            from sase.core.agent_clan_record import (
+                clan_attribute_update,
+                record_clan_attributes,
+            )
+
+            record_clan_attributes(
+                {
+                    "clan": resolution.clan_name,
+                    "generation": resolution.clan_generation,
+                    "summary": clan_attribute_update(
+                        refreshed_clan_summary,
+                        "script",
+                        source_identity=state.artifacts_dir,
+                    ),
+                }
+            )
+        except Exception:  # noqa: BLE001 - refresh recording is best-effort.
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Skipping clan record write for %r after summary refresh",
+                resolution.clan_name,
+            )
 
 
 def _promote_bead_claim(
