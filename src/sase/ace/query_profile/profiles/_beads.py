@@ -80,7 +80,7 @@ def beads_query_schema() -> ArtifactQuerySchema:
             hint=hint,
         )
         for key, hint in (
-            ("id", "bead id"),
+            ("id", "bead id; id:<epic>.* lists an epic's phases"),
             ("project", "project key or display name"),
             ("assignee", "assigned person or agent"),
             ("owner", "owner email or name"),

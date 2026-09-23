@@ -91,6 +91,119 @@ def test_rust_facade_matches_python_reference_evaluator(
         assert rust_matched == reference_matched, query
 
 
+def test_rust_facade_matches_python_for_wildcard_globs() -> None:
+    profile = compile_query_profile(beads_query_schema())
+    rows = [
+        {
+            "stable_id": "a",
+            "fields": {
+                "id": "sase-16n.1",
+                "status": "open",
+                "assignee": "Alice Smith",
+            },
+        },
+        {
+            "stable_id": "b",
+            "fields": {
+                "id": "sase-16n.10",
+                "status": "open",
+                "assignee": "Bob",
+            },
+        },
+        {
+            "stable_id": "c",
+            "fields": {"id": "sase-16n", "status": "closed", "assignee": "Carol"},
+        },
+        {
+            "stable_id": "d",
+            "fields": {
+                "id": "sase-16n5",
+                "status": "open",
+                "assignee": "Alice Jones",
+            },
+        },
+    ]
+    index = compile_artifact_query_index(
+        pane_id=profile.pane_id, generation=1, profile=profile, entries=rows
+    )
+    queries = (
+        "id:sase-16n.*",
+        "id:sase-16n*",
+        "-id:sase-16n.*",
+        "id:sase-16n,sase-16n.*",
+        "id:SASE-16N.*",
+        "assignee:*smith*",
+        "assignee:ali*",
+        "id:sase-16n.1",
+    )
+    for query in queries:
+        rust_matched = set(evaluate_artifact_query_many(query, index).matched_row_ids)
+        reference_matches = evaluate_query_many_for_profile(query, rows, profile)
+        reference_matched = {
+            row["stable_id"]
+            for row, matched in zip(rows, reference_matches, strict=True)
+            if matched
+        }
+        assert rust_matched == reference_matched, query
+
+
+def test_rust_facade_matches_python_for_sha_glob() -> None:
+    profile = compile_query_profile(stitches_query_schema())
+    rows = [
+        {"stable_id": "c1", "fields": {"sha": "abc1234567890"}},
+        {"stable_id": "c2", "fields": {"sha": "abc99ff0000000"}},
+        {"stable_id": "c3", "fields": {"sha": "ab00ff12"}},
+    ]
+    index = compile_artifact_query_index(
+        pane_id=profile.pane_id, generation=1, profile=profile, entries=rows
+    )
+    for query in ("sha:ab*12", "sha:ab*", "sha:abc"):
+        rust_matched = set(evaluate_artifact_query_many(query, index).matched_row_ids)
+        reference_matches = evaluate_query_many_for_profile(query, rows, profile)
+        reference_matched = {
+            row["stable_id"]
+            for row, matched in zip(rows, reference_matches, strict=True)
+            if matched
+        }
+        assert rust_matched == reference_matched, query
+
+
+def test_rust_facade_matches_python_for_boolean_name_glob() -> None:
+    profile = compile_query_profile(patches_query_schema())
+    rows = [
+        {
+            "stable_id": "patch:one",
+            "fields": {"project": "sase", "status": "READY", "name": "one"},
+        },
+        {
+            "stable_id": "patch:one-x",
+            "fields": {"project": "sase", "status": "WIP", "name": "one-x"},
+        },
+        {
+            "stable_id": "patch:two",
+            "fields": {"project": "sase", "status": "WIP", "name": "two"},
+        },
+    ]
+    index = compile_artifact_query_index(
+        pane_id=profile.pane_id, generation=1, profile=profile, entries=rows
+    )
+    for query in (
+        "name:one*",
+        "NOT name:one*",
+        "name:two OR name:one*",
+        "project:sa*",
+        "name:one",
+    ):
+        rust_matched = set(evaluate_artifact_query_many(query, index).matched_row_ids)
+        reference_matches = evaluate_query_many_for_profile(query, rows, profile)
+        reference_matched = {
+            row["stable_id"]
+            for row, matched in zip(rows, reference_matches, strict=True)
+            if matched
+        }
+        assert rust_matched == reference_matched, query
+
+
 def test_sha_field_matches_prefix_not_mid_string_through_rust() -> None:
     profile = compile_query_profile(stitches_query_schema())
     index = compile_artifact_query_index(

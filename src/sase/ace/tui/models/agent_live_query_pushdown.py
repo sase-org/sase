@@ -153,6 +153,10 @@ def _candidate_filter_for_expr(expr: QueryExpr) -> CandidateFilterWire | None:
 
 
 def _candidate_filter_for_property(prop: PropertyMatch) -> CandidateFilterWire | None:
+    if "*" in prop.value:
+        # Glob values need full live evaluation: an index equality or
+        # contains filter would answer them as literals.
+        return None
     if prop.key in _PUSHABLE_TEXT_FIELDS:
         return _contains(prop.key, prop.value)
     if prop.key in _PUSHABLE_EXACT_FIELDS:

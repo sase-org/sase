@@ -62,9 +62,15 @@ def _match_project(prop: PropertyMatch, patch: Patch) -> bool:
 
     Returns:
         True if the configured display name, or directory-key fallback,
-        matches case-insensitively.
+        matches case-insensitively. A `*` in the value is an anchored
+        whole-value glob, mirroring sase-core's exact-match semantics.
     """
-    return patch.project_query_name.lower() == prop.value.lower()
+    from sase.ace.query.profile_evaluator_matching import match_glob
+
+    wanted = prop.value.lower()
+    if "*" in wanted:
+        return match_glob(wanted, patch.project_query_name.lower(), anchored=True)
+    return patch.project_query_name.lower() == wanted
 
 
 def _match_name(prop: PropertyMatch, patch: Patch) -> bool:
@@ -75,9 +81,16 @@ def _match_name(prop: PropertyMatch, patch: Patch) -> bool:
         patch: The Patch to check.
 
     Returns:
-        True if the name matches exactly (case-insensitive).
+        True if the name matches exactly (case-insensitive). A `*` in the
+        value is an anchored whole-value glob, mirroring sase-core's
+        exact-match semantics.
     """
-    return patch.name.lower() == prop.value.lower()
+    from sase.ace.query.profile_evaluator_matching import match_glob
+
+    wanted = prop.value.lower()
+    if "*" in wanted:
+        return match_glob(wanted, patch.name.lower(), anchored=True)
+    return patch.name.lower() == wanted
 
 
 def _match_sibling(prop: PropertyMatch, patch: Patch) -> bool:

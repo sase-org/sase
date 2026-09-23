@@ -251,3 +251,12 @@ def test_agents_live_pushdown_coverage_fails_for_unclassified_field() -> None:
     keys.add("brand_new_trap")
 
     assert keys - _PUSHABLE_FIELDS - KNOWN_FALLBACK_FIELDS == {"brand_new_trap"}
+
+
+def test_agents_live_pushdown_never_pushes_glob_values() -> None:
+    for query in ("project:sa*", "provider:*", "model:claude*"):
+        plan = compile_agents_live_query_pushdown(query)
+
+        assert plan.raw_query == query
+        assert plan.window_safe is False
+        assert plan.candidate_filter is None

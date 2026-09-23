@@ -25,7 +25,10 @@ from sase.ace.query.types import (
 )
 from sase.ace.query_profile import CompiledQueryProfile
 
-_PROPERTY_VALUE_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.-]*")
+# `*` rides along inside a value (glob) but never starts one, mirroring
+# sase-core's `parse_property_value`: a leading `*` is "Expected property
+# value" on both sides.
+_PROPERTY_VALUE_RE = re.compile(r"[A-Za-z0-9_][A-Za-z0-9_.\-*]*")
 
 
 @dataclass(frozen=True, slots=True)

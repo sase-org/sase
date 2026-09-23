@@ -120,6 +120,20 @@ replaces the directory key for this exact filter rather than adding a second ali
 `PROJECT_ALIASES` are not matched by `project:` or the `+` shorthand, and storage paths,
 workspace lookup, and VCS operations continue using the canonical directory key.
 
+### Wildcards
+
+A `*` inside a string-field property value is a wildcard matching any run of characters,
+including an empty run. Matching stays case-insensitive, consecutive `*` collapse, and
+`?` is not special. Negation (`-id:sase-x7.*`), comma lists (`id:sase-16n,sase-16n.*`),
+and boolean dialects all compose with globs, and values without `*` behave exactly as
+before.
+
+| Field kind                                                         | `*` semantics                                    | Example                                                                                   |
+| ------------------------------------------------------------------ | ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| Exact-match string fields (`id`, `name`, `project`, ...) and `sha` | Anchored whole-value glob                        | `id:sase-16n.*` matches `sase-16n.1` and `sase-16n.10`, but not `sase-16n` or `sase-16n5` |
+| Substring string fields (`path`, `assignee`, `model`, ...)         | Unanchored glob: may match anywhere in the value | `path:202609/*tags` matches `docs/202609/tags.md`                                         |
+| Enum, bool, int, and date fields                                   | `*` is literal, so value validation rejects it   | `status:clo*` fails with `must be one of ...`                                             |
+
 ### Property Shorthand Prefixes
 
 | Shorthand    | Expands To           | Description                               |

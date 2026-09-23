@@ -231,10 +231,15 @@ def tokenize_query_for_display(query: str) -> list[tuple[str, str]]:
                         if i < len(query):
                             i += 1
                         tokens.append((query[start:i], "property_value"))
-                    elif i < len(query) and (query[i].isalpha() or query[i] == "_"):
-                        # Bare word value
+                    elif i < len(query) and (
+                        query[i].isalpha() or query[i] == "_" or query[i] == "*"
+                    ):
+                        # Bare word value; a `*` inside is a glob, part of
+                        # the value rather than a standalone marker.
                         start = i
-                        while i < len(query) and _is_bare_word_char(query[i]):
+                        while i < len(query) and (
+                            _is_bare_word_char(query[i]) or query[i] == "*"
+                        ):
                             i += 1
                         tokens.append((query[start:i], "property_value"))
                     continue

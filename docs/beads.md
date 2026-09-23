@@ -580,6 +580,9 @@ a snoozed task is still live work the user chose to defer, not a black hole.
 `sase bead list --status snoozed` / `sase bead search --status snoozed` filter to just
 those beads.
 
+Property values also accept `*` wildcards: `id:sase-16n.*` lists an epic's phases (see
+[Wildcards](query_language.md#wildcards)).
+
 ### Task Corroboration (+1)
 
 `sase bead +1` records one additional independently attributed report of the same

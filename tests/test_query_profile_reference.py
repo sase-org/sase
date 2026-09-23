@@ -489,3 +489,209 @@ def test_non_repeatable_row_sequences_keep_every_value() -> None:
     rows = [{"stable_id": "one", "fields": {"tag": ["alpha", "beta"]}}]
 
     assert evaluate_query_many_for_profile("tag:beta", rows, profile) == [True]
+
+
+def _glob_query_schema(*, boolean: bool):
+    return compile_query_profile(
+        ArtifactQuerySchema(
+            pane_id="glob-bool" if boolean else "glob-flat",
+            boolean=boolean,
+            fields=(
+                QueryFieldSpec(key="id", exact_match=True),
+                QueryFieldSpec(key="path"),
+                QueryFieldSpec(key="sha"),
+                QueryFieldSpec(
+                    key="kind",
+                    value_kind="enum",
+                    static_values=("note", "doc"),
+                ),
+            ),
+        )
+    )
+
+
+_GLOB_ROWS = [
+    {
+        "stable_id": "a",
+        "fields": {
+            "id": "alpha-1.1",
+            "path": "docs/202609/tags.md",
+            "sha": "abc1234567890",
+            "kind": "note",
+        },
+    },
+    {
+        "stable_id": "b",
+        "fields": {
+            "id": "alpha-1.10",
+            "path": "docs/202609/other.md",
+            "sha": "abc99ff0000000",
+            "kind": "doc",
+        },
+    },
+    {
+        "stable_id": "c",
+        "fields": {
+            "id": "alpha-1",
+            "path": "notes.md",
+            "sha": "fff0000000000",
+            "kind": "note",
+        },
+    },
+    {
+        "stable_id": "d",
+        "fields": {
+            "id": "alpha-10",
+            "path": "202609/tags-archive.md",
+            "sha": "ab00ff12",
+            "kind": "doc",
+        },
+    },
+]
+
+
+@pytest.mark.parametrize("boolean", [False, True])
+def test_reference_glob_on_exact_field_is_anchored(boolean: bool) -> None:
+    profile = _glob_query_schema(boolean=boolean)
+
+    # `alpha-1.10` matches but bare `alpha-1` and `alpha-10` do not.
+    assert evaluate_query_many_for_profile("id:alpha-1.*", _GLOB_ROWS, profile) == [
+        True,
+        True,
+        False,
+        False,
+    ]
+    # Without the dot the glob also matches `alpha-10`.
+    assert evaluate_query_many_for_profile("id:alpha-1*", _GLOB_ROWS, profile) == [
+        True,
+        True,
+        True,
+        True,
+    ]
+    # Matching stays case-insensitive.
+    assert evaluate_query_many_for_profile("id:ALPHA-1.*", _GLOB_ROWS, profile) == [
+        True,
+        True,
+        False,
+        False,
+    ]
+    # Values without `*` keep the historical exact-equality path.
+    assert evaluate_query_many_for_profile("id:alpha-1.1", _GLOB_ROWS, profile) == [
+        True,
+        False,
+        False,
+        False,
+    ]
+
+
+def test_reference_flat_question_mark_stays_literal() -> None:
+    profile = _glob_query_schema(boolean=False)
+
+    assert evaluate_query_many_for_profile("id:alpha-1*?", _GLOB_ROWS, profile) == [
+        False,
+        False,
+        False,
+        False,
+    ]
+
+
+def test_reference_flat_glob_negation_and_lists_compose() -> None:
+    profile = _glob_query_schema(boolean=False)
+
+    assert evaluate_query_many_for_profile("-id:alpha-1.*", _GLOB_ROWS, profile) == [
+        False,
+        False,
+        True,
+        True,
+    ]
+    assert evaluate_query_many_for_profile(
+        "id:alpha-1,alpha-1.*", _GLOB_ROWS, profile
+    ) == [True, True, True, False]
+
+
+def test_reference_boolean_glob_negation_and_lists_compose() -> None:
+    profile = _glob_query_schema(boolean=True)
+
+    assert evaluate_query_many_for_profile("NOT id:alpha-1.*", _GLOB_ROWS, profile) == [
+        False,
+        False,
+        True,
+        True,
+    ]
+    assert evaluate_query_many_for_profile(
+        "id:alpha-1 OR id:alpha-1.*", _GLOB_ROWS, profile
+    ) == [True, True, True, False]
+
+
+def test_reference_flat_substring_glob_is_unanchored() -> None:
+    profile = _glob_query_schema(boolean=False)
+
+    assert evaluate_query_many_for_profile(
+        "path:202609/*tags", _GLOB_ROWS, profile
+    ) == [True, False, False, True]
+    assert evaluate_query_many_for_profile("path:*tags*", _GLOB_ROWS, profile) == [
+        True,
+        False,
+        False,
+        True,
+    ]
+    assert evaluate_query_many_for_profile("path:**tags**", _GLOB_ROWS, profile) == [
+        True,
+        False,
+        False,
+        True,
+    ]
+    # Values without `*` keep the historical substring behavior.
+    assert evaluate_query_many_for_profile("path:tags", _GLOB_ROWS, profile) == [
+        True,
+        False,
+        False,
+        True,
+    ]
+
+
+def test_reference_boolean_substring_glob_is_unanchored() -> None:
+    profile = _glob_query_schema(boolean=True)
+
+    assert evaluate_query_many_for_profile(
+        'path:"202609/*tags"', _GLOB_ROWS, profile
+    ) == [True, False, False, True]
+    assert evaluate_query_many_for_profile("path:tags*md", _GLOB_ROWS, profile) == [
+        True,
+        False,
+        False,
+        True,
+    ]
+
+
+@pytest.mark.parametrize("boolean", [False, True])
+def test_reference_sha_glob_is_anchored(boolean: bool) -> None:
+    profile = _glob_query_schema(boolean=boolean)
+
+    assert evaluate_query_many_for_profile("sha:ab*12", _GLOB_ROWS, profile) == [
+        False,
+        False,
+        False,
+        True,
+    ]
+    assert evaluate_query_many_for_profile("sha:ab*", _GLOB_ROWS, profile) == [
+        True,
+        True,
+        False,
+        True,
+    ]
+    # Values without `*` keep the historical prefix behavior.
+    assert evaluate_query_many_for_profile("sha:abc", _GLOB_ROWS, profile) == [
+        True,
+        True,
+        False,
+        False,
+    ]
+
+
+@pytest.mark.parametrize("boolean", [False, True])
+def test_reference_enum_star_stays_literal(boolean: bool) -> None:
+    profile = _glob_query_schema(boolean=boolean)
+
+    with pytest.raises(ProfileQueryError, match="must be one of"):
+        parse_query_for_profile("kind:no*", profile)

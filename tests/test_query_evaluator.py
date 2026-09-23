@@ -23,6 +23,18 @@ def test_evaluate_string_match_case_sensitive(
     assert evaluate_query(query, cs2) is False
 
 
+def test_evaluate_name_glob_is_anchored(make_patch: Any) -> None:
+    """A `*` in `name:` is an anchored whole-value glob, not a prefix."""
+
+    cs = make_patch.create(name="my_feature")
+    assert evaluate_query(parse_query("name:my_*"), cs) is True
+    assert evaluate_query(parse_query("name:my_feature"), cs) is True
+    assert evaluate_query(parse_query("name:my_*x"), cs) is False
+
+    cs2 = make_patch.create(name="other")
+    assert evaluate_query(parse_query("name:my_*"), cs2) is False
+
+
 def test_evaluate_or_match(make_patch: Any) -> None:
     """Test OR expression evaluation."""
     query = parse_query('"feature" OR "bugfix"')

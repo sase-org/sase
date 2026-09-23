@@ -103,7 +103,7 @@ def shared_agent_exact_string_fields() -> tuple[QueryFieldSpec, ...]:
             key="name",
             exact_match=True,
             searchable=True,
-            hint="agent name or canonical global name",
+            hint="agent name or canonical global name; name:<hood>.* lists a hood",
         ),
         QueryFieldSpec(
             key="family",
