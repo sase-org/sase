@@ -39,6 +39,9 @@ from sase.ace.tui.widgets.prompt_panel._agent_tribe_aggregation import (
     TribeSectionSnapshot,
     _TribeDiskSnapshot,
 )
+from sase.ace.tui.widgets.prompt_panel._agent_tribe_clan_summaries import (
+    empty_tribe_clan_summaries_snapshot,
+)
 from sase.ace.tui.widgets.prompt_panel._member_roster import MemberJumpMap
 from tests.ace.tui.widgets._summary_fold_contract_helpers import (
     NOW,
@@ -154,6 +157,7 @@ def _known_tribe_sections(
             slow_tool_calls=(),
         ),
         runtime_statistics_loaded=True,
+        clan_summaries=empty_tribe_clan_summaries_snapshot(),
     )
 
 
@@ -290,6 +294,7 @@ def _tribe_case() -> _FoldContractCase:
         content_section="ERRORS",
         empty_sections=(
             "NEEDS ATTENTION",
+            "CLAN SUMMARIES",
             "ERRORS",
             "OUTPUT VARIABLES",
             "WORKFLOW VARIABLES",

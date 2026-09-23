@@ -14,6 +14,7 @@ from ._agent_display_tribe_common import (
     TRIBE_IDENTITY_COLOR as TRIBE_IDENTITY_COLOR,
     effective_level,
 )
+from ._agent_display_tribe_clan_summaries import append_clan_summaries
 from ._agent_display_tribe_header import (
     append_tribe_description,
     append_tribe_header,
@@ -50,6 +51,7 @@ def tribe_enrichment_sections_for_fold_state(
     """Return off-thread sections needed by the effective tribe folds."""
     fold_overrides = overrides or {}
     required: set[TribeEnrichmentSection] = {
+        "clan-summaries",
         "prompts",
         "replies",
         "slow-tool-calls",
@@ -74,6 +76,9 @@ def _has_pending_enrichment(
     for section in required:
         if section == "runtime-statistics":
             if snapshot is None or not snapshot.runtime_statistics_loaded:
+                return True
+        elif section == "clan-summaries":
+            if snapshot is None or snapshot.clan_summaries is None:
                 return True
         elif disk is None or section not in disk.loaded_sections:
             return True
@@ -175,14 +180,23 @@ def _append_tribe_body(
     if member_jump_map_publisher is not None:
         member_jump_map_publisher(jump_map)
 
+    unit_numbers = {
+        target.member_identity: target.number for target in jump_map.targets
+    }
+    append_clan_summaries(
+        text,
+        section_snapshot,
+        level=effective_level(SECTIONS.clan_summaries, fold_level, overrides),
+        overrides=overrides,
+        unit_numbers=unit_numbers,
+        present_units={unit.identity for unit in snapshot.units},
+    )
     append_prompts(
         text,
         section_snapshot,
         level=effective_level(SECTIONS.prompts, fold_level, overrides),
         overrides=overrides,
-        unit_numbers={
-            target.member_identity: target.number for target in jump_map.targets
-        },
+        unit_numbers=unit_numbers,
     )
     append_errors(
         text,

@@ -35,6 +35,12 @@ from ._agent_clan_aggregation import (
     prepare_clan_section_snapshot,
     should_refresh_clan_disk_snapshot,
 )
+from ._agent_tribe_clan_summaries import (
+    TribeClanSummariesSnapshot,
+    build_tribe_clan_summaries,
+    clan_summaries_signature_for_sources,
+    empty_tribe_clan_summaries_snapshot,
+)
 from ._agent_tribe_prompts import (
     TribePromptsSnapshot,
     build_tribe_prompts,
@@ -45,6 +51,7 @@ type TribeEnrichmentSection = Literal[
     "replies",
     "slow-tool-calls",
     "runtime-statistics",
+    "clan-summaries",
 ]
 
 _TRIBE_DISK_SECTIONS: frozenset[TribeEnrichmentSection] = frozenset(
@@ -113,6 +120,7 @@ class TribeSectionSnapshot:
     runtime_statistics_loaded: bool = False
     runtime_statistics: TribeRuntimeStatistics | None = None
     loading_sections: frozenset[TribeEnrichmentSection] = frozenset()
+    clan_summaries: TribeClanSummariesSnapshot | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,6 +148,7 @@ class TribeEnrichmentResult:
     runtime_statistics_refreshed: bool
     runtime_statistics: TribeRuntimeStatistics | None
     clan_updates: tuple[tuple[Agent, ClanDiskSnapshot], ...] = ()
+    clan_summaries: TribeClanSummariesSnapshot | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,6 +157,7 @@ class _TribeSnapshotCacheEntry:
     sources: tuple[TribeUnitSource, ...]
     disk_enriched_monotonic: float | None = None
     stats_enriched_monotonic: float | None = None
+    clan_summaries_signature: tuple[tuple[ClanAgentIdentity, int, int], ...] = ()
 
 
 def prepare_tribe_section_snapshot(
@@ -183,6 +193,17 @@ def prepare_tribe_section_snapshot(
     cache = _tribe_snapshot_cache(widget)
     cached = cache.get(summary.container_identity)
     same_sources = cached is not None and cached.snapshot.source_signature == signature
+    clan_signature = clan_summaries_signature_for_sources(frozen_sources)
+    if not clan_signature:
+        clan_summaries: TribeClanSummariesSnapshot | None = (
+            empty_tribe_clan_summaries_snapshot()
+        )
+    elif cached is not None and cached.snapshot.clan_summaries is not None:
+        # Membership churn never blanks the section: keep the cached entries
+        # until the worker publishes a fresh snapshot.
+        clan_summaries = cached.snapshot.clan_summaries
+    else:
+        clan_summaries = None
     snapshot = TribeSectionSnapshot(
         panel_identity=summary.container_identity,
         source_signature=signature,
@@ -198,6 +219,7 @@ def prepare_tribe_section_snapshot(
             if same_sources and cached is not None
             else frozenset()
         ),
+        clan_summaries=clan_summaries,
     )
     cache[summary.container_identity] = _TribeSnapshotCacheEntry(
         snapshot=snapshot,
@@ -208,6 +230,7 @@ def prepare_tribe_section_snapshot(
         stats_enriched_monotonic=(
             cached.stats_enriched_monotonic if cached is not None else None
         ),
+        clan_summaries_signature=clan_signature,
     )
     _trim_tribe_snapshot_cache(cache)
     return snapshot
@@ -263,6 +286,13 @@ def tribe_sections_to_refresh(
         >= _TRIBE_RUNTIME_STATS_TTL_SECONDS
     ):
         refresh.add("runtime-statistics")
+    if "clan-summaries" in requested:
+        # Summaries change only when their text changes: no timer, just the
+        # signature over the current source projection.
+        current = clan_summaries_signature_for_sources(entry.sources)
+        cached_summaries = entry.snapshot.clan_summaries
+        if cached_summaries is None or cached_summaries.signature != current:
+            refresh.add("clan-summaries")
     return frozenset(refresh)
 
 
@@ -284,6 +314,7 @@ def mark_tribe_snapshot_loading(
         runtime_statistics_loaded=entry_snapshot.runtime_statistics_loaded,
         runtime_statistics=entry_snapshot.runtime_statistics,
         loading_sections=frozenset((*entry_snapshot.loading_sections, *sections)),
+        clan_summaries=entry_snapshot.clan_summaries,
     )
     cache[panel_identity] = _replace_snapshot(entry, snapshot)
 
@@ -308,6 +339,7 @@ def clear_tribe_snapshot_loading(
         runtime_statistics_loaded=entry.snapshot.runtime_statistics_loaded,
         runtime_statistics=entry.snapshot.runtime_statistics,
         loading_sections=remaining,
+        clan_summaries=entry.snapshot.clan_summaries,
     )
     cache[panel_identity] = _replace_snapshot(entry, snapshot)
 
@@ -364,6 +396,9 @@ def build_tribe_enrichment(
         if "prompts" in requested
         else _EMPTY_TRIBE_PROMPTS_SNAPSHOT
     )
+    clan_summaries_snapshot = (
+        build_tribe_clan_summaries(sources) if "clan-summaries" in requested else None
+    )
     disk_snapshot = (
         _TribeDiskSnapshot(
             loaded_sections=frozenset(loaded_disk_sections),
@@ -381,6 +416,7 @@ def build_tribe_enrichment(
         runtime_statistics_refreshed=stats_refreshed,
         runtime_statistics=stats,
         clan_updates=tuple(clan_updates),
+        clan_summaries=clan_summaries_snapshot,
     )
 
 
@@ -411,6 +447,11 @@ def cache_tribe_enrichment(
             else entry.snapshot.runtime_statistics
         ),
         loading_sections=entry.snapshot.loading_sections,
+        clan_summaries=(
+            result.clan_summaries
+            if result.clan_summaries is not None
+            else entry.snapshot.clan_summaries
+        ),
     )
     cache[result.panel_identity] = _TribeSnapshotCacheEntry(
         snapshot=snapshot,
@@ -423,6 +464,7 @@ def cache_tribe_enrichment(
             if result.runtime_statistics_refreshed
             else entry.stats_enriched_monotonic
         ),
+        clan_summaries_signature=entry.clan_summaries_signature,
     )
     cache.move_to_end(result.panel_identity)
     return snapshot
@@ -552,6 +594,7 @@ def _replace_snapshot(
         sources=entry.sources,
         disk_enriched_monotonic=entry.disk_enriched_monotonic,
         stats_enriched_monotonic=entry.stats_enriched_monotonic,
+        clan_summaries_signature=entry.clan_summaries_signature,
     )
 
 

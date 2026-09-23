@@ -15,6 +15,9 @@ from sase.ace.tui.widgets.prompt_panel._agent_tribe_aggregation import (
     TribeTextEntry,
     _TribeDiskSnapshot,
 )
+from sase.ace.tui.widgets.prompt_panel._agent_tribe_clan_summaries import (
+    empty_tribe_clan_summaries_snapshot,
+)
 from tests.ace.tui.widgets._agent_display_tribe_helpers import (
     NOW,
     make_tribe_snapshot,
@@ -23,16 +26,22 @@ from tests.ace.tui.widgets._agent_display_tribe_helpers import (
 
 def test_every_level_requests_disk_presence_and_forensics_adds_statistics() -> None:
     assert tribe_enrichment_sections_for_fold_state(FoldLevel.COLLAPSED) == frozenset(
-        {"prompts", "replies", "slow-tool-calls"}
+        {"clan-summaries", "prompts", "replies", "slow-tool-calls"}
     )
     assert tribe_enrichment_sections_for_fold_state(FoldLevel.EXPANDED) == frozenset(
-        {"prompts", "replies", "slow-tool-calls"}
+        {"clan-summaries", "prompts", "replies", "slow-tool-calls"}
     )
     assert tribe_enrichment_sections_for_fold_state(
         FoldLevel.FULLY_EXPANDED
-    ) == frozenset({"prompts", "replies", "slow-tool-calls"})
+    ) == frozenset({"clan-summaries", "prompts", "replies", "slow-tool-calls"})
     assert tribe_enrichment_sections_for_fold_state(FoldLevel.EXHAUSTIVE) == frozenset(
-        {"prompts", "replies", "slow-tool-calls", "runtime-statistics"}
+        {
+            "clan-summaries",
+            "prompts",
+            "replies",
+            "slow-tool-calls",
+            "runtime-statistics",
+        }
     )
 
 
@@ -80,6 +89,7 @@ def test_empty_sections_are_omitted_at_every_level() -> None:
             slow_tool_calls=(),
         ),
         runtime_statistics_loaded=True,
+        clan_summaries=empty_tribe_clan_summaries_snapshot(),
     )
 
     for level in FoldLevel:
@@ -127,6 +137,7 @@ def test_loaded_replies_follow_the_four_level_content_ladder() -> None:
             slow_tool_calls=(),
         ),
         runtime_statistics_loaded=True,
+        clan_summaries=empty_tribe_clan_summaries_snapshot(),
     )
     rendered = {
         level: build_tribe_detail_text(

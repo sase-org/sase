@@ -34,6 +34,7 @@ STATUS_STYLES: dict[str, str] = {
 class _TribeSectionIds:
     attention: str = "tribe:needs-attention"
     members: str = "tribe:members"
+    clan_summaries: str = "tribe:clan-summaries"
     prompts: str = "tribe:prompts"
     errors: str = "tribe:errors"
     output_variables: str = "tribe:output-variables"

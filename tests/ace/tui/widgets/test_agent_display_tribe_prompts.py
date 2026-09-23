@@ -18,6 +18,9 @@ from sase.ace.tui.widgets.prompt_panel._agent_tribe_aggregation import (
     TribeSectionSnapshot,
     _TribeDiskSnapshot,
 )
+from sase.ace.tui.widgets.prompt_panel._agent_tribe_clan_summaries import (
+    empty_tribe_clan_summaries_snapshot,
+)
 from sase.ace.tui.widgets.prompt_panel._agent_tribe_prompts import (
     PromptDigest,
     TribePromptGroup,
@@ -106,6 +109,7 @@ def _sections_for(
             prompts=snapshot,
         ),
         runtime_statistics_loaded=True,
+        clan_summaries=(empty_tribe_clan_summaries_snapshot() if loaded else None),
     )
 
 
@@ -507,6 +511,7 @@ def test_empty_tribe_renders_prompts_without_jumps() -> None:
             slow_tool_calls=(),
         ),
         runtime_statistics_loaded=True,
+        clan_summaries=empty_tribe_clan_summaries_snapshot(),
     )
     rendered = build_tribe_detail_text(
         snapshot,

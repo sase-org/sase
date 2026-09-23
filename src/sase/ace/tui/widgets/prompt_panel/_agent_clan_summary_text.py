@@ -87,17 +87,13 @@ def _escape_unrenderable_tags(markup: str) -> str:
     return escaped_markup
 
 
-def clan_summary_text(agent: Agent) -> Text:
-    """Return a clan summary parsed as Rich markup with a plain fallback.
+def clan_summary_markup_text(raw: str) -> Text:
+    """Parse raw clan-summary markup with the shared escape-and-fallback logic.
 
-    Parses `raw` as markup and keeps it as-is when every span resolves to a renderable
-    style. When a span does not resolve (for example an unclosed `[@file:<file>]`
-    prompt token that Rich accepts as a tag but never validates), escapes just the
-    offending tags and re-parses so intended markup elsewhere in the summary keeps its
-    styling. Falls back to the raw text when the markup is structurally invalid or a
-    span is still unrenderable after escaping.
+    This is the parse behind :func:`clan_summary_text`, exposed so worker-side
+    digest builders can share the clan panel's exact styling without touching
+    the UI thread or the filesystem.
     """
-    raw = agent.clan_summary or ""
     try:
         text = Text.from_markup(raw)
         if all(_is_renderable_style(span.style) for span in text.spans):
@@ -110,4 +106,17 @@ def clan_summary_text(agent: Agent) -> Text:
     return Text(raw)
 
 
-__all__ = ["clan_summary_text"]
+def clan_summary_text(agent: Agent) -> Text:
+    """Return a clan summary parsed as Rich markup with a plain fallback.
+
+    Parses `raw` as markup and keeps it as-is when every span resolves to a renderable
+    style. When a span does not resolve (for example an unclosed `[@file:<file>]`
+    prompt token that Rich accepts as a tag but never validates), escapes just the
+    offending tags and re-parses so intended markup elsewhere in the summary keeps its
+    styling. Falls back to the raw text when the markup is structurally invalid or a
+    span is still unrenderable after escaping.
+    """
+    return clan_summary_markup_text(agent.clan_summary or "")
+
+
+__all__ = ["clan_summary_markup_text", "clan_summary_text"]
