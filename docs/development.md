@@ -928,12 +928,22 @@ timezone cache refreshed. Neither a contributor's terminal settings, local timez
 CI's process environment participates in the golden corpus.
 
 `just fix-tui-screenshots` is the canonical maintenance command. It captures both visual
-trees, compares candidates with exact pixel equality, and on Linux applies created and
-updated goldens plus proven-stale removals. Pass `--check` to inventory the same way
-without writing goldens; check mode exits 1 on required drift. Arguments after `--` are
-pytest selectors (paths, node IDs, `-k`). Targeted runs apply only captured changes and
-never prune unvisited files. A requested full run that cannot prove complete inventory
-refuses instead of deleting goldens.
+trees, compares candidates with exact pixel equality, and on Linux applies every golden
+it can prove. Update mode salvages per node and per golden: nodes that fail, error, or
+are lost with a worker are retried a bounded number of times (serially when few remain),
+and each created or updated candidate must reach agreement across bounded serial
+re-verification passes before it is applied. Anything left over — unrecovered nodes,
+unstable captures, concurrent on-disk edits — is skipped with a warning under status
+`partial`, and the run still exits 0. A selection that matches no visual tests exits 0
+with a warning instead of an error, and `-n N` is accepted as the governed worker
+request. Pass `--check` to inventory the same way without writing goldens; check mode
+stays strict and exits 1 on required drift. Arguments after `--` are pytest selectors
+(paths, node IDs, `-k`). Targeted runs apply only captured changes and never prune
+unvisited files. A requested full run applies creates and updates, but stale removal
+needs complete evidence: when inventory is incomplete, pruning is skipped with a warning
+and the run reports no stale entries. When another run in the same checkout holds the
+maintenance lock, the runner waits (bounded, default 2 hours) instead of refusing at
+once.
 
 ```bash
 just fix-tui-screenshots
@@ -949,13 +959,15 @@ Master Gate do not run screenshot maintenance.
 
 Local `just check-full` runs the update form after the other exhaustive gates succeed
 and prints the compact report (scope, status, counts, report path) outside
-`tools/run_silent`. That stage can modify committed goldens. Direct `check-full` in CI
-refuses at the update stage; repository CI uses `just fix-tui-screenshots --check`
-instead. Update mode also refuses when `GITHUB_ACTIONS` is set, when `CI` is set outside
-a SASE agent workspace or `sase monitor` command, off Linux, or when the renderer
-fingerprint is skewed. SASE agent shells export `CI=true` for pytest/tooling; that flag
-alone does not block local golden updates. Detached monitor commands do not inherit
-`SASE_AGENT*`, but they set `SASE_MONITOR_ID`, which is treated the same way.
+`tools/run_silent`. That stage can modify committed goldens. It exits 0 with status
+`partial` when goldens are left untouched behind warnings; read the WARNING block —
+those goldens are not known to be current. Direct `check-full` in CI refuses at the
+update stage; repository CI uses `just fix-tui-screenshots --check` instead. Update mode
+also refuses when `GITHUB_ACTIONS` is set, when `CI` is set outside a SASE agent
+workspace or `sase monitor` command, off Linux, or when the renderer fingerprint is
+skewed. SASE agent shells export `CI=true` for pytest/tooling; that flag alone does not
+block local golden updates. Detached monitor commands do not inherit `SASE_AGENT*`, but
+they set `SASE_MONITOR_ID`, which is treated the same way.
 `--sase-update-visual-snapshots` is retired; pytest rejects it with the replacement
 command.
 

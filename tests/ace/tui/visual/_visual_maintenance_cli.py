@@ -56,17 +56,30 @@ _MARKER_FLAGS = frozenset({"-m", "--markers"})
 WORKERS_ENV_VAR = "SASE_PYTEST_WORKERS"
 _AUTO_WORKER_VALUES = frozenset({"auto", "logical"})
 _HELP_EPILOG = f"""
+Update mode applies every golden it can prove and exits 0 with status
+clean, applied, or partial. Status partial means some nodes or goldens
+were skipped (failed tests, unstable captures, concurrent edits, or
+skipped stale removal); those goldens were left unchanged and are not
+known to be current — read the WARNING block or the manifest skipped list.
+Check mode is strict: it never writes and exits 1 on required drift.
+
 Exit codes:
-  {EXIT_SUCCESS}  check is clean, or an update applied successfully (including no-ops)
+  {EXIT_SUCCESS}  check is clean, or an update finished (clean, applied, or partial)
   1  check mode found required golden changes
-  {EXIT_USAGE}  usage error or environment refusal (CI update, renderer, lock)
-  {EXIT_FAILURE}  pytest/capture/inventory/application failure
+  {EXIT_USAGE}  usage error (including -n in PYTEST_ADDOPTS, or pytest exit 4
+     with nothing executed), environment refusal (CI update, renderer,
+     platform), or lock-wait timeout
+  {EXIT_FAILURE}  no usable capture inventory after retry, unfinished-journal
+     conflict, apply failure after rollback, or interrupt
 
 `just` may normalize a non-zero child code to 1. Automation that needs the
 distinction should read the run manifest or invoke this tool directly.
 
 Arguments after `--` are pytest selectors and options (paths, node IDs, `-k`).
-The runner owns the visual lane, capture plugin, and candidate directory.
+-n/--numprocesses is translated to the governed worker request instead of
+reaching pytest. The runner owns the visual lane, capture plugin, and
+candidate directory. When another run in this checkout holds the lock, this
+run waits (bounded, default 2 hours) instead of refusing at once.
 """.strip()
 
 

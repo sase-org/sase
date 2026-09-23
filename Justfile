@@ -475,9 +475,14 @@ test-slow *args: _setup (_header "test-slow")
     @SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest slow "$@"
 
 # Capture, compare, and apply ACE and pager TUI screenshot goldens.
-# A full inventory applies created and updated candidates and proven-stale
-# removals. Pass --check to fail on drift without writing goldens.
-# Arguments after `--` are pytest selectors (paths, node IDs, `-k`).
+# Update mode salvages per node and per golden: failed nodes are retried
+# (bounded), trusted captures are applied, and the rest are skipped with
+# warnings under status `partial` — the run still exits 0. A full inventory
+# applies created and updated candidates; stale removals need complete
+# evidence and are otherwise skipped with a warning. Pass --check for the
+# strict CI form, which fails on drift without writing goldens.
+# Arguments after `--` are pytest selectors (paths, node IDs, `-k`);
+# `-n N` is accepted and translated to the governed worker request.
 # Local `just check-full` runs the update form; CI uses `--check`.
 # `just` may normalize a non-zero child code to 1. Automation that needs
 # the distinction should read the run manifest or invoke
@@ -550,7 +555,9 @@ test-contention *args: _setup (_header "test-contention")
     @taskset -c "${SASE_CONTENTION_CPUS:-0,1}" env SASE_JUST_INVOCATION_DIR="{{ invocation_directory() }}" {{ venv_bin }}/python tools/run_pytest contention "$@"
 
 # Update ACE and pager TUI screenshot goldens. Supported alias of
-# `just fix-tui-screenshots`. The maintenance runner refuses updates outside
+# `just fix-tui-screenshots`. Like the canonical command, it exits 0 with
+# status `partial` when some goldens are left untouched behind warnings.
+# The maintenance runner refuses updates outside
 # the pinned renderer environment, off Linux, or in real CI (`GITHUB_ACTIONS`,
 # or `CI` without `SASE_AGENT` / `SASE_MONITOR_ID`).
 [positional-arguments]
@@ -706,7 +713,9 @@ check: (_require-tool-run "check") _setup
 # screenshot stage is outside `tools/run_silent` so its compact report stays
 # visible. CI does not run this recipe; the dedicated visual-test job uses
 # `just fix-tui-screenshots --check`. A direct CI invocation refuses at the
-# update stage.
+# update stage. The screenshot stage applies what it can prove and exits 0
+# with status `partial` when goldens are left untouched; read its WARNING
+# block — those goldens are not known to be current.
 check-full: (_require-tool-run "check-full") _setup
     @tools/run_silent "fmt (python)"       just fmt-py-check
     @tools/run_silent "fmt (markdown)"     just fmt-md-check
