@@ -154,6 +154,7 @@ def agents_bindings(km: KeymapRegistry) -> Sections:
                 (d(a.open_artifact_files), "Artifact files (or marked set)"),
                 (d(a.toggle_attempt_view), "Toggle attempt history view"),
                 (d(a.toggle_agent_header), "Expand / collapse agent header"),
+                (d(a.toggle_agent_jump_panel), "Expand / collapse jump panel"),
                 (d(a.toggle_hide_non_run_agents), "Show/hide non-run agents"),
                 (
                     f"{d(a.next_agent_file)} / {d(a.prev_agent_file)}",

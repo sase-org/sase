@@ -345,18 +345,8 @@ class JumpLegendRenderable:
                 dismissed=target.role == "dismissed",
                 show_revive=False,
             )
-            clamped = Text()
-            plain = cell.plain
-            current: list[str] = []
-            used = 0
-            for char in plain:
-                char_width = cell_len(char)
-                if used + char_width > width:
-                    break
-                current.append(char)
-                used += char_width
-            clamped.append("".join(current))
-            clamped.spans.extend(cell.spans[: len(clamped.plain)])
+            clamped = cell.copy()
+            clamped.truncate(max(1, width))
             return [clamped]
         _shown, budget, columns, labels = best
         slots = min(count, 2 * columns)
@@ -440,20 +430,11 @@ def _clamp_cells_to_width(cells: list[Text], width: int) -> list[Text]:
         return cells
     clamped: list[Text] = []
     for cell in cells:
-        plain = cell.plain
-        if cell_len(plain) <= width:
+        if cell_len(cell.plain) <= width:
             clamped.append(cell)
             continue
-        current: list[str] = []
-        used = 0
-        for char in plain:
-            char_width = cell_len(char)
-            if used + char_width > width:
-                break
-            current.append(char)
-            used += char_width
-        replacement = Text("".join(current))
-        replacement.spans.extend(cell.spans[: len(replacement.plain)])
+        replacement = cell.copy()
+        replacement.truncate(max(1, width))
         clamped.append(replacement)
     return clamped
 

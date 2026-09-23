@@ -11,6 +11,7 @@ from textual.widgets import Static
 
 from ._agent_detail_display import AgentDetailDisplayMixin
 from ._agent_detail_helpers import agent_prompt_panel_type
+from ._agent_detail_jump import AgentDetailJumpMixin
 from ._agent_detail_panels import (
     AgentDetailPanelMixin,
     DetailLayoutMode,
@@ -34,7 +35,11 @@ class AgentMetadataIdentityChanged(Message):
 
 
 class AgentDetail(
-    AgentDetailDisplayMixin, AgentDetailStateMixin, AgentDetailPanelMixin, Static
+    AgentDetailDisplayMixin,
+    AgentDetailStateMixin,
+    AgentDetailPanelMixin,
+    AgentDetailJumpMixin,
+    Static,
 ):
     """Combined widget with prompt and file panels."""
 
@@ -63,6 +68,7 @@ class AgentDetail(
     def compose(self) -> ComposeResult:
         """Compose the two-panel layout (prompt and file)."""
         from .agent_header_panel import AgentHeaderPanel
+        from .agent_jump_panel import AgentJumpPanel
 
         AgentPromptPanel = agent_prompt_panel_type()
         with Vertical(id="agent-detail-layout"):
@@ -76,6 +82,7 @@ class AgentDetail(
                 yield AgentFilePanel(id="agent-file-panel")
             with VerticalScroll(id="agent-llm-calls-scroll", classes="hidden"):
                 yield AgentLLMCallsPanel(id="agent-llm-calls-panel")
+            yield AgentJumpPanel(id="agent-jump-panel", classes="hidden")
 
     @property
     def metadata_identity(self) -> object | None:
@@ -93,7 +100,7 @@ class AgentDetail(
         return None
 
     def on_mount(self) -> None:
-        """Attach the prompt panel's identity sink to the header panel."""
+        """Attach the prompt panel's sinks to the header and jump panels."""
         try:
             prompt_panel = self.query_one(
                 "#agent-prompt-panel", agent_prompt_panel_type()
@@ -105,6 +112,7 @@ class AgentDetail(
         except Exception:
             pass
         self._sync_header_visibility()
+        self._attach_jump_panel_sink()
 
     def _header_panel_or_none(self) -> Any | None:
         """Return the header panel when mounted, else None."""
@@ -177,13 +185,14 @@ class AgentDetail(
     def on_agent_metadata_identity_changed(
         self, message: AgentMetadataIdentityChanged
     ) -> None:
-        """Reset the header scroll when the metadata document identity changes."""
+        """Reset panel scrolls when the metadata document identity changes."""
         panel = self._header_panel_or_none()
         if panel is not None:
             try:
                 panel.scroll_to(y=0, animate=False)
             except Exception:
                 pass
+        self._reset_jump_panel_scroll()
 
     def _active_metadata_scroll(self) -> VerticalScroll:
         """Return the search overlay or the native prompt scroll."""
@@ -201,6 +210,7 @@ class AgentDetail(
                     panel.scroll_to(y=0, animate=False)
                 except Exception:
                     pass
+            self._reset_jump_panel_scroll()
             self.post_message(AgentMetadataIdentityChanged(current))
 
     def toggle_layout(self) -> None:

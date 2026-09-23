@@ -1276,22 +1276,22 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 
 ### Navigation
 
-| Key                       | Action                                                                                                                                                      |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead |
-| `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                           |
-| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                             |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                |
-| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                 |
-| `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                         |
-| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                       |
-| `0`–`9`                   | Jump from a selected clan, agent node, family member, or whole-panel roster to its numbered member or neighbor                                              |
-| `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                     |
-| `oo`                      | Toggle Agents panels between tribe-split and one merged panel, then close the grouping picker                                                               |
-| `g`                       | Scroll to top (file, LLM Calls, or metadata panel)                                                                                                          |
-| `G`                       | Scroll to bottom (file, LLM Calls, or metadata panel)                                                                                                       |
-| `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                                                                                 |
-| `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                                                                               |
+| Key                       | Action                                                                                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead         |
+| `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                                   |
+| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                                     |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                        |
+| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                         |
+| `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                                 |
+| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                               |
+| `0`–`9`                   | Jump from a selected clan, agent node, family member, or whole-panel roster to its numbered member or neighbor (mirrored in the jump panel below the detail panels) |
+| `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                             |
+| `oo`                      | Toggle Agents panels between tribe-split and one merged panel, then close the grouping picker                                                                       |
+| `g`                       | Scroll to top (file, LLM Calls, or metadata panel)                                                                                                                  |
+| `G`                       | Scroll to bottom (file, LLM Calls, or metadata panel)                                                                                                               |
+| `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                                                                                         |
+| `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                                                                                       |
 
 > **Note:** `o` opens a direct grouping picker on the Agents tab. `o`/`O` still cycle
 > the L0 grouping bucket forward / reverse on Artifacts panes that have a grouping mode
@@ -1322,13 +1322,15 @@ row numbers its enclosing family's `FAMILY SHELLS` roster the same way, listing 
 sibling except itself from the same ladder; a shell row owns no sase agent, so it has no
 `NEIGHBORS` rows to follow the roster. Documents with at most ten numbered rows use
 `0`–`9`; larger documents number the first 100 rows with two-key values `00`–`99` and
-show any remaining entries as an unnumbered count. After the first digit of a two-key
-jump, press `Esc` to cancel or any non-digit key to cancel and continue with that key's
-normal action. A successful jump expands only the target's ancestor chain, switches
-tribe panels when needed, and participates in the normal `Ctrl+O` jump-back history. A
-digit on a dismissed neighbor revives that agent instead of jumping. If the roster or
-the neighbor relationship changed since the panel was drawn, the jump is cancelled with
-a warning rather than landing somewhere stale.
+show any remaining entries as an unnumbered count. Every live numbered target is also
+listed in the sticky jump panel below the file / LLM Calls panel, so the digit answers
+stay on screen while the metadata body scrolls. After the first digit of a two-key jump,
+the panel narrows to the matching candidates; press `Esc` to cancel or any non-digit key
+to cancel and continue with that key's normal action. A successful jump expands only the
+target's ancestor chain, switches tribe panels when needed, and participates in the
+normal `Ctrl+O` jump-back history. A digit on a dismissed neighbor revives that agent
+instead of jumping. If the roster or the neighbor relationship changed since the panel
+was drawn, the jump is cancelled with a warning rather than landing somewhere stale.
 
 ### Agent Actions
 
@@ -1345,6 +1347,7 @@ a warning rather than landing somewhere stale.
 | `v`                 | View files (hint mode; annotates clan/family containers in place)                                               |
 | `D`                 | Toggle prior-attempt view (only shown when the agent has retried)                                               |
 | `d`                 | Expand / collapse the agent header panel (sticky identity header above the detail panels)                       |
+| `.`                 | Expand / collapse the jump panel (sticky jump targets below the detail panels)                                  |
 | `I`                 | Show/hide non-run agents                                                                                        |
 | `V`                 | Open the focused agent's metadata as a sectioned document in the pager (see below)                              |
 | `w`                 | Wait/unwait agent (opens WaitModal — see below)                                                                 |
@@ -3327,7 +3330,7 @@ These work on all tabs:
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Tab` / `Shift+Tab`     | Switch between Agents, Artifacts, and Services tabs                                                                                                                    |
 | `#`                     | Open SASE Admin Center home (repeat on home to resume the last section); inside a working section, jump to the alternate section (repeat to toggle back)               |
-| `.`                     | Artifacts: collapse/expand the relations panel; Services: show/hide axe commands                                                                                       |
+| `.`                     | Artifacts: collapse/expand the relations panel; Services: show/hide axe commands; Agents: expand/collapse the jump panel                                               |
 | `:` / `;`               | Open the context-aware [Command Palette](#command-palette)                                                                                                             |
 | `i`                     | Show notifications inbox                                                                                                                                               |
 | `+`                     | Run a custom agent (opens project/Patch selection)                                                                                                                     |
@@ -5197,6 +5200,26 @@ entering/leaving a pinned attempt view resets the cursor.
   moves, tribe focus, and layout changes. While file-hint markers (`[N]`) are visible
   the panel renders expanded so every hint stays selectable. Metadata search (`,/`)
   covers the scrolling body only, since header fields stay on screen.
+- **Jump panel**: Every live numbered roster target (family shells, neighbors, clan
+  members, tribe members) is listed in its own always-visible panel at the bottom of the
+  detail column, below the file / LLM Calls panel, in every layout. The panel is shown
+  only while the current document has numbered targets — never for "No agent selected",
+  nodes without rosters, fully unnumbered rosters, or file-hint documents — and it stays
+  visible during metadata search (`,/`), since the digits keep working there. It is
+  collapsed by default to at most two packed rows, where every visible number carries a
+  label that unambiguously identifies its target (labels shrink with a middle ellipsis,
+  and the packer shows fewer targets rather than ambiguous ones); `.` expands it to the
+  complete list with full labels, per-section headings, and the roster tail hints. The
+  border title is the color legend (`JUMP`, then one entry per section with its number
+  range), and the border subtitle names the configured `toggle_agent_jump_panel` key
+  (`▴ . more` / `▾ . less`). Each cell echoes its roster row: the number chip in the
+  roster style, the label, and the status glyph; a dismissed neighbor renders dim with a
+  `⊘` prefix (and a `revive` note when expanded), since its digit revives the agent
+  instead of jumping. After the first digit of a two-key jump, the panel narrows to the
+  matching candidates (`JUMP · 1▁`, `esc cancel`); completing or cancelling the jump
+  restores the collapsed or expanded view. Collapsed/expanded state is per session and
+  holds across row moves, tribe focus, and layout changes. Toggling never rebuilds the
+  document, and a bottom-pinned body stays pinned.
 - **SASE CONTEXT / BEAD**: Shown for epic phase workers and task workers. For an epic
   phase worker, the lane is limited to its selected phase. Its fields are `Phase Title`,
   `Description`, `Size`, `Epic Plan`, and `Epic Title`, in that order. The phase title

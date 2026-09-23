@@ -117,6 +117,22 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
         """Return the stale-map subject for one selected roster."""
         return f"{self._roster_jump_noun(container).capitalize()} roster"
 
+    def _set_jump_panel_prefix(self, prefix: str | None) -> None:
+        """Mirror the pending digit onto the Agents jump panel, if mounted."""
+        try:
+            from ...widgets import AgentDetail
+
+            detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        except Exception:
+            return
+        setter = getattr(detail, "set_jump_panel_prefix", None)
+        if not callable(setter):
+            return
+        try:
+            setter(prefix)
+        except Exception:
+            pass
+
     def _update_member_jump_footer(self, first_digit: str) -> None:
         """Show the pending two-digit indicator without rebuilding detail."""
         try:
@@ -129,6 +145,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             )
         except Exception:
             pass
+        self._set_jump_panel_prefix(first_digit)
 
     def _cancel_member_jump_pending(self, *, refresh_footer: bool = True) -> bool:
         """Clear a buffered first digit and optionally restore normal bindings."""
@@ -136,6 +153,7 @@ class MemberJumpNavigationMixin(NavigationMixinBase):
             return False
         self._member_jump_pending_digit = None  # type: ignore[attr-defined]
         self._member_jump_pending_container_identity = None  # type: ignore[attr-defined]
+        self._set_jump_panel_prefix(None)
         if refresh_footer and self.current_tab == "agents":
             refresh = getattr(self, "_refresh_agent_footer_bindings_only", None)
             if callable(refresh):

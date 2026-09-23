@@ -3945,6 +3945,25 @@ HintInputBar #hint-escape-hint {
     height: auto;
 }
 
+#agent-jump-panel {
+    height: auto;
+    max-height: 40%;
+    border: round $secondary;
+    padding: 0 2;
+    scrollbar-gutter: stable;
+    border-title-align: left;
+    border-subtitle-align: right;
+}
+
+#agent-jump-panel.hidden {
+    display: none;
+}
+
+#agent-jump-content {
+    width: 100%;
+    height: auto;
+}
+
 #agent-prompt-scroll.expanded {
     height: 1fr;
 }

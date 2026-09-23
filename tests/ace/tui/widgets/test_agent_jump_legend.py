@@ -277,3 +277,38 @@ def test_label_never_below_minimum_unless_clamped() -> None:
     lines = _render_lines(JumpLegendRenderable(jump_map, mode="collapsed"), 64)
     assert 1 <= len(lines) <= 2
     assert isinstance(Text("\n".join(lines)), Text)
+
+
+def test_narrow_widths_keep_spans_inside_clipped_cells() -> None:
+    """Narrow columns must clip spans together with plain text.
+
+    Regression: hand-clipped cells kept spans past the cut, which crashed
+    Rich rendering (StopIteration) once a panel squeezed below one cell.
+    """
+    numbering = MemberJumpNumbering(total=4)
+    family = append_member_roster(
+        Text(),
+        container_identity=_LANE_IDENTITY,
+        entries=_entries(["--plan", "--code"]),
+        title="FAMILY SHELLS",
+        accent="#00AFFF",
+        panel_level=FoldLevel.COLLAPSED,
+        numbering=numbering,
+    )
+    neighbors = append_member_roster(
+        Text(),
+        container_identity=_LANE_IDENTITY,
+        entries=_entries(["visual-real-family.peer00", "visual-real-family.peer01"]),
+        title="NEIGHBORS",
+        accent="#00D7AF",
+        panel_level=FoldLevel.COLLAPSED,
+        numbering=numbering,
+    )
+    jump_map = merged_member_jump_map(_LANE_IDENTITY, family, neighbors)
+    for mode in ("collapsed", "expanded", "1"):
+        for width in (9, 12, 16, 20, 30):
+            renderable = JumpLegendRenderable(jump_map, mode=mode)
+            for line in renderable._lines_for_width(width):  # noqa: SLF001
+                for span in line.spans:
+                    assert 0 <= span.start <= span.end <= len(line.plain)
+            assert _render_lines(JumpLegendRenderable(jump_map, mode=mode), width)

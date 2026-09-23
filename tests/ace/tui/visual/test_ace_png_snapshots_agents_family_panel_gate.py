@@ -142,7 +142,10 @@ async def test_selected_gate_shell_output_png_snapshot(
         selected = page.app._agents[page.app.current_idx]
         assert selected.is_gate is True
         assert selected.gate_state == "settling"
-        assert_page_svg_contains(page, "Run deployment preview")
+        # Document-level check: the jump footer panel now takes detail height,
+        # so this title can sit below the first viewport even at scroll zero.
+        prompt = page.app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        assert "Run deployment preview" in prompt_header_and_body_text(prompt)
         scroll = page.query_one_widget("#agent-prompt-scroll", VerticalScroll)
         scroll.scroll_to(y=16, animate=False, immediate=True)
         await wait_for_visual_idle(page)
