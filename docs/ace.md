@@ -542,13 +542,13 @@ active query limit.
 
 Plans accepts `kind:`, `status:`, `tier:`, `project:`, `path:`, `since:`, `until:`, and
 `limit:` plus free text matched across plan-document metadata and content. `path:` is
-the pane's identity field — the document path or provider identity, matched exactly and
-still searched by free text — and every other document-provider pane gains the same
-`path:` key when its declaration does not already define one. `kind:` accepts
-`proposal`, `active`, `archive`, and the document-sidecar roles present in the current
-scope, such as `plans`, `research`, or `designs`. `kind:archive` matches committed
-documents that are not linked from a live bead, while `kind:designs` narrows documents
-to that sidecar.
+the pane's identity field — the document path or provider identity, matched by substring
+so `path:<fragment>` finds a document by any part of its path, and still searched by
+free text — and every other document-provider pane gains the same substring `path:` key
+when its declaration does not already define one. `kind:` accepts `proposal`, `active`,
+`archive`, and the document-sidecar roles present in the current scope, such as `plans`,
+`research`, or `designs`. `kind:archive` matches committed documents that are not linked
+from a live bead, while `kind:designs` narrows documents to that sidecar.
 
 Beads accepts repeatable `id:`, `type:`, `task_type:`, `tier:`, `status:`, `size:`,
 `due:`, `project:`, `assignee:`, `owner:`, `model:`, `has:`, `bug:`, `label:`, `since:`,
@@ -1227,9 +1227,12 @@ directly. `q`/`Esc` cancels; configured target keys take precedence if rebound t
 When at least one remote machine is enrolled, the Agents tab shows local and remote rows
 in one list. Remote agent, family, and clan nodes carry a short host-alias chip such as
 `apollo` or `mac`; local rows never carry a `here` chip, including under a by-machine
-group header. The header reports the local machine, active rows, pending attention when
-known, enrolled-machine count, and any partial or unavailable-machine state. An entirely
-local setup keeps the compact local view and exposes the machine connection route.
+group header. A fleet header row appears above the list only when there is something to
+act on: a fleet configuration error, machine diagnostics (`apollo unknown`, or
+`3 machine issues` beyond two machines), or a machine feed error
+(`<alias>: feed <status>: <detail>`, with `(cached 5m ago)` when a cache backs it, or
+`2 machines with feed errors`). Otherwise the row stays hidden. An entirely local setup
+keeps the compact local view and exposes the machine connection route.
 
 Remote rows use the same visible operations where the owner advertises support: machine
 status, retry, bounded remote content, pending question/gate handling, stop, and fork.
@@ -1327,7 +1330,7 @@ a warning rather than landing somewhere stale.
 | `u`                 | Clear all agent marks                                                                                           |
 | `x`                 | Kill / dismiss the agent, clan, or focused panel or group (or every marked agent); stop a monitor or proc       |
 | `X`                 | Open the cleanup panel for panel, all-panel, tribe, marked, group, or custom cleanup                            |
-| `Enter`             | Act on agent: review pending gate, go to Patch, or choose when both apply                                       |
+| `Enter`             | Act on agent: review pending gate, go to Patch, or choose when several apply                                    |
 | `e`                 | Edit chat in editor; with marks, open all editable marked transcripts in one editor invocation                  |
 | `E`                 | Edit panel content in editor                                                                                    |
 | `t`                 | Open the focused agent's tmux target, or a workspace chooser (`m` marks many; a selector opens one)             |
@@ -1356,18 +1359,50 @@ panel is disabled). Only the Agents tab swaps those keys.
 #### Enter: act on an agent
 
 `Enter` on an Agents-tab row opens that agent node's pending gate (every gate kind,
-including sudo, launch, HITL, and custom gates), jumps to its Patch, or — when both
-apply — opens a one-keypress chooser. With no target it toasts
-`No pending gate or Patch for this agent` (or the scoped message for clans, settled
-gates, and banners). One target runs directly; two or more open
-`AgentActionChooserModal`. Gates come first, newest first, with the Patch last; the
-first row is the primary action, so `Enter` then `Enter` always opens the most urgent
-gate.
+including plan, question, sudo, launch, HITL, and custom gates), jumps to its Patch, or
+— when more than one target applies — opens a one-keypress chooser. One target runs
+directly; two or more open the chooser. Gates come first, newest first, with the Patch
+last; the first row is the primary action, so `Enter` then `Enter` always opens the
+newest pending gate. The footer names what `Enter` will do: the gate's action (for
+example `review plan`), `go to PR` for a lone Patch, or `choose action` when several
+targets apply.
 
-Chooser keys: one gate uses `g`; several gates use `1`–`9` in display order with `g` as
-a hidden alias for the first; the Patch uses `p`. `Enter` selects the highlighted row
-(starting on the primary), `j`/`k` or `Up`/`Down` move, `Esc`/`q` cancel, mouse click
-selects, and other printable keys are swallowed.
+What counts as a target depends on the selected row:
+
+- A **gate row** targets its own gate while it is pending. A settled gate toasts
+  `This gate already settled (<state>)`.
+- A **family container** collects every pending gate across its members, plus the
+  family's Patch (or, when the container has none, the Patch of its most recently
+  started member).
+- A **family member** or standalone agent targets gates it created and gate
+  notifications matched to it. An agent stopped on a question, or a workflow step
+  waiting for input, falls back to the answer flow when no gate notification matches.
+- A **workflow step child** uses its parent workflow's Patch; a child of a project-level
+  workflow uses that workflow's meta Patch, if it recorded one.
+- A **remote row** answers its pending
+  [remote attention](notifications.md#remote-attention) request.
+- A **clan container** toasts `Select an agent inside this clan`. Monitors and proc
+  shells have no targets, and a grouping banner ignores `Enter`.
+
+With no target, `Enter` toasts `No pending gate or Patch for this agent`. `Enter` works
+from the first frame: if the notification inbox has not been polled yet, sase's TUI
+reads it once off the UI thread and then acts. It searches the complete unread dataset,
+so older pending decisions stay reachable regardless of backlog size. Before a gate
+opens, the target is revalidated; a gate that settled in the meantime toasts
+`Gate <id> is no longer pending`.
+
+The chooser is titled `Act on <agent>` and groups rows under `GATE`/`GATES` and `PATCH`
+headings, each row showing its key, label, and a status badge with age. A guidance line
+(`⏎ again → <primary action> · or press a key`) names the primary. Chooser keys: one
+gate uses `g`; several gates use `1`–`9` in display order with `g` as a hidden alias for
+the first; the Patch uses `p`. `Enter` selects the highlighted row (starting on the
+primary), `j`/`k` or `Up`/`Down` move, `Esc`/`q` cancel, mouse click selects, and other
+printable keys are swallowed. A choice whose target disappeared while the chooser was
+open toasts `That action is no longer available` instead of acting.
+
+The retired `,n` leader chord is replaced by `Enter`. The direct Patch jump survives as
+the `jump_to_agent_patch` command, unbound by default; see
+[`ace.keymaps`](configuration.md#acekeymaps).
 
 ### Forking Agents and Groups
 
@@ -1422,15 +1457,15 @@ for the wrong target.
 ### Clan and Family Detail Panels
 
 Selecting a clan container shows a `CLAN` summary. Selecting a real multi-member family
-root opens with underlined `FAMILY` (cyan, matching the name) like `CLAN` / `TRIBE`,
-then the family's normal agent metadata plus a `FAMILY SHELLS` roster. A selected agent
-shell — standalone or family member — opens with underlined `AGENT SHELL` (gold,
-matching the name). Both rosters use the numbered member jumps described above. Clan
-direct members in the Agents list sort by status priority — Failed, Stopped,
-Running/Starting, Queued, Waiting, Done — with launch recency breaking ties. The clan
-metadata roster instead keeps chronological launch order so its numbers do not change as
-statuses change; a nested family remains one direct entry with its chain indented
-beneath it. Family rosters retain sequential chain order.
+root titles the sticky [header panel](#agents-tab-metadata-panel) `FAMILY` (cyan,
+matching the name), then shows the family's normal agent metadata plus a `FAMILY SHELLS`
+roster. A selected agent shell — standalone or family member — titles the header panel
+`AGENT SHELL` (gold, matching the name). Both rosters use the numbered member jumps
+described above. Clan direct members in the Agents list sort by status priority —
+Failed, Stopped, Running/Starting, Queued, Waiting, Done — with launch recency breaking
+ties. The clan metadata roster instead keeps chronological launch order so its numbers
+do not change as statuses change; a nested family remains one direct entry with its
+chain indented beneath it. Family rosters retain sequential chain order.
 
 Selecting a family **shell** row (not the container) also shows a `FAMILY SHELLS`
 roster: the same enclosing family's members, in the same chain order, minus the selected
@@ -1889,37 +1924,45 @@ panel. SASE still stores that tribe under its legacy name `chop`, but `@job` wai
 fork targets, `tribe:job` filters, and an `ace.tribes.job` entry all address it (an
 explicit `ace.tribes.chop` entry still wins for styling). A manual panel fold lasts for
 that panel's current lifetime, and the configured initial state is applied again when
-the panel appears after a restart or after the tribe disappears and returns. Across
-structured sase's TUI surfaces, identity colors apply only to an existing configured
-icon and the `@tribe` name; they do not recolor free-form `@...` text or selection,
-fold, count, heading, and status chrome. Configured icons remain limited to surfaces
-that already show an icon. Each panel title can also show compact scoped metrics in the
-form `[S1 R2 W1 F1 U1 D3]`: `S` is stopped for human input, `R` is running, `W` is
-waiting to start, `F` is failed, `U` is unread terminal work, and `D` is done/read
-terminal work. Zero-count metrics are omitted. The status metrics use the same
-sase-agent projection as the adjacent total and classify a sequential family once from
-its normalized owner status. The selected whole-panel `TRIBE` header uses that same
-projection, while its nested count and per-family/per-clan member summaries preserve the
-concrete-member distinction. On the selected whole panel, the title marker, total,
-brackets, and metric letters use the focus accent; each numeric metric count retains its
-semantic status color. The title can end with an amber `⚙N` badge for running monitors
-followed by a grey `⚙N` badge for finished ones, in that order, after the metric chip
-(or after the total when the chip is empty); the two counts partition the tribe's
-monitors exactly. Each badge is fold- and collapse-independent — it still reports on a
-fully collapsed panel — and is omitted entirely when its own count is zero. Both badges
-keep their semantic hue on a selected panel while the brackets and metric letters take
-the focus accent. Panel heights are sized to their content and separated by a one-row
-gap. When the panels fit, the first panel grows to absorb leftover vertical space while
-later panels stay pinned to their natural height; when the panels overflow, space is
-weighted by each panel's rendered row count.
+the panel appears after a restart or after the tribe disappears and returns. Once a
+panel has shown rows under the current Agents query, it stays mounted for the session
+even if a bounded or incomplete load briefly omits them; it retires only when every node
+it showed is authoritatively gone — dismissed, killed, a dismissed proc shell, moved to
+another tribe, or absent from a complete history load — including a clan whose members
+are all gone. Changing the Agents query starts that bookkeeping over. Across structured
+sase's TUI surfaces, identity colors apply only to an existing configured icon and the
+`@tribe` name; they do not recolor free-form `@...` text or selection, fold, count,
+heading, and status chrome. Configured icons remain limited to surfaces that already
+show an icon. Each panel title can also show compact scoped metrics in the form
+`[S1 R2 W1 F1 U1 D3]`: `S` is stopped for human input, `R` is running, `W` is waiting to
+start, `F` is failed, `U` is unread terminal work, and `D` is done/read terminal work.
+Zero-count metrics are omitted. The status metrics use the same sase-agent projection as
+the adjacent total and classify a sequential family once from its normalized owner
+status. The selected whole-panel `TRIBE` header uses that same projection, while its
+nested count and per-family/per-clan member summaries preserve the concrete-member
+distinction. On the selected whole panel, the title marker, total, brackets, and metric
+letters use the focus accent; each numeric metric count retains its semantic status
+color. The title can end with an amber `⚙N` badge for running monitors followed by a
+grey `⚙N` badge for finished ones, in that order, after the metric chip (or after the
+total when the chip is empty); the two counts partition the tribe's monitors exactly.
+Each badge is fold- and collapse-independent — it still reports on a fully collapsed
+panel — and is omitted entirely when its own count is zero. Both badges keep their
+semantic hue on a selected panel while the brackets and metric letters take the focus
+accent. Panel heights are sized to their content and separated by a one-row gap. When
+the panels fit, the first panel grows to absorb leftover vertical space while later
+panels stay pinned to their natural height; when the panels overflow, space is weighted
+by each panel's rendered row count.
 
-A selected tribe panel's `TRIBE` header ends with an unlabeled description row only when
-the tribe has a configured [`description`](configuration.md#acetribes). That row is set
-off from the field stack (`Name`, `Status`, `Composition`, `Runtime`, `Fold`) by a blank
-line and wrapped at a fixed 80-cell measure (no hanging indent — there is no label to
-indent past). A tribe with no configured description renders no row there at all,
-including unconfigured ad-hoc tribes with no `ace.tribes` entry. To find configured
-tribes that are missing a description, run `sase doctor -C config.tribes`.
+A selected tribe panel's `TRIBE` identity fields (`Name`, `Status`, `Composition`,
+`Runtime`, `Fold`) render in the sticky [header panel](#agents-tab-metadata-panel) above
+the metadata; collapsed, it shows the tribe name, status, and counts on one row and the
+composition, runtime, and fold on the next. The scrolling metadata opens with an
+unlabeled description row only when the tribe has a configured
+[`description`](configuration.md#acetribes). That row is set off by a blank line and
+wrapped at a fixed 80-cell measure (no hanging indent — there is no label to indent
+past). A tribe with no configured description renders no row there at all, including
+unconfigured ad-hoc tribes with no `ace.tribes` entry. To find configured tribes that
+are missing a description, run `sase doctor -C config.tribes`.
 
 Use `J` / `K` to move across expanded panels (forward / reverse) and enter the first or
 last selectable row in the destination; collapsed panels are skipped entirely, and the
@@ -2324,8 +2367,10 @@ queued count remain in the status strip, for example `8 [8 running · 1 queued]`
 `load: 8/10` at the right. The gauge shares the usage-window ten-step color gradient,
 keyed on free-capacity percent, so a given color means the same headroom in both places;
 at or over capacity it becomes the inverted red chip, exactly as an exhausted `0%` usage
-window. In compact density the `load:` label drops, leaving `8/10`. The running count
-keeps its stable green count style. A nonzero queue count is cornflower blue.
+window. In compact density the `load:` label drops, leaving `8/10`. Hovering the gauge
+spells out the units in use and free, or that new agents queue until capacity frees up
+when it is full. The running count keeps its stable green count style. A nonzero queue
+count is cornflower blue.
 
 An optional status strip follows in the form
 `[S stopped · T starting · R running · W waiting · F failed · U unread · D done]`, with
@@ -3451,16 +3496,16 @@ blockers (the row and key appear only then), and `Esc`, `q`, or `n` cancels. `Ct
 scope has a changed, runnable planner, and a plan whose runnable planners would
 overwrite or delete a file is styled as a danger confirmation rather than a neutral one.
 
-The current project — the same one the status-row `current +<project>` cluster names —
-is marked on three surfaces at once, all in that project's accent color: a `+` in the
-row table's `CUR` column plus its name rendered in that accent, a `current:+<name>`
-segment appended to the summary line, and a `+CURRENT` badge on the detail panel's
-header line. The detail panel also carries a dedicated `Current project:` line for the
-highlighted row, whether or not it is current — stating the fact for a current row (and,
-when it arrived via a Patch, which one) or the exact reason and fix for one that is not
-(enable it first, it has no launchable ProjectSpec, or press `c`). This display always
-resolves live and ignores `ace.current_project.indicator`, which only hides the
-status-row cluster's project group; see [Current project](#current-project).
+The current project — the same one the status-row `project: +<name>` chip names — is
+marked on three surfaces at once, all in that project's accent color: a `+` in the row
+table's `CUR` column plus its name rendered in that accent, a `current:+<name>` segment
+appended to the summary line, and a `+CURRENT` badge on the detail panel's header line.
+The detail panel also carries a dedicated `Current project:` line for the highlighted
+row, whether or not it is current — stating the fact for a current row (and, when it
+arrived via a Patch, which one) or the exact reason and fix for one that is not (enable
+it first, it has no launchable ProjectSpec, or press `c`). This display always resolves
+live and ignores `ace.current_project.indicator`, which only hides the status-row
+cluster's project group; see [Current project](#current-project).
 
 When one or more projects are marked, `a`, `d`, and `Ctrl+D` target the marked set
 instead of only the highlighted row. Successful lifecycle changes clear the affected
@@ -4577,17 +4622,21 @@ sase's TUI has one **current project**: the head of the VCS xprompt MRU store. L
 an agent on a project — or on a Patch owned by that project — promotes it to that head.
 `sase project set-current <project>` and the Projects tab's `c` key (see
 [Projects Tab](#projects-tab)) move it the same way, by promoting the project to the MRU
-head, without a launch. Click the status-row `current +<project>` chip to open the `+`
+head, without a launch. Click the status-row `project: +<name>` chip to open the `+`
 launch picker, which is the surface that actually records a launch.
 
 Because setting the current project and launching an agent both promote the same MRU
 entry, making a project current also moves it to the head of the prompt bar's `<ctrl+p>`
 VCS-prefix cycle — the same coupling a launch already produces.
 
-The chip sits immediately after the provider-disables pill, so in the normal case — when
-the override and disable pills are empty — it reads flush against the default-model
-indicator. Its color is unique among currently enabled projects. Hovering names the
-project, the MRU ref it came from, and (when the head was a Patch) the Patch; the
+The chip is the project half of the launch-context cluster at the far right of every
+tab's status row, which reads `model: <launch default> · project: +<name>`. The dim
+`model:` label reads `override` while a `default model` override is active, and when the
+row is too narrow both labels drop, leaving `<launch default> · +<name>`. The
+`· project:` group disappears when no current project resolves or the indicator is
+disabled. On the Agents tab, the [runner load gauge](#grouping-modes) sits just before
+the cluster. The chip's color is unique among currently enabled projects. Hovering names
+the project, the MRU ref it came from, and (when the head was a Patch) the Patch; the
 tooltip also names the two ways to make a project current: launch an agent on it, or
 press `c` on the Projects tab. Hide the chip with
 `ace.current_project.indicator: false`.
@@ -5098,12 +5147,15 @@ entering/leaving a pinned attempt view resets the cursor.
   Calls-only layouts, where it sits above the secondary panel. The panel is collapsed to
   two concise rows by default — who and how on row 1, what and state on row 2 — and `d`
   expands it to the full field list (or collapses it back). The kind label moves into
-  the panel's border title in the node's accent color, and the border subtitle shows
-  what `d` will do (`d more` / `d less`). The panel is hidden for clan rows and "No
-  agent selected". Collapsed/expanded state is per session and holds across row moves,
-  tribe focus, and layout changes. While file-hint markers (`[N]`) are visible the panel
-  renders expanded so every hint stays selectable. Metadata search (`,/`) covers the
-  scrolling body only, since header fields stay on screen.
+  the panel's border title in the node's accent color — `AGENT`, `AGENT SHELL`,
+  `FAMILY`, `WORKFLOW`, `STEP`, `GATE`, `MONITOR`, `PROC SHELL`, or, for a selected
+  whole tribe panel, `TRIBE` — and the border subtitle shows what `d` will do
+  (`▾ d more` / `▴ d less`, naming the configured `toggle_agent_header` key). The panel
+  is hidden for clan rows and "No agent selected". Collapsed/expanded state is per
+  session and holds across row moves, tribe focus, and layout changes. While file-hint
+  markers (`[N]`) are visible the panel renders expanded so every hint stays selectable.
+  Metadata search (`,/`) covers the scrolling body only, since header fields stay on
+  screen.
 - **SASE CONTEXT / BEAD**: Shown for epic phase workers and task workers. For an epic
   phase worker, the lane is limited to its selected phase. Its fields are `Phase Title`,
   `Description`, `Size`, `Epic Plan`, and `Epic Title`, in that order. The phase title
@@ -6319,16 +6371,19 @@ token under the cursor:
   Standalone workflow references use the `#!name` insertion form; typing `#!` filters
   completion to entries whose canonical insertion starts with `#!`.
 - **Project/Patch completion**: When the cursor is on a `+query` token whose plus is at
-  absolute prompt offset zero or immediately after a literal ASCII space, completion
-  opens a project/Patch picker. A plus directly after a newline or tab, a plus glued to
-  other text, and `#+query` are not project triggers. The picker contains enabled
+  the start of the prompt or directly after whitespace (including a newline or tab),
+  `{`, or `|`, completion opens a project/Patch picker. A plus glued to other text
+  (`a+b`, `c++`) and `#+query` are not project triggers. The picker contains enabled
   launchable projects plus active PR-sized Patches in `WIP`, `Draft`, `Ready`, or
   `Mailed` status; system-managed `home`, disabled projects, internal sibling backing
   records, and non-launchable projects are excluded. Typing after the trigger filters by
-  project name, project alias, or Patch name prefix. Accepting a row inserts the
-  canonical workspace tag such as `#gh:sase` or `#gh:my_change`, replacing existing
-  line-start VCS tags when present or placing the tag after leading
-  frontmatter/directives when no tag exists.
+  project name, project alias, or Patch name prefix. Project rows show `+name` in the
+  project's accent color with a `provider · #<workflow>:<name>` detail and a `current`
+  badge, ordered current project first, then most recently launched, then by name; Patch
+  rows keep their `[PR]` badge. Accepting a project row inserts its `+<project>` tag in
+  place (or `#<workflow>:<name>` for names outside tag syntax), and a Patch row inserts
+  `#<workflow>:<patch>`. Either way, every other workspace target in that `---` segment
+  is removed. See [Project Tags](xprompt.md#project-tags).
 - **VCS ref completion**: When the cursor is inside the root segment of a registered VCS
   workflow ref, such as `#gh:`, `#gh:sa`, or `#git(`, completion lists that provider's
   projects and active PR-sized Patches. Providers can add namespace rows, such as GitHub
@@ -6940,8 +6995,8 @@ from a bare `@`, narrowed artifact/file queries such as `@pl` or `@src/`, and
 syntactically valid `@kind:` payload contexts; disable automatic opening with
 `ace.prompt_completion.auto_artifact_menu: false`. On an un-narrowed bare-`@` menu,
 `Enter` submits the prompt as typed and `Ctrl+E` accepts the highlighted first row. The
-project/Patch picker opens when `+` completes a token at prompt offset zero or
-immediately after a literal ASCII space and is also available through manual `Ctrl+T`.
+project/Patch picker opens when `+` completes a token at the start of the prompt or
+directly after whitespace, `{`, or `|`, and is also available through manual `Ctrl+T`.
 The VCS ref-root menu opens when `:` or `(` completes a known workflow ref trigger such
 as `#gh:` and local candidates exist. The VCS repository menu opens when `/` completes a
 known workflow ref trigger such as `#gh:owner/`; cached rows appear immediately and

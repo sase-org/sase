@@ -236,8 +236,22 @@ otherwise `start` uses the detached host path.
 `sase service status` prints the host summary (plus the host config error when one is
 set) and a proc table with `Restarts` and `Last exit` columns; the proc `State` column
 is colored by the same severity vocabulary as the Services tab (`crash_loop` and
-`backoff` fail, `exited` fails while desired running, `unavailable` warns, `disabled`
-and operator-stopped are muted).
+`backoff` fail, `exited` fails while desired running (a clean give-up only warns),
+`unavailable` warns, `disabled` and operator-stopped are muted). Below the table it
+repeats the service-init readiness warnings: provider CLIs missing from the captured
+`PATH`, a refused or login-session-only GitHub credential, and service procs whose
+executable cannot be found.
+
+When `service.procs` stops loading (for example a YAML error in a machine overlay), the
+host keeps supervising its last-known-good configuration and reports the load error as
+`Host error:` until the configuration loads again; running procs are not stopped because
+the new configuration is unreadable. A proc the restart policy gives up on — a clean
+exit under `restart: on-failure`, or any exit or spawn failure under `restart: never` —
+is parked: the host stops relaunching it and it stays `exited` with its last exit until
+`sase service proc start NAME` or `restart NAME` revives it, or its configuration
+changes. A desired-running proc that enters a crash loop or is parked raises a `service`
+[notification](notifications.md) naming the reason, restart count, log path, and the
+reviving `sase service proc start NAME` command.
 
 `sase service proc list` carries the same `Restarts` and `Last exit` columns and
 additionally exposes effective configuration, machine enablement, desired state, runtime
@@ -245,8 +259,10 @@ state, source, launcher, and log path. `show NAME` reports uptime, the restart c
 the last exit and when, the current restart decision reason, stop provenance, the
 description, and any pending start/restart request. `start NAME` and `restart NAME`
 record a durable request that the host consumes, then wait for the host to confirm it: a
-restart prints `service proc scheduler restarted: pid OLD -> pid NEW` and exits non-zero
-when the host cannot confirm, the request is not desired, or the host is not running.
+restart prints `service proc scheduler restarted: pid OLD -> pid NEW`, a start prints
+`service proc NAME started: pid N` (or `already running: pid N`), and either exits
+non-zero when the host cannot confirm, the proc is disabled or unavailable, or the host
+is not running. A start or restart request also clears this boot's stop marker.
 `-n/--no-wait` returns as soon as the request is recorded and `-t/--timeout SECONDS`
 bounds the wait (default: the proc's stop timeout plus 10 seconds, at least 15).
 `stop NAME` stops the proc until the next boot; `enable NAME` and `disable NAME` persist
@@ -363,7 +379,7 @@ command, keep the `list` subcommand explicit, for example `sase notify list -j`,
 | `sase bead ready`                            | Show task beads marked ready whose dependencies are closed.                                                                                                                                                           | [Beads](beads.md#standalone-task-workflow)                        |
 | `sase bead blocked`                          | Show issues blocked by active dependencies.                                                                                                                                                                           | [Beads](beads.md#dependencies)                                    |
 | `sase bead show`                             | Show one or more issues; full IDs can route to another enabled project's bead store, `-P/--project` pins one store, `<epic-id>..` expands direct children, and long output can use the shared [SASE Pager](pager.md). | [Beads](beads.md#cli-commands)                                    |
-| `sase bead read`                             | Read one or more beads with `show`-identical output after recording an audited read with `-r/--reason`; agents consulting beads to do work must use it.                                                               | [Beads](beads.md#sase-bead-read-id-id2)                           |
+| `sase bead read`                             | Read one or more beads with `show`-identical output after recording an audited read with `-r/--reason`; agents must use it (`show` refuses agent runs).                                                               | [Beads](beads.md#sase-bead-read-id-id2)                           |
 | `sase bead update` / `open` / `close` / `rm` | Mutate issue metadata or lifecycle state.                                                                                                                                                                             | [Beads](beads.md#cli-commands)                                    |
 | `sase bead snooze`                           | Defer a task bead until a wake time or a `+1` threshold; `--cancel` clears an existing snooze.                                                                                                                        | [Beads](beads.md#snoozing-a-task-bead)                            |
 | `sase bead note`                             | Append an attributed note (`@<path>` reads the text from that file), rewrite note `N` with `-e N`, or retract it with `-x N`.                                                                                         | [Beads](beads.md#cli-commands)                                    |
@@ -420,7 +436,9 @@ the Projects tab. When nothing resolves, the command explains that and exits 0. 
 `sibling` backing records, `sase project disable <project>` to hide a dormant project
 from default launch views, and `sase project enable <project>` to make it launchable
 again. Disabling refuses projects with live `RUNNING` claims or active artifact markers
-unless `--force` is passed. Legacy active/inactive values and the deprecated lifecycle
+unless `--force` is passed. Project arguments also accept the
+[project tag](xprompt.md#project-tags) spelling, so `sase project show +sase` works like
+`sase project show sase`. Legacy active/inactive values and the deprecated lifecycle
 command aliases remain read-compatible. sase's TUI **Projects** tab (in the SASE Admin
 Center, opened with `#`) provides the interactive counterpart, including marking
 multiple projects, editing a ProjectSpec in `$EDITOR`, and deleting obsolete SASE

@@ -214,6 +214,14 @@ ignored, and `PATH` is normalized before comparison: empty and duplicate entries
 stripped, trailing slashes are removed, and ephemeral `sase_<N>` workspace entries are
 dropped. A real credential, root, or `PATH` change still rewrites the file.
 
+`SASE_TMPDIR` and `SASE_HOME` are captured so the service host's `managed_tmp_reap` job
+scans the same managed temp root that launched agents write to. A capture taken with a
+different (or no) `SASE_TMPDIR` than your shell now has is reported as environment drift
+by `sase service init --check`; rerun `sase service init --yes` from a shell with the
+intended `SASE_TMPDIR` to realign them. The reaper job itself also warns in its log when
+the default `$SASE_HOME/tmp` root differs from the root it scanned yet still holds
+entries.
+
 `init --yes` refuses an agent shell. When the calling shell sets `SASE_AGENT` or
 `SASE_AGENT_NAME`, or its `PATH` contains an ephemeral workspace entry, apply exits 2
 and names a login shell as the fix. Pass `-a/--allow-agent-env` (on both
@@ -321,7 +329,8 @@ when both miss, and names the executable and the directory searched. The usual c
 a plugin's console script under `uv tool install --with`, which does not link plugin
 scripts onto `PATH`. Install the plugin into the same environment as `sase`, or give the
 entry an absolute path. Without the warning the host would only report the failure after
-its restart budget was spent, as a `crash_loop` proc in `sase service status`.
+repeated spawn failures, as a `crash_loop` proc in `sase service status` plus a
+`service` notification (or, under `restart: never`, as a parked `exited` proc).
 
 Bare `sase init` offers this machine-scoped initializer at most once per batch. A
 decline is remembered for future broad onboarding runs on that machine, but it does not

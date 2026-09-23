@@ -165,7 +165,11 @@ snapshot while leaving the tracked `notes.md` in the workspace.
 
 For your own repositories, use `#git:<name>` to target a managed project or
 `#git:<bare-repo-path>` to register an existing bare repository. Provider plugins add
-other workspace references, such as `#gh:<owner>/<repo>` for GitHub. The
+other workspace references, such as `#gh:<owner>/<repo>` for GitHub. Once a project is
+registered, its short [project tag](xprompt.md#project-tags) works too:
+`sase run "+home summarize notes.md"` is the same launch as `#git:home`, and a GitHub
+project named `sase` can be targeted as `+sase` without remembering its provider. In
+sase's TUI prompt editor, type `+` to pick a project from a menu. The
 [workspace guide](workspace.md) has the full model.
 
 **What you just did.** Moved from a read-only run to a small editable task after

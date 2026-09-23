@@ -113,6 +113,17 @@ negative surfaces there within roughly the CI test leg's runtime; it is the back
 not a silent gap. A `just check` pass with a `just check-full` failure is a
 test-infrastructure bug; file it rather than treating it as remaining product work.
 
+Both recipes are [guarded](tool.md#guarded-recipes): in a SASE agent's own shell
+(`SASE_AGENT` set), `just check` and `just check-full` refuse with exit 2 unless they
+run inside `sase tool run check` / `sase tool run check-full` for this checkout, or with
+an explicit `SASE_TOOL_BYPASS='<reason>'`. Humans, CI, finalizers, and monitors run them
+raw as before.
+
+```bash
+sase tool run check        # how an agent runs `just check`
+sase tool run check-full   # only when explicitly instructed
+```
+
 Use `tools/select_tests --explain` to see which rules fired and why a given file was
 pulled into (or excluded from) the current selection. The selection manifest — the
 resolved base, changed files, rules fired, and selected test files — is written to
@@ -217,10 +228,13 @@ the gear's runs and refusals and reports the width mix behind the duration perce
 invalidate its own validator-verdict cache — `pyproject.toml`, `uv.lock`, the venv's
 `pyvenv.cfg`, the sibling `sase-core/Cargo.toml`, its own four validator scripts, every
 installed distribution's `dist-info` metadata, the compiled `sase_core_rs` extension,
-and the venv's `bin/python`. The selector reuses those same digests rather than forking
-a second, divergent fingerprint, but as a **per-input map**
-(`tools/validate_test_environment._fingerprint_inputs`) instead of one opaque combined
-hash, so it can say _which_ input moved instead of only that the environment did.
+the venv's `bin/python`, and a `core-source` bucket (the linked sase-core checkout's
+source identity plus the venv's built-from stamp — see
+[Source / development workflow](rust_backend.md#source-development-workflow)). The
+selector reuses those same digests rather than forking a second, divergent fingerprint,
+but as a **per-input map** (`tools/validate_test_environment._fingerprint_inputs`)
+instead of one opaque combined hash, so it can say _which_ input moved instead of only
+that the environment did.
 
 Only some of those inputs are worth forcing the whole suite over.
 `core-identity-changed` fires only when a bucket in
@@ -235,10 +249,12 @@ it — a `git pull` that lands a dependency bump the working diff never touches.
 `validator:*` scripts and every installed package's metadata (`environment-metadata`)
 are recorded for attribution but do not escalate on their own: they are repository
 tooling and environment bookkeeping, not something that changes which tests exercise the
-diff. A run where only a non-escalating bucket changed falls back to the normal closure
-plus `contract-set-always`, the same as any other unremarkable diff — not to silence,
-since the manifest's `baseline.environment_changed_inputs` still lists every bucket that
-moved, escalating or not, and `tools/select_tests --explain` prints it as
+diff. `core-source` does not escalate either: when the linked source moves, `_setup`
+rebuilds the extension, and the rebuilt extension's `extension` bucket escalates
+instead. A run where only a non-escalating bucket changed falls back to the normal
+closure plus `contract-set-always`, the same as any other unremarkable diff — not to
+silence, since the manifest's `baseline.environment_changed_inputs` still lists every
+bucket that moved, escalating or not, and `tools/select_tests --explain` prints it as
 `environment inputs changed: ...` whenever it is non-empty.
 
 The compiled extension's identity was previously untracked in practice: `sase_core_rs`
@@ -929,21 +945,35 @@ CI's process environment participates in the golden corpus.
 
 `just fix-tui-screenshots` is the canonical maintenance command. It captures both visual
 trees, compares candidates with exact pixel equality, and on Linux applies every golden
-it can prove. Update mode salvages per node and per golden: nodes that fail, error, or
-are lost with a worker are retried a bounded number of times (serially when few remain),
-and each created or updated candidate must reach agreement across bounded serial
-re-verification passes before it is applied. Anything left over — unrecovered nodes,
-unstable captures, concurrent on-disk edits — is skipped with a warning under status
-`partial`, and the run still exits 0. A selection that matches no visual tests exits 0
-with a warning instead of an error, and `-n N` is accepted as the governed worker
-request. Pass `--check` to inventory the same way without writing goldens; check mode
-stays strict and exits 1 on required drift. Arguments after `--` are pytest selectors
-(paths, node IDs, `-k`). Targeted runs apply only captured changes and never prune
-unvisited files. A requested full run applies creates and updates, but stale removal
-needs complete evidence: when inventory is incomplete, pruning is skipped with a warning
-and the run reports no stale entries. When another run in the same checkout holds the
-maintenance lock, the runner waits (bounded, default 2 hours) instead of refusing at
-once.
+it can prove. Update mode salvages per node and per golden:
+
+- **Capture retry.** If the first pass leaves no usable inventory at all, the whole
+  capture pass is retried once (`capture-retry/`); a second empty result fails the run.
+- **Node recovery.** Visual nodes that failed, errored, or were collected but never
+  accounted for (for example, stranded on a lost worker) are rerun up to two more times
+  (`recover-1/`, `recover-2/`), serially once 25 or fewer remain. Only nodes that pass
+  are trusted; the rest are skipped and their goldens left untouched.
+- **Agreement voting.** Each created or updated candidate is recaptured by its owning
+  test in up to three verification passes (`verify/`, then serial `verify-2/` and
+  `verify-3/`) and is applied only once two captures agree byte-for-byte. A golden whose
+  captures never agree, or whose recapture comes from a different owner, is skipped.
+- **Concurrent edits.** A golden that changed on disk since the run started is skipped
+  rather than overwritten.
+
+Everything skipped is listed in a WARNING block under status `partial`, and the run
+still exits 0. A selection that matches no visual tests exits 0 with a warning instead
+of an error. `-n N` / `--numprocesses N` after `--` is translated to
+`SASE_PYTEST_WORKERS=N` for the governed runner rather than reaching pytest (`-n auto`
+and `-n logical` fall back to the governed default); `-n` inside `PYTEST_ADDOPTS` is a
+usage error. Pass `--check` to inventory the same way without writing goldens; check
+mode does no salvage, stays strict, and exits 1 on required drift. Arguments after `--`
+are pytest selectors (paths, node IDs, `-k`). Targeted runs apply only captured changes
+and never prune unvisited files. A requested full run applies creates and updates, but
+stale removal needs complete evidence — every collected node trusted, no capture
+protocol errors, and trusted captures from both roots; otherwise pruning is skipped with
+a warning, the run reports no stale entries, and the status is `partial`. When another
+run in the same checkout holds the maintenance lock, the runner prints a waiting notice
+and waits (bounded, 2 hours) instead of refusing at once; timing out exits 2.
 
 ```bash
 just fix-tui-screenshots
@@ -971,17 +1001,27 @@ they set `SASE_MONITOR_ID`, which is treated the same way.
 `--sase-update-visual-snapshots` is retired; pytest rejects it with the replacement
 command.
 
-Successful updates and check-mode drift both retain a reviewable report under a unique
-run directory in `.pytest_cache/sase-visual/runs/`.
-`.pytest_cache/sase-visual/latest-report.json` points at the current run only. Inspect
-every creation and removal, then each update group (representative plus members).
-Generation is not approval. After an interrupted apply, the next update invocation may
-restore the recorded baseline when hashes still match; a check invocation never performs
-recovery writes.
+Every update run (`clean`, `applied`, or `partial`) and check-mode drift retain a
+reviewable report under a unique run directory in `.pytest_cache/sase-visual/runs/`,
+alongside the logs and candidates of every pass (`capture.log`, `recover-N.log`,
+`verify*.log`). `.pytest_cache/sase-visual/latest-report.json` points at the current run
+only. The manifest records `warnings`, `skipped` (each with a reason such as
+`test_failed`, `unstable`, `owner_mismatch`, or `concurrent_edit`, plus evidence paths),
+`attempts`, and `pruning_skipped_reason`, and the HTML report and `summary.md` end with
+a "Not updated" section listing the same skips. Inspect every creation and removal, then
+each update group (representative plus members), then the "Not updated" list —
+generation is not approval, and a skipped golden is not known to be current. After an
+interrupted apply, the next update invocation may restore the recorded baseline when
+hashes still match; if the journal conflicts with the current goldens, update mode
+refuses with exit 2. A check invocation never performs recovery writes and fails with
+exit 3 while an unfinished journal exists.
 
 `just` may normalize a non-zero child code to 1. Automation that needs the distinction
-between drift (1), usage/environment refusal (2), and execution/application failure (3)
-should read the run manifest or invoke `tools/fix_tui_screenshots` directly.
+between drift (1), usage/environment refusal (2: bad arguments, a pytest usage error,
+CI/platform/renderer refusal, an update-mode journal conflict, or a lock-wait timeout),
+and execution/application failure (3: no usable inventory after the capture retry, an
+apply failure after rollback, or an interrupt) should read the run manifest or invoke
+`tools/fix_tui_screenshots` directly (`--help` prints the same contract).
 
 Committed goldens are canonical to the pinned renderer. Rasterization goes through resvg
 (`resvg_py==0.3.3`), a pure-Rust SVG renderer that carries its own font database

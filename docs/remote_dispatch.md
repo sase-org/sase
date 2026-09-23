@@ -246,15 +246,16 @@ into status subgroups.
   `last seen … ago` label.
 - Remote rows show the owning machine's authored capacity and weight as `cN` / `wN`
   badges and `Capacity:` / `Weight:` detail lines, including `c0` for a persisted legacy
-  zero-capacity record. Their load is never added to the `C/L` capacity in sase's TUI
-  header total, which counts only the controller's own runners.
+  zero-capacity record. Their load is never added to the `load:` gauge in sase's TUI
+  Agents header, which counts only the controller's own runners.
 - Remote stop, retry, fork, bounded content, machine status, launch-outcome checks, and
   pending question/gate actions appear only when the selected row advertises the
   matching capability.
 - Pending remote questions and gates are reconciled through the durable notification
-  inbox rather than inferred from row-follow state. They resurface while the request
-  remains pending, and a host outage does not dismiss them; see
-  [Remote Attention](notifications.md#remote-attention).
+  inbox rather than inferred from row-follow state. Dismissing one locally sticks for
+  that revision, a new revision arrives as a fresh unread row, and a host outage does
+  not dismiss them. `Enter` on a remote row with a pending request opens the same
+  answer/approve flow; see [Remote Attention](notifications.md#remote-attention).
 
 Prompt submission first validates portable source proof off the TUI event loop. A
 preflight failure keeps and refocuses the draft. After preflight passes, sase's TUI

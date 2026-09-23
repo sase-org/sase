@@ -57,7 +57,11 @@ Precedence: an explicit `-q` or `-v` wins; otherwise a direct agent invocation
 already owned by a running monitor or proc that captures the output, the tool writes no
 duplicate log and records the owner id and parent run instead. An inherited monitor or
 proc id whose owner has already settled (agents launched by a monitored epic launch
-inherit that id) is stale: it owns nothing and is not recorded.
+inherit that id) is stale: it owns nothing and is not recorded. A SASE agent is always a
+new ownership root: agent launches scrub every inherited `SASE_TOOL_*`,
+`SASE_MONITOR_*`, and `SASE_PROC_*` variable (including `SASE_TOOL_BYPASS`), and a run
+started from an agent's shell never attributes itself to an ancestor's monitor, proc, or
+parent run.
 
 ## Stream fidelity
 
@@ -106,6 +110,16 @@ once with the same argv and exit code, a single warning is printed, and no durab
 claimed. SIGTERM and SIGINT are forwarded and produce `143`/`signaled` and
 `130`/`interrupted`.
 
+Under a live monitor or proc owner the child shares the wrapper's process group, so the
+owner's stop reaches the whole tree and the wrapper does not escalate on its own. An
+inline run puts the child in its own session and escalates a forwarded SIGTERM/SIGINT to
+SIGKILL on the child's process group after 5 seconds; on Linux the child is also killed
+if the wrapper dies. When a later `sase tool run` finds a run whose wrapper is gone (the
+run is settled `lost`), it reaps that run's leftover process group with SIGTERM, then
+SIGKILL after 2 seconds, but only while the group leader still matches the recorded
+child's start identity; a reused PID is never signaled. `sase tool runs` and
+`sase tool show` reconcile lost runs without signaling anything.
+
 ## Rerunnable harness
 
 ```bash
@@ -146,12 +160,12 @@ Three variables decide everything, and the decision is makeable without starting
 `sase` process — the override exists precisely for when `sase` is broken. Any repo can
 implement this table from scratch (linked-repo catalogs do exactly that):
 
-| Variable                 | Set by                           | Meaning                                                                       |
-| ------------------------ | -------------------------------- | ----------------------------------------------------------------------------- |
-| `SASE_AGENT`             | the agent runner (already)       | this process tree is a SASE agent's own shell                                 |
-| `SASE_TOOL_NAME`         | **new:** `sase tool run`, always | the tree is inside `sase tool run <name>`, or `ad-hoc`                        |
-| `SASE_TOOL_PROJECT_ROOT` | **new:** `sase tool run`, always | the resolved project root the named run executes in; empty for an ad-hoc run  |
-| `SASE_TOOL_BYPASS`       | **new:** an agent or human       | run raw on purpose; any non-empty value bypasses, and the value is the reason |
+| Variable                 | Set by                  | Meaning                                                                       |
+| ------------------------ | ----------------------- | ----------------------------------------------------------------------------- |
+| `SASE_AGENT`             | the agent runner        | this process tree is a SASE agent's own shell                                 |
+| `SASE_TOOL_NAME`         | `sase tool run`, always | the tree is inside `sase tool run <name>`, or `ad-hoc`                        |
+| `SASE_TOOL_PROJECT_ROOT` | `sase tool run`, always | the resolved project root the named run executes in; empty for an ad-hoc run  |
+| `SASE_TOOL_BYPASS`       | an agent or human       | run raw on purpose; any non-empty value bypasses, and the value is the reason |
 
 `SASE_TOOL_NAME` is exported whether or not recording succeeded: recording stays
 fail-open, so a guard keyed on the run id would refuse the child of a fail-open

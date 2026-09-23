@@ -431,20 +431,22 @@ opens this tab without mutating anything.
 The global `,U` action opens the **Update panel** from already-fetched SASE and provider
 snapshots (no Admin Center, no live inventory load). The providers row lists each
 captured provider with its installed-to-latest version transition and marks manual-only
-providers by name, and the Everything row summarizes both legs on one line. Lowercase
-`e` / `s` / `p` (or `⏎` / mouse on the highlighted row) choose Everything, SASE, or
-providers and still require the final `y`/`n` confirmation. Capital `E` / `S` / `P` plan
-the same scopes and skip only that confirmation after a runnable preview succeeds;
-failed or already-current previews still do not mutate. Global `,E` is equivalent to
-`,U` then capital `E`: it submits the same Everything preview from cached snapshots and
-only the runnable preview continues to the tracked update proc. The providers leg still
-captures provider names from the latest completed automatic snapshot and never adds a
-newly discovered provider to that invocation. Safe commands run sequentially; Homebrew,
-non-writable npm, and unknown-provenance installs remain visible with manual guidance.
-The pane-wide `u` remains SASE/core/plugins-only, pane-wide `A` remains the deliberate
-action for the current agent-CLI inventory, and pane-wide `a` runs a tracked
-agents-sidecar publication sync: it publishes and reconciles this machine's own agent
-hoods for every enabled project and is not part of the comprehensive update. See
+providers by name, and the Everything row summarizes both legs on one line. When the
+SASE leg needs a `sase-core-rs` Rust rebuild, the SASE and Everything rows carry the
+same `core` tag as the top-bar badge. Lowercase `e` / `s` / `p` (or `⏎` / mouse on the
+highlighted row) choose Everything, SASE, or providers and still require the final
+`y`/`n` confirmation. Capital `E` / `S` / `P` plan the same scopes and skip only that
+confirmation after a runnable preview succeeds; failed or already-current previews still
+do not mutate. Global `,E` is equivalent to `,U` then capital `E`: it submits the same
+Everything preview from cached snapshots and only the runnable preview continues to the
+tracked update proc. The providers leg still captures provider names from the latest
+completed automatic snapshot and never adds a newly discovered provider to that
+invocation. Safe commands run sequentially; Homebrew, non-writable npm, and
+unknown-provenance installs remain visible with manual guidance. The pane-wide `u`
+remains SASE/core/plugins-only, pane-wide `A` remains the deliberate action for the
+current agent-CLI inventory, and pane-wide `a` runs a tracked agents-sidecar publication
+sync: it publishes and reconciles this machine's own agent hoods for every enabled
+project and is not part of the comprehensive update. See
 [Agent Hood Synchronization](agents_sidecar.md#commands-and-status) for that command's
 behavior.
 
@@ -1305,6 +1307,17 @@ key with the Artifacts `show_diff`, the Services `toggle_axe_description`, and t
 Stitches `stitches_toggle_sdd` actions; see the shared-key allowlist below. The toggle
 is available only on the Agents tab while the header panel is shown.
 
+Agents-tab [`Enter`](ace.md#enter-act-on-an-agent) is `act_on_agent`, default `enter`:
+it opens the selected row's pending gate, jumps to its Patch, or offers a chooser. The
+older direct Patch jump remains as `jump_to_agent_patch`, default `unbound`. A stale
+`ace.keymaps.modes.leader_mode.keys.jump_to_notification` override (the retired `,n`
+chord) is ignored with a warning pointing at `act_on_agent`.
+
+`start_agent_from_patch`, default `space`, prefills the prompt with the most recently
+launched VCS xprompt, or opens a blank home-workspace prompt when there is none. The
+former `start_agent_home` action is removed; a leftover override for it is ignored as an
+unknown action. The leader `,h` chord still opens a home-context prompt.
+
 Remote Agents actions are also app-level fields. They intentionally ship as `unbound`:
 the command palette exposes them contextually, and a configured key becomes active only
 when the Agents tab and selected remote row support that action.
@@ -1585,9 +1598,9 @@ The former `history_word_min_length` key has been replaced by `word_min_length`.
 Existing overrides must rename the key to keep controlling word completion.
 
 The `+query` project/Patch picker uses the same completion panel and opens when the plus
-is at absolute prompt offset zero or immediately follows a literal ASCII space. It is
-not disabled by `auto_xprompt_menu`. Manual `Ctrl+T` project/Patch completion uses the
-same token rule and works regardless of these automatic-completion settings.
+is at the start of the prompt or directly follows whitespace, `{`, or `|`. It is not
+disabled by `auto_xprompt_menu`. Manual `Ctrl+T` project/Patch completion uses the same
+token rule and works regardless of these automatic-completion settings.
 
 `@` reference completion uses a project-scoped artifact catalog and warm prompt path
 inventory. `auto_artifact_menu` controls automatic opening of the grouped menu from bare
@@ -2417,12 +2430,14 @@ Source: `src/sase/finalizers/controller.py`, `src/sase/finalizers/commit.py`,
 
 ### monitor
 
-Controls the amount of command evidence projected into a monitor continuation prompt.
-These limits do not change the monitor's bounded rotating log or the output available to
+Controls which monitors run their command inside `sase tool run` and the amount of
+command evidence projected into a monitor continuation prompt. The evidence limits do
+not change the monitor's bounded rotating log or the output available to
 `sase monitor show`; they bound only automatically selected prompt content.
 
 ```yaml
 monitor:
+  tool_wrap: verify
   evidence_limits:
     selected_diagnostics_bytes: 8192
     fallback_tail_bytes: 4096
@@ -2430,20 +2445,26 @@ monitor:
     raw_tail_lines: 200
 ```
 
-| Field                                                | Type | Default | Minimum | Description                                                              |
-| ---------------------------------------------------- | ---- | ------- | ------- | ------------------------------------------------------------------------ |
-| `monitor.evidence_limits.selected_diagnostics_bytes` | int  | `8192`  | `1`     | UTF-8 bytes of selected failed-stage diagnostics eligible for embedding. |
-| `monitor.evidence_limits.fallback_tail_bytes`        | int  | `4096`  | `1`     | UTF-8 bytes of fallback raw tail when diagnostics are unavailable.       |
-| `monitor.evidence_limits.total_raw_excerpt_bytes`    | int  | `12288` | `1`     | Aggregate raw-evidence byte cap for one continuation prompt.             |
-| `monitor.evidence_limits.raw_tail_lines`             | int  | `200`   | `1`     | Retained-output lines considered when selecting raw-tail evidence.       |
+| Field                                                | Type                      | Default  | Minimum | Description                                                                                                                       |
+| ---------------------------------------------------- | ------------------------- | -------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `monitor.tool_wrap`                                  | `off`, `verify`, or `all` | `verify` | -       | Which monitors run inside `sase tool run`: `verify` wraps only `-p verify` monitors, `all` wraps every monitor, `off` wraps none. |
+| `monitor.evidence_limits.selected_diagnostics_bytes` | int                       | `8192`   | `1`     | UTF-8 bytes of selected failed-stage diagnostics eligible for embedding.                                                          |
+| `monitor.evidence_limits.fallback_tail_bytes`        | int                       | `4096`   | `1`     | UTF-8 bytes of fallback raw tail when diagnostics are unavailable.                                                                |
+| `monitor.evidence_limits.total_raw_excerpt_bytes`    | int                       | `12288`  | `1`     | Aggregate raw-evidence byte cap for one continuation prompt.                                                                      |
+| `monitor.evidence_limits.raw_tail_lines`             | int                       | `200`    | `1`     | Retained-output lines considered when selecting raw-tail evidence.                                                                |
 
 `selected_diagnostics_bytes` and `fallback_tail_bytes` must each be no larger than
 `total_raw_excerpt_bytes`. The runtime falls back to all four packaged defaults if that
 relationship is invalid; schema validation rejects non-positive values. Strict
 `--next-output file` and `none` policies still embed no raw command output.
 
+An unrecognized `tool_wrap` value falls back to `verify` at runtime. Wrapping changes
+only the argv the proc supervisor execs, never the recorded monitor command; see
+[Tool-run wrapping](monitors.md#tool-run-wrapping) for the per-command rules.
+
 Source: `src/sase/default_config.yml`, `src/sase/config/_settings.py`,
-`src/sase/config/sase.schema.json`, `src/sase/monitor/result_projection.py`
+`src/sase/config/sase.schema.json`, `src/sase/monitor/result_projection.py`,
+`src/sase/monitor/tool_wrap.py`
 
 ### repos
 
@@ -4056,9 +4077,22 @@ such fallback, because the shell resolves the name; prefer the array form for pl
 scripts. `sase service init` warns when an enabled entry's executable resolves nowhere.
 
 `sase service proc enable/disable` writes machine-local effective enablement without
-editing YAML. `start/stop` changes only the current boot: stop records a marker that is
-cleared on the next host boot, while restart clears it after a bounded stop. Use
-`sase service proc show NAME` to see where an effective entry and enablement came from.
+editing YAML. `stop` changes only the current boot: it records a marker that is cleared
+on the next host boot. `start` and `restart` record a durable, numbered request that
+also clears that marker; the host consumes it and the CLI waits for the confirmed pid.
+Use `sase service proc show NAME` to see where an effective entry and enablement came
+from, plus the current restart decision and any pending request.
+
+Restart policy: `always` restarts after every exit and `on-failure` after a non-clean
+one, each with a backoff that starts at 1 second and doubles up to 60 seconds; repeated
+failures in a short window mark the proc `crash_loop`. When the policy decides not to
+restart — a clean exit under `on-failure`, or any exit or spawn failure under `never` —
+the host parks the proc instead of relaunching it on the next reconcile. It stays down
+until an explicit `start`/`restart` request or a changed entry. Crash-loop and parked
+procs that are still desired running raise a `service` notification. If the
+`service.procs` configuration stops loading, the host keeps supervising the
+last-known-good configuration and surfaces the load error as the host error in
+`sase service status`.
 
 `sase service init --yes` installs an idempotent user unit (`sase.service` under
 `systemd --user` on Linux, `sh.sase.service` as a macOS LaunchAgent), captures only the
@@ -5309,24 +5343,24 @@ explains that a tmux session is required, and still prints the catalog.
 Bare `sase service` defaults to `status`, and bare `sase service proc` defaults to
 `proc list`.
 
-| Command                                 | Flags / arguments                                                       | Description                                                                                           |
-| --------------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `sase service status`                   | `-j, --json`                                                            | Show host/native-unit state and every configured proc; exits `0` for running/starting, otherwise `1`. |
-| `sase service start`                    | `-j, --json`                                                            | Start through the installed native unit when present, otherwise start a detached host.                |
-| `sase service stop`                     | `-j, --json`                                                            | Stop the host.                                                                                        |
-| `sase service restart`                  | `-j, --json`                                                            | Stop and start the host.                                                                              |
-| `sase service run`                      | -                                                                       | Run the host in the foreground until SIGINT/SIGTERM.                                                  |
-| `sase service logs`                     | `-n, --lines N`                                                         | Print the bounded host log (default 200 lines).                                                       |
-| `sase service init`                     | `-c/--check`, `-d/--diff`, `-f/--force`, `-y/--yes`                     | Plan, check, diff, or install/update the native user unit and captured environment.                   |
-| `sase service uninstall`                | same                                                                    | Plan, check, diff, or remove the native user unit.                                                    |
-| `sase service proc list`                | `-j, --json`                                                            | List effective enablement, desired state, runtime state, and summary.                                 |
-| `sase service proc show NAME`           | `-j, --json`                                                            | Show source, launcher, effective enablement, state, and log path.                                     |
-| `sase service proc logs NAME`           | `-n, --lines N`                                                         | Print one proc's bounded output log (default 200 lines).                                              |
-| `sase service proc start NAME`          | `-n/--no-wait`, `-t/--timeout SECONDS`                                  | Record a start request the host confirms; prints the pid.                                             |
-| `sase service proc stop NAME`           | -                                                                       | Stop the proc until the next host boot.                                                               |
-| `sase service proc restart NAME`        | `-n/--no-wait`, `-t/--timeout SECONDS`                                  | Record a restart request the host confirms; prints `pid OLD -> pid NEW`.                              |
-| `sase service proc enable/disable NAME` | -                                                                       | Persist a machine-local enabled or disabled override.                                                 |
-| `sase service proc run -- COMMAND...`   | `-c/--cwd`, `-j/--json`, `-l/--label`, `-p/--project`, `-w/--workspace` | Submit a transient durable oneshot that is never added to daemon desired state.                       |
+| Command                                 | Flags / arguments                                                           | Description                                                                                                                              |
+| --------------------------------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `sase service status`                   | `-j, --json`                                                                | Show host/native-unit state and every configured proc; exits `0` for running/starting, otherwise `1`.                                    |
+| `sase service start`                    | `-j, --json`                                                                | Start through the installed native unit when present, otherwise start a detached host.                                                   |
+| `sase service stop`                     | `-j, --json`                                                                | Stop the host.                                                                                                                           |
+| `sase service restart`                  | `-j, --json`                                                                | Stop and start the host.                                                                                                                 |
+| `sase service run`                      | -                                                                           | Run the host in the foreground until SIGINT/SIGTERM.                                                                                     |
+| `sase service logs`                     | `-n, --lines N`                                                             | Print the bounded host log (default 200 lines).                                                                                          |
+| `sase service init`                     | `-a/--allow-agent-env`, `-c/--check`, `-d/--diff`, `-f/--force`, `-y/--yes` | Plan, check, diff, or install/update the native user unit and captured environment; `--yes` refuses an agent shell unless `-a` is given. |
+| `sase service uninstall`                | `-c/--check`, `-d/--diff`, `-f/--force`, `-y/--yes`                         | Plan, check, diff, or remove the native user unit.                                                                                       |
+| `sase service proc list`                | `-j, --json`                                                                | List effective enablement, desired state, runtime state, and summary.                                                                    |
+| `sase service proc show NAME`           | `-j, --json`                                                                | Show source, launcher, effective enablement, state, and log path.                                                                        |
+| `sase service proc logs NAME`           | `-n, --lines N`                                                             | Print one proc's bounded output log (default 200 lines).                                                                                 |
+| `sase service proc start NAME`          | `-n/--no-wait`, `-t/--timeout SECONDS`                                      | Record a start request the host confirms; prints the pid.                                                                                |
+| `sase service proc stop NAME`           | -                                                                           | Stop the proc until the next host boot.                                                                                                  |
+| `sase service proc restart NAME`        | `-n/--no-wait`, `-t/--timeout SECONDS`                                      | Record a restart request the host confirms; prints `pid OLD -> pid NEW`.                                                                 |
+| `sase service proc enable/disable NAME` | -                                                                           | Persist a machine-local enabled or disabled override.                                                                                    |
+| `sase service proc run -- COMMAND...`   | `-c/--cwd`, `-j/--json`, `-l/--label`, `-p/--project`, `-w/--workspace`     | Submit a transient durable oneshot that is never added to daemon desired state.                                                          |
 
 Without `--yes`, `init` and `uninstall` only print the plan and the apply command. Their
 `--check` forms are read-only and return `1` for drift. `--force` allows a non-default

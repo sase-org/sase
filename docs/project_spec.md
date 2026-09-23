@@ -90,8 +90,8 @@ currently uses these fields:
   exactly and case-insensitively, falling back to the directory key only when
   `PROJECT_NAME` is missing or invalid.
 - **PROJECT_ALIASES**: Comma-separated alternate project names accepted in VCS workspace
-  references. Aliases are canonicalized to the directory-key project name before launch
-  state, prompt history, and agent artifacts are written.
+  references and `+<project>` tags. Aliases are canonicalized to the directory-key
+  project name before launch state, prompt history, and agent artifacts are written.
 - **RUNNING**: Active workspace claims written and released by SASE while agents or
   workflows are running. Machine-owned operational leases — the workspaces host work
   such as jobs, bead-claim reconciliation, and plan archiving takes to get a writable
@@ -121,6 +121,14 @@ project expose a primary user-facing name without renaming its project directory
 `~/.sase/projects/gh_bbugyi200__bob/gh_bbugyi200__bob.sase` makes launch-bound VCS refs
 such as `#gh:bob`, `#gh_bob`, and `#gh(bob)` behave like refs to the `gh_bbugyi200__bob`
 directory-key project.
+
+The same names drive [project tags](xprompt.md#project-tags): `+bob` (or `+Bob`, or an
+alias such as `+bobby`) expands at launch to `#gh:gh_bbugyi200__bob`, the provider and
+directory key SASE already knows for that project. The tag SASE offers in completion and
+shows in its TUI is `+<PROJECT_NAME>`, so a project only gets one when that name starts
+with a letter and uses only letters, digits, `_`, `.`, or `-`. Every `sase project`
+subcommand that takes a project argument also accepts the tag spelling, so
+`sase project show +bob` works like `sase project show bob`.
 
 Workspace providers can create display names automatically. The GitHub provider uses
 this for first-use `owner/repo` refs: `#gh:foo-org/foo` can create a canonical SASE
@@ -162,11 +170,20 @@ Validation rules:
   allocate alternate spellings automatically.
 - An alias cannot equal its directory-key project name or the same project's
   `PROJECT_NAME`.
+- Names compare case-insensitively: `Foo` and `foo` are the same ref.
 - A directory key, `PROJECT_NAME`, or alias cannot collide with another project's
   directory key, `PROJECT_NAME`, or alias across non-system projects in any lifecycle
   state.
+- `home`, in any letter case, is reserved for the system-managed `home` project and
+  cannot be claimed as another project's `PROJECT_NAME` or alias.
+- `PROJECT_NAME` allocation skips case variants of taken names, so a new `Foo` becomes
+  `Foo_1` when `foo` exists.
 - Invalid or duplicate manually edited names and aliases are reported as parse warnings;
-  CLI and TUI mutation helpers reject invalid writes.
+  CLI and TUI mutation helpers reject invalid writes. Read paths drop a conflicting ref
+  rather than failing, and `sase doctor` reports every conflict under its
+  `project.name_collisions` check, with a suggested `sase project alias remove` or
+  `PROJECT_NAME` rename for each one. A project tag that matches more than one project
+  fails at launch until the collision is fixed.
 
 CLI commands:
 
@@ -198,11 +215,12 @@ Launching an agent on a project — or on a Patch owned by that project — prom
 that head. So do `sase project set-current <project>` and sase's TUI Projects tab `c`
 key, without a launch. The working directory never sets it, and there may be none.
 
-It supplies display and defaults only: sase's TUI top-bar `+<project>` chip and the
-first-open value of project filters. It never overrides an explicit `project:` / `+name`
-term, a pick you already made this session, project lifecycle state, or what a command
-targets. `sase project current` prints the resolved project, or explains that nothing
-resolves and exits 0. See [sase's TUI: Current project](ace.md#current-project) and
+It supplies display and defaults only: sase's TUI top-bar `+<project>` chip, the
+first-open value of project filters, and the top row of the `+` project-tag completion
+menu. It never overrides an explicit `project:` / `+name` term, a pick you already made
+this session, project lifecycle state, or what a command targets. `sase project current`
+prints the resolved project, or explains that nothing resolves and exits 0. See
+[sase's TUI: Current project](ace.md#current-project) and
 [`ace.current_project`](configuration.md#acecurrent_project).
 
 ### Project Lifecycle
@@ -229,10 +247,12 @@ Broad project discovery is enabled-only. That includes launch and completion pic
 all-known bead helper reads. Disabled records are intentionally hidden from those
 surfaces. An explicitly typed known-project VCS ref such as `#gh:sase` is the exception:
 launch preparation treats it as intent to resume work and writes
-`PROJECT_STATE: enabled` before claiming a workspace. A checkout cwd or mobile `project`
-value is only prompt-resolution context, not a workspace ref; without an explicit ref, a
-bare prompt defaults to `#git:home`. Direct workspace claims that bypass launch
-preparation remain blocked by the claim guard while the ProjectSpec is disabled.
+`PROJECT_STATE: enabled` before claiming a workspace. A `+<project>` tag is not an
+exception: a tag naming a disabled project fails launch with a hint to run
+`sase project enable <project>`. A checkout cwd or mobile `project` value is only
+prompt-resolution context, not a workspace ref; without an explicit ref, a bare prompt
+defaults to `#git:home`. Direct workspace claims that bypass launch preparation remain
+blocked by the claim guard while the ProjectSpec is disabled.
 
 Agents use `/sase_repo` for configured linked repositories and for another SASE
 project's primary repo. The underlying audited open infers the host project and

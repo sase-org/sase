@@ -23,7 +23,10 @@ just check         # Agent default: fmt-check + lint + sase validate + diff-scop
 just check-full    # Exhaustive: fmt-check + lint + sase validate + full suite + flake gate + local screenshot update; run before submitting
 ```
 
-SASE agents use `just check` unless explicitly instructed to run `just check-full`.
+SASE agents use `just check` unless explicitly instructed to run `just check-full`, and
+run either one through `sase tool run check` / `sase tool run check-full`: in an agent
+shell the raw recipes refuse unless `SASE_TOOL_BYPASS='<reason>'` is set (see
+[Guarded recipes](https://sase.sh/tool/#guarded-recipes)).
 
 ## Adding Dependencies
 

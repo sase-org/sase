@@ -159,9 +159,9 @@ and answers in well under its latency budget for a warm process. `KIND` complete
 kinds this build can actually answer, so `sase completion candidates <TAB>` is the
 authoritative list; today that is `agent`, `artifact`, `artifact_ref`,
 `artifact_relation`, `bead`, `directive`, `flag`, `memory`, `model`, `monitor`, `patch`,
-`plan`, `plugin`, `proc`, `project`, `provider`, `repo`, `skill`, `snippet`, `tag`,
-`workspace`, and `xprompt`. Path and directory slots are deliberately not kinds — the
-shell completes those natively.
+`plan`, `plugin`, `proc`, `project`, `project_tag`, `provider`, `repo`, `skill`,
+`snippet`, `tag`, `workspace`, and `xprompt`. Path and directory slots are deliberately
+not kinds — the shell completes those natively.
 
 Two flags matter when calling it by hand: `-l/--limit N` caps the printed candidates
 (default `200`), and `-p/--project NAME` scopes project-relative kinds to one project.
@@ -196,9 +196,14 @@ typed prefix, so one cached fetch serves the whole word, not just one keystroke.
 `sase run`'s `PROMPT` argument is a special case: rather than a single value kind, it
 completes native file paths (for editor-drafted prompt files) _and_ stored xprompt names
 together. Inside quoted or spaced prompt text, `#` completes xprompt names, `%`
-completes prompt directive names, and `@` completes canonical artifact references such
-as `file:explicit:...`; the inserted value keeps the marker and only replaces the active
-embedded fragment.
+completes prompt directive names, `@` completes canonical artifact references such as
+`file:explicit:...`, and `+` completes [project tags](xprompt.md#project-tags) such as
+`+sase`; the inserted value keeps the marker and only replaces the active embedded
+fragment. Project-tag candidates (`sase completion candidates project_tag`) are the
+enabled, launchable, non-system projects whose `PROJECT_NAME` fits the tag syntax,
+sorted case-insensitively. They skip provider detection to stay on the fast path, so a
+tag for a project without a detected VCS provider is still offered and fails at launch
+with the usual error.
 
 ### Environment Variables
 

@@ -268,7 +268,7 @@ current, and reminding you to restart long-running agents:
 · sase-telegram  0.1.0   (already current)
 
 Updated sase + 1 plugin in 4.2s · 1 already current
-↻ requested service proc scheduler restart to load the updated code.
+↻ service proc scheduler restarted: pid 41210 -> pid 41388 to load the updated code.
 ```
 
 When stderr is not a terminal (or `TERM=dumb`), progress is append-only plain lines

@@ -194,9 +194,10 @@ other owner fails with the provider-mismatch error, so `#git:<github-alias>` poi
 to the matching tag (such as `#gh:<github-alias>`) instead of creating a stray bare-git
 project. A bare-repository path whose basename is claimed this way resolves the same
 way, and bare-git initialization likewise refuses a name another project claims.
-`sase doctor`'s `project.name_collisions` check warns when a project's `PROJECT_NAME` or
-alias collides with another project's directory key or alias. The VCS-reference history
-also removes provider-mismatched alias entries.
+`sase doctor`'s `project.name_collisions` check warns when any directory key,
+`PROJECT_NAME`, or alias identifies more than one project (compared case-insensitively,
+disabled projects included), or when a project claims the reserved `home` ref. The
+VCS-reference history also removes provider-mismatched alias entries.
 
 `#git:home` is special because it is the default for bare prompts. If the `home`
 ProjectSpec is missing, SASE bootstraps a managed empty bare-git project at the default
@@ -610,6 +611,37 @@ worktree patch and a `manifest.json` with copy-pasteable restore commands
 Entries older than 30 days (7 days for quarantined whole-clone copies) are reaped. See
 [Publication Verification](beads.md#publication-verification) for the invariant this
 protects and how to restore rescued commits by hand.
+
+Checkout preparation for a numbered workspace (`#2` and above) also heals the checkout
+itself instead of failing on leftover git state. Launches, launch retries, and retained
+linked-repo clones use this path; the primary checkout (`#0`), home mode, and
+`sase workspace open` keep the fail-closed behavior. The ladder, printed to the run log
+as `Self-heal: ...` lines, is:
+
+1. Rescue first: an interrupted rebase, `am`, merge, cherry-pick, revert, or bisect,
+   unmerged paths, or a detached HEAD holding orphan commits is bundled into the rescue
+   store before anything is touched. A plain dirty worktree needs no rescue entry; the
+   usual clean stash remains its backup.
+2. Abort every in-progress git operation, then clean. If the stash backup itself fails,
+   the worktree is rescued and the checkout is hard-reset and cleaned instead.
+3. Check out the target. A failed checkout is retried with `-f`; for the default branch
+   a still-failing checkout recreates the branch from its remote tip.
+4. Fetch, then rebase onto the remote default branch. A fetch failure stays a hard
+   failure. A conflicting rebase is aborted, the local-only commits are pinned under
+   `refs/sase/recovery/` and bundled into the rescue store, and the branch is hard-reset
+   to the remote tip.
+5. Verify the postcondition: no in-progress operations, no unmerged paths, HEAD attached
+   to the expected branch, and a clean worktree.
+
+When in-place healing still fails at the abort, clean, checkout, sync, or verify step
+(fetch and network failures are never eligible), the workspace is re-created once: the
+main checkout and every `sase/repos/<role>` clone are rescued, the checkout is moved
+aside for background deletion, and a fresh one is materialized from the primary (the run
+log says the workspace `could not be repaired in place`). A failing linked-repo clone is
+re-created the same way without touching its parent checkout. If the second preparation
+also fails, the run ends with the `setup_workspace_failed` outcome and the workspace is
+released rather than held as a visible failed run, since the agent never started and
+anything valuable was rescued.
 
 `migrate --to xdg-state` is opt-in. Existing adjacent checkouts are left in place until
 the command is invoked. With `--symlink-transition` it leaves a `<primary>_<num>`

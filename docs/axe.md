@@ -540,10 +540,15 @@ with fresh descendants are not early pressure candidates. The job summary report
 split into `ordinary_*`, `launch_*`, and `pressure_*` passes, `pressure_trigger`,
 `pressure_available_bytes`, `pressure_recovery_available_bytes`,
 `pressure_min_age_seconds`, `deindexed`, `skipped`, `failed`, `incomplete_observations`,
-and `capped=1` when it hit that budget. Reaped directories are dropped from the agent
-artifact index too, since a workflow launched without an explicit `artifacts_dir` gets
-one under `workflow-artifacts/`. It lives on `housekeeping` rather than an interactive
-path because the first pass over a neglected root walks tens of thousands of entries.
+and `capped=1` when it hit that budget. Every run logs the root it scanned, and it warns
+when the default `$SASE_HOME/tmp` root differs from that root yet still holds entries:
+some writer (usually agents launched with a different `SASE_TMPDIR` than the service
+host captured) is filling a root the reaper never scans. Align `SASE_TMPDIR` and refresh
+the capture with `sase service init --yes`. Reaped directories are dropped from the
+agent artifact index too, since a workflow launched without an explicit `artifacts_dir`
+gets one under `workflow-artifacts/`. It lives on `housekeeping` rather than an
+interactive path because the first pass over a neglected root walks tens of thousands of
+entries.
 
 The `proc_runtime_sweep` job bounds `~/.sase/procs/runtime`. Both halves of proc runtime
 retention run in the Rust proc runtime-retention owner. Proc-row retention deletes
@@ -1496,13 +1501,20 @@ marker after its PID has been recycled.
 ## Supervision and Recovery
 
 The sase service host is the scheduler's only supervisor. It reconciles roughly every
-second and restarts a crashed scheduler itself under its `Restart=on-failure` policy.
-There is no second healer: no watchdog command, no timer, and no opportunistic healing
-on agent waits. Use `sase axe routine status` or deep doctor mode to inspect individual
-routines. `sase scheduler start` clears the boot-scoped stop marker and nudges the host,
-while `sase scheduler stop` records that stop marker before shutdown. The desired state
-is derived from the service host's own view of the `scheduler` proc (source
-`service host`), so it records intent, not proof that the process transition succeeded.
+second and restarts a crashed scheduler itself under its `Restart=on-failure` policy,
+with exponential backoff; repeated failures mark the proc `crash_loop` and raise one
+`service` notification per crash-loop episode. A clean scheduler exit is not restarted:
+the host parks the proc, raises a `service` notification, and leaves it down until
+`sase scheduler start` (or `restart`) revives it. If the service configuration stops
+loading, the host keeps supervising the scheduler under its last-known-good
+configuration and reports the error in `sase service status`. There is no second healer:
+no watchdog command, no timer, and no opportunistic healing on agent waits. Use
+`sase axe routine status` or deep doctor mode to inspect individual routines.
+`sase scheduler start` records a start request that clears the boot-scoped stop marker
+and waits for the host to confirm the pid, while `sase scheduler stop` records that stop
+marker before shutdown. The desired state is derived from the service host's own view of
+the `scheduler` proc (source `service host`), so it records intent, not proof that the
+process transition succeeded.
 
 `sase doctor -C axe.health` reports the same desired/live fields, but warns only when
 the host wants the scheduler running and the orchestrator is down. Deep doctor mode
@@ -1520,9 +1532,12 @@ tolerate old entries that still carry the field.
 
 Managed restart paths, including sase's TUI and update-triggered restarts, ask the
 service host to restart the `scheduler` service proc and report the host's answer
-inline. `sase scheduler restart` is that same request made directly: it asks the host to
-stop and start the proc and returns once the request is recorded. If the host itself
-cannot keep the scheduler up, run `sase doctor` for the next step.
+inline. `sase update` waits up to 25 seconds for that confirmation and reports the
+restart as unconfirmed when the host does not answer in time. `sase scheduler restart`
+is that same request made directly: it asks the host to stop and start the proc and
+waits for the confirmed `pid OLD -> pid NEW` (`-n/--no-wait` returns once the request is
+recorded). If the host itself cannot keep the scheduler up, run `sase doctor` for the
+next step.
 
 ## State Directory
 
@@ -1566,8 +1581,9 @@ cannot keep the scheduler up, run `sase doctor` for the next step.
 The service host owns the scheduler's process lifetime; the scheduler owns only its
 routine/job tree.
 
-1. `sase scheduler start` asks the host to start the `scheduler` service proc. If the
-   orchestrator is already live, start is a no-op.
+1. `sase scheduler start` asks the host to start the `scheduler` service proc and waits
+   for the confirmed pid. If the orchestrator is already live, start is a no-op that
+   reports `already running: pid N`.
 2. The host execs the foreground orchestrator (`sase scheduler run`) as its child. The
    orchestrator removes stale PID files, adopts/holds the lifecycle lock, writes
    `orchestrator.pid`, and spawns all configured routines as child processes.

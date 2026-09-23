@@ -354,10 +354,19 @@ window in `pyproject.toml` applies only to wheel-based installs: editable instal
 a uv override that lifts the window so the locally built extension is never downgraded
 to a published wheel during dependency resolution, and `sase update` rebuilds the
 editable extension from the checkout whenever it finds a published wheel installed in a
-dev environment. Every build also records the source it built from in
-`.venv/.sase-core-rs-source.json`, so `just check` rebuilds the extension automatically
-when the linked sase-core source (HEAD plus uncommitted edits under `crates/`,
-`Cargo.toml`, `Cargo.lock` and `rust-toolchain.toml`) has changed since that build.
+dev environment. Every successful `rust-install` (cached wheel or fresh build) also
+records the source it built from in `.venv/.sase-core-rs-source.json`. The identity is
+the checkout's `HEAD` plus a digest of uncommitted and untracked changes under
+`crates/`, `Cargo.toml`, `Cargo.lock`, and `rust-toolchain.toml` (build output under
+`target/` is never hashed), captured before the build starts so an edit made mid-build
+still reads as stale. Any recipe that runs the shared `_setup` step (`just check`,
+`just test`, `just lint`, ...) compares that stamp with the current identity and
+rebuilds the extension, printing
+`[setup] Rebuilding sase_core_rs: linked sase-core source changed since the extension was built.`,
+when the stamp is missing or differs. The check runs only when `_setup` builds from a
+local checkout with `cargo` on `PATH`; it is skipped when `SASE_CORE_WHEEL` supplies a
+prebuilt wheel and when the checkout's identity cannot be computed (a non-git checkout).
+The host wheel cache below keys on the same input paths.
 
 #### Changing sase-core from a sase workspace
 
@@ -785,14 +794,17 @@ not from `sase-core`'s HEAD at build time. An unpinned checkout let an ordinary
 runs of the same `sase` SHA build different Rust cores. The master gate caches the built
 wheel under a key that includes the pinned SHA, so it rebuilds only when the pin moves.
 `tools/ratchet_core_revision` (`just ratchet-core-revision`) moves the pin to
-`sase-core`'s current remote HEAD: `--check` exits 2 when a bump is pending,
-`--report-only` prints the change without writing, and a bare run rewrites the file.
-`.github/workflows/core-pin-ratchet.yml` runs the check every six hours (or on manual
-dispatch) and opens a PR when a bump is pending — never on push, so the ratchet itself
-can't redden a commit's gate. When a `sase` change needs core behavior newer than the
-pin, bump `sase-core-revision.txt` alongside that change once the `sase-core` commit is
-pushed, so CI builds a core that has it. If `sase` source now calls a binding the pinned
-revision doesn't expose, the `lint` job's "Check pinned core bindings" step
+`sase-core`'s current remote HEAD: `--check` writes nothing, `--report-only` prints the
+change without writing, and a bare run rewrites the file. All three exit 0 when the pin
+already matches, 2 when a bump is pending, reported, or applied, and 3 when the remote
+HEAD cannot be determined. `.github/workflows/core-pin-ratchet.yml` runs the check every
+six hours (or on manual dispatch), then applies the bump — treating the apply step's
+exit 2 as success — and opens a PR from a `core-pin-ratchet-<sha12>` branch unless that
+branch already exists; it never runs on push, so the ratchet itself can't redden a
+commit's gate. When a `sase` change needs core behavior newer than the pin, bump
+`sase-core-revision.txt` alongside that change once the `sase-core` commit is pushed, so
+CI builds a core that has it. If `sase` source now calls a binding the pinned revision
+doesn't expose, the `lint` job's "Check pinned core bindings" step
 (`tools/check_sase_core_rs_bindings --remedy ...`) fails with the missing binding names
 and names the pin bump as the remedy, instead of a bare `AttributeError` surfacing later
 in a consumer job. This is a source-revision pin, separate from the published

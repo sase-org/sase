@@ -19,7 +19,8 @@ There are two related paths to keep separate:
 
 ```text
 launch setup:
-  xprompt swarm fan-out check
+  project tag validation and expansion (+sase -> #gh:gh_sase-org__sase)
+  -> xprompt swarm fan-out check
   -> default workspace ref insertion when needed (#git:home)
   -> project name/alias canonicalization (#gh:bob -> #gh_bbugyi200__bob)
   -> workspace ref resolution (#git/#gh, plugin-provided refs, and known-project fallbacks)
@@ -50,6 +51,8 @@ resolver order.
 - [Discovery Order](#discovery-order)
 - [File Format](#file-format)
 - [Reference Syntax](#reference-syntax)
+  - [VCS Workspace References](#vcs-workspace-references)
+  - [Project Tags](#project-tags)
   - [Artifact References](#artifact-references)
 - [Arguments](#arguments)
 - [Shorthand Syntax](#shorthand-syntax)
@@ -510,16 +513,9 @@ already matches the GitHub repo. Owner/repo fallback avoids basename routing whe
 duplicate GitHub basenames would make that ambiguous; direct `owner/repo` refs match the
 GitHub workspace path first, then only use a basename fallback when it is unambiguous.
 
-sase's TUI and the xprompt LSP provide the same project/Patch completion helper for
-these references. Type `+query` at absolute prompt offset zero or immediately after a
-literal ASCII space to open a picker of enabled launchable projects and active PR-sized
-Patches in `WIP`, `Draft`, `Ready`, or `Mailed` status. The token extends to the next
-whitespace boundary, and `#+query`, line-start `+query` without a preceding space,
-tab-delimited forms, and plus signs glued to other text are not project triggers.
-Accepting a project row inserts a tag such as `#gh:sase`; accepting a Patch row inserts
-a tag such as `#gh:my_change`. The helper filters by `PROJECT_NAME`, directory-key
-project name, project alias, or Patch name prefix, and it ignores system-managed `home`,
-disabled projects, sibling records, and non-launchable projects.
+A known project can also be targeted with its shorter `+<project>` tag, such as `+sase`,
+which expands to the canonical workspace reference at launch; see
+[Project Tags](#project-tags), which also covers `+query` project/Patch completion.
 
 sase's TUI and the xprompt LSP also provide token-local completion at the root of
 registered VCS workflow refs. Typing `:` or `(` after a workflow tag, such as `#gh:` or
@@ -541,14 +537,15 @@ listing.
 
 Known-project discovery defaults to enabled ProjectSpecs. Disabled and sibling records
 are omitted from broad project-local xprompt catalogs and completion menus. An
-explicitly typed known-project VCS ref is a launch-time exception: launch preparation
-writes `PROJECT_STATE: enabled` before claiming the workspace. This is a persistent
-state change, so use `sase project enable <project>` first when you prefer to make the
-transition separately. A checkout cwd or mobile `project` value is context rather than a
-workspace ref; a prompt without an explicit ref defaults to `#git:home`. Direct claims
-that bypass launch preparation remain blocked while the ProjectSpec is disabled.
-Management and history code paths that need hidden projects opt into an all-state scan
-explicitly.
+explicitly typed known-project `#` VCS ref is a launch-time exception: launch
+preparation writes `PROJECT_STATE: enabled` before claiming the workspace. This is a
+persistent state change, so use `sase project enable <project>` first when you prefer to
+make the transition separately. A `+<project>` tag for a disabled project is rejected
+instead of re-enabling it (see [Project Tags](#project-tags)). A checkout cwd or mobile
+`project` value is context rather than a workspace ref; a prompt without an explicit ref
+defaults to `#git:home`. Direct claims that bypass launch preparation remain blocked
+while the ProjectSpec is disabled. Management and history code paths that need hidden
+projects opt into an all-state scan explicitly.
 
 Double underscores (`__`) in xprompt names are treated as forward slashes (`/`),
 enabling flat references to namespaced xprompts. For example, `#foo__bar` resolves to
@@ -558,6 +555,108 @@ contexts (e.g., shell completion or certain prompt editors).
 
 Markdown headings like `# Heading` are not matched because a space after `#` prevents
 the pattern from firing.
+
+### Project Tags
+
+A project tag is the short `+<project>` spelling of a known-project workspace reference.
+`+sase fix the flaky test` targets the same workspace as `#gh:sase fix the flaky test`,
+without you having to remember which provider the project uses. At launch, each tag that
+resolves to a registered project is rewritten in place to that project's canonical
+`#<workflow>:<directory-key>` reference, such as `#gh:gh_sase-org__sase`. Prompt
+history, agent metadata, workspace claims, and the VCS MRU therefore record exactly what
+a typed `#gh:sase` would have produced.
+
+```bash
+sase run '+sase summarize the open TODOs'
+sase run '%model:opus +bob-cli fix the failing test'
+sase run '%{+sase | +bob-cli} audit the README'   # one agent per project
+```
+
+**Syntax.** A tag is `+` followed by a name that starts with an ASCII letter and
+continues with letters, digits, `_`, `.`, or `-`, without ending in `.` or `-`. The `+`
+must sit at the start of the text or directly after whitespace, `{`, or `|`. The name
+must be followed by whitespace, `|`, `}`, or the end of the text. So `C++`, `a+b`,
+`(+sase)`, and `+sase,` are ordinary text. Tags inside fenced code, inline code,
+disabled xprompt regions, and the leading YAML frontmatter block are ignored.
+
+**Resolution.** A tag name matches a project's `PROJECT_NAME`, its directory key, or any
+of its `PROJECT_ALIASES`. An exact match wins first, then a case-insensitive one, so
+`+SASE` works too. The catalog covers enabled and disabled projects plus the
+system-managed `home` project (`+home` expands to `#git:home`); sibling records are
+excluded. A project whose `PROJECT_NAME` does not fit the tag syntax, such as one that
+starts with a digit, has no `+` spelling. Keep using its `#<workflow>:<name>` reference.
+See [Project Names and Aliases](project_spec.md#project-names-and-aliases) for how names
+and aliases are kept unique.
+
+**Launch validation.** Tags are checked before anything is spawned, and a failing prompt
+aborts the whole launch:
+
+| Tag situation                                       | Result                                                                                                                     |
+| --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Resolves to an enabled project (or `home`)          | Expands to `#<workflow>:<directory-key>`.                                                                                  |
+| Resolves to a disabled project                      | Error: `` `+beta` is disabled — `sase project enable beta` ``. Unlike a typed `#` ref, a tag does not re-enable a project. |
+| Resolves to a project with no detected VCS provider | Error naming the unclaimed workspace.                                                                                      |
+| Matches more than one project                       | Error listing the candidates; run `sase doctor` to find the collision.                                                     |
+| Unknown, and _anchored_ (first word on its line)    | Error such as `Unknown project tag +ssae (line 1). Did you mean +sase? Known: +bob-cli +home +sase`.                       |
+| Unknown, anywhere else                              | Left alone as plain text, so `run chmod +x build.sh` still launches.                                                       |
+
+A tag is anchored when it is the first word on its line, ignoring leading whitespace and
+leading `%directive` tokens (`%m:opus +ssae ...` is anchored). A resolved tag counts as
+a workspace target wherever it appears, not only when anchored.
+
+Each launch unit may name only one workspace target, and tags and `#` workspace refs
+count together. `+sase +bob-cli do x` and `+sase #git:notes do x` both fail with
+`Only one workspace target is allowed per launch unit, ...`. Each `---` segment of a
+[multi-agent prompt](#multi-agent-prompts) and each branch of a `%{a | b}` alternative
+is its own unit, which is why the fan-out example above is valid. A segment containing a
+resolvable tag is treated as already having a workspace reference, so the default
+`#git:home` prefix is not added next to it.
+
+Tags resolve against the launching machine's projects. `sase run`, sase's TUI, and
+agent-requested launches (whose LaunchApproval preview reports tag errors) all validate
+and expand tags the same way. A prompt forwarded through
+[remote dispatch](#remote-dispatch) is sent verbatim and resolves on the remote host. A
+launch rejected by tag validation is kept in prompt history as a cancelled prompt, so
+you can recover and fix it. In sase's TUI, the error usually appears as a toast before
+the prompt editor closes, so the prompt stays in place for editing.
+
+**Completion.** sase's TUI and the xprompt LSP share one `+` project/Patch completion
+helper. Typing `+query` wherever a tag may start opens a picker of enabled launchable
+projects and active PR-sized Patches in `WIP`, `Draft`, `Ready`, or `Mailed` status. A
+tag may start at the beginning of the prompt or after whitespace (including a newline or
+tab), `{`, or `|`, while `a+b`, `c++`, and `#+query` are not triggers. Project rows show
+`+name` in the project's accent color, with the provider and canonical
+`#<workflow>:<name>` reference as detail. sase's TUI also marks the current project.
+Rows are ordered current project first, then most recently launched, then by name, with
+Patch rows last. Accepting a project row replaces the `+query` token in place with the
+project's tag (for example `+sase `), or with `#<workflow>:<name> ` when the name does
+not fit tag syntax. Accepting a Patch row inserts a reference such as `#gh:my_change `.
+Either way, every other workspace target (tag or `#` ref) in the same `---` segment is
+removed, so the segment ends up with exactly one target. The helper filters by
+`PROJECT_NAME`, directory-key project name, project alias, or Patch name prefix. It
+omits the system-managed `home` project, disabled projects, sibling records, and
+non-launchable projects, even though `+home` and disabled-project tags still resolve
+when typed.
+
+The xprompt LSP also checks tags as you type. Hovering a tag shows its project. An
+anchored unknown tag gets a warning with `Use +<suggestion>` quick fixes, an ambiguous
+tag is an error, and a tag whose project has no detected provider gets a warning. A
+`refactor.rewrite` code action turns a plain project ref such as `#gh:sase` into
+`+sase`.
+
+**Display.** sase's TUI prefers the tag spelling wherever it seeds a project prompt: the
+`+` launch picker, project quick launches, the repeat-last-launch prefill, new stacked
+prompt panes, `ctrl+p`/`ctrl+n` VCS MRU cycling, and artifact-reference prompts. Patch
+targets keep their `#<workflow>:<patch>` form. Agent panels and the prompt editor also
+show known-project refs such as `#gh:gh_sase-org__sase` as `+sase`. That display form is
+used only where the rewritten text would scan as a tag again, so copied, relaunched, and
+forked prompts expand the same way. Patch refs, `owner/repo` refs, `@agent` refs,
+parenthesized forms, and refs with `!!`/`??` suffixes keep their `#` spelling. Tags
+render as chips: a dim `+` and a bold name in the project's accent color, the same color
+as the top-bar current-project chip. Disabled projects and `home` render neutral, and an
+anchored unknown tag is underlined in the warning color. These surfaces read a cached
+project catalog that sase's TUI warms in the background. Until it is warm, they briefly
+fall back to the `#` spelling, and launch still validates tags.
 
 ### Artifact References
 

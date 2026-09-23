@@ -312,7 +312,20 @@ bead event state, artifact-link indexes and managed `## Links` / `## Referenced 
 blocks, and the `AGENTS` / `COMMITS` rows of a month-sharded plan's generated header
 (see [Artifact Links](sdd.md#artifact-links)). Any other conflict, including authored
 plan text, is not merged. Ordinary transactional integration restores the pre-rebase
-state after a failed rebase and refuses unsafe or unprovable recovery.
+state after a failed rebase and refuses unsafe or unprovable recovery. A Git command
+that hits its timeout mid-integration gets the same treatment: the in-progress rebase is
+aborted and the rollback to the locked starting state is verified, so a slow remote
+cannot leave the checkout wedged mid-rebase.
+
+The background bead sync worker adds one more rollback. Before publishing, it checks
+that its unpublished commits do not drop or rewrite bead events already on the upstream.
+When that check rejects the integrated HEAD, or integration times out, the worker pins
+the rejected HEAD under `refs/sase/recovery/`, restores the pre-integration HEAD
+(aborting any in-progress rebase), and reports the sync as failed with a summary of the
+rollback; the full detail is in the sync log. A stream that holds every published event
+but in a different order — the shape an older timestamp-sorting merge wrote — is not
+treated as dropping events, so clones wedged by that merge integrate and publish their
+pending changes.
 
 Machine-managed disposable sidecar clones have one additional recovery path for a wedged
 checkout. Before resetting to the configured upstream, SASE snapshots local branch and
@@ -337,4 +350,7 @@ unsupported conflicts or failed recovery, SASE records a per-clone failure marke
 Further pulls are suppressed for the machine-recovery cooldown instead of retrying the
 same rebase on every command; the cooldown is at least five minutes and grows to match a
 larger configured bead-refresh TTL. A successful integration clears the marker. Remote
-outages and an unavailable cooperative lock do not create this failure cooldown.
+outages and an unavailable cooperative lock do not create this failure cooldown, and a
+clone that still holds unpublished bead commits is never parked by it. The bead store
+inside a clone is found from its actual layout (the clone root for a split `--beads`
+sidecar, `beads/` inside a combined `--plans` clone).

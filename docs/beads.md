@@ -146,8 +146,8 @@ The active checkout belongs to the enabled project whose `WORKSPACE_DIR`, or a n
 `_<N>` sibling of it, contains the current directory. Another project whose directory
 key merely matches the workspace name, such as one auto-created for a `#git:<name>`
 reference, cannot take over bead-store resolution. `sase doctor` warns
-(`project.name_collisions`) when a project directory key collides with another project's
-name or alias.
+(`project.name_collisions`) when a project directory key, name, or alias
+case-insensitively matches another project's.
 
 ## Data Model
 

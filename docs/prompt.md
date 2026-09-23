@@ -204,7 +204,13 @@ before the editor opens, so what you see is what will run:
 ```bash
 sase prompt run ph_8f3a9c0d12ab -P "#gh:bob-cli"     # reuse a "#gh:sase" prompt elsewhere
 sase prompt edit ph_8f3a9c0d12ab -P "#gh:bob-cli"    # adjust details after re-prefixing
+sase prompt run ph_8f3a9c0d12ab -P "+bob-cli"        # a project tag works as the prefix
 ```
+
+Launched prompts are stored with any [project tags](xprompt.md#project-tags) already
+expanded to their `#<workflow>:<project>` form, so `--prefix` finds and replaces them.
+Cancelled or failed prompts keep the `+<project>` tags you typed, and `--prefix` does
+not replace those. Use `-e` to remove the old tag by hand.
 
 This is the shared, drift-free implementation behind the `sase run "#vcs:ref ."`
 compatibility path.
