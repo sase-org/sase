@@ -193,6 +193,48 @@ def _remove_span_with_boundary_whitespace(text: str, start: int, end: int) -> st
     return before + after
 
 
+def _first_project_tag_candidate(
+    draft: str,
+    catalog: PromptHistoryProjectCatalog,
+) -> tuple[int, int, str] | None:
+    """Return the first tag ``(start, end, name)`` counting as a target."""
+    if "+" not in draft:
+        return None
+    from sase.project_tags import find_project_tags
+    from sase.xprompt._literal_zones import literal_zone_ranges
+
+    try:
+        scanned = find_project_tags(draft)
+    except Exception:  # noqa: BLE001 - seed degrades to VCS-ref-only.
+        return None
+    if not scanned:
+        return None
+    literal = literal_zone_ranges(draft)
+    for found in scanned:
+        if not isinstance(found, dict):
+            continue
+        try:
+            raw_start = found["start"]
+            raw_end = found["end"]
+            raw_name = found["name"]
+            raw_anchored = found["anchored"]
+        except KeyError:
+            continue
+        if (
+            not isinstance(raw_start, int)
+            or not isinstance(raw_end, int)
+            or not isinstance(raw_name, str)
+        ):
+            continue
+        start, end, name = raw_start, raw_end, raw_name
+        anchored = bool(raw_anchored)
+        if any(zone_start <= start < zone_end for zone_start, zone_end in literal):
+            continue
+        if anchored or catalog.resolve_ref(name) is not None:
+            return (start, end, name)
+    return None
+
+
 def build_prompt_history_seed_from_draft(
     draft: str,
     catalog: PromptHistoryProjectCatalog,
@@ -201,15 +243,30 @@ def build_prompt_history_seed_from_draft(
 
     Uses the first active workspace reference recognized anywhere in
     *draft* (skipping inline/fenced code and disabled xprompt regions),
-    consistent with the existing VCS span helper. The draft itself is never
-    mutated; only the derived seed text is returned.
+    consistent with the existing VCS span helper. ``+<project>`` tags count
+    as workspace references alongside ``#`` VCS refs. The draft itself is
+    never mutated; only the derived seed text is returned.
     """
-    span = find_vcs_workflow_tag_span(draft)
-    if span is None:
+    vcs_span = find_vcs_workflow_tag_span(draft)
+    tag_candidate = _first_project_tag_candidate(draft, catalog)
+
+    chosen: tuple[int, int, str | None] | None = None
+    if vcs_span is not None:
+        vcs_start, vcs_end = vcs_span
+        chosen = (
+            vcs_start,
+            vcs_end,
+            extract_project_from_vcs_tag(draft[vcs_start:vcs_end]),
+        )
+    if tag_candidate is not None:
+        tag_start, tag_end, tag_name = tag_candidate
+        if chosen is None or tag_start < chosen[0]:
+            chosen = (tag_start, tag_end, tag_name)
+
+    if chosen is None:
         return catalog.build_seed(raw_ref=None, remainder_text=draft)
 
-    start, end = span
-    raw_ref = extract_project_from_vcs_tag(draft[start:end])
+    start, end, raw_ref = chosen
     remainder = _remove_span_with_boundary_whitespace(draft, start, end)
     return catalog.build_seed(raw_ref=raw_ref, remainder_text=remainder)
 

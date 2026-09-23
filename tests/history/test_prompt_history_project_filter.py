@@ -102,6 +102,33 @@ def test_catalog_load_degrades_to_empty_on_read_failure(
             "project:sase %m:opus fix parser",
             None,
         ),
+        ("+sase fix parser", "project:sase fix parser", None),
+        ("+sase", "project:sase ", None),
+        ("+sase ", "project:sase ", None),
+        ("+SASE fix parser", "project:sase fix parser", None),
+        (
+            "%m:opus +sase fix parser",
+            "project:sase %m:opus fix parser",
+            None,
+        ),
+        ("fix +sase now", "project:sase fix now", None),
+        ("fix `+sase` now", "fix `+sase` now", None),
+        ("fix +nosuch now", "fix +nosuch now", None),
+        (
+            "+nosuch fix parser",
+            "fix parser",
+            "Project scope unavailable; searching all loaded prompts",
+        ),
+        (
+            "+sase fix #gh:sase-org/sase",
+            "project:sase fix #gh:sase-org/sase",
+            None,
+        ),
+        (
+            "#gh:sase-org/sase fix +sase",
+            "project:sase fix +sase",
+            None,
+        ),
         ("fix parser", "fix parser", None),
         ("", "", None),
         (

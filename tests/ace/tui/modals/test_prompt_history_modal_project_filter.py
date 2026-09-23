@@ -283,3 +283,33 @@ async def test_typing_during_seed_resolution_wins_over_the_seed(
         await wait_for(pilot, lambda: modal._history_loaded_once)
 
         assert filter_input.value == "x"
+
+
+async def test_ctrl_k_seed_with_project_tag_resolves_to_project_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        prompt_history_modal.PromptHistoryProjectCatalog,
+        "load",
+        classmethod(
+            lambda cls: cls(
+                entries=(PromptHistoryProjectIdentity(key="sase"),),
+            )
+        ),
+    )
+    monkeypatch.setattr(
+        prompt_history_modal,
+        "load_prompt_record_page",
+        lambda **_kwargs: PromptHistoryPage(
+            records=[], next_cursor=None, exhausted=True
+        ),
+    )
+
+    modal = PromptHistoryModal(prompt_seed="+sase fix parser")
+    async with _PromptHistoryTestApp().run_test(size=(120, 40)) as pilot:
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+        filter_input = modal.query_one("#prompt-history-filter-input", Input)
+        await wait_for(pilot, lambda: modal._history_loaded_once)
+
+        assert filter_input.value == "project:sase fix parser"
