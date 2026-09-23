@@ -35,7 +35,9 @@ from .entry_navigation import ArtifactEntryNavigator
 from .files_pane import ArtifactsFilesPane
 from .lifecycle import ArtifactsPaneLifecycle
 from .pane_brief import ArtifactsPaneBrief
-from .panes import ArtifactPlaceholderPane, ArtifactsDegradedPane, ArtifactsPatchesPane
+from .degraded_pane import ArtifactsDegradedPane
+from .patches_pane import ArtifactsPatchesPane
+from .placeholder_pane import ArtifactPlaceholderPane
 from .plans_pane import ArtifactsDocumentsPane, ArtifactsPlansPane
 from .relation_panel import RelationPanel
 from .split_badge import ArtifactsSplitBadge

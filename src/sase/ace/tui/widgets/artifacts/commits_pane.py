@@ -49,7 +49,7 @@ from .commits_timeline import (
 )
 from .entry_navigation import ArtifactEntryTarget
 from .group_fold_navigation import ArtifactGroupFoldMixin
-from .panes import ArtifactsPaneLifecycle
+from .lifecycle import ArtifactsPaneLifecycle
 from .query_session import ArtifactQuerySession
 from .relation_panel import RelationPanel, RelationPanelHostMixin
 from .shell import build_reveal_chip, build_reveal_chip_label

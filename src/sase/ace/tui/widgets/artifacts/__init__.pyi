@@ -6,7 +6,8 @@ from .types import ARTIFACTS_SUBTAB_ORDER as ARTIFACTS_SUBTAB_ORDER
 from .types import FIXED_ARTIFACTS_SUBTAB_ORDER as FIXED_ARTIFACTS_SUBTAB_ORDER
 from .entry_navigation import ArtifactEntryNavigator as ArtifactEntryNavigator
 from .entry_navigation import ArtifactEntryTarget as ArtifactEntryTarget
-from .panes import ArtifactPlaceholderPane as ArtifactPlaceholderPane
+from .placeholder_pane import ArtifactPlaceholderPane as ArtifactPlaceholderPane
+from .degraded_pane import ArtifactsDegradedPane as ArtifactsDegradedPane
 from .agents_pane import ArtifactsAgentsPane as ArtifactsAgentsPane
 from .beads_pane import ArtifactsBeadsPane as ArtifactsBeadsPane
 from .plans_pane import ArtifactsDocumentsPane as ArtifactsDocumentsPane
@@ -15,7 +16,7 @@ from .types import ArtifactsPaneKey as ArtifactsPaneKey
 from .lifecycle import ArtifactsPaneLifecycle as ArtifactsPaneLifecycle
 from .snapshot_pane import ArtifactsSnapshotPane as ArtifactsSnapshotPane
 from .plans_pane import ArtifactsPlansPane as ArtifactsPlansPane
-from .panes import ArtifactsPatchesPane as ArtifactsPatchesPane
+from .patches_pane import ArtifactsPatchesPane as ArtifactsPatchesPane
 from .types import ArtifactsSubTab as ArtifactsSubTab
 from .view import ArtifactsView as ArtifactsView
 from .beads_pane import BeadRow as BeadRow

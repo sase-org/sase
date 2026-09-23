@@ -12,13 +12,15 @@ from .llm_calls_panel import AgentLLMCallsPanel as AgentLLMCallsPanel
 from .alias_overrides_indicator import (
     AliasOverridesIndicator as AliasOverridesIndicator,
 )
-from .artifacts.panes import ArtifactPlaceholderPane as ArtifactPlaceholderPane
+from .artifacts.placeholder_pane import (
+    ArtifactPlaceholderPane as ArtifactPlaceholderPane,
+)
 from .artifacts.agents_pane import ArtifactsAgentsPane as ArtifactsAgentsPane
 from .artifacts.beads_pane import ArtifactsBeadsPane as ArtifactsBeadsPane
 from .artifacts.plans_pane import ArtifactsDocumentsPane as ArtifactsDocumentsPane
 from .artifacts.files_pane import ArtifactsFilesPane as ArtifactsFilesPane
 from .artifacts.plans_pane import ArtifactsPlansPane as ArtifactsPlansPane
-from .artifacts.panes import ArtifactsPatchesPane as ArtifactsPatchesPane
+from .artifacts.patches_pane import ArtifactsPatchesPane as ArtifactsPatchesPane
 from .artifacts.types import ArtifactsSubTab as ArtifactsSubTab
 from .artifacts.view import ArtifactsView as ArtifactsView
 from .axe_dashboard import AxeDashboard as AxeDashboard
