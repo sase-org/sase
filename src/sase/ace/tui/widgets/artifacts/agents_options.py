@@ -33,6 +33,7 @@ from .shell import (
     build_empty_card,
     build_footer_hints,
     build_reveal_chip,
+    build_reveal_chip_label,
     build_state_badge,
 )
 from .types import ARTIFACTS_ACCENTS, ArtifactsPaneContract
@@ -329,7 +330,7 @@ class AgentsOptionsMixin(_MixinBase):
             text.append("\n")
             text.append_text(
                 build_reveal_chip(
-                    label=f"Revealed {reveal.ref}",
+                    label=build_reveal_chip_label(reveal.ref, reveal.label),
                     accent=self._accent(),
                     return_hint=key_display_name(self._registry.app.prev_query),
                 )

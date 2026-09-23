@@ -1,4 +1,4 @@
-"""Transaction, reveal-ladder, and hydration flow for ``$`` link-follow."""
+"""Transaction, plan-then-commit reveal, and hydration flow for ``$`` link-follow."""
 
 from __future__ import annotations
 
@@ -30,6 +30,17 @@ from ._link_follow_types import (
     LinkTrailHop,
     record_link_follow_outcome,
 )
+
+
+def _pane_accent(pane: Any, pane_id: str) -> str:
+    """Return the destination pane's accent color for toast styling."""
+    contract = getattr(pane, "contract", None)
+    accent = getattr(contract, "accent", None)
+    if isinstance(accent, str) and accent:
+        return accent
+    from ..widgets.artifacts.types import ARTIFACTS_ACCENTS
+
+    return ARTIFACTS_ACCENTS.get(pane_id, "cyan")
 
 
 class LinkFollowTransactionMixin:
@@ -195,6 +206,12 @@ class LinkFollowTransactionMixin:
         self._link_follow_transaction = None
         end_link_follow_pinning(self)
         record_link_follow_outcome("missing")
+        if pane is None:
+            self._notify_unconfigured_link_pane(  # type: ignore[attr-defined]
+                transaction.ref,
+                transaction.target,
+            )
+            return
         self._notify_missing_in_inventory(  # type: ignore[attr-defined]
             transaction.ref,
             transaction.target,
@@ -375,16 +392,46 @@ class LinkFollowTransactionMixin:
                     expander(transaction.target)
         current = pane_limit_query(pane) or ""
         reveal = getattr(self, "_link_reveals", {}).get(transaction.target.pane_id)
-        if is_link_reveal_active(
+        outcome = self._build_reveal_outcome(transaction, pane, current, reveal)
+        if outcome.outcome in (
+            "context",
+            "identity",
+            "neutral",
+        ) and is_link_reveal_active(
             reveal,
             pane_id=transaction.target.pane_id,
             current_canonical=current,
         ):
-            self.notify(  # type: ignore[attr-defined]
-                f"Revealed {transaction.ref} — press ^ to restore your query",
-            )
+            self._notify_reveal_toast(outcome, transaction, pane)  # type: ignore[attr-defined]
         self.refresh_link_rail()  # type: ignore[attr-defined]
-        return self._build_reveal_outcome(transaction, pane, current, reveal)
+        return outcome
+
+    def _notify_reveal_toast(
+        self,
+        outcome: Any,
+        transaction: LinkFollowTransaction,
+        pane: Any = None,
+    ) -> None:
+        """Toast one verified rewrite: new query, what hid it, restore keys."""
+        from ..keymaps import key_display_name
+        from ._link_follow_toast import REVEAL_TOAST_TIMEOUT, format_reveal_toast
+
+        registry = getattr(self, "_keymap_registry", None)
+        app_keys = getattr(registry, "app", None)
+        restore_raw = getattr(app_keys, "prev_query", "") or ""
+        back_raw = getattr(app_keys, "jump_to_entry_fast", "") or ""
+        title, message = format_reveal_toast(
+            outcome,
+            restore_key=key_display_name(restore_raw) if restore_raw else "",
+            back_key=key_display_name(back_raw) if back_raw else "",
+            accent=_pane_accent(pane, transaction.target.pane_id),
+        )
+        self.notify(  # type: ignore[attr-defined]
+            message,
+            title=title,
+            severity="information",
+            timeout=REVEAL_TOAST_TIMEOUT,
+        )
 
     def _build_reveal_outcome(
         self,
@@ -422,9 +469,17 @@ class LinkFollowTransactionMixin:
         )
 
     def _notify_link_follow_failed(self, transaction: LinkFollowTransaction) -> None:
+        from ._link_follow_toast import format_link_failure
+
+        title, message, severity = format_link_failure(
+            "load",
+            ref=transaction.ref,
+            pane_label=pane_label(transaction.target),
+        )
         self.notify(  # type: ignore[attr-defined]
-            f"Failed to load {pane_label(transaction.target)} for {transaction.ref}",
-            severity="error",
+            message,
+            title=title,
+            severity=severity,
         )
 
 

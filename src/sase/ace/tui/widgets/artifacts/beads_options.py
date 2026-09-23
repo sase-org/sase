@@ -27,7 +27,11 @@ from .beads_rendering import (
 )
 from .entry_navigation import ArtifactEntryTarget, LinkRequestState
 from .query_session import ArtifactQuerySession
-from .shell import ArtifactsPaneState, build_reveal_chip
+from .shell import (
+    ArtifactsPaneState,
+    build_reveal_chip,
+    build_reveal_chip_label,
+)
 from .types import ARTIFACTS_ACCENTS, ArtifactsPaneContract
 
 if TYPE_CHECKING:
@@ -288,7 +292,7 @@ class BeadsOptionsMixin(_MixinBase):
             text.append("\n")
             text.append_text(
                 build_reveal_chip(
-                    label=f"Revealed {reveal.ref}",
+                    label=build_reveal_chip_label(reveal.ref, reveal.label),
                     accent=self._accent(),
                     return_hint=key_display_name(self._registry.app.prev_query),
                 )

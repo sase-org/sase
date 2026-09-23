@@ -196,45 +196,67 @@ current pane's normal jump-stack behavior. Ordinary navigation clears the link t
 See [Artifact Links](artifact_links.md#browsing-links-in-sases-tui) for relation and
 projection details.
 
-#### The Reveal Ladder
+#### Link Jumps
 
 Following a link whose target is outside the destination pane's current result set does
-not fail. sase's TUI owns one ordered ladder and walks it until the row is selectable,
-preferring the cheapest rung first:
+not fail. Every jump — the `$` link rail, the `$0` links panel, relation jumps — runs
+one engine: it plans a single verified rewrite, then commits it once. The query bar
+always truthfully describes what is shown, and query history records exactly one `^`
+entry, which restores the original query and selection.
 
-| Rung                | What it does                                                                                                        |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| Fold expansion      | Opens the fold hiding the row. Mutates no query and pushes no history entry, so it runs before any rewrite.         |
-| Drop the head slice | Rewrites the host-owned `limit:N` cap to `limit:all`, keeping every other term.                                     |
-| Identity reveal     | Rewrites to the tightest query that names the row through the pane's identity field, such as `id:` or `sha:`.       |
-| Minimal widening    | Drops only the terms that exclude the row, then appends `limit:all`.                                                |
-| Neutral query       | Replaces the query with a blunt `limit:all`.                                                                        |
-| Targeted hydration  | Fetches a row the pane never loaded at all directly from its source, off the message pump, then re-enters the fold. |
+| Step          | When                                          | What happens                                                                                           |
+| ------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Resolve       | Always                                        | Find the target through the destination pane's own row identity, re-resolved once the pane has loaded. |
+| Scope         | The current project scope excludes the target | Switch to the target's project, or to All projects if its project is unknown. Never narrows from All.  |
+| Select        | The target is visible                         | Select it. No toast.                                                                                   |
+| Fold          | A collapsed fold hides it                     | Expand the minimum fold, then select. No query change, no toast.                                       |
+| Acquire       | The row is not in the pane's loaded inventory | Fetch it directly from its source, off the message pump, then continue.                                |
+| Context       | The query or limit hides it                   | Rewrite to the context query below, verified against the target's row before committing.               |
+| Identity      | No context, or the context still misses       | Rewrite to the tightest query that names the row (`id:`, `sha:`, …), keeping the limit.                |
+| Neutral       | Still missing, where allowed (never Stitches) | Replace the query with a blunt `limit:all`.                                                            |
+| Honest report | Everything missed                             | Say so: a dangling ref, a load failure, or "not in `<Pane>`".                                          |
 
-Identity reveal is skipped when the pane's dialect declares no identity field or the row
-has no usable value for it. Minimal widening is skipped when the live query contains
-Boolean operators or grouping, because subtracting terms from that expression is not
-sound, and whenever the rewritten query fails to verify against the target row. A
-simple-token query can still use this rung even in the Patches or Agent pane. Targeted
-hydration fires at most once per follow and never for a ref that failed to parse or
-route; it is what makes a deep-archive plan, a stitch outside the collection window, or
-a capped provider snapshot reachable.
+The rewrite lands the target inside its natural family — never an isolated row — and
+keeps the current `limit:`, raising it only when the family would not fit:
 
-When every rung misses, sase's TUI says so honestly rather than silently doing nothing:
-`No such artifact: <ref>` when nothing resolves the ref, and
-`<Pane> has no <ref> in its inventory` when the destination pane genuinely does not
-carry it.
+| Target                              | The query becomes                              | Lens label           |
+| ----------------------------------- | ---------------------------------------------- | -------------------- |
+| Bead phase `sase-16n.7`             | `id:sase-16n.*`                                | `epic sase-16n`      |
+| Bead epic `sase-16n`                | `id:sase-16n id:sase-16n.*`, epic fold expands | `epic sase-16n`      |
+| Bead task or flag `sase-abc`        | `id:sase-abc`                                  | `bead sase-abc`      |
+| Agent hood member `sase-16n.7`      | `name:sase-16n.*`                              | `sase-16n hood`      |
+| Agent family shell `x--y`           | `family:x`                                     | `family x`           |
+| File                                | `agent:<creating agent>`, else `id:<file>`     | `files from <agent>` |
+| Plan or provider doc                | `path:<doc path>`                              | `plan <name>`        |
+| Stitch `repo@sha`                   | `repo:<repo> since:<day> until:<day>`          | `<repo> · <day>`     |
+| Patch in a stack                    | `ancestor:<stack root>`                        | `stack <root>`       |
+| Submitted, reverted, archived patch | `name:<patch>`                                 | `patch <name>`       |
 
-Each rewriting rung commits through the pane's host-query adapter, so query history
-records exactly one `^` restore for the whole follow. After a rewriting follow lands,
-sase's TUI toasts `Revealed <ref> — press ^ to restore your query` and the pane's info
-header shows a reversible **lens chip** — `↩ Revealed <ref>` in the pane's accent color,
-followed by a dim `^ to return` naming the configured `prev_query` key rather than
-introducing a new binding. The lens is derived from the live query rather than stored as
-a flag: it is active only while the pane's canonical query is still exactly the query
-the reveal wrote and the pane's dialect has not changed. Editing the query yourself,
-walking query history with `^` / `_`, loading a saved query, or triggering a fresh
-reveal all end it with no separate clear step.
+The `*` above is the [wildcard filter](query_language.md#wildcards): `id:sase-16n.*`
+matches every phase of epic `sase-16n` but not the epic itself. The Agents-tab main
+filter is never rewritten — a hidden agent lands in Artifacts ▸ Agent instead.
+
+Each rewrite explains itself in one toast naming the new query, what hid the target, any
+scope change, and the real keys that restore (`^`) and walk back (`Ctrl+O`):
+
+```text
+↪ Bead sase-16n.7
+query  id:sase-16n.* limit:100
+was    -status:closed limit:100 · hidden by -status:closed
+epic sase-16n · ^ restore · Ctrl+O back
+```
+
+The key names follow the live keymap, and the toast stays for about 8 seconds. Selecting
+or fold-expanding without a rewrite shows no toast.
+
+While a rewrite is live, the pane's info header shows a reversible **lens chip** —
+`↩ sase-16n.7 · epic sase-16n` in the pane's accent color, followed by a dim
+`^ to return` naming the configured `prev_query` key rather than introducing a new
+binding. The lens is derived from the live query rather than stored as a flag: it is
+active only while the pane's canonical query is still exactly the query the reveal wrote
+and the pane's dialect has not changed. Editing the query yourself, walking query
+history with `^` / `_`, loading a saved query, or triggering a fresh reveal all end it
+with no separate clear step.
 
 ### Split Modes in Artifacts Panes
 

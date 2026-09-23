@@ -67,9 +67,10 @@ async def test_beads_link_reveal_chip_png_snapshots(
             origin_canonical="-status:closed",
             origin_target=None,
             revealed_canonical=current,
+            label="epic sase-hidden",
         )
         pane._update_static("#beads-info", pane._scope_text())
-        await wait_for_svg_contains(page, "Revealed bead:sase-hidden.3")
+        await wait_for_svg_contains(page, "↩ sase-hidden.3 · epic sase-hidden")
         await wait_for_visual_idle(page)
 
         ace_png_visual.assert_page_png(

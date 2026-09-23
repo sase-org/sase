@@ -45,7 +45,7 @@ from .plans_rendering import (
     build_plans_status,
 )
 from .query_session import ArtifactQuerySession
-from .shell import build_reveal_chip
+from .shell import build_reveal_chip, build_reveal_chip_label
 from .types import ARTIFACTS_ACCENTS, ArtifactsPaneContract
 
 PLANS_PANE_ID_PREFIX = "ref:"
@@ -491,7 +491,7 @@ class PlansOptionsMixin(_MixinBase):
             text.append("\n")
             text.append_text(
                 build_reveal_chip(
-                    label=f"Revealed {reveal.ref}",
+                    label=build_reveal_chip_label(reveal.ref, reveal.label),
                     accent=self._accent(),
                     return_hint=key_display_name(self._registry.app.prev_query),
                 )

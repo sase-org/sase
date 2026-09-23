@@ -191,16 +191,16 @@ and selection. Returning through query history restores the exact previous query
 selection; the lens is derived from the live query, so it does not leave sticky state
 behind after the user moves on.
 
-`$` link-follow uses the same lens, but reaches it through a host-owned ordered ladder
-rather than a single rewrite: fold expansion, dropping the `limit:` head slice, an
-identity-field query, minimal widening, a neutral `limit:all`, and finally targeted
-hydration of a row the pane never loaded. See
-[The Reveal Ladder](ace.md#the-reveal-ladder) for the user-facing behavior.
+`$` link-follow uses the same lens, but reaches it through the host-owned jump engine
+rather than a single rewrite: fold expansion, targeted hydration of a row the pane never
+loaded, one verified context rewrite, then identity and neutral fallbacks. See
+[Link Jumps](ace.md#link-jumps) for the user-facing behavior, including the toast and
+the context query each artifact kind lands in.
 
 ## Identity field
 
 Every pane dialect may name one **identity field** — the filterable field an identity
-reveal rewrites through to name a single row. The fixed panes use `name` (Patches and
+fallback rewrites through to name a single row. The fixed panes use `name` (Patches and
 Agents), `id` (Beads and Files), `path` (Plans), and `sha` (Stitches).
 
 A provider does not declare its identity field. Every provider-derived dialect uses
@@ -208,7 +208,25 @@ A provider does not declare its identity field. Every provider-derived dialect u
 field automatically when `ref.properties` does not already declare one. The compiler
 rejects an identity field that is not a declared field or is not filterable, so a
 dialect can never advertise a reveal it cannot perform. A dialect with no usable
-identity value for a row simply skips that rung and falls through to widening.
+identity value for a row simply skips that fallback.
+
+## Context queries and project scope
+
+A pane opts into family-context reveals by implementing two navigator hooks:
+
+- `host_reveal_context(target) -> RevealContext | None` describes the target's natural
+  family as `(field, value)` alternatives OR'd together, plus extra ANDed constraint
+  tokens, a lens-chip label, an optional member count for the limit policy, and whether
+  to expand the target's fold after selecting it. The default is `None`, which means the
+  engine uses the identity fallback. The context query is verified against the target's
+  own row before it is committed, and the current `limit:` is kept — raised only to the
+  smallest multiple of the page size that fits the family.
+- `entry_target_project(target) -> str | None` answers which project owns the target:
+  `parts[0]` for panes whose identity leads with the project (Beads, Plans/providers,
+  Patches), the row's `project` from the unfiltered snapshot for Agents and Files, and
+  the repo's owning project (or `None` when unknown) for Stitches. An All-projects scope
+  is never narrowed; a specific scope that excludes the target switches to the target's
+  project, widening to All projects only when the project is unknown.
 
 ## Boundary
 

@@ -267,10 +267,14 @@ class LinkFollowTargetsMixin:
         return None
 
     def _notify_dangling_link_ref(self, ref: str) -> None:
+        from ._link_follow_toast import format_link_failure
+
         record_link_follow_outcome("dangling")
+        title, message, severity = format_link_failure("dangling", ref=ref)
         self.notify(  # type: ignore[attr-defined]
-            f"No such artifact: {ref}",
-            severity="warning",
+            message,
+            title=title,
+            severity=severity,
         )
 
     def _notify_missing_in_inventory(
@@ -278,9 +282,31 @@ class LinkFollowTargetsMixin:
         ref: str,
         target: ArtifactEntryTarget | None,
     ) -> None:
+        from ._link_follow_toast import format_link_failure
+
+        title, message, severity = format_link_failure(
+            "missing", ref=ref, pane_label=pane_label(target)
+        )
         self.notify(  # type: ignore[attr-defined]
-            f"{pane_label(target)} has no {ref} in its inventory",
-            severity="warning",
+            message,
+            title=title,
+            severity=severity,
+        )
+
+    def _notify_unconfigured_link_pane(
+        self,
+        ref: str,
+        target: ArtifactEntryTarget | None,
+    ) -> None:
+        from ._link_follow_toast import format_link_failure
+
+        title, message, severity = format_link_failure(
+            "unconfigured", ref=ref, pane_label=pane_label(target)
+        )
+        self.notify(  # type: ignore[attr-defined]
+            message,
+            title=title,
+            severity=severity,
         )
 
 

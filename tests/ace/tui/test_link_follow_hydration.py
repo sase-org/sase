@@ -239,7 +239,8 @@ async def test_hydration_exception_maps_to_failed() -> None:
     app._follow_link_number(1)
     await _await_hydration(app)
 
-    assert app.notifications == [("Failed to load Bead for bead:sase-ug.9", "error")]
+    assert app.notifications == [("Bead failed to load for bead:sase-ug.9.", "error")]
+    assert app.notification_details[0][2] == "Cannot load sase-ug.9"
     assert app._link_trail == []
     assert app._link_follow_transaction is None
 
@@ -265,7 +266,13 @@ async def test_hydration_absent_maps_to_dangling_message() -> None:
     app._follow_link_number(1)
     await _await_hydration(app)
 
-    assert app.notifications == [("No such artifact: bead:sase-ug.9", "warning")]
+    assert app.notifications == [
+        (
+            "No pane resolves bead:sase-ug.9; the link may be stale or mistyped.",
+            "warning",
+        )
+    ]
+    assert app.notification_details[0][2] == "No such artifact: sase-ug.9"
     assert app._link_trail == []
 
 
@@ -287,8 +294,9 @@ async def test_hydration_unsupported_falls_back_to_inventory_miss() -> None:
 
     assert beads_pane.hydrate_calls == [("bead", "sase-ug.9")]
     assert app.notifications == [
-        ("Bead has no bead:sase-ug.9 in its inventory", "warning")
+        ("Bead has no bead:sase-ug.9 in its inventory.", "warning")
     ]
+    assert app.notification_details[0][2] == "Not in Bead: sase-ug.9"
 
 
 def test_dangling_ref_never_attempts_hydration() -> None:
@@ -306,4 +314,7 @@ def test_dangling_ref_never_attempts_hydration() -> None:
     app._follow_link_number(1)
 
     assert beads_pane.hydrate_calls == []
-    assert app.notifications == [("No such artifact: bug:missing", "warning")]
+    assert app.notifications == [
+        ("No pane resolves bug:missing; the link may be stale or mistyped.", "warning")
+    ]
+    assert app.notification_details[0][2] == "No such artifact: missing"

@@ -52,7 +52,7 @@ from .group_fold_navigation import ArtifactGroupFoldMixin
 from .panes import ArtifactsPaneLifecycle
 from .query_session import ArtifactQuerySession
 from .relation_panel import RelationPanel, RelationPanelHostMixin
-from .shell import build_reveal_chip
+from .shell import build_reveal_chip, build_reveal_chip_label
 from .types import ARTIFACTS_ACCENTS
 
 STITCHES_DETAIL_DEBOUNCE_S = 0.25
@@ -272,7 +272,7 @@ class CommitsPane(
             text.append("\n")
             text.append_text(
                 build_reveal_chip(
-                    label=f"Revealed {reveal.ref}",
+                    label=build_reveal_chip_label(reveal.ref, reveal.label),
                     accent=self._accent(),
                     return_hint=key_display_name(self._registry.app.prev_query),
                 )

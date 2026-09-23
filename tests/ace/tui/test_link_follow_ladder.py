@@ -272,7 +272,10 @@ def test_dangling_ref_says_no_such_artifact() -> None:
 
     app._follow_link_number(1)
 
-    assert app.notifications == [("No such artifact: bug:missing", "warning")]
+    assert app.notifications == [
+        ("No pane resolves bug:missing; the link may be stale or mistyped.", "warning")
+    ]
+    assert app.notification_details[0][2] == "No such artifact: missing"
     assert app._link_trail == []
 
 

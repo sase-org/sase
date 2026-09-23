@@ -1,18 +1,19 @@
 """One-shot ``$`` link-follow navigation for the app-owned link graph.
 
-Missing-target follows walk a host-owned reveal ladder. Fold expansion
-runs before any query rewrite -- it is strictly cheaper and the phase's
-test invariant prefers it over a ``limit:`` drop -- then the head-slice
-drop, an identity-field query, minimal widening, and a blunt
-``limit:all`` neutral query. Every rewrite commits through the pane's
+Missing-target follows run one plan-then-commit engine: fold expansion
+(which mutates no query) first, then targeted hydration for rows the pane
+never loaded, then a single verified context rewrite, falling back to an
+identity-field query and finally a blunt ``limit:all`` neutral query
+(never for Stitches). The winning rewrite commits through the pane's
 host-query adapter so query history records exactly one ``^`` restore.
 
-When every rung misses, one final acquisition step -- targeted hydration
--- gets a row the pane never fetched at all (a deep-archive plan, a
-stitch outside the collection window, a capped provider snapshot)
-directly from its source, off the message pump, before falling back to
-the honest "not in this pane's inventory" toast. It fires at most once
-per transaction and never for a ref that failed to parse or route.
+Targeted hydration fetches a row the pane never loaded at all (a
+deep-archive plan, a stitch outside the collection window, a capped
+provider snapshot) directly from its source, off the message pump,
+before any rewrite. It fires at most once per transaction and never for
+a ref that failed to parse or route. When every step misses, one honest
+report lands instead -- a dangling ref, a load failure, or a row
+genuinely outside the pane's inventory.
 """
 
 from __future__ import annotations

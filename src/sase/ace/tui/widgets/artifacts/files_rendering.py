@@ -20,6 +20,7 @@ from .shell import (
     ArtifactsPaneState,
     build_footer_hints,
     build_reveal_chip,
+    build_reveal_chip_label,
     build_state_badge,
 )
 from .types import ARTIFACTS_ACCENTS
@@ -145,7 +146,7 @@ def _append_files_reveal_chip(
     text.append("\n")
     text.append_text(
         build_reveal_chip(
-            label=f"Revealed {reveal.ref}",
+            label=build_reveal_chip_label(reveal.ref, reveal.label),
             accent=accent,
             return_hint=key_display_name(registry.app.prev_query),
         )

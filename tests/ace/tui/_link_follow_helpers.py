@@ -323,6 +323,7 @@ class _App(LinkFollowMixin, ArtifactsQueryHistoryActionsMixin):
         self._agents_last_idx = 0
         self._agents_last_identity = None
         self.notifications: list[tuple[str, str | None]] = []
+        self.notification_details: list[tuple[str, str | None, str, object]] = []
         self.pushed_screens: list[object] = []
         self.screen_callbacks: list[object] = []
         self.artifact_link_marked = 0
@@ -381,8 +382,28 @@ class _App(LinkFollowMixin, ArtifactsQueryHistoryActionsMixin):
             return self._agents[self.current_idx]
         return None
 
-    def notify(self, message: str, *, severity: str | None = None) -> None:
+    def notify(
+        self,
+        message: str,
+        *,
+        severity: str | None = None,
+        title: str = "",
+        timeout: object = None,
+    ) -> None:
         self.notifications.append((message, severity))
+        self.notification_details.append((message, severity, title, timeout))
+
+    @property
+    def _keymap_registry(self) -> object:
+        """Live-like keymap registry so toast key wiring is exercised."""
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            app=SimpleNamespace(
+                prev_query="circumflex_accent",
+                jump_to_entry_fast="ctrl+o",
+            )
+        )
 
     def push_screen(self, screen: object, callback: object | None = None) -> None:
         self.pushed_screens.append(screen)

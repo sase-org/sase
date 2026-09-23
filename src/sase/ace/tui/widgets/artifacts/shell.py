@@ -22,6 +22,7 @@ from rich.console import Console
 from rich.text import Text
 
 from ...artifacts_description import ARTIFACTS_BRIEF_MAX_LINES, ArtifactsDescriptionMode
+from ...relations.link_keys import short_ref_label
 from .types import ArtifactsPaneContract
 
 _LOADING_BADGE_STYLE = "bold #FFD700"
@@ -119,6 +120,19 @@ def build_shell_scope(
         text.append(_SEPARATOR, style="dim")
         text.append(change_hint, style="dim")
     return text
+
+
+def build_reveal_chip_label(ref: str, context_label: str | None) -> str:
+    """Return the lens-chip label for *ref* with an optional context label.
+
+    ``bead:sase-16n.7`` revealed through its epic reads
+    ``sase-16n.7 · epic sase-16n``; a fallback rewrite with no context
+    label reads just the short ref.
+    """
+    short = short_ref_label(ref)
+    if context_label:
+        return f"{short} · {context_label}"
+    return short
 
 
 def build_reveal_chip(
@@ -363,6 +377,7 @@ __all__ = [
     "build_footer_hints",
     "build_pane_brief",
     "build_reveal_chip",
+    "build_reveal_chip_label",
     "build_shell_scope",
     "build_state_badge",
     "resolve_pane_state",
