@@ -27,6 +27,8 @@ from .files_list import FileRow, file_row_target
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
+
+    from sase.ace.link_reveal_context import RevealContext
 else:
     _MixinBase = ArtifactEntryNavigator
 
@@ -271,6 +273,51 @@ class FilesNavigationMixin(_MixinBase):
                     project_ref_display=self._project_ref_display,
                 )
         return None
+
+    def host_reveal_context(self, target: ArtifactEntryTarget) -> RevealContext | None:
+        """Return the creating-agent context query for *target*.
+
+        Files land on ``agent:<creating agent>`` (the earliest version's
+        agent) with ``member_count`` from one pass over the unfiltered
+        snapshot, or on ``id:<logical id>`` when no creating agent is
+        known.
+        """
+        from sase.ace.link_reveal_context import RevealContext
+
+        if target.pane_id != "files" or not target.parts:
+            return None
+        snapshot = self._current_snapshot()  # type: ignore[attr-defined]
+        if snapshot is None:
+            return None
+        logical_id = target.parts[0]
+        row = next(
+            (
+                candidate
+                for candidate in snapshot.rows
+                if candidate.logical_id == logical_id
+            ),
+            None,
+        )
+        if row is None:
+            return None
+        if row.agents:
+            creating = row.agents[0]
+            creating_key = creating.casefold()
+            count = sum(
+                1
+                for candidate in snapshot.rows
+                if any(agent.casefold() == creating_key for agent in candidate.agents)
+            )
+            return RevealContext(
+                alternatives=(("agent", creating),),
+                label=f"files from {creating}",
+                member_count=count or 1,
+            )
+        return RevealContext(
+            alternatives=(("id", logical_id),),
+            label=f"file {logical_id}",
+            member_count=1,
+        )
 
     def hydrate_ref(self, kind: str, payload: str) -> HydrationResult:
         """Resolve one file directly by exact logical id, off the UI thread."""

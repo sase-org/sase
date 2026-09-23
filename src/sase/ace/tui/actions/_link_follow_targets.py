@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
-from typing import Any
+import logging
+from typing import TYPE_CHECKING, Any
 
 from sase.core.artifact_entry_target import ArtifactEntryTarget
+
+if TYPE_CHECKING:
+    from ..models.agent import AgentType
 
 from ..relations.artifact_links import parse_link_ref, target_for_ref_kind
 from ..tab_order import ARTIFACTS_TAB
@@ -17,6 +21,8 @@ from ._link_follow_helpers import (
 from ._link_follow_types import LinkTrailHop, record_link_follow_outcome
 from .axe_display._loader_items import selected_axe_item_key
 
+log = logging.getLogger(__name__)
+
 
 class LinkFollowTargetsMixin:
     """Resolve destinations and select loaded target rows."""
@@ -25,12 +31,19 @@ class LinkFollowTargetsMixin:
     current_idx: int
     _link_follow_dispatching: bool
     _link_follow_dispatch_slot: tuple[int, LinkRequestState] | None
+    _link_follow_agents_tab_filtered: bool
+    _agents_last_idx: int
+    _agents_last_identity: tuple[AgentType, str, str | None] | None
+    _current_group_key: tuple[str, ...] | None
+    _expanded_panel_focus: bool
 
     def _follow_artifacts_target(
         self,
         ref: str,
         chip_target: ArtifactEntryTarget,
         origin: LinkTrailHop,
+        *,
+        agents_tab_fallback: bool = False,
     ) -> None:
         """Resolve and dispatch one artifacts-pane follow to completion.
 
@@ -54,6 +67,7 @@ class LinkFollowTargetsMixin:
             target,
             origin,
             scope_change=scope_change,
+            agents_tab_fallback=agents_tab_fallback,
         )
         state = self._request_artifacts_target(target, generation=generation)
         handle = self._handle_link_follow_outcome  # type: ignore[attr-defined]
@@ -189,13 +203,93 @@ class LinkFollowTargetsMixin:
         return state
 
     def _follow_loaded_agent(self, payload: str) -> bool:
+        """Reveal one loaded Agents-tab row in place for an ``agent:`` ref.
+
+        Searches the full loaded agent set (``_agents_with_children``),
+        not just the visible rows, and reveals through the shared
+        prepare/reveal contract so collapsed folds, group banners, and
+        panels open around the target. A row the Agents-tab filter hides
+        (``TARGET_FILTERED``) is not revealed here: this returns
+        ``False`` with ``_link_follow_agents_tab_filtered`` set so the
+        caller falls through to the Artifacts ▸ Agent jump and reports
+        the fallback on its outcome. When the reveal machinery itself
+        is unavailable, a directly visible row still selects the legacy
+        way rather than failing the follow.
+        """
+        self._link_follow_agents_tab_filtered = False
+        complete = list(
+            getattr(self, "_agents_with_children", None)
+            or getattr(self, "_agents", None)
+            or ()
+        )
+        match = next(
+            (agent for agent in complete if agent_matches_ref(agent, payload)),
+            None,
+        )
+        if match is None:
+            return False
+        if self._reveal_loaded_agent(match):
+            return True
+        return self._select_visible_loaded_agent(payload)
+
+    def _reveal_loaded_agent(self, match: Any) -> bool:
+        """Reveal *match* on the Agents tab; ``False`` falls through."""
+        from .navigation._agent_reveal import (
+            AgentRevealFailure,
+            prepare_agent_navigation_target,
+            reveal_agent_navigation_target,
+        )
+
+        try:
+            plan, _failure = prepare_agent_navigation_target(
+                self,
+                match.identity,
+                require_current=False,
+            )
+        except Exception:  # noqa: BLE001 - degrade to the visible select below
+            log.debug("agents-tab link reveal unavailable", exc_info=True)
+            return False
+        if plan is None:
+            return False
+        try:
+            outcome = reveal_agent_navigation_target(self, plan)
+        except Exception:  # noqa: BLE001 - degrade to the visible select below
+            log.debug("agents-tab link reveal unavailable", exc_info=True)
+            return False
+        result = outcome.result
+        if result is None:
+            self._link_follow_agents_tab_filtered = (
+                outcome.failure is AgentRevealFailure.TARGET_FILTERED
+            )
+            return False
+        self._save_current_tab_position()  # type: ignore[attr-defined]
+        self.current_tab = "agents"
+        panel_group = getattr(self, "_panel_group", None)
+        if panel_group is not None:
+            panel_group.focused_idx = result.panel_idx
+        self._current_group_key = None
+        self._expanded_panel_focus = False
+        self.current_idx = result.target_idx
+        self._agents_last_idx = result.target_idx
+        self._agents_last_identity = result.target_identity
+        self._refresh_current_tab()  # type: ignore[attr-defined]
+        self.refresh_link_rail()  # type: ignore[attr-defined]
+        return True
+
+    def _select_visible_loaded_agent(self, payload: str) -> bool:
+        """Select a directly visible Agents-tab row for an ``agent:`` ref.
+
+        Legacy path for harnesses without the reveal machinery: it only
+        ever matches rows the tab is already showing, so a filtered-out
+        row still falls through to Artifacts ▸ Agent.
+        """
         agents = getattr(self, "_agents", ())
         for idx, agent in enumerate(agents):
             if agent_matches_ref(agent, payload):
                 self._save_current_tab_position()  # type: ignore[attr-defined]
                 self.current_tab = "agents"
                 self.current_idx = idx
-                self._agents_last_idx = idx  # type: ignore[attr-defined]
+                self._agents_last_idx = idx
                 self._agents_last_identity = agent.identity
                 self._refresh_current_tab()  # type: ignore[attr-defined]
                 self.refresh_link_rail()  # type: ignore[attr-defined]

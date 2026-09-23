@@ -63,6 +63,9 @@ class LinkFollowTransaction:
     into a loading pane, and ``scope_change`` records an
     ``(old_scope, new_scope)`` project-scope switch made at dispatch so
     later phases can report it -- ``None`` means the scope was untouched.
+    ``agents_tab_fallback`` marks an ``agent:`` jump the Agents tab
+    could not show (its filter hid the row), so the toast can say the
+    landing is Artifacts ▸ Agent instead.
     """
 
     generation: int
@@ -76,6 +79,7 @@ class LinkFollowTransaction:
     reresolved: bool = False
     load_rerequested: bool = False
     scope_change: tuple[str | None, str | None] | None = None
+    agents_tab_fallback: bool = False
 
 
 __all__ = [

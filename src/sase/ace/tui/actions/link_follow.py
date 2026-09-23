@@ -232,6 +232,7 @@ class LinkFollowMixin(
     _link_follow_transaction: LinkFollowTransaction | None
     _link_follow_dispatching: bool
     _link_follow_dispatch_slot: tuple[int, LinkRequestState] | None
+    _link_follow_agents_tab_filtered: bool
     _link_reveals: dict[str, LinkReveal]
     _link_hydration_waiters: dict[tuple[str, str], int]
     _link_hydration_in_flight: set[tuple[str, str]]
@@ -313,16 +314,27 @@ class LinkFollowMixin(
                         )
                     )
                 return
-            if kind == "agent" and self._follow_loaded_agent(payload):
-                self._record_link_trail(origin)
-                return
+            agents_tab_fallback = False
+            if kind == "agent":
+                if self._follow_loaded_agent(payload):
+                    self._record_link_trail(origin)
+                    return
+                agents_tab_fallback = bool(
+                    getattr(self, "_link_follow_agents_tab_filtered", False)
+                )
+                self._link_follow_agents_tab_filtered = False
             target = chip.neighbor_target
             if target is None:
                 target = target_for_ref_kind(kind, payload, project_hint=None)
                 if target is None:
                     self._notify_dangling_link_ref(chip.neighbor_ref)
                     return
-            self._follow_artifacts_target(chip.neighbor_ref, target, origin)
+            self._follow_artifacts_target(
+                chip.neighbor_ref,
+                target,
+                origin,
+                agents_tab_fallback=agents_tab_fallback,
+            )
         finally:
             self._link_trail_guard = False
 

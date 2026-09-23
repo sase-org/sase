@@ -61,6 +61,7 @@ class LinkFollowTransactionMixin:
         origin: LinkTrailHop,
         *,
         scope_change: tuple[str | None, str | None] | None = None,
+        agents_tab_fallback: bool = False,
     ) -> int:
         self._link_follow_generation += 1
         generation = self._link_follow_generation
@@ -77,6 +78,7 @@ class LinkFollowTransactionMixin:
             origin_query=origin_query,
             origin_target=origin_target,
             scope_change=scope_change,
+            agents_tab_fallback=agents_tab_fallback,
         )
         return generation
 
@@ -465,6 +467,7 @@ class LinkFollowTransactionMixin:
             scope_change=transaction.scope_change,
             context_label=label,
             hydrated=transaction.hydrated,
+            agents_tab_fallback=transaction.agents_tab_fallback,
             outcome=selected_follow_outcome(transaction.rung),
         )
 

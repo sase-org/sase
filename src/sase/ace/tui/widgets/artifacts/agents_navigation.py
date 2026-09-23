@@ -10,6 +10,7 @@ from textual.widgets import OptionList
 from textual.widgets.option_list import Option
 
 from sase.agents.catalog import AgentCatalogRow
+from sase.agents.catalog._family import family_and_role
 
 from .agents_data import AgentsSnapshot
 from .agents_list import AgentRow, agent_row_target
@@ -25,8 +26,38 @@ from .entry_navigation import (
 
 if TYPE_CHECKING:
     from textual.containers import Vertical as _MixinBase
+
+    from sase.ace.link_reveal_context import RevealContext
 else:
     _MixinBase = ArtifactEntryNavigator
+
+
+def _catalog_hood(name: str) -> str | None:
+    """Return the immediate dotted namespace of a catalog row *name*.
+
+    Mirrors :func:`sase.ace.tui.models.agent_hoods.agent_hood` (which keys
+    on the live Agents-tab model): the hood is everything before the last
+    ``.``, and a name with an empty segment has no hood. Case is
+    preserved for query text; callers compare case-insensitively.
+    """
+    hood, sep, last = name.rpartition(".")
+    if not sep or not hood or not last:
+        return None
+    if any(not part for part in name.split(".")):
+        return None
+    return hood
+
+
+def _effective_family(row: AgentCatalogRow) -> str | None:
+    """Return the ``family:`` value the query index carries for *row*."""
+    family, _role = family_and_role(row.name)
+    if family is not None:
+        return family
+    if row.family is not None:
+        return row.family
+    if "family" in row.kind:
+        return row.name
+    return None
 
 
 class AgentsOptionList(OptionList):
@@ -273,6 +304,88 @@ class AgentsNavigationMixin(_MixinBase):
                     link_facets=snapshot.link_facets,
                 )
         return None
+
+    def host_reveal_context(self, target: ArtifactEntryTarget) -> RevealContext | None:
+        """Return the Agent hood/family context query for *target*.
+
+        Hood members land on ``name:<hood>.*`` (plus ``OR name:<hood>``
+        when the hood root itself is a catalog row), family shells on
+        ``family:<family>``, a hood root with members on both its own
+        name and the hood glob, and a lone agent on its own name.
+        ``member_count`` comes from one pass over the unfiltered
+        snapshot so the limit policy can raise a cutting ``limit:``.
+        """
+        from sase.ace.link_reveal_context import RevealContext
+
+        if target.pane_id != "agents" or not target.parts:
+            return None
+        snapshot = self._current_snapshot()  # type: ignore[attr-defined]
+        if snapshot is None:
+            return None
+        name = target.parts[0]
+        key = name.casefold()
+        row = next(
+            (
+                candidate
+                for candidate in snapshot.rows
+                if candidate.name.casefold() == key
+            ),
+            None,
+        )
+        if row is None:
+            return None
+        family = _effective_family(row)
+        if family is None:
+            family, _role = family_and_role(name)
+        if family is not None:
+            count = sum(
+                1
+                for candidate in snapshot.rows
+                if _effective_family(candidate) == family
+            )
+            return RevealContext(
+                alternatives=(("family", family),),
+                label=f"family {family}",
+                member_count=count or 1,
+            )
+        hood = _catalog_hood(name)
+        if hood is None:
+            members = [
+                candidate
+                for candidate in snapshot.rows
+                if (_catalog_hood(candidate.name) or "").casefold() == key
+            ]
+            if not members:
+                return RevealContext(
+                    alternatives=(("name", name),),
+                    label=f"agent {name}",
+                    member_count=1,
+                )
+            return RevealContext(
+                alternatives=(("name", name), ("name", f"{name}.*")),
+                label=f"{name} hood",
+                member_count=1 + len(members),
+            )
+        hood_key = hood.casefold()
+        members = [
+            candidate
+            for candidate in snapshot.rows
+            if (_catalog_hood(candidate.name) or "").casefold() == hood_key
+        ]
+        root_exists = any(
+            candidate.name.casefold() == hood_key for candidate in snapshot.rows
+        )
+        if root_exists:
+            return RevealContext(
+                alternatives=(("name", hood), ("name", f"{hood}.*")),
+                label=f"{hood} hood",
+                member_count=len(members) + 1,
+            )
+        return RevealContext(
+            alternatives=(("name", f"{hood}.*"),),
+            label=f"{hood} hood",
+            member_count=len(members) or 1,
+        )
 
     def hydrate_ref(self, kind: str, payload: str) -> HydrationResult:
         """Resolve one agent directly from the persistent name registry.
