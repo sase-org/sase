@@ -84,6 +84,7 @@ class AgentLLMCallsPanel(Static):
         super().__init__(**kwargs)
         self._current_agent: Agent | None = None
         self._current_worker: Worker[LLMCallsPanelFetchResult] | None = None
+        self._current_worker_subject: object | None = None
         self._has_displayed_content: bool = False
         self._last_entries: tuple[ToolCallEntry, ...] | None = None
         self._last_rows: tuple[ToolTimelineRow, ...] | None = None
@@ -163,6 +164,10 @@ class AgentLLMCallsPanel(Static):
         else:
             self._show_loading()
 
+        self._start_background_fetch(agent)
+
+    def _start_background_fetch(self, agent: Agent) -> None:
+        """Start a worker fetch for *agent* unless one is already running."""
         if should_throttle_tool_sources(agent):
             return
 
@@ -175,6 +180,7 @@ class AgentLLMCallsPanel(Static):
             return self._fetch_llm_calls_result_in_background(agent)
 
         self._current_worker = self.run_worker(fetch_task, thread=True)
+        self._current_worker_subject = agent.identity
 
     def refresh_llm_calls(self, agent: Agent) -> None:
         """Force refresh tool-call records for an agent."""
@@ -200,6 +206,7 @@ class AgentLLMCallsPanel(Static):
             return self._fetch_llm_calls_result_in_background(agent)
 
         self._current_worker = self.run_worker(fetch_task, thread=True)
+        self._current_worker_subject = agent.identity
 
     def get_llm_calls_text(self) -> str | None:
         """Return a markdown/plain text timeline for editor actions."""
@@ -302,6 +309,7 @@ class AgentLLMCallsPanel(Static):
                 entries=None if rows is None else tuple(row.entry for row in rows),
                 rows=rows,
                 fetch_time=fetch_time,
+                subject_identity=agent.identity,
             )
 
         cache_entry = peek_tool_calls_cache_entry(agent)
@@ -311,6 +319,7 @@ class AgentLLMCallsPanel(Static):
             entries=cache_entry.entries,
             rows=rows_from_entries(cache_entry.entries),
             fetch_time=cache_entry.fetch_time,
+            subject_identity=agent.identity,
         )
 
     def _fetch_llm_calls_result_in_background(
@@ -323,6 +332,7 @@ class AgentLLMCallsPanel(Static):
                 entries=None if rows is None else tuple(row.entry for row in rows),
                 rows=rows,
                 fetch_time=latest_cached_fetch_time(agent) or local_now(),
+                subject_identity=agent.identity,
             )
 
         entries = self._fetch_tool_calls_in_background(agent)
@@ -333,12 +343,41 @@ class AgentLLMCallsPanel(Static):
             fetch_time=(
                 cache_entry.fetch_time if cache_entry is not None else local_now()
             ),
+            subject_identity=agent.identity,
         )
 
     def _fetch_tool_calls_in_background(
         self, agent: Agent
     ) -> tuple[ToolCallEntry, ...] | None:
         return fetch_tool_calls_cached(agent)
+
+    def _is_stale_result(self, result: LLMCallsPanelFetchResult) -> bool:
+        """Check whether *result* belongs to a no-longer-current agent."""
+        current = self._current_agent
+        if current is None:
+            return True
+        subject = result.subject_identity
+        if subject is None:
+            subject = self._current_worker_subject
+        if subject is None:
+            return False
+        return subject != current.identity
+
+    def _is_stale_worker(self) -> bool:
+        """Check whether the current worker fetched for a previous agent."""
+        current = self._current_agent
+        if current is None:
+            return True
+        subject = self._current_worker_subject
+        if subject is None:
+            return False
+        return subject != current.identity
+
+    def _drop_stale_result_and_refetch(self) -> None:
+        """Discard a stale worker result and fetch for the current agent."""
+        current = self._current_agent
+        if current is not None:
+            self._start_background_fetch(current)
 
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Handle worker state changes."""
@@ -349,6 +388,9 @@ class AgentLLMCallsPanel(Static):
 
         if event.state == WorkerState.SUCCESS:
             result = cast(LLMCallsPanelFetchResult, event.worker.result)
+            if self._is_stale_result(result):
+                self._drop_stale_result_and_refetch()
+                return
             scroll_pos = self._save_scroll_position()
             self._display_llm_calls_result(
                 result,
@@ -356,6 +398,9 @@ class AgentLLMCallsPanel(Static):
             )
             self._restore_scroll_position(scroll_pos)
         elif event.state == WorkerState.ERROR:
+            if self._is_stale_worker():
+                self._drop_stale_result_and_refetch()
+                return
             text = Text()
             text.append("Error fetching tool calls\n", style="bold red")
             text.append("Failed to read tool-call artifacts.", style="dim")

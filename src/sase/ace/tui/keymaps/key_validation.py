@@ -27,6 +27,8 @@ _KEY_DISPLAY: dict[str, str] = {
     "apostrophe": "'",
     "grave_accent": "`",
     "slash": "/",
+    "backslash": "\\",
+    "vertical_line": "|",
     "asterisk": "*",
     "at": "@",
     "plus": "+",
@@ -73,6 +75,10 @@ _KEY_ALIASES: dict[str, str] = {
     "$": "dollar_sign",
     # Textual normalizes the printable ``_`` key to the name ``underscore``.
     "_": "underscore",
+    # Textual normalizes the printable ``\`` and ``|`` split keys to names;
+    # accept the raw glyphs as friendly config spellings for them.
+    "\\": "backslash",
+    "|": "vertical_line",
 }
 
 

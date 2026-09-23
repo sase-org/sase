@@ -6,7 +6,9 @@ import pytest
 
 from sase.ace.tui.keymaps import (
     canonicalize_key_binding,
+    footer_key_display,
     is_valid_key,
+    key_display_name,
     load_keymap_registry,
 )
 
@@ -515,3 +517,31 @@ def test_custom_mode_prefix_conflicts_with_compound_app_key(
             }
         )
     assert any("prefix 'semicolon' conflicts" in r.message for r in caplog.records)
+
+
+def test_split_keys_validate_and_display() -> None:
+    """The deck-split keys are valid by name and raw glyph, and show glyphs."""
+    assert is_valid_key("backslash")
+    assert is_valid_key("vertical_line")
+    assert is_valid_key("\\")
+    assert is_valid_key("|")
+    assert key_display_name("backslash") == "\\"
+    assert key_display_name("vertical_line") == "|"
+    assert footer_key_display("backslash") == "\\"
+    assert footer_key_display("vertical_line") == "|"
+
+
+def test_split_key_glyphs_canonicalize_to_key_names() -> None:
+    """Raw ``\\`` and ``|`` spellings normalize to Textual's key names."""
+    assert canonicalize_key_binding("\\") == "backslash"
+    assert canonicalize_key_binding("|") == "vertical_line"
+    assert canonicalize_key_binding("backslash") == "backslash"
+    assert canonicalize_key_binding("vertical_line") == "vertical_line"
+
+
+def test_curly_bracket_keys_validate_and_display() -> None:
+    """The split-ratio keys validate by name and show real glyphs."""
+    assert is_valid_key("left_curly_bracket")
+    assert is_valid_key("right_curly_bracket")
+    assert key_display_name("left_curly_bracket") == "{"
+    assert key_display_name("right_curly_bracket") == "}"

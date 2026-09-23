@@ -28,6 +28,7 @@ def _build_panel() -> AgentLLMCallsPanel:
     panel = AgentLLMCallsPanel.__new__(AgentLLMCallsPanel)
     panel._current_agent = None
     panel._current_worker = None
+    panel._current_worker_subject = None
     panel._has_displayed_content = True
     panel._last_entries = None
     panel._last_rows = None

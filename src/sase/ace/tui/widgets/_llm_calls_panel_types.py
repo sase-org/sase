@@ -36,6 +36,7 @@ class LLMCallsPanelFetchResult:
     entries: tuple[ToolCallEntry, ...] | None
     rows: tuple[ToolTimelineRow, ...] | None
     fetch_time: datetime
+    subject_identity: object | None = None
 
 
 def coerce_detail_level(level: ToolDetailLevel | int) -> ToolDetailLevel:
