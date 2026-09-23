@@ -26,12 +26,16 @@ from sase.ace.tui.widgets.prompt_panel._agent_display_state import HeaderHintSta
 from sase.ace.tui.widgets.prompt_panel._agent_display_tribe import (
     build_tribe_detail_text,
 )
-from sase.ace.tui.widgets.prompt_panel._identity_header import find_member_jump_map
+from sase.ace.tui.widgets.prompt_panel._identity_header import (
+    find_member_jump_map,
+    find_member_roster,
+)
 from sase.ace.tui.widgets.prompt_panel._member_roster import (
     MemberJumpMap,
     MemberJumpNumbering,
     MemberRosterEntry,
     append_member_roster,
+    detached_roster_text,
     member_status_style,
     merged_member_jump_map,
 )
@@ -119,8 +123,8 @@ def test_targets_carry_labels_and_buckets_with_section() -> None:
     assert section.title == "CLAN MEMBERS"
     assert section.accent == "#D75FFF"
     assert section.numbered_count == 3
-    assert section.hidden_count == 0
-    assert section.hidden_hint == ""
+    assert not hasattr(section, "hidden_count")
+    assert not hasattr(section, "hidden_hint")
     assert sum(s.numbered_count for s in jump_map.sections) == len(jump_map.targets)
 
 
@@ -136,19 +140,17 @@ def test_capacity_spent_section_reports_tail() -> None:
     assert [target.number for target in jump_map.targets] == ["0", "1", "2"]
     (section,) = jump_map.sections
     assert section.numbered_count == 0 + 3
-    assert section.hidden_count == 5
-    assert section.hidden_hint == "… +5 more members (zz / za to show more)"
     assert "… +5 more members (zz / za to show more)" in text.plain
     assert sum(s.numbered_count for s in jump_map.sections) == len(jump_map.targets)
 
 
 def test_fold_limit_tail_hint() -> None:
     entries = tuple(_entry(index) for index in range(10))
-    _text, jump_map = _render(entries, entry_limit=3)
+    text, jump_map = _render(entries, entry_limit=3)
     assert len(jump_map.targets) == 3
     (section,) = jump_map.sections
-    assert section.hidden_count == 7
-    assert section.hidden_hint == "… +7 more members (zz / za to show more)"
+    assert section.numbered_count == 3
+    assert "… +7 more members (zz / za to show more)" in text.plain
 
 
 def test_merged_map_concatenates_sections_in_order() -> None:
@@ -381,21 +383,271 @@ def test_non_detached_documents_carry_no_map(tmp_path: Path) -> None:
     assert find_member_jump_map(build_tribe_detail_text(snapshot)) is None
 
 
+def _assert_no_roster_in_body(body_plain: str) -> None:
+    for token in (
+        "❖ FAMILY SHELLS",
+        "❖ NEIGHBORS",
+        "❖ CLAN MEMBERS",
+        "❖ TRIBE MEMBERS",
+    ):
+        assert token not in body_plain
+    # Numbered roster rows carry a chip like ` 0 ` with surrounding spaces.
+    for line in body_plain.splitlines():
+        assert "bold black on" not in line
+
+
+def test_detached_roster_text_trims_blank_lines() -> None:
+    sample = Text("\n\ncontent\nline\n\n")
+    sample.append("styled", style="bold")
+    trimmed = detached_roster_text(sample)
+    assert trimmed is not None
+    assert not trimmed.plain.startswith("\n")
+    assert not trimmed.plain.endswith("\n")
+    assert "content" in trimmed.plain
+    assert detached_roster_text(Text("\n\n   \n")) is None
+
+
+def test_detached_documents_move_rosters_out_of_body(tmp_path: Path) -> None:
+    from sase.ace.tui.models._agent_tree import project_clan_tree
+
+    root, child = make_family(tmp_path)
+    # Family container.
+    container_doc, _ = build_header_text(
+        root,
+        cheap=True,
+        lane_fold_level=FoldLevel.COLLAPSED,
+        detach_identity=True,
+    )
+    assert isinstance(container_doc, AgentHeaderRenderable)
+    _assert_no_roster_in_body(container_doc.plain)
+    container_roster = find_member_roster(container_doc)
+    assert container_roster is not None
+    assert "❖ FAMILY SHELLS" in container_roster.plain
+    assert not container_roster.plain.startswith("\n")
+    assert not container_roster.plain.endswith("\n")
+
+    # Family member shell.
+    shell_doc, _ = build_header_text(
+        child,
+        cheap=True,
+        lane_fold_level=FoldLevel.COLLAPSED,
+        detach_identity=True,
+    )
+    assert isinstance(shell_doc, AgentHeaderRenderable)
+    _assert_no_roster_in_body(shell_doc.plain)
+    shell_roster = find_member_roster(shell_doc)
+    assert shell_roster is not None
+    assert "❖ FAMILY SHELLS" in shell_roster.plain
+
+    # Agent with neighbors, including dismissed and suppressed-sibling tail.
+    lane = make_agent(agent_name="lane")
+    projection = _neighbor_projection(lane)
+    from sase.ace.tui.models.sase_agent_neighbors import (
+        SaseAgentNeighborProjection,
+    )
+
+    suppressed = SaseAgentNeighborProjection(
+        lane_identity=projection.lane_identity,
+        rows=projection.rows,
+        suppressed_lane_member_count=2,
+    )
+    neighbor_doc, _ = build_header_text(
+        lane,
+        cheap=True,
+        lane_fold_level=FoldLevel.FULLY_EXPANDED,
+        lane_neighbors=suppressed,
+        detach_identity=True,
+    )
+    assert isinstance(neighbor_doc, AgentHeaderRenderable)
+    _assert_no_roster_in_body(neighbor_doc.plain)
+    neighbor_roster = find_member_roster(neighbor_doc)
+    assert neighbor_roster is not None
+    assert "❖ NEIGHBORS" in neighbor_roster.plain
+    assert "⊘" in neighbor_roster.plain
+    assert "also listed under FAMILY SHELLS" in neighbor_roster.plain
+
+    collapsed_doc, _ = build_header_text(
+        lane,
+        cheap=True,
+        lane_fold_level=FoldLevel.COLLAPSED,
+        lane_neighbors=projection,
+        detach_identity=True,
+    )
+    assert isinstance(collapsed_doc, AgentHeaderRenderable)
+    collapsed_roster = find_member_roster(collapsed_doc)
+    assert collapsed_roster is not None
+    assert "zz to show more" in collapsed_roster.plain
+
+    # Clan.
+    members = [
+        make_clan_agent(
+            "research.first",
+            status="DONE",
+            start=datetime(2026, 7, 17, 12, 0, 0),
+            stop=datetime(2026, 7, 17, 12, 2, 0),
+        ),
+    ]
+    container = project_clan_tree(members)[0]
+    clan_doc = build_clan_detail_text(
+        container, fold_level=FoldLevel.COLLAPSED, detach_identity=True
+    )
+    assert isinstance(clan_doc, AgentHeaderRenderable)
+    _assert_no_roster_in_body(clan_doc.plain)
+    clan_roster = find_member_roster(clan_doc)
+    assert clan_roster is not None
+    assert "❖ CLAN MEMBERS" in clan_roster.plain
+
+    # Full tribe.
+    snapshot = make_tribe_snapshot()
+    tribe_doc = build_tribe_detail_text(snapshot, detach_identity=True)
+    assert isinstance(tribe_doc, AgentHeaderRenderable)
+    _assert_no_roster_in_body(tribe_doc.plain)
+    tribe_roster = find_member_roster(tribe_doc)
+    assert tribe_roster is not None
+    assert "❖ TRIBE MEMBERS" in tribe_roster.plain
+
+    # Chip spans survive the detach.
+    assert any("bold black on" in str(span.style) for span in tribe_roster.spans)
+
+
+def test_detached_roster_matches_inline_document(tmp_path: Path) -> None:
+    from sase.ace.tui.models._agent_tree import project_clan_tree
+
+    root, _child = make_family(tmp_path)
+    inline, _ = build_header_text(root, cheap=True, lane_fold_level=FoldLevel.COLLAPSED)
+    detached, _ = build_header_text(
+        root,
+        cheap=True,
+        lane_fold_level=FoldLevel.COLLAPSED,
+        detach_identity=True,
+    )
+    assert isinstance(detached, AgentHeaderRenderable)
+    roster = find_member_roster(detached)
+    assert roster is not None
+    assert roster.plain in inline.plain
+
+    members = [
+        make_clan_agent(
+            "research.first",
+            status="DONE",
+            start=datetime(2026, 7, 17, 12, 0, 0),
+            stop=datetime(2026, 7, 17, 12, 2, 0),
+        ),
+    ]
+    container = project_clan_tree(members)[0]
+    inline_clan = build_clan_detail_text(container, fold_level=FoldLevel.COLLAPSED)
+    detached_clan = build_clan_detail_text(
+        container, fold_level=FoldLevel.COLLAPSED, detach_identity=True
+    )
+    assert isinstance(detached_clan, AgentHeaderRenderable)
+    clan_roster = find_member_roster(detached_clan)
+    assert clan_roster is not None
+    assert clan_roster.plain in inline_clan.plain
+
+
+def test_hint_mode_carries_no_map_or_roster(tmp_path: Path) -> None:
+    root, _child = make_family(tmp_path)
+    state = HeaderHintState(1, {}, None, {})
+    hint_document, _ = build_header_text(
+        root,
+        hint_state=state,
+        lane_fold_level=FoldLevel.COLLAPSED,
+        detach_identity=True,
+    )
+    assert find_member_jump_map(hint_document) is None
+    assert find_member_roster(hint_document) is None
+    assert isinstance(hint_document, AgentHeaderRenderable)
+    _assert_no_roster_in_body(hint_document.plain)
+
+
+def test_tribe_cheap_carries_no_roster() -> None:
+    snapshot = make_tribe_snapshot()
+    cheap_document = build_tribe_detail_text(snapshot, cheap=True, detach_identity=True)
+    assert find_member_jump_map(cheap_document) is None
+    assert find_member_roster(cheap_document) is None
+
+
 async def test_panel_sink_receives_jump_map_before_digest_return() -> None:
     app = _MetadataNavigationApp()
     async with app.run_test(size=(60, 20)):
         panel = app.query_one("#agent-prompt-panel", AgentPromptPanel)
-        received: list[MemberJumpMap | None] = []
-        panel.attach_member_jump_map_sink(received.append)
+        received: list[tuple[MemberJumpMap | None, Text | None]] = []
+        panel.attach_member_jump_map_sink(
+            lambda jump_map, roster: received.append((jump_map, roster))
+        )
 
         agent = make_agent(agent_name="solo")
         plain, _ = build_header_text(agent, cheap=True, detach_identity=True)
         panel.update(plain)
         assert len(received) == 1
-        assert received[0] is None
+        assert received[0] == (None, None)
 
         panel.update(plain)
         assert len(received) == 2
-        assert received[1] is None
+        assert received[1] == (None, None)
+
+        panel.attach_member_jump_map_sink(None)
+
+
+async def test_panel_sink_receives_roster_and_repaints_on_roster_only_change() -> None:
+    lane = make_agent(agent_name="lane")
+    projection = _neighbor_projection(lane)
+    assert projection.rows
+    first_document, _ = build_header_text(
+        lane,
+        cheap=True,
+        lane_fold_level=FoldLevel.FULLY_EXPANDED,
+        lane_neighbors=projection,
+        detach_identity=True,
+    )
+    assert isinstance(first_document, AgentHeaderRenderable)
+    first_roster = find_member_roster(first_document)
+    assert first_roster is not None
+    assert "❖ NEIGHBORS" in first_roster.plain
+
+    app = _MetadataNavigationApp()
+    async with app.run_test(size=(60, 20)):
+        panel = app.query_one("#agent-prompt-panel", AgentPromptPanel)
+        received: list[tuple[MemberJumpMap | None, Text | None]] = []
+        panel.attach_member_jump_map_sink(
+            lambda jump_map, roster: received.append((jump_map, roster))
+        )
+        panel.update(first_document)
+        assert received and received[0][0] is not None
+        assert received[0][1] is not None
+
+        # A roster-only change must still reach the panel even when the body
+        # digest is unchanged: same body text, different roster text.
+        from sase.ace.tui.widgets.prompt_panel._agent_display_header_renderable import (
+            AgentHeaderRenderable as Carrier,
+        )
+        from sase.ace.tui.widgets.prompt_panel._identity_header import (
+            find_identity_header,
+        )
+
+        assert isinstance(first_document, Carrier)
+        assert first_document.member_jump_map is not None
+        second_roster = Text(first_roster.plain.replace("RUNNING", "FAILED"))
+        second_document = Carrier(
+            Text(first_document.plain),
+            (),
+            identity_header=find_identity_header(first_document),
+            member_jump_map=first_document.member_jump_map,
+            member_roster=second_roster,
+        )
+        panel.update(second_document)
+        assert len(received) == 2
+        assert received[1][1] is not None
+        assert received[1][1].plain != received[0][1].plain  # type: ignore[index]
+
+        inline = panel.inline_document_renderable()
+        assert isinstance(inline, Group)
+        from io import StringIO
+
+        from rich.console import Console
+
+        output = StringIO()
+        Console(file=output, width=60, color_system=None).print(inline, end="")
+        assert "❖ NEIGHBORS" in output.getvalue()
 
         panel.attach_member_jump_map_sink(None)

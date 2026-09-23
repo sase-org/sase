@@ -65,9 +65,10 @@ async def test_queued_clan_counts_png_snapshot(
         combined = prompt_header_and_body_text(prompt)
         assert "Status: QUEUED [Q2]" in combined
         assert "Status: QUEUED #" not in combined
-        # The sticky header owns clan identity; the scrolling body starts
-        # at the roster.
-        assert "CLAN MEMBERS" in prompt.content.plain
+        # The sticky header owns clan identity; the roster lives in the jump
+        # panel, not the scrolling body.
+        assert "CLAN MEMBERS" not in prompt.content.plain
+        assert "CLAN MEMBERS" in combined
         assert "Status:" not in prompt.content.plain
         identity = find_identity_header(prompt.content)
         assert identity is not None

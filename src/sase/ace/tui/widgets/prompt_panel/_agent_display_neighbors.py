@@ -137,7 +137,7 @@ def append_lane_neighbors_section(
         numbering=numbering,
         entry_limit=entry_limit,
         hidden_tail_label="neighbors",
-        hidden_tail_hint="zz / za to show more",
+        hidden_tail_hint="zz to show more",
         extra_tail=(
             f"… +{suppressed_count} also listed under FAMILY SHELLS"
             if suppressed_count

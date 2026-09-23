@@ -8,6 +8,8 @@ from textual.containers import VerticalScroll
 from textual.widgets import Static
 
 from ..keymaps import key_display_name
+from rich.text import Text
+
 from ._agent_jump_legend import (
     JumpLegendRenderable,
     jump_legend_border_accent,
@@ -17,11 +19,12 @@ from .prompt_panel._member_roster import MemberJumpMap
 
 
 class AgentJumpPanel(VerticalScroll):
-    """Bordered sticky panel listing every live numbered jump target."""
+    """Bordered sticky panel showing rosters when expanded, legend collapsed."""
 
     can_focus = False
 
     _jump_map: MemberJumpMap | None = None
+    _member_roster: Text | None = None
     _expanded: bool = False
     _pending_prefix: str | None = None
     _last_accent: str | None = None
@@ -91,11 +94,14 @@ class AgentJumpPanel(VerticalScroll):
                 except Exception:
                     pass
 
-    def show_jump_map(self, jump_map: MemberJumpMap | None) -> None:
-        """Render ``jump_map`` (or clear when ``None``)."""
+    def show_jump_map(
+        self, jump_map: MemberJumpMap | None, roster: Text | None = None
+    ) -> None:
+        """Render ``jump_map`` with its detached roster (or clear)."""
         from ..util.renderable_digest import renderable_content_digest
 
         self._jump_map = jump_map
+        self._member_roster = roster
         try:
             content = self.query_one("#agent-jump-content", Static)
         except Exception:
@@ -103,17 +109,43 @@ class AgentJumpPanel(VerticalScroll):
         if jump_map is None:
             self._last_digest = None
             self._last_accent = None
+            self._member_roster = None
             content.update("")
             self.border_title = ""
             self.border_subtitle = ""
             return
         mode = self._effective_mode()
         narrowed = self._pending_prefix is not None
-        shown = JumpLegendRenderable(jump_map, mode=mode)
+        if narrowed:
+            shown: JumpLegendRenderable | Text = JumpLegendRenderable(
+                jump_map, mode=self._pending_prefix or "collapsed"
+            )
+        elif self._expanded and roster is not None:
+            shown = roster
+        else:
+            shown = JumpLegendRenderable(jump_map, mode="collapsed")
         subtitle = self._subtitle_for(narrowed=narrowed)
         try:
-            digest = renderable_content_digest(shown)
-            digest += f"|{mode}|{subtitle}|{self._pending_prefix}"
+            if narrowed:
+                legend_digest = renderable_content_digest(shown)
+            else:
+                legend_digest = renderable_content_digest(
+                    JumpLegendRenderable(jump_map, mode="collapsed")
+                )
+            digest: str | None = legend_digest
+            if self._expanded and roster is not None:
+                try:
+                    roster_digest = renderable_content_digest(roster)
+                except Exception:
+                    roster_digest = None
+                if roster_digest is not None:
+                    digest = (
+                        f"{digest}|{roster_digest}"
+                        if digest is not None
+                        else roster_digest
+                    )
+            if digest is not None:
+                digest += f"|{mode}|{subtitle}|{self._pending_prefix}"
         except Exception:
             digest = None
         if digest is not None and digest == self._last_digest:
@@ -129,14 +161,14 @@ class AgentJumpPanel(VerticalScroll):
         self._pending_prefix = prefix
         # Force repaint: the map object is unchanged, only the mode differs.
         self._last_digest = None
-        self.show_jump_map(self._jump_map)
+        self.show_jump_map(self._jump_map, roster=self._member_roster)
 
     def toggle_expanded(self) -> bool:
         """Flip collapsed/expanded state and repaint from the stored map."""
         self._expanded = not self._expanded
         # Force repaint even when only the subtitle arrow changes.
         self._last_digest = None
-        self.show_jump_map(self._jump_map)
+        self.show_jump_map(self._jump_map, roster=self._member_roster)
         return self._expanded
 
 

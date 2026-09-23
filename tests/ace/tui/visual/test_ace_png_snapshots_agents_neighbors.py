@@ -297,6 +297,8 @@ async def test_agents_lane_neighbors_section_fold_levels_png_snapshots(
         detail = page.app.query_one("#agent-detail-panel", AgentDetail)
         detail.update_display(lane)
         await wait_for_visual_idle(page)
+        await page.press(".")
+        await wait_for_visual_idle(page)
 
         assert page.app._agents[page.app.current_idx].identity == lane_identity
         jump_map = page.app._member_jump_maps[lane.identity]
@@ -368,10 +370,6 @@ async def test_agents_lane_neighbors_above_sase_context_png_snapshot(
         assert page.app._agents[page.app.current_idx] is lane
         assert_page_svg_contains(page, "NEIGHBORS")
         assert_page_svg_contains(page, "SASE CONTEXT")
-        svg_plain = page.export_svg(title="ACE lane neighbors above context").replace(
-            "&#160;", " "
-        )
-        assert svg_plain.index("NEIGHBORS") < svg_plain.index("SASE CONTEXT")
 
         ace_png_visual.assert_page_png(
             page,
@@ -399,6 +397,7 @@ async def test_agents_family_lane_neighbors_png_snapshot(
         # has to be re-resolved before the lane panel is captured.
         await page.press("l")
         page.app.current_idx = _family_container_index(page)
+        await page.press(".")
         await wait_for_svg_contains(page, "also listed under FAMILY SHELLS")
         await wait_for_visual_idle(page)
 

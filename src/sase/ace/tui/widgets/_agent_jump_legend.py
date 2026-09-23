@@ -19,11 +19,10 @@ MIN_LABEL_CELLS = 10
 _NEUTRAL_ACCENT = "#8787AF"
 _JUMP_TITLE_STYLE = "bold #D7D7FF"
 _DIM_STYLE = "dim"
-_DIM_ITALIC_STYLE = "dim italic"
 _NAME_STYLE = _AGENT_NAME_ANNOTATION_STYLE
 _DISMISSED_PREFIX_STYLE = "dim #FFAF00"
 _LABEL_BUDGETS: tuple[int, ...] = (32, 24, 18, 14, 12, 10)
-_NARROW_MODES = ("collapsed", "expanded")
+_NARROW_MODES = ("collapsed",)
 
 
 def jump_legend_border_accent(jump_map: MemberJumpMap) -> str:
@@ -165,7 +164,7 @@ def _render_grid(cells: list[Text], columns: int) -> list[Text]:
 
 
 class JumpLegendRenderable:
-    """Width-responsive legend grid over a published jump map."""
+    """Width-responsive legend grid with collapsed and narrowed modes."""
 
     def __init__(self, jump_map: MemberJumpMap, *, mode: str = "collapsed") -> None:
         self._jump_map = jump_map
@@ -181,11 +180,7 @@ class JumpLegendRenderable:
                 f"{target.number}={target.label}@{target.status_bucket}/{target.role}"
             )
         for section in self._jump_map.sections:
-            parts.append(
-                f"{section.title}:{section.accent}"
-                f":{section.numbered_count}:{section.hidden_count}"
-                f":{section.hidden_hint}"
-            )
+            parts.append(f"{section.title}:{section.accent}:{section.numbered_count}")
         return "|".join(parts)
 
     @property
@@ -208,8 +203,6 @@ class JumpLegendRenderable:
             return cached
         if self._mode not in _NARROW_MODES:
             lines = self._narrowed_lines(width, self._mode)
-        elif self._mode == "expanded":
-            lines = self._expanded_lines(width)
         else:
             lines = self._collapsed_lines(width)
         self._layout_cache[width] = lines
@@ -239,59 +232,6 @@ class JumpLegendRenderable:
         cells = _clamp_cells_to_width(cells, width)
         columns = _largest_fitting_columns(cells, width)
         return _render_grid(cells, columns)
-
-    def _expanded_lines(self, width: int) -> list[Text]:
-        """Render every target with full labels, headings, and tails."""
-        jump_map = self._jump_map
-        show_headings = len(jump_map.sections) >= 2
-        lines: list[Text] = []
-        if not jump_map.sections:
-            if not jump_map.targets:
-                return []
-            cells = [
-                _build_cell(
-                    target.number,
-                    _NEUTRAL_ACCENT,
-                    target.label,
-                    bucket=target.status_bucket,
-                    dismissed=target.role == "dismissed",
-                    show_revive=True,
-                )
-                for target in jump_map.targets
-            ]
-            cells = _clamp_cells_to_width(cells, width)
-            return _render_grid(cells, _largest_fitting_columns(cells, width))
-        offset = 0
-        for section in jump_map.sections:
-            targets = jump_map.targets[offset : offset + section.numbered_count]
-            offset += section.numbered_count
-            if show_headings and (targets or section.hidden_hint):
-                heading = Text()
-                heading.append("❖ ", style=f"bold {section.accent}")
-                heading.append(section.title, style=f"bold {section.accent}")
-                heading.append(f" · {section.numbered_count}", style=_DIM_STYLE)
-                lines.append(heading)
-            if targets:
-                cells = [
-                    _build_cell(
-                        target.number,
-                        section.accent,
-                        target.label,
-                        bucket=target.status_bucket,
-                        dismissed=target.role == "dismissed",
-                        show_revive=True,
-                    )
-                    for target in targets
-                ]
-                cells = _clamp_cells_to_width(cells, width)
-                lines.extend(
-                    _render_grid(cells, _largest_fitting_columns(cells, width))
-                )
-            if section.hidden_hint:
-                for hint_line in section.hidden_hint.split("\n"):
-                    if hint_line:
-                        lines.append(Text(hint_line, style=_DIM_ITALIC_STYLE))
-        return lines
 
     def _collapsed_lines(self, width: int) -> list[Text]:
         """Render at most two packed rows with uniqueness-safe budgets."""

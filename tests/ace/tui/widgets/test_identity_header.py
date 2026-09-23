@@ -368,15 +368,21 @@ def test_clan_detached_carries_clan_identity() -> None:
 
 
 def test_clan_detached_body_starts_at_roster() -> None:
+    from sase.ace.tui.widgets.prompt_panel._identity_header import (
+        find_member_roster,
+    )
+
     container = _clan_container()
     document, _ = build_header_text(container, detach_identity=True)
     assert isinstance(document, AgentHeaderRenderable)
-    assert "CLAN MEMBERS" in document.plain
+    assert "CLAN MEMBERS" not in document.plain
     for token in ("Name:", "Status:", "Runtime:", "Members:", "Tribes:", "Fold:"):
         assert token not in document.plain
-    assert document.plain.lstrip("\n").startswith("━")
     assert not document.plain.startswith("\n")
     assert not document.plain.startswith("─" * 50)
+    roster = find_member_roster(document)
+    assert roster is not None
+    assert "CLAN MEMBERS" in roster.plain
 
 
 def test_clan_detached_expanded_matches_inline_region() -> None:

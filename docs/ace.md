@@ -1276,22 +1276,22 @@ row the owner reports as `WAS RUNNING` shows how long ago it was `last seen`.
 
 ### Navigation
 
-| Key                       | Action                                                                                                                                                              |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead         |
-| `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                                   |
-| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                                     |
-| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                        |
-| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                         |
-| `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                                 |
-| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                               |
-| `0`–`9`                   | Jump from a selected clan, agent node, family member, or whole-panel roster to its numbered member or neighbor (mirrored in the jump panel below the detail panels) |
-| `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                             |
-| `oo`                      | Toggle Agents panels between tribe-split and one merged panel, then close the grouping picker                                                                       |
-| `g`                       | Scroll to top (file, LLM Calls, or metadata panel)                                                                                                                  |
-| `G`                       | Scroll to bottom (file, LLM Calls, or metadata panel)                                                                                                               |
-| `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                                                                                         |
-| `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                                                                                       |
+| Key                       | Action                                                                                                                                                          |
+| ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `j` / `k`                 | Move to the next / previous visible row; while a whole panel is selected, or when the focused panel has no other selectable row, cycle whole panels instead     |
+| `J` / `K`                 | Cycle focus across expanded tribe side panels (forward / reverse)                                                                                               |
+| `'`                       | Jump to a row, collapsed grouping banner, or split-panel title by adaptive hint                                                                                 |
+| `Ctrl+O` / `Ctrl+Shift+O` | Walk the link trail first, then the current-tab jump stack; back falls through to first hint                                                                    |
+| `$$` / `$1`-`$9` / `$0`   | Follow the first / numbered artifact link, or open the complete links panel                                                                                     |
+| `Ctrl+J` / `Ctrl+K`       | Cycle metadata sections forward / backward through the document top                                                                                             |
+| `` ` ``                   | Jump to entry across all tabs (see [Jump All Modal](#jump-all-modal))                                                                                           |
+| `0`–`9`                   | Jump from a selected clan, agent node, family member, or whole-panel roster to its numbered member or neighbor (live in the jump panel below the detail panels) |
+| `o`, then `p`/`d`/`s`/`m` | Choose grouping mode: Project, Date, Status, or Machine                                                                                                         |
+| `oo`                      | Toggle Agents panels between tribe-split and one merged panel, then close the grouping picker                                                                   |
+| `g`                       | Scroll to top (file, LLM Calls, or metadata panel)                                                                                                              |
+| `G`                       | Scroll to bottom (file, LLM Calls, or metadata panel)                                                                                                           |
+| `Ctrl+D` / `Ctrl+U`       | Scroll file panel down / up                                                                                                                                     |
+| `Ctrl+F` / `Ctrl+B`       | Scroll prompt panel down / up                                                                                                                                   |
 
 > **Note:** `o` opens a direct grouping picker on the Agents tab. `o`/`O` still cycle
 > the L0 grouping bucket forward / reverse on Artifacts panes that have a grouping mode
@@ -1322,15 +1322,16 @@ row numbers its enclosing family's `FAMILY SHELLS` roster the same way, listing 
 sibling except itself from the same ladder; a shell row owns no sase agent, so it has no
 `NEIGHBORS` rows to follow the roster. Documents with at most ten numbered rows use
 `0`–`9`; larger documents number the first 100 rows with two-key values `00`–`99` and
-show any remaining entries as an unnumbered count. Every live numbered target is also
-listed in the sticky jump panel below the file / LLM Calls panel, so the digit answers
-stay on screen while the metadata body scrolls. After the first digit of a two-key jump,
-the panel narrows to the matching candidates; press `Esc` to cancel or any non-digit key
-to cancel and continue with that key's normal action. A successful jump expands only the
-target's ancestor chain, switches tribe panels when needed, and participates in the
-normal `Ctrl+O` jump-back history. A digit on a dismissed neighbor revives that agent
-instead of jumping. If the roster or the neighbor relationship changed since the panel
-was drawn, the jump is cancelled with a warning rather than landing somewhere stale.
+show any remaining entries as an unnumbered count. Every live numbered target lives in
+the sticky jump panel below the file / LLM Calls panel, so the digit answers stay on
+screen while the metadata body scrolls. The metadata body no longer contains these
+roster sections. After the first digit of a two-key jump, the panel narrows to the
+matching candidates; press `Esc` to cancel or any non-digit key to cancel and continue
+with that key's normal action. A successful jump expands only the target's ancestor
+chain, switches tribe panels when needed, and participates in the normal `Ctrl+O`
+jump-back history. A digit on a dismissed neighbor revives that agent instead of
+jumping. If the roster or the neighbor relationship changed since the panel was drawn,
+the jump is cancelled with a warning rather than landing somewhere stale.
 
 ### Agent Actions
 
@@ -1486,22 +1487,23 @@ for the wrong target.
 
 Selecting a clan container shows a `CLAN` summary. Selecting a real multi-member family
 root titles the sticky [header panel](#agents-tab-metadata-panel) `FAMILY` (cyan,
-matching the name), then shows the family's normal agent metadata plus a `FAMILY SHELLS`
-roster. A selected agent shell — standalone or family member — titles the header panel
-`AGENT SHELL` (gold, matching the name). Both rosters use the numbered member jumps
-described above. Clan direct members in the Agents list sort by status priority —
-Failed, Stopped, Running/Starting, Queued, Waiting, Done — with launch recency breaking
-ties. The clan metadata roster instead keeps chronological launch order so its numbers
-do not change as statuses change; a nested family remains one direct entry with its
-chain indented beneath it. Family rosters retain sequential chain order.
+matching the name), then shows the family's normal agent metadata, with its
+`FAMILY SHELLS` roster in the jump panel. A selected agent shell — standalone or family
+member — titles the header panel `AGENT SHELL` (gold, matching the name). Both rosters
+use the numbered member jumps described above. Clan direct members in the Agents list
+sort by status priority — Failed, Stopped, Running/Starting, Queued, Waiting, Done —
+with launch recency breaking ties. The clan metadata roster instead keeps chronological
+launch order so its numbers do not change as statuses change; a nested family remains
+one direct entry with its chain indented beneath it. Family rosters retain sequential
+chain order.
 
-Selecting a family **shell** row (not the container) also shows a `FAMILY SHELLS`
-roster: the same enclosing family's members, in the same chain order, minus the selected
-member itself. The heading carries a dim ` · <family name>` suffix naming the family,
-since the count shown is one less than the family's full size. Unlike a container panel,
-a member panel folds this roster (and the rest of its own sections) using the selected
-member's own three-level agent scale rather than the family's two-level scale, so no
-`Fold: N/M` header line appears.
+Selecting a family **shell** row (not the container) also shows its `FAMILY SHELLS`
+roster in the jump panel: the same enclosing family's members, in the same chain order,
+minus the selected member itself. The heading carries a dim ` · <family name>` suffix
+naming the family, since the count shown is one less than the family's full size. Unlike
+a container panel, a member panel folds this roster (and the rest of its own sections)
+using the selected member's own three-level agent scale rather than the family's
+two-level scale, so no `Fold: N/M` header line appears.
 
 Clan metadata has three session-only detail levels. Family metadata uses the last two
 effective states as its two-level scale for fold-aware metadata: family level 1 is
@@ -1706,12 +1708,12 @@ in place after the editor exits.
 
 ### Sase Agent Neighbors Section
 
-Every sase agent panel carries a numbered `NEIGHBORS` roster in its metadata region. The
-section appears on family container panels below their `FAMILY SHELLS` roster and on
-ordinary agent panels. Clan containers, tribe panel summaries, family member child rows,
-and workflow aggregate rows have no `NEIGHBORS` section. A selected family shell row
-owns no sase agent, so its panel carries only the `FAMILY SHELLS` roster (siblings,
-minus itself) and never a `NEIGHBORS` section.
+Every sase agent panel carries a numbered `NEIGHBORS` roster in the jump panel. The
+section appears on family container panels after their `FAMILY SHELLS` roster when both
+exist, and on ordinary agent panels. Clan containers, tribe panel summaries, family
+member child rows, and workflow aggregate rows have no `NEIGHBORS` section. A selected
+family shell row owns no sase agent, so its panel carries only the `FAMILY SHELLS`
+roster (siblings, minus itself) and never a `NEIGHBORS` section.
 
 The rows for that sase agent are ancestors, descendants including same-session dismissed
 descendants, then hood neighbors grouped by hood, nearest hood first — under dim
@@ -1721,18 +1723,17 @@ family `visual.worker` and a single agent `visual.worker.notes` relate as ancest
 descendant exactly as two single agents with those names would. Row labels are shortened
 relative to their group, so a `myclan` hood neighbor reads `.code` and a descendant
 reads `--impl.helper`. A `⊘` glyph and a `dismissed` annotation mark dismissed rows, and
-`folded` marks a prospective row that currently lives inside a collapsed clan. The
-section sits directly below `WORKFLOW VARIABLES` and immediately above `SASE CONTEXT`,
-so a sase agent's numbered neighbors stay reachable without scrolling past the context,
-slow-call, and error sections.
+`folded` marks a prospective row that currently lives inside a collapsed clan. In the
+jump panel the section sits after `FAMILY SHELLS` when both exist, so a sase agent's
+numbered neighbors stay reachable without scrolling the metadata body.
 
 The row count follows the sase agent's fold scale by position, not by level name: the
 first position shows 3 rows, the last position shows all of them, and any middle
 position shows 10. A family therefore shows 3 rows at level 1 and every row at level 2,
 while a single sase agent shows 3 / 10 / all across its three levels. The heading count
 is always the sase agent's total neighbor count, and a dim
-`… +N more neighbors (zz / za to show more)` tail reports what is hidden. Only visible
-rows get digits. On a family, siblings that already appear under `FAMILY SHELLS` are not
+`… +N more neighbors (zz to show more)` tail reports what is hidden. Only visible rows
+get digits. On a family, siblings that already appear under `FAMILY SHELLS` are not
 repeated; they are reported by a dim `… +N also listed under FAMILY SHELLS` tail
 instead. The heading count still includes the suppressed rows.
 
@@ -2130,20 +2131,21 @@ and ancestor folds first. These metadata-member numbers are separate from ordina
 apostrophe entry hints, whose adaptive target keys may use two characters in a large
 list.
 
-`PROMPTS` sits after `TRIBE MEMBERS`: it maps what each agent in the tribe was asked to
-do. Its number chips are the same digits as the roster jump targets. Identical prompt
-bodies are listed once with a `×N` badge and a shared-by list. `za`/`zA` on a prompt
-entry opens just that prompt. It is the level-1 exception: unlike most sections, it
-shows prompt headlines at Glance instead of only a heading.
+`PROMPTS` sits after `CLAN SUMMARIES` in the metadata body (the `TRIBE MEMBERS` roster
+itself lives in the jump panel): it maps what each agent in the tribe was asked to do.
+Its number chips are the same digits as the roster jump targets. Identical prompt bodies
+are listed once with a `×N` badge and a shared-by list. `za`/`zA` on a prompt entry
+opens just that prompt. It is the level-1 exception: unlike most sections, it shows
+prompt headlines at Glance instead of only a heading.
 
-`CLAN SUMMARIES` sits directly after `TRIBE MEMBERS` and before `PROMPTS`: it maps the
-curated summary of every clan in the tribe, because clan intent reads before raw
-prompts. Each entry line carries the clan's roster digit as a number chip, the clan
-label, a banner-kind kicker (`EPIC`, …), a uniform 120-character headline, and a line
-count. `za`/`zA` on an entry opens just that clan's summary. Like `PROMPTS`, it is a
-level-1 exception: Glance shows the headline index, Triage adds styled ledes, Inspect
-shows 16-line previews, and Forensics shows full bodies behind a 500-line per-clan
-safety cap.
+`CLAN SUMMARIES` sits before `PROMPTS` in the metadata body (the `TRIBE MEMBERS` roster
+itself lives in the jump panel): it maps the curated summary of every clan in the tribe,
+because clan intent reads before raw prompts. Each entry line carries the clan's roster
+digit as a number chip, the clan label, a banner-kind kicker (`EPIC`, …), a uniform
+120-character headline, and a line count. `za`/`zA` on an entry opens just that clan's
+summary. Like `PROMPTS`, it is a level-1 exception: Glance shows the headline index,
+Triage adds styled ledes, Inspect shows 16-line previews, and Forensics shows full
+bodies behind a 500-line per-clan safety cap.
 
 Reply, slow-call, prompt, and clan-summary presence enrichment is requested off-thread
 at every tribe level so known-empty sections can remain absent. Full bodies still follow
@@ -5160,12 +5162,14 @@ including a short final section, while the top waypoint reveals the top of the s
 body before the first title (identity fields live in the sticky header panel above).
 Only rendered ALL-CAPS underlined section titles participate; matching text inside
 prompts or replies does not. Numbered roster rows (`FAMILY SHELLS`, clan/tribe
-`MEMBERS`, `NEIGHBORS`) and, within a family container's `SASE CONTEXT` region, its lane
-sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`, `WORKSPACES`)
-are fold anchors, not titles — `za`/`zA` still reach them when they own the viewport's
-top row, but they are never `Ctrl+J`/`Ctrl+K` stops. The shortcuts continue to target
-the metadata pane when a file or LLM Calls pane is also visible, and changing agents or
-entering/leaving a pinned attempt view resets the cursor.
+`MEMBERS`, `NEIGHBORS`) now live in the jump panel and are no longer `Ctrl+J`/`Ctrl+K`
+stops; within a family container's `SASE CONTEXT` region, its lane sub-headings (`BEAD`,
+`PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`, `SKILLS`, `WORKSPACES`) are fold anchors, not
+titles — `za`/`zA` still reach them when they own the viewport's top row, but they are
+never `Ctrl+J`/`Ctrl+K` stops. Roster rows are also no longer `za`/`zA` targets and are
+not covered by `,/` metadata search. The shortcuts continue to target the metadata pane
+when a file or LLM Calls pane is also visible, and changing agents or entering/leaving a
+pinned attempt view resets the cursor.
 
 - **Agent details**: Name, status, model, provider, Patch association, and
   chronologically sorted timestamps:
@@ -5185,21 +5189,20 @@ entering/leaving a pinned attempt view resets the cursor.
   - `DONE` — when execution completed
 - **CLAN / MEMBERS**: Shown when a synthetic clan row is selected. The orchid `CLAN`
   kind label renders as the header panel title and the identity fields (`Name`,
-  `Tribes`, `Status`, `Runtime`, `Members`, `Fold`) live in the header panel; the body
-  starts at `CLAN MEMBERS`. Direct member rows use chronological launch order (earliest
-  first), which keeps their numbers stable while statuses change. Each numbered row
-  shows the hood-relative suffix, kind, status, model, and duration; members of a nested
-  sequential family are indented under its aggregate row. `Ctrl+J` / `Ctrl+K` navigate
-  the rendered section headings, and pressing the row's number jumps to that member in
-  the Agents list. At most 100 members receive numbers.
+  `Tribes`, `Status`, `Runtime`, `Members`, `Fold`) live in the header panel; the
+  `CLAN MEMBERS` roster lives in the jump panel. Direct member rows use chronological
+  launch order (earliest first), which keeps their numbers stable while statuses change.
+  Each numbered row shows the hood-relative suffix, kind, status, model, and duration;
+  members of a nested sequential family are indented under its aggregate row. `Ctrl+J` /
+  `Ctrl+K` navigate the rendered section headings, and pressing the row's number jumps
+  to that member in the Agents list. At most 100 members receive numbers.
 - **FAMILY**: Shown when a real multi-member family root is selected. The cyan kind
   label renders as the header panel title and the cyan `Name:` value matches the family
-  row's identity block. The title is header chrome, not a `Ctrl+J` title; the first
-  navigable section remains `FAMILY SHELLS` (or the next rendered title if that roster
-  is absent). On a family container, its `SASE CONTEXT` heading is the navigable title
-  for that region; its per-lane sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`,
-  `GLOSSARY`, `SKILLS`, `WORKSPACES`) stay fold anchors only, same as `FAMILY SHELLS`
-  roster rows.
+  row's identity block. The title is header chrome, not a `Ctrl+J` title; the
+  `FAMILY SHELLS` roster lives in the jump panel and is no longer a navigable section.
+  On a family container, its `SASE CONTEXT` heading is the navigable title for that
+  region; its per-lane sub-headings (`BEAD`, `PLAN`, `ARTIFACTS`, `MEMORY`, `GLOSSARY`,
+  `SKILLS`, `WORKSPACES`) stay fold anchors only.
 - **AGENT SHELL**: Shown when a standalone sase agent or family member row is selected.
   The gold kind label renders as the header panel title and the gold `Name:` value
   matches the list-row name annotation. The title is header chrome, not a `Ctrl+J`
@@ -5222,25 +5225,29 @@ entering/leaving a pinned attempt view resets the cursor.
   the panel renders expanded so every hint stays selectable. Metadata search (`,/`)
   covers the scrolling body only, since header fields stay on screen.
 - **Jump panel**: Every live numbered roster target (family shells, neighbors, clan
-  members, tribe members) is listed in its own always-visible panel at the bottom of the
-  detail column, below the file / LLM Calls panel, in every layout. The panel is shown
-  only while the current document has numbered targets — never for "No agent selected",
-  nodes without rosters, fully unnumbered rosters, or file-hint documents — and it stays
-  visible during metadata search (`,/`), since the digits keep working there. It is
-  collapsed by default to at most two packed rows, where every visible number carries a
-  label that unambiguously identifies its target (labels shrink with a middle ellipsis,
-  and the packer shows fewer targets rather than ambiguous ones); `.` expands it to the
-  complete list with full labels, per-section headings, and the roster tail hints. The
-  border title is the color legend (`JUMP`, then one entry per section with its number
-  range), and the border subtitle names the configured `toggle_agent_jump_panel` key
-  (`▴ . more` / `▾ . less`). Each cell echoes its roster row: the number chip in the
-  roster style, the label, and the status glyph; a dismissed neighbor renders dim with a
-  `⊘` prefix (and a `revive` note when expanded), since its digit revives the agent
-  instead of jumping. After the first digit of a two-key jump, the panel narrows to the
-  matching candidates (`JUMP · 1▁`, `esc cancel`); completing or cancelling the jump
-  restores the collapsed or expanded view. Collapsed/expanded state is per session and
-  holds across row moves, tribe focus, and layout changes. Toggling never rebuilds the
-  document, and a bottom-pinned body stays pinned.
+  members, tribe members) lives in its own always-visible panel at the bottom of the
+  detail column, below the file / LLM Calls panel, in every layout. The metadata body no
+  longer contains these sections. The panel is shown only while the current document has
+  numbered targets — never for "No agent selected", nodes without rosters, fully
+  unnumbered rosters, or file-hint documents — and it stays visible during metadata
+  search (`,/`), since the digits keep working there. It is collapsed by default to at
+  most two packed rows, where every visible number carries a label that unambiguously
+  identifies its target (labels shrink with a middle ellipsis, and the packer shows
+  fewer targets rather than ambiguous ones); `.` expands it to the full roster sections
+  exactly as they used to render in the metadata body. The border title is the color
+  legend (`JUMP`, then one entry per section with its number range), and the border
+  subtitle names the configured `toggle_agent_jump_panel` key (`▴ . more` / `▾ . less`).
+  Each collapsed cell echoes its roster row: the number chip in the roster style, the
+  label, and the status glyph; a dismissed neighbor renders dim with a `⊘` prefix (and a
+  `revive` note when narrowed), since its digit revives the agent instead of jumping.
+  After the first digit of a two-key jump, the panel narrows to the matching candidates
+  (`JUMP · 1▁`, `esc cancel`); completing or cancelling the jump restores the collapsed
+  or expanded view. Collapsed/expanded state is per session and holds across row moves,
+  tribe focus, and layout changes. Toggling never rebuilds the document, and a
+  bottom-pinned body stays pinned. Roster headings are no longer `Ctrl+J`/`Ctrl+K`
+  stops; `za`/`zA` can no longer target a roster section or roster row (rosters follow
+  the global panel fold keys `zz`, `zZ`, and the direct level keys); and `,/` metadata
+  search no longer covers roster rows.
 - **SASE CONTEXT / BEAD**: Shown for epic phase workers and task workers. For an epic
   phase worker, the lane is limited to its selected phase. Its fields are `Phase Title`,
   `Description`, `Size`, `Epic Plan`, and `Epic Title`, in that order. The phase title

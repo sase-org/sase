@@ -32,7 +32,13 @@ type ResponsiveHeaderSection = (
 class AgentHeaderRenderable:
     """Mutable logical header with retained responsive context sections."""
 
-    __slots__ = ("_identity_header", "_member_jump_map", "_sections", "_text")
+    __slots__ = (
+        "_identity_header",
+        "_member_jump_map",
+        "_member_roster",
+        "_sections",
+        "_text",
+    )
 
     def __init__(
         self,
@@ -41,11 +47,13 @@ class AgentHeaderRenderable:
         *,
         identity_header: IdentityHeader | None = None,
         member_jump_map: MemberJumpMap | None = None,
+        member_roster: Text | None = None,
     ) -> None:
         self._text = text
         self._sections = sections
         self._identity_header = identity_header
         self._member_jump_map = member_jump_map
+        self._member_roster = member_roster
 
     @property
     def identity_header(self) -> IdentityHeader | None:
@@ -62,9 +70,20 @@ class AgentHeaderRenderable:
         """Return the jump map carried by this document, if any."""
         return self._member_jump_map
 
-    def with_member_jump_map(self, member_jump_map: MemberJumpMap | None) -> Self:
-        """Attach a jump map to this document and return it for chaining."""
+    @property
+    def member_roster(self) -> Text | None:
+        """Return the detached roster text carried by this document, if any."""
+        return self._member_roster
+
+    def with_member_jump_map(
+        self,
+        member_jump_map: MemberJumpMap | None,
+        *,
+        roster: Text | None = None,
+    ) -> Self:
+        """Attach a jump map and its detached roster text for chaining."""
         self._member_jump_map = member_jump_map
+        self._member_roster = roster
         return self
 
     @property

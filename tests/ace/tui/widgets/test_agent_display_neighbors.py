@@ -166,7 +166,7 @@ def test_neighbors_section_renders_fold_ladder_and_truthful_count(
     assert "NEIGHBORS · 12" in text.plain
     assert text.plain.count(" · agent · ") == shown
     if shown < 12:
-        assert f"… +{12 - shown} more neighbors (zz / za to show more)" in text.plain
+        assert f"… +{12 - shown} more neighbors (zz to show more)" in text.plain
     else:
         assert "more neighbors" not in text.plain
 

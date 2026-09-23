@@ -39,13 +39,15 @@ class AgentDetailJumpMixin(Static):
             pass
         self._sync_jump_panel_visibility()
 
-    def _on_member_jump_map(self, jump_map: Any | None) -> None:
+    def _on_member_jump_map(
+        self, jump_map: Any | None, roster: Any | None = None
+    ) -> None:
         """Show the published jump map, then sync jump-panel visibility."""
         panel = self._jump_panel_or_none()
         if panel is None:
             return
         try:
-            panel.show_jump_map(jump_map)
+            panel.show_jump_map(jump_map, roster=roster)
         except Exception:
             pass
         self._sync_jump_panel_visibility()

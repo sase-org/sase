@@ -109,7 +109,19 @@ async def test_cheap_then_full_tribe_paint_preserves_one_prompt_surface() -> Non
         detail.show_tribe_summary(snapshot)
         await pilot.pause()
         rendered = prompt.content.plain
-        assert "TRIBE MEMBERS · 12" in rendered
-        assert "tribe-agent-0" in rendered
-        assert "tribe-agent-11" in rendered
+        assert "TRIBE MEMBERS" not in rendered
+        from sase.ace.tui.widgets.agent_jump_panel import AgentJumpPanel
+        from sase.ace.tui.widgets.renderable_text import (
+            renderable_to_text as jump_to_text,
+        )
+
+        panel = detail.query_one("#agent-jump-panel", AgentJumpPanel)
+        assert panel.has_targets
+        assert detail.toggle_jump_panel_expanded() is True
+        await pilot.pause()
+        content = panel.query_one("#agent-jump-content")
+        expanded = jump_to_text(getattr(content, "content", None)) or ""
+        assert "TRIBE MEMBERS · 12" in expanded
+        assert "tribe-agent-0" in expanded
+        assert "tribe-agent-11" in expanded
         assert len(list(detail.query("#agent-prompt-panel"))) == 1

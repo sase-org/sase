@@ -103,7 +103,9 @@ def build_tribe_detail_text(
         body = Text()
         append_tribe_description(body, snapshot)
         tribe_jump_map: MemberJumpMap | None = None
+        tribe_roster_text: Text | None = None
         if not cheap:
+            tribe_roster_text = Text()
             tribe_jump_map = _append_tribe_body(
                 body,
                 snapshot,
@@ -111,6 +113,7 @@ def build_tribe_detail_text(
                 fold_level,
                 overrides,
                 member_jump_map_publisher,
+                roster_text=tribe_roster_text,
             )
         if cheap and not body.plain.strip():
             body.append("⋯ loading…\n", style="dim")
@@ -128,7 +131,14 @@ def build_tribe_detail_text(
         if tribe_jump_map is not None and (
             tribe_jump_map.targets or tribe_jump_map.sections
         ):
-            carrier.with_member_jump_map(tribe_jump_map)
+            from ._member_roster import detached_roster_text
+
+            roster = (
+                detached_roster_text(tribe_roster_text)
+                if tribe_roster_text is not None
+                else None
+            )
+            carrier.with_member_jump_map(tribe_jump_map, roster=roster)
         return carrier
     text = Text()
     append_tribe_header(text, snapshot, fold_level)
@@ -153,6 +163,7 @@ def _append_tribe_body(
     fold_level: FoldLevel,
     overrides: Mapping[str, FoldLevel],
     member_jump_map_publisher: Callable[[MemberJumpMap], None] | None,
+    roster_text: Text | None = None,
 ) -> MemberJumpMap:
     """Append the scrolling tribe sections after the identity header."""
     required = tribe_enrichment_sections_for_fold_state(fold_level, overrides)
@@ -161,8 +172,9 @@ def _append_tribe_body(
         snapshot.attention,
         level=effective_level(SECTIONS.attention, fold_level, overrides),
     )
+    roster_dest = roster_text if roster_text is not None else text
     jump_map = append_member_roster(
-        text,
+        roster_dest,
         container_identity=snapshot.container_identity,
         entries=tribe_roster_entries(snapshot),
         title="TRIBE MEMBERS",

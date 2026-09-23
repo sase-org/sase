@@ -31,7 +31,7 @@ AGENT_FALLBACK_IDENTITY_COLOR = "#87AFFF"
 STEP_FALLBACK_IDENTITY_COLOR = "#D7AFFF"
 
 IdentityHeaderSink = Callable[["IdentityHeader | None"], None]
-MemberJumpMapSink = Callable[["MemberJumpMap | None"], None]
+MemberJumpMapSink = Callable[["MemberJumpMap | None", "Text | None"], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -105,6 +105,12 @@ def find_member_jump_map(content: object) -> MemberJumpMap | None:
     return carrier.member_jump_map if carrier is not None else None
 
 
+def find_member_roster(content: object) -> Text | None:
+    """Return the detached roster text carried by a document, if any."""
+    carrier = _find_carrier(content)
+    return carrier.member_roster if carrier is not None else None
+
+
 def strip_leading_document_chrome(text: Text) -> tuple[Text, int]:
     """Strip blank lines plus one light divider from the body start."""
     plain = text.plain
@@ -137,6 +143,7 @@ __all__ = [
     "MemberJumpMapSink",
     "find_identity_header",
     "find_member_jump_map",
+    "find_member_roster",
     "identity_kind_for_agent",
     "strip_leading_document_chrome",
 ]

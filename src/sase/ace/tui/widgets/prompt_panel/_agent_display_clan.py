@@ -190,8 +190,10 @@ def build_clan_detail_text(
         now=now,
         digests=snapshot.in_memory.members,
     )
+    roster_text: Text | None = Text() if detach_identity else None
+    roster_dest = roster_text if roster_text is not None else body
     jump_map = append_member_roster(
-        body,
+        roster_dest,
         container_identity=agent.identity,
         entries=roster_entries,
         title="CLAN MEMBERS",
@@ -369,7 +371,12 @@ def build_clan_detail_text(
             ),
         )
         if hint_state is None and (jump_map.targets or jump_map.sections):
-            carrier.with_member_jump_map(jump_map)
+            from ._member_roster import detached_roster_text
+
+            roster = (
+                detached_roster_text(roster_text) if roster_text is not None else None
+            )
+            carrier.with_member_jump_map(jump_map, roster=roster)
         return carrier
     return body
 

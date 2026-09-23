@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal, Protocol
 
-from rich.text import Text
+from rich.text import Span, Text
 
 from sase.agent.status_buckets import (
     AGENT_STATUS_BUCKET_GLYPHS,
@@ -163,8 +163,6 @@ class _MemberJumpSection:
     title: str
     accent: str
     numbered_count: int = 0
-    hidden_count: int = 0
-    hidden_hint: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -286,18 +284,10 @@ def append_member_roster(
     if extra_tail is not None:
         text.append(extra_tail + "\n", style="dim italic")
 
-    if hidden_count > 0:
-        hidden_hint = f"… +{hidden_count} more {hidden_tail_label} ({hidden_tail_hint})"
-    else:
-        hidden_hint = ""
-    if extra_tail is not None:
-        hidden_hint = f"{hidden_hint}\n{extra_tail}" if hidden_hint else extra_tail
     section = _MemberJumpSection(
         title=title,
         accent=accent,
         numbered_count=rendered_count,
-        hidden_count=hidden_count,
-        hidden_hint=hidden_hint,
     )
     return MemberJumpMap(
         container_identity=container_identity,
@@ -325,6 +315,45 @@ def merged_member_jump_map(
         targets=tuple(targets),
         sections=tuple(sections),
     )
+
+
+def detached_roster_text(text: Text) -> Text | None:
+    """Return roster text without leading/trailing blank lines, if non-empty."""
+    if not text.plain.strip():
+        return None
+    plain = text.plain
+    lines = plain.split("\n")
+    first_idx: int | None = None
+    last_idx: int | None = None
+    for index, line in enumerate(lines):
+        if line.strip():
+            if first_idx is None:
+                first_idx = index
+            last_idx = index
+    if first_idx is None or last_idx is None:
+        return None
+    offset = 0
+    start = 0
+    end = len(plain)
+    for index, line in enumerate(lines):
+        if index == first_idx:
+            start = offset
+        if index == last_idx:
+            end = offset + len(line)
+            break
+        offset += len(line) + 1
+    stripped = Text(plain[start:end], end=text.end)
+    for span in text.spans:
+        if span.end <= start or span.start >= end:
+            continue
+        stripped.spans.append(
+            Span(
+                max(span.start, start) - start,
+                min(span.end, end) - start,
+                span.style,
+            )
+        )
+    return stripped
 
 
 def _publish_member_jump_map(owner: object, jump_map: MemberJumpMap) -> None:
@@ -563,6 +592,7 @@ __all__ = [
     "MemberRosterEntry",
     "MemberRosterStatusCounts",
     "append_member_roster",
+    "detached_roster_text",
     "member_jump_map_publisher_for",
     "member_status_style",
     "merged_member_jump_map",

@@ -147,7 +147,8 @@ async def test_jump_panel_expanded_png_snapshot(
         await wait_for_visual_idle(page)
         panel = detail.query_one("#agent-jump-panel", AgentJumpPanel)
         assert panel.is_expanded
-        assert_page_svg_contains(page, "member13")
+        assert_page_svg_contains(page, "CLAN MEMBERS")
+        assert_page_svg_contains(page, "member00")
 
         ace_png_visual.assert_page_png(
             page,
@@ -170,12 +171,9 @@ async def test_jump_panel_expanded_two_sections_png_snapshot(
         await wait_for_visual_idle(page)
         panel = detail.query_one("#agent-jump-panel", AgentJumpPanel)
         assert panel.is_expanded
-        from sase.ace.tui.widgets._agent_jump_legend import JumpLegendRenderable
         from sase.ace.tui.widgets.renderable_text import renderable_to_text
 
-        expanded_text = renderable_to_text(
-            JumpLegendRenderable(panel._jump_map, mode="expanded")  # noqa: SLF001
-        )
+        expanded_text = renderable_to_text(panel._member_roster)  # noqa: SLF001
         assert expanded_text is not None
         assert "❖ FAMILY SHELLS" in expanded_text
         assert "❖ NEIGHBORS" in expanded_text

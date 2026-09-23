@@ -99,6 +99,46 @@ def _labeled_map(
     )
 
 
+def _labeled_map_and_roster(
+    container: Any,
+    labels: list[str],
+    *,
+    roles: list[str] | None = None,
+    title: str = "ROSTER",
+    accent: str = "#00D7AF",
+) -> tuple[MemberJumpMap, Text | None]:
+    """Build a labeled jump map plus its detached roster text."""
+    from sase.ace.tui.widgets.prompt_panel._member_roster import (
+        detached_roster_text,
+    )
+
+    entries = tuple(
+        MemberRosterEntry(
+            identity=(container.identity[0], label, None),
+            presented_name=label,
+            label=label,
+            kind="agent",
+            status="RUNNING",
+            model="m",
+            duration="1m",
+            is_dismissed=(role == "dismissed"),
+            target_role=role if role != "member" else None,  # type: ignore[arg-type]
+        )
+        for label, role in zip(labels, roles or ["member"] * len(labels), strict=True)
+    )
+    text = Text()
+    jump_map = append_member_roster(
+        text,
+        container_identity=container.identity,
+        entries=entries,
+        title=title,
+        accent=accent,
+        panel_level=FoldLevel.COLLAPSED,
+        numbering=MemberJumpNumbering(total=len(entries)),
+    )
+    return jump_map, detached_roster_text(text)
+
+
 async def test_empty_state_hides_jump_panel() -> None:
     app = _DetailApp()
     async with app.run_test(size=(80, 24)) as pilot:
@@ -218,11 +258,75 @@ async def test_toggle_expands_to_every_target_and_back(tmp_path: Path) -> None:
         assert "less" in str(panel.border_subtitle)
         body = _jump_text(panel)
         assert "--plan" in body and "--code" in body
+        assert "❖ FAMILY SHELLS" in body
+        # Expanded content equals the carried roster verbatim.
+        assert panel._member_roster is not None  # noqa: SLF001
+        assert body.strip() == panel._member_roster.plain.strip()  # noqa: SLF001
 
         assert detail.toggle_jump_panel_expanded() is False
         await pilot.pause()
         assert not panel.is_expanded
         assert "more" in str(panel.border_subtitle)
+
+
+async def test_expanded_roster_matches_carried_text_and_metadata_has_no_roster(
+    tmp_path: Path,
+) -> None:
+    from sase.ace.tui.widgets.prompt_panel._identity_header import (
+        find_member_roster,
+    )
+    from sase.ace.tui.widgets.renderable_text import renderable_to_text as to_text
+
+    root, _child = make_family(tmp_path)
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        await _show_agent(detail, root, pilot)
+        panel = _jump_panel(detail)
+        prompt = detail.query_one("#agent-prompt-panel", AgentPromptPanel)
+        content = getattr(prompt, "_identity_last_content", None)
+        roster = find_member_roster(content)
+        assert roster is not None
+        metadata_text = to_text(content) or ""
+        assert "❖ FAMILY SHELLS" not in metadata_text
+        assert detail.toggle_jump_panel_expanded() is True
+        await pilot.pause()
+        assert _jump_text(panel).strip() == roster.plain.strip()
+        assert detail.toggle_jump_panel_expanded() is False
+        await pilot.pause()
+
+
+async def test_expanded_roster_repaints_on_roster_only_change() -> None:
+    from rich.text import Text as RichText
+
+    app = _DetailApp()
+    async with app.run_test(size=(80, 24)) as pilot:
+        detail = app.query_one("#agent-detail-panel", AgentDetail)
+        await _show_agent(detail, _solo(), pilot)
+        solo = _solo()
+        jump_map, roster = _labeled_map_and_roster(solo, ["aa", "bb"])
+        assert roster is not None
+        detail._on_member_jump_map(jump_map, roster)  # noqa: SLF001
+        await pilot.pause()
+        panel = _jump_panel(detail)
+        assert detail.toggle_jump_panel_expanded() is True
+        await pilot.pause()
+        assert "aa" in _jump_text(panel)
+        # Roster change while expanded repaints even though the map is same.
+        changed = RichText(roster.plain.replace("aa", "zz"))
+        detail._on_member_jump_map(jump_map, changed)  # noqa: SLF001
+        await pilot.pause()
+        assert "zz" in _jump_text(panel)
+        # Change while collapsed is visible as soon as the panel expands.
+        assert detail.toggle_jump_panel_expanded() is False
+        await pilot.pause()
+        changed_again = RichText(changed.plain.replace("bb", "qq"))
+        detail._on_member_jump_map(jump_map, changed_again)  # noqa: SLF001
+        await pilot.pause()
+        assert "qq" not in _jump_text(panel)
+        assert detail.toggle_jump_panel_expanded() is True
+        await pilot.pause()
+        assert "qq" in _jump_text(panel)
 
 
 async def test_expanded_state_persists_across_selection(tmp_path: Path) -> None:
@@ -379,14 +483,15 @@ async def test_neighbors_map_shows_dismissed_revive_cells() -> None:
     async with app.run_test(size=(80, 24)) as pilot:
         detail = app.query_one("#agent-detail-panel", AgentDetail)
         await _show_agent(detail, _solo(), pilot)
-        jump_map = _labeled_map(
+        jump_map, roster = _labeled_map_and_roster(
             _solo(),
             ["lane.peer", "lane.old"],
             roles=["neighbor", "dismissed"],
             title="NEIGHBORS",
             accent="#00D7AF",
         )
-        detail._on_member_jump_map(jump_map)  # noqa: SLF001
+        assert roster is not None
+        detail._on_member_jump_map(jump_map, roster)  # noqa: SLF001
         await pilot.pause()
         panel = _jump_panel(detail)
         assert not panel.has_class("hidden")
@@ -396,7 +501,16 @@ async def test_neighbors_map_shows_dismissed_revive_cells() -> None:
         assert "⊘" in collapsed
         assert detail.toggle_jump_panel_expanded() is True
         await pilot.pause()
+        expanded = _jump_text(panel)
+        assert "❖ NEIGHBORS" in expanded
+        assert "⊘" in expanded
+        assert "dismissed" in expanded
+        detail.set_jump_panel_prefix("1")
+        await pilot.pause()
         assert "revive" in _jump_text(panel)
+        detail.set_jump_panel_prefix(None)
+        await pilot.pause()
+        assert "❖ NEIGHBORS" in _jump_text(panel)
 
 
 async def test_narrow_prefix_without_targets_shows_empty_line() -> None:
@@ -525,7 +639,7 @@ def _press_each_number(
     """Press every panel number through the real key path and check landing."""
     from sase.ace.tui.widgets._agent_jump_legend import JumpLegendRenderable
 
-    rendered = renderable_to_text(JumpLegendRenderable(jump_map, mode="expanded"))
+    rendered = renderable_to_text(JumpLegendRenderable(jump_map, mode="collapsed"))
     assert rendered
     for target in jump_map.targets:
         assert target.number in rendered
@@ -630,7 +744,7 @@ def test_panel_dismissed_number_revives() -> None:
     )
     app._member_jump_maps[container.identity] = jump_map
 
-    rendered = renderable_to_text(JumpLegendRenderable(jump_map, mode="expanded"))
+    rendered = renderable_to_text(JumpLegendRenderable(jump_map, mode="0"))
     assert rendered and "revive" in rendered
 
     assert app._handle_member_jump_key("0") is True
@@ -717,7 +831,7 @@ def test_panel_clan_and_tribe_numbers_land() -> None:
     tribe_app._member_jump_maps[focus.container_identity] = tribe_map
     from sase.ace.tui.widgets._agent_jump_legend import JumpLegendRenderable
 
-    rendered = renderable_to_text(JumpLegendRenderable(tribe_map, mode="expanded"))
+    rendered = renderable_to_text(JumpLegendRenderable(tribe_map, mode="collapsed"))
     assert rendered
     for target in tribe_map.targets:
         assert target.number in rendered

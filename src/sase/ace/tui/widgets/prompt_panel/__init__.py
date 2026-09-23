@@ -26,6 +26,7 @@ from ._identity_header import (
     MemberJumpMapSink,
     find_identity_header,
     find_member_jump_map,
+    find_member_roster,
 )
 from ...util.renderable_digest import renderable_content_digest
 from ._section_navigation import (
@@ -70,6 +71,7 @@ class AgentPromptPanel(
     _identity_last_content: Any = ""
     _member_jump_map_sink: MemberJumpMapSink | None = None
     _jump_map_last_published: Any = None
+    _member_roster_last_published: Any = None
 
     def attach_identity_header_sink(self, sink: IdentityHeaderSink | None) -> None:
         """Publish detached identity headers to ``sink`` on each update."""
@@ -86,11 +88,34 @@ class AgentPromptPanel(
 
     def inline_document_renderable(self) -> Any:
         """Return the current document with its identity inlined on top."""
+        from rich.text import Text
+
         identity = getattr(self, "_identity_last_published", None)
         content = getattr(self, "_identity_last_content", "")
+        roster = getattr(self, "_member_roster_last_published", None)
         if identity is None:
-            return content
-        return Group(identity.inline_renderable(), content)
+            if roster is None:
+                return content
+            if isinstance(content, Text):
+                combined = Text()
+                combined.append_text(content)
+                if combined.plain and not combined.plain.endswith("\n"):
+                    combined.append("\n")
+                combined.append("\n")
+                combined.append_text(roster)
+                return combined
+            return Group(content, Text("\n"), roster)
+        if roster is None:
+            return Group(identity.inline_renderable(), content)
+        if isinstance(content, Text):
+            combined_body = Text()
+            combined_body.append_text(content)
+            if combined_body.plain and not combined_body.plain.endswith("\n"):
+                combined_body.append("\n")
+            combined_body.append("\n")
+            combined_body.append_text(roster)
+            return Group(identity.inline_renderable(), combined_body)
+        return Group(identity.inline_renderable(), content, Text("\n"), roster)
 
     def prepare_section_document(self, identity: object) -> None:
         """Set the logical metadata-document identity for cursor reconciliation."""
@@ -131,7 +156,11 @@ class AgentPromptPanel(
         jump_sink = getattr(self, "_member_jump_map_sink", None)
         if jump_sink is not None:
             self._jump_map_last_published = find_member_jump_map(content)
-            jump_sink(self._jump_map_last_published)
+            self._member_roster_last_published = find_member_roster(content)
+            jump_sink(
+                self._jump_map_last_published,
+                self._member_roster_last_published,
+            )
         digest: str | None
         try:
             digest = renderable_content_digest(content)

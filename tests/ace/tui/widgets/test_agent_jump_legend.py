@@ -91,7 +91,7 @@ def _two_section_map() -> MemberJumpMap:
         numbering=numbering,
         entry_limit=4,
         hidden_tail_label="neighbors",
-        hidden_tail_hint="zz / za to show more",
+        hidden_tail_hint="zz to show more",
     )
     return merged_member_jump_map(_LANE_IDENTITY, family, neighbors)
 
@@ -176,10 +176,8 @@ def test_two_digit_chips() -> None:
     assert jump_map.targets[10].number == "10"
     lines = _render_lines(JumpLegendRenderable(jump_map, mode="collapsed"), 200)
     assert any("10" in line for line in lines)
-    expanded = "\n".join(
-        _render_lines(JumpLegendRenderable(jump_map, mode="expanded"), 80)
-    )
-    assert "10" in expanded and "11" in expanded
+    narrowed = "\n".join(_render_lines(JumpLegendRenderable(jump_map, mode="1"), 80))
+    assert "10" in narrowed and "11" in narrowed
 
 
 def test_wide_characters_measure_by_cells() -> None:
@@ -198,30 +196,8 @@ def test_dismissed_marker() -> None:
         _render_lines(JumpLegendRenderable(jump_map, mode="collapsed"), 80)
     )
     assert "⊘" in text
-    expanded = "\n".join(
-        _render_lines(JumpLegendRenderable(jump_map, mode="expanded"), 80)
-    )
-    assert "revive" in expanded
-
-
-@pytest.mark.parametrize("width", WIDTHS)
-def test_expanded_shows_every_target_with_headings_and_tails(width: int) -> None:
-    jump_map = _two_section_map()
-    lines = _render_lines(JumpLegendRenderable(jump_map, mode="expanded"), width)
-    text = "\n".join(lines)
-    for target in jump_map.targets:
-        assert target.number in text
-        assert target.label in text
-    assert "❖ FAMILY SHELLS" in text
-    assert "❖ NEIGHBORS" in text
-    assert "… +2 more neighbors" in text
-
-
-def test_expanded_single_section_has_no_heading() -> None:
-    jump_map = _single_section_map(["alpha", "beta"])
-    text = "\n".join(_render_lines(JumpLegendRenderable(jump_map, mode="expanded"), 80))
-    assert "❖" not in text
-    assert "alpha" in text and "beta" in text
+    narrowed = "\n".join(_render_lines(JumpLegendRenderable(jump_map, mode="1"), 80))
+    assert "revive" in narrowed
 
 
 def test_narrowed_filtering_and_empty_line() -> None:
@@ -258,7 +234,7 @@ def test_border_accent_and_digest() -> None:
     second = JumpLegendRenderable(two, mode="collapsed")
     assert renderable_content_digest(first) == renderable_content_digest(second)
     assert renderable_content_digest(first) != renderable_content_digest(
-        JumpLegendRenderable(two, mode="expanded")
+        JumpLegendRenderable(two, mode="1")
     )
 
 
@@ -305,7 +281,7 @@ def test_narrow_widths_keep_spans_inside_clipped_cells() -> None:
         numbering=numbering,
     )
     jump_map = merged_member_jump_map(_LANE_IDENTITY, family, neighbors)
-    for mode in ("collapsed", "expanded", "1"):
+    for mode in ("collapsed", "1"):
         for width in (9, 12, 16, 20, 30):
             renderable = JumpLegendRenderable(jump_map, mode=mode)
             for line in renderable._lines_for_width(width):  # noqa: SLF001

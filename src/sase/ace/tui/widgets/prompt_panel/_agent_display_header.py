@@ -167,6 +167,7 @@ def build_header_text(
         document_numbering = MemberJumpNumbering(
             total=len(family_entries) + shown_neighbor_count
         )
+    roster_text: Text | None = Text() if detach_identity else None
     family_map = None
     from ._agent_queue_section import (
         append_runner_queue_section,
@@ -245,8 +246,9 @@ def build_header_text(
             scale=FAMILY_FOLD_SCALE,
         )
     if family_entries:
+        family_dest = roster_text if roster_text is not None else header_text
         family_map = append_family_member_roster(
-            header_text,
+            family_dest,
             agent,
             panel_level=resolved_lane_fold_level,
             section_fold_overrides=lane_overrides,
@@ -299,8 +301,9 @@ def build_header_text(
 
     neighbors_map = None
     if lane_neighbors is not None:
+        neighbors_dest = roster_text if roster_text is not None else header_text
         neighbors_map = append_lane_neighbors_section(
-            header_text,
+            neighbors_dest,
             projection=lane_neighbors,
             panel_level=resolved_lane_fold_level,
             scale=lane_scale,
@@ -487,7 +490,12 @@ def build_header_text(
             and jump_map is not None
             and (jump_map.targets or jump_map.sections)
         ):
-            carrier.with_member_jump_map(jump_map)
+            from ._member_roster import detached_roster_text
+
+            roster = (
+                detached_roster_text(roster_text) if roster_text is not None else None
+            )
+            carrier.with_member_jump_map(jump_map, roster=roster)
         return (
             carrier,
             error_tb_syntax,

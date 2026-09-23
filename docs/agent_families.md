@@ -405,13 +405,13 @@ one multi-parent fork.
 ### Family detail folding
 
 Selecting a real multi-member family root in sase's TUI opens the metadata panel with
-underlined `FAMILY` (cyan, matching the name), then a numbered `FAMILY SHELLS` roster in
-stable chain order: agent shells in chain order, with each monitor spliced in directly
-after its starter shell. The original member and each follow-up are direct jump targets;
-synthetic planner projections and legacy parallel-family scaffolding are not. The same
-`zz`, `zZ`, `za`, and `zA` chords used by clan summaries control the family roster and
-the root's foldable output variables, workflow variables, SASE context, slow calls, and
-errors.
+underlined `FAMILY` (cyan, matching the name), with a numbered `FAMILY SHELLS` roster in
+the jump panel in stable chain order: agent shells in chain order, with each monitor
+spliced in directly after its starter shell. The original member and each follow-up are
+direct jump targets; synthetic planner projections and legacy parallel-family
+scaffolding are not. The roster follows the global panel fold keys (`zz`, `zZ`, and the
+direct level keys); the root's foldable output variables, workflow variables, SASE
+context, slow calls, and errors use the same chords plus `za`/`zA`.
 
 Family summaries have two effective levels. Level 1 shows bounded activity, wait/retry,
 context, and compact member metadata; level 2 adds full foldable metadata plus member
@@ -419,8 +419,9 @@ workspace, timestamp, and attempt annotations. Press `zZ` at level 1 to open eve
 to level 2, or at level 2 to close every fold to level 1. Press `z1` or `z2` to select
 either level directly. `z3` and `z4` are invalid in a family context and leave both the
 panel level and section overrides untouched. A member-specific override inherits from
-the `FAMILY SHELLS` section, which in turn inherits the panel level. The numbered roster
-and its digit jumps remain present at both effective levels.
+the `FAMILY SHELLS` section, which in turn inherits the panel level; any leftover roster
+override still applies until a global fold key clears overrides. The numbered roster and
+its digit jumps remain present at both effective levels.
 
 The family root's `SLOW TOOL CALLS` section also follows that two-position scale. Level
 1 keeps one aligned row per call with a short target digest and a tail explaining that
@@ -434,10 +435,10 @@ navigation anchors for `Ctrl+J`/`Ctrl+K`; `za` and `zA` skip them without changi
 override registry. Absent xprompt and prompt sections are omitted, while reply rows for
 members that have not responded yet remain visible with their pending state.
 
-A family root is a sase agent, so its panel also carries a `NEIGHBORS` section listing
-the sase agent's ancestors, descendants, and hood neighbors; it sits below
-`FAMILY SHELLS` and above `SASE CONTEXT`. The family participates under its bare family
-name rather than the root member's `--` name, so a family `fam` lists `fam.helper` as a
+A family root is a sase agent, so its jump panel also carries a `NEIGHBORS` section
+listing the sase agent's ancestors, descendants, and hood neighbors; it sits after
+`FAMILY SHELLS` when both exist. The family participates under its bare family name
+rather than the root member's `--` name, so a family `fam` lists `fam.helper` as a
 descendant and `fam.helper` lists `fam` back as its ancestor. Both rosters draw their
 digits from one continuous ladder, so family members are numbered first and neighbors
 after, with a single shared number width. Family members already shown under
@@ -451,19 +452,20 @@ behavior, which single agents share through their own three-level scale.
 #### Family member detail folding
 
 Selecting a family **shell** row — not the container — also renders a numbered
-`FAMILY SHELLS` roster: every shell of the enclosing family in the same stable chain
-order, except the selected shell itself, numbered starting from `0`. The heading carries
-a dim ` · <family name>` suffix naming the family. Digit jumps behave exactly as they do
-on the container roster — `0`–`9` (or two-key `00`–`99` past ten shells) reveal the
-target shell, and a roster that changed since the panel was drawn cancels the jump with
-a warning instead of landing somewhere stale.
+`FAMILY SHELLS` roster in the jump panel: every shell of the enclosing family in the
+same stable chain order, except the selected shell itself, numbered starting from `0`.
+The heading carries a dim ` · <family name>` suffix naming the family. Digit jumps
+behave exactly as they do on the container roster — `0`–`9` (or two-key `00`–`99` past
+ten shells) reveal the target shell, and a roster that changed since the panel was drawn
+cancels the jump with a warning instead of landing somewhere stale.
 
-Unlike the container's two-level family scale, a member panel folds its roster and every
-other section on the selected member's own three-level agent scale (`z1`–`z3`, `zz`,
-`za`, `zA`), so no `Fold: N/M` header line appears. A member row is an agent shell node
-rather than a sase agent, so its panel names that with underlined `AGENT SHELL` (gold,
-matching the name), has no `NEIGHBORS` section, and shows only `FAMILY SHELLS` for the
-enclosing family. The container panel names itself `FAMILY`.
+Unlike the container's two-level family scale, a member panel folds every other section
+on the selected member's own three-level agent scale (`z1`–`z3`, `zz`, `za`, `zA`),
+while its jump-panel roster follows the global panel fold keys, so no `Fold: N/M` header
+line appears. A member row is an agent shell node rather than a sase agent, so its panel
+names that with underlined `AGENT SHELL` (gold, matching the name), has no `NEIGHBORS`
+section, and shows only `FAMILY SHELLS` for the enclosing family. The container panel
+names itself `FAMILY`.
 
 #### Per-member model lanes
 

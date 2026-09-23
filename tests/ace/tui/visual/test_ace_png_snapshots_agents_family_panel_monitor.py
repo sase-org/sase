@@ -299,12 +299,7 @@ async def test_family_panel_shells_monitor_metadata_png_snapshot(
             title="ACE family panel shell metadata with monitor",
         )
 
-        panel = page.query_one_widget("#agent-prompt-panel", AgentPromptPanel)
-        for _ in range(20):
-            if panel.active_section_identity == "members":
-                break
-            await page.press("ctrl+j")
-        assert panel.active_section_identity == "members"
+        await page.press(".")
         await wait_for_visual_idle(page)
         assert_page_svg_contains(page, "FAMILY SHELLS")
         assert_page_svg_contains(page, "--plan")
