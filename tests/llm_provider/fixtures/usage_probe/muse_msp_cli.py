@@ -94,6 +94,12 @@ def main() -> int:
     for line in sys.stdin:
         message = json.loads(line)
         _record_json(messages_path, message)
+        if mode == "transport_rate_limited":
+            # Die mid-session with rate-limit evidence on stderr instead
+            # of answering.
+            sys.stderr.write("HTTP 429 Too Many Requests\nretry-after: 90\n")
+            sys.stderr.flush()
+            return 1
         request_id = message.get("id")
         method = message.get("method")
         params = message.get("params") or {}

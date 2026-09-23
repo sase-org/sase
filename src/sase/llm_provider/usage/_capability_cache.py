@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import re
+import shutil
 import tempfile
 import time
 from collections.abc import Mapping
@@ -32,7 +33,7 @@ _INVALIDATING_REASON_CODES = frozenset({"unsupported_cli_version", "vendor_drift
 _MAX_CACHED_OUTPUT_BYTES = 65_536
 
 
-def capability_cache_dir() -> Path:
+def _capability_cache_dir() -> Path:
     """Return the directory holding per-provider capability entries."""
     from sase.core.paths import sase_home
 
@@ -42,15 +43,20 @@ def capability_cache_dir() -> Path:
 def executable_fingerprint(executable: str | None) -> str | None:
     """Return ``"<path>:<mtime_ns>:<size>"`` for *executable*, if it exists.
 
-    ``None`` means the probe spawns an unresolved command: the cache is
-    bypassed rather than keyed on a guess.
+    Bare command names resolve through ``PATH`` exactly as the subprocess
+    spawn does, so probes that pass ``"agy"`` or ``"grok"`` still hit the
+    cache in production. ``None`` means the command is not on disk: the
+    cache is bypassed rather than keyed on a guess.
     """
     if not executable:
         return None
     try:
         candidate = Path(executable)
         if not candidate.is_file():
-            return None
+            resolved = shutil.which(executable)
+            if not resolved:
+                return None
+            candidate = Path(resolved)
         stat = candidate.stat()
     except (OSError, ValueError):
         return None
@@ -145,7 +151,7 @@ def write_probe_capability(
     return None
 
 
-def invalidate_probe_capability(provider: str) -> None:
+def _invalidate_probe_capability(provider: str) -> None:
     """Delete *provider*'s cached entry, if any."""
     if not provider:
         return
@@ -167,7 +173,7 @@ def note_probe_capability_outcome(
     if not isinstance(observation, Mapping):
         return
     if observation.get("reason_code") in _INVALIDATING_REASON_CODES:
-        invalidate_probe_capability(provider)
+        _invalidate_probe_capability(provider)
 
 
 def encode_command_result(
@@ -205,17 +211,15 @@ def decode_command_result(value: Any) -> tuple[int, str, str] | None:
 
 def _cache_path(provider: str) -> Path:
     safe = re.sub(r"[^A-Za-z0-9_-]", "_", provider).strip("_") or "unknown"
-    return capability_cache_dir() / f"{safe}.json"
+    return _capability_cache_dir() / f"{safe}.json"
 
 
 __all__ = [
     "CAPABILITY_CACHE_DIR_NAME",
     "CAPABILITY_CACHE_TTL_SECONDS",
-    "capability_cache_dir",
     "decode_command_result",
     "encode_command_result",
     "executable_fingerprint",
-    "invalidate_probe_capability",
     "note_probe_capability_outcome",
     "read_probe_capability",
     "write_probe_capability",

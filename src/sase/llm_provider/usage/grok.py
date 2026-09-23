@@ -418,6 +418,15 @@ def _status_from_error(
 def _transport_status(
     exc: JsonLineTransportError, context: UsageProbeContext
 ) -> dict[str, Any]:
+    limited = detect_rate_limit(stderr=exc.stderr)
+    if limited is not None:
+        return _status(
+            context,
+            outcome="error",
+            reason_code="rate_limited",
+            diagnostic="grok_usage_rate_limited",
+            retry_after_seconds=limited.retry_after_seconds,
+        )
     if exc.code == "timeout":
         return _status(
             context,

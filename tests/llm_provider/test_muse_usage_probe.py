@@ -301,6 +301,17 @@ def test_muse_usage_probe_rate_limit_error_is_rate_limited(
     assert result["retry_after_seconds"] == pytest.approx(30.0)
 
 
+def test_muse_transport_failure_with_rate_limit_stderr_is_rate_limited(
+    tmp_path: Path,
+) -> None:
+    fake = _make_fake_muse(tmp_path)
+    result, _, _ = _run_muse_probe(fake, tmp_path, mode="transport_rate_limited")
+    assert result["outcome"] == "error"
+    assert result["reason_code"] == "rate_limited"
+    assert result["diagnostic"] == "muse_msp_eof_rate_limited"
+    assert result["retry_after_seconds"] == pytest.approx(90.0)
+
+
 def test_muse_usage_probe_refuses_unsolicited_host_requests(tmp_path: Path) -> None:
     fake = _make_fake_muse(tmp_path)
     result, messages, _ = _run_muse_probe(fake, tmp_path, mode="unsolicited_request")

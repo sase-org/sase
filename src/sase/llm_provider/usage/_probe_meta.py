@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import re
 import shutil
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -104,27 +105,34 @@ def usage_cli_fingerprint(provider: str) -> str | None:
     return f"{candidate}:{stat.st_mtime_ns}:{stat.st_size}"
 
 
-def resolve_provider_cli_command(provider: str) -> str:
-    """Resolve the CLI command readiness checks inspect."""
+def resolve_provider_cli_command(
+    provider: str, metadata: Mapping[str, Any] | None = None
+) -> str:
+    """Resolve the CLI command readiness checks inspect.
+
+    *metadata* is the provider's registry metadata; it is looked up when
+    omitted so one-argument callers keep working.
+    """
     if provider == "codex":
         from sase.llm_provider.codex import resolve_codex_executable
 
         return resolve_codex_executable()
-    try:
-        from sase.llm_provider.registry import get_llm_metadata_payload
+    resolved: Mapping[str, Any] = metadata if isinstance(metadata, Mapping) else {}
+    if metadata is None:
+        try:
+            from sase.llm_provider.registry import get_llm_metadata_payload
 
-        payload = get_llm_metadata_payload()
-        providers = payload.get("providers")
-        metadata: dict[str, Any] = {}
-        if isinstance(providers, dict):
-            raw = providers.get(provider)
-            if isinstance(raw, dict):
-                metadata = raw
-    except Exception:
-        metadata = {}
+            payload = get_llm_metadata_payload()
+            providers = payload.get("providers")
+            if isinstance(providers, dict):
+                raw = providers.get(provider)
+                if isinstance(raw, dict):
+                    resolved = raw
+        except Exception:
+            resolved = {}
     token = re.sub(r"[^A-Za-z0-9]+", "_", provider).strip("_").upper()
     override = os.environ.get(f"SASE_{token}_PATH", "").strip()
-    cli_name = metadata.get("autodetect_cli_name")
+    cli_name = resolved.get("autodetect_cli_name")
     return override or (str(cli_name).strip() if cli_name else "")
 
 

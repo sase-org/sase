@@ -192,6 +192,17 @@ def main() -> int:
 
     _handshake()
 
+    if MODE == "transport_rate_limited":
+        # Answer the best-effort read, then die mid-session on the
+        # rate-limit read with rate-limit evidence on stderr.
+        first = _read_request()
+        if first.get("method") == "account/read":
+            _respond_ok(first, {"authMode": "chatgpt"})
+            _read_request()  # account/rateLimits/read, never answered
+        sys.stderr.write("HTTP 429 Too Many Requests\nretry-after: 90\n")
+        sys.stderr.flush()
+        return 1
+
     if MODE == "hang_after_handshake":
         time.sleep(3600)  # sase-test-wait: hang until the transport deadline kills us
         return 0

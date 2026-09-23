@@ -121,6 +121,15 @@ def _collect_agy_usage(
                 reason_code="logged_out",
                 diagnostic="agy_auth_prompt_detected",
             )
+        limited = detect_rate_limit(stderr=stderr_text)
+        if limited is not None:
+            return _status(
+                context,
+                outcome="error",
+                reason_code="rate_limited",
+                diagnostic="agy_usage_rate_limited",
+                retry_after_seconds=limited.retry_after_seconds,
+            )
         return _status(
             context,
             outcome="error",

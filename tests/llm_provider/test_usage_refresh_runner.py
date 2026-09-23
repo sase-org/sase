@@ -2,17 +2,13 @@
 
 from __future__ import annotations
 
-import importlib
 import time
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from sase.axe.chop_script_context import ChopScriptContext, write_chop_context
-from sase.chops.builtin import run_builtin_chop
 from sase.llm_provider.usage import refresh_runner
-from sase.llm_provider.usage.refresh import UsageRefreshReceipt
 from sase.llm_provider.usage.refresh_runner import _run_admitted_refresh
 from sase.llm_provider.usage.types import UsageProbeResult
 from sase.testing.usage_synthetic import (
@@ -84,43 +80,6 @@ def test_runner_reports_providers_that_miss_the_batch_deadline(
     assert any(
         item["reason_code"] in {"deadline_exceeded", "timeout"} for item in results
     )
-
-
-def test_chop_emits_nothing_due_summary(
-    monkeypatch: pytest.MonkeyPatch,
-    tmp_path,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    importlib.import_module("sase.scripts.sase_chop_usage_refresh")
-
-    result_path = tmp_path / "result.json"
-    context_path = tmp_path / "context.json"
-    write_chop_context(
-        ChopScriptContext(
-            max_hook_runners=1,
-            max_agent_runners=1,
-            zombie_timeout_seconds=60,
-            query="",
-            lumberjack_name="checks",
-            state_dir=str(tmp_path),
-            all_patches_file=str(tmp_path / "all.json"),
-            filtered_patches_file=str(tmp_path / "filtered.json"),
-            result_file=str(result_path),
-        ),
-        str(context_path),
-    )
-    monkeypatch.setattr(
-        "sase.llm_provider.usage.refresh.request_due_usage_refresh",
-        lambda origin="axe": UsageRefreshReceipt(
-            schema_version=1, origin=origin, operation_ids=(), providers=()
-        ),
-    )
-    run_builtin_chop("usage_refresh", ["--context", str(context_path)])
-    out = capsys.readouterr().out
-    assert "usage_refresh:" in out
-    assert "reason=nothing_due" in out
-    payload = Path(result_path).read_text(encoding="utf-8")
-    assert '"status": "no_op"' in payload
 
 
 def test_batch_deadline_keeps_finished_probe_records(

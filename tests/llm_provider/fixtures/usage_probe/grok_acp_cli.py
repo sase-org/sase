@@ -74,6 +74,12 @@ def main() -> int:
         request_id = message.get("id")
         method = message.get("method")
         if method == "initialize":
+            if mode == "transport_rate_limited":
+                # Die mid-session with rate-limit evidence on stderr instead
+                # of answering.
+                sys.stderr.write("HTTP 429 Too Many Requests\nretry-after: 90\n")
+                sys.stderr.flush()
+                return 1
             _respond(
                 {"jsonrpc": "2.0", "id": request_id, "result": {"protocolVersion": 1}}
             )

@@ -248,6 +248,17 @@ def test_rate_limited_error_reports_retry_after(
     assert observation["retry_after_seconds"] == pytest.approx(45.0)
 
 
+def test_transport_failure_with_rate_limit_stderr_is_rate_limited(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    context = _context(mode="transport_rate_limited", monkeypatch=monkeypatch)
+    observation = collect_codex_usage(context)
+    validate_observation(observation, now=context.request_started_at)
+    assert observation["outcome"] == "error"
+    assert observation["reason_code"] == "rate_limited"
+    assert observation["retry_after_seconds"] == pytest.approx(90.0)
+
+
 def test_rate_limits_rpc_error_carries_bounded_diagnostic(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

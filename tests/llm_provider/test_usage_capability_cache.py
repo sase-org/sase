@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import time
 from collections.abc import Mapping, Sequence
@@ -11,11 +12,11 @@ from typing import Any
 
 from sase.llm_provider.usage._capability_cache import (
     CAPABILITY_CACHE_TTL_SECONDS,
-    capability_cache_dir,
+    _capability_cache_dir,
+    _invalidate_probe_capability,
     decode_command_result,
     encode_command_result,
     executable_fingerprint,
-    invalidate_probe_capability,
     note_probe_capability_outcome,
     read_probe_capability,
     write_probe_capability,
@@ -63,7 +64,7 @@ _GROK_WEEKLY_PAYLOAD = {
 
 
 def _cache_path(provider: str) -> Path:
-    return capability_cache_dir() / f"{provider}.json"
+    return _capability_cache_dir() / f"{provider}.json"
 
 
 class FakeClaudeRunner:
@@ -226,7 +227,7 @@ def test_note_probe_capability_outcome_invalidates_only_on_drift() -> None:
             "agy", {"outcome": "error", "reason_code": reason}
         )
         assert _cache_path("agy").exists()
-    invalidate_probe_capability("agy")
+    _invalidate_probe_capability("agy")
     note_probe_capability_outcome("agy", None)
 
 
@@ -398,6 +399,74 @@ def test_grok_warm_probe_skips_version_spawn(tmp_path: Path, monkeypatch: Any) -
     cold_argv = _read_json_lines(argv_path)
     assert ["--version"] in cold_argv
     assert ["--no-auto-update", "agent", "stdio"] in cold_argv
+    assert _cache_path("grok").exists()
+
+    argv_path.unlink()
+    assert probe()["outcome"] == "ok"
+    warm_argv = _read_json_lines(argv_path)
+    assert ["--version"] not in warm_argv
+    assert ["--no-auto-update", "agent", "stdio"] in warm_argv
+
+
+def test_agy_bare_command_name_resolves_through_path(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A bare ``agy`` on PATH fingerprints, so the warm probe skips ``--version``.
+
+    In production the runner's probe context carries no executable and the
+    probe passes the bare command name; without PATH resolution the
+    fingerprint is ``None`` and the cache never hits.
+    """
+    _make_fake_executable(tmp_path, "agy", _AGY_FIXTURE)
+    monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ.get("PATH", ""))
+    argv_path = tmp_path / "argv.jsonl"
+    monkeypatch.setenv("SASE_FAKE_AGY_MODE", "success")
+    monkeypatch.setenv("SASE_FAKE_AGY_VERSION", "1.2.7")
+    monkeypatch.setenv("SASE_FAKE_AGY_ARGV", str(argv_path))
+
+    def probe() -> Mapping[str, Any]:
+        context = default_probe_context(
+            "agy",
+            working_directory=str(tmp_path),
+            deadline_seconds=30.0,
+        )
+        return collect_agy_usage(context)
+
+    assert executable_fingerprint("agy") is not None
+    assert probe()["outcome"] == "ok"
+    cold_argv = [entry["argv"] for entry in _read_json_lines(argv_path)]
+    assert cold_argv[0] == ["--version"]
+    assert any(argv[:2] == ["-p", "/usage"] for argv in cold_argv)
+    assert _cache_path("agy").exists()
+
+    argv_path.unlink()
+    assert probe()["outcome"] == "ok"
+    warm_argv = [entry["argv"] for entry in _read_json_lines(argv_path)]
+    assert len(warm_argv) == 1
+    assert warm_argv[0][:2] == ["-p", "/usage"]
+
+
+def test_grok_bare_command_name_resolves_through_path(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """A bare ``grok`` on PATH fingerprints, so the warm probe skips ``--version``."""
+    _make_fake_executable(tmp_path, "grok", _GROK_FIXTURE)
+    monkeypatch.setenv("PATH", str(tmp_path) + os.pathsep + os.environ.get("PATH", ""))
+    argv_path = tmp_path / "argv.jsonl"
+    messages_path = tmp_path / "messages.jsonl"
+    monkeypatch.setenv("SASE_FAKE_GROK_MODE", "native")
+    monkeypatch.setenv("SASE_FAKE_GROK_VERSION", _NATIVE_GROK_VERSION)
+    monkeypatch.setenv("SASE_FAKE_GROK_ARGV", str(argv_path))
+    monkeypatch.setenv("SASE_FAKE_GROK_MESSAGES", str(messages_path))
+    monkeypatch.setenv("SASE_FAKE_GROK_BILLING", json.dumps(_GROK_WEEKLY_PAYLOAD))
+
+    def probe() -> Mapping[str, Any]:
+        context = default_probe_context("grok", deadline_seconds=30.0)
+        return collect_grok_usage(context)
+
+    assert executable_fingerprint("grok") is not None
+    assert probe()["outcome"] == "ok"
+    assert ["--version"] in _read_json_lines(argv_path)
     assert _cache_path("grok").exists()
 
     argv_path.unlink()

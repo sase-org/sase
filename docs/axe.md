@@ -402,7 +402,7 @@ A scheduled tick performs a due-only refresh. A manual run — the Services-tab 
 `sase axe job run usage_refresh` — performs an explicit refresh instead, still subject
 to the 60-second cooldown and any `Retry-After`. A host that shares an account with
 another machine can opt out per provider with
-`llm_provider.usage_metrics.providers.<name>: false` in a machine overlay.
+`llm_provider.usage_metrics.providers.<name>.enabled: false` in a machine overlay.
 
 ### external_mirror (15-minute interval)
 

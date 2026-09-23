@@ -30,11 +30,17 @@ UNSERVICED_REQUEST_METHODS = frozenset(
 
 
 class JsonLineTransportError(RuntimeError):
-    """A JSON-line session failed without a correlated response."""
+    """A JSON-line session failed without a correlated response.
 
-    def __init__(self, code: str, message: str) -> None:
+    *stderr* carries the child's bounded stderr output collected before
+    the failure, so collectors can classify transport failures (a 429 on
+    stderr is a rate limit) instead of guessing from the code alone.
+    """
+
+    def __init__(self, code: str, message: str, stderr: str = "") -> None:
         super().__init__(message)
         self.code = code
+        self.stderr = stderr
 
 
 class JsonLineSession:
@@ -122,7 +128,9 @@ class JsonLineSession:
                     continue
                 if decoded.get("id") == request_id:
                     return decoded
-        except JsonLineTransportError:
+        except JsonLineTransportError as exc:
+            if not exc.stderr:
+                exc.stderr = self.stderr_text
             self.close()
             raise
 
@@ -187,6 +195,19 @@ class JsonLineSession:
         if not watch:
             raise JsonLineTransportError("eof", "process streams closed")
         ready, _, _ = select.select(watch, [], [], min(remaining, 0.1))
+        # Drain stderr before inspecting stdout EOF: a child that writes a
+        # rate-limit line to stderr and exits in the same instant must still
+        # have that evidence on the raised error.
+        if stderr is not None and stderr in ready:
+            chunk = stderr.read(4096)
+            if chunk:
+                self._stderr_total += len(chunk)
+                if self._stderr_total > self._max_stderr_bytes:
+                    raise JsonLineTransportError(
+                        "stderr_overflow",
+                        "JSON-line stderr exceeded the bound",
+                    )
+                self._stderr.extend(chunk)
         if stdout is not None and stdout in ready:
             chunk = stdout.read(4096)
             if chunk:
@@ -199,16 +220,6 @@ class JsonLineSession:
                 self._stdout_buf.extend(chunk)
             elif require_stdout and self.process.poll() is not None:
                 raise JsonLineTransportError("eof", "process ended before a response")
-        if stderr is not None and stderr in ready:
-            chunk = stderr.read(4096)
-            if chunk:
-                self._stderr_total += len(chunk)
-                if self._stderr_total > self._max_stderr_bytes:
-                    raise JsonLineTransportError(
-                        "stderr_overflow",
-                        "JSON-line stderr exceeded the bound",
-                    )
-                self._stderr.extend(chunk)
         if require_stdout and not ready and self.process.poll() is not None:
             raise JsonLineTransportError("eof", "process ended before a response")
 

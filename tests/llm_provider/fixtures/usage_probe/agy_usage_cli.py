@@ -160,6 +160,13 @@ def main() -> int:
     if mode == "hang":
         time.sleep(60)  # sase-test-wait: hang until the probe deadline kills us
         return 0
+    if mode == "rate_limited_hang":
+        # A timeout with rate-limit evidence on stderr: the usage run never
+        # produces stdout, but the failure still classifies as rate-limited.
+        print("HTTP 429 Too Many Requests", file=sys.stderr, flush=True)
+        print("retry-after: 45", file=sys.stderr, flush=True)
+        time.sleep(60)  # sase-test-wait: hang until the probe deadline kills us
+        return 0
     if mode == "malformed":
         print("this is not json{{{", flush=True)
         return 0

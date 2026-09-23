@@ -159,6 +159,51 @@ async def test_usage_modal_update_marks_providers_and_clears_on_completion(
         assert "Updating" not in option_list.get_option_at_index(0).prompt.plain
 
 
+async def test_usage_modal_failed_reservation_read_keeps_tracking(
+    monkeypatch,
+) -> None:
+    initial = usage_view_snapshot(usage_provider("codex", collection_status="ok"))
+    refreshed = usage_view_snapshot(usage_provider("codex", collection_status="ok"))
+    receipt = _receipt(provider="codex", operation_id="op-1", status="reserved")
+    monkeypatch.setattr(usage_modal, "submit_usage_refresh", lambda *a, **k: receipt)
+    reads = {"n": 0}
+
+    def flaky_reservations():
+        reads["n"] += 1
+        if reads["n"] <= 2:
+            raise RuntimeError("store unreadable")
+        return ()
+
+    monkeypatch.setattr(
+        usage_modal, "list_provider_usage_refresh_reservations", flaky_reservations
+    )
+    calls = {"n": 0}
+
+    def load_snapshot() -> object:
+        calls["n"] += 1
+        return initial if calls["n"] == 1 else refreshed
+
+    async with ModelsPanelTestApp().run_test() as pilot:
+        modal = ProviderUsageModal(initial, load_snapshot=load_snapshot)
+        pilot.app.push_screen(modal)
+        await pilot.pause()
+
+        modal.action_update_usage()
+        await wait_for(pilot, lambda: modal._pending == {"codex": "op-1"})
+
+        # Two failed polls must leave tracking alone: no early finish, and
+        # no snapshot reload behind the spinner.
+        await wait_for(pilot, lambda: reads["n"] >= 2, timeout=5.0)
+        await pilot.pause()
+        await pilot.pause()
+        assert modal._pending == {"codex": "op-1"}
+        assert modal._snapshot is initial
+
+        # The retry then sees no live reservations and completes normally.
+        await wait_for(pilot, lambda: not modal._pending, timeout=5.0)
+        await wait_for(pilot, lambda: modal._snapshot is refreshed, timeout=5.0)
+
+
 async def test_usage_modal_update_summary_reports_failures(monkeypatch) -> None:
     initial = usage_view_snapshot(usage_provider("codex"))
     failed = usage_view_snapshot(

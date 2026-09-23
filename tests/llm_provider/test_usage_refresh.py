@@ -255,7 +255,7 @@ def test_config_opt_out_does_not_submit(
     assert receipt.operation_ids == ()
 
 
-def test_limit_event_trigger_marks_due_and_submits(
+def test_limit_event_trigger_marks_due_without_submitting(
     usage_home: dict[str, object], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     submitted: list[ProcSubmitRequest] = []
@@ -466,6 +466,13 @@ def test_inline_execution_releases_leases_when_batch_raises(
             or real_attempt(provider, *args, **kwargs)
         ),
     )
+    # The fixture mocks admission in memory, so the reservation list must
+    # agree with it: the admitted provider still holds its lease.
+    monkeypatch.setattr(
+        refresh_mod,
+        "list_provider_usage_refresh_reservations",
+        lambda *args, **kwargs: tuple(usage_home["reserved"].values()),
+    )
 
     def boom(
         payload: dict[str, Any], *, now: float | None = None
@@ -492,6 +499,80 @@ def test_inline_execution_releases_leases_when_batch_raises(
     )
     assert released == ["synth"]
     assert attempts == [("synth", "probe_failed")]
+
+
+def test_inline_crash_keeps_finished_providers(
+    usage_home: dict[str, object], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A batch crash records ``probe_failed`` only for live reservations.
+
+    The runner records one success (releasing its lease) and then raises:
+    the finished provider keeps its success while the still-reserved one
+    takes the crash record, the lease release, and the synthesized result.
+    """
+    import sase.llm_provider.usage.refresh as refresh_mod
+
+    released: list[str] = []
+    real_release = refresh_mod.release_provider_usage_refresh
+    monkeypatch.setattr(
+        refresh_mod,
+        "release_provider_usage_refresh",
+        lambda *args, **kwargs: (
+            released.append(args[0]) or real_release(*args, **kwargs)
+        ),
+    )
+    attempts: list[tuple[str, str]] = []
+    real_attempt = refresh_mod.record_provider_usage_refresh_attempt
+    monkeypatch.setattr(
+        refresh_mod,
+        "record_provider_usage_refresh_attempt",
+        lambda provider, *args, **kwargs: (
+            attempts.append((provider, str(kwargs.get("reason_code"))))
+            or real_attempt(provider, *args, **kwargs)
+        ),
+    )
+    # Only "other" still holds its lease: "synth" finished and released.
+    monkeypatch.setattr(
+        refresh_mod,
+        "list_provider_usage_refresh_reservations",
+        lambda *args, **kwargs: tuple(
+            reservation
+            for (provider, _context_id, _generation), reservation in usage_home[
+                "reserved"
+            ].items()
+            if provider == "other"
+        ),
+    )
+
+    def record_then_raise(
+        payload: dict[str, Any], *, now: float | None = None
+    ) -> list[dict[str, Any]]:
+        refresh_mod.record_provider_usage_refresh_attempt(
+            "synth", "default", 1, "ok", cadence_seconds=300.0, adaptive=True, now=now
+        )
+        raise RuntimeError("worker exploded after one success")
+
+    monkeypatch.setattr(
+        "sase.llm_provider.usage.refresh_runner.run_admitted_refresh",
+        record_then_raise,
+    )
+    receipt = submit_usage_refresh(
+        ("synth", "other"),
+        explicit=True,
+        origin="axe",
+        execution="inline",
+        plugin_specs={"synth": SYNTHETIC_PLUGIN_SPEC, "other": SYNTHETIC_PLUGIN_SPEC},
+    )
+    assert receipt.inline_results == (
+        {
+            "provider": "other",
+            "outcome": "error",
+            "reason_code": "probe_failed",
+            "skipped": None,
+        },
+    )
+    assert released == ["other"]
+    assert attempts == [("synth", "None"), ("other", "probe_failed")]
 
 
 def test_receipt_carries_due_at_for_deferrals(

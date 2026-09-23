@@ -210,6 +210,14 @@ def test_rate_limit_ignores_unrelated_text() -> None:
     assert detect_rate_limit(stdout="used 4290 tokens this week") is None
 
 
+def test_rate_limit_ignores_429_inside_decimals() -> None:
+    assert detect_rate_limit(stderr="score 0.429 exceeded threshold") is None
+    assert detect_rate_limit(stdout="latency 429.5 ms average") is None
+    assert detect_rate_limit(stderr="HTTP 429") is not None
+    assert detect_rate_limit(stderr="429 Too Many Requests") is not None
+    assert detect_rate_limit(stderr="status 429.") is not None
+
+
 def test_rate_limit_ignores_quoted_method_path() -> None:
     assert (
         detect_rate_limit(

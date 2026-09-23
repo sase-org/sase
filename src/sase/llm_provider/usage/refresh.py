@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import logging
-import os
-import re
 import shutil
 import sys
 import time
@@ -590,8 +588,9 @@ def _run_inline_batch(
         return run_admitted_refresh(payload, now=now)
     except Exception:
         log.warning("inline usage refresh failed", exc_info=True)
-        _record_inline_crash(started, cadence_seconds, now=now)
-        _release_started(started, now=now)
+        crashed = _live_inline_providers(started)
+        _record_inline_crash(crashed, cadence_seconds, now=now)
+        _release_started(crashed, now=now)
         return [
             {
                 "provider": item.provider,
@@ -599,8 +598,30 @@ def _run_inline_batch(
                 "reason_code": "probe_failed",
                 "skipped": None,
             }
-            for item in started
+            for item in crashed
         ]
+
+
+def _live_inline_providers(
+    started: Sequence[_UsageRefreshProviderResult],
+) -> list[_UsageRefreshProviderResult]:
+    """Return the started providers still holding a live reservation.
+
+    A provider whose probe already recorded and released its lease finished
+    before the crash: recording an error for it now would turn its success
+    into backoff, and only live reservations are released.
+    """
+    try:
+        live = {
+            (reservation.operation_id, reservation.provider)
+            for reservation in list_provider_usage_refresh_reservations()
+        }
+    except Exception:
+        log.debug("usage refresh reservation read failed", exc_info=True)
+        return list(started)
+    return [
+        item for item in started if (item.operation_id or "", item.provider) in live
+    ]
 
 
 def _record_inline_crash(
@@ -609,7 +630,7 @@ def _record_inline_crash(
     *,
     now: float | None,
 ) -> None:
-    """Mark inline providers errored when the in-process batch raises."""
+    """Mark crashed inline providers errored when the in-process batch raises."""
     for item in started:
         try:
             record_provider_usage_refresh_attempt(
@@ -754,17 +775,12 @@ def _referenced_provider_ids() -> set[str]:
 
 
 def _provider_cli_ready(provider: str, metadata: Mapping[str, Any]) -> bool:
-    if provider == "codex":
-        # Match the launcher/collector's own resolver so an NVM-only install
-        # (no ``codex`` on PATH) still counts as ready.
-        from sase.llm_provider.codex import resolve_codex_executable
+    from sase.llm_provider.usage._probe_meta import resolve_provider_cli_command
 
-        command = resolve_codex_executable()
-    else:
-        token = re.sub(r"[^A-Za-z0-9]+", "_", provider).strip("_").upper()
-        override = os.environ.get(f"SASE_{token}_PATH", "").strip()
-        cli_name = metadata.get("autodetect_cli_name")
-        command = override or (str(cli_name).strip() if cli_name else "")
+    # Resolve exactly as admission readiness does, including the Codex
+    # NVM-aware resolver, so an NVM-only install (no ``codex`` on PATH)
+    # still counts as ready.
+    command = resolve_provider_cli_command(provider, metadata)
     if not command:
         return True
     path = Path(command)

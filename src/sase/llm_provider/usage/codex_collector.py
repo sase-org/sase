@@ -100,6 +100,18 @@ def collect_codex_usage(context: UsageProbeContext) -> dict[str, Any]:
         try:
             return _collect_with_session(session, context, connect)
         except JsonLineTransportError as exc:
+            limited = detect_rate_limit(stderr=exc.stderr)
+            if limited is not None:
+                return validated_status_observation(
+                    context,
+                    now=context.request_started_at,
+                    outcome="error",
+                    reason_code="rate_limited",
+                    diagnostic=bounded_probe_diagnostic(
+                        f"app-server transport {exc.code} rate limited"
+                    ),
+                    retry_after_seconds=limited.retry_after_seconds,
+                )
             return validated_status_observation(
                 context,
                 now=context.request_started_at,
@@ -124,7 +136,21 @@ def _collect_with_session(
 
     try:
         auth_mode = _probe_auth_mode(session, context)
-    except JsonLineTransportError:
+    except JsonLineTransportError as exc:
+        # Rate-limit evidence on the failed read classifies directly: a fresh
+        # session would only be told the same thing.
+        limited = detect_rate_limit(stderr=exc.stderr)
+        if limited is not None:
+            return validated_status_observation(
+                context,
+                now=context.request_started_at,
+                outcome="error",
+                reason_code="rate_limited",
+                diagnostic=bounded_probe_diagnostic(
+                    f"app-server transport {exc.code} rate limited"
+                ),
+                retry_after_seconds=limited.retry_after_seconds,
+            )
         # The best-effort ``account/read`` failed at the transport level, which
         # closes (poisons) this session. Start a fresh session for the
         # rate-limit read within the remaining deadline instead of failing.

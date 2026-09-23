@@ -43,15 +43,17 @@ _MSP_SCHEMA_FINGERPRINT = (
 # ``{}`` forever, but a ``turn/start`` on a session started with
 # ``providerId: "echo"`` makes it mint credentials and learn its subscription
 # usage ~2.5 s later, with no model call and no tokens. If a future Muse defers
-# the mint to real provider dispatch the probe degrades to absence (safe); the
-# echo-session guard below is what keeps the unsafe failure impossible.
+# the mint to real provider dispatch the probe reports an error and keeps the
+# last-known-good windows (safe); the echo-session guard below is what keeps
+# the unsafe failure impossible.
 _ECHO_PROVIDER_ID = "echo"
 _POLL_INTERVAL_SECONDS = 0.25
 # The mint lands 2.4-2.9 s after ``turn/start``; this leaves ~3x headroom while
 # staying well inside USAGE_REFRESH_PROVIDER_DEADLINE_SECONDS.
 _MINT_WAIT_SECONDS = 8.0
-# Stop polling this long before the session deadline so a slow host reads as
-# absence instead of a transport timeout.
+# Stop polling this long before the session deadline so a slow host reports a
+# mint timeout (keeping its last-known-good windows) instead of a transport
+# timeout.
 _POLL_TAIL_MARGIN_SECONDS = 0.1
 _SUBPROCESS_CLEANUP_MARGIN_SECONDS = 0.25
 _MIN_SUBPROCESS_DEADLINE_SECONDS = 0.1
@@ -313,8 +315,9 @@ def _failure_status(
     """Map a JSON-RPC error response to a status observation.
 
     Only request-shape rejection is mapped. No logged-out shape has been
-    observed, so no auth wording is guessed at here: a logged-out host reports
-    absence through the deadline path instead.
+    observed, so no auth wording is guessed at here: an unrecognized host
+    shape keeps polling until the mint budget reports a timeout, keeping the
+    last-known-good windows.
     """
     error = response.get("error")
     if not isinstance(error, Mapping):
@@ -347,6 +350,15 @@ def _failure_status(
 def _transport_status(
     exc: JsonLineTransportError, context: UsageProbeContext
 ) -> dict[str, Any]:
+    limited = detect_rate_limit(stderr=exc.stderr)
+    if limited is not None:
+        return _status(
+            context,
+            outcome="error",
+            reason_code="rate_limited",
+            diagnostic=f"muse_msp_{exc.code}_rate_limited",
+            retry_after_seconds=limited.retry_after_seconds,
+        )
     if exc.code == "timeout":
         return _status(
             context,

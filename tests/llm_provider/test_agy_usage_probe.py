@@ -265,6 +265,19 @@ def test_agy_usage_probe_hang_is_timeout_and_reaps_child(
     assert _process_group_gone(pid)
 
 
+def test_agy_usage_probe_timeout_with_rate_limit_stderr_is_rate_limited(
+    tmp_path: Path,
+) -> None:
+    fake = _make_fake_agy(tmp_path)
+    result, _, _ = _run_agy_probe(
+        fake, tmp_path, mode="rate_limited_hang", deadline_seconds=3.0
+    )
+    assert result["outcome"] == "error"
+    assert result["reason_code"] == "rate_limited"
+    assert result["diagnostic"] == "agy_usage_rate_limited"
+    assert result["retry_after_seconds"] == pytest.approx(45.0)
+
+
 def test_agy_usage_probe_malformed_stdout_is_parse_error(
     tmp_path: Path,
 ) -> None:

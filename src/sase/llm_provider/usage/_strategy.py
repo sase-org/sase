@@ -59,7 +59,11 @@ _RATE_LIMIT_TEXT_PATTERNS = (
         re.IGNORECASE,
     ),
     re.compile(r"too\s+many\s+requests", re.IGNORECASE),
-    re.compile(r"\b429\b"),
+    # A bare ``429`` is a rate claim, but a ``429`` inside a decimal such as
+    # ``0.429`` or ``429.5`` is not: reject a token with an adjacent word
+    # character or a dot that a digit touches on either side. ``HTTP 429``,
+    # ``429 Too Many Requests``, and a trailing ``status 429.`` still match.
+    re.compile(r"(?<![\w.])429(?!\w)(?!\.[0-9])"),
 )
 
 # ``retry-after: 120`` response-header style.

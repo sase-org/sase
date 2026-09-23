@@ -206,6 +206,17 @@ def test_grok_usage_probe_rate_limit_is_rate_limited(tmp_path: Path) -> None:
     assert result["retry_after_seconds"] == pytest.approx(90.0)
 
 
+def test_grok_transport_failure_with_rate_limit_stderr_is_rate_limited(
+    tmp_path: Path,
+) -> None:
+    fake = _make_fake_grok(tmp_path)
+    result, _ = _run_grok_probe(fake, tmp_path, mode="transport_rate_limited")[:2]
+    assert result["outcome"] == "error"
+    assert result["reason_code"] == "rate_limited"
+    assert result["diagnostic"] == "grok_usage_rate_limited"
+    assert result["retry_after_seconds"] == pytest.approx(90.0)
+
+
 def test_grok_usage_probe_missing_executable_is_unsupported() -> None:
     from sase.llm_provider.usage.grok import collect_grok_usage
 

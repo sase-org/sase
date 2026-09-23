@@ -253,16 +253,19 @@ class ProviderUsageModal(OptionListNavigationMixin, ModalScreen[None]):
         if summary_after is not None:
             self._notify_update_summary(summary_after)
 
-    def _live_refresh_operations(self) -> dict[str, str]:
+    def _live_refresh_operations(self) -> dict[str, str] | None:
         """Return provider-to-operation for live store reservations.
 
         Runs in a thread worker, never on the UI thread or message pump. The
-        store covers both proc-owned and inline-owned refreshes.
+        store covers both proc-owned and inline-owned refreshes. ``None``
+        means the read itself failed: callers keep their pending set and
+        retry on the next tick instead of treating every provider as
+        finished.
         """
         try:
             reservations = list_provider_usage_refresh_reservations()
         except Exception:
-            return {}
+            return None
         return {
             reservation.provider: reservation.operation_id
             for reservation in reservations
@@ -291,6 +294,8 @@ class ProviderUsageModal(OptionListNavigationMixin, ModalScreen[None]):
 
         def task() -> dict[str, str]:
             live = self._live_refresh_operations()
+            if live is None:
+                return {}
             return {
                 provider: operation_id
                 for provider, operation_id in live.items()
@@ -392,6 +397,10 @@ class ProviderUsageModal(OptionListNavigationMixin, ModalScreen[None]):
 
         def task() -> tuple[dict[str, str], tuple[str, ...]]:
             live = self._live_refresh_operations()
+            if live is None:
+                # The store read failed: keep the whole pending set and let
+                # the next tick retry instead of toasting early.
+                return pending, ()
             still_pending = {
                 provider: operation_id
                 for provider, operation_id in pending.items()
