@@ -136,6 +136,28 @@ def test_show_json_includes_full_text(
     assert payload["id"] == _prompt_id(text)
 
 
+def test_show_markdown_warms_tag_catalog_from_cold_cache(
+    history_file: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``sase prompt show`` loads the tag catalog so bodies tagify.
+
+    Fresh processes start with a cold catalog snapshot, which made CLI
+    surfaces print ``#<workflow>:<key>`` instead of ``+<name>``.
+    """
+    import sase.project_tags.catalog as tag_catalog
+
+    monkeypatch.setattr(tag_catalog, "_CATALOG_CACHE", None)
+    text = "do the important thing"
+    _seed(_entry(text, "260603_000000"))
+
+    handle_prompt_show(argparse.Namespace(id=_prompt_id(text), format="markdown"))
+
+    assert tag_catalog._CATALOG_CACHE is not None
+    assert text in capsys.readouterr().out
+
+
 def test_show_unknown_selector_exits_nonzero(
     history_file: Path,
     capsys: pytest.CaptureFixture[str],

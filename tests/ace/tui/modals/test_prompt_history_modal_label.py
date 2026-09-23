@@ -194,12 +194,51 @@ def test_prompt_history_preview_metadata_includes_prompt_metadata(
         )
     )
 
-    assert preview.value == "%model:opus #gh:steveyegge/beads #fork(prev) Fix parser"
+    assert (
+        preview.value.plain == "%model:opus #gh:steveyegge/beads #fork(prev) Fix parser"
+    )
     assert "Project:    #gh:steveyegge/beads" in metadata.value.plain
     assert "Workflows:  #fork(prev)" in metadata.value.plain
     assert "Directives: %model:opus" in metadata.value.plain
     assert "Created:    260501_140000" in metadata.value.plain
     assert "Last Used:  260501_142530" in metadata.value.plain
+
+
+def test_prompt_history_preview_styles_project_tags(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.ace.tui.modals._prompt_history_interactions import (
+        _styled_preview_for_item,
+    )
+    from sase.project_tags.catalog import (
+        ProjectTagCatalog,
+        ProjectTagTarget,
+    )
+
+    import sase.project_tags.catalog as tag_catalog
+
+    target = ProjectTagTarget(
+        key="sase",
+        name="sase",
+        tag="+sase",
+        workflow_type="git",
+        vcs_ref="#git:sase",
+        state="enabled",
+        accent="#FFAF00",
+        accent_index=0,
+    )
+    catalog = ProjectTagCatalog(
+        targets=(target,),
+        accent_palette=("#FFAF00",),
+        signature="test-preview-tags",
+    )
+    monkeypatch.setattr(tag_catalog, "_CATALOG_CACHE", ("test-preview-tags", catalog))
+
+    styled = _styled_preview_for_item(_item(text="+sase Fix parser"))
+
+    assert styled.plain == "+sase Fix parser"
+    assert any(span.start == 0 and "dim" in str(span.style) for span in styled.spans)
+    assert any(span.start == 1 and "bold" in str(span.style) for span in styled.spans)
 
 
 def test_prompt_history_preview_uses_display_text(
@@ -228,6 +267,6 @@ def test_prompt_history_preview_uses_display_text(
 
     modal._update_preview(item)
 
-    assert preview.value == "#gh:widgets Fix parser"
+    assert preview.value.plain == "#gh:widgets Fix parser"
     assert "Project:    #gh:widgets" in metadata.value.plain
     assert "gh_acme__widgets" not in metadata.value.plain

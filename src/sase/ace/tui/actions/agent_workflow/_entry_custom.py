@@ -21,16 +21,18 @@ def _resolve_vcs_xprompt_mru_head() -> tuple[str, str, str] | None:
     project spelling so history grouping agrees with every other prefill
     surface.
     """
-    from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru_pairs
+    from sase.history.vcs_xprompt_mru import (
+        load_launchable_vcs_xprompt_mru_pairs,
+        mru_prefix_project_name,
+    )
     from sase.project_tags import known_project_tag_for, peek_project_tag_catalog
-    from sase.xprompt import extract_project_from_vcs_tag
 
     pairs = load_launchable_vcs_xprompt_mru_pairs()
     if not pairs:
         return None
     canonical_prefix, display_prefix = pairs[0]
-    display_name = extract_project_from_vcs_tag(display_prefix) or display_prefix
-    history_sort_key = extract_project_from_vcs_tag(canonical_prefix) or display_name
+    display_name = mru_prefix_project_name(display_prefix) or display_prefix
+    history_sort_key = mru_prefix_project_name(canonical_prefix) or display_name
     initial_text = f"{display_prefix} "
     catalog = peek_project_tag_catalog()
     if catalog is not None:

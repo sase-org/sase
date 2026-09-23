@@ -87,6 +87,7 @@ class StartupLoadsMixin:
 
     def _start_immediate_startup_loads(self: Any) -> None:
         """Start small/edge-sensitive startup work before the visible load."""
+        self._warm_project_tag_catalog_at_startup()
         self._schedule_mount_notification_state_loads()
         try:
             self._start_artifact_watcher()
@@ -100,6 +101,77 @@ class StartupLoadsMixin:
                 start_prompt_source_watcher()
             except Exception:
                 log.exception("Failed to start prompt-source inotify watcher")
+
+    def _warm_project_tag_catalog_at_startup(self: Any) -> None:
+        """Warm the tag snapshot off-thread so first paints tagify (D5).
+
+        Agent panels, history, and query accents render ``#`` while the
+        snapshot is cold because the catalog previously warmed only when
+        a prompt bar mounted. The build runs in a pump-free task, never
+        before first paint; the warmed message refreshes cold surfaces.
+        """
+        if getattr(self, "_project_tag_catalog_startup_warm_scheduled", False):
+            return
+        self._project_tag_catalog_startup_warm_scheduled = True
+        from ..project_tag_messages import ProjectTagCatalogWarmed
+        from ..util.pump_tasks import spawn_pump_free_task
+
+        async def _warm_and_announce() -> None:
+            import asyncio
+
+            try:
+                from sase.project_tags import load_project_tag_catalog
+
+                await asyncio.to_thread(load_project_tag_catalog)
+            except Exception:  # noqa: BLE001 - surfaces keep cold rendering.
+                log.debug("Startup project-tag catalog warm failed", exc_info=True)
+                return
+            try:
+                self.post_message(ProjectTagCatalogWarmed())
+            except Exception:  # noqa: BLE001 - teardown races degrade silently.
+                log.debug("Startup project-tag warmed announce failed", exc_info=True)
+
+        coro = _warm_and_announce()
+        try:
+            task = spawn_pump_free_task(
+                self,
+                coro,
+                name="project-tag-catalog-warm",
+                registry_attr="_project_tag_catalog_warm_tasks",
+            )
+        except Exception:
+            coro.close()
+            self._project_tag_catalog_startup_warm_scheduled = False
+            log.exception("Failed to schedule startup project-tag catalog warm")
+            return
+        if task is None:
+            coro.close()
+            self._project_tag_catalog_startup_warm_scheduled = False
+            log.debug("No running event loop for project-tag catalog warm")
+
+    def on_project_tag_catalog_warmed(self: Any, message: object) -> None:
+        """Repaint tag surfaces that rendered while the catalog was cold.
+
+        Render and highlight caches already key on the catalog signature,
+        so one repaint per fresh snapshot is enough; repeat announcements
+        for an unchanged snapshot are ignored.
+        """
+        del message
+        try:
+            from sase.project_tags import peek_project_tag_catalog_signature
+
+            signature = peek_project_tag_catalog_signature()
+        except Exception:  # noqa: BLE001 - cold catalog still repaints once.
+            signature = None
+        if signature is not None and (
+            getattr(self, "_project_tag_warm_refresh_signature", None) == signature
+        ):
+            return
+        self._project_tag_warm_refresh_signature = signature
+        try:
+            self.refresh()
+        except Exception:  # noqa: BLE001 - teardown races degrade silently.
+            log.debug("Project-tag warmed refresh failed", exc_info=True)
 
     def _arm_startup_deferred_fallback(self: Any) -> None:
         """Arm the bounded release that prevents hidden startup starvation."""

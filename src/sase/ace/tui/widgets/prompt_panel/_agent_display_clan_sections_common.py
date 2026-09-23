@@ -67,6 +67,7 @@ def append_triage_line(
     hint_state: HeaderHintState | None = None,
     hint_budget: HintContentBudget | None = None,
     member_hint_workspace: ClanMemberHintWorkspace | None = None,
+    highlight_project_tags: bool = False,
 ) -> None:
     text.append("• ", style="dim #D75FFF")
     text.append(label, style=_AGENT_NAME_ANNOTATION_STYLE)
@@ -75,6 +76,13 @@ def append_triage_line(
     text.append(separator, style="dim")
     visible_body = first_meaningful_line(body, max_chars=120) or "—"
     body_text = Text(visible_body, style=body_style)
+    if highlight_project_tags:
+        try:
+            from sase.ace.tui.util.xprompt_syntax import stylize_project_tags
+
+            stylize_project_tags(body_text, visible_body)
+        except Exception:
+            pass
     text.append_text(
         text_with_member_hints(
             body_text,

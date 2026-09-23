@@ -20,6 +20,9 @@ from sase.xprompt.cli_show_resolve import (
 
 def handle_show(args: argparse.Namespace) -> int:
     """Resolve and render one xprompt definition."""
+    from sase.project_tags import ensure_project_tag_catalog
+
+    ensure_project_tag_catalog()
     normalize_show_name(args.name)
     result = resolve_show_record(args.name, project=args.project)
     if isinstance(result, ShowLookupMiss):

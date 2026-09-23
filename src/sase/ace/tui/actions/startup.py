@@ -123,6 +123,8 @@ class StartupMixin(
     _last_input_mono: float
     _last_input_action: str | None
     _post_mount_background_loads_started: bool
+    _project_tag_catalog_startup_warm_scheduled: bool
+    _project_tag_warm_refresh_signature: Any
     _jump_all_last_position: JumpAllResult | None
     _nav_gate: NavigationGate
     _fs_watcher: ArtifactWatcher | None

@@ -63,6 +63,9 @@ _BODY_FIELDS = frozenset({"title", "body"})
 
 def handle_prompt_search(args: argparse.Namespace) -> None:
     """Validate arguments, run the search, and render the requested format."""
+    from sase.project_tags import ensure_project_tag_catalog
+
+    ensure_project_tag_catalog()
     query: str = getattr(args, "query", "") or ""
     if not query.strip():
         print("Error: search query cannot be empty", file=sys.stderr)

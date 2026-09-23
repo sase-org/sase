@@ -190,6 +190,7 @@ def append_text_section(
                 hint_state=hint_state,
                 hint_budget=hint_budget,
                 member_hint_workspace=member_hint_workspace,
+                highlight_project_tags=entry.kind in _PROMPT_ENTRY_KINDS,
             )
         append_more_tail(text, len(entries), _TRIAGE_ENTRY_LIMIT)
         return

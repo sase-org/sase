@@ -68,7 +68,14 @@ def markdown_syntax_spans(
     offset: int = 0,
     depth: int = 0,
 ) -> tuple[SyntaxSpan, ...]:
-    """Return Markdown spans whose offsets point into the enclosing source."""
+    """Return Markdown spans whose offsets point into the enclosing source.
+
+    Resolved ``+<project>`` tags gain ``SyntaxRole.PROJECT_TAG`` spans
+    after the Markdown spans, so tag and Markdown highlighting coexist in
+    one pass (the tag overlay wins where they overlap, matching the
+    editor). Fenced code stays tag-free: the tag tokenizer treats fences
+    as literal zones, and child-lexer regions never emit tag spans.
+    """
 
     spans: list[SyntaxSpan] = []
     for region in _regions(source):
@@ -103,6 +110,51 @@ def markdown_syntax_spans(
                     depth=depth,
                 ),
             )
+    if "+" in source:
+        _extend_spans(
+            spans,
+            _project_tag_spans(source, budget=budget, offset=offset),
+        )
+    return tuple(spans)
+
+
+def _project_tag_spans(
+    source: str,
+    *,
+    budget: SpanBudget,
+    offset: int,
+) -> tuple[SyntaxSpan, ...]:
+    """Return ``PROJECT_TAG`` spans for resolved ``+<project>`` tags.
+
+    Uses the same tag tokenizer as the editor, against the warm catalog
+    snapshot, so the pager styles exactly the tags launch would resolve.
+    Fails open to no spans when the catalog is cold. Never raises.
+    """
+    try:
+        from sase.xprompt.xprompt_inspect import tokenize
+    except Exception:
+        return ()
+    try:
+        tag_spans = [
+            span
+            for span in tokenize(source)
+            if span.kind in ("project_tag", "project_tag_unknown")
+        ]
+    except Exception:
+        return ()
+    spans: list[SyntaxSpan] = []
+    try:
+        for span in tag_spans:
+            budget.append(
+                spans,
+                SyntaxSpan(
+                    offset + span.start, offset + span.end, SyntaxRole.PROJECT_TAG
+                ),
+            )
+    except SpanBudgetExceeded:
+        raise
+    except Exception:
+        return tuple(spans)
     return tuple(spans)
 
 

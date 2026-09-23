@@ -24,8 +24,10 @@ class EntryPromptHistoryMixin:
         Documented as "same as Space": both read the VCS xprompt MRU head.
         """
         from sase.core.time import generate_timestamp
-        from sase.history.vcs_xprompt_mru import load_launchable_vcs_xprompt_mru_pairs
-        from sase.xprompt import extract_project_from_vcs_tag
+        from sase.history.vcs_xprompt_mru import (
+            load_launchable_vcs_xprompt_mru_pairs,
+            mru_prefix_project_name,
+        )
 
         from ...modals import (
             PromptHistoryAction,
@@ -43,8 +45,8 @@ class EntryPromptHistoryMixin:
         # The substituted prefix and bar label show the configured project
         # name; the history grouping key stays the canonical directory key.
         vcs_prefix = display_prefix
-        name = extract_project_from_vcs_tag(display_prefix) or display_prefix
-        history_key = extract_project_from_vcs_tag(canonical_prefix) or name
+        name = mru_prefix_project_name(display_prefix) or display_prefix
+        history_key = mru_prefix_project_name(canonical_prefix) or name
 
         # Set up prompt context (same as _show_prompt_input_bar_for_home)
         timestamp = generate_timestamp()

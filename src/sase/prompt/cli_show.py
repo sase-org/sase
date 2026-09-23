@@ -17,6 +17,9 @@ from sase.project_display_names import humanize_vcs_refs_in_text
 
 def handle_prompt_show(args: argparse.Namespace) -> None:
     """Resolve the prompt selector and print the requested format."""
+    from sase.project_tags import ensure_project_tag_catalog
+
+    ensure_project_tag_catalog()
     selector: str = getattr(args, "id", "")
     fmt: str = getattr(args, "format", "raw") or "raw"
 
@@ -48,6 +51,9 @@ def render_prompt_markdown(record: PromptHistoryRecord) -> str:
     Shared by ``sase prompt show -f markdown`` and the ``full`` search renderer
     so a local search hit's full rendering never drifts from ``prompt show``.
     """
+    from sase.project_tags import ensure_project_tag_catalog
+
+    ensure_project_tag_catalog()
     lines = [
         f"# Prompt {record.id}",
         "",

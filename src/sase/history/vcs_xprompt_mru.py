@@ -216,6 +216,31 @@ def _dedupe_mru_pairs(
     return pairs
 
 
+def mru_prefix_project_name(prefix: str) -> str | None:
+    """Return the project name for an MRU ``(canonical, display)`` prefix half.
+
+    Display halves are tagified (``+sase``) while canonical halves stay in
+    the ``#<workflow>:<key>`` form, so the legacy ``#``-only extractor
+    returns ``None`` for exactly the prefixes users see. A leading ``+``
+    tag is stripped to its project name without touching disk; every other
+    form falls through to :func:`extract_project_from_vcs_tag`. Never
+    raises: unparseable prefixes return ``None``.
+    """
+    try:
+        stripped = prefix.strip()
+    except Exception:
+        return None
+    if stripped.startswith("+"):
+        name = stripped[1:].strip().split(None, 1)[0] if stripped[1:].strip() else ""
+        return name or None
+    try:
+        from sase.xprompt import extract_project_from_vcs_tag
+
+        return extract_project_from_vcs_tag(prefix)
+    except Exception:
+        return None
+
+
 def _is_default_vcs_xprompt_prefix(prefix: str) -> bool:
     """Return whether *prefix* is the implicit default workflow prefix.
 

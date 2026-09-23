@@ -18,6 +18,9 @@ from sase.prompt.render import format_timestamp, prompt_preview, record_to_json
 
 def handle_prompt_list(args: argparse.Namespace) -> None:
     """Render the prompt catalog (pretty table or JSON)."""
+    from sase.project_tags import ensure_project_tag_catalog
+
+    ensure_project_tag_catalog()
     include_cancelled = bool(getattr(args, "all", False))
     cancelled_only = bool(getattr(args, "cancelled", False))
     query: str | None = getattr(args, "query", None)

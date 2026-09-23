@@ -181,7 +181,9 @@ def test_project_show_prints_tag(capsys) -> None:
     assert "Tag: +sase" in out
 
 
-def test_pager_xprompt_body_styles_tags(warm_catalog) -> None:
+def test_pager_xprompt_body_stays_plain_for_syntax_highlighting(
+    warm_catalog,
+) -> None:
     from sase.ace.tui.actions.agents._metadata_pager_conversation import (
         _tag_styled_xprompt_body,
     )
@@ -192,8 +194,30 @@ def test_pager_xprompt_body_styles_tags(warm_catalog) -> None:
     body = _tag_styled_xprompt_body("+sase do things")
     assert isinstance(body, Text)
     assert body.plain == "+sase do things"
-    accent = _accent_for_key(warm_catalog, "sase")
-    assert any(accent in (span.style or "") for span in body.spans)
+    # Tag accents arrive through the pager highlighter's PROJECT_TAG spans,
+    # never as producer styling: producer spans force a PRESERVED pass that
+    # drops all Markdown highlighting.
+    assert body.spans == []
+
+
+def test_pager_markdown_highlights_tags_and_markdown_together(
+    warm_catalog,
+) -> None:
+    from sase.pager.syntax import (
+        SyntaxDisposition,
+        SyntaxRole,
+        highlight_source,
+    )
+
+    source = "# Title\n\n+sase do things\n"
+    result = highlight_source(source, "markdown", base_text=Text(source))
+
+    assert result.disposition is SyntaxDisposition.HIGHLIGHTED
+    roles = {span.role for span in result.spans}
+    assert SyntaxRole.MARKDOWN_HEADING in roles
+    assert SyntaxRole.PROJECT_TAG in roles
+    tag = next(span for span in result.spans if span.role is SyntaxRole.PROJECT_TAG)
+    assert source[tag.start : tag.end] == "+sase"
 
 
 def test_launch_preview_styles_tags(warm_catalog) -> None:

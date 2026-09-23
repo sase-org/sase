@@ -33,14 +33,13 @@ _CONVERSATION_SECTIONS = (
 
 
 def _tag_styled_xprompt_body(raw: str) -> Text:
-    """Return an AGENT XPROMPT body with tagified refs and tag accents (D5/D6).
+    """Return an AGENT XPROMPT body with tagified refs (D5/D6).
 
     Stored prompts keep the canonical ``#<wf>:<key>`` form; the pager shows
-    the ``+<name>`` tag form with the project's accent on only the tag
-    substrings. The returned ``Text`` carries producer styling that the
-    pager syntax pass preserves underneath Markdown highlighting. The
-    ``SyntaxRole.PROJECT_TAG`` role in ``pager/syntax.py`` names this
-    vocabulary for future lexer-emitted spans. Never raises.
+    the ``+<name>`` tag form. The returned ``Text`` is deliberately plain:
+    tag accents arrive through the pager highlighter's
+    ``SyntaxRole.PROJECT_TAG`` spans, so Markdown and tag highlighting
+    coexist instead of the body forcing a ``PRESERVED`` pass. Never raises.
     """
     try:
         from sase.project_display_names import humanize_vcs_refs_in_text
@@ -48,12 +47,7 @@ def _tag_styled_xprompt_body(raw: str) -> Text:
         humanized = humanize_vcs_refs_in_text(raw)
     except Exception:
         humanized = raw
-    try:
-        from sase.project_tag_style import rich_text_with_project_tags
-
-        return rich_text_with_project_tags(humanized)
-    except Exception:
-        return Text(humanized)
+    return Text(humanized)
 
 
 def build_agent_conversation_sections(agent: Agent) -> tuple[PagerSection, ...]:

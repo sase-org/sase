@@ -22,6 +22,9 @@ from sase.project_display_names import (
 
 def handle_agents_show(args: argparse.Namespace) -> None:
     """Render a full detail panel for the named agent."""
+    from sase.project_tags import ensure_project_tag_catalog
+
+    ensure_project_tag_catalog()
     name: str = args.name
     agent = find_named_agent(name)
     if agent is None:

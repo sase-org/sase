@@ -278,6 +278,22 @@ def load_project_tag_catalog(
     return catalog
 
 
+def ensure_project_tag_catalog() -> ProjectTagCatalog | None:
+    """Warm the tag catalog snapshot, degrading silently on failure.
+
+    Blocking is fine on CLI paths: tagify reads only the in-memory
+    snapshot, so a fresh process that never loads the catalog renders
+    ``#<workflow>:<key>`` forever. Render and keystroke paths must keep
+    using :func:`peek_project_tag_catalog` and fall back when cold.
+    Never raises.
+    """
+
+    try:
+        return load_project_tag_catalog()
+    except Exception:
+        return None
+
+
 def peek_project_tag_catalog() -> ProjectTagCatalog | None:
     """Return the last catalog snapshot without building, or ``None``.
 
@@ -314,6 +330,7 @@ __all__ = [
     "ProjectTagCatalog",
     "ProjectTagTarget",
     "build_targets",
+    "ensure_project_tag_catalog",
     "is_project_tag_name",
     "load_project_tag_catalog",
     "peek_project_tag_catalog",

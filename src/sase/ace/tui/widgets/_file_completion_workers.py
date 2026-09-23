@@ -239,6 +239,29 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
                     break
         self._update_file_completion_panel(trigger.query)
 
+    def _on_project_tag_catalog_worker_finished(self) -> None:
+        """Re-highlight the editor once the tag catalog warms.
+
+        Tags stay unstyled until the next edit because nothing reacts to
+        the catalog worker finishing. The highlight map already keys on
+        the catalog signature, so a rebuild plus repaint is enough; the
+        warmed announcement lets cold app surfaces refresh too.
+        """
+        try:
+            self._build_highlight_map()
+        except Exception:  # noqa: BLE001 - stale widgets degrade silently.
+            pass
+        try:
+            self.refresh()
+        except Exception:  # noqa: BLE001 - stale widgets degrade silently.
+            pass
+        try:
+            from sase.ace.tui.project_tag_messages import ProjectTagCatalogWarmed
+
+            self.post_message(ProjectTagCatalogWarmed())
+        except Exception:  # noqa: BLE001 - stale widgets degrade silently.
+            pass
+
     def on_worker_state_changed(self, event: Worker.StateChanged) -> None:
         """Handle completion inventory worker results."""
         if event.worker.group == "prompt-commit-inventory":
@@ -364,6 +387,15 @@ class FileCompletionWorkerMixin(FileCompletionDirectiveInventoryWorkerMixin):
                     self._apply_model_completion_catalog_result(
                         ModelCompletionCatalogWorkerResult(rows=(), available=False)
                     )
+                return
+            handler = getattr(super(), "on_worker_state_changed", None)
+            if callable(handler):
+                handler(event)
+            return
+
+        if event.worker.group == "prompt-vcs-project-catalog":
+            if event.state == WorkerState.SUCCESS:
+                self._on_project_tag_catalog_worker_finished()
                 return
             handler = getattr(super(), "on_worker_state_changed", None)
             if callable(handler):

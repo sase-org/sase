@@ -14,6 +14,7 @@ from sase.history.vcs_xprompt_mru import (
     _load_vcs_xprompt_mru,
     load_launchable_vcs_xprompt_mru,
     load_launchable_vcs_xprompt_mru_pairs,
+    mru_prefix_project_name,
     record_vcs_xprompt_usage,
 )
 from tests._vcs_xprompt_mru_helpers import (
@@ -155,6 +156,20 @@ def test_load_launchable_pairs_returns_canonical_and_display_halves(
         result = load_launchable_vcs_xprompt_mru_pairs(projects_dir)
 
     assert result == [("#gh:gh_acme__widgets", "#gh:widgets")]
+
+
+def test_mru_prefix_project_name_reads_tagified_display_prefix() -> None:
+    """A tagified ``+sase`` display prefix resolves to its project name.
+
+    The legacy ``#``-only extractor returns ``None`` for tags, which made
+    the bar label show ``+sase`` instead of ``sase``.
+    """
+    assert mru_prefix_project_name("+sase ") == "sase"
+    assert mru_prefix_project_name("+sase") == "sase"
+    assert mru_prefix_project_name("#gh:sase ") == "sase"
+    assert mru_prefix_project_name("#gh:gh_acme__widgets ") == "gh_acme__widgets"
+    assert mru_prefix_project_name("+") is None
+    assert mru_prefix_project_name("") is None
 
 
 @pytest.mark.usefixtures("_reset_display_name_cache")

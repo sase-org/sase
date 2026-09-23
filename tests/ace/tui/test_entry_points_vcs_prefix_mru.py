@@ -56,6 +56,30 @@ def test_start_last_vcs_xprompt_editor_uses_canonical_history_sort_key(
     assert app._prompt_context.history_sort_key == "gh_acme__widgets"
 
 
+def test_start_last_vcs_xprompt_editor_labels_tagified_display_prefix(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A tagified ``+sase`` display prefix labels the bar ``sase``.
+
+    Regression test for the display-fixes MRU label bug: the ``#``-only
+    extractor returned ``None`` for tags, so the bar label showed
+    ``+sase`` instead of ``sase``.
+    """
+    monkeypatch.setattr(
+        "sase.history.vcs_xprompt_mru.load_launchable_vcs_xprompt_mru_pairs",
+        lambda *a, **k: [("#gh:sase", "+sase ")],
+    )
+    _patch_tag_peek(monkeypatch, _tag_catalog("sase"))
+    app = _EditorApp()
+
+    app.action_start_last_vcs_xprompt_in_editor()
+
+    assert app.editor_prompts == ["+sase "]
+    assert app._prompt_context is not None
+    assert app._prompt_context.display_name == "sase"
+    assert app._prompt_context.history_sort_key == "sase"
+
+
 def test_start_last_vcs_xprompt_editor_warns_when_mru_empty(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

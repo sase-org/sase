@@ -378,3 +378,10 @@ def test_prompt_entry_previews_tagify_in_triage(monkeypatch) -> None:
     )
 
     assert "+widgets fix" in text.plain
+    tag_styles = {
+        str(span.style)
+        for span in text.spans
+        if span.style is not None and "#C75A31" in str(span.style)
+    }
+    assert "dim #C75A31" in tag_styles
+    assert "bold #C75A31" in tag_styles
