@@ -435,7 +435,10 @@ def test_executor_records_samples_and_show_lists_them(
     _home(monkeypatch, tmp_path)
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("sase.tool.executor.LoadSampler", FastSampler)
-    code = _run("--", "sleep", "0.55")
+    # Outlive several sample intervals: the start sample waits behind the
+    # spawn-time observe write, so a child only ~2.5 intervals long can end
+    # before any periodic sample on a loaded host.
+    code = _run("--", "sleep", "1.2")
     assert code == 0
     run = tool_run_list({"schema_version": 1, "limit": 1})["runs"][0]
     shown = tool_run_show(run["run_id"])

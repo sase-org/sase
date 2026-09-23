@@ -22,6 +22,23 @@ GUARD = ROOT / "tools" / "require_tool_run"
 GUARDED = ("check", "check-full")
 
 
+@pytest.fixture(autouse=True)
+def _sase_on_path(
+    tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Put a stub `sase` on PATH so the refusal path never depends on the host.
+
+    The gate fails open when `sase` is not on PATH, and CI runs pytest from
+    the venv without putting its `bin` on PATH. The stub is never executed.
+    """
+    stub_dir = tmp_path_factory.mktemp("sase-stub-bin")
+    stub = stub_dir / "sase"
+    stub.write_text("#!/bin/sh\nexit 97\n", encoding="utf-8")
+    stub.chmod(0o755)
+    path = os.environ.get("PATH", "/usr/bin:/bin")
+    monkeypatch.setenv("PATH", f"{stub_dir}{os.pathsep}{path}")
+
+
 def _run(
     *args: str,
     env: dict[str, str] | None = None,

@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -510,16 +511,19 @@ def test_already_wrapped_monitor_is_not_rewrapped(
     from sase.core.tool_run import tool_run_list
 
     root = _sandbox_project(tmp_path)
+    # Spell the wrapper as this interpreter's `sase`, not whatever `sase` is
+    # first on PATH: CI does not put the venv's `bin` on PATH.
+    command = shlex.join([*_sase_argv(), "tool", "run", "check"])
     record = _start(
         tmp_path,
         monkeypatch,
-        command="sase tool run check",
+        command=command,
         cwd=str(root),
         profile="verify",
     )
     proc = get_proc(record.monitor_id)
     assert proc is not None
-    assert proc.argv == ["/bin/sh", "-c", "sase tool run check"]
+    assert proc.argv == ["/bin/sh", "-c", command]
 
     done = wait_for_done(record.artifacts_dir)
     assert done["monitor_state"] == "completed"
