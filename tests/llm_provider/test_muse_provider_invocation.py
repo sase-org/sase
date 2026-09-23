@@ -9,7 +9,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from sase.llm_provider.muse import MuseProvider
+from sase.feature_flags import override_flags
+from sase.llm_provider.muse import (
+    MuseProvider,
+    _muse_single_turn_directive,
+    _muse_synchronous_shell_enabled,
+)
 from sase.llm_provider.types import LLMInvocationError, LLMInvocationOptions
 
 from ._muse_provider_helpers import _invoke_and_capture
@@ -94,7 +99,8 @@ def test_muse_prompt_file_is_written_0o600_and_removed() -> None:
 
     assert seen["existed"] is True
     assert seen["mode"] == 0o600
-    assert seen["content"] == "secret prompt body"
+    assert seen["content"].startswith("SASE single-turn instructions for Muse Code")  # type: ignore[union-attr]
+    assert seen["content"].endswith("\n\n--- User Prompt ---\nsecret prompt body")  # type: ignore[union-attr]
     assert not Path(seen["prompt_file"]).exists()  # type: ignore[arg-type]
 
 
@@ -255,7 +261,129 @@ def test_muse_interrupt_reconstructs_the_continuation_prompt() -> None:
             "original task", model_tier="large", suppress_output=True
         )
 
-    assert prompts[0] == "original task"
+    assert prompts[0].endswith("\n\n--- User Prompt ---\noriginal task")
     assert "--- Work So Far ---\nfirst pass" in prompts[1]
     assert "--- User Message ---\nalso update the README" in prompts[1]
+    # The reconstructed continuation keeps the single-turn directive.
+    assert prompts[1].startswith("SASE single-turn instructions for Muse Code")
+    assert "--- User Prompt ---\noriginal task\n\n--- Work So Far ---" in prompts[1]
     assert result.content == "first pass\n\nsecond pass"
+
+
+@pytest.mark.parametrize(
+    ("flag_value", "expected"),
+    [(True, True), (False, False)],
+)
+def test_muse_sync_shell_flag_reads_both_states(
+    flag_value: bool, expected: bool
+) -> None:
+    with override_flags(muse_synchronous_shell=flag_value):
+        assert _muse_synchronous_shell_enabled() is expected
+
+
+def test_muse_sync_shell_flag_falls_back_to_on_when_unresolvable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from sase.feature_flags.models import FeatureFlagError
+
+    def _raise() -> object:
+        raise FeatureFlagError("unknown feature flag: 'muse_synchronous_shell'")
+
+    monkeypatch.setattr("sase.feature_flags.current_flags", _raise)
+    assert _muse_synchronous_shell_enabled() is True
+
+
+def test_muse_sync_shell_flag_adds_enable_shell_tool() -> None:
+    with override_flags(muse_synchronous_shell=True):
+        cmd, _ = _invoke_and_capture(MuseProvider())
+
+    assert "--enable-shell-tool" in cmd
+
+
+def test_muse_managed_bash_flag_omits_enable_shell_tool() -> None:
+    with override_flags(muse_synchronous_shell=False):
+        cmd, _ = _invoke_and_capture(MuseProvider())
+
+    assert "--enable-shell-tool" not in cmd
+
+
+@pytest.mark.parametrize(
+    "env",
+    ["SASE_LLM_LARGE_ARGS", "SASE_MUSE_LARGE_ARGS"],
+)
+def test_muse_sync_shell_flag_is_never_duplicated(
+    env: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv(env, "--enable-shell-tool --max-model-steps 5")
+    monkeypatch.delenv(
+        "SASE_MUSE_LARGE_ARGS"
+        if env == "SASE_LLM_LARGE_ARGS"
+        else "SASE_LLM_LARGE_ARGS",
+        raising=False,
+    )
+
+    with override_flags(muse_synchronous_shell=True):
+        cmd, _ = _invoke_and_capture(MuseProvider())
+
+    assert cmd.count("--enable-shell-tool") == 1
+
+
+def _invoke_and_capture_prompts(provider: MuseProvider) -> list[str]:
+    """Invoke *provider* and return every prompt file's contents."""
+    prompts: list[str] = []
+
+    def _fake_run(
+        args: list[str],
+        suppress_output: bool,
+        session_id: str | None = None,
+    ) -> tuple[str, str, int, dict[str, int]]:
+        del suppress_output, session_id
+        prompt_file = Path(args[args.index("--prompt-file") + 1])
+        prompts.append(prompt_file.read_text(encoding="utf-8"))
+        return ("response", "", 0, {})
+
+    with (
+        patch("sase.llm_provider.muse.provider_timer"),
+        patch.object(MuseProvider, "_run_subprocess", side_effect=_fake_run),
+    ):
+        provider.invoke("do the thing", model_tier="large", suppress_output=True)
+    return prompts
+
+
+def test_muse_sync_directive_prefixes_the_prompt() -> None:
+    with override_flags(muse_synchronous_shell=True):
+        (first,) = _invoke_and_capture_prompts(MuseProvider())
+
+    assert first == (
+        _muse_single_turn_directive(synchronous=True)
+        + "\n\n--- User Prompt ---\ndo the thing"
+    )
+    assert "`shell` tool runs each command synchronously" in first
+    assert "10 minutes" in first
+    assert "timeout 540" in first
+    assert "Never end your turn to wait." in first
+
+
+def test_muse_managed_directive_prefixes_the_prompt() -> None:
+    with override_flags(muse_synchronous_shell=False):
+        (first,) = _invoke_and_capture_prompts(MuseProvider())
+
+    assert first == (
+        _muse_single_turn_directive(synchronous=False)
+        + "\n\n--- User Prompt ---\ndo the thing"
+    )
+    assert "`bash` tool may move a long command to the background" in first
+    assert "Never submit your final declaration" in first
+    assert "`shell` tool runs each command synchronously" not in first
+
+
+def test_muse_directives_share_routing_rules_but_differ_by_mode() -> None:
+    sync = _muse_single_turn_directive(synchronous=True)
+    managed = _muse_single_turn_directive(synchronous=False)
+
+    assert "nothing can wake you after you end it" in sync
+    assert "nothing can wake you after you end it" in managed
+    assert "/sase_monitor" in sync
+    assert "/sase_monitor" in managed
+    assert "about two minutes after your final declaration" in managed
+    assert "about two minutes after your final declaration" not in sync

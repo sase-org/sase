@@ -28,6 +28,7 @@ class FeatureFlag(StrEnum):
     agent_sudo_requests = "agent_sudo_requests"
     bgcmd_legacy_slots = "bgcmd_legacy_slots"
     monitor_continuation_records = "monitor_continuation_records"
+    muse_synchronous_shell = "muse_synchronous_shell"
     provider_drain = "provider_drain"
     queue_capacity_budget = "queue_capacity_budget"
     ref_sync_gesture = "ref_sync_gesture"
@@ -101,6 +102,17 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
             "for production continuation routing."
         ),
         bead="sase-102",
+    ),
+    FeatureFlag.muse_synchronous_shell: FeatureFlagDefinition(
+        key=FeatureFlag.muse_synchronous_shell,
+        kind="sunset",
+        description=(
+            "SASE launches `muse exec` with `--enable-shell-tool`. Muse then runs "
+            "every command synchronously in its legacy `shell` tool, which has a "
+            "hard 10-minute kill and no post-turn background wake. The Muse "
+            "directive states that ceiling and the up-front monitor routing rules."
+        ),
+        bead="sase-178",
     ),
     FeatureFlag.provider_drain: FeatureFlagDefinition(
         key=FeatureFlag.provider_drain,

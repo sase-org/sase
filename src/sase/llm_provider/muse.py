@@ -68,6 +68,17 @@ _MUSE_PATH_ENV = "SASE_MUSE_PATH"
 _MUSE_CLI_NAME = "muse"
 _MUSE_SANDBOX_ENV = "SASE_MUSE_SANDBOX"
 
+# Synchronous-execution ceiling for the legacy ``shell`` tool
+# (``muse exec --enable-shell-tool``). Muse kills any command still running
+# past this point and discards all of its output, so anything that can
+# outlast it must go to a SASE monitor, chosen before the command starts.
+_MUSE_SYNC_CEILING_SECONDS = 600
+_MUSE_SYNC_CEILING_MINUTES = _MUSE_SYNC_CEILING_SECONDS // 60
+# Wrap commands of uncertain length so a slow run still leaves evidence with
+# a minute of headroom before the kill.
+_MUSE_SYNC_COMMAND_TIMEOUT_SECONDS = _MUSE_SYNC_CEILING_SECONDS - 60
+_MUSE_ENABLE_SHELL_TOOL_ARG = "--enable-shell-tool"
+
 # The launcher otherwise checks for and swaps in a new binary hourly; a
 # multi-hour agent run must not have its binary replaced mid-flight. Users
 # update Muse through `sase agent-cli update muse` instead.
@@ -131,6 +142,85 @@ def _write_prompt_file(prompt: str) -> str:
     path.touch(mode=0o600)
     path.write_text(prompt, encoding="utf-8")
     return str(path)
+
+
+def _muse_synchronous_shell_enabled() -> bool:
+    """Return whether Muse runs commands in the legacy synchronous ``shell`` tool.
+
+    Falls back to the registry default (on) when the flag cannot be resolved,
+    so a broken flag snapshot fails closed toward no post-turn wake.
+    """
+    try:
+        from sase.feature_flags import FeatureFlag, current_flags
+        from sase.feature_flags.models import FeatureFlagError
+
+        return current_flags().enabled(FeatureFlag.muse_synchronous_shell)
+    except FeatureFlagError:
+        return True
+
+
+def _muse_single_turn_directive(*, synchronous: bool) -> str:
+    """Return the mode-aware single-turn prompt prefix for Muse."""
+    if synchronous:
+        tool_sentence = (
+            f"Your `shell` tool runs each command synchronously but kills any "
+            f"command still running after {_MUSE_SYNC_CEILING_MINUTES} minutes "
+            f"and discards all of its output, so blocking for up to about "
+            f"{_MUSE_SYNC_COMMAND_TIMEOUT_SECONDS // 60} minutes is expected "
+            f"and correct."
+        )
+    else:
+        tool_sentence = "Your `bash` tool may move a long command to the background."
+    if synchronous:
+        inline_rule = "Run everything else inline."
+    else:
+        inline_rule = (
+            "Run everything else inline, and read each backgrounded command's "
+            "result before finishing."
+        )
+    if synchronous:
+        wait_rule = "Never end your turn to wait."
+    else:
+        wait_rule = (
+            "Never submit your final declaration or end your turn while a "
+            "command you started is still running. SASE stops the Muse "
+            "process about two minutes after your final declaration, killing "
+            "anything still running."
+        )
+    return (
+        "SASE single-turn instructions for Muse Code: this session is exactly "
+        "one turn, and nothing can wake you after you end it. "
+        f"{tool_sentence} Decide where a command runs before you start it: "
+        "(1) Final verification: prefer prepared monitor completion "
+        '(`/sase_final`, "Prepared Monitor Completion"). Run '
+        "`sase final prepare` with your finished manifest (`bead_action: "
+        "close` when the bead is done), then `sase monitor start -p verify -f "
+        "<ref> -- <verification command>` (`just check` in SASE repos). "
+        "Passing work lands with no further turn. (2) Commands that can take "
+        f"longer than {_MUSE_SYNC_CEILING_MINUTES} minutes go to "
+        "`/sase_monitor` with `--next` before you start them. Examples: full "
+        "builds and installs, full test or visual suites, `just check-full`, "
+        "CI, deploy, release, or rate-limit waits. The project's memory names "
+        "its known-long commands. Combine dependent steps into one monitored "
+        f"command. (3) {inline_rule} Wrap an unrecorded command of uncertain "
+        f"length as `timeout {_MUSE_SYNC_COMMAND_TIMEOUT_SECONDS} <cmd> > "
+        '<log> 2>&1; echo "exit=$?"; tail -n 80 <log>` so a slow run still '
+        "leaves evidence. `sase tool run` output is retained; replay it with "
+        "`sase tool show RUN -l`. Never background or detach a command (`&`, "
+        "`nohup`, `setsid`). Never use cron, workflow, subagent, or snooze "
+        "tools to wait. Never cancel or rerun an in-flight command to move it "
+        f"to a monitor. {wait_rule}"
+    )
+
+
+def _wrap_muse_prompt(prompt: str, *, synchronous: bool) -> str:
+    """Prefix *prompt* with the mode-aware single-turn directive.
+
+    Muse has no append-system-prompt flag, so the directive travels as a
+    prompt prefix the way ``agy.py`` wraps its print-mode prompt.
+    """
+    directive = _muse_single_turn_directive(synchronous=synchronous)
+    return f"{directive}\n\n--- User Prompt ---\n{prompt}"
 
 
 def _log_interrupt(message: str | None, cycle: int) -> None:
@@ -373,6 +463,19 @@ class MuseProvider(LLMProvider):
                 labeled as such in the raised diagnostics.
         """
         model = model_override if model_override else _TIER_TO_MODEL[model_tier]
+        # Wrap once, at the top, so the interrupt path's reconstructed context
+        # and the next phase's guard also carry the directive.
+        synchronous_shell = _muse_synchronous_shell_enabled()
+        prompt = _wrap_muse_prompt(prompt, synchronous=synchronous_shell)
+
+        if model_tier == "large":
+            extra_args_env = os.environ.get(
+                "SASE_LLM_LARGE_ARGS", os.environ.get("SASE_MUSE_LARGE_ARGS")
+            )
+        else:
+            extra_args_env = os.environ.get(
+                "SASE_LLM_SMALL_ARGS", os.environ.get("SASE_MUSE_SMALL_ARGS")
+            )
 
         base_args = [
             _resolve_muse_executable(),
@@ -398,14 +501,11 @@ class MuseProvider(LLMProvider):
             ]
         )
 
-        if model_tier == "large":
-            extra_args_env = os.environ.get(
-                "SASE_LLM_LARGE_ARGS", os.environ.get("SASE_MUSE_LARGE_ARGS")
-            )
-        else:
-            extra_args_env = os.environ.get(
-                "SASE_LLM_SMALL_ARGS", os.environ.get("SASE_MUSE_SMALL_ARGS")
-            )
+        if synchronous_shell:
+            # A duplicate boolean flag is a `muse exec` usage error (exit 2).
+            extra_tokens = extra_args_env.split() if extra_args_env else []
+            if _MUSE_ENABLE_SHELL_TOOL_ARG not in extra_tokens:
+                base_args.append(_MUSE_ENABLE_SHELL_TOOL_ARG)
 
         if extra_args_env:
             for arg in extra_args_env.split():

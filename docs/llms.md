@@ -707,7 +707,7 @@ Muse's provider short name is `mus`, which enables `foo.mus` agent naming.
 MUSE_NO_AUTO_UPDATE=1 muse exec --json --workspace <cwd> --model <model> [--reasoning-effort <level>] \
   --trust-workspace --disable-approval --disable-sandbox \
   --user-input-auto-resolve --no-foreign-personal-context \
-  --session-id <uuid> --prompt-file <tempfile> [extra_args...]
+  [--enable-shell-tool] --session-id <uuid> --prompt-file <tempfile> [extra_args...]
 ```
 
 Decisions inside that command:
@@ -729,11 +729,43 @@ Decisions inside that command:
   cannot answer them.
 - **No `-w/--worktree` and no `--subagent-worktree-isolation`.** SASE's workspace is the
   workspace, and subagent isolation is a documented no-op.
+- **`--enable-shell-tool` with the sunset flag on.** `muse_synchronous_shell` (default
+  on) switches Muse to its legacy `shell` tool, which runs every command synchronously
+  (see [Single-turn normalization](#single-turn-normalization)). SASE skips the flag
+  when the resolved extra-args string already carries it: a duplicate boolean flag is a
+  `muse exec` usage error (exit 2). Human interactive sessions (`llm_interactive_cli`)
+  keep Muse's defaults.
 
 Set `SASE_MUSE_SANDBOX=on` for a hardened opt-in: SASE keeps Muse's sandbox and passes
 `--sandbox-network enabled` instead of `--disable-sandbox`. This is containment SASE has
 with no other provider and is genuinely useful for read-only research agents, but
 **in-run commits fail under it** because the sandbox makes `.git` read-only.
+
+### Single-turn normalization
+
+Muse runs every command synchronously inside its turn, and anything that can outlast
+Muse's synchronous ceiling goes to a SASE monitor, chosen before the command starts.
+
+- **Sunset flag `muse_synchronous_shell` (default on).** When on, SASE launches
+  `muse exec` with `--enable-shell-tool`: Muse runs every command synchronously in its
+  legacy `shell` tool, which has a hard 10-minute kill and no post-turn background wake.
+  Roll back with `sase flag disable muse_synchronous_shell`, which returns to Muse's
+  managed `bash` tool.
+- **The legacy `shell` tool's 10-minute kill discards all output.** A command still
+  running at 600 seconds is killed and returns only `tool timed out`, so final
+  verification prefers prepared monitor completion and long commands start under
+  `/sase_monitor` (see the directive).
+- **Mode-aware single-turn directive.** Every Muse prompt carries a short prefix stating
+  the ceiling and the up-front routing rules: final verification prefers prepared
+  monitor completion (`/sase_final`), commands that can take longer than 10 minutes go
+  to `/sase_monitor` with `--next` before they start, and everything else runs inline,
+  with commands of uncertain length wrapped as `timeout 540 <cmd> > <log> 2>&1; ...` so
+  a slow run still leaves evidence. With the flag off, the directive instead forbids
+  ending the turn or declaring while a backgrounded command is still running, because
+  SASE stops the Muse process about two minutes after the final declaration.
+- **Why managed `bash` is not used.** The managed tool backgrounds long commands and can
+  wake the model after its turn ends. That wake is invisible to SASE: it never appears
+  in the `--json` stream SASE reads, and it dies with the provider process.
 
 ### Model Mapping
 
