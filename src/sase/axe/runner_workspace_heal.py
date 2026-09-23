@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase.axe.runner_workspace_errors import WorkspacePreparationError
-from sase.axe.runner_workspace_sidecar import retain_current_head_recovery_ref
+from sase.axe.runner_workspace_sidecar_rescue import retain_current_head_recovery_ref
 
 if TYPE_CHECKING:
     from sase.vcs_provider import VCSProvider

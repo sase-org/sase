@@ -1,76 +1,72 @@
-"""Sidecar clone publication and rescue for axe workspace preparation."""
+"""Sidecar clone publication and rescue for axe workspace preparation.
 
-from dataclasses import dataclass
-import logging
-import os
+The shared publication state, clone discovery, rescue, and recovery-ref
+helpers live in :mod:`sase.axe.runner_workspace_sidecar_state` and
+:mod:`sase.axe.runner_workspace_sidecar_rescue`; this module keeps the
+protect/publish orchestration and re-exports the historical import surface.
+"""
+
 import subprocess
 import sys
-import time
 from pathlib import Path
 
-from sase._linked_repo_paths import (
-    EXTERNAL_REPO_CLONES_SUBDIR,
-    LINKED_REPO_CLONES_SUBDIR,
-    SIDECAR_REPO_CLONES_SUBDIR,
+from sase.axe.runner_workspace_sidecar_rescue import (
+    report_sidecar_may_be_lost,
+    rescue_damaged_sidecar_repo,
+    rescue_unpublished_sidecar_repo,
+    retain_current_head_recovery_ref,
+)
+from sase.axe.runner_workspace_sidecar_state import (
+    _FAILED_PUBLICATIONS,
+    SidecarCommitCountResult,
+    SidecarPublicationResult,
+    SidecarUpstreamTarget,
+    current_head_sha,
+    prior_publication_failure,
+    record_publication_failure,
+    workspace_sidecar_repo_roots,
 )
 
-logger = logging.getLogger(__name__)
+# Backward-compatible aliases for the historical private import surface
+# (e.g. ``workspace_module._run_sidecar_push`` patch targets in tests).
+_SidecarPublicationResult = SidecarPublicationResult
+_SidecarUpstreamTarget = SidecarUpstreamTarget
+_SidecarCommitCountResult = SidecarCommitCountResult
+_current_head_sha = current_head_sha
+_workspace_sidecar_repo_roots = workspace_sidecar_repo_roots
+_rescue_damaged_sidecar_repo = rescue_damaged_sidecar_repo
+_rescue_unpublished_sidecar_repo = rescue_unpublished_sidecar_repo
 
-
-@dataclass(frozen=True)
-class _SidecarPublicationResult:
-    published: bool
-    detail: str | None = None
-
-
-@dataclass(frozen=True)
-class _SidecarUpstreamTarget:
-    branch: str
-    remote: str
-
-
-@dataclass(frozen=True)
-class _SidecarCommitCountResult:
-    count: int
-    error: str | None = None
-    damaged: bool = False
-
-
-#: Publication failures keyed by ``(repo_root, HEAD sha)``. The eviction pass
-#: must not re-publish a sidecar whose publication already failed at the same
-#: HEAD earlier in this launch: one publication attempt per sidecar per
-#: launch, then rescue. Entries are keyed by HEAD so a genuinely new commit
-#: still gets its own publication attempt.
-_FAILED_PUBLICATIONS: dict[tuple[str, str], str] = {}
-
-
-def prior_publication_failure(repo_root: Path, head_sha: str | None) -> str | None:
-    """Return the earlier failure detail when this HEAD already failed to publish."""
-    if head_sha is None:
-        return None
-    return _FAILED_PUBLICATIONS.get((str(repo_root), head_sha))
-
-
-def record_publication_failure(
-    repo_root: Path, head_sha: str | None, detail: str
-) -> None:
-    """Memoize a publication failure so a later pass rescues instead of retrying."""
-    if head_sha is None:
-        return
-    _FAILED_PUBLICATIONS[(str(repo_root), head_sha)] = detail
-
-
-def _current_head_sha(repo_root: Path) -> str | None:
-    from sase.sdd._repository_health import default_git_runner
-
-    result = default_git_runner(
-        repo_root,
-        ["rev-parse", "--verify", "HEAD"],
-        op="workspace.sidecar_safety.head_sha",
-    )
-    if result.returncode != 0:
-        return None
-    return result.stdout.strip() or None
+__all__ = [
+    "SidecarCommitCountResult",
+    "SidecarPublicationResult",
+    "SidecarUpstreamTarget",
+    "_FAILED_PUBLICATIONS",
+    "_SidecarCommitCountResult",
+    "_SidecarPublicationResult",
+    "_SidecarUpstreamTarget",
+    "_current_head_sha",
+    "_format_sidecar_push_failure",
+    "_protect_sidecar_repo",
+    "_publish_sidecar_repo",
+    "_rescue_damaged_sidecar_repo",
+    "_rescue_unpublished_sidecar_repo",
+    "_run_sidecar_push",
+    "_sidecar_upstream_target",
+    "_unpushed_sidecar_commit_count",
+    "_uncountable_sidecar_state",
+    "_verify_sidecar_publication",
+    "_workspace_sidecar_repo_roots",
+    "current_head_sha",
+    "prior_publication_failure",
+    "protect_sidecar_repos",
+    "record_publication_failure",
+    "report_sidecar_may_be_lost",
+    "rescue_damaged_sidecar_repo",
+    "rescue_unpublished_sidecar_repo",
+    "retain_current_head_recovery_ref",
+    "workspace_sidecar_repo_roots",
+]
 
 
 def protect_sidecar_repos(
@@ -100,32 +96,6 @@ def protect_sidecar_repos(
         ):
             protected = False
     return protected
-
-
-def _workspace_sidecar_repo_roots(workspace_root: Path) -> list[Path]:
-    """Return direct Git sidecar clones under ``sase/repos/<role>``."""
-    repos_root = workspace_root.joinpath(*SIDECAR_REPO_CLONES_SUBDIR)
-    if not repos_root.is_dir():
-        return []
-
-    skipped_containers = {
-        LINKED_REPO_CLONES_SUBDIR[-1],
-        EXTERNAL_REPO_CLONES_SUBDIR[-1],
-    }
-    roots: list[Path] = []
-    try:
-        children = sorted(repos_root.iterdir(), key=lambda path: path.name)
-    except OSError:
-        return []
-    for child in children:
-        if child.name in skipped_containers:
-            continue
-        if not child.is_dir():
-            continue
-        if not (child / ".git").exists():
-            continue
-        roots.append(child.resolve())
-    return roots
 
 
 def _protect_sidecar_repo(
@@ -205,147 +175,6 @@ def _protect_sidecar_repo(
         workspace_dir=workspace_dir,
         workspace_num=workspace_num,
     )
-
-
-def _rescue_damaged_sidecar_repo(
-    repo_root: Path,
-    damage: str,
-    *,
-    evicting: bool,
-    workspace_dir: Path,
-    workspace_num: int,
-) -> bool:
-    """Quarantine an uncountable sidecar clone into the durable rescue store."""
-    from sase.workspace_provider.rescue import quarantine_directory
-
-    if not evicting:
-        print(
-            f"Warning: could not verify sidecar publication state for {repo_root}: "
-            f"{damage}",
-            file=sys.stderr,
-        )
-        return True
-    quarantined = quarantine_directory(
-        repo_root,
-        workspace_dir=workspace_dir,
-        workspace_num=workspace_num,
-        label=repo_root.name,
-        reason=f"damaged sidecar clone could not be published: {damage}",
-    )
-    if quarantined is not None:
-        print(
-            "Warning: quarantined damaged sidecar repo "
-            f"{repo_root} at {quarantined.quarantined_path}; {damage}",
-            file=sys.stderr,
-        )
-        return True
-    report_sidecar_may_be_lost(
-        repo_root=repo_root,
-        remaining=None,
-        detail=f"{damage}; quarantine failed",
-    )
-    print(
-        "Warning: damaged sidecar repo "
-        f"{repo_root} could not be quarantined and may lose local commits; "
-        f"{damage}; proceeding with eviction",
-        file=sys.stderr,
-    )
-    return True
-
-
-def _rescue_unpublished_sidecar_repo(
-    repo_root: Path,
-    *,
-    remaining: int | None,
-    detail: str,
-    evicting: bool,
-    workspace_dir: Path,
-    workspace_num: int,
-) -> bool:
-    """Rescue unpublishable commits durably, then always allow eviction."""
-    from sase.workspace_provider.rescue import (
-        quarantine_directory,
-        rescue_git_repo,
-    )
-
-    recovery_ref, recovery_error = retain_current_head_recovery_ref(repo_root)
-    if recovery_error is not None or recovery_ref is None:
-        recovery_note = f"recovery ref failed: {recovery_error or 'unknown error'}"
-        if not evicting:
-            print(
-                "workspace preparation refused to discard "
-                f"{remaining} unpushed local sidecar commit(s) in {repo_root}: "
-                f"{detail}; {recovery_note}",
-                file=sys.stderr,
-            )
-            return False
-    else:
-        recovery_note = f"retained at {recovery_ref}"
-
-    if not evicting:
-        # Ordinary preparation does not destroy the clone, so it warns and
-        # proceeds without writing a rescue entry. The launch-time eviction
-        # pass rescues exactly once.
-        held = (
-            f"{remaining} unpublished local sidecar commit(s)"
-            if remaining is not None
-            else "unverifiable sidecar state"
-        )
-        print(
-            f"Warning: retained {held} at {recovery_ref} before "
-            f"workspace cleanup; {detail}",
-            file=sys.stderr,
-        )
-        return True
-
-    rescued = rescue_git_repo(
-        repo_root,
-        workspace_dir=workspace_dir,
-        workspace_num=workspace_num,
-        label=repo_root.name,
-        reason=(
-            f"sidecar held {remaining} unpublished local commit(s) "
-            f"({recovery_note}): {detail}"
-            if remaining is not None
-            else f"sidecar publication state unknown ({recovery_note}): {detail}"
-        ),
-        include_worktree=True,
-    )
-    if rescued is not None:
-        print(
-            "Warning: rescued "
-            f"{remaining} unpushed local sidecar commit(s) at {recovery_ref} to "
-            f"{rescued.rescue_dir} before workspace cleanup; {detail}",
-            file=sys.stderr,
-        )
-        return True
-    quarantined = quarantine_directory(
-        repo_root,
-        workspace_dir=workspace_dir,
-        workspace_num=workspace_num,
-        label=repo_root.name,
-        reason=f"sidecar rescue bundle failed; {detail}",
-    )
-    if quarantined is not None:
-        print(
-            "Warning: quarantined sidecar repo "
-            f"{repo_root} at {quarantined.quarantined_path} before "
-            f"workspace cleanup; {detail}",
-            file=sys.stderr,
-        )
-        return True
-    report_sidecar_may_be_lost(
-        repo_root=repo_root,
-        remaining=remaining,
-        detail=f"{detail}; rescue and quarantine failed",
-    )
-    print(
-        "Warning: sidecar repo "
-        f"{repo_root} holds unpublished commits that could not be rescued "
-        f"and may be lost; {detail}; proceeding with eviction",
-        file=sys.stderr,
-    )
-    return True
 
 
 def _unpushed_sidecar_commit_count(repo_root: Path) -> _SidecarCommitCountResult:
@@ -632,92 +461,3 @@ def _format_sidecar_push_failure(
         f"{format_git_error('git push failed', result)}; {reason} "
         f"(classification={classification}, attempt {attempt}/{max_attempts})"
     )
-
-
-def report_sidecar_may_be_lost(
-    *,
-    repo_root: Path,
-    remaining: int | None,
-    detail: str,
-) -> None:
-    """Send the one fallback notification when rescue itself failed.
-
-    Rescue already notifies on success, so this runs only when neither a
-    bundle nor a quarantine could be written and eviction may lose commits.
-    """
-    try:
-        from sase.notifications import notify_workflow_complete
-
-        notes = [
-            f"Sidecar commits in {repo_root.name} could not be rescued "
-            "before workspace eviction and may be lost.",
-            detail,
-        ]
-        if remaining is not None:
-            notes.insert(1, f"{remaining} commit(s) remained ahead of upstream.")
-        notify_workflow_complete(
-            "workspace-rescue",
-            os.environ.get("SASE_AGENT_CL_NAME", ""),
-            False,
-            notes,
-            extra_files=[str(repo_root)],
-            tags=["sidecar"],
-        )
-    except Exception:
-        logger.debug(
-            "Failed to report sidecar rescue failure",
-            exc_info=True,
-        )
-        print(
-            f"Warning: sidecar rescue notification failed for {repo_root}: {detail}",
-            file=sys.stderr,
-        )
-
-
-def retain_current_head_recovery_ref(repo_root: Path) -> tuple[str | None, str | None]:
-    """Pin HEAD to a recovery ref before a workspace reset can discard it."""
-    from sase.sdd._repository_health import default_git_runner, format_git_error
-    from sase.sdd._repository_recovery_git import (
-        recovery_ref,
-        update_and_verify_ref,
-    )
-
-    branch_result = default_git_runner(
-        repo_root,
-        ["symbolic-ref", "--quiet", "--short", "HEAD"],
-        op="workspace.sidecar_safety.branch",
-    )
-    if branch_result.returncode != 0 or not branch_result.stdout.strip():
-        return (
-            None,
-            format_git_error(
-                "could not resolve the branch for sidecar recovery",
-                branch_result,
-            ),
-        )
-    head_result = default_git_runner(
-        repo_root,
-        ["rev-parse", "--verify", "HEAD"],
-        op="workspace.sidecar_safety.head",
-    )
-    if head_result.returncode != 0 or not head_result.stdout.strip():
-        return (
-            None,
-            format_git_error(
-                "could not resolve HEAD for sidecar recovery", head_result
-            ),
-        )
-
-    branch = branch_result.stdout.strip()
-    head = head_result.stdout.strip()
-    ref = recovery_ref(repo_root, branch, head, time.time())
-    error = update_and_verify_ref(
-        repo_root,
-        ref,
-        head,
-        default_git_runner,
-        "workspace.sidecar_safety",
-    )
-    if error is not None:
-        return None, error
-    return ref, None

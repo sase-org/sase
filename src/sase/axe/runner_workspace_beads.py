@@ -8,11 +8,13 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from sase._linked_repo_paths import SIDECAR_REPO_CLONES_SUBDIR
-from sase.axe.runner_workspace_sidecar import (
+from sase.axe.runner_workspace_sidecar_rescue import (
     report_sidecar_may_be_lost,
+    retain_current_head_recovery_ref,
+)
+from sase.axe.runner_workspace_sidecar_state import (
     prior_publication_failure,
     record_publication_failure,
-    retain_current_head_recovery_ref,
 )
 from sase.sdd._bead_state import has_bead_state
 
