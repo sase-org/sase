@@ -97,7 +97,10 @@ class AgentDetailPanelMixin(Static):
         raise NotImplementedError
 
     def update_display(
-        self, agent: Agent, stale_threshold_seconds: int = 10
+        self,
+        agent: Agent,
+        stale_threshold_seconds: int = 10,
+        attempt_number: int | None = None,
     ) -> None: ...
 
     def is_info_mode(self) -> bool:
