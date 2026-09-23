@@ -7716,9 +7716,9 @@ Community**, and **Agent CLIs** sections. An always-visible header above the lis
 either the all-current banner or a digest of update counts, cache age, install mode, and
 any failed source — it never claims everything is current while a source is unknown or
 failed. A scope strip cycled with `]` / `[` narrows the list to **Outdated** (rows with
-an update available or a probe error), **Installed** (the default), or **All**; each
-scope label carries a live row count. `'` jumps to any row via adaptive hints, across
-every section.
+an update available or a probe error), **Installed** (the default), **Available** (rows
+not installed), or **All**; each scope label carries a live row count. `'` jumps to any
+row via adaptive hints, across every section.
 
 Core rows show SASE package versions and incoming commits in their own per-package
 detail. Plugin rows bring the full
@@ -7728,15 +7728,17 @@ mode. Agent CLI rows are provider-colored, showing installed → latest versions
 update or manual commands, vendor docs links, update marks, and durable update history.
 Missing agent CLIs that SASE can install show `latest v…` with an `[npm]` or `[script]`
 badge and carry the same install verb as plugins: `i` installs the highlighted CLI (or
-every install-marked row), `Space` / `I` marks it for a bulk install. Every install
-opens a confirm preview first — exact command, script URL, full SHA-256, target
-directory, and PATH status — then runs the previewed plan sequentially in one tracked
-proc, CLIs before plugins when a marked set mixes both. CLIs SASE cannot install toast
-their manual instructions instead. Providers that opt out of independent CLI management,
-including the bundled internal Fakey provider, are omitted from the Agent CLIs section.
-The plain substring filter (`/`) searches every row's own fields — name, description,
-topics for plugins; binary, install method, route, and package for agent CLIs — across
-all sections at once.
+every install-marked row), `Space` / `I` marks it for a bulk install, and `*` marks or
+unmarks every visible row in the section with the same action. A filter that matches
+nothing in the current scope names the scopes holding matches, with `[` / `]` to switch.
+Every install opens a confirm preview first — exact command, script URL, full SHA-256,
+target directory, and PATH status — then runs the previewed plan sequentially in one
+tracked proc, CLIs before plugins when a marked set mixes both. CLIs SASE cannot install
+toast their manual instructions instead. Providers that opt out of independent CLI
+management, including the bundled internal Fakey provider, are omitted from the Agent
+CLIs section. The plain substring filter (`/`) searches every row's own fields — name,
+description, topics for plugins; binary, install method, route, and package for agent
+CLIs — across all sections at once.
 
 Every sase-managed agent-CLI update run from `,U`, `,E`, `A`, or `sase agent-cli update`
 — and every install run from the Updates tab — is appended to

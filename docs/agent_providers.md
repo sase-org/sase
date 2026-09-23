@@ -443,5 +443,6 @@ This command manages the provider CLIs only. Use [`sase update`](cli.md) to upgr
 itself and its plugins.
 
 The same inventory is available inside sase's TUI, as the **Agent CLIs** section of the
-SASE Admin Center's Updates tab, which adds marked multi-select updates and confirmation
-previews. See the [Updates tab](ace.md#updates-tab) for that surface.
+SASE Admin Center's Updates tab, which adds marked multi-select updates, one-scope-away
+**Available** installs with `*` mark-all, and confirmation previews. See the
+[Updates tab](ace.md#updates-tab) for that surface.

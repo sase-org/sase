@@ -65,11 +65,13 @@ async def test_updates_scopes_cycle_and_gate_row_actions(
         seen.append(pane._scope)
         pane.action_cycle_scope()
         seen.append(pane._scope)
-        assert seen == ["all", "outdated", "installed", "all"]
+        pane.action_cycle_scope()
+        seen.append(pane._scope)
+        assert seen == ["all", "outdated", "installed", "available", "all"]
 
         pane.action_cycle_scope_reverse()
-        assert pane._scope == "installed"
-        assert tuple(SCOPE_ORDER) == ("outdated", "installed", "all")
+        assert pane._scope == "available"
+        assert tuple(SCOPE_ORDER) == ("outdated", "installed", "available", "all")
 
 
 async def test_agent_cli_session_restores_scope_and_row_by_identity(
@@ -208,6 +210,10 @@ async def test_updates_scope_cycling_handles_brackets_from_core_and_lists(
         assert page.app.focused is updates_list
 
         await page.press("right_square_bracket")
+        await page.wait_for(lambda _s: pane._scope == "available")
+        assert page.app.focused is updates_list
+
+        await page.press("right_square_bracket")
         await page.wait_for(lambda _s: pane._scope == "all")
         assert page.app.focused is updates_list
 
@@ -225,6 +231,10 @@ async def test_updates_scope_cycling_handles_brackets_from_core_and_lists(
 
         await page.press("left_square_bracket")
         await page.wait_for(lambda _s: pane._scope == "all")
+        assert page.app.focused is updates_list
+
+        await page.press("left_square_bracket")
+        await page.wait_for(lambda _s: pane._scope == "available")
         assert page.app.focused is updates_list
 
         await page.press("left_square_bracket")

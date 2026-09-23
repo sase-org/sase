@@ -292,3 +292,109 @@ async def test_scope_strip_counts_and_tab_click_select_scope(
         pane._on_scope_clicked(PanelTabStrip.TabClicked("outdated"))
         assert pane._scope == "outdated"
         assert pane._session_state.scope == "outdated"
+
+
+async def test_available_scope_lists_only_not_installed_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+        uv_tool=_uv_tool(),
+    )
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page, scope="available")
+        ids = _option_ids(pane)
+        assert "updates-row__plugin:nvim" in ids
+        assert "updates-row__plugin:acme" in ids
+        assert "updates-row__cli:qwen" in ids
+        assert "updates-row__cli:muse" in ids
+        assert "updates-row__cli:antigravity" in ids
+        assert "updates-row__plugin:github" not in ids
+        assert "updates-row__plugin:telegram" not in ids
+        assert "updates-row__cli:claude" not in ids
+        assert "updates-row__cli:codex" not in ids
+        assert "updates-row__core:sase" not in ids
+
+
+async def test_scope_cycle_walks_outdated_installed_available_all(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+        uv_tool=_uv_tool(),
+    )
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane._set_scope("installed")
+        seen = []
+        for _ in range(4):
+            pane.action_cycle_scope()
+            seen.append(pane._scope)
+        assert seen == ["available", "all", "outdated", "installed"]
+
+
+async def test_empty_available_scope_reads_everything_installed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    full = _catalog()
+    installed_only = PluginCatalog(
+        fetched_at=full.fetched_at,
+        entries=tuple(entry for entry in full.entries if entry.installed.installed),
+        from_cache=True,
+        stale=False,
+    )
+    _patch_catalog(
+        monkeypatch,
+        catalog=installed_only,
+        agent_cli_statuses=_agent_cli_statuses()[:2],
+        uv_tool=_uv_tool(),
+    )
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page, scope="available")
+        assert pane._status_message() == "Everything is installed."
+
+
+async def test_filter_miss_names_scopes_with_matches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+        uv_tool=_uv_tool(),
+    )
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane._set_scope("installed")
+        pane._filter_text = "qwen"
+        pane._apply_filter()
+        assert pane._status_message() == (
+            'Nothing in Installed matches "qwen"'
+            " — 1 match in Available ([ / ] to switch scope)"
+        )
+
+
+async def test_filter_miss_everywhere_keeps_generic_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+        uv_tool=_uv_tool(),
+    )
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane._set_scope("installed")
+        pane._filter_text = "zzz-no-such-row"
+        pane._apply_filter()
+        assert pane._status_message() == "Nothing matches the current filter."

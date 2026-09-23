@@ -302,7 +302,7 @@ async def test_updates_filter_forwards_brackets_and_tab_switches_main_tab(
         await page.wait_for(lambda _s: filter_input.has_focus)
 
         await page.press("left_square_bracket")
-        await page.wait_for(lambda _s: pane._scope == "installed")
+        await page.wait_for(lambda _s: pane._scope == "available")
         assert filter_input.value == ""
         assert modal._active_tab == "updates"
 

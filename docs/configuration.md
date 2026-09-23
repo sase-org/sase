@@ -383,8 +383,9 @@ leaving the TUI, as one master/detail inventory rather than separate tabs per so
 Every SASE core package, plugin, and registered agent CLI is a row, grouped into
 **SASE**, **Plugins · Built-in**, **Plugins · Community**, and **Agent CLIs** sections.
 Use `]` / `[` to cycle a scope strip that narrows the list to **Outdated** (an update is
-available or a probe failed), **Installed** (the default), or **All**; each scope label
-shows a live row count.
+available or a probe failed), **Installed** (the default), **Available** (not
+installed), or **All**; each scope label shows a live row count. An empty Available
+scope reads `Everything is installed.`
 
 - **SASE** rows show the installed and latest versions of `sase` and `sase-core`; the
   highlighted row's detail includes its incoming commits.
@@ -400,7 +401,7 @@ shows a live row count.
   marks in one combined flow). Details show the resolved executable, exact automatic or
   manual update command, skip reason, canonical vendor docs URL, and the last result;
   missing CLIs instead show the install route, exact command or script URL, target, and
-  the `↓ i install now · Space mark for a bulk install` call to action. Every install
+  the `↓ i install now · Space mark · * mark all missing` call to action. Every install
   previews first — exact command, full SHA-256, target, and PATH status — runs the
   previewed bytes without a shell, and stays visible afterwards (row, detail, toast, and
   history), including "installed but not on PATH" with the exact `export` line.
@@ -479,31 +480,32 @@ before closing. All slow work runs off the event loop. Core/plugin code changes 
 the existing automatic sase's TUI and service host restart behavior after the other legs
 finish. The context-sensitive keymaps are:
 
-| Key                 | Action                                                                                                                  |
-| ------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| `]` / `[`           | Cycle Outdated / Installed / All scopes                                                                                 |
-| `j` / `k`           | Move the highlight down / up                                                                                            |
-| `'`                 | Jump to a row via adaptive hints, across every section                                                                  |
-| `I` / `Space`       | Mark / unmark the highlighted row — `I` for an installable plugin or CLI, `Space` follows the highlighted row           |
-| `i`                 | Open the install preview for the marked set (plugins and agent CLIs together), or for the highlighted row when unmarked |
-| `x`                 | Uninstall the highlighted plugin (only when installed)                                                                  |
-| `u`                 | Run `sase update` for SASE core plus all installed plugins                                                              |
-| `A`                 | Update marked agent CLIs from anywhere, or every safely updatable installed agent CLI otherwise                         |
-| `a`                 | Publish and reconcile every enabled agents repository, draining queued publication retries                              |
-| `U`                 | Update the highlighted installed plugin when that row has an update available                                           |
-| `m`                 | Switch install mode (PyPI managed ↔ dev editable; the `sase update --to` analog)                                        |
-| `r`                 | Refresh — refetch the catalog and latest versions (the `-r/--refresh` analog)                                           |
-| `Ctrl+D`            | Scroll the detail panel down                                                                                            |
-| `Ctrl+U`            | Scroll the detail panel up                                                                                              |
-| `g`                 | Scroll the detail panel to the top                                                                                      |
-| `G`                 | Scroll the detail panel to the bottom                                                                                   |
-| `o`                 | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)                                       |
-| `v`                 | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)                                          |
-| `/`                 | Focus the filter input (matches every row's own name / description / topics, across all sections)                       |
-| `#` (default)       | From home, resume the last section used; in a section, jump to the previous one, press again to toggle                  |
-| `Tab` / `Shift+Tab` | From home enter Config / Updates; otherwise switch SASE Admin Center tabs (`1`–`7` jump directly)                       |
-| `Esc`               | Clear every mark first, including any hidden by the filter; close when no marks are active                              |
-| `q`                 | Close SASE Admin Center                                                                                                 |
+| Key                 | Action                                                                                                                                                                          |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `]` / `[`           | Cycle Outdated / Installed / Available / All scopes                                                                                                                             |
+| `j` / `k`           | Move the highlight down / up                                                                                                                                                    |
+| `'`                 | Jump to a row via adaptive hints, across every section                                                                                                                          |
+| `I` / `Space`       | Mark / unmark the highlighted row — `I` for an installable plugin or CLI, `Space` follows the highlighted row                                                                   |
+| `*`                 | Mark / unmark every visible row in the highlighted row's section with the same action                                                                                           |
+| `i`                 | Open the install preview for the marked set (plugins and agent CLIs together), or for the highlighted row when unmarked                                                         |
+| `x`                 | Uninstall the highlighted plugin (only when installed)                                                                                                                          |
+| `u`                 | Run `sase update` for SASE core plus all installed plugins                                                                                                                      |
+| `A`                 | Update marked agent CLIs from anywhere, or every safely updatable installed agent CLI otherwise                                                                                 |
+| `a`                 | Publish and reconcile every enabled agents repository, draining queued publication retries                                                                                      |
+| `U`                 | Update the highlighted installed plugin when that row has an update available                                                                                                   |
+| `m`                 | Switch install mode (PyPI managed ↔ dev editable; the `sase update --to` analog)                                                                                                |
+| `r`                 | Refresh — refetch the catalog and latest versions (the `-r/--refresh` analog)                                                                                                   |
+| `Ctrl+D`            | Scroll the detail panel down                                                                                                                                                    |
+| `Ctrl+U`            | Scroll the detail panel up                                                                                                                                                      |
+| `g`                 | Scroll the detail panel to the top                                                                                                                                              |
+| `G`                 | Scroll the detail panel to the bottom                                                                                                                                           |
+| `o`                 | Toggle offline (cache-only) mode, with a header badge (the `-o/--offline` analog)                                                                                               |
+| `v`                 | Toggle verbose list columns — stars / last-updated (the `-v/--verbose` analog)                                                                                                  |
+| `/`                 | Focus the filter input (matches every row's own name / description / topics, across all sections); a filter matching nothing in the current scope names the scopes with matches |
+| `#` (default)       | From home, resume the last section used; in a section, jump to the previous one, press again to toggle                                                                          |
+| `Tab` / `Shift+Tab` | From home enter Config / Updates; otherwise switch SASE Admin Center tabs (`1`–`7` jump directly)                                                                               |
+| `Esc`               | Clear every mark first, including any hidden by the filter; close when no marks are active                                                                                      |
+| `q`                 | Close SASE Admin Center                                                                                                                                                         |
 
 The Admin Center opener is the effective `ace.keymaps.app.open_config_center` binding
 (`number_sign` / `#` by default), so a custom binding is repeated in the same way and

@@ -31,15 +31,16 @@ if TYPE_CHECKING:
 
 UpdateRowKind = Literal["core", "plugin", "agent-cli"]
 UpdateRowSection = Literal["sase", "plugins-builtin", "plugins-community", "agent-clis"]
-UpdateScope = Literal["outdated", "installed", "all"]
+UpdateScope = Literal["outdated", "installed", "available", "all"]
 UpdateCapability = Literal[
     "install", "uninstall", "update", "mark_update", "manual", "history"
 ]
 
-SCOPE_ORDER: tuple[UpdateScope, ...] = ("outdated", "installed", "all")
+SCOPE_ORDER: tuple[UpdateScope, ...] = ("outdated", "installed", "available", "all")
 SCOPE_LABELS: dict[UpdateScope, str] = {
     "outdated": "Outdated",
     "installed": "Installed",
+    "available": "Available",
     "all": "All",
 }
 
@@ -84,6 +85,8 @@ def _row_in_scope(row: UpdateRow, scope: UpdateScope) -> bool:
         return row.update_available or row.error is not None
     if scope == "installed":
         return row.installed
+    if scope == "available":
+        return not row.installed
     return True
 
 
@@ -94,6 +97,8 @@ def scope_counts(rows: Sequence[UpdateRow]) -> dict[UpdateScope, int]:
         counts["all"] += 1
         if row.installed:
             counts["installed"] += 1
+        else:
+            counts["available"] += 1
         if row.update_available or row.error is not None:
             counts["outdated"] += 1
     return counts

@@ -6,6 +6,8 @@ from pathlib import Path
 
 from sase.ace.tui.modals.plugins_browser_loading import PluginsLoadResult
 from sase.ace.tui.modals.plugins_browser_rows import (
+    SCOPE_LABELS,
+    SCOPE_ORDER,
     _core_version_label,
     _agent_cli_version_label,
     _plugin_version_label,
@@ -733,3 +735,60 @@ def test_agent_cli_haystack_covers_install_route_and_package() -> None:
 
     manual_row = _cli_row(_installable_cli_status(route="manual"))
     assert "manual" in manual_row.haystack
+
+
+# -- Available scope ----------------------------------------------------------
+
+
+def test_scope_order_cycles_outdated_installed_available_all() -> None:
+    assert SCOPE_ORDER == ("outdated", "installed", "available", "all")
+    assert SCOPE_LABELS["available"] == "Available"
+
+
+def test_available_scope_holds_only_not_installed_rows() -> None:
+    nvim = build_plugin_row(_entry("nvim"), blocked=False)
+    github = build_plugin_row(
+        _entry(
+            "github",
+            installed=InstalledInfo(installed=True, version="1.0.0"),
+            latest=LatestInfo(checked=True, version="1.1.0", source="index"),
+        ),
+        blocked=False,
+    )
+    missing_cli = _cli_row(_not_installed_cli_status())
+    installed_cli = _cli_row(_ready_cli_status())
+    assert _row_in_scope(nvim, "available") is True
+    assert _row_in_scope(missing_cli, "available") is True
+    assert _row_in_scope(github, "available") is False
+    assert _row_in_scope(installed_cli, "available") is False
+
+
+def test_scope_counts_available_against_all_and_installed() -> None:
+    nvim = build_plugin_row(_entry("nvim"), blocked=False)
+    github = build_plugin_row(
+        _entry(
+            "github",
+            installed=InstalledInfo(installed=True, version="1.0.0"),
+            latest=LatestInfo(checked=True, version="1.1.0", source="index"),
+        ),
+        blocked=False,
+    )
+    counts = scope_counts((nvim, github))
+    assert counts["available"] == 1
+    assert counts["installed"] == 1
+    assert counts["all"] == 2
+    assert counts["available"] + counts["installed"] == counts["all"]
+
+
+def test_select_rows_available_scope_lists_missing_clis() -> None:
+    rows = build_update_rows(
+        _load_result(agent_cli_statuses=(_not_installed_cli_status(),)),
+        uv_tool=None,
+        offline=False,
+    )
+    keys = [
+        row.key
+        for _header, _style, section in select_rows(rows, scope="available", needle="")
+        for row in section
+    ]
+    assert keys == ["cli:qwen"]

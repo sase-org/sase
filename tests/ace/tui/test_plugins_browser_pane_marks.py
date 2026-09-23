@@ -276,3 +276,185 @@ async def test_manual_cli_mark_warns_with_vendor_reason(
         assert pane._marked == set()
         assert messages and messages[0][1] == "warning"
         assert "Antigravity CLI can't be installed by SASE" in messages[0][0]
+
+
+async def test_mark_all_installable_clis_then_unmarks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+        uv_tool=_uv_tool(),
+    )
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        messages = _spy_notify(monkeypatch, pane)
+        _highlight_row(pane, "cli:qwen")
+        assert pane.check_action("toggle_mark_all", ()) is True
+        pane.action_toggle_mark_all()
+        assert pane._marked == {"cli:qwen", "cli:muse"}
+        assert messages and messages[0] == (
+            "Marked 2 agent CLIs to install",
+            "information",
+        )
+        assert "Marked: 2 CLI installs" in pane._hints()
+
+        pane.action_toggle_mark_all()
+        assert pane._marked == set()
+        assert messages[-1] == ("Unmarked 2 agent CLIs", "information")
+
+
+async def test_mark_all_updatable_clis_share_one_verb(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+        uv_tool=_uv_tool(),
+    )
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        messages = _spy_notify(monkeypatch, pane)
+        _highlight_row(pane, "cli:claude")
+        pane.action_toggle_mark_all()
+        # codex is manual-only, so claude is the only updatable CLI row.
+        assert pane._marked == {"cli:claude"}
+        assert messages and messages[0] == (
+            "Marked 1 agent CLI to update",
+            "information",
+        )
+
+
+async def test_mark_all_respects_scope_and_filter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+        uv_tool=_uv_tool(),
+    )
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane._set_scope("installed")
+        _highlight_row(pane, "cli:claude")
+        pane.action_toggle_mark_all()
+        # qwen/muse are hidden by the Installed scope, so only updates mark.
+        assert pane._marked == {"cli:claude"}
+
+        pane._set_scope("all")
+        _highlight_row(pane, "cli:qwen")
+        _apply_updates_filter(pane, "qwen")
+        pane.action_toggle_mark_all()
+        assert pane._marked == {"cli:claude", "cli:qwen"}
+
+
+async def test_mark_all_keeps_builtin_and_community_plugins_apart(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+        uv_tool=_uv_tool(),
+    )
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        messages = _spy_notify(monkeypatch, pane)
+        _highlight(pane, "nvim")
+        pane.action_toggle_mark_all()
+        assert pane._marked == {"plugin:nvim"}
+        assert messages and messages[0] == (
+            "Marked 1 plugin to install",
+            "information",
+        )
+
+        _highlight_row(pane, "plugin:acme")
+        pane.action_toggle_mark_all()
+        assert pane._marked == {"plugin:nvim", "plugin:acme"}
+
+
+async def test_mark_all_unmarkable_row_warns_like_space(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+        uv_tool=_uv_tool(),
+    )
+
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        messages = _spy_notify(monkeypatch, pane)
+        _highlight_row(pane, "cli:antigravity")
+        assert pane.check_action("toggle_mark_all", ()) is False
+        pane.action_toggle_mark_all()
+        await page.pause()
+        assert pane._marked == set()
+        assert messages and messages[0][1] == "warning"
+        assert "Antigravity CLI can't be installed by SASE" in messages[0][0]
+
+
+async def test_pane_bindings_have_no_duplicate_keys(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(monkeypatch, catalog=_catalog(), uv_tool=_uv_tool())
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        keys = [key for key, _action, _description in pane.BINDINGS]
+        assert len(keys) == len(set(keys))
+        assert ("asterisk", "toggle_mark_all", "Mark all") in pane.BINDINGS
+
+
+async def test_asterisk_press_marks_all_without_saved_query_picker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+        uv_tool=_uv_tool(),
+    )
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        _highlight_row(pane, "cli:qwen")
+        await page.press("asterisk")
+        await page.wait_for(lambda _s: pane._marked == {"cli:qwen", "cli:muse"})
+        assert page.app.screen.__class__.__name__ == "ConfigCenterModal"
+
+
+async def test_asterisk_in_filter_input_inserts_text(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _patch_other_panes(monkeypatch)
+    _patch_catalog(
+        monkeypatch,
+        catalog=_catalog(),
+        agent_cli_statuses=_agent_cli_statuses(),
+        uv_tool=_uv_tool(),
+    )
+    async with AcePage() as page:
+        pane = await _open_plugins_pane(page)
+        pane.action_focus_filter()
+        await page.wait_for(
+            lambda _s: getattr(page.app.focused, "id", None) == "updates-filter-input"
+        )
+        await page.press("asterisk")
+        await page.wait_for(
+            lambda _s: pane.query_one("#updates-filter-input").value == "*"
+        )
+        assert pane._marked == set()

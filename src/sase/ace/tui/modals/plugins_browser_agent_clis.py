@@ -209,7 +209,7 @@ class AgentCliBrowserMixin(AgentCliBrowserActionsMixin):
             return note
         action = Text()
         action.append("↓ i install now", style="bold")
-        action.append(" · Space mark for a bulk install", style="dim")
+        action.append(" · Space mark · * mark all missing", style="dim")
         return action
 
 

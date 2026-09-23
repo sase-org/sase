@@ -222,6 +222,7 @@ class PluginsBrowserPane(
         ("i", "install", "Install"),
         ("I", "toggle_install_mark", "Mark"),
         ("space", "toggle_mark", "Mark"),
+        ("asterisk", "toggle_mark_all", "Mark all"),
         ("x", "uninstall", "Uninstall"),
         ("m", "switch_mode", "Switch mode"),
         ("u", "update_sase", "Update core + plugins"),

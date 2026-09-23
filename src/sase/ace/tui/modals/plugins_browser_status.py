@@ -15,7 +15,13 @@ from sase.plugins.render_common import humanize_age
 from sase.uv_tool.detect import NotUvToolInstall
 
 from .plugins_browser_constants import _SCOPE_NAV_HINT
-from .plugins_browser_rows import UpdateRow, UpdateScope
+from .plugins_browser_rows import (
+    SCOPE_LABELS,
+    SCOPE_ORDER,
+    UpdateRow,
+    UpdateScope,
+    select_rows,
+)
 
 _CURRENT_ACCENT = "#00D700"
 
@@ -370,13 +376,44 @@ class PluginsBrowserStatusMixin:
             return "No updates found."
         if not self._has_item_rows():
             if self._filter_text.strip():
-                return "Nothing matches the current filter."
+                return self._no_match_message()
             if self._scope == "outdated":
                 return "Nothing needs an update."
             if self._scope == "installed":
                 return "Nothing is installed."
+            if self._scope == "available":
+                return "Everything is installed."
             return "No updates found."
         return ""
+
+    def _no_match_message(self) -> str:
+        """Filter help: where else the current needle matches, if anywhere."""
+        needle = self._filter_text.strip().casefold()
+        current = SCOPE_LABELS[self._scope]
+        hits = []
+        for scope in SCOPE_ORDER:
+            # "All" is the union of the other scopes, so naming it can never
+            # tell the user where to switch.
+            if scope == self._scope or scope == "all":
+                continue
+            count = sum(
+                len(rows)
+                for _header, _style, rows in select_rows(
+                    self._rows, scope=scope, needle=needle
+                )
+            )
+            if count:
+                hits.append((SCOPE_LABELS[scope], count))
+        if not hits:
+            return "Nothing matches the current filter."
+        parts = ", ".join(
+            f"{count} match{'es' if count != 1 else ''} in {label}"
+            for label, count in hits
+        )
+        return (
+            f'Nothing in {current} matches "{self._filter_text.strip()}"'
+            f" — {parts} ([ / ] to switch scope)"
+        )
 
     def _hints(self) -> str:
         if self.jump_mode_active:
@@ -397,7 +434,7 @@ class PluginsBrowserStatusMixin:
         elif self._can_install_highlighted():
             parts.append("i install")
         if self._can_mark_highlighted():
-            parts.append("I/space mark")
+            parts.append("I/space mark · * mark all")
         row = self._highlighted_row()
         if self._can_update_sase():
             parts.append("u update core + plugins")

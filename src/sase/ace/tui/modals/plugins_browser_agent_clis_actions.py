@@ -57,6 +57,8 @@ class AgentCliBrowserActionsMixin:
 
         def _clear_marks(self, keys: object = None) -> None: ...
 
+        def _flat_rows(self) -> list[UpdateRow]: ...
+
         def _highlighted_row(self) -> UpdateRow | None: ...
 
         def _hints(self) -> str: ...
@@ -111,6 +113,57 @@ class AgentCliBrowserActionsMixin:
         self._refresh_row(row.key)
         self._advance_mark_selection(capability, section=row.section)
         self._update_static("#updates-hints", self._hints())
+
+    def action_toggle_mark_all(self) -> None:
+        """Mark every visible same-section row sharing the highlighted verb."""
+        if (
+            self._loading
+            or self._plan_worker is not None
+            or self._agent_cli_plan_worker is not None
+        ):
+            return
+        row = self._highlighted_row()
+        if row is None:
+            self._notify(
+                "Select an installable plugin or an updatable agent CLI to mark.",
+                severity="warning",
+            )
+            return
+        if "install" in row.capabilities:
+            capability = "install"
+        elif "mark_update" in row.capabilities:
+            capability = "mark_update"
+        else:
+            self._notify(_unmarkable_message(row), severity="warning")
+            return
+        # Visible means the current scope and filter; the section keeps
+        # Built-in and Community plugins apart.
+        targets = [
+            visible
+            for visible in self._flat_rows()
+            if visible.section == row.section and capability in visible.capabilities
+        ]
+        if not targets:
+            return
+        if all(target.key in self._marked for target in targets):
+            for target in targets:
+                self._marked.discard(target.key)
+            marked = False
+        else:
+            for target in targets:
+                self._marked.add(target.key)
+            marked = True
+        for target in targets:
+            self._refresh_row(target.key)
+        self._update_static("#updates-hints", self._hints())
+        self._notify(
+            mark_all_message(
+                marked=marked,
+                count=len(targets),
+                section=row.section,
+                capability=capability,
+            )
+        )
 
     def action_clear_marks_or_close(self) -> None:
         """Clear every mark, including filter-hidden ones; close when none are set."""
@@ -291,6 +344,17 @@ def _unmarkable_message(row: UpdateRow) -> str:
                 return f"{row.label} can't be installed by SASE — {option.reason}"
         return "Select an updatable agent CLI to mark."
     return "Select an installable plugin or an updatable agent CLI to mark."
+
+
+def mark_all_message(*, marked: bool, count: int, section: str, capability: str) -> str:
+    """Toast for ``*``: ``Marked 4 agent CLIs to install`` and friends."""
+    noun = "agent CLI" if section == "agent-clis" else "plugin"
+    if count != 1:
+        noun += "s"
+    if not marked:
+        return f"Unmarked {count} {noun}"
+    verb = "to install" if capability == "install" else "to update"
+    return f"Marked {count} {noun} {verb}"
 
 
 def agent_cli_result_line(result: AgentCliUpdateResult) -> str:

@@ -226,7 +226,7 @@ async def test_install_detail_panel_per_route(
         assert "not installed" in npm_text
         assert "npm · @qwen-code/qwen-code" in npm_text
         assert "npm install -g @qwen-code/qwen-code" in npm_text
-        assert "↓ i install now · Space mark for a bulk install" in npm_text
+        assert "↓ i install now · Space mark · * mark all missing" in npm_text
 
         script_text = _render(pane._agent_cli_detail_panel(statuses["muse"]))
         assert "Muse Code · not installed" in script_text

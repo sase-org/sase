@@ -142,7 +142,7 @@ class PluginsBrowserLayoutMixin(_MixinBase):
             return callable(getattr(self.app, "action_sync_agents", None))
         if action == "switch_mode":
             return self._can_switch_mode()
-        if action == "toggle_install_mark":
+        if action in ("toggle_install_mark", "toggle_mark_all"):
             return self._can_mark_highlighted()
         row_capability = {
             "install": "install",
