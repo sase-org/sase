@@ -2122,11 +2122,20 @@ unchanged.
 | Parked       | `not_installed`, `unsupported_cli_version`                                                                    | 6-hour backoff, released early when the CLI changes                             |
 | Vendor drift | `vendor_drift`                                                                                                | fixed 1-hour backoff                                                            |
 
+Providers in active use refresh on the hot cadence instead of the idle one. A provider
+counts as hot while a recent agent launch or limit-event hint (each good for 15 minutes)
+is still live, or while one of its stored un-reset windows sits at or above
+`warn_percent` used. Hotness is suppressed while live stream events already keep every
+stored window fresh — a window received within the active cadence of now needs no probe.
+The hot interval is `max(active_refresh_seconds, floor)`, so a hot Claude still waits
+for its 300 s floor while a hot Codex is due at about 120 s.
+
 ```yaml
 llm_provider:
   usage_metrics:
     enabled: true
     refresh_seconds: 300
+    active_refresh_seconds: 120
     warn_percent: 75
     critical_percent: 90
     indicator:
@@ -2147,6 +2156,7 @@ llm_provider:
 | --------------------------------------------------------------------- | ------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `llm_provider.usage_metrics.enabled`                                  | bool   | `true`                          | Collect subscription usage. False stops probes, passive writes, scheduled requests, and attention; inspection can still explain the opt-out.                                                                                                                                                                       |
 | `llm_provider.usage_metrics.refresh_seconds`                          | number | `300`                           | Idle refresh cadence in seconds. Must be finite and at least `60`. The scheduler's `usage` routine ticks every 60 s and probes each provider at `max(refresh_seconds, floor)`; display freshness uses the same max. Explicit refreshes bypass the floor but still respect the 60 s cooldown and any `Retry-After`. |
+| `llm_provider.usage_metrics.active_refresh_seconds`                   | number | `120`                           | Hot refresh cadence in seconds for providers in active use. Must be finite and at least `60`; values above `refresh_seconds` are capped at it. A hot provider probes at `max(active_refresh_seconds, floor)`, so plugin floors still bound hot polling.                                                            |
 | `llm_provider.usage_metrics.warn_percent`                             | number | `75`                            | Percentage _used_ that classifies a window as low. Must satisfy `0 <= warn_percent < critical_percent <= 100`. UI copy uses percentage left.                                                                                                                                                                       |
 | `llm_provider.usage_metrics.critical_percent`                         | number | `90`                            | Percentage _used_ that classifies a window as very low.                                                                                                                                                                                                                                                            |
 | `llm_provider.usage_metrics.indicator.enabled`                        | bool   | `true`                          | Show sase's TUI header usage indicators. False hides display entries while collection and Providers · Usage remain active.                                                                                                                                                                                         |

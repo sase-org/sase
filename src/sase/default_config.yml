@@ -1581,7 +1581,8 @@ llm_provider:
   # the generic schema — keys under providers are registered names.
   usage_metrics:
     enabled: true                 # false stops probes and passive writes
-    refresh_seconds: 300          # cadence; minimum 60
+    refresh_seconds: 300          # idle cadence; minimum 60
+    active_refresh_seconds: 120   # hot cadence for providers in active use; minimum 60, capped at refresh_seconds
     warn_percent: 75              # percentage used for local low attention
     critical_percent: 90          # percentage used for local very-low attention
     indicator:

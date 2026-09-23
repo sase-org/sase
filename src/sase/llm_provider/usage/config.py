@@ -19,6 +19,8 @@ log = logging.getLogger(__name__)
 DEFAULT_USAGE_ENABLED = True
 DEFAULT_REFRESH_SECONDS = 300.0
 MIN_REFRESH_SECONDS = 60.0
+DEFAULT_ACTIVE_REFRESH_SECONDS = 120.0
+MIN_ACTIVE_REFRESH_SECONDS = 60.0
 DEFAULT_WARN_PERCENT = 75.0
 DEFAULT_CRITICAL_PERCENT = 90.0
 
@@ -32,6 +34,7 @@ class UsageMetricsSettings:
 
     enabled: bool = DEFAULT_USAGE_ENABLED
     refresh_seconds: float = DEFAULT_REFRESH_SECONDS
+    active_refresh_seconds: float = DEFAULT_ACTIVE_REFRESH_SECONDS
     warn_percent: float = DEFAULT_WARN_PERCENT
     critical_percent: float = DEFAULT_CRITICAL_PERCENT
     providers: Mapping[str, bool] = field(default_factory=dict)
@@ -64,6 +67,9 @@ def get_usage_metrics_settings() -> UsageMetricsSettings:
     refresh_seconds = _as_number(
         section.get("refresh_seconds"), defaults.refresh_seconds
     )
+    active_refresh_seconds = _as_number(
+        section.get("active_refresh_seconds"), defaults.active_refresh_seconds
+    )
     warn_percent = _as_number(section.get("warn_percent"), defaults.warn_percent)
     critical_percent = _as_number(
         section.get("critical_percent"), defaults.critical_percent
@@ -75,9 +81,13 @@ def get_usage_metrics_settings() -> UsageMetricsSettings:
         refresh_seconds = defaults.refresh_seconds
         warn_percent = defaults.warn_percent
         critical_percent = defaults.critical_percent
+    active_refresh_seconds = _clamp_active_cadence(
+        active_refresh_seconds, refresh_seconds, defaults.active_refresh_seconds
+    )
     return UsageMetricsSettings(
         enabled=enabled,
         refresh_seconds=refresh_seconds,
+        active_refresh_seconds=active_refresh_seconds,
         warn_percent=warn_percent,
         critical_percent=critical_percent,
         providers=_provider_overrides(section.get("providers")),
@@ -168,6 +178,28 @@ def _validate_metrics(
 ) -> None:
     project = require_rust_binding("provider_usage_project_snapshot")
     project([], time.time(), refresh_seconds, warn_percent, critical_percent)
+
+
+def _clamp_active_cadence(
+    active_refresh_seconds: float, refresh_seconds: float, default: float
+) -> float:
+    """Clamp the hot cadence to ``[60, refresh_seconds]``.
+
+    Non-finite or below-minimum values fall back to *default* (which the
+    core also enforces); anything above the idle cadence is capped at it so
+    a hot provider never polls slower than an idle one.
+    """
+    try:
+        active = float(active_refresh_seconds)
+    except (TypeError, ValueError):
+        active = default
+    if (
+        active != active
+        or active in (float("inf"), float("-inf"))
+        or active < MIN_ACTIVE_REFRESH_SECONDS
+    ):
+        active = default
+    return min(active, float(refresh_seconds))
 
 
 def _as_bool(value: object, default: bool) -> bool:

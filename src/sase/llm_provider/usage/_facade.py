@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -18,6 +19,7 @@ from sase.llm_provider.usage._wire import (
     ProviderUsageIndicatorConfigValidation,
     ProviderUsageIndicatorProjection,
     ProviderUsageAccountContext,
+    ProviderUsageMarkHotOutcome,
     ProviderUsageRefreshAdmitOutcome,
     ProviderUsageRefreshDueOutcome,
     ProviderUsageRefreshMarkDueOutcome,
@@ -33,6 +35,8 @@ from sase.llm_provider.usage.constants import (
     PROVIDER_USAGE_INDICATOR_SCHEMA_VERSION,
 )
 from sase.llm_provider.usage.errors import ProviderUsageStateError
+
+log = logging.getLogger(__name__)
 
 
 def provider_usage_state_path() -> Path:
@@ -312,6 +316,8 @@ def evaluate_provider_usage_refresh_due(
     adaptive: bool = False,
     min_interval_seconds: float | None = None,
     cli_fingerprint: str | None = None,
+    active_cadence_seconds: float | None = None,
+    warn_percent: float | None = None,
     now: float | None = None,
 ) -> ProviderUsageRefreshDueOutcome:
     """Return whether *provider* is due without reserving work."""
@@ -330,6 +336,12 @@ def evaluate_provider_usage_refresh_due(
         not isinstance(cli_fingerprint, str) or not cli_fingerprint.strip()
     ):
         raise ValueError("cli_fingerprint must be a non-empty string")
+    if active_cadence_seconds is not None and not is_finite_number(
+        active_cadence_seconds
+    ):
+        raise ValueError("active_cadence_seconds must be a finite number")
+    if warn_percent is not None and not is_finite_number(warn_percent):
+        raise ValueError("warn_percent must be a finite number")
     current = time.time() if now is None else now
     binding = require_rust_binding("provider_usage_refresh_due")
     return ProviderUsageRefreshDueOutcome.from_wire(
@@ -350,6 +362,12 @@ def evaluate_provider_usage_refresh_due(
                 "cli_fingerprint": (
                     None if cli_fingerprint is None else cli_fingerprint.strip()
                 ),
+                "active_cadence_seconds": (
+                    None
+                    if active_cadence_seconds is None
+                    else float(active_cadence_seconds)
+                ),
+                "warn_percent": None if warn_percent is None else float(warn_percent),
             },
             current,
         )
@@ -368,6 +386,8 @@ def admit_provider_usage_refresh(
     adaptive: bool = False,
     min_interval_seconds: float | None = None,
     cli_fingerprint: str | None = None,
+    active_cadence_seconds: float | None = None,
+    warn_percent: float | None = None,
     now: float | None = None,
 ) -> ProviderUsageRefreshAdmitOutcome:
     """Admit, join, or defer refresh work for one provider/account generation."""
@@ -389,6 +409,12 @@ def admit_provider_usage_refresh(
         not isinstance(cli_fingerprint, str) or not cli_fingerprint.strip()
     ):
         raise ValueError("cli_fingerprint must be a non-empty string")
+    if active_cadence_seconds is not None and not is_finite_number(
+        active_cadence_seconds
+    ):
+        raise ValueError("active_cadence_seconds must be a finite number")
+    if warn_percent is not None and not is_finite_number(warn_percent):
+        raise ValueError("warn_percent must be a finite number")
     current = time.time() if now is None else now
     binding = require_rust_binding("provider_usage_admit_refresh")
     return ProviderUsageRefreshAdmitOutcome.from_wire(
@@ -411,10 +437,56 @@ def admit_provider_usage_refresh(
                 "cli_fingerprint": (
                     None if cli_fingerprint is None else cli_fingerprint.strip()
                 ),
+                "active_cadence_seconds": (
+                    None
+                    if active_cadence_seconds is None
+                    else float(active_cadence_seconds)
+                ),
+                "warn_percent": None if warn_percent is None else float(warn_percent),
             },
             current,
         )
     )
+
+
+def mark_provider_usage_hot(
+    provider: str,
+    until: float,
+    *,
+    context_id: str = "default",
+    now: float | None = None,
+) -> ProviderUsageMarkHotOutcome | None:
+    """Best-effort hot-hint write for *provider* expiring at *until*.
+
+    Never raises: a hint must not add failure modes to launches or limit
+    handling. Returns the parsed outcome, or ``None`` when the write was
+    skipped or failed (logged at debug level).
+    """
+    try:
+        checked_provider = require_provider_id(provider)
+        checked_context = _require_context_id(context_id)
+        if not is_finite_number(until):
+            raise ValueError("until must be a finite number")
+        current = time.time() if now is None else now
+        context = prepare_provider_usage_account_context(
+            checked_provider, checked_context, now=current
+        )
+        binding = require_rust_binding("provider_usage_mark_hot")
+        return ProviderUsageMarkHotOutcome.from_wire(
+            binding(
+                str(sase_home()),
+                {
+                    "provider": checked_provider,
+                    "context_id": context.context_id,
+                    "account_generation": context.account_generation,
+                    "until": float(until),
+                },
+                current,
+            )
+        )
+    except Exception:
+        log.debug("could not mark usage hot for %r", provider, exc_info=True)
+        return None
 
 
 def mark_provider_usage_refresh_due(
@@ -538,6 +610,7 @@ __all__ = [
     "admit_provider_usage_refresh",
     "evaluate_provider_usage_refresh_due",
     "load_provider_usage",
+    "mark_provider_usage_hot",
     "mark_provider_usage_refresh_due",
     "prepare_provider_usage_account_context",
     "provider_usage_format_remaining_text",

@@ -4006,6 +4006,12 @@
               "default": 300,
               "minimum": 60
             },
+            "active_refresh_seconds": {
+              "type": "number",
+              "description": "Hot refresh cadence in seconds for providers in active use. Must be finite and at least 60; values above refresh_seconds are capped at it.",
+              "default": 120,
+              "minimum": 60
+            },
             "warn_percent": {
               "type": "number",
               "description": "Percentage used that classifies a window as low. Must satisfy 0 <= warn_percent < critical_percent <= 100. UI copy uses percentage left.",

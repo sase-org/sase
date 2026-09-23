@@ -1166,13 +1166,18 @@ without hard-coding the initial three providers.
 scheduler, and limit-event triggers. It coalesces work per provider and account
 generation, joins in-flight probes without dropping other requested providers, and
 bounds automatic retries with cadence-based backoff. Automatic admission passes
-`adaptive=True` with each provider's floor and CLI fingerprint; parked providers unpark
-early when the CLI changes. Limit events only mark the provider due — they never submit
-an explicit probe, so the next routine tick picks the provider up subject to its floor.
-The scheduler runs due work inline from the `usage_refresh` job on the 60-second `usage`
-routine, probing the admitted batch in-process so periodic collection creates no proc
-rows. sase's TUI requests the same due work after first paint and while open, but only
-when the scheduler does not own collection. A normal TUI tick never probes inline.
+`adaptive=True` with each provider's floor, CLI fingerprint, hot cadence
+(`active_refresh_seconds`, capped at the idle cadence), and `warn_percent`; parked
+providers unpark early when the CLI changes. Providers in active use — a recent agent
+launch or limit-event hint (each good for 15 minutes), or a stored window at or above
+`warn_percent` used — refresh at `max(active_refresh_seconds, floor)` unless live stream
+events already keep their windows fresh. Limit events only mark the provider due — they
+never submit an explicit probe, so the next routine tick picks the provider up subject
+to its floor. The scheduler runs due work inline from the `usage_refresh` job on the
+60-second `usage` routine, probing the admitted batch in-process so periodic collection
+creates no proc rows. sase's TUI requests the same due work after first paint and while
+open, but only when the scheduler does not own collection. A normal TUI tick never
+probes inline.
 
 ## Configuration
 

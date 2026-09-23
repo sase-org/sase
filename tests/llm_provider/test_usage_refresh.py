@@ -116,6 +116,8 @@ def usage_home(monkeypatch: pytest.MonkeyPatch, tmp_path) -> dict[str, object]:
         adaptive: bool = False,
         min_interval_seconds: float | None = None,
         cli_fingerprint: str | None = None,
+        active_cadence_seconds: float | None = None,
+        warn_percent: float | None = None,
     ) -> ProviderUsageRefreshAdmitOutcome:
         key = (provider, context_id, account_generation)
         existing = reserved.get(key)

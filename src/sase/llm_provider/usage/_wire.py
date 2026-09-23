@@ -522,6 +522,37 @@ class ProviderUsageRefreshMarkDueOutcome:
         )
 
 
+@dataclass(frozen=True)
+class ProviderUsageMarkHotOutcome:
+    """Result of recording a hot-usage hint for a provider."""
+
+    version: int
+    marked: bool
+    hot_until: float
+
+    @classmethod
+    def from_wire(cls, payload: object) -> ProviderUsageMarkHotOutcome:
+        if not isinstance(payload, dict):
+            raise ProviderUsageStateError(
+                "provider-usage mark-hot outcome is not an object"
+            )
+        _require_exact_fields(
+            payload, {"version", "marked", "hot_until"}, "mark-hot outcome"
+        )
+        _require_version(payload["version"], "mark-hot outcome")
+        marked = payload["marked"]
+        hot_until = payload["hot_until"]
+        if type(marked) is not bool:
+            raise ProviderUsageStateError("marked must be a boolean")
+        if not is_finite_number(hot_until):
+            raise ProviderUsageStateError("hot_until must be a finite number")
+        return cls(
+            version=payload["version"],
+            marked=marked,
+            hot_until=float(hot_until),
+        )
+
+
 def _require_exact_fields(
     payload: Mapping[str, object],
     required: set[str],

@@ -31,6 +31,7 @@ from sase.llm_provider.usage.store import (
     admit_provider_usage_refresh,
     evaluate_provider_usage_refresh_due,
     list_provider_usage_refresh_reservations,
+    mark_provider_usage_hot,
     mark_provider_usage_refresh_due,
     prepare_provider_usage_account_context,
     record_provider_usage_refresh_attempt,
@@ -50,6 +51,7 @@ USAGE_REFRESH_BATCH_DEADLINE_SECONDS = 45.0
 USAGE_REFRESH_LEASE_TTL_SECONDS = 75.0
 USAGE_REFRESH_CONTEXT_ID = "default"
 USAGE_REFRESH_ORIGINS = ("ace", "axe", "cli")
+HOT_HINT_TTL_SECONDS = 900.0
 
 _RUNNER_MODULE = "sase.llm_provider.usage.refresh_runner"
 
@@ -335,6 +337,32 @@ def _mark_usage_refresh_due(
         log.debug("could not mark usage refresh due for %r", provider, exc_info=True)
 
 
+def mark_provider_usage_hot_hint(
+    provider: str,
+    *,
+    context_id: str = USAGE_REFRESH_CONTEXT_ID,
+    now: float | None = None,
+) -> None:
+    """Best-effort 15-minute hot hint for a provider in active use.
+
+    Only writes when collection is enabled for *provider* and it declares
+    probe capability. Never raises; a hint must not add latency or failure
+    modes to launches.
+    """
+    try:
+        if collection_skip_reason(provider) is not None:
+            return
+        if not _provider_has_probe_capability(provider):
+            return
+        current = time.time() if now is None else now
+        mark_provider_usage_hot(
+            provider, current + HOT_HINT_TTL_SECONDS, context_id=context_id, now=current
+        )
+    except Exception:
+        log.debug("usage hot hint failed for %r", provider, exc_info=True)
+    return None
+
+
 def trigger_usage_refresh_after_limit_event(
     provider: str,
     *,
@@ -345,6 +373,8 @@ def trigger_usage_refresh_after_limit_event(
 
     Limit events only mark the provider due; the next routine tick picks it
     up subject to its polling floor. They never submit an explicit probe.
+    A 15-minute hot hint keeps the provider on the hot cadence so the
+    post-limit windows refresh promptly.
     """
     try:
         _mark_usage_refresh_due(provider, "limit_event", now=now)
@@ -357,6 +387,11 @@ def trigger_usage_refresh_after_limit_event(
             )
     except Exception:
         log.debug("usage-limit refresh trigger failed for %r", provider, exc_info=True)
+    try:
+        current = time.time() if now is None else now
+        mark_provider_usage_hot(provider, current + HOT_HINT_TTL_SECONDS, now=current)
+    except Exception:
+        log.debug("usage-limit hot hint failed for %r", provider, exc_info=True)
     return None
 
 
@@ -401,6 +436,25 @@ def _resolve_requested_providers(
     )
 
 
+def _provider_has_probe_capability(provider: str) -> bool:
+    """Return whether *provider* declares usage probe capability."""
+    try:
+        from sase.llm_provider.registry import get_llm_metadata_payload
+
+        payload = get_llm_metadata_payload()
+        providers = payload.get("providers")
+        if not isinstance(providers, dict):
+            return False
+        metadata = providers.get(provider)
+        if not isinstance(metadata, dict):
+            return False
+        capabilities = metadata.get("usage_capabilities")
+        return isinstance(capabilities, dict) and capabilities.get("probe") is True
+    except Exception:
+        log.debug("usage probe-capability lookup failed for %r", provider)
+        return False
+
+
 def _admit_one(
     provider: str,
     *,
@@ -408,12 +462,25 @@ def _admit_one(
     explicit: bool,
     cadence_seconds: float,
     now: float | None,
+    active_cadence_seconds: float | None = None,
+    warn_percent: float | None = None,
 ) -> _UsageRefreshProviderResult:
     context = prepare_provider_usage_account_context(
         provider, USAGE_REFRESH_CONTEXT_ID, now=now
     )
     floor = usage_probe_floor(provider)
     fingerprint = usage_cli_fingerprint(provider)
+    settings = get_usage_metrics_settings()
+    active = (
+        settings.active_refresh_seconds
+        if active_cadence_seconds is None
+        else active_cadence_seconds
+    )
+    warn = settings.warn_percent if warn_percent is None else warn_percent
+    try:
+        active = min(float(active), float(cadence_seconds))
+    except (TypeError, ValueError):
+        active = float(cadence_seconds)
     if not explicit:
         due = evaluate_provider_usage_refresh_due(
             provider,
@@ -424,6 +491,8 @@ def _admit_one(
             adaptive=True,
             min_interval_seconds=floor,
             cli_fingerprint=fingerprint,
+            active_cadence_seconds=active,
+            warn_percent=warn,
             now=now,
         )
         if not due.due:
@@ -447,6 +516,8 @@ def _admit_one(
         adaptive=True,
         min_interval_seconds=floor,
         cli_fingerprint=fingerprint,
+        active_cadence_seconds=active,
+        warn_percent=warn,
         now=now,
     )
     reservation = admitted.reservation
@@ -701,6 +772,7 @@ def _provider_cli_ready(provider: str, metadata: Mapping[str, Any]) -> bool:
 
 
 __all__ = [
+    "HOT_HINT_TTL_SECONDS",
     "INLINE_USAGE_OPERATION_PREFIX",
     "MAX_CONCURRENT_USAGE_PROBES",
     "USAGE_INLINE_WAIT_POLL_SECONDS",
@@ -715,6 +787,7 @@ __all__ = [
     "UsageRefreshReceipt",
     "eligible_usage_providers",
     "is_inline_usage_operation",
+    "mark_provider_usage_hot_hint",
     "request_due_usage_refresh",
     "submit_usage_refresh",
     "trigger_usage_refresh_after_limit_event",

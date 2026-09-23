@@ -58,6 +58,22 @@ from .types import (
 logger = logging.getLogger(__name__)
 
 
+def _mark_usage_hot_for_launch(provider_name: str | None) -> None:
+    """Best-effort hot hint for the provider this launch is about to use.
+
+    Never raises and adds no failure modes to launches; the hint itself
+    resolves collection eligibility and probe capability before writing.
+    """
+    try:
+        if not provider_name:
+            return
+        from sase.llm_provider.usage.refresh import mark_provider_usage_hot_hint
+
+        mark_provider_usage_hot_hint(provider_name)
+    except Exception:
+        logger.debug("usage hot hint failed for %r", provider_name, exc_info=True)
+
+
 def invoke_agent(
     prompt: str,
     *,
@@ -318,6 +334,7 @@ def invoke_agent(
                 "exec_llm_provider",
                 execution_provider_label,
             )
+        _mark_usage_hot_for_launch(execution_provider_label)
         from sase.monitor.continuation_delivery import (
             adopt_ordinary_continuation_delivery,
         )
