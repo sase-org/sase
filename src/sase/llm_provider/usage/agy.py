@@ -12,6 +12,14 @@ import time
 from typing import Any
 
 from sase.core.rust import require_rust_binding
+from sase.llm_provider.usage._capability_cache import (
+    decode_command_result,
+    encode_command_result,
+    executable_fingerprint,
+    note_probe_capability_outcome,
+    read_probe_capability,
+    write_probe_capability,
+)
 from sase.llm_provider.usage._strategy import detect_rate_limit
 from sase.llm_provider.usage.types import (
     UsageCollectionOutcome,
@@ -53,8 +61,19 @@ def collect_agy_usage(
     context: UsageProbeContext, executable: str | None = None
 ) -> dict[str, Any]:
     """Collect Antigravity's subscription usage windows without a model turn."""
+    observation = _collect_agy_usage(context, executable=executable)
+    note_probe_capability_outcome(context.provider, observation)
+    return observation
+
+
+def _collect_agy_usage(
+    context: UsageProbeContext, executable: str | None = None
+) -> dict[str, Any]:
+    """Run the agy probe; the public wrapper notes cache invalidation."""
     command = executable or context.executable or _AGY_CLI_NAME
-    version_status = _check_cli_version(command, context)
+    version_status = _check_cli_version(
+        command, context, fingerprint=executable_fingerprint(command)
+    )
     if version_status is not None:
         return version_status
     # ``cwd=None`` inherits the probe worker's managed temp dir, which keeps
@@ -133,7 +152,7 @@ def collect_agy_usage(
 
 
 def _check_cli_version(
-    command: str, context: UsageProbeContext
+    command: str, context: UsageProbeContext, *, fingerprint: str | None = None
 ) -> dict[str, Any] | None:
     """Gate ``/usage`` behind the probe-safe CLI floor (H1).
 
@@ -148,6 +167,14 @@ def _check_cli_version(
             reason_code="deadline_exceeded",
             diagnostic="agy_version_probe_deadline_exceeded",
         )
+    if fingerprint is not None:
+        cached = read_probe_capability(context.provider, fingerprint)
+        if cached is not None:
+            decoded = decode_command_result(cached.get("version"))
+            if decoded is not None:
+                return _version_status_from_output(
+                    decoded[0], decoded[1], decoded[2], context
+                )
     timeout = max(0.1, min(_VERSION_PROBE_TIMEOUT_SECONDS, remaining))
     try:
         completed = subprocess.run(
@@ -179,9 +206,31 @@ def _check_cli_version(
             reason_code="probe_failed",
             diagnostic="agy_version_probe_failed",
         )
-    if completed.returncode != 0:
+    status = _version_status_from_output(
+        completed.returncode,
+        completed.stdout,
+        completed.stderr,
+        context,
+    )
+    if status is None and fingerprint is not None:
+        entry = encode_command_result(
+            completed.returncode, completed.stdout, completed.stderr
+        )
+        if entry is not None:
+            write_probe_capability(context.provider, fingerprint, {"version": entry})
+    return status
+
+
+def _version_status_from_output(
+    returncode: int,
+    stdout: str,
+    stderr: str,
+    context: UsageProbeContext,
+) -> dict[str, Any] | None:
+    """Apply the version floor to one ``--version`` result, cached or fresh."""
+    if returncode != 0:
         return _unsupported(context, "agy_version_probe_failed")
-    version = _parse_version(completed.stdout or completed.stderr)
+    version = _parse_version(stdout or stderr)
     if version is None or version < _AGY_VERSION_FLOOR:
         return _unsupported(context, "agy_unsupported_cli_version")
     return None

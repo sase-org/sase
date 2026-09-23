@@ -11,6 +11,14 @@ from collections.abc import Mapping
 from typing import Any, Literal
 
 from sase.core.rust import require_rust_binding
+from sase.llm_provider.usage._capability_cache import (
+    decode_command_result,
+    encode_command_result,
+    executable_fingerprint,
+    note_probe_capability_outcome,
+    read_probe_capability,
+    write_probe_capability,
+)
 from sase.llm_provider.usage._strategy import (
     ProbeStrategy,
     classify_probe_failure,
@@ -52,8 +60,19 @@ def collect_grok_usage(
     context: UsageProbeContext, executable: str | None = None
 ) -> dict[str, Any]:
     """Collect Grok included subscription usage through the Grok Build ACP extension."""
+    observation = _collect_grok_usage(context, executable=executable)
+    note_probe_capability_outcome(context.provider, observation)
+    return observation
+
+
+def _collect_grok_usage(
+    context: UsageProbeContext, executable: str | None = None
+) -> dict[str, Any]:
+    """Run the grok probe; the public wrapper notes cache invalidation."""
     command = executable or context.executable or "grok"
-    identity_status = _verify_grok_build(command, context)
+    identity_status = _verify_grok_build(
+        command, context, fingerprint=executable_fingerprint(command)
+    )
     if identity_status is not None:
         return identity_status
     try:
@@ -159,7 +178,7 @@ def _initialize_request() -> dict[str, Any]:
 
 
 def _verify_grok_build(
-    executable: str, context: UsageProbeContext
+    executable: str, context: UsageProbeContext, *, fingerprint: str | None = None
 ) -> dict[str, Any] | None:
     if time.time() >= context.deadline_at:
         return _status(
@@ -168,6 +187,14 @@ def _verify_grok_build(
             reason_code="deadline_exceeded",
             diagnostic="grok_version_probe_deadline_exceeded",
         )
+    if fingerprint is not None:
+        cached = read_probe_capability(context.provider, fingerprint)
+        if cached is not None:
+            decoded = decode_command_result(cached.get("version"))
+            if decoded is not None:
+                return _identity_status_from_output(
+                    decoded[0], decoded[1], decoded[2], context
+                )
     timeout = max(
         0.1,
         min(_VERSION_PROBE_TIMEOUT_SECONDS, context.deadline_at - time.time()),
@@ -202,8 +229,27 @@ def _verify_grok_build(
             reason_code="timeout",
             diagnostic="grok_version_probe_timeout",
         )
-    version_line = (completed.stdout or completed.stderr).strip().splitlines()
-    if completed.returncode != 0 or not version_line:
+    status = _identity_status_from_output(
+        completed.returncode, completed.stdout, completed.stderr, context
+    )
+    if status is None and fingerprint is not None:
+        entry = encode_command_result(
+            completed.returncode, completed.stdout, completed.stderr
+        )
+        if entry is not None:
+            write_probe_capability(context.provider, fingerprint, {"version": entry})
+    return status
+
+
+def _identity_status_from_output(
+    returncode: int,
+    stdout: str,
+    stderr: str,
+    context: UsageProbeContext,
+) -> dict[str, Any] | None:
+    """Apply the grok build-identity check to one ``--version`` result."""
+    version_line = (stdout or stderr).strip().splitlines()
+    if returncode != 0 or not version_line:
         return _status(
             context,
             outcome="unsupported",

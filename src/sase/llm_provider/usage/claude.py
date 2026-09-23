@@ -34,6 +34,14 @@ from sase.llm_provider.usage._claude_support import (
     usage_probe_argv,
     vendor_state_from_rate_limit_info,
 )
+from sase.llm_provider.usage._capability_cache import (
+    decode_command_result,
+    encode_command_result,
+    executable_fingerprint,
+    note_probe_capability_outcome,
+    read_probe_capability,
+    write_probe_capability,
+)
 from sase.llm_provider.usage._strategy import (
     ProbeStrategy,
     classify_probe_failure,
@@ -70,6 +78,18 @@ def collect_claude_usage(
     clock: Callable[[], float] = time.time,
 ) -> dict[str, Any]:
     """Collect one zero-inference Claude ``/usage`` observation."""
+    observation = _collect_claude_usage(context, runner=runner, clock=clock)
+    note_probe_capability_outcome(context.provider, observation)
+    return observation
+
+
+def _collect_claude_usage(
+    context: UsageProbeContext,
+    *,
+    runner: ClaudeCommandRunner | None = None,
+    clock: Callable[[], float] = time.time,
+) -> dict[str, Any]:
+    """Run the Claude probe; the public wrapper notes cache invalidation."""
     executable = resolve_claude_executable(context.executable)
     current = clock()
     if executable is None:
@@ -81,7 +101,13 @@ def collect_claude_usage(
         )
     run = runner or _run_claude_command
 
-    preflight = _preflight_usage_probe(context, executable, run, clock)
+    preflight = _preflight_usage_probe(
+        context,
+        executable,
+        run,
+        clock,
+        fingerprint=executable_fingerprint(executable),
+    )
     if preflight is not None:
         return preflight
 
@@ -372,7 +398,18 @@ def _preflight_usage_probe(
     executable: str,
     run: ClaudeCommandRunner,
     clock: Callable[[], float],
+    *,
+    fingerprint: str | None = None,
 ) -> dict[str, Any] | None:
+    """Check the Claude CLI can serve a zero-cost probe, using the cache."""
+    if fingerprint is not None:
+        cached = read_probe_capability(context.provider, fingerprint, now=clock())
+        if cached is not None:
+            decoded = _decode_cached_preflight(cached)
+            if decoded is not None:
+                return _preflight_status_from_results(
+                    context, decoded[0], decoded[1], decoded[2], clock=clock
+                )
     version_result = safe_run(
         run,
         (executable, "--version"),
@@ -431,6 +468,87 @@ def _preflight_usage_probe(
             now=clock(),
             outcome="unsupported",
             reason_code="not_installed",
+        )
+    status = _preflight_status_from_results(
+        context, version_result, print_help, auth_help, clock=clock
+    )
+    if status is None and fingerprint is not None:
+        version_entry = (
+            encode_command_result(
+                version_result.returncode,
+                version_result.stdout,
+                version_result.stderr,
+            )
+            if isinstance(version_result, ClaudeCommandResult)
+            else None
+        )
+        print_entry = (
+            encode_command_result(
+                print_help.returncode, print_help.stdout, print_help.stderr
+            )
+            if isinstance(print_help, ClaudeCommandResult)
+            else None
+        )
+        auth_entry = (
+            encode_command_result(
+                auth_help.returncode, auth_help.stdout, auth_help.stderr
+            )
+            if isinstance(auth_help, ClaudeCommandResult)
+            else None
+        )
+        if (
+            version_entry is not None
+            and print_entry is not None
+            and auth_entry is not None
+        ):
+            write_probe_capability(
+                context.provider,
+                fingerprint,
+                {
+                    "version": version_entry,
+                    "print_help": print_entry,
+                    "auth_help": auth_entry,
+                },
+                now=clock(),
+            )
+    return status
+
+
+def _decode_cached_preflight(
+    cached: dict[str, Any],
+) -> tuple[ClaudeCommandResult, ClaudeCommandResult, ClaudeCommandResult] | None:
+    """Decode cached preflight outputs, or ``None`` when they are not usable."""
+    version = decode_command_result(cached.get("version"))
+    print_help = decode_command_result(cached.get("print_help"))
+    auth_help = decode_command_result(cached.get("auth_help"))
+    if version is None or print_help is None or auth_help is None:
+        return None
+    return (
+        ClaudeCommandResult(*version),
+        ClaudeCommandResult(*print_help),
+        ClaudeCommandResult(*auth_help),
+    )
+
+
+def _preflight_status_from_results(
+    context: UsageProbeContext,
+    version_result: ClaudeCommandResult | str,
+    print_help: ClaudeCommandResult | str,
+    auth_help: ClaudeCommandResult | str,
+    *,
+    clock: Callable[[], float],
+) -> dict[str, Any] | None:
+    """Validate preflight command results; ``None`` means the probe may run."""
+    if isinstance(version_result, ClaudeCommandResult):
+        version = extract_version(f"{version_result.stdout} {version_result.stderr}")
+    else:
+        version = None
+    if version is None or version < CLAUDE_USAGE_MIN_VERSION:
+        return status_observation(
+            context,
+            now=clock(),
+            outcome="unsupported",
+            reason_code="unsupported_cli_version",
         )
     if not (
         isinstance(print_help, ClaudeCommandResult)
