@@ -34,6 +34,7 @@ STATUS_STYLES: dict[str, str] = {
 class _TribeSectionIds:
     attention: str = "tribe:needs-attention"
     members: str = "tribe:members"
+    prompts: str = "tribe:prompts"
     errors: str = "tribe:errors"
     output_variables: str = "tribe:output-variables"
     workflow_variables: str = "tribe:workflow-variables"
@@ -65,6 +66,7 @@ def append_fold_heading(
     section_id: str,
     level: FoldLevel,
     count: int | None,
+    summary: str | None = None,
 ) -> None:
     append_major_section_divider(text)
     heading = Text()
@@ -72,6 +74,8 @@ def append_fold_heading(
     heading.append(title, style=SECTION_HEADING_STYLE)
     if count is not None:
         heading.append(f" · {count}", style=fold_count_style(title))
+    if summary is not None:
+        heading.append(f" · {summary}", style="dim")
     append_section_heading(text, heading, section_id=section_id)
 
 

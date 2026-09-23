@@ -144,12 +144,27 @@ def _workflow_style(workflow_type: str | None) -> str:
     return f"bold {_WORKFLOW_STYLES[index]}"
 
 
+def split_prompt_preamble(raw_prompt: str) -> tuple[str, str]:
+    """Split *raw_prompt* into its launch preamble and body.
+
+    The preamble holds the launch mechanics (frontmatter-excluded): leading
+    ``%directive`` runs, the VCS workflow tag, and a second directive run, in
+    exactly the order :func:`prompt_snippet` strips them. The body preserves
+    newlines; the preamble keeps the frontmatter out. The VCS-tag pattern is
+    ``^``-anchored, so the body is always a suffix of the frontmatter-stripped
+    text.
+    """
+    text = _strip_frontmatter(raw_prompt)
+    body = _strip_leading_prompt_directives(text)
+    body = _strip_leading_vcs_tag(body)
+    body = _strip_leading_prompt_directives(body)
+    preamble = text[: len(text) - len(body)].strip()
+    return preamble, body
+
+
 def prompt_snippet(raw_prompt: str, *, max_len: int = 96, humanize: bool = True) -> str:
-    cleaned = _strip_frontmatter(raw_prompt)
-    cleaned = _strip_leading_prompt_directives(cleaned)
-    cleaned = _strip_leading_vcs_tag(cleaned)
-    cleaned = _strip_leading_prompt_directives(cleaned)
-    snippet = " ".join(cleaned.split())
+    _, body = split_prompt_preamble(raw_prompt)
+    snippet = " ".join(body.split())
     if humanize:
         from sase.project_display_names import humanize_vcs_refs_in_text
 
@@ -206,4 +221,9 @@ def _strip_leading_vcs_tag(text: str) -> str:
         return stripped
 
 
-__all__ = ["prompt_snippet", "raw_vcs_tag_for_prompt", "vcs_workflow_from_prompt"]
+__all__ = [
+    "prompt_snippet",
+    "raw_vcs_tag_for_prompt",
+    "split_prompt_preamble",
+    "vcs_workflow_from_prompt",
+]

@@ -2088,12 +2088,12 @@ The `TRIBE` summary has four metadata detail levels, controlled by the same `zz`
 `za`, and `zA` chords used for clan and family detail. From levels 1-3, `zZ` opens every
 fold to level 4; at level 4, it closes every fold to level 1:
 
-| Level | Name      | Tribe summary content                                                                                         |
-| ----- | --------- | ------------------------------------------------------------------------------------------------------------- |
-| 1     | Glance    | Header, compact numbered top-level roster, attention previews, and headings/counts for non-empty sections     |
-| 2     | Triage    | Bounded previews for every represented section                                                                |
-| 3     | Inspect   | Nested roster detail and grouped full section bodies, still with protective bounds                            |
-| 4     | Forensics | Unbounded bodies, tracebacks, the richest member annotations, and all-time runtime statistics and percentiles |
+| Level | Name      | Tribe summary content                                                                                                                                                                    |
+| ----- | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1     | Glance    | Header, compact numbered top-level roster, attention previews, prompt headline digest (up to 8 distinct prompts), and headings/counts for non-empty sections                             |
+| 2     | Triage    | Bounded previews for every represented section; every distinct prompt (up to 24) with labels, xprompt chips, and sizes                                                                   |
+| 3     | Inspect   | Nested roster detail and grouped full section bodies, still with protective bounds; 10-line prompt previews                                                                              |
+| 4     | Forensics | Unbounded bodies, tracebacks, the richest member annotations, full prompt bodies (500-line safety cap per prompt) and launch directives, and all-time runtime statistics and percentiles |
 
 The compact roster and its fixed numeric jump targets exist at all four levels. Number
 keys jump to a top-level clan, family, workflow, or agent, expanding the required panel
@@ -2101,10 +2101,16 @@ and ancestor folds first. These metadata-member numbers are separate from ordina
 apostrophe entry hints, whose adaptive target keys may use two characters in a large
 list.
 
-Reply and slow-call presence enrichment is requested off-thread at every tribe level so
-known-empty sections can remain absent. Full bodies still follow the level-specific
-bounds above, and all-time runtime statistics remain level-4-only. When required
-disk-backed content is not known yet, the document ends with one dim
+`PROMPTS` sits after `TRIBE MEMBERS`: it maps what each agent in the tribe was asked to
+do. Its number chips are the same digits as the roster jump targets. Identical prompt
+bodies are listed once with a `×N` badge and a shared-by list. `za`/`zA` on a prompt
+entry opens just that prompt. It is the level-1 exception: unlike most sections, it
+shows prompt headlines at Glance instead of only a heading.
+
+Reply, slow-call, and prompt presence enrichment is requested off-thread at every tribe
+level so known-empty sections can remain absent. Full bodies still follow the
+level-specific bounds above, and all-time runtime statistics remain level-4-only. When
+required disk-backed content is not known yet, the document ends with one dim
 `⋯ scanning member data…` tail; known-empty content produces no section or placeholder.
 Section-level overrides inherit from the panel level and are cleared by a valid
 panel-level cycle, `zZ` extreme toggle, or direct `z1`-`z4` selection.

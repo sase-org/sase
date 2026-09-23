@@ -22,6 +22,7 @@ from ._agent_display_tribe_header import (
 from ._agent_display_header_renderable import AgentHeaderRenderable
 from ._identity_header import IdentityHeader
 from ._identity_header_compact import build_tribe_compact_lines
+from ._agent_display_tribe_prompts import append_prompts
 from ._agent_display_tribe_roster import (
     entry_target_heading_suffix,
     tribe_roster_entries,
@@ -48,7 +49,11 @@ def tribe_enrichment_sections_for_fold_state(
 ) -> frozenset[TribeEnrichmentSection]:
     """Return off-thread sections needed by the effective tribe folds."""
     fold_overrides = overrides or {}
-    required: set[TribeEnrichmentSection] = {"replies", "slow-tool-calls"}
+    required: set[TribeEnrichmentSection] = {
+        "prompts",
+        "replies",
+        "slow-tool-calls",
+    }
     if (
         effective_level(
             SECTIONS.runtime_statistics,
@@ -164,6 +169,15 @@ def _append_tribe_body(
     if member_jump_map_publisher is not None:
         member_jump_map_publisher(jump_map)
 
+    append_prompts(
+        text,
+        section_snapshot,
+        level=effective_level(SECTIONS.prompts, fold_level, overrides),
+        overrides=overrides,
+        unit_numbers={
+            target.member_identity: target.number for target in jump_map.targets
+        },
+    )
     append_errors(
         text,
         snapshot.errors,

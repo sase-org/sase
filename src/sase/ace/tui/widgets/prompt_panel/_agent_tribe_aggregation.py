@@ -15,6 +15,7 @@ from sase.stats.query import query_run_stats
 
 from ...models._agent_clan_sections import (
     ClanAgentIdentity,
+    ClanDiskMemberSnapshot,
     ClanDiskSection,
     ClanDiskSnapshot,
     ClanSlowToolEntry,
@@ -34,15 +35,26 @@ from ._agent_clan_aggregation import (
     prepare_clan_section_snapshot,
     should_refresh_clan_disk_snapshot,
 )
+from ._agent_tribe_prompts import (
+    TribePromptsSnapshot,
+    build_tribe_prompts,
+)
 
 type TribeEnrichmentSection = Literal[
+    "prompts",
     "replies",
     "slow-tool-calls",
     "runtime-statistics",
 ]
 
 _TRIBE_DISK_SECTIONS: frozenset[TribeEnrichmentSection] = frozenset(
-    {"replies", "slow-tool-calls"}
+    {"prompts", "replies", "slow-tool-calls"}
+)
+
+_EMPTY_TRIBE_PROMPTS_SNAPSHOT = TribePromptsSnapshot(
+    groups=(),
+    agent_count=0,
+    multi_project=False,
 )
 _TRIBE_SNAPSHOT_CACHE_MAX_ENTRIES = 64
 _TRIBE_DISK_REFRESH_SECONDS = 10.0
@@ -88,6 +100,7 @@ class _TribeDiskSnapshot:
     loaded_sections: frozenset[TribeEnrichmentSection]
     replies: tuple[TribeTextEntry, ...]
     slow_tool_calls: tuple[TribeSlowToolEntry, ...]
+    prompts: TribePromptsSnapshot | None = _EMPTY_TRIBE_PROMPTS_SNAPSHOT
 
 
 @dataclass(frozen=True, slots=True)
@@ -316,6 +329,7 @@ def build_tribe_enrichment(
         requested & _TRIBE_DISK_SECTIONS
     )
     clan_updates: list[tuple[Agent, ClanDiskSnapshot]] = []
+    member_snapshots: dict[ClanAgentIdentity, ClanDiskMemberSnapshot] = {}
 
     if requested_disk:
         for source in sources:
@@ -336,6 +350,8 @@ def build_tribe_enrichment(
                 TribeSlowToolEntry(source.unit_identity, source.unit_label, entry)
                 for entry in disk.slow_tool_calls
             )
+            for member in disk.members:
+                member_snapshots.setdefault(member.member_identity, member)
             if source.root.is_clan_container:
                 clan_updates.append((source.root, disk))
 
@@ -343,11 +359,17 @@ def build_tribe_enrichment(
     stats = (
         _load_tribe_runtime_statistics(panel_identity[1]) if stats_refreshed else None
     )
+    prompts_snapshot = (
+        build_tribe_prompts(sources, member_snapshots)
+        if "prompts" in requested
+        else _EMPTY_TRIBE_PROMPTS_SNAPSHOT
+    )
     disk_snapshot = (
         _TribeDiskSnapshot(
             loaded_sections=frozenset(loaded_disk_sections),
             replies=tuple(replies),
             slow_tool_calls=tuple(slow_calls),
+            prompts=prompts_snapshot,
         )
         if requested_disk
         else None

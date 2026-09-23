@@ -113,6 +113,41 @@ class _StylizableText(Protocol):
     ) -> None: ...
 
 
+def xprompt_overlay_spans(
+    source: str,
+    *,
+    known_skills: frozenset[str] = frozenset(),
+) -> tuple[tuple[str, int, int], ...]:
+    """Return ``(style, start, end)`` overlays for *source* in application order.
+
+    These are the xprompt/alt-token overlays plus the project-tag overlays
+    that :func:`apply_xprompt_overlays` applies today, computed without a
+    target so worker-side digests can replay them later. Oversized sources
+    yield no spans, matching :func:`highlight_prompt_text`.
+    """
+    if (
+        len(source.encode("utf-8", errors="replace"))
+        > MARKDOWN_SYNTAX_HIGHLIGHT_MAX_BYTES
+    ):
+        return ()
+
+    overlays = [
+        (XPROMPT_TOKEN_STYLES[span.kind], span.start, span.end)
+        for span in xprompt_inspect.tokenize(source, known_skills=known_skills)
+        if span.kind in XPROMPT_TOKEN_STYLES
+    ]
+    overlays.extend(
+        (
+            XPROMPT_TOKEN_STYLES[_ALT_TOKEN_STYLE_KEYS[alt_span.kind]],
+            alt_span.start,
+            alt_span.end,
+        )
+        for alt_span in alt_inspect.tokenize(source)
+    )
+    overlays.extend(_project_tag_overlays_for_source(source))
+    return tuple(overlays)
+
+
 def apply_xprompt_overlays(
     highlighted: _StylizableText,
     source: str,
@@ -132,26 +167,12 @@ def apply_xprompt_overlays(
     ):
         return
 
-    overlays = [
-        (XPROMPT_TOKEN_STYLES[span.kind], span.start, span.end)
-        for span in xprompt_inspect.tokenize(source, known_skills=known_skills)
-        if span.kind in XPROMPT_TOKEN_STYLES
-    ]
-    overlays.extend(
-        (
-            XPROMPT_TOKEN_STYLES[_ALT_TOKEN_STYLE_KEYS[alt_span.kind]],
-            alt_span.start,
-            alt_span.end,
-        )
-        for alt_span in alt_inspect.tokenize(source)
-    )
-    for style, start, end in overlays:
+    for style, start, end in xprompt_overlay_spans(source, known_skills=known_skills):
         highlighted.stylize(
             style,
             region_start + start,
             region_start + end,
         )
-    stylize_project_tags(highlighted, source, region_start=region_start)
 
 
 def stylize_project_tags(
@@ -170,25 +191,29 @@ def stylize_project_tags(
     finishes before the target is mutated so callers fail open without
     partial overlays.
     """
+    for style, start, end in _project_tag_overlays_for_source(source):
+        highlighted.stylize(
+            style,
+            region_start + start,
+            region_start + end,
+        )
+
+
+def _project_tag_overlays_for_source(source: str) -> list[tuple[str, int, int]]:
+    """Return ``(style, start, end)`` overlays for the project tags in *source*."""
     if "+" not in source:
-        return
+        return []
     try:
         tag_spans = [
             span
             for span in xprompt_inspect.tokenize(source)
             if span.kind in ("project_tag", "project_tag_unknown")
         ]
-        overlays = [
+        return [
             overlay for span in tag_spans for overlay in _project_tag_overlays(span)
         ]
     except Exception:
-        return
-    for style, start, end in overlays:
-        highlighted.stylize(
-            style,
-            region_start + start,
-            region_start + end,
-        )
+        return []
 
 
 def _project_tag_overlays(span: object) -> list[tuple[str, int, int]]:
@@ -383,4 +408,5 @@ __all__ = [
     "highlight_markdown_text",
     "highlight_prompt_text",
     "stylize_project_tags",
+    "xprompt_overlay_spans",
 ]

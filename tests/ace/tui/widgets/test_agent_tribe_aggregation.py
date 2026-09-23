@@ -79,6 +79,29 @@ def _reply_agent(
     )
 
 
+def _prompt_agent(
+    tmp_path: Path,
+    name: str,
+    suffix: str,
+    *,
+    xprompt: str | None = None,
+    prompt: str | None = None,
+    **overrides: object,
+) -> Agent:
+    artifacts = tmp_path / f"prompt-{suffix}"
+    artifacts.mkdir()
+    if xprompt is not None:
+        (artifacts / "raw_xprompt.md").write_text(xprompt, encoding="utf-8")
+    if prompt is not None:
+        (artifacts / "01_prompt.md").write_text(prompt, encoding="utf-8")
+    return _agent(
+        name,
+        suffix,
+        artifacts_dir=str(artifacts),
+        **overrides,
+    )
+
+
 def test_mixed_unit_replies_are_attributed_and_member_cache_is_reused(
     tmp_path: Path,
     monkeypatch: Any,
@@ -206,6 +229,159 @@ def test_clan_unit_reuses_fresh_clan_snapshot(
         item.entry.preview for item in cast(_TribeDiskSnapshot, result.disk).replies
     ] == ["Clan reply"]
     assert get_cached_clan_section_snapshot(widget, container) is not None
+
+
+def test_mixed_unit_prompts_are_grouped_and_attributed(tmp_path: Path) -> None:
+    family = _prompt_agent(
+        tmp_path,
+        "build--plan",
+        "family",
+        xprompt="%id(1)\n#bd/work_phase_bead:sase-16t.1\n",
+        agent_family="build",
+        agent_family_role="root",
+        plan_chain_root=True,
+    )
+    child = _prompt_agent(
+        tmp_path,
+        "build--code",
+        "child",
+        xprompt="%id(2)\n#bd/work_phase_bead:sase-16t.2\n",
+        agent_family="build",
+        agent_family_role="code",
+        parent_timestamp=family.raw_suffix,
+    )
+    family.followup_agents = [child]
+    first_standalone = _prompt_agent(
+        tmp_path,
+        "first",
+        "first",
+        xprompt="%id(3)\nInspect the documentation changes.\n",
+    )
+    second_standalone = _prompt_agent(
+        tmp_path,
+        "second",
+        "second",
+        xprompt="%id(4)\n%wait:30\nInspect the documentation changes.\n",
+    )
+    monitor = _prompt_agent(
+        tmp_path,
+        "build--mon",
+        "monitor",
+        xprompt="%xprompts_enabled:false\n# Monitored command finished\n",
+        agent_family="build",
+        agent_family_role="monitor",
+        role_suffix="--mon",
+        parent_timestamp=child.raw_suffix,
+    )
+    assert monitor.is_monitor
+    agents = [family, child, monitor, first_standalone, second_standalone]
+    summary = build_agent_tribe_summary_snapshot(
+        "epic",
+        agents,
+        panel_collapsed=True,
+        now=_NOW,
+    )
+    widget = SimpleNamespace()
+    prepare_tribe_section_snapshot(widget, summary, agents)
+    sources = get_cached_tribe_sources(widget, summary.container_identity)
+
+    result = build_tribe_enrichment(
+        widget,
+        summary.container_identity,
+        sources,
+        sections={"prompts"},
+    )
+    snapshot = cast(_TribeDiskSnapshot, result.disk).prompts
+    assert snapshot is not None
+
+    assert [group.digest.headline for group in snapshot.groups] == [
+        "#bd/work_phase_bead:sase-16t.1",
+        "#bd/work_phase_bead:sase-16t.2",
+        "Inspect the documentation changes.",
+    ]
+    assert snapshot.agent_count == 4
+    assert [member.unit_label for member in snapshot.groups[2].members] == [
+        "first",
+        "second",
+    ]
+
+
+def test_clan_unit_reuses_prompts_from_fresh_clan_snapshot(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    member = _prompt_agent(
+        tmp_path,
+        "research.one",
+        "clan",
+        xprompt="Clan prompt body.\n",
+    )
+    member.agent_clan = "research"
+    member.agent_clan_generation = "20260718160000"
+    container = project_clan_tree([member])[0]
+    widget = SimpleNamespace()
+    clan_snapshot = prepare_clan_section_snapshot(widget, container)
+    clan_disk = build_clan_disk_snapshot(
+        widget,
+        container,
+        clan_snapshot.in_memory,
+        sections={"replies", "slow-tool-calls", "prompts"},
+    )
+    assert cache_clan_disk_snapshot(widget, container, clan_disk) is not None
+
+    agents = [container, member]
+    summary = build_agent_tribe_summary_snapshot(
+        "epic",
+        agents,
+        panel_collapsed=True,
+        now=_NOW,
+    )
+    prepare_tribe_section_snapshot(widget, summary, agents)
+
+    def unexpected_group_load(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("fresh clan disk snapshot should be reused as-is")
+
+    monkeypatch.setattr(
+        "sase.ace.tui.widgets.prompt_panel._agent_tribe_aggregation."
+        "build_agent_group_disk_snapshot",
+        unexpected_group_load,
+    )
+    result = build_tribe_enrichment(
+        widget,
+        summary.container_identity,
+        get_cached_tribe_sources(widget, summary.container_identity),
+        sections={"prompts"},
+    )
+    snapshot = cast(_TribeDiskSnapshot, result.disk).prompts
+    assert snapshot is not None
+    assert [group.digest.headline for group in snapshot.groups] == ["Clan prompt body."]
+    assert get_cached_clan_section_snapshot(widget, container) is not None
+
+
+def test_zero_prompt_tribe_is_known_empty(tmp_path: Path) -> None:
+    first = _prompt_agent(tmp_path, "first", "first")
+    second = _prompt_agent(tmp_path, "second", "second")
+    agents = [first, second]
+    summary = build_agent_tribe_summary_snapshot(
+        "epic",
+        agents,
+        panel_collapsed=True,
+        now=_NOW,
+    )
+    widget = SimpleNamespace()
+    prepare_tribe_section_snapshot(widget, summary, agents)
+
+    result = build_tribe_enrichment(
+        widget,
+        summary.container_identity,
+        get_cached_tribe_sources(widget, summary.container_identity),
+        sections={"prompts"},
+    )
+    disk = cast(_TribeDiskSnapshot, result.disk)
+
+    assert "prompts" in disk.loaded_sections
+    assert disk.prompts is not None
+    assert disk.prompts.groups == ()
 
 
 def test_runtime_statistics_query_filters_tribe_and_computes_share(

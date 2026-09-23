@@ -149,7 +149,7 @@ def _known_tribe_sections(
         panel_identity=panel_identity,
         source_signature=(),
         disk=_TribeDiskSnapshot(
-            loaded_sections=frozenset({"replies", "slow-tool-calls"}),
+            loaded_sections=frozenset({"prompts", "replies", "slow-tool-calls"}),
             replies=(),
             slow_tool_calls=(),
         ),

@@ -23,16 +23,16 @@ from tests.ace.tui.widgets._agent_display_tribe_helpers import (
 
 def test_every_level_requests_disk_presence_and_forensics_adds_statistics() -> None:
     assert tribe_enrichment_sections_for_fold_state(FoldLevel.COLLAPSED) == frozenset(
-        {"replies", "slow-tool-calls"}
+        {"prompts", "replies", "slow-tool-calls"}
     )
     assert tribe_enrichment_sections_for_fold_state(FoldLevel.EXPANDED) == frozenset(
-        {"replies", "slow-tool-calls"}
+        {"prompts", "replies", "slow-tool-calls"}
     )
     assert tribe_enrichment_sections_for_fold_state(
         FoldLevel.FULLY_EXPANDED
-    ) == frozenset({"replies", "slow-tool-calls"})
+    ) == frozenset({"prompts", "replies", "slow-tool-calls"})
     assert tribe_enrichment_sections_for_fold_state(FoldLevel.EXHAUSTIVE) == frozenset(
-        {"replies", "slow-tool-calls", "runtime-statistics"}
+        {"prompts", "replies", "slow-tool-calls", "runtime-statistics"}
     )
 
 
@@ -75,7 +75,7 @@ def test_empty_sections_are_omitted_at_every_level() -> None:
         panel_identity=snapshot.container_identity,
         source_signature=(),
         disk=_TribeDiskSnapshot(
-            loaded_sections=frozenset({"replies", "slow-tool-calls"}),
+            loaded_sections=frozenset({"prompts", "replies", "slow-tool-calls"}),
             replies=(),
             slow_tool_calls=(),
         ),
@@ -122,7 +122,7 @@ def test_loaded_replies_follow_the_four_level_content_ladder() -> None:
         panel_identity=snapshot.container_identity,
         source_signature=(),
         disk=_TribeDiskSnapshot(
-            loaded_sections=frozenset({"replies", "slow-tool-calls"}),
+            loaded_sections=frozenset({"prompts", "replies", "slow-tool-calls"}),
             replies=replies,
             slow_tool_calls=(),
         ),
