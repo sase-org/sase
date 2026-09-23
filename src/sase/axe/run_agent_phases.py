@@ -10,9 +10,9 @@ import sys
 
 from sase.running_field import WorkspaceClaim
 
+from sase.axe.run_agent_directive_clans import ClanSummaryResolutionRequest
 from sase.axe.run_agent_directives import (
     AgentInfo,
-    ClanSummaryResolutionRequest,
     extract_directives_and_write_meta,
 )
 from sase.axe.run_agent_markers import (

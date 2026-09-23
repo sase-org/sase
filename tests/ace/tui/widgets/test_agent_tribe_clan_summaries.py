@@ -115,6 +115,18 @@ def test_research_shape_takes_label_kicker_and_truncated_headline() -> None:
     assert (digest.lede_start, digest.lede_count) == (0, 1)
 
 
+def test_truncated_paragraph_lede_stays_capped_at_four_lines() -> None:
+    paragraph = "\n".join(
+        f"line {index} of a long mission paragraph" for index in range(12)
+    )
+    digest = _build_digest(f"◆ TOOBIG SPLIT · 2 FILES\nMISSION\n{paragraph}\n", "c")
+
+    assert digest.headline.endswith("…")
+    # The lede starts at the paragraph (past the MISSION label), capped at 4 lines.
+    assert (digest.lede_start, digest.lede_count) == (1, 4)
+    assert digest.lines[digest.lede_start] == "line 0 of a long mission paragraph"
+
+
 def test_literal_shape_has_no_kicker() -> None:
     digest = _build_digest(_LITERAL_SUMMARY, "some-clan")
 

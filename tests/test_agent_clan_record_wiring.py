@@ -290,7 +290,7 @@ def _launch_plan() -> SimpleNamespace:
 def test_launch_records_declared_literal_summary_and_tribe(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.axe.run_agent_directives import _record_clan_attributes_at_launch
+    from sase.axe.run_agent_directive_clans import record_clan_attributes_at_launch
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     artifacts_dir = str(tmp_path / "artifacts" / DECLARER_TS)
@@ -300,7 +300,7 @@ def test_launch_records_declared_literal_summary_and_tribe(
         clan_summary=SUMMARY,
         clan_summary_script=None,
     )
-    _record_clan_attributes_at_launch(
+    record_clan_attributes_at_launch(
         artifacts_dir=artifacts_dir,
         clan_membership_plan=_launch_plan(),
         directives=directives,
@@ -321,7 +321,7 @@ def test_launch_records_declared_literal_summary_and_tribe(
 def test_launch_records_declared_script_and_propagated_tribe(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.axe.run_agent_directives import _record_clan_attributes_at_launch
+    from sase.axe.run_agent_directive_clans import record_clan_attributes_at_launch
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     artifacts_dir = str(tmp_path / "artifacts" / DECLARER_TS)
@@ -331,7 +331,7 @@ def test_launch_records_declared_script_and_propagated_tribe(
         clan_summary=None,
         clan_summary_script="./describe",
     )
-    _record_clan_attributes_at_launch(
+    record_clan_attributes_at_launch(
         artifacts_dir=artifacts_dir,
         clan_membership_plan=_launch_plan(),
         directives=directives,
@@ -353,7 +353,7 @@ def test_launch_records_declared_script_and_propagated_tribe(
 def test_launch_records_epic_nominee_and_fill_only_tribe(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.axe.run_agent_directives import _record_clan_attributes_at_launch
+    from sase.axe.run_agent_directive_clans import record_clan_attributes_at_launch
 
     monkeypatch.setenv("SASE_HOME", str(tmp_path / ".sase"))
     artifacts_dir = str(tmp_path / "artifacts" / MEMBER_TS)
@@ -363,7 +363,7 @@ def test_launch_records_epic_nominee_and_fill_only_tribe(
         clan_summary=None,
         clan_summary_script=None,
     )
-    _record_clan_attributes_at_launch(
+    record_clan_attributes_at_launch(
         artifacts_dir=artifacts_dir,
         clan_membership_plan=_launch_plan(),
         directives=directives,
@@ -390,7 +390,7 @@ def test_launch_records_epic_nominee_and_fill_only_tribe(
         strict=True,
     )
     assert edited is not None and edited["changed"] is True
-    _record_clan_attributes_at_launch(
+    record_clan_attributes_at_launch(
         artifacts_dir=artifacts_dir,
         clan_membership_plan=_launch_plan(),
         directives=directives,

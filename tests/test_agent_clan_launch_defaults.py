@@ -16,8 +16,8 @@ from typing import Any
 
 import pytest
 
-from sase.axe.run_agent_directives import (
-    _apply_clan_launch_defaults,
+from sase.axe.run_agent_directive_clans import (
+    apply_clan_launch_defaults,
     _is_new_clan_generation,
 )
 from sase.core.agent_clan_record import (
@@ -129,7 +129,7 @@ def test_new_generation_inherits_tribe_and_summary(
         directives=_directives(),
         agent_meta=agent_meta,
     )
-    resolution, summary, script = _apply_clan_launch_defaults(**kwargs)
+    resolution, summary, script = apply_clan_launch_defaults(**kwargs)
 
     assert agent_meta["clan_tribe"] == TRIBE
     assert agent_meta["clan_summary"] == SUMMARY
@@ -162,7 +162,7 @@ def test_explicit_values_override(
     )
     # Explicit summary already in meta simulates the explicit launch block.
     agent_meta["clan_summary"] = "mine"
-    resolution, summary, script = _apply_clan_launch_defaults(**kwargs)
+    resolution, summary, script = apply_clan_launch_defaults(**kwargs)
 
     assert (resolution, summary, script) == (None, None, None)
     assert agent_meta == {"clan_tribe": "explicit", "clan_summary": "mine"}
@@ -189,7 +189,7 @@ def test_remembered_script_is_rerun(
         directives=_directives(),
         agent_meta=agent_meta,
     )
-    resolution, summary, script = _apply_clan_launch_defaults(**kwargs)
+    resolution, summary, script = apply_clan_launch_defaults(**kwargs)
 
     assert summary == "fresh-output"
     assert agent_meta["clan_summary"] == "fresh-output"
@@ -223,7 +223,7 @@ def test_script_failure_falls_back_to_remembered_text(
         directives=_directives(),
         agent_meta=agent_meta,
     )
-    resolution, summary, script = _apply_clan_launch_defaults(**kwargs)
+    resolution, summary, script = apply_clan_launch_defaults(**kwargs)
 
     assert summary == SUMMARY
     assert agent_meta["clan_summary"] == SUMMARY
@@ -249,7 +249,7 @@ def test_join_existing_generation_unaffected(
     # Point the artifacts dir at a different basename than the generation.
     kwargs["artifacts_dir"] = str(tmp_path / "artifacts" / NEW_GEN)
     Path(kwargs["artifacts_dir"]).mkdir(parents=True, exist_ok=True)
-    assert _apply_clan_launch_defaults(**kwargs) == (None, None, None)
+    assert apply_clan_launch_defaults(**kwargs) == (None, None, None)
     assert agent_meta == {}
 
 
@@ -275,7 +275,7 @@ def test_tombstoned_tribe_is_not_inherited(
         directives=_directives(),
         agent_meta=agent_meta,
     )
-    _, summary, _ = _apply_clan_launch_defaults(**kwargs)
+    _, summary, _ = apply_clan_launch_defaults(**kwargs)
     assert "clan_tribe" not in agent_meta
     # Summary has no tombstone, so it still inherits.
     assert summary == SUMMARY
@@ -292,7 +292,7 @@ def test_no_record_nothing_changes(
         directives=_directives(),
         agent_meta=agent_meta,
     )
-    assert _apply_clan_launch_defaults(**kwargs) == (None, None, None)
+    assert apply_clan_launch_defaults(**kwargs) == (None, None, None)
     assert agent_meta == {}
     assert not Path(kwargs["output_path"]).exists()
 
@@ -308,7 +308,7 @@ def test_reexec_is_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
         directives=_directives(),
         agent_meta=agent_meta,
     )
-    first = _apply_clan_launch_defaults(**kwargs)
+    first = apply_clan_launch_defaults(**kwargs)
     assert first[1] == SUMMARY
     log_path = Path(kwargs["output_path"])
     first_log = log_path.read_text(encoding="utf-8")
@@ -326,5 +326,5 @@ def test_reexec_is_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -
     )
     # Reuse the same log file to prove no second line is appended.
     kwargs2["output_path"] = str(log_path)
-    assert _apply_clan_launch_defaults(**kwargs2) == (None, None, None)
+    assert apply_clan_launch_defaults(**kwargs2) == (None, None, None)
     assert log_path.read_text(encoding="utf-8") == first_log

@@ -35,7 +35,7 @@ _LABEL_ONLY_RE = re.compile(r"[A-Z][A-Z ]{0,31}")
 
 
 @dataclass(frozen=True, slots=True)
-class ClanSummaryDigest:
+class _ClanSummaryDigest:
     """Content-only digest of one raw clan summary; cached by raw-text hash."""
 
     key: str  # 12-hex blake2b of f"{clan}\0{raw}"
@@ -54,7 +54,7 @@ class TribeClanSummaryEntry:
     unit_identity: ClanAgentIdentity
     unit_label: str
     entry_key: str  # 12-hex blake2b of f"{clan}\0{generation or ''}"
-    digest: ClanSummaryDigest
+    digest: _ClanSummaryDigest
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,7 +70,7 @@ _EMPTY_TRIBE_CLAN_SUMMARIES_SNAPSHOT = TribeClanSummariesSnapshot(
     signature=(),
 )
 
-_digest_cache: OrderedDict[tuple[str, str], ClanSummaryDigest] = OrderedDict()
+_digest_cache: OrderedDict[tuple[str, str], _ClanSummaryDigest] = OrderedDict()
 _digest_cache_lock = threading.Lock()
 
 
@@ -137,7 +137,7 @@ def build_tribe_clan_summaries(
     )
 
 
-def _digest_for_summary(raw: str, clan: str) -> ClanSummaryDigest:
+def _digest_for_summary(raw: str, clan: str) -> _ClanSummaryDigest:
     """Return the cached digest for one raw clan summary."""
     cache_key = (
         blake2b(raw.encode("utf-8", errors="replace"), digest_size=16).hexdigest(),
@@ -172,7 +172,7 @@ def _split_body_lines(raw: str) -> tuple[list[str], list[list[ClanSummaryLineSpa
     return lines, spans
 
 
-def _build_digest(raw: str, clan: str) -> ClanSummaryDigest:
+def _build_digest(raw: str, clan: str) -> _ClanSummaryDigest:
     """Digest one raw clan summary into kicker, headline, lede, and body."""
     plain_lines, span_lines = _split_body_lines(raw)
     key = blake2b(
@@ -192,7 +192,7 @@ def _build_digest(raw: str, clan: str) -> ClanSummaryDigest:
     body_lines = plain_lines[index:]
     body_spans = span_lines[index:]
 
-    headline, truncated, block_end, label_kicker = _headline_block(
+    headline, truncated, block_start, block_end, label_kicker = _headline_block(
         body_lines, kicker_text=kicker
     )
     if label_kicker is not None:
@@ -203,10 +203,11 @@ def _build_digest(raw: str, clan: str) -> ClanSummaryDigest:
     if not headline:
         headline = first_meaningful_line("\n".join(body_lines))
     if truncated:
-        lede_start, lede_count = 0, block_end
+        # The lede replays the truncated headline block, still capped at 4 lines.
+        lede_start, lede_count = _next_lede(body_lines[:block_end], block_start)
     else:
         lede_start, lede_count = _next_lede(body_lines, block_end)
-    return ClanSummaryDigest(
+    return _ClanSummaryDigest(
         key=key,
         kicker=kicker,
         headline=headline,
@@ -217,7 +218,7 @@ def _build_digest(raw: str, clan: str) -> ClanSummaryDigest:
     )
 
 
-def _fallback_digest(raw: str, clan: str) -> ClanSummaryDigest:
+def _fallback_digest(raw: str, clan: str) -> _ClanSummaryDigest:
     """Return a plain digest so one malformed summary never fails the worker."""
     try:
         key = blake2b(
@@ -234,7 +235,7 @@ def _fallback_digest(raw: str, clan: str) -> ClanSummaryDigest:
         lede_start, lede_count = lede[0], lede[-1] - lede[0] + 1
     else:
         lede_start, lede_count = 0, 0
-    return ClanSummaryDigest(
+    return _ClanSummaryDigest(
         key=key,
         kicker="",
         headline=first_meaningful_line(raw),
@@ -289,12 +290,12 @@ def _is_label_only_line(line: str) -> bool:
 
 def _headline_block(
     body_lines: list[str], *, kicker_text: str
-) -> tuple[str, bool, int, str | None]:
-    """Return ``(headline, truncated, block_end, label_kicker)``.
+) -> tuple[str, bool, int, int, str | None]:
+    """Return ``(headline, truncated, block_start, block_end, label_kicker)``.
 
-    *block_end* is the exclusive body-line index where the headline block
-    ends. *label_kicker* carries an ALL CAPS field label when no kicker text
-    exists yet.
+    *block_start* and *block_end* are the inclusive and exclusive body-line
+    indices of the headline block. *label_kicker* carries an ALL CAPS field
+    label when no kicker text exists yet.
     """
     index = 0
     while index < len(body_lines):
@@ -303,7 +304,7 @@ def _headline_block(
             break
         index += 1
     if index >= len(body_lines):
-        return "", False, len(body_lines), None
+        return "", False, len(body_lines), len(body_lines), None
     match = _FIELD_LINE_RE.match(body_lines[index])
     label_kicker: str | None = None
     if match is not None:
@@ -338,7 +339,7 @@ def _headline_block(
     collapsed = " ".join(" ".join(block_lines).split())
     collapsed = _HEADING_MARKER_RE.sub("", collapsed, count=1).strip()
     truncated = len(collapsed) > _HEADLINE_MAX_CHARS
-    return _truncate_headline(collapsed), truncated, end, label_kicker
+    return _truncate_headline(collapsed), truncated, index, end, label_kicker
 
 
 def _truncate_headline(headline: str) -> str:
@@ -365,7 +366,6 @@ def _next_lede(body_lines: list[str], block_end: int) -> tuple[int, int]:
 
 
 __all__ = [
-    "ClanSummaryDigest",
     "ClanSummaryLineSpan",
     "TribeClanSummariesSnapshot",
     "TribeClanSummaryEntry",
