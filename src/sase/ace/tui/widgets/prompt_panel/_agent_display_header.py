@@ -310,14 +310,13 @@ def build_header_text(
             marked_identities=marked_agent_ids,
         )
 
-    if member_jump_map_publisher is not None and (
-        family_map is not None or neighbors_map is not None
-    ):
+    jump_map = None
+    if family_map is not None or neighbors_map is not None:
         from ._member_roster import merged_member_jump_map
 
-        member_jump_map_publisher(
-            merged_member_jump_map(agent.identity, family_map, neighbors_map)
-        )
+        jump_map = merged_member_jump_map(agent.identity, family_map, neighbors_map)
+        if member_jump_map_publisher is not None:
+            member_jump_map_publisher(jump_map)
 
     bead_section: ResponsiveBeadSection | None = None
     plan_section: ResponsivePlanSection | None = None
@@ -478,12 +477,19 @@ def build_header_text(
             plan_section,
             slow_tool_section,
         )
+        carrier = AgentHeaderRenderable(
+            body_text,
+            body_sections,
+            identity_header=identity,
+        )
+        if (
+            hint_state is None
+            and jump_map is not None
+            and (jump_map.targets or jump_map.sections)
+        ):
+            carrier.with_member_jump_map(jump_map)
         return (
-            AgentHeaderRenderable(
-                body_text,
-                body_sections,
-                identity_header=identity,
-            ),
+            carrier,
             error_tb_syntax,
         )
     responsive_sections = _assemble_responsive_sections(

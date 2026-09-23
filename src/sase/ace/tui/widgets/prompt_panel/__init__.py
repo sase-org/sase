@@ -23,7 +23,9 @@ from ._helpers import (
 from ._identity_header import (
     IdentityHeader,
     IdentityHeaderSink,
+    MemberJumpMapSink,
     find_identity_header,
+    find_member_jump_map,
 )
 from ...util.renderable_digest import renderable_content_digest
 from ._section_navigation import (
@@ -66,6 +68,8 @@ class AgentPromptPanel(
     _identity_header_sink: IdentityHeaderSink | None = None
     _identity_last_published: IdentityHeader | None = None
     _identity_last_content: Any = ""
+    _member_jump_map_sink: MemberJumpMapSink | None = None
+    _jump_map_last_published: Any = None
 
     def attach_identity_header_sink(self, sink: IdentityHeaderSink | None) -> None:
         """Publish detached identity headers to ``sink`` on each update."""
@@ -75,6 +79,10 @@ class AgentPromptPanel(
     def detaches_identity_header(self) -> bool:
         """Whether builders should split the identity out of documents."""
         return self._identity_header_sink is not None
+
+    def attach_member_jump_map_sink(self, sink: MemberJumpMapSink | None) -> None:
+        """Publish carried jump maps to ``sink`` on each update."""
+        self._member_jump_map_sink = sink
 
     def inline_document_renderable(self) -> Any:
         """Return the current document with its identity inlined on top."""
@@ -120,6 +128,10 @@ class AgentPromptPanel(
             self._identity_last_published = find_identity_header(content)
             self._identity_last_content = content
             sink(self._identity_last_published)
+        jump_sink = getattr(self, "_member_jump_map_sink", None)
+        if jump_sink is not None:
+            self._jump_map_last_published = find_member_jump_map(content)
+            jump_sink(self._jump_map_last_published)
         digest: str | None
         try:
             digest = renderable_content_digest(content)

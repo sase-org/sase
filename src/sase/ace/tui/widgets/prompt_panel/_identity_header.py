@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from rich.console import Group, RenderableType
 from rich.text import Span, Text
@@ -19,6 +20,9 @@ from .._agent_list_styling import (
 from ._agent_display_family import FAMILY_IDENTITY_COLOR
 from ._agent_display_header_renderable import AgentHeader, AgentHeaderRenderable
 
+if TYPE_CHECKING:
+    from ._member_roster import MemberJumpMap
+
 # Must match the light rule in ``append_major_section_divider`` (``_helpers``).
 _MAJOR_DIVIDER_RULE = "─" * 50
 
@@ -27,6 +31,7 @@ AGENT_FALLBACK_IDENTITY_COLOR = "#87AFFF"
 STEP_FALLBACK_IDENTITY_COLOR = "#D7AFFF"
 
 IdentityHeaderSink = Callable[["IdentityHeader | None"], None]
+MemberJumpMapSink = Callable[["MemberJumpMap | None"], None]
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,20 +77,32 @@ def identity_kind_for_agent(agent: Agent) -> tuple[str, str]:
     return ("AGENT", AGENT_FALLBACK_IDENTITY_COLOR)
 
 
-def find_identity_header(content: object) -> IdentityHeader | None:
-    """Return the identity attached to a prompt-panel document, if any."""
+def _find_carrier(content: object) -> AgentHeaderRenderable | None:
+    """Return the first document carrier inside ``content``, if any."""
     if isinstance(content, AgentHeaderRenderable):
-        return content.identity_header
+        return content
     if isinstance(content, Group):
         for child in content.renderables:
-            found = find_identity_header(child)
+            found = _find_carrier(child)
             if found is not None:
                 return found
         return None
     renderable = getattr(content, "renderable", None)
     if renderable is not None and not isinstance(content, (Text, str, bytes)):
-        return find_identity_header(renderable)
+        return _find_carrier(renderable)
     return None
+
+
+def find_identity_header(content: object) -> IdentityHeader | None:
+    """Return the identity attached to a prompt-panel document, if any."""
+    carrier = _find_carrier(content)
+    return carrier.identity_header if carrier is not None else None
+
+
+def find_member_jump_map(content: object) -> MemberJumpMap | None:
+    """Return the jump map carried by a prompt-panel document, if any."""
+    carrier = _find_carrier(content)
+    return carrier.member_jump_map if carrier is not None else None
 
 
 def strip_leading_document_chrome(text: Text) -> tuple[Text, int]:
@@ -117,7 +134,9 @@ __all__ = [
     "WORKFLOW_IDENTITY_COLOR",
     "IdentityHeader",
     "IdentityHeaderSink",
+    "MemberJumpMapSink",
     "find_identity_header",
+    "find_member_jump_map",
     "identity_kind_for_agent",
     "strip_leading_document_chrome",
 ]

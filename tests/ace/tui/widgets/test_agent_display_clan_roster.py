@@ -120,4 +120,27 @@ def test_clan_roster_launch_order_is_stable_while_statuses_churn() -> None:
         first.identity,
         second.identity,
     )
-    assert before_maps[0].targets == after_maps[0].targets
+    # Order-stable fields survive status churn; buckets track the new statuses.
+    assert [
+        (
+            target.number,
+            target.member_identity,
+            target.kind,
+            target.role,
+            target.label,
+        )
+        for target in before_maps[0].targets
+    ] == [
+        (
+            target.number,
+            target.member_identity,
+            target.kind,
+            target.role,
+            target.label,
+        )
+        for target in after_maps[0].targets
+    ]
+    assert [target.status_bucket for target in after_maps[0].targets] == [
+        "Done",
+        "Failed",
+    ]

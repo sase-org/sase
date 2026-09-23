@@ -17,6 +17,7 @@ from ._agent_wait_section import ResponsiveWaitSection
 
 if TYPE_CHECKING:
     from ._identity_header import IdentityHeader
+    from ._member_roster import MemberJumpMap
 
 type ResponsiveHeaderSection = (
     ResponsiveAgentPageSection
@@ -31,7 +32,7 @@ type ResponsiveHeaderSection = (
 class AgentHeaderRenderable:
     """Mutable logical header with retained responsive context sections."""
 
-    __slots__ = ("_identity_header", "_sections", "_text")
+    __slots__ = ("_identity_header", "_member_jump_map", "_sections", "_text")
 
     def __init__(
         self,
@@ -39,10 +40,12 @@ class AgentHeaderRenderable:
         sections: tuple[tuple[int, int, ResponsiveHeaderSection], ...],
         *,
         identity_header: IdentityHeader | None = None,
+        member_jump_map: MemberJumpMap | None = None,
     ) -> None:
         self._text = text
         self._sections = sections
         self._identity_header = identity_header
+        self._member_jump_map = member_jump_map
 
     @property
     def identity_header(self) -> IdentityHeader | None:
@@ -52,6 +55,16 @@ class AgentHeaderRenderable:
     def with_identity_header(self, identity_header: IdentityHeader | None) -> Self:
         """Attach an identity to this document and return it for chaining."""
         self._identity_header = identity_header
+        return self
+
+    @property
+    def member_jump_map(self) -> MemberJumpMap | None:
+        """Return the jump map carried by this document, if any."""
+        return self._member_jump_map
+
+    def with_member_jump_map(self, member_jump_map: MemberJumpMap | None) -> Self:
+        """Attach a jump map to this document and return it for chaining."""
+        self._member_jump_map = member_jump_map
         return self
 
     @property

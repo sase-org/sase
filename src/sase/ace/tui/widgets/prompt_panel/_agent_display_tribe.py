@@ -97,8 +97,9 @@ def build_tribe_detail_text(
         append_tribe_identity(identity_text, snapshot, fold_level)
         body = Text()
         append_tribe_description(body, snapshot)
+        tribe_jump_map: MemberJumpMap | None = None
         if not cheap:
-            _append_tribe_body(
+            tribe_jump_map = _append_tribe_body(
                 body,
                 snapshot,
                 section_snapshot,
@@ -118,7 +119,12 @@ def build_tribe_detail_text(
             ),
             has_hints=False,
         )
-        return AgentHeaderRenderable(body, (), identity_header=identity)
+        carrier = AgentHeaderRenderable(body, (), identity_header=identity)
+        if tribe_jump_map is not None and (
+            tribe_jump_map.targets or tribe_jump_map.sections
+        ):
+            carrier.with_member_jump_map(tribe_jump_map)
+        return carrier
     text = Text()
     append_tribe_header(text, snapshot, fold_level)
     if cheap:
@@ -142,7 +148,7 @@ def _append_tribe_body(
     fold_level: FoldLevel,
     overrides: Mapping[str, FoldLevel],
     member_jump_map_publisher: Callable[[MemberJumpMap], None] | None,
-) -> None:
+) -> MemberJumpMap:
     """Append the scrolling tribe sections after the identity header."""
     required = tribe_enrichment_sections_for_fold_state(fold_level, overrides)
     append_attention(
@@ -218,6 +224,7 @@ def _append_tribe_body(
     )
     if _has_pending_enrichment(section_snapshot, required):
         append_scanning_tail(text)
+    return jump_map
 
 
 __all__ = [

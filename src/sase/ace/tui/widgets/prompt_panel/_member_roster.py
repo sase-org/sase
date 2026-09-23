@@ -157,6 +157,17 @@ class MemberJumpNumbering:
 
 
 @dataclass(frozen=True, slots=True)
+class MemberJumpSection:
+    """One roster's contribution to a published jump map."""
+
+    title: str
+    accent: str
+    numbered_count: int = 0
+    hidden_count: int = 0
+    hidden_hint: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class _MemberJumpTarget:
     """The agent-list target represented by one rendered number chip."""
 
@@ -164,6 +175,8 @@ class _MemberJumpTarget:
     member_identity: MemberIdentity
     kind: str
     role: MemberJumpRole = "member"
+    label: str = ""
+    status_bucket: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,6 +185,12 @@ class MemberJumpMap:
 
     container_identity: MemberJumpContainerIdentity
     targets: tuple[_MemberJumpTarget, ...]
+    sections: tuple[MemberJumpSection, ...] = ()
+
+
+def member_status_style(bucket: str) -> str:
+    """Return the roster status color for a status bucket."""
+    return _MEMBER_STATUS_STYLES.get(bucket, "bold #FFFFFF")
 
 
 def append_member_roster(
@@ -251,6 +270,9 @@ def append_member_roster(
                 member_identity=entry.identity,
                 kind=entry.kind,
                 role=entry.target_role or target_role,
+                label=entry.label,
+                status_bucket=entry.effective_bucket
+                or status_bucket_for_values(entry.status),
             )
         )
         rendered_count += 1
@@ -264,9 +286,23 @@ def append_member_roster(
     if extra_tail is not None:
         text.append(extra_tail + "\n", style="dim italic")
 
+    if hidden_count > 0:
+        hidden_hint = f"… +{hidden_count} more {hidden_tail_label} ({hidden_tail_hint})"
+    else:
+        hidden_hint = ""
+    if extra_tail is not None:
+        hidden_hint = f"{hidden_hint}\n{extra_tail}" if hidden_hint else extra_tail
+    section = MemberJumpSection(
+        title=title,
+        accent=accent,
+        numbered_count=rendered_count,
+        hidden_count=hidden_count,
+        hidden_hint=hidden_hint,
+    )
     return MemberJumpMap(
         container_identity=container_identity,
         targets=tuple(targets),
+        sections=(section,),
     )
 
 
@@ -276,15 +312,18 @@ def merged_member_jump_map(
 ) -> MemberJumpMap:
     """Concatenate same-container maps into the one map a document publishes."""
     targets: list[_MemberJumpTarget] = []
+    sections: list[MemberJumpSection] = []
     for jump_map in maps:
         if jump_map is None:
             continue
         if jump_map.container_identity != container_identity:
             raise ValueError("Cannot merge member jump maps for different containers")
         targets.extend(jump_map.targets)
+        sections.extend(jump_map.sections)
     return MemberJumpMap(
         container_identity=container_identity,
         targets=tuple(targets),
+        sections=tuple(sections),
     )
 
 
@@ -520,10 +559,12 @@ __all__ = [
     "MemberJumpContainerIdentity",
     "MemberJumpNumbering",
     "MemberJumpRole",
+    "MemberJumpSection",
     "MemberRosterChild",
     "MemberRosterEntry",
     "MemberRosterStatusCounts",
     "append_member_roster",
     "member_jump_map_publisher_for",
+    "member_status_style",
     "merged_member_jump_map",
 ]

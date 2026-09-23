@@ -350,7 +350,7 @@ def build_clan_detail_text(
             and hint_counter_after_identity != hint_counter_before
         )
         stripped_body, _ = strip_leading_document_chrome(body)
-        return AgentHeaderRenderable(
+        carrier = AgentHeaderRenderable(
             stripped_body,
             (),
             identity_header=IdentityHeader(
@@ -368,6 +368,9 @@ def build_clan_detail_text(
                 has_hints=has_hints,
             ),
         )
+        if hint_state is None and (jump_map.targets or jump_map.sections):
+            carrier.with_member_jump_map(jump_map)
+        return carrier
     return body
 
 
