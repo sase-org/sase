@@ -59,7 +59,17 @@ def _hints_text(record: PromptHistoryRecord) -> Text:
         ref = summary.project_prefix
         if summary.project_ref_display:
             ref = f"{summary.project_prefix}{summary.project_ref_display}"
-        parts.append((ref, "blue"))
+        try:
+            from sase.project_tag_style import project_column_style
+
+            parts.append(
+                (
+                    ref,
+                    project_column_style(summary.project_ref_display, fallback="blue"),
+                )
+            )
+        except Exception:
+            parts.append((ref, "blue"))
     parts.extend((chip, "green") for chip in summary.xprompts)
     if summary.directive_token:
         parts.extend((tok, "yellow") for tok in summary.directive_token.split())
@@ -101,16 +111,25 @@ def _print_pretty(records: list[PromptHistoryRecord]) -> None:
             else Text("launched", style="green")
         )
         preview_style = "magenta dim" if cancelled else ""
+        try:
+            from sase.project_tag_style import rich_text_with_project_tags
+
+            preview_text = rich_text_with_project_tags(
+                prompt_preview(humanize_vcs_refs_in_text(record.text)),
+                base_style=preview_style or None,
+            )
+        except Exception:
+            preview_text = Text(
+                prompt_preview(humanize_vcs_refs_in_text(record.text)),
+                style=preview_style,
+            )
         table.add_row(
             record.id,
             format_timestamp(record.last_used),
             status,
             str(record.text_chars),
             _hints_text(record),
-            Text(
-                prompt_preview(humanize_vcs_refs_in_text(record.text)),
-                style=preview_style,
-            ),
+            preview_text,
         )
 
     console.print(Panel(table, title=title, border_style="cyan"))

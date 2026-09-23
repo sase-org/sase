@@ -16,7 +16,7 @@ from sase.ace.tui.util.xprompt_syntax import highlight_prompt_text
 from sase.core.prompt_stash_wire import PromptStashEntryWire
 from sase.project_display_names import ProjectDisplaySnapshot
 
-from ._prompt_stash_preview import PromptStashPreviewPane
+from ._prompt_stash_preview import PromptStashPreviewPane, tagified_stash_text
 from .base import OptionListNavigationMixin
 from .prompt_stash_row import (
     DEFAULT_STASH_PREVIEW_WIDTH,
@@ -191,7 +191,7 @@ class UpdatePinnedStashModal(OptionListNavigationMixin, ModalScreen[str | None])
             return
         highlighted = self._highlight_cache.get(entry.id)
         if highlighted is None:
-            highlighted = highlight_prompt_text(entry.text)
+            highlighted = highlight_prompt_text(tagified_stash_text(entry.text))
             self._highlight_cache[entry.id] = highlighted
         self.query_one(PromptStashPreviewPane).show_entry(
             entry,

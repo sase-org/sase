@@ -263,7 +263,14 @@ def _append_ref_line(
     preview.append("\n")
     if ref.prompt_preview:
         preview.append("      prompt: ", style="dim")
-        preview.append(humanize_vcs_refs_in_text(ref.prompt_preview), style="dim")
+        try:
+            from sase.project_tag_style import append_tagified_text
+
+            append_tagified_text(
+                preview, humanize_vcs_refs_in_text(ref.prompt_preview), "dim"
+            )
+        except Exception:
+            preview.append(humanize_vcs_refs_in_text(ref.prompt_preview), style="dim")
         preview.append("\n")
 
 

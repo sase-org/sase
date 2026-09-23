@@ -447,7 +447,12 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
             if len(lines) > 50:
                 xprompt_content = "\n".join(lines[:50]) + "\n... (truncated)"
             xprompt_content = humanize_vcs_refs_in_text(xprompt_content)
-            text.append(f"{xprompt_content}\n")
+            try:
+                from sase.project_tag_style import append_tagified_text
+
+                append_tagified_text(text, f"{xprompt_content}\n")
+            except Exception:
+                text.append(f"{xprompt_content}\n")
 
         # AGENT CHAT section
         response_content = agent.get_response_content()
@@ -463,7 +468,12 @@ class AgentRunLogModal(OptionListNavigationMixin, ModalScreen[None]):
                 preview += "\n... (truncated, press Enter to view full chat)"
             preview = humanize_vcs_refs_in_text(preview)
 
-            text.append(f"{preview}\n")
+            try:
+                from sase.project_tag_style import append_tagified_text
+
+                append_tagified_text(text, f"{preview}\n")
+            except Exception:
+                text.append(f"{preview}\n")
 
         detail.update(text)
 

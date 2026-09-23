@@ -32,6 +32,30 @@ _CONVERSATION_SECTIONS = (
 )
 
 
+def _tag_styled_xprompt_body(raw: str) -> Text:
+    """Return an AGENT XPROMPT body with tagified refs and tag accents (D5/D6).
+
+    Stored prompts keep the canonical ``#<wf>:<key>`` form; the pager shows
+    the ``+<name>`` tag form with the project's accent on only the tag
+    substrings. The returned ``Text`` carries producer styling that the
+    pager syntax pass preserves underneath Markdown highlighting. The
+    ``SyntaxRole.PROJECT_TAG`` role in ``pager/syntax.py`` names this
+    vocabulary for future lexer-emitted spans. Never raises.
+    """
+    try:
+        from sase.project_display_names import humanize_vcs_refs_in_text
+
+        humanized = humanize_vcs_refs_in_text(raw)
+    except Exception:
+        humanized = raw
+    try:
+        from sase.project_tag_style import rich_text_with_project_tags
+
+        return rich_text_with_project_tags(humanized)
+    except Exception:
+        return Text(humanized)
+
+
 def build_agent_conversation_sections(agent: Agent) -> tuple[PagerSection, ...]:
     """Show each concrete member's conversation in the panel's member order."""
     if agent.is_clan_container:
@@ -97,18 +121,25 @@ def build_agent_conversation_sections(agent: Agent) -> tuple[PagerSection, ...]:
 
         for key, title, empty_message in _CONVERSATION_SECTIONS:
             body = bodies.get(key)
+            body_renderable: Text | str | None
+            if body and key == "xprompt":
+                body_renderable = _tag_styled_xprompt_body(body)
+            else:
+                body_renderable = body
             sections.append(
                 PagerSection(
                     identity=f"{prefix}-{key}",
                     title=(reply_title if key == "reply" else title) + suffix,
                     kind="agent",
-                    body=body
-                    if body
+                    body=body_renderable
+                    if body_renderable
                     else Text(
                         errors.get(key, empty_message),
                         style="italic yellow" if key in errors else "dim italic",
                     ),
-                    raw_source=RawSourceSpec(language="markdown") if body else None,
+                    raw_source=RawSourceSpec(language="markdown")
+                    if body_renderable
+                    else None,
                     link_anchors=context.anchors,
                     owner=owner,
                 )

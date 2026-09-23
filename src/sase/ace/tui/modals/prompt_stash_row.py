@@ -115,9 +115,18 @@ def stash_row_label(
     project = entry.project
     if project and project_display_snapshot is not None:
         project = project_display_snapshot.label_for(project)
+    if marked_for_delete:
+        project_style = row_style
+    else:
+        try:
+            from sase.project_tag_style import project_column_style
+
+            project_style = project_column_style(project, fallback="cyan")
+        except Exception:
+            project_style = "cyan"
     text.append(
         _project_chip(project),
-        style="cyan" if not marked_for_delete else row_style,
+        style=project_style,
     )
     text.append("  ")
     text.append(
@@ -126,7 +135,19 @@ def stash_row_label(
     )
     text.append("  ")
     preview = first_line_preview(entry.text, preview_width)
-    text.append(preview, style=row_style or ("bold" if restoring else ""))
+    preview_style = row_style or ("bold" if restoring else "")
+    if marked_for_delete:
+        text.append(preview, style=preview_style)
+    else:
+        try:
+            from sase.project_display_names import humanize_vcs_refs_in_text
+            from sase.project_tag_style import append_tagified_text
+
+            append_tagified_text(
+                text, humanize_vcs_refs_in_text(preview), preview_style
+            )
+        except Exception:
+            text.append(preview, style=preview_style)
     return text
 
 

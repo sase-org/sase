@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+from rich.text import Text
 from textual import events
 from textual.widgets import Input, OptionList, Static
 
 from sase.history.prompt_metadata import summarize_prompt_for_preview
+from sase.project_display_names import humanize_vcs_refs_in_text
+from sase.project_tag_style import rich_text_with_project_tags
 
 from ._prompt_history_models import (
     PromptDisplayItem,
@@ -177,7 +180,7 @@ class PromptHistoryInteractionMixin(_MixinBase):
             preview = self.query_one("#prompt-history-preview", Static)
             metadata = self.query_one("#prompt-history-metadata", Static)
 
-            preview.update(display_text_for_item(item))
+            preview.update(_styled_preview_for_item(item))
             metadata.update(
                 build_prompt_history_metadata(
                     item,
@@ -197,6 +200,24 @@ class PromptHistoryInteractionMixin(_MixinBase):
             metadata.update("")
         except Exception:
             pass
+
+
+def _styled_preview_for_item(item: PromptDisplayItem) -> Text | str:
+    """Return the preview body with accent-colored project tags (D5/D6).
+
+    The item's display text is already tagified upstream; re-humanizing is
+    idempotent and covers items built from raw entry text. Only ``+tag``
+    substrings gain accent styling — the rest stays plain.
+    """
+    raw = display_text_for_item(item)
+    try:
+        humanized = humanize_vcs_refs_in_text(raw)
+    except Exception:
+        humanized = raw
+    try:
+        return rich_text_with_project_tags(humanized)
+    except Exception:
+        return humanized
 
 
 __all__ = ["PromptHistoryInteractionMixin"]

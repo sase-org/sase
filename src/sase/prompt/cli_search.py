@@ -267,6 +267,18 @@ def _line_suffix(hit: PromptHit) -> Text | None:
     return text if text.plain else None
 
 
+def _tag_overlay(text: Text, source: str) -> None:
+    """Overlay accent tag spans on *text* for display *source* (D6)."""
+    if "+" not in source:
+        return
+    try:
+        from sase.ace.tui.util.xprompt_syntax import stylize_project_tags
+
+        stylize_project_tags(text, source)
+    except Exception:
+        pass
+
+
 def _snippet_line(match: PromptSearchMatch, query: str) -> Text | None:
     """Return line 2: a highlighted body snippet, or ``field: "value"``."""
     field, value = _why_matched(match, query)
@@ -279,11 +291,15 @@ def _snippet_line(match: PromptSearchMatch, query: str) -> Text | None:
 
     line = Text("  ")
     if field in _BODY_FIELDS:
-        line.append_text(highlight_match(snippet, query, base_style="dim"))
+        snippet_text = highlight_match(snippet, query, base_style="dim")
+        _tag_overlay(snippet_text, snippet)
+        line.append_text(snippet_text)
         return line
     line.append(f"{field}: ", style="dim")
     line.append('"', style="dim")
-    line.append_text(highlight_match(snippet, query, base_style="dim"))
+    snippet_text = highlight_match(snippet, query, base_style="dim")
+    _tag_overlay(snippet_text, snippet)
+    line.append_text(snippet_text)
     line.append('"', style="dim")
     return line
 
@@ -491,8 +507,11 @@ def _render_full_archive(
         meta.append(value, style="dim")
         console.print(meta, soft_wrap=True)
     console.print()
+    humanized = humanize_vcs_refs_in_text(hit.text)
+    body = highlight_match(humanized, query)
+    _tag_overlay(body, humanized)
     console.print(
-        highlight_match(humanize_vcs_refs_in_text(hit.text), query),
+        body,
         soft_wrap=True,
     )
 

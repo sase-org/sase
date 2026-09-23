@@ -270,6 +270,28 @@ def tokenize_query_for_display(query: str) -> list[tuple[str, str]]:
     return tokens
 
 
+def style_for_query_token(token: str, token_type: str) -> str:
+    """Return the Rich style for one query *token* (D6).
+
+    ``+<project>`` shorthand tokens render in the project's accent — the
+    same word as a ``+<project>`` prompt tag renders in the same color.
+    Unknown projects and non-project shorthands keep the historical fixed
+    style. Never raises; render paths must never fail on highlighting.
+    """
+    default = QUERY_TOKEN_STYLES.get(token_type, "")
+    if token_type != "shorthand" or not token.startswith("+") or len(token) < 2:
+        return default
+    try:
+        from sase.project_tag_style import accent_for_project_ref
+
+        accent = accent_for_project_ref(token[1:])
+    except Exception:
+        accent = None
+    if accent:
+        return f"bold {accent}"
+    return default
+
+
 # Token type to Rich style mapping
 QUERY_TOKEN_STYLES: dict[str, str] = {
     "keyword": "bold #87AFFF",

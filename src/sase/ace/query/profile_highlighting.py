@@ -17,7 +17,7 @@ from rich.text import Text
 from sase.ace.query_profile import CompiledQueryProfile
 from sase.filter_tokens import FilterQueryError, FilterToken, tokenize, unquoted_index
 
-from .highlighting import QUERY_TOKEN_STYLES, tokenize_query_for_display
+from .highlighting import style_for_query_token, tokenize_query_for_display
 
 __all__ = ["highlight_query"]
 
@@ -39,7 +39,10 @@ def highlight_query(text: str, profile: CompiledQueryProfile) -> Text:
 
     rendered = Text(no_wrap=True)
     for token, token_type in tokens:
-        style = QUERY_TOKEN_STYLES.get(token_type, "")
+        try:
+            style = style_for_query_token(token, token_type)
+        except Exception:
+            style = ""
         if token_type == "keyword":
             rendered.append(token.upper(), style=style)
         elif style:

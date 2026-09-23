@@ -107,7 +107,15 @@ class NotificationOptionMixin(KeyedPaneEntryJumpMixin[int]):
             note = _humanize_notification_text(notification.notes[0])
             if len(note) > 50:
                 note = note[:47] + "..."
-            text.append(note, style=body_style)
+            if notification.muted:
+                text.append(note, style=body_style)
+            else:
+                try:
+                    from sase.project_tag_style import append_tagified_text
+
+                    append_tagified_text(text, note, body_style)
+                except Exception:
+                    text.append(note, style=body_style)
         else:
             text.append("(no message)", style="dim italic")
 

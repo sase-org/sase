@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from rich.text import Text
 from textual.app import ComposeResult
 from textual.containers import Container, VerticalScroll
 from textual.screen import ModalScreen
@@ -14,6 +15,35 @@ from sase.notification_gates.debug import GateDebugContext
 
 from ..util.frontmatter_syntax import markdown_document_syntax
 from .base import CopyModeForwardingMixin
+
+
+def _tag_styled_preview(content: str) -> Text | str:
+    """Return launch preview with tagified refs and accent tag overlays (D5/D6).
+
+    Humanizes first so ``#<wf>:<key>`` refs display as ``+<name>``; the
+    Markdown syntax highlight provides the document styling and only the
+    ``+tag`` substrings gain the chip accent overlay. Fail-open: any
+    highlighting failure returns the plain (tagified) content.
+    """
+    try:
+        from sase.project_display_names import humanize_vcs_refs_in_text
+
+        humanized = humanize_vcs_refs_in_text(content)
+    except Exception:
+        humanized = content
+    try:
+        syntax = markdown_document_syntax(humanized)
+        highlighted = syntax.highlight(humanized)
+    except Exception:
+        return humanized
+    if "+" in humanized:
+        try:
+            from sase.ace.tui.util.xprompt_syntax import stylize_project_tags
+
+            stylize_project_tags(highlighted, humanized)
+        except Exception:
+            pass
+    return highlighted
 
 
 @dataclass
@@ -63,8 +93,10 @@ class LaunchApprovalModal(
             yield Static(self._title_markup(), id="launch-approval-title")
 
             with VerticalScroll(id="launch-approval-scroll"):
-                syntax = markdown_document_syntax(self._read_preview())
-                yield Static(syntax, id="launch-approval-content")
+                yield Static(
+                    _tag_styled_preview(self._read_preview()),
+                    id="launch-approval-content",
+                )
 
             yield Static(hints, id="launch-approval-footer")
 

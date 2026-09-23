@@ -471,7 +471,7 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
 
         Args:
             text: The Text object to append to.
-            preview: The prompt preview string.
+            preview: The prompt preview string (already tagified).
             color: The color for the box drawing border.
         """
         indent = "    "  # 4-space indent for visual nesting
@@ -481,7 +481,12 @@ class RunnersModal(CopyModeForwardingMixin, ModalScreen[RunnerJumpTarget | None]
 
         text.append("  \u2502  ", style=f"dim {color}")
         text.append(indent, style="")
-        text.append(preview, style="dim italic")
+        try:
+            from sase.project_tag_style import append_tagified_text
+
+            append_tagified_text(text, preview, "dim italic")
+        except Exception:
+            text.append(preview, style="dim italic")
         padding = self._content_width - len(indent) - len(preview)
         if padding > 0:
             text.append(" " * padding, style="")

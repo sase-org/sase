@@ -79,6 +79,16 @@ def _build_prompt_stash_metadata(
     return metadata
 
 
+def tagified_stash_text(raw: str) -> str:
+    """Return stash *raw* prompt text in tagified display form (D5)."""
+    try:
+        from sase.project_display_names import humanize_vcs_refs_in_text
+
+        return humanize_vcs_refs_in_text(raw)
+    except Exception:
+        return raw
+
+
 def _build_prompt_stash_preview(
     entry: PromptStashEntryWire,
     *,
@@ -92,7 +102,7 @@ def _build_prompt_stash_preview(
         body=(
             highlighted_body
             if highlighted_body is not None
-            else highlight_prompt_text(entry.text)
+            else highlight_prompt_text(tagified_stash_text(entry.text))
         ),
         metadata=_build_prompt_stash_metadata(
             entry,

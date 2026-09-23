@@ -76,6 +76,20 @@ def prompt_preview_width_for_list_content(list_content_width: int) -> int:
     return max(_MIN_PREVIEW_WIDTH, text_width - _PROMPT_COL_START)
 
 
+def _history_project_ref_style(summary: PromptListSummary) -> str:
+    """Return the project-column style for a history row summary (D6).
+
+    Resolved projects render in their accent; unknown or cold-catalog refs
+    keep the historical cyan so rows never go unstyled.
+    """
+    try:
+        from sase.project_tag_style import project_column_style
+
+        return project_column_style(summary.project_ref_display, fallback="cyan")
+    except Exception:
+        return "cyan"
+
+
 def create_prompt_history_label(
     item: PromptDisplayItem,
     *,
@@ -94,7 +108,10 @@ def create_prompt_history_label(
 
     metadata_style = "dim italic" if is_cancelled else "dim"
     prompt_style = "dim italic" if is_cancelled else ""
-    project_ref_style = "dim italic" if is_cancelled else "cyan"
+    if is_cancelled:
+        project_ref_style = "dim italic"
+    else:
+        project_ref_style = _history_project_ref_style(summary)
     xprompt_style = "dim italic" if is_cancelled else "green"
     directive_style = "dim italic" if is_cancelled else "yellow"
 

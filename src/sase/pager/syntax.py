@@ -54,6 +54,7 @@ class SyntaxRole(StrEnum):
     MARKDOWN_STRONG = "markdown_strong"
     MARKDOWN_EMPHASIS = "markdown_emphasis"
     MARKDOWN_CODE = "markdown_code"
+    PROJECT_TAG = "project_tag"
     DIFF_ADDED = "diff_added"
     DIFF_DELETED = "diff_deleted"
     DIFF_HEADER = "diff_header"

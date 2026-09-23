@@ -110,6 +110,9 @@ def _syntax_palette_from_values(
         SyntaxRole.MARKDOWN_CODE: HighlightStyle(
             _ensure_contrast(secondary_arg, bg, fg)
         ),
+        SyntaxRole.PROJECT_TAG: HighlightStyle(
+            _ensure_contrast(accent, bg, fg), bold=True
+        ),
         SyntaxRole.DIFF_ADDED: HighlightStyle(_ensure_contrast(success, bg, fg)),
         SyntaxRole.DIFF_DELETED: HighlightStyle(_ensure_contrast(error, bg, fg)),
         SyntaxRole.DIFF_HEADER: HighlightStyle(

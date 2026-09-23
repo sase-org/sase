@@ -40,6 +40,25 @@ __all__ = [
 ]
 
 
+def _canonical_among(records: list) -> tuple[str, ...] | None:
+    """Return the D6 canonical accent set for *records* (fail-open)."""
+    try:
+        from sase.main.project_handler_render import among_for_records
+
+        return among_for_records(records)
+    except Exception:
+        return None
+
+
+def _all_projects_among() -> tuple[str, ...] | None:
+    """Return the canonical accent set across all projects (fail-open)."""
+    try:
+        records = list_projects_for_state_filter("all")
+    except Exception:
+        return None
+    return _canonical_among(records)
+
+
 def _handle_list(args: argparse.Namespace) -> int:
     state_filter = str(args.state)
     try:
@@ -47,16 +66,17 @@ def _handle_list(args: argparse.Namespace) -> int:
     except (ValueError, ProjectLifecycleError, ImportError, AttributeError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
+    among = _canonical_among(records)
     if args.json:
         print(
             json.dumps(
-                [record_to_json_dict(record) for record in records],
+                [record_to_json_dict(record, among=among) for record in records],
                 indent=2,
                 sort_keys=True,
             )
         )
     else:
-        print_records_table(records, state_filter)
+        print_records_table(records, state_filter, among=among)
     return 0
 
 
@@ -67,10 +87,15 @@ def _handle_show(args: argparse.Namespace) -> int:
         print(str(exc), file=sys.stderr)
         return 1
 
+    among = _all_projects_among()
     if args.json:
-        print(json.dumps(record_to_json_dict(record), indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                record_to_json_dict(record, among=among), indent=2, sort_keys=True
+            )
+        )
     else:
-        print_record_detail(record)
+        print_record_detail(record, among=among)
     return 0
 
 

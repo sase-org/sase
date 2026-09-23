@@ -255,7 +255,12 @@ def build_response_preview(agent: Agent) -> Text:
         style="dim",
     )
     preview_content = humanize_vcs_refs_in_text(content[:5000])
-    preview.append(preview_content)
+    try:
+        from sase.project_tag_style import append_tagified_text
+
+        append_tagified_text(preview, preview_content)
+    except Exception:
+        preview.append(preview_content)
     if len(content) > 5000:
         preview.append("\n... (truncated)", style="dim")
     return preview

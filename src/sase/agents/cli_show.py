@@ -81,7 +81,16 @@ def handle_agents_show(args: argparse.Namespace) -> None:
         except OSError:
             prompt_text = "<failed to read prompt>"
         body.append("\nPrompt:\n", style="bold")
-        body.append(humanize_vcs_refs_in_text(prompt_text) + "\n")
+        try:
+            from sase.project_tag_style import rich_text_with_project_tags
+
+            body.append_text(
+                rich_text_with_project_tags(
+                    humanize_vcs_refs_in_text(prompt_text) + "\n"
+                )
+            )
+        except Exception:
+            body.append(humanize_vcs_refs_in_text(prompt_text) + "\n")
 
     if not agent.is_done:
         body.append("\nLive tail: ", style="bold")

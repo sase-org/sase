@@ -24,7 +24,7 @@ from ...display_helpers import (
 )
 from ...query.highlighting import (
     PR_ORIGIN_VALUE_STYLES,
-    QUERY_TOKEN_STYLES,
+    style_for_query_token,
     tokenize_query_for_display,
 )
 from ..models.fold_state import FoldLevel
@@ -50,7 +50,10 @@ def build_query_text(query: str) -> Text:
     tokens = tokenize_query_for_display(query)
 
     for token, token_type in tokens:
-        style = QUERY_TOKEN_STYLES.get(token_type, "")
+        try:
+            style = style_for_query_token(token, token_type)
+        except Exception:
+            style = ""
         if token_type == "keyword":
             text.append(token.upper(), style=style)
         elif style:
