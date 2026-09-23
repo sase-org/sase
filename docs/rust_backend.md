@@ -796,19 +796,19 @@ wheel under a key that includes the pinned SHA, so it rebuilds only when the pin
 `tools/ratchet_core_revision` (`just ratchet-core-revision`) moves the pin to
 `sase-core`'s current remote HEAD: `--check` writes nothing, `--report-only` prints the
 change without writing, and a bare run rewrites the file. All three exit 0 when the pin
-already matches, 2 when a bump is pending, reported, or applied, and 3 when the remote
-HEAD cannot be determined. `.github/workflows/core-pin-ratchet.yml` runs the check every
-six hours (or on manual dispatch), then applies the bump — treating the apply step's
-exit 2 as success — and opens a PR from a `core-pin-ratchet-<sha12>` branch unless that
-branch already exists; it never runs on push, so the ratchet itself can't redden a
-commit's gate. When a `sase` change needs core behavior newer than the pin, bump
-`sase-core-revision.txt` alongside that change once the `sase-core` commit is pushed, so
-CI builds a core that has it. If `sase` source now calls a binding the pinned revision
-doesn't expose, the `lint` job's "Check pinned core bindings" step
-(`tools/check_sase_core_rs_bindings --remedy ...`) fails with the missing binding names
-and names the pin bump as the remedy, instead of a bare `AttributeError` surfacing later
-in a consumer job. This is a source-revision pin, separate from the published
-`sase-core-rs` window `pyproject.toml` declares — see
+already matches, 2 when a bump is pending, reported, or applied, and 3 when the pin file
+is missing or malformed or the remote HEAD cannot be determined.
+`.github/workflows/core-pin-ratchet.yml` runs the check every six hours (or on manual
+dispatch), then applies the bump — treating the apply step's exit 2 as success — and
+opens a PR from a `core-pin-ratchet-<sha12>` branch unless that branch already exists;
+it never runs on push, so the ratchet itself can't redden a commit's gate. When a `sase`
+change needs core behavior newer than the pin, bump `sase-core-revision.txt` alongside
+that change once the `sase-core` commit is pushed, so CI builds a core that has it. If
+`sase` source now calls a binding the pinned revision doesn't expose, the `lint` job's
+"Check pinned core bindings" step (`tools/check_sase_core_rs_bindings --remedy ...`)
+fails with the missing binding names and names the pin bump as the remedy, instead of a
+bare `AttributeError` surfacing later in a consumer job. This is a source-revision pin,
+separate from the published `sase-core-rs` window `pyproject.toml` declares — see
 [Who owns the published version window](#who-owns-the-published-version-window) above;
 `tools/probe_core_floor` keeps its advisory role over that window unchanged.
 

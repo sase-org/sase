@@ -216,11 +216,14 @@ dropped. A real credential, root, or `PATH` change still rewrites the file.
 
 `SASE_TMPDIR` and `SASE_HOME` are captured so the service host's `managed_tmp_reap` job
 scans the same managed temp root that launched agents write to. A capture taken with a
-different (or no) `SASE_TMPDIR` than your shell now has is reported as environment drift
-by `sase service init --check`; rerun `sase service init --yes` from a shell with the
-intended `SASE_TMPDIR` to realign them. The reaper job itself also warns in its log when
-the default `$SASE_HOME/tmp` root differs from the root it scanned yet still holds
-entries.
+different (or no) `SASE_TMPDIR` than the shell running the check shows up in
+`sase service init --check` only as ordinary environment drift (a pending rewrite of the
+captured environment file, exit `1`); there is no dedicated temp-root warning. Rerun
+`sase service init --yes` from a shell with the intended `SASE_TMPDIR` to realign them.
+The reaper job itself also logs a warning when it scans a captured `SASE_TMPDIR` root
+while the default `$SASE_HOME/tmp` root still holds entries; see
+[the `housekeeping` routine](axe.md#housekeeping-1-hour-interval) for what that warning
+does and does not catch.
 
 `init --yes` refuses an agent shell. When the calling shell sets `SASE_AGENT` or
 `SASE_AGENT_NAME`, or its `PATH` contains an ephemeral workspace entry, apply exits 2

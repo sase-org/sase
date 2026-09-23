@@ -173,10 +173,11 @@ Python (`sys.executable -m sase`), never `PATH`.
 | ------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
 | Host-owned `execution_argv` launch (an epic `sase bead work`)                                          | unchanged, **never** wrapped                 |
 | Exactly one `sase tool run …` already                                                                  | unchanged                                    |
-| `SASE_TOOL_BYPASS` set, `monitor.tool_wrap: off`, or the project tool catalog cannot be loaded         | unchanged, plus one reason line in the log   |
+| `SASE_TOOL_BYPASS` set or `monitor.tool_wrap: off`                                                     | unchanged, plus one reason line in the log   |
 | No profile or a non-`verify` profile under the default `monitor.tool_wrap: verify`                     | unchanged, plus one reason line in the log   |
+| The project tool catalog cannot be loaded                                                              | unchanged, plus one reason line in the log   |
 | A simple command equal to a catalog tool's argv, with the monitor's cwd at that catalog's project root | `<sase> tool run <name>` (**named upgrade**) |
-| Anything else under `-p verify` (or under any profile with `monitor.tool_wrap: all`)                   | `<sase> tool run -- /bin/sh -c CMD` (ad-hoc) |
+| Anything else under `-p verify` (or with any or no profile under `monitor.tool_wrap: all`)             | `<sase> tool run -- /bin/sh -c CMD` (ad-hoc) |
 
 Rows are checked top to bottom and the first match wins. A simple command is one shell
 word-split with no operators, redirects, globs, expansions, or leading `NAME=value`
@@ -186,9 +187,9 @@ verbatim, so the run is at least as faithful as the raw command. Extra arguments
 only where that tool's `args: allow` policy permits them. Every unwrapped-by-policy case
 writes exactly one `sase: running unwrapped (<reason>)` line at the top of the monitor
 log, so the log explains itself. `monitor.tool_wrap` (`off | verify | all`, default
-`verify`) widens wrapping to every monitor without a code change; see
-[Tool runs](tool.md) for the environment contract and the guarded recipes this pairs
-with.
+`verify`) changes the policy without a code change: `all` widens wrapping to every
+monitor and `off` disables it; see [Tool runs](tool.md) for the environment contract and
+the guarded recipes this pairs with.
 
 ### Checkpoints and outcome policies
 

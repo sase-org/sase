@@ -1308,8 +1308,9 @@ Stitches `stitches_toggle_sdd` actions; see the shared-key allowlist below. The 
 is available only on the Agents tab while the header panel is shown.
 
 Agents-tab [`Enter`](ace.md#enter-act-on-an-agent) is `act_on_agent`, default `enter`:
-it opens the selected row's pending gate, jumps to its Patch, or offers a chooser. The
-older direct Patch jump remains as `jump_to_agent_patch`, default `unbound`. A stale
+it opens the selected row's pending gate or jumps to its Patch, and offers a chooser
+when more than one target applies. The older direct Patch jump remains as
+`jump_to_agent_patch`, default `unbound`. A stale
 `ace.keymaps.modes.leader_mode.keys.jump_to_notification` override (the retired `,n`
 chord) is ignored with a warning pointing at `act_on_agent`.
 
@@ -2462,7 +2463,7 @@ An unrecognized `tool_wrap` value falls back to `verify` at runtime. Wrapping ch
 only the argv the proc supervisor execs, never the recorded monitor command; see
 [Tool-run wrapping](monitors.md#tool-run-wrapping) for the per-command rules.
 
-Source: `src/sase/default_config.yml`, `src/sase/config/_settings.py`,
+Source: `src/sase/default_config.yml`, `src/sase/config/_settings_display.py`,
 `src/sase/config/sase.schema.json`, `src/sase/monitor/result_projection.py`,
 `src/sase/monitor/tool_wrap.py`
 
@@ -3979,7 +3980,7 @@ it, and a plain project-scoped `sase run` prompt currently cannot. The Admin Cen
 A missing or unparsable TTL, or a negative or non-integer threshold, falls back to the
 default shown above rather than failing the command.
 
-Source: `src/sase/default_config.yml`, `src/sase/config/_settings.py`,
+Source: `src/sase/default_config.yml`, `src/sase/config/_settings_runner.py`,
 `src/sase/agents/cli_hold.py`, `src/sase/agent/launch_hold_preview.py`
 
 ### procs
@@ -4084,15 +4085,20 @@ Use `sase service proc show NAME` to see where an effective entry and enablement
 from, plus the current restart decision and any pending request.
 
 Restart policy: `always` restarts after every exit and `on-failure` after a non-clean
-one, each with a backoff that starts at 1 second and doubles up to 60 seconds; repeated
-failures in a short window mark the proc `crash_loop`. When the policy decides not to
-restart — a clean exit under `on-failure`, or any exit or spawn failure under `never` —
-the host parks the proc instead of relaunching it on the next reconcile. It stays down
-until an explicit `start`/`restart` request or a changed entry. Crash-loop and parked
-procs that are still desired running raise a `service` notification. If the
-`service.procs` configuration stops loading, the host keeps supervising the
-last-known-good configuration and surfaces the load error as the host error in
-`sase service status`.
+one, each with a backoff that starts at 1 second and doubles up to 60 seconds. A clean
+exit is exit code `0`, a `success_exit_codes` code, or death by `SIGTERM`, `SIGINT`,
+`SIGHUP`, or `SIGPIPE`; a stop the host itself requested is never restarted. Three
+restart-triggering exits or spawn failures within 60 seconds mark the proc `crash_loop`
+and raise one `service` notification per crash-loop episode; a run of at least 5 minutes
+resets the backoff and ends the episode. When the policy decides not to restart — a
+clean exit under `on-failure`, or any exit or spawn failure under `never` — the host
+parks the proc instead of relaunching it on the next reconcile, and raises a `service`
+notification when the proc is still desired running. A parked proc stays down until an
+explicit `start`/`restart` request, a changed entry, a disable-then-enable cycle, or a
+restart of the service host itself. If the `service.procs` configuration stops loading,
+the host keeps supervising its last-known-good configuration and surfaces the load error
+as the host error in `sase service status`; a host that has never loaded a valid
+configuration launches nothing until it does.
 
 `sase service init --yes` installs an idempotent user unit (`sase.service` under
 `systemd --user` on Linux, `sh.sase.service` as a macOS LaunchAgent), captures only the
@@ -4204,7 +4210,7 @@ managed_tmp:
 | `managed_tmp.pressure.min_entry_bytes`                | int  | `1073741824`  | `0`     | Small entries below this size do not participate in pressure pruning.                                                          |
 | `managed_tmp.agent_cargo_incremental`                 | bool | `false`       |         | Incremental Cargo check/clippy for launched agents. Only hosts with the splitting rustc wrapper (athena) should set this true. |
 
-Source: `src/sase/default_config.yml`, `src/sase/config/_settings.py`,
+Source: `src/sase/default_config.yml`, `src/sase/config/_settings_system.py`,
 `src/sase/core/managed_tmp_reaper.py`
 
 ### markdown

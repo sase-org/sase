@@ -1228,11 +1228,13 @@ When at least one remote machine is enrolled, the Agents tab shows local and rem
 in one list. Remote agent, family, and clan nodes carry a short host-alias chip such as
 `apollo` or `mac`; local rows never carry a `here` chip, including under a by-machine
 group header. A fleet header row appears above the list only when there is something to
-act on: a fleet configuration error, machine diagnostics (`apollo unknown`, or
-`3 machine issues` beyond two machines), or a machine feed error
-(`<alias>: feed <status>: <detail>`, with `(cached 5m ago)` when a cache backs it, or
-`2 machines with feed errors`). Otherwise the row stays hidden. An entirely local setup
-keeps the compact local view and exposes the machine connection route.
+act on. A fleet configuration or follow-store error is shown on its own; otherwise the
+row joins machine diagnostics and machine feed errors with `·`. Diagnostics naming one
+or two machines read `apollo unknown` (or `apollo, mac unknown`); anything else reads as
+a diagnostic count such as `3 machine issues`. One machine feed error reads
+`<alias>: feed <status>: <detail>`, with `(cached 5m ago)` when a cache backs it; two or
+more read `2 machines with feed errors`. Otherwise the row stays hidden. An entirely
+local setup keeps the compact local view and exposes the machine connection route.
 
 Remote rows use the same visible operations where the owner advertises support: machine
 status, retry, bounded remote content, pending question/gate handling, stop, and fork.
@@ -1386,19 +1388,19 @@ What counts as a target depends on the selected row:
 
 With no target, `Enter` toasts `No pending gate or Patch for this agent`. `Enter` works
 from the first frame: if the notification inbox has not been polled yet, sase's TUI
-reads it once off the UI thread and then acts. It searches the complete unread dataset,
-so older pending decisions stay reachable regardless of backlog size. Before a gate
-opens, the target is revalidated; a gate that settled in the meantime toasts
-`Gate <id> is no longer pending`.
+reads it once off the UI thread and then acts. It searches every undismissed
+notification rather than a bounded page, so older pending decisions stay reachable
+regardless of backlog size. Before a gate opens, the target is revalidated; a gate that
+settled in the meantime toasts `Gate <id> is no longer pending`.
 
 The chooser is titled `Act on <agent>` and groups rows under `GATE`/`GATES` and `PATCH`
-headings, each row showing its key, label, and a status badge with age. A guidance line
-(`⏎ again → <primary action> · or press a key`) names the primary. Chooser keys: one
-gate uses `g`; several gates use `1`–`9` in display order with `g` as a hidden alias for
-the first; the Patch uses `p`. `Enter` selects the highlighted row (starting on the
-primary), `j`/`k` or `Up`/`Down` move, `Esc`/`q` cancel, mouse click selects, and other
-printable keys are swallowed. A choice whose target disappeared while the chooser was
-open toasts `That action is no longer available` instead of acting.
+headings, each row showing its key, label, and a status badge (with age for gates). A
+guidance line (`⏎ again → <primary action> · or press a key`) names the primary. Chooser
+keys: one gate uses `g`; several gates use `1`–`9` in display order with `g` as a hidden
+alias for the first; the Patch uses `p`. `Enter` selects the highlighted row (starting
+on the primary), `j`/`k` or `Up`/`Down` move, `Esc`/`q` cancel, mouse click selects, and
+other printable keys are swallowed. A choice whose target disappeared while the chooser
+was open toasts `That action is no longer available` instead of acting.
 
 The retired `,n` leader chord is replaced by `Enter`. The direct Patch jump survives as
 the `jump_to_agent_patch` command, unbound by default; see
@@ -4687,11 +4689,11 @@ exit, so it is counted separately from — and never blocks — sase's TUI own p
 
 ### Current Project Indicator
 
-The uniquely colored `+<project>` chip mounts immediately after the provider-disables
-pill. When those intervening override/disable pills are empty, it sits visually flush
-against the default-model indicator. Clicking it opens the `+` launch picker. See
-[Current project](#current-project) for what the chip means, what it seeds, and how to
-turn each part off.
+The uniquely colored `+<project>` chip is not in the tab bar: it is the project half of
+the launch-context cluster at the right of each tab's status row
+(`model: <launch default> · project: +<name>`). Clicking it opens the `+` launch picker.
+See [Current project](#current-project) for what the chip means, what it seeds, and how
+to turn each part off.
 
 ### Runners Modal
 
@@ -6378,12 +6380,14 @@ token under the cursor:
   `Mailed` status; system-managed `home`, disabled projects, internal sibling backing
   records, and non-launchable projects are excluded. Typing after the trigger filters by
   project name, project alias, or Patch name prefix. Project rows show `+name` in the
-  project's accent color with a `provider · #<workflow>:<name>` detail and a `current`
-  badge, ordered current project first, then most recently launched, then by name; Patch
-  rows keep their `[PR]` badge. Accepting a project row inserts its `+<project>` tag in
-  place (or `#<workflow>:<name>` for names outside tag syntax), and a Patch row inserts
-  `#<workflow>:<patch>`. Either way, every other workspace target in that `---` segment
-  is removed. See [Project Tags](xprompt.md#project-tags).
+  project's accent color with a `provider · #<workflow>:<name>` detail (the current
+  project's row adds a `current` badge), ordered current project first, then most
+  recently launched, then by name; Patch rows keep their `[PR]` badge. Accepting a
+  project row inserts its `+<project>` tag in place (or `#<workflow>:<name>` for names
+  outside tag syntax), and a Patch row inserts `#<workflow>:<patch>`. Either way, the
+  other workspace targets in that `---` segment — line-start VCS tags and `+<project>`
+  tags naming a known project — are removed. See
+  [Project Tags](xprompt.md#project-tags).
 - **VCS ref completion**: When the cursor is inside the root segment of a registered VCS
   workflow ref, such as `#gh:`, `#gh:sa`, or `#git(`, completion lists that provider's
   projects and active PR-sized Patches. Providers can add namespace rows, such as GitHub

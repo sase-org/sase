@@ -116,8 +116,8 @@ test-infrastructure bug; file it rather than treating it as remaining product wo
 Both recipes are [guarded](tool.md#guarded-recipes): in a SASE agent's own shell
 (`SASE_AGENT` set), `just check` and `just check-full` refuse with exit 2 unless they
 run inside `sase tool run check` / `sase tool run check-full` for this checkout, or with
-an explicit `SASE_TOOL_BYPASS='<reason>'`. Humans, CI, finalizers, and monitors run them
-raw as before.
+an explicit `SASE_TOOL_BYPASS='<reason>'` (the guard also fails open when `sase` is not
+on `PATH`). Humans, CI, finalizers, monitors, and procs run them raw as before.
 
 ```bash
 sase tool run check        # how an agent runs `just check`
@@ -953,27 +953,34 @@ it can prove. Update mode salvages per node and per golden:
   accounted for (for example, stranded on a lost worker) are rerun up to two more times
   (`recover-1/`, `recover-2/`), serially once 25 or fewer remain. Only nodes that pass
   are trusted; the rest are skipped and their goldens left untouched.
-- **Agreement voting.** Each created or updated candidate is recaptured by its owning
-  test in up to three verification passes (`verify/`, then serial `verify-2/` and
-  `verify-3/`) and is applied only once two captures agree byte-for-byte. A golden whose
-  captures never agree, or whose recapture comes from a different owner, is skipped.
-- **Concurrent edits.** A golden that changed on disk since the run started is skipped
-  rather than overwritten.
+- **Concurrent edits.** Once capture and node recovery finish, the golden trees are
+  compared with the run-start snapshot; a golden that changed on disk in that window is
+  skipped rather than overwritten. This check runs once, before verification: an edit
+  made during verification or apply is not detected and can be overwritten, so do not
+  edit goldens while a run is in progress.
+- **Agreement voting.** Each remaining created or updated candidate is recaptured by its
+  owning test in up to three verification passes (`verify/`, then serial `verify-2/` and
+  `verify-3/`) and is applied once two of its captures, counting the original, agree
+  byte-for-byte; a candidate whose first recapture matches needs only one pass. A golden
+  whose captures never agree, or whose recapture comes from a different owner, is
+  skipped.
 
 Everything skipped is listed in a WARNING block under status `partial`, and the run
-still exits 0. A selection that matches no visual tests exits 0 with a warning instead
-of an error. `-n N` / `--numprocesses N` after `--` is translated to
+still exits 0. In update mode, a selection that matches no visual tests exits 0 with a
+warning instead of an error; check mode treats it as an execution failure (exit 3).
+`-n N` / `--numprocesses N` (with or without a leading `--`) is translated to
 `SASE_PYTEST_WORKERS=N` for the governed runner rather than reaching pytest (`-n auto`
 and `-n logical` fall back to the governed default); `-n` inside `PYTEST_ADDOPTS` is a
 usage error. Pass `--check` to inventory the same way without writing goldens; check
 mode does no salvage, stays strict, and exits 1 on required drift. Arguments after `--`
 are pytest selectors (paths, node IDs, `-k`). Targeted runs apply only captured changes
 and never prune unvisited files. A requested full run applies creates and updates, but
-stale removal needs complete evidence — every collected node trusted, no capture
-protocol errors, and trusted captures from both roots; otherwise pruning is skipped with
-a warning, the run reports no stale entries, and the status is `partial`. When another
-run in the same checkout holds the maintenance lock, the runner prints a waiting notice
-and waits (bounded, 2 hours) instead of refusing at once; timing out exits 2.
+stale removal needs complete evidence — every collected node trusted (skipped and
+xfailed nodes excepted), no capture protocol errors, and trusted captures from each root
+that has goldens; otherwise pruning is skipped with a warning, the run reports no stale
+entries, and the status is `partial`. When another run in the same checkout holds the
+maintenance lock, the runner prints a waiting notice and waits (bounded, 2 hours)
+instead of refusing at once; timing out exits 2.
 
 ```bash
 just fix-tui-screenshots
@@ -1003,16 +1010,16 @@ command.
 
 Every update run (`clean`, `applied`, or `partial`) and check-mode drift retain a
 reviewable report under a unique run directory in `.pytest_cache/sase-visual/runs/`,
-alongside the logs and candidates of every pass (`capture.log`, `recover-N.log`,
-`verify*.log`). `.pytest_cache/sase-visual/latest-report.json` points at the current run
-only. The manifest records `warnings`, `skipped` (each with a reason such as
-`test_failed`, `unstable`, `owner_mismatch`, or `concurrent_edit`, plus evidence paths),
-`attempts`, and `pruning_skipped_reason`, and the HTML report and `summary.md` end with
-a "Not updated" section listing the same skips. Inspect every creation and removal, then
-each update group (representative plus members), then the "Not updated" list —
-generation is not approval, and a skipped golden is not known to be current. After an
-interrupted apply, the next update invocation may restore the recorded baseline when
-hashes still match; if the journal conflicts with the current goldens, update mode
+alongside the logs and candidates of every pass (`capture.log`, `capture-retry.log`,
+`recover-N.log`, `verify*.log`). `.pytest_cache/sase-visual/latest-report.json` points
+at the current run only. The manifest records `warnings`, `skipped` (each with a reason
+such as `test_failed`, `unstable`, `owner_mismatch`, or `concurrent_edit`, plus evidence
+paths), `attempts`, and `pruning_skipped_reason`, and the HTML report and `summary.md`
+end with a "Not updated" section listing the same skips. Inspect every creation and
+removal, then each update group (representative plus members), then the "Not updated"
+list — generation is not approval, and a skipped golden is not known to be current.
+After an interrupted apply, the next update invocation may restore the recorded baseline
+when hashes still match; if the journal conflicts with the current goldens, update mode
 refuses with exit 2. A check invocation never performs recovery writes and fails with
 exit 3 while an unfinished journal exists.
 
@@ -1020,7 +1027,8 @@ exit 3 while an unfinished journal exists.
 between drift (1), usage/environment refusal (2: bad arguments, a pytest usage error,
 CI/platform/renderer refusal, an update-mode journal conflict, or a lock-wait timeout),
 and execution/application failure (3: no usable inventory after the capture retry, an
-apply failure after rollback, or an interrupt) should read the run manifest or invoke
+apply failure after rollback, an interrupt, or, in check mode, a failed, empty, or
+incomplete capture or an unfinished journal) should read the run manifest or invoke
 `tools/fix_tui_screenshots` directly (`--help` prints the same contract).
 
 Committed goldens are canonical to the pinned renderer. Rasterization goes through resvg

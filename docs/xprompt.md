@@ -584,9 +584,11 @@ of its `PROJECT_ALIASES`. An exact match wins first, then a case-insensitive one
 `+SASE` works too. The catalog covers enabled and disabled projects plus the
 system-managed `home` project (`+home` expands to `#git:home`); sibling records are
 excluded. A project whose `PROJECT_NAME` does not fit the tag syntax, such as one that
-starts with a digit, has no `+` spelling. Keep using its `#<workflow>:<name>` reference.
-See [Project Names and Aliases](project_spec.md#project-names-and-aliases) for how names
-and aliases are kept unique.
+starts with a digit, gets no `+<name>` spelling in completion or display. A typed tag
+can still reach it through a tag-shaped alias or directory key, or you can keep using
+its `#<workflow>:<name>` reference. See
+[Project Names and Aliases](project_spec.md#project-names-and-aliases) for how names and
+aliases are kept unique.
 
 **Launch validation.** Tags are checked before anything is spawned, and a failing prompt
 aborts the whole launch:
@@ -597,7 +599,7 @@ aborts the whole launch:
 | Resolves to a disabled project                      | Error: `` `+beta` is disabled — `sase project enable beta` ``. Unlike a typed `#` ref, a tag does not re-enable a project. |
 | Resolves to a project with no detected VCS provider | Error naming the unclaimed workspace.                                                                                      |
 | Matches more than one project                       | Error listing the candidates; run `sase doctor` to find the collision.                                                     |
-| Unknown, and _anchored_ (first word on its line)    | Error such as `Unknown project tag +ssae (line 1). Did you mean +sase? Known: +bob-cli +home +sase`.                       |
+| Unknown, and _anchored_ (first word on its line)    | Error such as `Unknown project tag +ssae (line 1). Did you mean +sase, +home, or +bob-cli? Known: +bob-cli +home +sase`.   |
 | Unknown, anywhere else                              | Left alone as plain text, so `run chmod +x build.sh` still launches.                                                       |
 
 A tag is anchored when it is the first word on its line, ignoring leading whitespace and
@@ -614,29 +616,33 @@ resolvable tag is treated as already having a workspace reference, so the defaul
 
 Tags resolve against the launching machine's projects. `sase run`, sase's TUI, and
 agent-requested launches (whose LaunchApproval preview reports tag errors) all validate
-and expand tags the same way. A prompt forwarded through
+and expand tags the same way. `sase bead work` is the exception: it writes `+<project>`
+prefixes itself and expands them without this validation, so, like a typed `#` ref, it
+re-enables a disabled project. A prompt forwarded through
 [remote dispatch](#remote-dispatch) is sent verbatim and resolves on the remote host. A
 launch rejected by tag validation is kept in prompt history as a cancelled prompt, so
-you can recover and fix it. In sase's TUI, the error usually appears as a toast before
-the prompt editor closes, so the prompt stays in place for editing.
+you can recover and fix it. When sase's TUI already has its project catalog cached, it
+checks tags before the prompt editor closes: the error appears as a toast and the prompt
+stays in place for editing.
 
 **Completion.** sase's TUI and the xprompt LSP share one `+` project/Patch completion
 helper. Typing `+query` wherever a tag may start opens a picker of enabled launchable
 projects and active PR-sized Patches in `WIP`, `Draft`, `Ready`, or `Mailed` status. A
 tag may start at the beginning of the prompt or after whitespace (including a newline or
 tab), `{`, or `|`, while `a+b`, `c++`, and `#+query` are not triggers. Project rows show
-`+name` in the project's accent color, with the provider and canonical
-`#<workflow>:<name>` reference as detail. sase's TUI also marks the current project.
-Rows are ordered current project first, then most recently launched, then by name, with
-Patch rows last. Accepting a project row replaces the `+query` token in place with the
-project's tag (for example `+sase `), or with `#<workflow>:<name> ` when the name does
-not fit tag syntax. Accepting a Patch row inserts a reference such as `#gh:my_change `.
-Either way, every other workspace target (tag or `#` ref) in the same `---` segment is
-removed, so the segment ends up with exactly one target. The helper filters by
-`PROJECT_NAME`, directory-key project name, project alias, or Patch name prefix. It
-omits the system-managed `home` project, disabled projects, sibling records, and
-non-launchable projects, even though `+home` and disabled-project tags still resolve
-when typed.
+`+name` in the project's accent color, with the provider and the `#<workflow>:<name>`
+reference as detail. sase's TUI also marks the current project. Rows are ordered current
+project first, then most recently launched, then by name, with Patch rows last.
+Accepting a project row replaces the `+query` token in place with the project's tag (for
+example `+sase `), or with `#<workflow>:<name> ` when the name does not fit tag syntax.
+Accepting a Patch row inserts a reference such as `#gh:my_change `. Either way, the
+other project tags in the same `---` segment are removed, along with any `#` workspace
+ref that starts a line there (after optional `%directive` tokens). A `#` ref in the
+middle of a line is left alone, and launch then rejects the segment for having two
+targets. The helper filters by `PROJECT_NAME`, directory-key project name, project
+alias, or Patch name prefix. It omits the system-managed `home` project, disabled
+projects, sibling records, non-launchable projects, and projects with no detected VCS
+provider, even though `+home` and disabled-project tags still resolve when typed.
 
 The xprompt LSP also checks tags as you type. Hovering a tag shows its project. An
 anchored unknown tag gets a warning with `Use +<suggestion>` quick fixes, an ambiguous
@@ -650,13 +656,16 @@ prompt panes, `ctrl+p`/`ctrl+n` VCS MRU cycling, and artifact-reference prompts.
 targets keep their `#<workflow>:<patch>` form. Agent panels and the prompt editor also
 show known-project refs such as `#gh:gh_sase-org__sase` as `+sase`. That display form is
 used only where the rewritten text would scan as a tag again, so copied, relaunched, and
-forked prompts expand the same way. Patch refs, `owner/repo` refs, `@agent` refs,
-parenthesized forms, and refs with `!!`/`??` suffixes keep their `#` spelling. Tags
-render as chips: a dim `+` and a bold name in the project's accent color, the same color
-as the top-bar current-project chip. Disabled projects and `home` render neutral, and an
-anchored unknown tag is underlined in the warning color. These surfaces read a cached
-project catalog that sase's TUI warms in the background. Until it is warm, they briefly
-fall back to the `#` spelling, and launch still validates tags.
+forked prompts expand the same way. Disabled projects get the tag spelling too, so
+relaunching such a prompt is rejected until you run `sase project enable`, where the
+original `#` ref would have re-enabled the project. Patch refs, `owner/repo` refs,
+`@agent` refs, parenthesized forms, and refs with `!!`/`??` suffixes keep their `#`
+spelling. Tags render as chips: a dim `+` and a bold name in the project's accent color,
+the same color as the `project:` chip in each tab's launch-context cluster. Disabled
+projects and `home` render neutral, and an anchored unknown tag is underlined in the
+warning color. These surfaces read a cached project catalog that sase's TUI warms in the
+background. Until it is warm, they briefly fall back to the `#` spelling, and launch
+still validates tags.
 
 ### Artifact References
 

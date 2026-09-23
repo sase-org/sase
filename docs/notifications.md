@@ -28,11 +28,12 @@ the same revision refreshes the row's content but keeps your read or dismissed c
 along with existing mute and snooze choices. A new revision creates a fresh unread row
 that needs renewed review, and sase's TUI dismisses the superseded revision. When a
 fresh, complete host inventory no longer contains a request, sase's TUI dismisses the
-stale row. Only rows sase's TUI dismissed itself come back if that same revision is
-reported pending again. A failed, unavailable, cached, or paged (more results pending)
-host inventory does not settle missing requests, so a transient outage cannot silently
-remove a pending decision. If the owning alias is later removed or quarantined,
-submission stops with a diagnostic instead of routing the answer elsewhere.
+stale row. Only rows sase's TUI dismissed itself come back, unread, if that same
+revision is reported pending again. A failed, unavailable, cached, stale, partial, or
+paged (more results pending) host inventory does not settle missing requests, so a
+transient outage cannot silently remove a pending decision. If the owning alias is later
+removed or quarantined, submission stops with a diagnostic instead of routing the answer
+elsewhere.
 
 ## Viewing Notifications
 

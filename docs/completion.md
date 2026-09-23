@@ -200,10 +200,11 @@ completes prompt directive names, `@` completes canonical artifact references su
 `file:explicit:...`, and `+` completes [project tags](xprompt.md#project-tags) such as
 `+sase`; the inserted value keeps the marker and only replaces the active embedded
 fragment. Project-tag candidates (`sase completion candidates project_tag`) are the
-enabled, launchable, non-system projects whose `PROJECT_NAME` fits the tag syntax,
-sorted case-insensitively. They skip provider detection to stay on the fast path, so a
-tag for a project without a detected VCS provider is still offered and fails at launch
-with the usual error.
+enabled, launchable projects whose `PROJECT_NAME` fits the tag syntax, sorted
+case-insensitively; sibling records and the system-managed `home` project are left out,
+and, unlike the TUI and LSP `+` picker, Patches are not offered. They skip provider
+detection to stay on the fast path, so a tag for a project without a detected VCS
+provider is still offered and fails at launch with the usual error.
 
 ### Environment Variables
 

@@ -207,10 +207,16 @@ sase prompt edit ph_8f3a9c0d12ab -P "#gh:bob-cli"    # adjust details after re-p
 sase prompt run ph_8f3a9c0d12ab -P "+bob-cli"        # a project tag works as the prefix
 ```
 
-Launched prompts are stored with any [project tags](xprompt.md#project-tags) already
-expanded to their `#<workflow>:<project>` form, so `--prefix` finds and replaces them.
-Cancelled or failed prompts keep the `+<project>` tags you typed, and `--prefix` does
-not replace those. Use `-e` to remove the old tag by hand.
+`--prefix` replaces `#` workspace refs that start a line (after optional `%directive`
+tokens). When it finds none, it prepends the new prefix instead. Launched prompts are
+stored with any [project tags](xprompt.md#project-tags) already expanded to their
+`#<workflow>:<directory-key>` form, so `--prefix` finds and replaces them. A cancelled
+prompt, or one rejected by tag validation, keeps the `+<project>` tags you typed.
+`--prefix` does not replace those tags; it prepends the new prefix, so the replay fails
+with `Only one workspace target is allowed per launch unit`. For those prompts, run
+`sase prompt edit <id>` without `-P` and change the tag by hand. The prompt-history
+picker in sase's TUI expands tags before it swaps the prefix, so it does not have this
+limitation.
 
 This is the shared, drift-free implementation behind the `sase run "#vcs:ref ."`
 compatibility path.

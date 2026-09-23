@@ -247,7 +247,7 @@ into status subgroups.
 - Remote rows show the owning machine's authored capacity and weight as `cN` / `wN`
   badges and `Capacity:` / `Weight:` detail lines, including `c0` for a persisted legacy
   zero-capacity record. Their load is never added to the `load:` gauge in sase's TUI
-  Agents header, which counts only the controller's own runners.
+  Agents status row, which counts only the controller's own runners.
 - Remote stop, retry, fork, bounded content, machine status, launch-outcome checks, and
   pending question/gate actions appear only when the selected row advertises the
   matching capability.

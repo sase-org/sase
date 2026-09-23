@@ -238,9 +238,9 @@ set) and a proc table with `Restarts` and `Last exit` columns; the proc `State` 
 is colored by the same severity vocabulary as the Services tab (`crash_loop` and
 `backoff` fail, `exited` fails while desired running (a clean give-up only warns),
 `unavailable` warns, `disabled` and operator-stopped are muted). Below the table it
-repeats the service-init readiness warnings: provider CLIs missing from the captured
-`PATH`, a refused or login-session-only GitHub credential, and service procs whose
-executable cannot be found.
+repeats the blockers and warnings `sase service init` would report, such as provider
+CLIs missing from the captured `PATH`, a refused or login-session-only GitHub
+credential, and service procs whose executable cannot be found.
 
 When `service.procs` stops loading (for example a YAML error in a machine overlay), the
 host keeps supervising its last-known-good configuration and reports the load error as
@@ -249,9 +249,10 @@ the new configuration is unreadable. A proc the restart policy gives up on — a
 exit under `restart: on-failure`, or any exit or spawn failure under `restart: never` —
 is parked: the host stops relaunching it and it stays `exited` with its last exit until
 `sase service proc start NAME` or `restart NAME` revives it, or its configuration
-changes. A desired-running proc that enters a crash loop or is parked raises a `service`
-[notification](notifications.md) naming the reason, restart count, log path, and the
-reviving `sase service proc start NAME` command.
+changes. A proc that enters a crash loop, or a desired-running proc that is parked,
+raises a `service` [notification](notifications.md) naming the reason, restart count,
+and log path; a parked proc's notification also names the reviving
+`sase service proc start NAME` command.
 
 `sase service proc list` carries the same `Restarts` and `Last exit` columns and
 additionally exposes effective configuration, machine enablement, desired state, runtime
@@ -259,7 +260,7 @@ state, source, launcher, and log path. `show NAME` reports uptime, the restart c
 the last exit and when, the current restart decision reason, stop provenance, the
 description, and any pending start/restart request. `start NAME` and `restart NAME`
 record a durable request that the host consumes, then wait for the host to confirm it: a
-restart prints `service proc scheduler restarted: pid OLD -> pid NEW`, a start prints
+restart prints `service proc NAME restarted: pid OLD -> pid NEW`, a start prints
 `service proc NAME started: pid N` (or `already running: pid N`), and either exits
 non-zero when the host cannot confirm, the proc is disabled or unavailable, or the host
 is not running. A start or restart request also clears this boot's stop marker.

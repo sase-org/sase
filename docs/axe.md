@@ -540,15 +540,17 @@ with fresh descendants are not early pressure candidates. The job summary report
 split into `ordinary_*`, `launch_*`, and `pressure_*` passes, `pressure_trigger`,
 `pressure_available_bytes`, `pressure_recovery_available_bytes`,
 `pressure_min_age_seconds`, `deindexed`, `skipped`, `failed`, `incomplete_observations`,
-and `capped=1` when it hit that budget. Every run logs the root it scanned, and it warns
-when the default `$SASE_HOME/tmp` root differs from that root yet still holds entries:
-some writer (usually agents launched with a different `SASE_TMPDIR` than the service
-host captured) is filling a root the reaper never scans. Align `SASE_TMPDIR` and refresh
-the capture with `sase service init --yes`. Reaped directories are dropped from the
-agent artifact index too, since a workflow launched without an explicit `artifacts_dir`
-gets one under `workflow-artifacts/`. It lives on `housekeeping` rather than an
-interactive path because the first pass over a neglected root walks tens of thousands of
-entries.
+and `capped=1` when it hit that budget. Every run logs the root it scanned. When that
+root is a captured `SASE_TMPDIR` rather than the default `$SASE_HOME/tmp`, and the
+default root still holds entries, the job also logs a warning: some writer, usually an
+agent launched without that `SASE_TMPDIR`, is filling a root the reaper never scans. The
+reverse mismatch (agents writing to a `SASE_TMPDIR` the service host never captured) is
+not detected here, because the reaper then scans only the default root. Either way,
+align `SASE_TMPDIR` and refresh the capture with `sase service init --yes`. Reaped
+directories are dropped from the agent artifact index too, since a workflow launched
+without an explicit `artifacts_dir` gets one under `workflow-artifacts/`. It lives on
+`housekeeping` rather than an interactive path because the first pass over a neglected
+root walks tens of thousands of entries.
 
 The `proc_runtime_sweep` job bounds `~/.sase/procs/runtime`. Both halves of proc runtime
 retention run in the Rust proc runtime-retention owner. Proc-row retention deletes
@@ -1501,12 +1503,15 @@ marker after its PID has been recycled.
 ## Supervision and Recovery
 
 The sase service host is the scheduler's only supervisor. It reconciles roughly every
-second and restarts a crashed scheduler itself under its `Restart=on-failure` policy,
-with exponential backoff; repeated failures mark the proc `crash_loop` and raise one
-`service` notification per crash-loop episode. A clean scheduler exit is not restarted:
-the host parks the proc, raises a `service` notification, and leaves it down until
-`sase scheduler start` (or `restart`) revives it. If the service configuration stops
-loading, the host keeps supervising the scheduler under its last-known-good
+second and restarts a crashed scheduler itself under the entry's `restart: on-failure`
+policy (a `service.procs` setting, not a systemd `Restart=` line), with a backoff that
+starts at 1 second and doubles up to 60 seconds; three failures within 60 seconds mark
+the proc `crash_loop` and raise one `service` notification per crash-loop episode. A
+clean scheduler exit (exit code `0`, or death by `SIGTERM`, `SIGINT`, `SIGHUP`, or
+`SIGPIPE` that the host did not request) is not restarted: the host parks the proc,
+raises a `service` notification, and leaves it down until `sase scheduler start` (or
+`restart`) revives it or the service host itself restarts. If the service configuration
+stops loading, the host keeps supervising the scheduler under its last-known-good
 configuration and reports the error in `sase service status`. There is no second healer:
 no watchdog command, no timer, and no opportunistic healing on agent waits. Use
 `sase axe routine status` or deep doctor mode to inspect individual routines.
@@ -1590,7 +1595,7 @@ routine/job tree.
 3. Each routine runs its jobs on its configured interval, unless maintenance mode is
    active.
 4. The orchestrator monitors children and restarts any that exit unexpectedly. If the
-   orchestrator itself crashes, the host restarts it under `Restart=on-failure`.
+   orchestrator itself crashes, the host restarts it under `restart: on-failure`.
 5. `sase scheduler stop` stops the service proc: SIGTERM to the orchestrator, which
    forwards it to all children. If the orchestrator does not exit within the stop
    timeout, the stopper escalates to SIGKILL and cleans up stale or owned PID files

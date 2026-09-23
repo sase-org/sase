@@ -351,6 +351,7 @@ Further pulls are suppressed for the machine-recovery cooldown instead of retryi
 same rebase on every command; the cooldown is at least five minutes and grows to match a
 larger configured bead-refresh TTL. A successful integration clears the marker. Remote
 outages and an unavailable cooperative lock do not create this failure cooldown, and a
-clone that still holds unpublished bead commits is never parked by it. The bead store
-inside a clone is found from its actual layout (the clone root for a split `--beads`
-sidecar, `beads/` inside a combined `--plans` clone).
+clone that still holds unpublished bead commits is never parked by it. Both that
+unpublished-commit check and the pull's integration find the bead store inside a clone
+from its actual layout (the clone root for a split `--beads` sidecar, `beads/` inside a
+combined `--plans` clone).
