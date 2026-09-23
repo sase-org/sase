@@ -4555,7 +4555,7 @@
     },
     "xprompt_aliases": {
       "type": "object",
-      "description": "Aliases for xprompt references, substituted before any other xprompt processing (e.g., {\"#gh_sase\": \"#gh:sase\"})",
+      "description": "Aliases for xprompt references, substituted before any other xprompt processing (e.g., {\"#deploy_notes\": \"#release-notes\"})",
       "additionalProperties": {
         "type": "string"
       }

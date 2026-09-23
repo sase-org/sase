@@ -163,15 +163,14 @@ is `DONE` or `FAILED`. `-a` still includes running agents; you are waiting for t
 status to change, not for the row to appear. The second instruction registers a durable
 snapshot while leaving the tracked `notes.md` in the workspace.
 
-For your own repositories, use `#git:<name>` to target a managed project or
-`#git:<bare-repo-path>` to register an existing bare repository. Provider plugins add
-other workspace references, such as `#gh:<owner>/<repo>` for GitHub. Once a project is
-registered, its short [project tag](xprompt.md#project-tags) works too:
-`sase run "+home list the files in this repo"` is the same launch as
-`sase run "#git:home list the files in this repo"`, and a GitHub project named `sase`
-can be targeted as `+sase` without remembering its provider. In sase's TUI prompt
-editor, type `+` to pick a project from a menu. The [workspace guide](workspace.md) has
-the full model.
+For your own repositories, target an existing managed project with its short
+[project tag](xprompt.md#project-tags): `sase run "+home list the files in this repo"`
+is the same launch as `sase run "#git:home list the files in this repo"`, and a GitHub
+project named `sase` can be targeted as `+sase` without remembering its provider. Use
+`#git:<name>` to create a managed project, or `#git:<bare-repo-path>` to register an
+existing bare repository. Provider plugins add other workspace references, such as
+`#gh:<owner>/<repo>` for GitHub. In sase's TUI prompt editor, type `+` to pick a project
+from a menu. The [workspace guide](workspace.md) has the full model.
 
 **What you just did.** Moved from a read-only run to a small editable task after
 confirming where SASE records agent state.

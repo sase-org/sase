@@ -3728,7 +3728,7 @@ work correctly.
 xprompt_aliases:
   c: commit # #c → #commit
   p: propose # #p → #propose
-  gh_sase: "gh:sase" # #gh_sase → #gh:sase
+  deploy_notes: "release-notes" # #deploy_notes → #release-notes
   gh_foo: "gh:foo/bar" # #gh_foo → #gh:foo/bar
 ```
 

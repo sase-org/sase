@@ -415,7 +415,7 @@ Examples:
 
 ```bash
 sase run '#!sync'
-sase run '#gh:sase #!sync'
+sase run '+sase #!sync'
 ```
 
 During the compatibility window, top-level legacy invocations such as `sase run '#sync'`
@@ -3217,7 +3217,7 @@ Additional aliases can be added in user config files:
 
 ```yaml
 xprompt_aliases:
-  gh_sase: "gh:sase" # #gh_sase → #gh:sase
+  deploy_notes: "release-notes" # #deploy_notes → #release-notes
   gh_foo: "gh:foo/bar" # #gh_foo  → #gh:foo/bar
 ```
 

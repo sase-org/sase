@@ -19,8 +19,10 @@ def _add_prefix_option(parser: argparse.ArgumentParser) -> None:
         default=None,
         metavar="VCS_PREFIX",
         help=(
-            "Replace embedded VCS workflow tags with VCS_PREFIX before replay,"
-            " e.g. reuse a '+sase' prompt under '+bob-cli'"
+            "Replace embedded '#' VCS workflow tags with VCS_PREFIX before replay,"
+            " e.g. reuse a '#gh:sase' prompt under '#gh:bob-cli'."
+            " Unexpanded '+<project>' tags are left alone (the prefix is prepended),"
+            " so retag those prompts by hand instead"
         ),
     )
 

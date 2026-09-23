@@ -73,8 +73,8 @@ The xprompt language server is focused on prompt and xprompt editing:
 | File completion       | Completes path-like tokens and recent file-history entries; `@`-prefixed local paths appear automatically when no artifact kind prefix-matches, or on manual invocation.                                                                                                                                                                                                                                                                                                                                                                               |
 | Snippets              | Offers SASE snippets after bare trigger words when the client advertises LSP snippet support.                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | Hover                 | Shows xprompt metadata, descriptions, previews, source display paths, tags, and active input hints. Memory entries also show kind `memory` and the current UI's `tier` label (`core`/`reference`), which is the note's memory type.                                                                                                                                                                                                                                                                                                                    |
-| Diagnostics           | Reports xprompt/directive issues, xprompt call arguments that are unknown (`unknown_xprompt_arg`), repeated (`duplicate_xprompt_arg`), or the wrong type for the declared input (`invalid_xprompt_arg_type`), plus malformed or unresolved filesystem-backed artifact references outside prompt literal zones.                                                                                                                                                                                                                                         |
-| Semantic highlighting | Highlights xprompt reference names, directive names, and their argument lists, plus the kind, payload, and supported fragment of known artifact references and glossary phrases, outside prompt literal zones using standard LSP semantic tokens. See [Semantic token legend](#semantic-token-legend).                                                                                                                                                                                                                                                 |
+| Diagnostics           | Reports xprompt/directive issues, xprompt call arguments that are unknown (`unknown_xprompt_arg`), repeated (`duplicate_xprompt_arg`), or the wrong type for the declared input (`invalid_xprompt_arg_type`), malformed or unresolved filesystem-backed artifact references outside prompt literal zones, and project-tag issues: a disabled `+<project>` tag warns with `` `+<name>` is disabled — `sase project enable <name>` `` (`disabled_project_tag`), as do unknown, ambiguous, and provider-less tags under their own codes.                  |
+| Semantic highlighting | Highlights xprompt reference names, directive names, and their argument lists, plus the kind, payload, and supported fragment of known artifact references, glossary phrases, and `+<project>` project tags, outside prompt literal zones using LSP semantic tokens. See [Semantic token legend](#semantic-token-legend).                                                                                                                                                                                                                              |
 | Definition            | Jumps from xprompt and slash-skill references to real source files when the catalog provides a resolvable path, including the backing note for `#memory/<stem>`.                                                                                                                                                                                                                                                                                                                                                                                       |
 
 When a client enables LSP on-type formatting for `(`, the server shares the prompt
@@ -235,22 +235,33 @@ commit body when one is available.
 
 ### Semantic token legend
 
-Every semantic token uses a standard LSP token type, so editors style them with their
-normal semantic-token theme:
+Most semantic tokens use a standard LSP token type, so editors style them with their
+normal semantic-token theme. The exception is project tags, which use the custom
+`saseProjectTag` token type that the server declares in its legend:
 
-| Prompt element                                  | Token type  | Modifiers                                            |
-| ----------------------------------------------- | ----------- | ---------------------------------------------------- |
-| XPrompt reference name (`#name`)                | `function`  | —                                                    |
-| Directive name (`%queue`, `%if`, ...)           | `macro`     | —                                                    |
-| Argument delimiters and `=`                     | `operator`  | —                                                    |
-| Argument key (`count=`)                         | `parameter` | —                                                    |
-| String argument value, including `[[...]]` text | `string`    | —                                                    |
-| Numeric argument value                          | `number`    | —                                                    |
-| Boolean argument value                          | `keyword`   | —                                                    |
-| Artifact-reference kind                         | `namespace` | `documentation` for dynamic document-role references |
-| Artifact-reference payload                      | `string`    | `documentation` for dynamic document-role references |
-| Artifact-reference fragment                     | `number`    | `documentation` for dynamic document-role references |
-| Glossary phrase                                 | `type`      | —                                                    |
+| Prompt element                                  | Token type       | Modifiers                                            |
+| ----------------------------------------------- | ---------------- | ---------------------------------------------------- |
+| XPrompt reference name (`#name`)                | `function`       | —                                                    |
+| Directive name (`%queue`, `%if`, ...)           | `macro`          | —                                                    |
+| Argument delimiters and `=`                     | `operator`       | —                                                    |
+| Argument key (`count=`)                         | `parameter`      | —                                                    |
+| String argument value, including `[[...]]` text | `string`         | —                                                    |
+| Numeric argument value                          | `number`         | —                                                    |
+| Boolean argument value                          | `keyword`        | —                                                    |
+| Artifact-reference kind                         | `namespace`      | `documentation` for dynamic document-role references |
+| Artifact-reference payload                      | `string`         | `documentation` for dynamic document-role references |
+| Artifact-reference fragment                     | `number`         | `documentation` for dynamic document-role references |
+| Glossary phrase                                 | `type`           | —                                                    |
+| Project-tag sigil (`+`)                         | `saseProjectTag` | `sigil` plus the name's modifier below               |
+| Project-tag name (`+<project>`)                 | `saseProjectTag` | `accent0`–`accent17`, `unknown`, or `disabled`       |
+
+A resolved tag name carries the `accentN` modifier for its project, matching the accent
+sase's TUI uses. An unknown or ambiguous tag name carries `unknown` instead, and a
+disabled tag — or a resolved tag whose project has no detected provider — carries
+`disabled` alongside a warning diagnostic (see [LSP Features](#lsp-features)). The
+server also advertises the catalog's accent palette at
+`experimental.sase.projectTagPalette` in its initialize result, so clients can paint
+`accentN`-modified tags with the same colors as sase's TUI.
 
 Argument spans come from the same `sase-core` argument parser that colors arguments in
 sase's TUI prompt input, so both surfaces agree on roles. Argument tokens that belong to
