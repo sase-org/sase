@@ -9,9 +9,9 @@ import pytest
 from sase.bead.model import PhaseSize
 from sase.bead.work import (
     EpicWorkPlan,
-    _PhaseAssignment as PhaseAssignment,
     render_multi_prompt,
 )
+from sase.bead.work_plan import _PhaseAssignment as PhaseAssignment
 from sase.bead.work_queue_capacity import (
     EpicQueueCapacityConflictError,
     _RaisedQueueCapacity,

@@ -9,8 +9,6 @@ import pytest
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.bead.model import PhaseSize, Status
 from sase.bead.work import (
-    _CrossEpicBlockerError,
-    _CycleError,
     EPIC_CLAN_SUMMARY_SCRIPT,
     EpicPlanError,
     SASE_BEAD_ID_ENV,
@@ -19,10 +17,14 @@ from sase.bead.work import (
     SASE_EPIC_CLAN_TRIBE_ENV,
     SASE_EPIC_PLAN_REF_ENV,
     SASE_PHASE_BEAD_ID_ENV,
-    _build_epic_work_plan,
     epic_work_segment_env,
-    _plan_from_payload,
     render_multi_prompt,
+)
+from sase.bead.work_plan import (
+    _CrossEpicBlockerError,
+    _CycleError,
+    _build_epic_work_plan,
+    _plan_from_payload,
 )
 from sase.xprompt.directives import extract_prompt_directives
 from sase.xprompt.workflow_models import Workflow

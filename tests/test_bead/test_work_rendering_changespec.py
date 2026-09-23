@@ -6,9 +6,9 @@ import sqlite3
 
 from sase.bead.work import (
     PatchLaunchContext,
-    _build_epic_work_plan,
     render_multi_prompt,
 )
+from sase.bead.work_plan import _build_epic_work_plan
 from sase.xprompt.workflow_models import Workflow
 
 from .work_test_helpers import (

@@ -10,7 +10,6 @@ from sase.bead.work import (
     PatchLaunchContext,
     EPIC_CLAN_SUMMARY_SCRIPT,
     EpicWorkPlan,
-    _PhaseAssignment as PhaseAssignment,
     SASE_BEAD_ID_ENV,
     SASE_EPIC_BEAD_ID_ENV,
     SASE_EPIC_CLAN_SUMMARY_SCRIPT_ENV,
@@ -19,9 +18,12 @@ from sase.bead.work import (
     SASE_EPIC_PLAN_SNAPSHOT_ENV,
     SASE_PHASE_BEAD_ID_ENV,
     VCSLaunchContext,
-    _build_epic_work_plan,
     epic_work_segment_env,
     render_multi_prompt,
+)
+from sase.bead.work_plan import (
+    _PhaseAssignment as PhaseAssignment,
+    _build_epic_work_plan,
 )
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.xprompt.directive_edit import PromptWaitDirective

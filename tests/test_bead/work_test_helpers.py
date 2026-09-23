@@ -6,7 +6,7 @@ import sqlite3
 
 from sase.bead import db
 from sase.bead.model import Issue, IssueType, PhaseSize, Status
-from sase.bead.work import EpicWorkPlan, _PhaseAssignment as PhaseAssignment
+from sase.bead.work_plan import EpicWorkPlan, _PhaseAssignment as PhaseAssignment
 from sase.xprompt.directives import extract_prompt_directives
 
 NOW = "2026-04-25T00:00:00Z"

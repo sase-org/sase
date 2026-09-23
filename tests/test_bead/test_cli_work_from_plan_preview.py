@@ -31,7 +31,7 @@ def test_plan_file_dry_run_is_pure_and_previews_waves(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.setattr(
-        "sase.bead.work.get_big_epic_phase_threshold",
+        "sase.bead.work_prompt.get_big_epic_phase_threshold",
         lambda: 5,
     )
     source = project_dir / "rollout.md"
@@ -153,7 +153,7 @@ def test_plan_file_preview_matches_threshold_aware_land_model(
     expected_model: str,
 ) -> None:
     monkeypatch.setattr(
-        "sase.bead.work.get_big_epic_phase_threshold",
+        "sase.bead.work_prompt.get_big_epic_phase_threshold",
         lambda: threshold,
     )
     source = project_dir / "threshold.md"

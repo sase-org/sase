@@ -11,9 +11,9 @@ from sase.axe import run_agent_wait_markers, run_agent_wait_slots
 from sase.bead.epic_launch import build_epic_launch_argv
 from sase.bead.work import (
     EpicWorkPlan,
-    _PhaseAssignment as PhaseAssignment,
     render_multi_prompt,
 )
+from sase.bead.work_plan import _PhaseAssignment as PhaseAssignment
 from sase.notification_gates.executor import execute_gate_selection
 from sase.notification_gates.service import create_gate
 from sase.plan_gate import build_plan_approval_gate_spec, translate_plan_gate_response

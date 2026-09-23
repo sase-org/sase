@@ -7,7 +7,8 @@ import sqlite3
 import pytest
 
 from sase.bead.model import PhaseSize, Status
-from sase.bead.work import _build_epic_work_plan, render_multi_prompt
+from sase.bead.work import render_multi_prompt
+from sase.bead.work_plan import _build_epic_work_plan
 from sase.llm_provider.config import resolve_model_alias_with_effort
 from sase.llm_provider.model_alias_policy import (
     LARGE_MODEL_ALIAS_NAME,
@@ -128,7 +129,7 @@ class TestModelDirective:
         expected_alias: str,
     ) -> None:
         monkeypatch.setattr(
-            "sase.bead.work.get_big_epic_phase_threshold",
+            "sase.bead.work_prompt.get_big_epic_phase_threshold",
             lambda: threshold,
         )
         seed(
@@ -152,7 +153,7 @@ class TestModelDirective:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(
-            "sase.bead.work.get_big_epic_phase_threshold",
+            "sase.bead.work_prompt.get_big_epic_phase_threshold",
             lambda: 5,
         )
         seed(
@@ -184,7 +185,7 @@ class TestModelDirective:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(
-            "sase.bead.work.get_big_epic_phase_threshold",
+            "sase.bead.work_prompt.get_big_epic_phase_threshold",
             lambda: 5,
         )
         seed(
@@ -209,7 +210,7 @@ class TestModelDirective:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.setattr(
-            "sase.bead.work.get_big_epic_phase_threshold",
+            "sase.bead.work_prompt.get_big_epic_phase_threshold",
             lambda: 2,
         )
         config = {
