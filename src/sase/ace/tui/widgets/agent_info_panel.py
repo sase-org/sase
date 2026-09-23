@@ -393,6 +393,13 @@ class AgentInfoPanel(Static):
         """Append the dim dot separating top-level row elements."""
         text.append(_ELEMENT_SEPARATOR, style="dim")
 
+    def _append_edit_query_hint(self, text: Text) -> None:
+        """Append the key hint that edits the filter query."""
+        edit_key = self._registry.app.edit_query
+        if is_unbound_key(edit_key):
+            return
+        text.append(f" ({key_display_name(edit_key)})", style="dim")
+
     def _append_status_strip(self, text: Text) -> None:
         """Append the consolidated visible status strip."""
         text.append(" [", style="dim")
@@ -446,14 +453,16 @@ class AgentInfoPanel(Static):
                 text.append(" seeded", style="dim")
             if self._search_query_match_count is not None:
                 matched, loaded = self._search_query_match_count
-                text.append(f"  {matched}/{loaded}", style="dim")
+                text.append(f" [{matched}/{loaded}]", style="dim")
             self._search_query_click_span = (click_start, text.cell_len)
+            self._append_edit_query_hint(text)
         elif self._search_query:
             self._append_separator(text)
             text.append("filter: ", style="dim italic")
             text.append(self._search_query, style="bold #FFD700")
             if self._search_query_seeded:
                 text.append(" seeded", style="dim")
+            self._append_edit_query_hint(text)
         if self._search_query and self._search_query_partial_history:
             text.append(
                 "  filtered on recent history; loading full history...",

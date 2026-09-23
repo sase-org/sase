@@ -7,10 +7,13 @@ from unittest.mock import patch
 
 from rich.text import Text
 
+from sase.ace.tui.keymaps import load_keymap_registry
+
 from ._agent_info_panel_helpers import (
     AgentInfoPanel,
     collect_rich_text,
     collect_text,
+    style_at_plain_index,
     style_for_plain_segment,
 )
 
@@ -23,7 +26,7 @@ def test_update_search_query_falls_back_to_plain_gold_without_rich() -> None:
 
     text = collect_rich_text(panel)
 
-    assert "filter: status:FAILED" in text.plain
+    assert "filter: status:FAILED (/)" in text.plain
     assert style_for_plain_segment(text, "status:FAILED") == "bold #FFD700"
     assert panel._search_query_click_span is None
 
@@ -41,7 +44,7 @@ def test_update_search_query_renders_rich_query_with_match_count() -> None:
 
     text = collect_rich_text(panel)
 
-    assert "filter: status:FAILED  3/12" in text.plain
+    assert "filter: status:FAILED [3/12] (/)" in text.plain
     assert panel._search_query_click_span is not None
 
 
@@ -58,7 +61,7 @@ def test_update_search_query_seeded_tag_follows_rich_segment() -> None:
 
     plain = collect_text(panel)
 
-    assert "filter: project:demo seeded  1/1" in plain
+    assert "filter: project:demo seeded [1/1] (/)" in plain
 
 
 def test_update_search_query_shows_partial_history_notice() -> None:
@@ -75,7 +78,7 @@ def test_update_search_query_shows_partial_history_notice() -> None:
     plain = collect_text(panel)
 
     assert (
-        "filter: status:FAILED  1/5  filtered on recent history; "
+        "filter: status:FAILED [1/5] (/)  filtered on recent history; "
         "loading full history..."
     ) in plain
 
@@ -90,7 +93,8 @@ def test_search_query_click_span_covers_only_the_query_segment() -> None:
 
     assert panel._search_query_click_span is not None
     start, end = panel._search_query_click_span
-    assert text.plain[start:end] == "status:FAILED  1/5"
+    assert text.plain[start:end] == "status:FAILED [1/5]"
+    assert text.plain[end:].startswith(" (/)")
 
 
 def test_click_inside_query_segment_posts_filter_clicked() -> None:
@@ -139,3 +143,50 @@ def test_click_without_active_filter_is_a_no_op() -> None:
         panel.on_click(event)  # type: ignore[arg-type]
 
     post_message.assert_not_called()
+
+
+def test_unbound_edit_query_omits_hint() -> None:
+    """When ``edit_query`` is unbound, no key hint is rendered."""
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.set_keymap_registry(
+            load_keymap_registry({"keymaps": {"app": {"edit_query": "unbound"}}})
+        )
+        panel.update_search_query(
+            "status:FAILED", rich=Text("status:FAILED"), match_count=(1, 5)
+        )
+
+    text = collect_rich_text(panel)
+
+    assert "filter: status:FAILED [1/5]" in text.plain
+    assert "(/)" not in text.plain
+
+
+def test_rebound_edit_query_renders_new_key() -> None:
+    """A rebound ``edit_query`` key is shown instead of ``/``."""
+    panel = AgentInfoPanel()
+    with patch.object(panel, "update"):
+        panel.set_keymap_registry(
+            load_keymap_registry({"keymaps": {"app": {"edit_query": "ctrl+q"}}})
+        )
+        panel.update_search_query(
+            "status:FAILED", rich=Text("status:FAILED"), match_count=(1, 5)
+        )
+
+    text = collect_rich_text(panel)
+
+    assert "filter: status:FAILED [1/5] (Ctrl+Q)" in text.plain
+
+
+def test_filter_count_and_hint_are_dim() -> None:
+    """The bracketed count chip and the key hint keep the dim style."""
+    panel = AgentInfoPanel()
+    highlighted = Text("status:FAILED")
+    with patch.object(panel, "update"):
+        panel.update_search_query("status:FAILED", rich=highlighted, match_count=(1, 5))
+
+    text = collect_rich_text(panel)
+
+    assert style_for_plain_segment(text, "[1/5]") == "dim"
+    hint_at = text.plain.index(" (/)")
+    assert style_at_plain_index(text, hint_at + 1) == "dim"
