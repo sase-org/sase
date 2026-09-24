@@ -2197,6 +2197,19 @@
             }
           }
         },
+        "agent_decks": {
+          "type": "object",
+          "description": "Agent data deck spread versus paged rendering settings for sase's TUI Agents tab",
+          "additionalProperties": false,
+          "properties": {
+            "spread_max_screens": {
+              "type": "number",
+              "description": "A multi-card deck renders spread (every card on one scrollable page) when its cards fit within this many panel viewport heights, and paged otherwise. 0 means always paged.",
+              "minimum": 0,
+              "default": 1.5
+            }
+          }
+        },
         "prompt_inputs": {
           "type": "object",
           "description": "Prompt input collection settings for sase's TUI prompt input",

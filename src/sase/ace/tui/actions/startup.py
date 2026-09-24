@@ -29,6 +29,7 @@ from ._usage_refresh_fallback import UsageRefreshFallbackMixin
 if TYPE_CHECKING:
     from .navigation._types import JumpAllResult
     from ...query_record import QueryRecord
+    from ..agent_decks_settings import AgentDecksSettings
     from ..current_project_settings import CurrentProjectSettings
     from ..glossary_catalog import PromptGlossaryContext
     from ..prompt_catalog import PromptCatalogSnapshot
@@ -195,6 +196,7 @@ class StartupMixin(
     _prompt_completion_settings: PromptCompletionSettings
     _prompt_spellcheck_settings: PromptSpellcheckSettings
     _prompt_submission_settings: PromptSubmissionSettings
+    _agent_decks_settings: AgentDecksSettings
     _current_project_settings: CurrentProjectSettings
     _history_prompt_word_index_cache: PromptWordIndex | None
     _history_prompt_word_deletions_cache: frozenset[str] | None

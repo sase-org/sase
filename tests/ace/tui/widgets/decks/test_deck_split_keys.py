@@ -10,6 +10,7 @@ from sase.ace.tui.widgets import KeybindingFooter
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.decks.model import DeckLayout
 from sase.feature_flags import override_flags
+from tests.ace.tui.widgets.decks._deck_spread_test_helpers import pin_paged
 from tests.ace.tui.widgets._agent_display_helpers import make_artifact_agent
 
 _ROOT = Path(__file__).resolve().parents[5]
@@ -110,6 +111,7 @@ def test_rerender_for_viewport_only_images() -> None:
 async def test_click_focuses_other_panel(tmp_path: Path) -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)

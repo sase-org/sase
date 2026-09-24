@@ -7,6 +7,7 @@ import time
 from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
+    from ..agent_decks_settings import AgentDecksSettings
     from ..glossary_catalog import PromptGlossaryContext
     from ..prompt_catalog import PromptCatalogSnapshot
     from ..prompt_submission_settings import PromptSubmissionSettings
@@ -80,6 +81,18 @@ class StartupPromptCatalogMixin:
     def get_prompt_submission_settings(self: Any) -> PromptSubmissionSettings:
         """Return parsed prompt submission behavior settings."""
         return self._prompt_submission_settings
+
+    def get_agent_decks_settings(self: Any) -> AgentDecksSettings:
+        """Return parsed agent deck behavior settings."""
+        from ..agent_decks_settings import (
+            DEFAULT_AGENT_DECKS_SETTINGS,
+            AgentDecksSettings,
+        )
+
+        settings = getattr(self, "_agent_decks_settings", None)
+        if isinstance(settings, AgentDecksSettings):
+            return settings
+        return DEFAULT_AGENT_DECKS_SETTINGS
 
     def get_prompt_catalog_assist_entries(
         self: Any,

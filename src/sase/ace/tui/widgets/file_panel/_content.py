@@ -230,6 +230,22 @@ class FilePanelContentMixin:
             return [], lo
         return [self.render_line(y).text for y in range(lo, hi)], lo  # type: ignore[attr-defined]
 
+    def seed_scroll_anchor(self, key: tuple[object, str], row: int) -> None:
+        """Seed the scroll-anchor store for ``key`` with ``row``."""
+        from ._scroll_anchor import capture_anchor
+
+        try:
+            anchor = capture_anchor(
+                max(0, int(row)),
+                [],
+                max(0, int(row)),
+                gutter_present=False,
+                content_digest=None,
+            )
+            self._scroll_anchors.set(key, anchor)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+
     def _current_anchor_key(self) -> tuple[object, str] | None:
         """Return the anchor-store key for the currently selected page."""
         slot = self._current_file_value()  # type: ignore[attr-defined]

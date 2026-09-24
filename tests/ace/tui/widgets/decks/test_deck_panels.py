@@ -18,6 +18,7 @@ from sase.ace.tui.widgets._agent_detail_files import (
 )
 from sase.ace.tui.widgets._llm_calls_panel_fetching import cached_tool_call_count
 from sase.feature_flags import override_flags
+from tests.ace.tui.widgets.decks._deck_spread_test_helpers import pin_paged
 from tests.ace.tui.widgets._agent_display_helpers import (
     make_agent,
     make_artifact_agent,
@@ -43,6 +44,7 @@ def _agent(**overrides: Any) -> Any:
 async def test_flag_on_compose_tree() -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -61,6 +63,7 @@ async def test_flag_on_compose_tree() -> None:
 async def test_flag_off_compose_tree() -> None:
     with override_flags(agent_decks=False):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -73,6 +76,7 @@ async def test_flag_off_compose_tree() -> None:
 async def test_jk_partial_then_full_and_digest_skip() -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -94,6 +98,7 @@ async def test_jk_partial_then_full_and_digest_skip() -> None:
 async def test_preferred_card_and_partial_empty_body() -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -119,6 +124,7 @@ async def test_preferred_card_and_partial_empty_body() -> None:
 async def test_lazy_loading_only_shown_decks() -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -150,6 +156,7 @@ async def test_lazy_loading_only_shown_decks() -> None:
 async def test_empty_states() -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -165,6 +172,7 @@ async def test_empty_states() -> None:
 async def test_messages_do_not_reach_legacy_handlers() -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -181,6 +189,7 @@ async def test_messages_do_not_reach_legacy_handlers() -> None:
 async def test_accessors_do_not_raise() -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -206,6 +215,7 @@ async def test_gates_with_decks_on_and_off() -> None:
 
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -265,6 +275,7 @@ def test_dispatch_and_helpers_flag_off() -> None:
 async def test_cycle_focused_deck_card_sticks_preferred(tmp_path: Path) -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -291,6 +302,7 @@ async def test_cycle_focused_deck_card_sticks_preferred(tmp_path: Path) -> None:
 async def test_cycle_focused_deck_wraps_and_reloads(tmp_path: Path) -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)

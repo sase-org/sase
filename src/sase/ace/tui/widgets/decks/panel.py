@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-from rich.text import Text
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Vertical, VerticalScroll
@@ -20,26 +19,17 @@ from ..file_panel import (
 from ..llm_calls_panel import AgentLLMCallsPanel, LLMCallsVisibilityChanged
 from .availability import DeckAvailability
 from .empty_state import deck_empty_state
+from .files_spread import FilesSpreadView
 from .main_document import EMPTY_MAIN_DOCUMENT, MainDeckDocument
 from .main_view import MainDeckView
-from .model import DeckId, cycle_card_id
-from .titles import (
-    CardTab,
-    deck_subtitle,
-    deck_title,
-    file_line_status,
-)
+from .model import DeckId, RenderMode, cycle_card_id
+from .panel_chrome import DeckPanelChromeMixin
+from .panel_spread import DeckPanelSpreadMixin
 
 _DECK_ACCENT_CLASS = {
     DeckId.MAIN: "-deck-main",
     DeckId.FILES: "-deck-files",
     DeckId.TOOLS: "-deck-tools",
-}
-
-_FALLBACK_ACCENTS = {
-    DeckId.MAIN: "#B48EAD",
-    DeckId.FILES: "green",
-    DeckId.TOOLS: "#87D7FF",
 }
 
 
@@ -52,7 +42,7 @@ class DeckPanelFocusRequested(Message):
         self.panel_index = panel_index
 
 
-class DeckPanel(Vertical):
+class DeckPanel(DeckPanelChromeMixin, DeckPanelSpreadMixin, Vertical):  # type: ignore[misc]
     """One pre-composed deck panel showing a single active deck."""
 
     def __init__(self, panel_index: int, **kwargs: Any) -> None:
@@ -72,6 +62,7 @@ class DeckPanel(Vertical):
         self._file_total_lines = 0
         self._file_capped = False
         self._tools_has_content = False
+        self._init_spread_state()
 
     @property
     def panel_index(self) -> int:
@@ -94,6 +85,7 @@ class DeckPanel(Vertical):
             id=f"agent-deck-panel-{i}-files-scroll", classes="deck-scroll -files"
         ):
             yield AgentFilePanel()
+            yield FilesSpreadView(classes="hidden")
         with VerticalScroll(
             id=f"agent-deck-panel-{i}-tools-scroll", classes="deck-scroll -tools"
         ):
@@ -117,6 +109,64 @@ class DeckPanel(Vertical):
             self.set_focused(self._focused)
         except Exception:
             pass
+        self._watch_deck_scrolls()
+        self._sync_files_views()
+
+    def _watch_deck_scrolls(self) -> None:
+        try:
+            main_scroll = self.query_one(
+                f"#agent-deck-panel-{self._panel_index}-main-scroll",
+                VerticalScroll,
+            )
+            self.watch(main_scroll, "scroll_y", self._on_main_scroll_y, init=False)
+        except Exception:
+            pass
+        try:
+            files_scroll = self.query_one(
+                f"#agent-deck-panel-{self._panel_index}-files-scroll",
+                VerticalScroll,
+            )
+            self.watch(files_scroll, "scroll_y", self._on_files_scroll_y, init=False)
+        except Exception:
+            pass
+
+    def _on_main_scroll_y(self, _old: int, _new: int) -> None:
+        if not self.is_spread(DeckId.MAIN) or self._deck is not DeckId.MAIN:
+            return
+        try:
+            derived = self._main_spread_active()
+        except Exception:
+            return
+        if derived is not None and derived != self._main_active_card:
+            self._main_active_card = derived
+            try:
+                self.refresh_chrome()
+            except Exception:
+                pass
+
+    def _on_files_scroll_y(self, _old: int, _new: int) -> None:
+        if not self.is_spread(DeckId.FILES) or self._deck is not DeckId.FILES:
+            return
+        try:
+            index = self._files_spread_active_index()
+            file_view = self.file_view
+            current = int(getattr(file_view, "_current_file_index", 0))
+            if index != current:
+                try:
+                    file_view.set_current_index_silent(index)
+                except Exception:
+                    pass
+                self._file_index = index
+                try:
+                    self._file_source_label = file_view.current_source_label()
+                except Exception:
+                    pass
+                try:
+                    self.refresh_chrome()
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def on_click(self, event: object) -> None:
         """Request logical focus without stealing widget focus."""
@@ -124,28 +174,6 @@ class DeckPanel(Vertical):
             self.post_message(DeckPanelFocusRequested(self._panel_index))
         except Exception:
             pass
-
-    def _resolve_accent(self, deck: DeckId) -> str:
-        if deck is DeckId.MAIN:
-            try:
-                variables = self.app.theme_variables  # type: ignore[attr-defined]
-                secondary = variables.get("secondary")
-                if secondary:
-                    return str(secondary)
-            except Exception:
-                pass
-            return _FALLBACK_ACCENTS[DeckId.MAIN]
-        return _FALLBACK_ACCENTS[deck]
-
-    def _accent_for(self) -> dict[DeckId, str]:
-        return {deck: self._resolve_accent(deck) for deck in DeckId}
-
-    def _chrome_width(self) -> int:
-        try:
-            width = int(self.size.width)
-        except Exception:
-            width = 0
-        return width if width > 0 else 80
 
     def set_focused(self, focused: bool) -> None:
         """Sync focus chrome classes without moving widget focus."""
@@ -179,6 +207,18 @@ class DeckPanel(Vertical):
                 scroll.remove_class("-shown")
         self._update_empty_state()
         self.refresh_chrome()
+        self._sync_files_views()
+        # Switching to Main or Files re-decides with the current geometry.
+        if deck is DeckId.MAIN:
+            try:
+                self._refresh_main_mode_for_shown()
+            except Exception:
+                pass
+        elif deck is DeckId.FILES:
+            try:
+                self._refresh_files_mode_for_shown()
+            except Exception:
+                pass
 
     def _deck_is_empty(self, deck: DeckId) -> bool:
         if deck is DeckId.MAIN:
@@ -195,29 +235,6 @@ class DeckPanel(Vertical):
             return not bool(self.tools_view._has_displayed_content)
         except Exception:
             return True
-
-    def _deck_switch_hint(self) -> str | None:
-        """Return the live deck-switch hint for the empty-state card."""
-        try:
-            from ...keymaps import key_display_name
-        except Exception:
-            return None
-        try:
-            registry = getattr(getattr(self, "app", None), "_keymap_registry", None)
-            if registry is not None:
-                next_key = key_display_name(
-                    str(getattr(getattr(registry, "app", None), "next_deck", ""))
-                )
-                prev_key = key_display_name(
-                    str(getattr(getattr(registry, "app", None), "prev_deck", ""))
-                )
-            else:
-                next_key = prev_key = ""
-        except Exception:
-            return None
-        if not next_key or not prev_key:
-            return None
-        return f"{next_key} next deck · {prev_key} previous deck"
 
     def _update_empty_state(self) -> None:
         try:
@@ -239,9 +256,28 @@ class DeckPanel(Vertical):
         else:
             empty.remove_class("-shown")
 
+    def _sync_files_views(self) -> None:
+        try:
+            spread_view = self.files_spread_view
+            file_view = self.file_view
+        except Exception:
+            return
+        spread = self.is_spread(DeckId.FILES) and self._deck is DeckId.FILES
+        try:
+            if spread:
+                file_view.add_class("hidden")
+                spread_view.remove_class("hidden")
+            else:
+                spread_view.add_class("hidden")
+                file_view.remove_class("hidden")
+        except Exception:
+            pass
+
     def cycle_card(self, direction: int) -> str | None:
         """Cycle cards in the active deck; return the new Main card id."""
         if self._deck is DeckId.MAIN:
+            if self.is_spread(DeckId.MAIN):
+                return self._cycle_main_spread(direction)
             ids = [card.card_id for card in self._main_document.cards]
             try:
                 active = self.main_view.active_card_id
@@ -260,6 +296,9 @@ class DeckPanel(Vertical):
             self.refresh_chrome()
             return shown
         if self._deck is DeckId.FILES:
+            if self.is_spread(DeckId.FILES):
+                self._cycle_files_spread(direction)
+                return None
             try:
                 view = self.file_view
                 if direction >= 0:
@@ -279,19 +318,243 @@ class DeckPanel(Vertical):
         self, document: MainDeckDocument, preferred_card: str | None
     ) -> str | None:
         """Push ``document`` to the Main view; return the active card."""
+        previous_document = self._main_document
         self._main_document = document
-        try:
-            active = self.main_view.show_document(
-                document, preferred_card=preferred_card
+        # Partial documents never decide the mode.
+        if document.partial:
+            current = self._render_mode.get(DeckId.MAIN, RenderMode.PAGED)
+            try:
+                active = self.main_view.show_document(
+                    document, preferred_card=preferred_card, mode=current
+                )
+            except TypeError:
+                active = self.main_view.show_document(
+                    document, preferred_card=preferred_card
+                )
+            except Exception:
+                active = None
+            self._main_active_card = active
+            if self._deck is DeckId.MAIN:
+                self.set_deck(DeckId.MAIN)
+            else:
+                self.refresh_chrome()
+            return active
+        stored_subject = self._mode_subject.get(DeckId.MAIN)
+        same_subject = stored_subject is not None and stored_subject == document.subject
+        # First decision for a subject counts as a new subject.
+        is_new_subject = stored_subject != document.subject
+        new_mode = self._decide_main_mode(document, same_subject=same_subject)
+        old_mode = self._render_mode.get(DeckId.MAIN, RenderMode.PAGED)
+        if new_mode is not old_mode:
+            active = self._apply_main_transition(
+                document,
+                preferred_card,
+                old_mode=old_mode,
+                new_mode=new_mode,
+                is_new_subject=is_new_subject,
+                previous_document=previous_document,
             )
-        except Exception:
-            active = None
-        self._main_active_card = active
+        else:
+            try:
+                active = self.main_view.show_document(
+                    document, preferred_card=preferred_card, mode=new_mode
+                )
+            except TypeError:
+                active = self.main_view.show_document(
+                    document, preferred_card=preferred_card
+                )
+            except Exception:
+                active = None
+            # New spread subjects honor a duplicate-panel one-shot card.
+            if (
+                new_mode is RenderMode.SPREAD
+                and is_new_subject
+                and preferred_card is not None
+                and document.card(preferred_card) is not None
+                and preferred_card
+                != (document.cards[0].card_id if document.cards else None)
+            ):
+                try:
+                    self.main_view.scroll_to_card(preferred_card)
+                    active = preferred_card
+                except Exception:
+                    pass
+            self._main_active_card = active
+        self._render_mode[DeckId.MAIN] = new_mode
+        self._mode_subject[DeckId.MAIN] = document.subject
         if self._deck is DeckId.MAIN:
             self.set_deck(DeckId.MAIN)
         else:
             self.refresh_chrome()
-        return active
+        # set_deck re-decides with same subject; guard against recursion by
+        # restoring the just-decided mode when set_deck did not change it.
+        self._render_mode[DeckId.MAIN] = new_mode
+        return self._main_active_card
+
+    def _refresh_main_mode_for_shown(self) -> None:
+        document = self._main_document
+        if not document.cards or document.partial:
+            return
+        stored = self._mode_subject.get(DeckId.MAIN)
+        same = stored is not None and stored == document.subject
+        new_mode = self._decide_main_mode(document, same_subject=same)
+        old_mode = self._render_mode.get(DeckId.MAIN, RenderMode.PAGED)
+        if new_mode is old_mode:
+            return
+        # show_main_document already handles transitions; reuse it with the
+        # panel's preferred card so scroll anchoring stays consistent.
+        try:
+            from .area import DeckArea  # noqa: F401
+        except Exception:
+            pass
+        preferred: str | None = None
+        try:
+            node: Any | None = self.parent
+            for _ in range(5):
+                if node is None:
+                    break
+                state = getattr(node, "_state", None)
+                if state is not None:
+                    try:
+                        preferred = state.panels[self._panel_index].preferred_card
+                    except Exception:
+                        preferred = None
+                    break
+                node = getattr(node, "parent", None)
+        except Exception:
+            preferred = None
+        # Avoid recursion via set_deck: apply directly.
+        self._render_mode[DeckId.MAIN] = new_mode
+        self._mode_subject[DeckId.MAIN] = document.subject
+        try:
+            if new_mode is RenderMode.SPREAD:
+                self.main_view.show_document(
+                    document, preferred_card=preferred, mode=new_mode
+                )
+                self._main_active_card = self.main_view.active_card_id
+            else:
+                # Spread -> paged anchors the card at the viewport top.
+                spread_active = self._main_spread_active() or self._main_active_card
+                active = self.main_view.show_document(
+                    document, preferred_card=spread_active or preferred, mode=new_mode
+                )
+                self._main_active_card = active
+        except Exception:
+            pass
+        self._sync_files_views()
+        self.refresh_chrome()
+
+    def _apply_main_transition(
+        self,
+        document: MainDeckDocument,
+        preferred_card: str | None,
+        *,
+        old_mode: RenderMode,
+        new_mode: RenderMode,
+        is_new_subject: bool,
+        previous_document: MainDeckDocument,
+    ) -> str | None:
+        # Capture reading position before recomposing.
+        scroll_y = 0
+        pinned = False
+        try:
+            scroll = self.query_one(
+                f"#agent-deck-panel-{self._panel_index}-main-scroll",
+                VerticalScroll,
+            )
+            scroll_y = int(scroll.scroll_y)
+        except Exception:
+            scroll = None
+        try:
+            pinned = bool(getattr(self.main_view, "is_pinned_to_bottom", False))
+        except Exception:
+            pinned = False
+        anchor_card: str | None = None
+        offset = 0
+        if old_mode is RenderMode.SPREAD and new_mode is RenderMode.PAGED:
+            anchor_card = self._main_spread_active() or self._main_active_card
+            try:
+                body_start = self.main_view.spread_body_start(anchor_card or "")
+            except Exception:
+                body_start = None
+            if body_start is not None:
+                offset = max(0, scroll_y - body_start)
+            else:
+                offset = 0
+        elif old_mode is RenderMode.PAGED and new_mode is RenderMode.SPREAD:
+            anchor_card = self._main_active_card
+            offset = scroll_y
+        try:
+            if new_mode is RenderMode.SPREAD:
+                active = self.main_view.show_document(
+                    document, preferred_card=preferred_card, mode=new_mode
+                )
+            else:
+                active = self.main_view.show_document(
+                    document,
+                    preferred_card=anchor_card or preferred_card,
+                    mode=new_mode,
+                )
+        except Exception:
+            active = None
+        self._main_active_card = active
+        if is_new_subject and new_mode is RenderMode.SPREAD:
+            # Spread starts at the top; honor duplicate one-shot cards.
+            if (
+                preferred_card is not None
+                and document.card(preferred_card) is not None
+                and preferred_card
+                != (document.cards[0].card_id if document.cards else None)
+            ):
+                try:
+                    self.main_view.scroll_to_card(preferred_card)
+                    self._main_active_card = preferred_card
+                except Exception:
+                    pass
+            return self._main_active_card
+        if pinned:
+            try:
+                self.main_view.pin_to_bottom()
+            except Exception:
+                pass
+            return self._main_active_card
+        # Anchor the reading position after layout settles.
+        try:
+            if new_mode is RenderMode.PAGED:
+                target = max(0, offset)
+
+                def _restore_paged() -> None:
+                    try:
+                        sc = self.query_one(
+                            f"#agent-deck-panel-{self._panel_index}-main-scroll",
+                            VerticalScroll,
+                        )
+                        sc.scroll_to(y=target, animate=False)
+                    except Exception:
+                        pass
+
+                self.call_after_refresh(_restore_paged)
+            else:
+                base = anchor_card or (active or "")
+                body = self.main_view.spread_body_start(base) if base else None
+                target_spread = (body or 0) + offset
+
+                def _restore_spread() -> None:
+                    row = self.main_view.spread_body_start(base) if base else None
+                    target = (row or 0) + offset if row is not None else target_spread
+                    try:
+                        sc = self.query_one(
+                            f"#agent-deck-panel-{self._panel_index}-main-scroll",
+                            VerticalScroll,
+                        )
+                        sc.scroll_to(y=target, animate=False)
+                    except Exception:
+                        pass
+
+                self.call_after_refresh(_restore_spread)
+        except Exception:
+            pass
+        return self._main_active_card
 
     @property
     def main_view(self) -> MainDeckView:
@@ -302,6 +565,11 @@ class DeckPanel(Vertical):
     def file_view(self) -> AgentFilePanel:
         """Return the Files deck view."""
         return self.query_one(AgentFilePanel)
+
+    @property
+    def files_spread_view(self) -> FilesSpreadView:
+        """Return the Files spread view."""
+        return self.query_one(FilesSpreadView)
 
     @property
     def tools_view(self) -> AgentLLMCallsPanel:
@@ -396,98 +664,8 @@ class DeckPanel(Vertical):
         else:
             self.refresh_chrome()
 
-    def _main_tabs(self) -> tuple[CardTab, ...]:
-        tabs: list[CardTab] = []
-        for card in self._main_document.cards:
-            tabs.append(CardTab(card.card_id, card.title))
-        return tuple(tabs)
-
-    def _files_tabs(self) -> tuple[CardTab, ...]:
-        try:
-            view = self.file_view
-            file_list = list(getattr(view, "_file_list", []))
-            index = int(getattr(view, "_current_file_index", 0))
-        except Exception:
-            return ()
-        tabs: list[CardTab] = []
-        for i, _page in enumerate(file_list):
-            label = f"file {i + 1}"
-            if i == index:
-                try:
-                    current = view.current_source_label()
-                except Exception:
-                    current = None
-                if current:
-                    label = current
-            tabs.append(CardTab(f"file-{i}", label))
-        return tuple(tabs)
-
-    def _active_tab_index(self) -> int | None:
-        if self._deck is DeckId.MAIN:
-            ids = [card.card_id for card in self._main_document.cards]
-            if self._main_active_card is None:
-                return None if not ids else None
-            try:
-                return ids.index(self._main_active_card)
-            except ValueError:
-                return None
-        if self._deck is DeckId.FILES:
-            try:
-                view = self.file_view
-                if not getattr(view, "_file_list", []):
-                    return None
-                return int(getattr(view, "_current_file_index", 0))
-            except Exception:
-                return None
-        return 0
-
-    def refresh_chrome(self) -> None:
-        """Recompute the border title and subtitle."""
-        width = self._chrome_width()
-        accent_for = self._accent_for()
-        accent = accent_for[self._deck]
-        if self._deck is DeckId.MAIN:
-            tabs = self._main_tabs()
-        elif self._deck is DeckId.FILES:
-            tabs = self._files_tabs()
-        else:
-            tabs = (CardTab("llm-calls", "LLM Calls"),)
-        active_index = self._active_tab_index()
-        if self._deck is DeckId.MAIN and not tabs:
-            active_index = None
-        try:
-            self.border_title = deck_title(
-                self._deck,
-                tabs,
-                active_index,
-                width=width,
-                accent=accent,
-                focused=self._focused,
-            )
-        except Exception:
-            pass
-        if self._deck is DeckId.FILES:
-            status = file_line_status(
-                self._file_visible_lines,
-                self._file_total_lines,
-                self._file_capped,
-                editor_key="E",
-            )
-        else:
-            status = None
-        try:
-            self.border_subtitle = deck_subtitle(
-                self._deck,
-                self._availability,
-                status=status,
-                width=width,
-                accent_for=accent_for,
-            )
-        except Exception:
-            pass
-
     def on_resize(self, event: object) -> None:
-        """Recompute the title tier on resize."""
+        """Recompute the title tier on resize and re-decide spread modes."""
         try:
             super().on_resize(event)  # type: ignore[misc]
         except Exception:
@@ -498,6 +676,304 @@ class DeckPanel(Vertical):
                 self.file_view.rerender_for_viewport()
             except Exception:
                 pass
+        if not self._resize_decision_pending:
+            self._resize_decision_pending = True
+            try:
+                self.call_after_refresh(self._handle_resize_decision)
+            except Exception:
+                self._resize_decision_pending = False
+
+    def _handle_resize_decision(self) -> None:
+        self._resize_decision_pending = False
+        try:
+            if self._deck is DeckId.MAIN:
+                self._refresh_main_mode_for_shown()
+        except Exception:
+            pass
+        try:
+            if self._deck is DeckId.FILES:
+                self._refresh_files_mode_for_shown()
+        except Exception:
+            pass
+
+    def _refresh_files_mode_for_shown(self) -> None:
+        if self._deck is not DeckId.FILES:
+            return
+        rows, width = self._spread_viewport(DeckId.FILES)
+        if rows <= 0 or width <= 0:
+            return
+        # Recompute from stored pages without I/O when possible.
+        if self._files_probe_pages:
+            total = self._recompute_files_rows(width)
+            spread_max = self._spread_settings_max_screens()
+            from .render_mode import spread_budget_rows as _budget
+
+            budget = _budget(spread_max, rows)
+            if (
+                self._files_probe_exceeded
+                and total is not None
+                and total > budget * 1.10
+            ):
+                self._schedule_files_probe(reason="resize-exceeded")
+                return
+            same = True
+            new_mode = self._decide_files_mode(
+                same_subject=same,
+                total_rows=total,
+                has_solo=False,
+                card_count=len(self._files_probe_slots) or 1,
+            )
+            old_mode = self._render_mode.get(DeckId.FILES, RenderMode.PAGED)
+            if new_mode is not old_mode:
+                self._apply_files_transition(new_mode)
+            return
+        self._schedule_files_probe(reason="resize-no-pages")
+
+    def _schedule_files_probe(self, *, reason: str = "") -> None:
+        del reason
+        try:
+            file_view = self.file_view
+            slots = tuple(getattr(file_view, "_file_list", ()))
+        except Exception:
+            return
+        if not slots:
+            return
+        try:
+            agent = getattr(file_view, "_current_agent", None)
+            subject = getattr(file_view, "_anchor_agent_identity", None)
+        except Exception:
+            agent = None
+            subject = None
+        rows, width = self._spread_viewport(DeckId.FILES)
+        if rows <= 0 or width <= 0:
+            return
+        spread_max = self._spread_settings_max_screens()
+        if spread_max <= 0:
+            if self._render_mode.get(DeckId.FILES) is not RenderMode.PAGED:
+                self._render_mode[DeckId.FILES] = RenderMode.PAGED
+                self._sync_files_views()
+                self.refresh_chrome()
+            return
+        from .render_mode import spread_budget_rows as _budget
+
+        budget = _budget(spread_max, rows)
+        stop_after = budget * 1.10
+        current_slots = self._files_probe_slots
+        current_subject = self._files_probe_subject
+        if (
+            tuple(slots) == tuple(current_slots)
+            and subject == current_subject
+            and self._files_probe_pages
+        ):
+            return
+        # New subject starts paged until the probe lands.
+        if subject != current_subject:
+            self._render_mode[DeckId.FILES] = RenderMode.PAGED
+            self._sync_files_views()
+            self.refresh_chrome()
+        probe_agent = agent
+        probe_slots = tuple(slots)
+        probe_subject = subject
+        probe_width = width
+        probe_stop = stop_after
+
+        def _task() -> Any:
+            from ..file_panel._spread_probe import probe_files_spread
+
+            return probe_files_spread(
+                probe_agent,
+                probe_slots,
+                width=probe_width,
+                stop_after_rows=probe_stop,
+            )
+
+        try:
+            worker = self.run_worker(
+                _task,
+                thread=True,
+                exclusive=True,
+                group=f"deck-files-spread-{self._panel_index}",
+            )
+            # Attach completion via worker state change.
+            self._files_probe_agent = probe_agent
+            self._files_pending_probe = (
+                worker,
+                probe_agent,
+                probe_slots,
+                probe_subject,
+            )
+        except Exception:
+            # Fall back to a synchronous bounded probe.
+            try:
+                from ..file_panel._spread_probe import probe_files_spread
+
+                probe = probe_files_spread(
+                    probe_agent, probe_slots, width=width, stop_after_rows=stop_after
+                )
+                self._on_files_probe_result(probe, probe_agent, probe_slots, subject)
+            except Exception:
+                pass
+
+    def on_worker_state_changed(self, event: Any) -> None:
+        """Handle Files spread probe completion."""
+        try:
+            pending = getattr(self, "_files_pending_probe", None)
+            if pending is None:
+                return
+            worker, agent, slots, subject = pending
+            if event.worker is not worker:
+                return
+            if not getattr(event, "is_done", False):
+                return
+            result = getattr(event.worker, "result", None)
+            if result is None:
+                try:
+                    result = worker.result()
+                except Exception:
+                    return
+            from ..file_panel._spread_probe import FilesSpreadProbe
+
+            if not isinstance(result, FilesSpreadProbe):
+                return
+            self._files_pending_probe = None  # type: ignore[assignment]
+            self._on_files_probe_result(result, agent, slots, subject)
+        except Exception:
+            pass
+
+    def _on_files_probe_result(
+        self, probe: Any, agent: Any, slots: tuple[str, ...], subject: Any
+    ) -> None:
+        # Drop stale results.
+        try:
+            file_view = self.file_view
+            current_slots = tuple(getattr(file_view, "_file_list", ()))
+            current_subject = getattr(file_view, "_anchor_agent_identity", None)
+            if tuple(slots) != tuple(current_slots) or subject != current_subject:
+                # Still store pages for future resizes keyed by current slots?
+                pass
+                if tuple(slots) != tuple(current_slots) or subject != current_subject:
+                    return
+        except Exception:
+            pass
+        self._files_probe_pages = tuple(probe.pages)
+        self._files_probe_total = probe.total_rows
+        self._files_probe_exceeded = bool(probe.exceeded)
+        self._files_probe_bound = float(probe.bound)
+        self._files_probe_subject = subject
+        self._files_probe_slots = tuple(slots)
+        self._files_probe_agent = agent
+        same = True
+        # Solo cards force paged.
+        if probe.has_solo:
+            total: int | None = None
+        elif probe.exceeded:
+            total = probe.total_rows
+        else:
+            total = probe.total_rows
+        new_mode = self._decide_files_mode(
+            same_subject=same,
+            total_rows=total,
+            has_solo=bool(probe.has_solo),
+            card_count=len(slots),
+        )
+        old_mode = self._render_mode.get(DeckId.FILES, RenderMode.PAGED)
+        # New subjects are already paged; only switch when the probe says spread.
+        if new_mode is old_mode:
+            self._mode_subject[DeckId.FILES] = subject
+            return
+        self._mode_subject[DeckId.FILES] = subject
+        self._apply_files_transition(new_mode)
+
+    def _apply_files_transition(self, new_mode: RenderMode) -> None:
+        self._render_mode[DeckId.FILES] = new_mode
+        self._sync_files_views()
+        if new_mode is RenderMode.SPREAD:
+            # Anchor the current page so the switch is viewport-stable.
+            try:
+                file_view = self.file_view
+                current = int(getattr(file_view, "_current_file_index", 0))
+            except Exception:
+                current = 0
+            try:
+                scroll = self.query_one(
+                    f"#agent-deck-panel-{self._panel_index}-files-scroll",
+                    VerticalScroll,
+                )
+                paged_y = int(scroll.scroll_y)
+            except Exception:
+                paged_y = 0
+            try:
+                agent = getattr(self.file_view, "_current_agent", None)
+                digest = None
+                if agent is not None:
+                    try:
+                        digest = str(getattr(agent, "identity", None))
+                    except Exception:
+                        digest = None
+                self.files_spread_view.show_pages(
+                    self._files_probe_pages, digest=digest
+                )
+            except Exception:
+                pass
+
+            # Scroll after anchors are ready.
+            def _restore() -> None:
+                row = self._files_body_start(current)
+                target = (row or 0) + paged_y if row is not None else paged_y
+                try:
+                    sc = self.query_one(
+                        f"#agent-deck-panel-{self._panel_index}-files-scroll",
+                        VerticalScroll,
+                    )
+                    sc.scroll_to(y=target, animate=False)
+                except Exception:
+                    pass
+                try:
+                    self.files_spread_view.enable_section_layout_reserve()
+                except Exception:
+                    pass
+
+            try:
+                self.call_after_refresh(_restore)
+            except Exception:
+                pass
+        else:
+            # Spread -> paged: select the spread active page without extra hop.
+            try:
+                active = self._files_spread_active_index()
+            except Exception:
+                active = 0
+            try:
+                scroll = self.query_one(
+                    f"#agent-deck-panel-{self._panel_index}-files-scroll",
+                    VerticalScroll,
+                )
+                spread_y = int(scroll.scroll_y)
+            except Exception:
+                spread_y = 0
+            try:
+                body = self._files_body_start(active)
+                offset = max(0, spread_y - (body or 0)) if body is not None else 0
+            except Exception:
+                offset = 0
+            try:
+                self.file_view.select_file_index(active)
+                self._file_index = active
+                try:
+                    self._file_source_label = self.file_view.current_source_label()
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            # Seed the paged anchor so the async static read restores to it.
+            try:
+                key = self.file_view._current_anchor_key()
+                if key is not None:
+                    self.file_view.seed_scroll_anchor(key, offset)
+            except Exception:
+                pass
+        self.refresh_chrome()
+        self._update_empty_state()
 
     def _notify_duplicate_ready(self, deck: DeckId) -> None:
         """Ask AgentDetail to re-feed sibling duplicates from cache."""
@@ -528,6 +1004,12 @@ class DeckPanel(Vertical):
         self.refresh_chrome()
         self._update_empty_state()
         self._notify_duplicate_ready(DeckId.FILES)
+        # Probe when the Files deck is shown and the list changes.
+        if self._deck is DeckId.FILES:
+            try:
+                self._schedule_files_probe(reason="file-list")
+            except Exception:
+                pass
         message.stop()
 
     @on(FileLineCountChanged)
@@ -548,6 +1030,11 @@ class DeckPanel(Vertical):
         self.refresh_chrome()
         self._update_empty_state()
         self._notify_duplicate_ready(DeckId.FILES)
+        if self._deck is DeckId.FILES:
+            try:
+                self._schedule_files_probe(reason="visibility")
+            except Exception:
+                pass
         message.stop()
 
     @on(LLMCallsVisibilityChanged)

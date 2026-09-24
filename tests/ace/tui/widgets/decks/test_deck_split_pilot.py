@@ -9,6 +9,7 @@ from textual.app import App, ComposeResult
 from sase.ace.tui.widgets.agent_detail import AgentDetail
 from sase.ace.tui.widgets.decks.model import DeckId, DeckLayout
 from sase.feature_flags import override_flags
+from tests.ace.tui.widgets.decks._deck_spread_test_helpers import pin_paged
 from tests.ace.tui.widgets._agent_display_helpers import (
     make_agent,
     make_artifact_agent,
@@ -27,6 +28,7 @@ class _DetailApp(App[None]):
 async def test_backslash_opens_top_bottom_with_focus(tmp_path: Path) -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -50,6 +52,7 @@ async def test_backslash_opens_top_bottom_with_focus(tmp_path: Path) -> None:
 async def test_pipe_opens_left_right_and_unsplit_keeps_first(tmp_path: Path) -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -71,6 +74,7 @@ async def test_pipe_opens_left_right_and_unsplit_keeps_first(tmp_path: Path) -> 
 async def test_rotate_keeps_widget_identities(tmp_path: Path) -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -92,6 +96,7 @@ async def test_rotate_keeps_widget_identities(tmp_path: Path) -> None:
 async def test_ctrl_f_flips_focus_and_single_noop(tmp_path: Path) -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -115,6 +120,7 @@ async def test_ctrl_f_flips_focus_and_single_noop(tmp_path: Path) -> None:
 async def test_ratio_steps_and_clamp() -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -146,6 +152,7 @@ async def test_context_reply_for_agent_without_files_or_tools(tmp_path: Path) ->
         from sase.ace.tui.widgets.decks.availability import DeckAvailability
 
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -172,6 +179,7 @@ async def test_context_reply_for_agent_without_files_or_tools(tmp_path: Path) ->
 async def test_main_document_fans_out_to_both(tmp_path: Path) -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -194,6 +202,7 @@ async def test_main_document_fans_out_to_both(tmp_path: Path) -> None:
 async def test_ctrl_n_p_act_on_focused_panel(tmp_path: Path) -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -214,6 +223,7 @@ async def test_ctrl_n_p_act_on_focused_panel(tmp_path: Path) -> None:
 async def test_duplicate_files_single_fetch(tmp_path: Path) -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)
@@ -241,6 +251,7 @@ async def test_duplicate_files_single_fetch(tmp_path: Path) -> None:
 async def test_duplicate_tools_single_fetch(tmp_path: Path) -> None:
     with override_flags(agent_decks=True):
         app = _DetailApp()
+        pin_paged(app)
         async with app.run_test(size=(100, 30)) as pilot:
             await pilot.pause()
             detail = app.query_one("#agent-detail-panel", AgentDetail)

@@ -838,6 +838,7 @@ ace:
 | `prompt_completion`                 | dict         | see below | Live soft-completion settings for sase's TUI prompt input.                                                                                                 |
 | `prompt_inputs`                     | dict         | see below | Prompt input collection settings for raw `<placeholder>` tags and xprompt-save conversion.                                                                 |
 | `prompt_spellcheck`                 | dict         | see below | Sticky misspelling highlight settings for sase's TUI prompt input.                                                                                         |
+| `agent_decks`                       | dict         | see below | Agent data deck spread versus paged rendering settings for the Agents tab (only when agent decks are enabled).                                             |
 | `prompt_submission`                 | dict         | see below | Plain-Enter submission confirmation settings for sase's TUI prompt input.                                                                                  |
 | `repro_output_dir`                  | str          | `""`      | Base directory for [Agents-tab reproduction bundles](ace.md#agents-tab-reproduction-bundles). Empty means `<SASE_HOME>/repros` (default `~/.sase/repros`). |
 | `snippet_config_path`               | str          | `""`      | Config file that receives new `ace.snippets` entries written from the prompt bar (see below).                                                              |
@@ -1699,6 +1700,24 @@ Source: `src/sase/history/prompt_misspellings.py`, `src/sase/core/word_lookup.py
 `src/sase/ace/tui/widgets/_misspelling_highlight.py`,
 `src/sase/ace/tui/actions/_startup_misspellings.py`,
 `src/sase/ace/tui/modals/spellcheck_panel_modal.py`
+
+#### `ace.agent_decks`
+
+Controls whether a multi-card agent data deck renders spread (every card on one
+scrollable page) or paged (one card at a time) on the Agents tab. Only affects the
+Agents tab when agent decks are enabled.
+
+```yaml
+ace:
+  agent_decks:
+    spread_max_screens: 1.5
+```
+
+| Field                | Type   | Default | Description                                                                                                                                           |
+| -------------------- | ------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `spread_max_screens` | number | `1.5`   | A multi-card deck renders spread when its cards fit within this many panel viewport heights ("screens"), and paged otherwise. `0` means always paged. |
+
+Source: `src/sase/ace/tui/agent_decks_settings.py`
 
 #### `ace.prompt_submission`
 

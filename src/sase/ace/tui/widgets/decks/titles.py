@@ -180,6 +180,7 @@ def deck_subtitle(
     status: Text | None,
     width: int,
     accent_for: Mapping[DeckId, str],
+    spread: bool = False,
 ) -> Text:
     """Render the deck switcher with an optional leading status."""
     from .availability import DeckAvailability
@@ -208,17 +209,41 @@ def deck_subtitle(
         if i > 0:
             switcher.append(" \u00b7 ", style=_MUTED)
         switcher.append(display, style=style)
-    if status is None:
+    spread_tag = Text("spread", style="dim") if spread else None
+    if status is None and spread_tag is None:
         combined = switcher
         if width > 0 and _plain_width(combined) > width:
             return Text(combined.plain[: max(0, width)], style="")
         return combined
+    if status is None:
+        assert spread_tag is not None
+        full = Text()
+        full.append_text(spread_tag)
+        full.append("  ", style="")
+        full.append_text(switcher)
+        if width <= 0 or _plain_width(full) <= width:
+            return full
+        # Drop the spread tag first when width is tight.
+        if _plain_width(switcher) <= width or width <= 0:
+            return switcher
+        return Text(switcher.plain[: max(0, width)], style="")
     full = Text()
     full.append_text(status)
+    if spread_tag is not None:
+        full.append("  ", style="")
+        full.append_text(spread_tag)
     full.append("  ", style="")
     full.append_text(switcher)
     if width <= 0 or _plain_width(full) <= width:
         return full
+    # Drop the spread tag first when width is tight.
+    if spread_tag is not None:
+        without_spread = Text()
+        without_spread.append_text(status)
+        without_spread.append("  ", style="")
+        without_spread.append_text(switcher)
+        if _plain_width(without_spread) <= width:
+            return without_spread
     # Drop the switcher first, then truncate the status.
     status_only = Text()
     status_only.append_text(status)

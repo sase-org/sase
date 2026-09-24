@@ -392,6 +392,11 @@ ace:
   # "none", or the path of a sound file. A rule changes announcement only: the
   # notification is still stored, unread, counted, and listed in its panel tab.
   notification_rules: []
+  agent_decks:
+    # A multi-card deck renders "spread" (every card on one scrollable page) when
+    # its cards fit within this many panel viewport heights ("screens"), and
+    # "paged" (one card at a time) otherwise. 0 means always paged.
+    spread_max_screens: 1.5
   tool_calls:
     slow_threshold_seconds: 20
   artifact_file_viewer:

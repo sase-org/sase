@@ -200,17 +200,43 @@ class SectionViewMixin(Static):
             else ()
         )
         reserve = 0
-        title_anchors = [
-            anchor for anchor in anchors if anchor.role is PromptPanelSectionRole.TITLE
+        top_anchors = [
+            anchor
+            for anchor in anchors
+            if anchor.role
+            in (
+                PromptPanelSectionRole.TITLE,
+                PromptPanelSectionRole.CARD,
+            )
         ]
         if (
             getattr(self, "_section_layout_reserve_enabled", False)
             and self._section_view_features_enabled()
-            and title_anchors
+            and top_anchors
         ):
-            reserve = max(0, title_anchors[-1].row + container.height - real_height)
+            reserve = max(0, top_anchors[-1].row + container.height - real_height)
         self._section_layout_reserve = reserve
         return real_height + reserve
+
+    def card_anchor_rows(self, *, width: int) -> tuple[tuple[str, int], ...] | None:
+        """Return ordered ``(card_id, row)`` pairs, or None when not ready."""
+        generation = getattr(self, "_section_generation", 0)
+        ready = (
+            getattr(self, "_section_anchor_generation", -1) == generation
+            and getattr(self, "_section_anchor_width", -1) == width
+        )
+        if not ready:
+            return None
+        pairs: list[tuple[str, int]] = []
+        for anchor in getattr(self, "_section_anchors", ()):
+            if anchor.role is not PromptPanelSectionRole.CARD:
+                continue
+            identity = anchor.identity
+            if identity.startswith("card:"):
+                pairs.append((identity[len("card:") :], anchor.row))
+            else:
+                pairs.append((identity, anchor.row))
+        return tuple(pairs)
 
     def enable_section_layout_reserve(self) -> bool:
         """Enable final-title alignment extent on the first navigation request."""
@@ -310,6 +336,8 @@ class SectionViewMixin(Static):
 
         current: str | None = None
         for anchor in getattr(self, "_section_anchors", ()):
+            if anchor.role is PromptPanelSectionRole.CARD:
+                continue
             if anchor.row > row:
                 break
             current = anchor.identity

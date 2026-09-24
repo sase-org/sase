@@ -454,6 +454,43 @@ class FilePanelFileListMixin:
             pass
         return self._last_file_content
 
+    def select_file_index(self, index: int) -> None:
+        """Select ``index`` without an extra render hop and display it."""
+        if not self._file_list:
+            return
+        clamped = max(0, min(int(index), len(self._file_list) - 1))
+        self._current_file_index = clamped
+        try:
+            self._note_slot_change(self._current_anchor_key())  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        self._display_file_at_current_index()
+        try:
+            self.post_message(  # type: ignore[attr-defined]
+                FileListChanged(
+                    file_count=len(self._file_list),
+                    file_index=self._current_file_index,
+                )
+            )
+        except Exception:
+            pass
+
+    def set_current_index_silent(self, index: int) -> None:
+        """Update the current index without re-rendering the paged view."""
+        if not self._file_list:
+            return
+        clamped = max(0, min(int(index), len(self._file_list) - 1))
+        self._current_file_index = clamped
+        try:
+            self.post_message(  # type: ignore[attr-defined]
+                FileListChanged(
+                    file_count=len(self._file_list),
+                    file_index=self._current_file_index,
+                )
+            )
+        except Exception:
+            pass
+
 
 def _is_terminal_agent(agent: Agent) -> bool:
     return agent_status_bucket(agent) in {"Done", "Failed"}

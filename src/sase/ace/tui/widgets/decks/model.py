@@ -16,6 +16,13 @@ class DeckId(StrEnum):
     TOOLS = "tools"
 
 
+class RenderMode(StrEnum):
+    """Spread versus paged deck rendering."""
+
+    SPREAD = "spread"
+    PAGED = "paged"
+
+
 DECK_CYCLE: tuple[DeckId, ...] = (DeckId.MAIN, DeckId.FILES, DeckId.TOOLS)
 
 
