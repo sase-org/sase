@@ -6664,15 +6664,19 @@ token under the cursor:
   provider. The second equals sign switches an open alias shortcut panel into the
   explicit model panel. If the token already has a following ASCII space, sase's TUI
   reuses it and leaves the cursor after that space; before a tab it inserts no extra
-  space; before a newline or prompt end it appends one ASCII space. `Ctrl+F` and
-  `Ctrl+L` accept the highlighted row; `Enter` submits the prompt as typed and dismisses
-  the menu instead of expanding the shortcut. No matches dismiss the panel and leave the
-  literal query text intact, so unknown equals tokens submit as ordinary prose. These
-  shortcuts do not fire inside inline code, fenced code, frontmatter,
-  placeholder/directive contexts, escaped equals signs, Markdown-style `=text=` /
-  `==text==` marker pairs, or path-like tokens such as `path/=`. The old `*alias` and
-  `**model` forms are ordinary prompt text. The xprompt LSP uses the same shared filter
-  and edit plans; see [Equals model shortcuts](editor.md#equals-model-shortcuts).
+  space; before a newline or prompt end it appends one ASCII space. Typing `@` directly
+  after a colon-form `%m:<model> ` / `%model:<model> ` value and its single trailing
+  space (at end of line or before whitespace) replaces the space with `@` and opens the
+  effort-level menu (subject to `auto_directive_menu`); undo if you meant a literal `@`
+  reference after the space. `Ctrl+F` and `Ctrl+L` accept the highlighted row; `Enter`
+  submits the prompt as typed and dismisses the menu instead of expanding the shortcut.
+  No matches dismiss the panel and leave the literal query text intact, so unknown
+  equals tokens submit as ordinary prose. These shortcuts do not fire inside inline
+  code, fenced code, frontmatter, placeholder/directive contexts, escaped equals signs,
+  Markdown-style `=text=` / `==text==` marker pairs, or path-like tokens such as
+  `path/=`. The old `*alias` and `**model` forms are ordinary prompt text. The xprompt
+  LSP uses the same shared filter and edit plans; see
+  [Equals model shortcuts](editor.md#equals-model-shortcuts).
   `ace.prompt_completion.auto_directive_menu` only controls whether sase's TUI
   auto-opens these menus and does not govern an external editor's `=` trigger.
 - **`@` reference completion**: A bare `@` opens the artifact-kind menu before a `:`

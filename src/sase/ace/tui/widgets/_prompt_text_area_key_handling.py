@@ -19,6 +19,7 @@ from sase.ace.tui.prompt_submission_settings import (
     DEFAULT_PROMPT_SUBMISSION_SETTINGS,
     PromptSubmissionSettings,
 )
+from sase.ace.tui.widgets._model_effort_spacer import find_model_effort_spacer
 from sase.ace.tui.widgets._prompt_bullet_editing import plan_prompt_bullet_shift
 from sase.ace.tui.widgets._prompt_ordered_shift_editing import (
     plan_prompt_ordered_shift,
@@ -126,6 +127,13 @@ class PromptTextAreaKeyHandlingMixin(
             last: bool = False,
         ) -> bool: ...
         def _try_vcs_project_completion(self) -> bool: ...
+        def _absolute_offset(self, location: tuple[int, int]) -> int: ...
+        def _replace_absolute_range(
+            self,
+            start_offset: int,
+            end_offset: int,
+            replacement: str,
+        ) -> None: ...
         def action_open_prompt_history(self) -> None: ...
         def action_submit_prompt(self) -> None: ...
 
@@ -147,6 +155,18 @@ class PromptTextAreaKeyHandlingMixin(
         if bar._stack.selected_item.is_auxiliary_pane:
             return False
         return any(text.strip() for text in bar.all_prompt_texts())
+
+    def _try_model_effort_spacer_rewrite(self) -> bool:
+        """Replace the space after ``%m:<model> `` with ``@`` for effort completion."""
+        if not self.selection.is_empty:
+            return False
+        row, col = self.cursor_location
+        space_col = find_model_effort_spacer(self.document.get_line(row), col)
+        if space_col is None:
+            return False
+        start = self._absolute_offset((row, space_col))
+        self._replace_absolute_range(start, start + 1, "@")
+        return True
 
     def _open_auto_reference_completion_after_change(
         self,
@@ -438,6 +458,16 @@ class PromptTextAreaKeyHandlingMixin(
         # Detect '#@' trigger before the '@' is inserted (skip in feedback mode).
         if event.character == "@":
             bar = self._find_prompt_bar()
+            if (
+                bar
+                and bar._mode == "prompt"
+                and self._try_model_effort_spacer_rewrite()
+            ):
+                event.stop()
+                event.prevent_default()
+                self._refresh_file_completion_from_cursor()
+                self._open_auto_reference_completion_after_change("@")
+                return
             if bar and bar._mode != "feedback":
                 row, col = self.cursor_location
                 if col > 0:
