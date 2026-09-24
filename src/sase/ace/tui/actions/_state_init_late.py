@@ -201,6 +201,10 @@ def init_late_startup_state(
         AgentDecksSettings,
         parse_agent_decks_settings,
     )
+    from ..agent_header_settings import (
+        AgentHeaderSettings,
+        parse_agent_header_settings,
+    )
     from ..prompt_submission_settings import (
         PromptSubmissionSettings,
         parse_prompt_submission_settings,
@@ -214,6 +218,8 @@ def init_late_startup_state(
     self._prompt_submission_settings = prompt_submission_settings
     agent_decks_settings: AgentDecksSettings = parse_agent_decks_settings(ace_cfg)
     self._agent_decks_settings = agent_decks_settings
+    agent_header_settings: AgentHeaderSettings = parse_agent_header_settings(ace_cfg)
+    self._agent_header_settings = agent_header_settings
     self._agents_repro_output_dir = (
         str(ace_cfg.get("repro_output_dir", "")) if isinstance(ace_cfg, dict) else ""
     )

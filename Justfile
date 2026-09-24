@@ -362,11 +362,16 @@ _lint-patch-stitch-terminology: _setup
 # Check for unused Python definitions (private, extracted for per-stage wrapping).
 # Epic-symbol entries are self-cleaning: each entry goes away with the phase
 # that first consumes its symbols (sase-17x.9 consumed ensure_command_line_spec
-# and CompletionSpecCacheError).
+# and CompletionSpecCacheError; sase-18g.3 consumes the agent-header preview
+# symbols keyed to the sase-18g epic).
 _lint-symvision *args: _setup
     SASE_SYMVISION_BEAD_STATUS_ONLY=1 BD_COMMAND=tools/sase_bead {{ venv_bin }}/symvision src/sase \
         --exclude-decorator gate_command_entrypoint \
         --exclude-decorator builtin_chop \
+        --epic-symbol 'sase-18g(fit_xprompt_preview)' \
+        --epic-symbol 'sase-18g(XpromptPreviewFit)' \
+        --epic-symbol 'sase-18g(preview_row_budget)' \
+        --epic-symbol 'sase-18g(agent_header_settings_for)' \
         {{ args }}
 
 # Check Python file line counts (private, extracted for per-stage wrapping)

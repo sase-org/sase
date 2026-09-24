@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from .navigation._types import JumpAllResult
     from ...query_record import QueryRecord
     from ..agent_decks_settings import AgentDecksSettings
+    from ..agent_header_settings import AgentHeaderSettings
     from ..current_project_settings import CurrentProjectSettings
     from ..glossary_catalog import PromptGlossaryContext
     from ..prompt_catalog import PromptCatalogSnapshot
@@ -197,6 +198,7 @@ class StartupMixin(
     _prompt_spellcheck_settings: PromptSpellcheckSettings
     _prompt_submission_settings: PromptSubmissionSettings
     _agent_decks_settings: AgentDecksSettings
+    _agent_header_settings: AgentHeaderSettings
     _current_project_settings: CurrentProjectSettings
     _history_prompt_word_index_cache: PromptWordIndex | None
     _history_prompt_word_deletions_cache: frozenset[str] | None
