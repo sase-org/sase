@@ -25,6 +25,7 @@ from sase.llm_provider.provider_priority_peek import peek_provider_routing_conte
 from ._pending_launch import (
     PendingLaunch,
     PendingLaunchStage,
+    call_pending_launch_from_worker,
     cancel_pending_launch,
     pending_launch,
     pending_launch_can_show_modal,
@@ -420,9 +421,11 @@ class LaunchProviderGuardMixin:
                     "provider launch guard failed; launching without the panel",
                     exc_info=True,
                 )
-                self._call_from_ui(self._on_provider_guard_failed_open, launch_id)
+                call_pending_launch_from_worker(
+                    self, self._on_provider_guard_failed_open, launch_id
+                )
                 return
-            self._call_from_ui(on_success, result)
+            call_pending_launch_from_worker(self, on_success, result)
 
         if not callable(run_worker):
             task()
@@ -448,13 +451,6 @@ class LaunchProviderGuardMixin:
             return None
         session = launch.provider_guard_session
         return session if isinstance(session, _ProviderGuardSession) else None
-
-    def _call_from_ui(self, callback: Any, *args: Any) -> None:
-        caller = getattr(self, "call_from_thread", None)
-        if callable(caller):
-            caller(callback, *args)
-            return
-        callback(*args)
 
 
 __all__ = ["LaunchProviderGuardMixin"]

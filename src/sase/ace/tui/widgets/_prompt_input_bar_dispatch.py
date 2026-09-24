@@ -18,7 +18,6 @@ from sase.xprompt._directive_scan import scan_dispatch_directive, set_dispatch_d
 from sase.xprompt._exceptions import DirectiveError
 
 if TYPE_CHECKING:
-    from sase.dispatch.launch import RemoteDispatchLaunchPreview
     from textual.widgets import Static as _MixinBase
 
     from sase.ace.tui.widgets.prompt_stack import PromptStackState
@@ -52,9 +51,7 @@ class PromptInputBarDispatchMixin(_MixinBase):
         _mode: str
         _stack: PromptStackState
 
-        def _commit_prepared_submission(self, prepared: object) -> None: ...
         def _cursor_to_end(self, text_area: PromptTextArea) -> None: ...
-        def _prepared_submission_is_current(self, prepared: object) -> bool: ...
         def _refocus_prepared_origin(self, prepared: object) -> None: ...
         def _schedule_height_update(self) -> None: ...
         def _sync_state_from_widgets(self) -> None: ...
@@ -360,18 +357,6 @@ class PromptInputBarDispatchMixin(_MixinBase):
                 return project
         project_name = getattr(ctx, "project_name", "") if ctx is not None else ""
         return str(project_name or "current")
-
-
-def _dispatch_preview_source_summary(preview: RemoteDispatchLaunchPreview) -> str:
-    context = preview.portable_context
-    patch_ref = context.get("patch_ref")
-    if isinstance(patch_ref, str) and patch_ref:
-        return f"source patch {patch_ref}"
-    revision = context.get("revision")
-    if isinstance(revision, str) and revision:
-        return f"source rev {revision[:12]}"
-    project = context.get("project_id")
-    return f"source {project}" if isinstance(project, str) and project else "source ok"
 
 
 def _override_style(severity: _DispatchSeverity) -> str:

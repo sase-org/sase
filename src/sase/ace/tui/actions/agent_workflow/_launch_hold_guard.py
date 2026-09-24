@@ -10,6 +10,7 @@ from sase.agent.launch_hold_preview import hold_confirmation_body, prompt_mentio
 from ._pending_launch import (
     PendingLaunch,
     PendingLaunchStage,
+    call_pending_launch_from_worker,
     cancel_pending_launch,
     pending_launch,
     pending_launch_can_show_modal,
@@ -107,7 +108,7 @@ class LaunchHoldGuardMixin:
                     exc_info=True,
                 )
                 result = None
-            self._call_from_ui_hold_guard(on_success, result)
+            call_pending_launch_from_worker(self, on_success, result)
 
         if not callable(run_worker):
             task()
@@ -118,13 +119,6 @@ class LaunchHoldGuardMixin:
             exclusive=False,
             group=f"{_HOLD_GUARD_GROUP}:{launch_id}",
         )
-
-    def _call_from_ui_hold_guard(self, callback: Any, *args: Any) -> None:
-        caller = getattr(self, "call_from_thread", None)
-        if callable(caller):
-            caller(callback, *args)
-            return
-        callback(*args)
 
 
 __all__ = ["LaunchHoldGuardMixin"]

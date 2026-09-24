@@ -336,7 +336,7 @@ class EntryRelaunchMixin:
         optimistically in memory; the prompt bar mounts immediately after
         rather than waiting for that cleanup's durable persistence proc to
         settle. A relaunch cleanup barrier opened here instead holds the
-        eventual launch (at ``_submit_resolved_launch``) until the proc
+        eventual pending launch (at ``_continue_pending_launch``) until the proc
         settles, so a late bundle write from the old cleanup still cannot
         resurrect the name a replacement agent is about to reuse.
         """

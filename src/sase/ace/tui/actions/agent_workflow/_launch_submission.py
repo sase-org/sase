@@ -16,6 +16,7 @@ from ._pending_launch import (
     PendingLaunch,
     PendingLaunchStage,
     begin_pending_launch,
+    call_pending_launch_from_worker,
     cancel_pending_launch,
     finish_pending_launch,
     flush_pending_launch_stashes,
@@ -77,7 +78,6 @@ class LaunchSubmissionMixin:
         self, launch_id: str, *, continue_with_guards: bool = True
     ) -> None:
         """Preview a dispatch source after acceptance, before all other guards."""
-        from ._launch_submit_helpers import dispatch_payload_from_prompt_context
         from ._pending_launch import pending_launch
 
         launch = pending_launch(self, launch_id)
@@ -106,20 +106,15 @@ class LaunchSubmissionMixin:
                 preview = preview_dispatch_launch(launch.prompt, payload=payload)
             except Exception as exc:  # source errors are returned to the draft
                 error = str(exc)
-            caller = getattr(self, "call_from_thread", None)
-            if callable(caller):
-                caller(
-                    self._complete_dispatch_pending_launch,
-                    launch_id,
-                    payload,
-                    preview,
-                    error,
-                    continue_with_guards,
-                )
-            else:
-                self._complete_dispatch_pending_launch(
-                    launch_id, payload, preview, error, continue_with_guards
-                )
+            call_pending_launch_from_worker(
+                self,
+                self._complete_dispatch_pending_launch,
+                launch_id,
+                payload,
+                preview,
+                error,
+                continue_with_guards,
+            )
 
         run_worker = getattr(self, "run_worker", None)
         try:

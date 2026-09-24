@@ -19,7 +19,8 @@ class EntryBulkMixin:
         """Start agents for all marked Patches.
 
         Shows a single prompt input bar. Submit fans out one durable
-        ``sase run`` per marked Patch from :meth:`_submit_resolved_launch`.
+        ``sase run`` per marked Patch once its pending launch submits
+        (:meth:`_submit_bulk_pending_launch`).
         """
         if not self.marked_indices:
             self.notify("No marked Patches", severity="warning")  # type: ignore[attr-defined]
