@@ -5267,11 +5267,6 @@
           "default": true,
           "deprecated": true
         },
-        "tool_handoff": {
-          "type": "boolean",
-          "description": "sase tool run -H hands a run off to a durable proc, and monitor starts reserve their ToolRun.",
-          "default": false
-        },
         "typed_launch_units": {
           "type": "boolean",
           "description": "Beta gate for typed launch units, %if, and %proc.",

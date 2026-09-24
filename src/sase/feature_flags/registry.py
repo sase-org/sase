@@ -37,7 +37,6 @@ class FeatureFlag(StrEnum):
     refresh_panel = "refresh_panel"
     slim_agents_manifest = "slim_agents_manifest"
     typed_launch_units = "typed_launch_units"
-    tool_handoff = "tool_handoff"
 
 
 _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
@@ -187,15 +186,6 @@ _FEATURE_FLAG_DEFINITIONS: dict[FeatureFlag, FeatureFlagDefinition] = {
         kind="beta",
         description="Beta gate for typed launch units, %if, and %proc.",
         bead="sase-s7",
-    ),
-    FeatureFlag.tool_handoff: FeatureFlagDefinition(
-        key=FeatureFlag.tool_handoff,
-        kind="beta",
-        description=(
-            "sase tool run -H hands a run off to a durable proc, and "
-            "monitor starts reserve their ToolRun."
-        ),
-        bead="sase-17w",
     ),
 }
 

@@ -84,6 +84,12 @@ re-run a child whose result is uncertain. See [[glossary:tool-catalog]].
 `check` catalog entry and recipe guard, so run the wrapped form from inside that
 checkout and a raw agent `just check` there is refused just like here.
 
+A `verify` monitor start reserves its ToolRun up front and prints the id before the turn
+ends; `sase tool show RUN -F`, `sase tool stop RUN`, and `sase tool wait RUN` work on
+that id from any later shell. `sase tool run -H` is the non-agent hand-off (it returns
+at once with a run id) and refuses inside agents — agents hand off through
+`sase monitor start`.
+
 Before handing `just check` or `just check-full` to a verify monitor, run `just fix`
 inline first (or at minimum `just fmt`); it takes seconds and prevents common avoidable
 formatting and keep-sorted monitor failures.

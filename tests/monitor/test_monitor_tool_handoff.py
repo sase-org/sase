@@ -1,7 +1,6 @@
 """Monitor-start ToolRun reservation (phase monitor-handoff).
 
-With the ``tool_handoff`` flag off, monitor starts keep E1.5 wrapping. With
-it on, a monitor whose proc would run a ToolRun reserves that run up front
+A monitor whose proc would run a ToolRun reserves that run up front
 (owned by the monitor) and execs the claiming worker instead, leaving
 ``monitor_command`` / ``monitor_execution_argv`` and ``-f`` bindings
 untouched and failing open to E1.5 wrapping when the reservation cannot be
@@ -18,7 +17,6 @@ from pathlib import Path
 
 import pytest
 
-from sase.feature_flags import override_flags
 from sase.monitor.models import MonitorRecord
 from sase.monitor.proc_adapter import _compile_monitor_argv
 from sase.monitor.start import StartMonitorRequest, start_monitor
@@ -256,38 +254,15 @@ def _meta(record: MonitorRecord) -> dict[str, object]:
     return json.loads(meta_path.read_text(encoding="utf-8"))
 
 
-def test_flag_off_keeps_e15_wrapping(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from sase.core.tool_run import tool_run_list
-
-    root = _sandbox_project(tmp_path)
-    with override_flags(tool_handoff=False):
-        record = _start(
-            tmp_path, monkeypatch, command="true", cwd=str(root), profile="verify"
-        )
-    assert record.tool_run_id is None
-    proc = get_proc(record.monitor_id)
-    assert proc is not None
-    assert proc.argv == [*_sase_argv(), "tool", "run", "check"]
-    assert "monitor_tool_run_id" not in _meta(record)
-    done = wait_for_done(record.artifacts_dir)
-    assert done["monitor_state"] == "completed"
-    runs = tool_run_list({"schema_version": 1, "limit": 10})["runs"]
-    assert len(runs) == 1
-    assert runs[0].get("launch_mode") in (None, "foreground")
-
-
-def test_flag_on_named_upgrade_reserves_handoff(
+def test_named_upgrade_reserves_handoff(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.core.tool_run import tool_run_list, tool_run_show
 
     root = _sandbox_project(tmp_path)
-    with override_flags(tool_handoff=True):
-        record = _start(
-            tmp_path, monkeypatch, command="true", cwd=str(root), profile="verify"
-        )
+    record = _start(
+        tmp_path, monkeypatch, command="true", cwd=str(root), profile="verify"
+    )
     assert record.tool_run_id
     run_id = record.tool_run_id
     assert _meta(record)["monitor_tool_run_id"] == run_id
@@ -320,17 +295,16 @@ def test_flag_on_named_upgrade_reserves_handoff(
     assert "tool run not reserved" not in text
 
 
-def test_flag_on_explicit_tool_run_reserved_not_doubled(
+def test_explicit_tool_run_reserved_not_doubled(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.core.tool_run import tool_run_list
 
     root = _sandbox_project(tmp_path)
     command = shlex.join([*_sase_argv(), "tool", "run", "check"])
-    with override_flags(tool_handoff=True):
-        record = _start(
-            tmp_path, monkeypatch, command=command, cwd=str(root), profile="verify"
-        )
+    record = _start(
+        tmp_path, monkeypatch, command=command, cwd=str(root), profile="verify"
+    )
     assert record.tool_run_id
     proc = get_proc(record.monitor_id)
     assert proc is not None
@@ -344,17 +318,16 @@ def test_flag_on_explicit_tool_run_reserved_not_doubled(
     assert runs[0].get("run_id") == record.tool_run_id
 
 
-def test_flag_on_output_option_keeps_e15(
+def test_output_option_keeps_e15(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.monitor import stop_monitor
 
     root = _sandbox_project(tmp_path)
     command = shlex.join([*_sase_argv(), "tool", "run", "-q", "check"])
-    with override_flags(tool_handoff=True):
-        record = _start(
-            tmp_path, monkeypatch, command=command, cwd=str(root), profile="verify"
-        )
+    record = _start(
+        tmp_path, monkeypatch, command=command, cwd=str(root), profile="verify"
+    )
     # Output-mode options cannot be honored by a hand-off worker: the E1.5
     # argv stays untouched and nothing is reserved. (The inner `-q` run is
     # refused by the owner-presentation rule, so stop the monitor instead
@@ -369,22 +342,21 @@ def test_flag_on_output_option_keeps_e15(
     assert done["monitor_state"] == "stopped"
 
 
-def test_flag_on_epic_launch_creates_no_run(
+def test_epic_launch_creates_no_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.core.tool_run import tool_run_list
 
     root = _sandbox_project(tmp_path)
     execution = [sys.executable, "bootstrap.py", "--", "sase", "bead", "work"]
-    with override_flags(tool_handoff=True):
-        record = _start(
-            tmp_path,
-            monkeypatch,
-            command="sase bead work plan.md",
-            cwd=str(root),
-            profile="verify",
-            execution_argv=execution,
-        )
+    record = _start(
+        tmp_path,
+        monkeypatch,
+        command="sase bead work plan.md",
+        cwd=str(root),
+        profile="verify",
+        execution_argv=execution,
+    )
     assert record.tool_run_id is None
     proc = get_proc(record.monitor_id)
     assert proc is not None
@@ -392,16 +364,15 @@ def test_flag_on_epic_launch_creates_no_run(
     assert tool_run_list({"schema_version": 1, "limit": 10})["runs"] == []
 
 
-def test_flag_on_completion_argv_still_raw(
+def test_completion_argv_still_raw(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     from sase.monitor.host_completion_state import _command_argv
 
     root = _sandbox_project(tmp_path)
-    with override_flags(tool_handoff=True):
-        record = _start(
-            tmp_path, monkeypatch, command="true", cwd=str(root), profile="verify"
-        )
+    record = _start(
+        tmp_path, monkeypatch, command="true", cwd=str(root), profile="verify"
+    )
     meta = _meta(record)
     assert meta["monitor_command"] == "true"
     assert "monitor_execution_argv" not in meta
@@ -428,10 +399,9 @@ def test_failed_reservation_falls_back_with_reason_line(
             error="store gone",
         ),
     )
-    with override_flags(tool_handoff=True):
-        record = _start(
-            tmp_path, monkeypatch, command="true", cwd=str(root), profile="verify"
-        )
+    record = _start(
+        tmp_path, monkeypatch, command="true", cwd=str(root), profile="verify"
+    )
     assert record.tool_run_id is None
     proc = get_proc(record.monitor_id)
     assert proc is not None
@@ -457,16 +427,15 @@ def test_start_failure_after_reservation_settles_launch_failed(
         raise ProcSubmitError("supervisor gone")
 
     monkeypatch.setattr(start_module, "submit_proc_request", _boom)
-    with override_flags(tool_handoff=True):
-        with pytest.raises(MonitorError):
-            _start(
-                tmp_path,
-                monkeypatch,
-                command="true",
-                cwd=str(root),
-                profile="verify",
-                timestamp="20260812120001",
-            )
+    with pytest.raises(MonitorError):
+        _start(
+            tmp_path,
+            monkeypatch,
+            command="true",
+            cwd=str(root),
+            profile="verify",
+            timestamp="20260812120001",
+        )
     from sase.core.tool_run import tool_run_list
 
     runs = tool_run_list({"schema_version": 1, "limit": 10})["runs"]

@@ -1,8 +1,7 @@
 """Reserve a monitor-owned ToolRun hand-off before the monitor proc starts.
 
-Only active while the ``tool_handoff`` beta flag is enabled. The caller
-(:func:`sase.monitor.start.start_monitor`) resolves the monitor's proc argv
-with E1.5 wrapping first, then asks for the ``tool run`` words behind that
+The caller (:func:`sase.monitor.start.start_monitor`) resolves the monitor's
+proc argv with E1.5 wrapping first, then asks for the ``tool run`` words behind that
 argv via :func:`sase.monitor.tool_wrap.monitor_tool_run_words`. When words
 are present they are parsed with the real ``tool run`` parser: output-mode
 options (``-q``/``-v``/``-T``) or an unparsable remainder keep the E1.5 argv

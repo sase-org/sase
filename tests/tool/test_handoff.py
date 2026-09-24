@@ -13,7 +13,6 @@ import pytest
 
 from sase.config.core import clear_config_cache
 from sase.core.tool_run import tool_run_list, tool_run_request_stop, tool_run_show
-from sase.feature_flags import override_flags
 from sase.tool.adopt import execute_adopted_run
 from sase.tool.argv import resolve_run_argv
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
@@ -96,8 +95,7 @@ def test_adopt_claimed_runs_frozen_argv(
     assert reservation.reserved, reservation.error
     monkeypatch.setenv("SASE_PROC_ID", "proc-1")
     monkeypatch.setenv("SASE_PROC_LOG_PATH", str(tmp_path / "owner.log"))
-    with override_flags(tool_handoff=True):
-        code = execute_adopted_run(reservation.run_id)
+    code = execute_adopted_run(reservation.run_id)
     assert code == 0
     assert marker.read_text(encoding="utf-8").strip() == "ok"
     shown = tool_run_show(reservation.run_id)
@@ -121,8 +119,7 @@ def test_adopt_refused_owner_mismatch_spawns_nothing(
     assert reservation.reserved
     monkeypatch.setenv("SASE_PROC_ID", "proc-2")
     monkeypatch.setenv("SASE_PROC_LOG_PATH", str(tmp_path / "owner.log"))
-    with override_flags(tool_handoff=True):
-        code = execute_adopted_run(reservation.run_id)
+    code = execute_adopted_run(reservation.run_id)
     assert code == 2
     assert not marker.exists()
     captured = capsys.readouterr()
@@ -143,8 +140,7 @@ def test_adopt_stopped_before_claim_spawns_nothing(
     )
     monkeypatch.setenv("SASE_PROC_ID", "proc-1")
     monkeypatch.setenv("SASE_PROC_LOG_PATH", str(tmp_path / "owner.log"))
-    with override_flags(tool_handoff=True):
-        code = execute_adopted_run(reservation.run_id)
+    code = execute_adopted_run(reservation.run_id)
     assert code == 143
     assert not marker.exists()
     shown = tool_run_show(reservation.run_id)
@@ -158,8 +154,7 @@ def test_adopt_no_owner_touches_nothing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _clean_env(monkeypatch, tmp_path)
-    with override_flags(tool_handoff=True):
-        code = execute_adopted_run("deadbeef" * 4)
+    code = execute_adopted_run("deadbeef" * 4)
     assert code == 2
     captured = capsys.readouterr()
     assert "no owner in the environment" in captured.err
@@ -173,10 +168,9 @@ def test_handoff_end_to_end_settles_through_proc(
     _clean_env(monkeypatch, tmp_path)
     from sase.procs import read_procs, wait_for_proc
 
-    with override_flags(tool_handoff=True):
-        started = time.monotonic()
-        code = execute_tool_run(_handoff_request("--", "sh", "-c", "sleep 2; exit 7"))
-        elapsed = time.monotonic() - started
+    started = time.monotonic()
+    code = execute_tool_run(_handoff_request("--", "sh", "-c", "sleep 2; exit 7"))
+    elapsed = time.monotonic() - started
     assert code == 0
     assert elapsed < 2.0
     captured = capsys.readouterr()
@@ -219,10 +213,7 @@ def test_handoff_quiet_prints_only_run_id(
     _clean_env(monkeypatch, tmp_path)
     from sase.procs import read_procs, wait_for_proc
 
-    with override_flags(tool_handoff=True):
-        code = execute_tool_run(
-            _handoff_request("--", "sh", "-c", "exit 0", quiet=True)
-        )
+    code = execute_tool_run(_handoff_request("--", "sh", "-c", "exit 0", quiet=True))
     assert code == 0
     captured = capsys.readouterr()
     run_id = captured.out.strip().splitlines()[0].strip()
@@ -239,10 +230,9 @@ def test_handoff_secret_never_reaches_proc_row(
     _clean_env(monkeypatch, tmp_path)
     from sase.procs import read_procs, wait_for_proc
 
-    with override_flags(tool_handoff=True):
-        code = execute_tool_run(
-            _handoff_request("--", "sh", "-c", "echo hi", "--token", "SECRET123")
-        )
+    code = execute_tool_run(
+        _handoff_request("--", "sh", "-c", "echo hi", "--token", "SECRET123")
+    )
     assert code == 0
     captured = capsys.readouterr()
     run_id = next(
@@ -269,8 +259,7 @@ def test_handoff_unwritable_store_is_fail_closed(
     (home / "tools").write_text("not-a-directory", encoding="utf-8")
     from sase.procs import read_procs
 
-    with override_flags(tool_handoff=True):
-        code = execute_tool_run(_handoff_request("--", "printf", "hi"))
+    code = execute_tool_run(_handoff_request("--", "printf", "hi"))
     assert code == 1
     captured = capsys.readouterr()
     assert "nothing was started" in captured.err
@@ -330,8 +319,7 @@ def test_handoff_frozen_argv_survives_catalog_edit(
     clear_config_cache()
     monkeypatch.setenv("SASE_PROC_ID", "proc-9")
     monkeypatch.setenv("SASE_PROC_LOG_PATH", str(tmp_path / "owner.log"))
-    with override_flags(tool_handoff=True):
-        code = execute_adopted_run(reservation.run_id)
+    code = execute_adopted_run(reservation.run_id)
     assert code == 0
     assert marker.read_text(encoding="utf-8").strip() == "frozen"
 
@@ -347,8 +335,7 @@ def test_handoff_submit_failure_settles_launch_failed(
         raise ProcSubmitError("supervisor down")
 
     monkeypatch.setattr("sase.procs.submit_proc_request", _boom)
-    with override_flags(tool_handoff=True):
-        code = execute_tool_run(_handoff_request("--", "printf", "hi"))
+    code = execute_tool_run(_handoff_request("--", "printf", "hi"))
     assert code == 1
     captured = capsys.readouterr()
     assert "command was not run" in captured.err
@@ -366,8 +353,7 @@ def test_handoff_refuses_inside_agent(
 ) -> None:
     _clean_env(monkeypatch, tmp_path)
     monkeypatch.setenv("SASE_AGENT", "1")
-    with override_flags(tool_handoff=True):
-        code = execute_tool_run(_handoff_request("--", "printf", "hi"))
+    code = execute_tool_run(_handoff_request("--", "printf", "hi"))
     assert code == 2
     captured = capsys.readouterr()
     assert (
@@ -389,8 +375,7 @@ def test_handoff_refuses_inside_live_proc(
             status="running", origin="cli", proc_id=proc_id
         ),
     )
-    with override_flags(tool_handoff=True):
-        code = execute_tool_run(_handoff_request("--", "printf", "hi"))
+    code = execute_tool_run(_handoff_request("--", "printf", "hi"))
     assert code == 2
     captured = capsys.readouterr()
     assert "proc proc-live" in captured.err
@@ -409,8 +394,7 @@ def test_handoff_tui_proc_message_says_drop_H(
             status="running", origin="ace", proc_id=proc_id
         ),
     )
-    with override_flags(tool_handoff=True):
-        code = execute_tool_run(_handoff_request("--", "printf", "hi"))
+    code = execute_tool_run(_handoff_request("--", "printf", "hi"))
     assert code == 2
     captured = capsys.readouterr()
     assert "already a detached proc" in captured.err
@@ -421,48 +405,31 @@ def test_handoff_verbose_and_tail_are_usage_errors(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     _clean_env(monkeypatch, tmp_path)
-    with override_flags(tool_handoff=True):
-        code_v = execute_tool_run(
-            ToolRunCliRequest(
-                quiet=False,
-                verbose=True,
-                tail_lines=200,
-                words=("--", "printf", "hi"),
-                hand_off=True,
-                tail_lines_explicit=False,
-            )
+    code_v = execute_tool_run(
+        ToolRunCliRequest(
+            quiet=False,
+            verbose=True,
+            tail_lines=200,
+            words=("--", "printf", "hi"),
+            hand_off=True,
+            tail_lines_explicit=False,
         )
-        assert code_v == 2
-        capsys.readouterr()
-        code_t = execute_tool_run(
-            ToolRunCliRequest(
-                quiet=False,
-                verbose=False,
-                tail_lines=5,
-                words=("--", "printf", "hi"),
-                hand_off=True,
-                tail_lines_explicit=True,
-            )
+    )
+    assert code_v == 2
+    capsys.readouterr()
+    code_t = execute_tool_run(
+        ToolRunCliRequest(
+            quiet=False,
+            verbose=False,
+            tail_lines=5,
+            words=("--", "printf", "hi"),
+            hand_off=True,
+            tail_lines_explicit=True,
         )
-        assert code_t == 2
+    )
+    assert code_t == 2
     listed = tool_run_list({"schema_version": 1, "limit": 10})
     assert not listed.get("runs")
-
-
-def test_handoff_flag_off_refuses(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
-    _clean_env(monkeypatch, tmp_path)
-    from sase.procs import read_procs
-
-    with override_flags(tool_handoff=False):
-        code = execute_tool_run(_handoff_request("--", "printf", "hi"))
-    assert code == 2
-    captured = capsys.readouterr()
-    assert "tool_handoff" in captured.err
-    listed = tool_run_list({"schema_version": 1, "limit": 10})
-    assert not listed.get("runs")
-    assert not read_procs()
 
 
 def test_parser_adopt_hidden_and_hand_off_present(

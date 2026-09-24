@@ -120,6 +120,48 @@ SIGKILL after 2 seconds, but only while the group leader still matches the recor
 child's start identity; a reused PID is never signaled. `sase tool runs` and
 `sase tool show` reconcile lost runs without signaling anything.
 
+## Hand-off and lifecycle control
+
+A handed-off run has a durable identity before its caller lets go. The launcher reserves
+a `created` run that already names its owner (a proc or a monitor), then starts the
+owner, whose command is a hidden worker that atomically claims that exact run and
+executes the frozen invocation. The printed handle is durable from the reservation on:
+the run stays discoverable, followable, waitable, and stoppable through its id, and it
+settles to either an authoritative outcome or an explicit, typed uncertainty. One
+ToolRun links to exactly one proc; each `-H` invocation is a new request, and a run id
+executes at most once.
+
+```bash
+sase tool run -H check     # returns at once with a run id; the shell may close
+sase tool show RUN -F      # stream the run live until it settles, then summarize
+sase tool wait RUN         # block until it settles; exit with its exit code
+sase tool stop RUN         # ask the owner to stop it; reports requested vs stopped
+```
+
+Agents hand off through `sase monitor start` (which reserves the run and prints its id
+before the turn ends); `sase tool run -H` refuses inside an agent or a live owner with
+the exact monitor form to use instead (exit `2`).
+
+Recording failures behave differently by leg. Explicit `-H` is **fail-closed**: if the
+reservation cannot be committed, nothing starts (exit `1`, "nothing was started").
+Foreground `sase tool run` stays **fail-open** as above. A monitor start's reservation
+is **fail-open**: it falls back to wrapped execution with one reason line in the monitor
+log, since the monitor id itself is already durable.
+
+Every settlement records a typed `terminal_cause`: `exited`, `signal`, `interrupt`,
+`stop_requested`, `timeout`, `launch_failed`, `owner_lost`, or `wrapper_lost`. A stop
+settles `signaled`/`stop_requested`, including before the command started ("command was
+not run"). Killing any process leaves either a recoverable run or a run that says, in a
+typed field, why its outcome is unknown — nothing is replayed and no success is
+fabricated. A reboot yields truthful reconciliation (`lost`), never a rerun. One ToolRun
+is not an exactly-once guarantee for external side effects: a lost acknowledgement
+retried by the caller creates a second run, and each run executes once.
+
+Platform note: a terminal-launched proc stays in the terminal's cgroup unless its
+`detach_scope` escapes to a scope; closing the terminal then still reaches the run.
+`show` on a run whose owner row or logs were pruned reports the owner and the log as no
+longer retained, by name — the summary survives.
+
 ## Rerunnable harness
 
 ```bash
@@ -135,9 +177,10 @@ in, a temporary git project, and a known fixture catalog. It inspects the real s
 through versioned queries; it never runs the expensive SASE catalog, and its only fault
 injection is at the filesystem and process boundary. The report records which Python and
 `sase_core_rs` module the executable actually loaded. Default mode runs every hermetic
-case and labels the live cases `not-run`; `--live` adds a real monitor, a real proc, and
-the cold-start overhead measurement. `tests/test_sase_tool_runs_smoke.py` is the pytest
-twin and shares the same cases.
+case and labels the live cases `not-run`; `--live` adds a real monitor, a real proc, the
+hand-off fault matrix (acceptance, stop races, viewer detach, worker crash, delivery,
+monitor hand-off), and the cold-start overhead measurement.
+`tests/test_sase_tool_runs_smoke.py` is the pytest twin and shares the same cases.
 
 A `--keep` directory holds one `world-*` subdirectory per case group. Inspect one with
 `SASE_HOME=<kept>/world-NAME/sase-home HOME=<kept>/world-NAME/user-home sase tool runs -a`.

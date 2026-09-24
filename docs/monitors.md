@@ -169,6 +169,16 @@ the wrapper. Only the argv the proc supervisor execs is wrapped: `monitor_comman
 binding keeps resolving the raw command. The wrapper is built from the supervisor's own
 Python (`sys.executable -m sase`), never `PATH`.
 
+Where the table below resolves to a tool run, the start reserves that run up front — a
+`created` hand-off run owned by the monitor id — and the proc execs the claiming worker
+instead of the wrapped argv, so one semantic run is never recorded twice. The run id
+prints in the start output (`Tool run`), rides the `--json` envelope (`tool_run_id`),
+persists as the flat `monitor_tool_run_id` meta field, and shows in `sase monitor show`,
+so the follow-up can `sase tool show RUN -F`, `sase tool stop RUN`, or
+`sase tool wait RUN` on it. If the reservation cannot be committed, the start keeps the
+wrapped argv (fail-open) and pre-writes one `sase: tool run not reserved (...)` reason
+line to the monitor log.
+
 | Monitor                                                                                                | Proc argv                                    |
 | ------------------------------------------------------------------------------------------------------ | -------------------------------------------- |
 | Host-owned `execution_argv` launch (an epic `sase bead work`)                                          | unchanged, **never** wrapped                 |

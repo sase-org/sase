@@ -14,15 +14,6 @@ from sase.tool.executor import ToolRunCliRequest
 def execute_handoff(request: ToolRunCliRequest) -> int:
     """Reserve a hand-off run and submit its adopting proc."""
 
-    from sase.feature_flags import FeatureFlag, current_flags
-
-    if not current_flags().enabled(FeatureFlag.tool_handoff):
-        print(
-            "sase tool run -H requires the tool_handoff flag "
-            "(sase flag enable tool_handoff)",
-            file=sys.stderr,
-        )
-        return 2
     if request.verbose:
         print(
             "sase tool run -H cannot be used with -v/--verbose",

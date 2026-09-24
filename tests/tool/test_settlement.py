@@ -23,7 +23,6 @@ from sase.core.tool_run import (
     tool_run_request_stop,
     tool_run_show,
 )
-from sase.feature_flags import override_flags
 from sase.notifications.store import load_notifications
 from sase.procs import get_proc, new_proc_id, submit_proc_request, wait_for_proc
 from sase.procs.models import Proc
@@ -1016,8 +1015,7 @@ def test_handoff_end_to_end_publishes_one_notification(
         hand_off=True,
         tail_lines_explicit=False,
     )
-    with override_flags(tool_handoff=True):
-        assert execute_tool_run(request) == 0
+    assert execute_tool_run(request) == 0
     run_id = capsys.readouterr().out.strip()
     run = _settled_run(run_id)
     assert run["state"] == "succeeded"

@@ -18,12 +18,21 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "tools" / "smoke_sase_tool_runs"
-LIVE_CASES = ["dod-8-live-monitor", "dod-8-live-proc"]
+LIVE_CASES = [
+    "dod-8-live-monitor",
+    "dod-8-live-proc",
+    "dod-14-live-handoff-stop",
+    "dod-14-live-handoff-viewers",
+    "dod-14-live-handoff-crash",
+    "dod-14-live-handoff-delivery",
+    "dod-14-live-monitor-handoff",
+]
 # The script imports these siblings by module name; `tools/pyscripts-260801` also
 # requires each helper to be referenced from a tracked file outside `tools/`.
 HARNESS_MODULES = (
     "_smoke_tool_runs_cases_basic.py",
     "_smoke_tool_runs_cases_evidence.py",
+    "_smoke_tool_runs_cases_handoff.py",
     "_smoke_tool_runs_cases_owners.py",
     "_smoke_tool_runs_helper.py",
     "_smoke_tool_runs_lib.py",
@@ -130,7 +139,8 @@ def test_tool_runs_harness_passes_every_hermetic_case() -> None:
     assert {statuses[case_id] for case_id in LIVE_CASES} == {"not-run"}
     assert statuses["dod-13-overhead"] == "not-run"
     dod = {item["id"]: item["status"] for item in report["dod"]}
-    assert all(dod[f"DoD-{n}"] == "pass" for n in (1, 2, 3, 4, 5, 6, 7, 9, 10))
+    assert all(dod[f"DoD-{n}"] == "pass" for n in (1, 2, 3, 4, 5, 6, 7, 9, 10, 14))
+    assert dod["DoD-15"] == "not-run"
     assert dod["DoD-8"] == "not-run"
     assert report["failed"] == 0
     assert report["loaded_modules"]["core_has_tool_run"] is True

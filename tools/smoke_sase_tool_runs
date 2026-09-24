@@ -34,6 +34,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import _smoke_tool_runs_cases_basic as basic  # noqa: E402
 import _smoke_tool_runs_cases_evidence as evidence  # noqa: E402
+import _smoke_tool_runs_cases_handoff as handoff  # noqa: E402
 import _smoke_tool_runs_cases_owners as owners  # noqa: E402
 from _smoke_tool_runs_lib import FAIL, NOT_RUN, PASS, Harness, case  # noqa: E402
 
@@ -71,6 +72,22 @@ GROUPS: tuple[Group, ...] = (
         evidence.agent_output,
     ),
     (("dod-7-truncation",), evidence.truncation),
+    (("dod-14-handoff-accept",), handoff.accept),
+    (("dod-14-handoff-ack-retry",), handoff.ack_retry),
+    (
+        ("dod-14-handoff-fail-closed", "dod-14-handoff-submit-fails"),
+        handoff.launch_failures,
+    ),
+    (("dod-14-handoff-refusals",), handoff.refusals),
+    (
+        ("dod-14-handoff-frozen", "dod-14-handoff-owner-log-missing"),
+        handoff.frozen_and_missing,
+    ),
+    (("dod-14-live-handoff-stop",), handoff.live_stop),
+    (("dod-14-live-handoff-viewers",), handoff.live_viewers),
+    (("dod-14-live-handoff-crash",), handoff.live_crash),
+    (("dod-14-live-handoff-delivery",), handoff.live_delivery),
+    (("dod-14-live-monitor-handoff",), handoff.live_monitor_handoff),
     (("dod-8-enclosing-owner",), owners.enclosing_owner),
     (("dod-8-nested",), owners.nested_runs),
     (("dod-8-live-monitor",), owners.live_monitor),

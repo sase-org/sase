@@ -97,16 +97,6 @@ from .transaction import (
 )
 
 
-def _monitor_tool_handoff_enabled() -> bool:
-    """Return whether monitor starts reserve their ToolRun hand-off."""
-    from sase.feature_flags import FeatureFlag, current_flags
-
-    try:
-        return bool(current_flags().enabled(FeatureFlag.tool_handoff))
-    except Exception:  # noqa: BLE001 - flag lookup failure keeps E1.5 wrapping.
-        return False
-
-
 def _tool_run_agent_overlay(starter_agent: str | None) -> dict[str, str]:
     """Return the attribution overlay carrying a monitor's starter agent.
 
@@ -338,46 +328,45 @@ def _start_monitor_locked(
     tool_run_id: str | None = None
     proc_tags: list[str] = []
     proc_env_overlay: dict[str, str] = {}
-    if _monitor_tool_handoff_enabled():
-        from sase.tool.handoff import (
-            owner_tags,
-            worker_argv,
-            worker_env_overlay,
-        )
+    from sase.tool.handoff import (
+        owner_tags,
+        worker_argv,
+        worker_env_overlay,
+    )
 
-        from .tool_handoff import (
-            format_reservation_fallback_line,
-            maybe_reserve_monitor_tool_run,
-        )
+    from .tool_handoff import (
+        format_reservation_fallback_line,
+        maybe_reserve_monitor_tool_run,
+    )
 
-        words = monitor_tool_run_words(
-            request.command,
-            request.execution_argv,
-            proc_argv,
-            unwrapped_reason,
-        )
-        handoff = maybe_reserve_monitor_tool_run(
-            words, cwd=request.cwd, monitor_id=monitor_id
-        )
-        if handoff.attempted:
-            reservation = handoff.reservation
-            if reservation is not None and reservation.reserved:
-                # Adopted: the proc runs the claiming worker, never the
-                # E1.5 argv, so one semantic run is never recorded twice.
-                tool_run_id = reservation.run_id
-                proc_argv = worker_argv(tool_run_id)
-                proc_tags = list(owner_tags(tool_run_id))
-                proc_env_overlay = dict(worker_env_overlay())
-                update_meta_field(artifacts_dir, "monitor_tool_run_id", tool_run_id)
-            else:
-                # Fail-open: keep the E1.5 argv and name the fallback.
-                reason = (
-                    reservation.error if reservation is not None else None
-                ) or "unknown error"
-                append_monitor_log_bytes(
-                    log_path,
-                    format_reservation_fallback_line(reason).encode("utf-8"),
-                )
+    words = monitor_tool_run_words(
+        request.command,
+        request.execution_argv,
+        proc_argv,
+        unwrapped_reason,
+    )
+    handoff = maybe_reserve_monitor_tool_run(
+        words, cwd=request.cwd, monitor_id=monitor_id
+    )
+    if handoff.attempted:
+        reservation = handoff.reservation
+        if reservation is not None and reservation.reserved:
+            # Adopted: the proc runs the claiming worker, never the
+            # E1.5 argv, so one semantic run is never recorded twice.
+            tool_run_id = reservation.run_id
+            proc_argv = worker_argv(tool_run_id)
+            proc_tags = list(owner_tags(tool_run_id))
+            proc_env_overlay = dict(worker_env_overlay())
+            update_meta_field(artifacts_dir, "monitor_tool_run_id", tool_run_id)
+        else:
+            # Fail-open: keep the E1.5 argv and name the fallback.
+            reason = (
+                reservation.error if reservation is not None else None
+            ) or "unknown error"
+            append_monitor_log_bytes(
+                log_path,
+                format_reservation_fallback_line(reason).encode("utf-8"),
+            )
     try:
         proc = submit_proc_request(
             ProcSubmitRequest(
