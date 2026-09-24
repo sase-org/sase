@@ -105,11 +105,15 @@ def test_directive_completion_includes_representative_descriptions() -> None:
         "Override the LLM model for this prompt"
     )
     assert directive_metadata(model).argument_hint == (":model or (model, alias=model)")
-    assert directive_metadata(agent_id).description == (
-        "Assign an agent ID with optional bead, clan, family, or user-managed tribe"
+    # Dual-shape: the additive core names session=; the pinned core names
+    # family=. Tightened to the new shape in wire-cutover.
+    assert directive_metadata(agent_id).description in (
+        "Assign an agent ID with optional bead, clan, family, or user-managed tribe",
+        "Assign an agent ID with optional bead, clan, session, or user-managed tribe",
     )
-    assert directive_metadata(agent_id).argument_hint == (
-        ":agent-id or :name.{@key}; ([id], bead=, clan=/family=/tribe=)"
+    assert directive_metadata(agent_id).argument_hint in (
+        ":agent-id or :name.{@key}; ([id], bead=, clan=/family=/tribe=)",
+        ":agent-id or :name.{@key}; ([id], bead=, clan=/session=/tribe=)",
     )
     assert directive_metadata(wait).description == (
         "Wait for another agent/workflow and/or a time floor"
@@ -195,14 +199,34 @@ def test_clan_parenthesized_completion_advertises_summary_keywords() -> None:
 
 
 def test_id_parenthesized_completion_advertises_identity_keywords() -> None:
-    for line, expected in (
-        ("%id(worker, be", "bead="),
-        ("%id(be", "bead="),
-        ("%id(worker, cl", "clan="),
-        ("%id(worker, fa", "family="),
-        ("%id(fa", "family="),
-        ("%id(tr", "tribe="),
-    ):
+    # Dual-shape: the pinned core suggests family= for "fa"; the additive
+    # core suggests session= for "se" instead. Tightened in wire-cutover.
+    probe_context = extract_directive_arg_token_around_cursor(
+        "%id(worker, se", len("%id(worker, se")
+    )
+    assert probe_context is not None
+    _, _, probe_name, probe_partial = probe_context
+    probe, _ = build_directive_arg_completion_candidates(probe_name, probe_partial)
+    new_shape = [candidate.insertion for candidate in probe] == ["session="]
+    cases = [
+        ("%id(worker, be", ["bead="]),
+        ("%id(be", ["bead="]),
+        ("%id(worker, cl", ["clan="]),
+        ("%id(tr", ["tribe="]),
+    ]
+    if new_shape:
+        cases += [
+            ("%id(worker, fa", []),
+            ("%id(fa", []),
+            ("%id(worker, se", ["session="]),
+            ("%id(se", ["session="]),
+        ]
+    else:
+        cases += [
+            ("%id(worker, fa", ["family="]),
+            ("%id(fa", ["family="]),
+        ]
+    for line, expected in cases:
         context = extract_directive_arg_token_around_cursor(line, len(line))
         assert context is not None
         _, _, directive_name, partial = context
@@ -213,7 +237,7 @@ def test_id_parenthesized_completion_advertises_identity_keywords() -> None:
         )
 
         assert shared == ""
-        assert [candidate.insertion for candidate in candidates] == [expected]
+        assert [candidate.insertion for candidate in candidates] == expected
 
 
 def test_all_directive_completion_candidates_have_descriptions() -> None:
