@@ -2,6 +2,10 @@
 
 from __future__ import annotations
 
+from ._confirmation import (
+    WaitReleaseConfirmation,
+    confirm_dependency_resolution,
+)
 from ._index import WaitDependencyIndex, build_wait_dependency_index
 from ._json_io import read_json_dict
 from ._resolution import dependency_resolution_status
@@ -18,12 +22,14 @@ from ._types import KNOWN_DONE_OUTCOMES, WAIT_SUCCESS_OUTCOMES, TribeCandidate
 
 __all__ = [
     "KNOWN_DONE_OUTCOMES",
+    "WaitReleaseConfirmation",
     "TribeMemberRow",
     "TribeWaitBinding",
     "WaitDependencyIndex",
     "WAIT_SUCCESS_OUTCOMES",
     "TribeCandidate",
     "build_wait_dependency_index",
+    "confirm_dependency_resolution",
     "dependency_resolution_status",
     "read_json_dict",
     "resolve_tribe_wait_binding",

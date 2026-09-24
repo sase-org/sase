@@ -15,6 +15,7 @@ from sase.axe.run_agent_wait_markers import read_json_dict
 from sase.bead.wait_status import closed_bead_ids_for_waits
 from sase.core.wait_dependency_resolution import (
     build_wait_dependency_index,
+    confirm_dependency_resolution,
     dependency_resolution_status,
 )
 from sase.core.agent_tribe_evidence import stored_tribe_names_for_resolution
@@ -59,10 +60,21 @@ def initial_dependencies_resolved(
         return False
 
     try:
-        dependency_index = build_wait_dependency_index(project_name)
-        dependency_index.global_stored_tribes = stored_tribe_names_for_resolution()
+        global_stored_tribes = stored_tribe_names_for_resolution()
+
+        def build_index():
+            index = build_wait_dependency_index(project_name)
+            index.global_stored_tribes = global_stored_tribes
+            return index
+
+        dependency_index = build_index()
     except Exception:
         return False
+    names = tuple(wait_names)
+    identity_deps = tuple(wait_identity_deps)
+    fork_sources = tuple(wait_fork_sources)
+    hoods = tuple(wait_hoods)
+    resolved = tuple(resolved_deps)
     wait_bead_items = tuple(wait_beads)
     closed_bead_ids = None
     if wait_bead_items:
@@ -74,16 +86,32 @@ def initial_dependencies_resolved(
 
     status = dependency_resolution_status(
         dependency_index,
-        wait_names,
-        wait_identity_deps,
-        resolved_deps,
-        wait_fork_sources=wait_fork_sources,
+        names,
+        identity_deps,
+        resolved,
+        wait_fork_sources=fork_sources,
         wait_beads=wait_bead_items,
-        wait_hoods=wait_hoods,
+        wait_hoods=hoods,
         closed_bead_ids=closed_bead_ids,
         self_artifact_dir=artifacts_dir,
     )
-    return status.resolved
+    if not status.resolved:
+        return False
+    try:
+        return confirm_dependency_resolution(
+            dependency_index,
+            build_index,
+            names,
+            identity_deps,
+            resolved,
+            wait_fork_sources=fork_sources,
+            wait_beads=wait_bead_items,
+            wait_hoods=hoods,
+            closed_bead_ids=closed_bead_ids,
+            self_artifact_dir=artifacts_dir,
+        ).confirmed
+    except Exception:
+        return False
 
 
 def read_ready_result(ready_path: str) -> bool:

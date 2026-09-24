@@ -259,6 +259,13 @@ artifact directory plus the offending outcome. The job also emits a bounded samp
 waiters blocked by terminal dependencies so permanent stalls are diagnosable without
 spamming ordinary live waiters.
 
+Before writing `ready.json`, `wait_checks` confirms an agent-shaped release against a
+fresh on-disk membership view taken after the resolving marker read. If a family gained
+a member in between — for example, a coder just launched its monitor or gate — the
+waiter remains parked for a later tick. The waiting runner applies the same confirmation
+for its startup and periodic fallback path. Such ordinary deferrals are counted in the
+`deferred_unconfirmed` summary field rather than treated as errors.
+
 Markers may also carry `wait_for_beads`, emitted by `%wait(bead=<bead-id>)`.
 `wait_checks` reads the waiting agent's project bead store once per cycle and releases
 the marker only when every named bead is closed as well as every agent or artifact

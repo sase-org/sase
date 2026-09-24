@@ -18,6 +18,10 @@ from sase.axe.run_agent_wait_deps import (
 )
 from tests._agent_names_fixtures import make_agent
 from tests._axe_chop_wait_checks_helpers import make_waiting_agent, write_workflow_state
+from tests._monitor_wait_dependency_helpers import (
+    _monitor_handoff_family,
+    _write_completed_workflow_state,
+)
 from tests.test_bead.resolution_test_helpers import bead_store_snapshot
 
 
@@ -38,6 +42,19 @@ def _artifact_fork_source(
 
 def _clan_fork_source(name: str, generation: str) -> dict[str, str]:
     return {"kind": "clan", "name": name, "generation": generation}
+
+
+def _wait_index(*artifact_dirs: Path) -> WaitDependencyIndex:
+    index = WaitDependencyIndex.empty()
+    index.add_many(
+        (
+            artifact_dir,
+            json.loads((artifact_dir / "agent_meta.json").read_text(encoding="utf-8")),
+            "proj",
+        )
+        for artifact_dir in artifact_dirs
+    )
+    return index
 
 
 def _proc_fork_source(name: str, proc_id: str) -> dict[str, str]:
@@ -140,6 +157,62 @@ def test_initial_dependencies_resolved_matches_terminal_outcome_semantics(
             artifacts_dir=str(waiter_dir),
         )
         is should_resolve
+    )
+
+
+def test_runner_confirmation_rejects_stale_family_then_accepts_complete_family(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    waiter_dir = make_waiting_agent(tmp_path, "monitor-lane")
+    root_dir, monitor_dir, handoff_dir = _monitor_handoff_family(
+        tmp_path,
+        successor_outcome=False,
+    )
+    assert handoff_dir is not None
+    _write_completed_workflow_state(handoff_dir)
+    next_monitor_dir = make_agent(
+        tmp_path,
+        "proj",
+        "20260813090200",
+        "monitor-lane--mon-0",
+        workflow_name="monitor-lane",
+        agent_session="monitor-lane",
+        role_suffix="--mon",
+        parent_timestamp=handoff_dir.name,
+    )
+    stale = _wait_index(root_dir, monitor_dir, handoff_dir)
+    fresh = _wait_index(root_dir, monitor_dir, handoff_dir, next_monitor_dir)
+    indexes = iter((stale, fresh))
+    monkeypatch.setattr(
+        "sase.axe.run_agent_wait_deps.build_wait_dependency_index",
+        lambda _project: next(indexes),
+    )
+
+    assert not initial_dependencies_resolved(
+        ["monitor-lane"],
+        [],
+        project_name="proj",
+        artifacts_dir=str(waiter_dir),
+    )
+
+    (next_monitor_dir / "done.json").write_text(
+        json.dumps({"outcome": "monitored", "monitor_state": "completed"}),
+        encoding="utf-8",
+    )
+    complete = _wait_index(root_dir, monitor_dir, handoff_dir, next_monitor_dir)
+    complete_indexes = iter((complete, complete))
+    monkeypatch.setattr(
+        "sase.axe.run_agent_wait_deps.build_wait_dependency_index",
+        lambda _project: next(complete_indexes),
+    )
+
+    assert initial_dependencies_resolved(
+        ["monitor-lane"],
+        [],
+        project_name="proj",
+        artifacts_dir=str(waiter_dir),
     )
 
 

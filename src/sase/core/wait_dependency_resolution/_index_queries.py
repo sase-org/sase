@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Mapping
 from pathlib import Path
 
 from sase.core.agent_tribe import (
@@ -11,6 +12,7 @@ from sase.core.agent_tribe import (
 )
 from sase.plan_chain import planner_row_name
 
+from ._artifact_state import artifact_dir_key
 from ._index_entities import WaitDependencyEntityQueries
 from ._index_fork_queries import WaitDependencyForkQueries
 from ._index_identity_queries import WaitDependencyIdentityQueries
@@ -403,3 +405,211 @@ class WaitDependencyIndexQueries(
             and member.outcome is not None
             and member.outcome not in WAIT_SUCCESS_OUTCOMES
         )
+
+    def dependency_member_dirs(
+        self,
+        wait_names: Iterable[object],
+        wait_identity_deps: Iterable[object] = (),
+        resolved_deps: Iterable[object] = (),
+        *,
+        wait_fork_sources: Iterable[object] = (),
+        wait_hoods: Iterable[object] = (),
+        self_artifact_dir: str | Path | None = None,
+    ) -> frozenset[str]:
+        """Return the raw artifact membership relevant to a wait resolution.
+
+        This deliberately precedes the aggregate entities' handoff and queued-member
+        filtering.  Release confirmation needs to notice a newly-created successor
+        even when the resolving view would filter its predecessor out of the final
+        family aggregate.
+        """
+        resolved_items = tuple(resolved_deps)
+        excluded_key = (
+            artifact_dir_key(str(self_artifact_dir))
+            if self_artifact_dir is not None
+            else None
+        )
+        member_dirs: dict[str, str] = {}
+
+        def add_candidates(candidates: Iterable[ArtifactCandidate] | None) -> None:
+            if candidates is None:
+                return
+            for candidate in candidates:
+                key = artifact_dir_key(candidate.artifact_dir)
+                if excluded_key is None or key != excluded_key:
+                    member_dirs.setdefault(key, candidate.artifact_dir)
+
+        def add_named_candidate(candidate: WaitCandidate | None) -> None:
+            if candidate is None:
+                return
+            if candidate.artifact_dir:
+                key = artifact_dir_key(candidate.artifact_dir)
+                if excluded_key is None or key != excluded_key:
+                    member_dirs.setdefault(key, candidate.artifact_dir)
+                return
+            # Submitted planner-row aliases currently retain only the timestamp in
+            # ``named``.  The timestamp is still enough to recover their raw member
+            # from the artifact index (and including a collision is safely
+            # conservative for release confirmation).
+            add_candidates(
+                artifact
+                for artifact in self.artifacts_by_dir.values()
+                if artifact.timestamp == candidate.timestamp
+            )
+
+        def add_name_members(name: str) -> None:
+            if name.startswith("@"):
+                try:
+                    tribe = parse_tribe_reference(
+                        name,
+                        stored_tribes=self.stored_tribe_names(),
+                    )
+                except InvalidTribeError:
+                    return
+                assert tribe is not None
+                add_candidates(self.tribes.get(tribe))
+                add_candidates(
+                    artifact
+                    for artifact in self.artifacts_by_dir.values()
+                    if artifact.clan_name is not None
+                    and artifact.clan_generation is not None
+                    and self.effective_clan_tribes.get(
+                        (artifact.clan_name, artifact.clan_generation)
+                    )
+                    == tribe
+                )
+                return
+            add_candidates(self.families.get(name))
+            add_candidates(self.workflows.get(name))
+            for generation in self.clans.get(name, {}).values():
+                add_candidates(generation)
+            add_named_candidate(self.named.get(name))
+            add_named_candidate(self._planner_row_candidate(name))
+
+        def add_candidate_members(candidate: ArtifactCandidate) -> None:
+            add_candidates((candidate,))
+            family_name = candidate.family_name or candidate.name
+            if family_name:
+                add_candidates(self.families.get(family_name))
+            if candidate.clan_name is not None:
+                generations = self.clans.get(candidate.clan_name, {})
+                if candidate.clan_generation is not None:
+                    add_candidates(generations.get(candidate.clan_generation))
+                else:
+                    for generation in generations.values():
+                        add_candidates(generation)
+
+        identity_names: set[str] = set()
+        for dependency in wait_identity_deps:
+            if not isinstance(dependency, Mapping):
+                continue
+            name = dependency.get("name")
+            if isinstance(name, str) and name:
+                identity_names.add(name)
+            if _identity_dependency_is_memoized(dependency, resolved_items):
+                continue
+            candidate = self._identity_candidate(dependency)
+            if candidate is None:
+                if isinstance(name, str) and name:
+                    add_name_members(name)
+            else:
+                add_candidate_members(candidate)
+
+        fork_source_names: set[str] = set()
+        for dependency in wait_fork_sources:
+            if not isinstance(dependency, Mapping):
+                continue
+            name = dependency.get("name")
+            if isinstance(name, str) and name:
+                fork_source_names.add(name)
+            if _dependency_label(dependency) in resolved_items:
+                continue
+            candidate = self._identity_candidate(dependency)
+            if candidate is not None:
+                add_candidate_members(candidate)
+            kind = dependency.get("kind")
+            if kind == "clan" and isinstance(name, str) and name:
+                generations = self.clans.get(name, {})
+                generation = dependency.get("generation")
+                if isinstance(generation, str) and generation:
+                    add_candidates(generations.get(generation))
+                else:
+                    for members in generations.values():
+                        add_candidates(members)
+            elif candidate is None and isinstance(name, str) and name:
+                add_name_members(name)
+
+        for name in wait_names:
+            if (
+                not isinstance(name, str)
+                or name in identity_names
+                or name in fork_source_names
+                or name in resolved_items
+            ):
+                continue
+            add_name_members(name)
+
+        waiter_launch_cutoff = (
+            Path(self_artifact_dir).name if self_artifact_dir is not None else None
+        )
+        for hood in wait_hoods:
+            if isinstance(hood, str) and hood:
+                add_candidates(
+                    self._hood_candidates(
+                        hood,
+                        launched_at_or_before=waiter_launch_cutoff,
+                        exclude_artifact_dir=self_artifact_dir,
+                    )
+                )
+
+        return frozenset(member_dirs)
+
+
+def _identity_dependency_is_memoized(
+    dependency: Mapping[str, object],
+    resolved_deps: Iterable[object],
+) -> bool:
+    for memo in resolved_deps:
+        if not isinstance(memo, Mapping):
+            continue
+        artifact_dir = dependency.get("artifact_dir")
+        memo_artifact_dir = memo.get("artifact_dir")
+        if (
+            isinstance(artifact_dir, str)
+            and artifact_dir
+            and isinstance(memo_artifact_dir, str)
+            and memo_artifact_dir
+            and artifact_dir_key(artifact_dir) == artifact_dir_key(memo_artifact_dir)
+        ):
+            return True
+        project_name = dependency.get("project_name")
+        timestamp = dependency.get("timestamp")
+        if (
+            isinstance(project_name, str)
+            and project_name
+            and isinstance(timestamp, str)
+            and timestamp
+            and memo.get("project_name") == project_name
+            and memo.get("timestamp") == timestamp
+        ):
+            return True
+    return False
+
+
+def _dependency_label(dependency: Mapping[str, object]) -> str:
+    artifact_dir = dependency.get("artifact_dir")
+    if isinstance(artifact_dir, str) and artifact_dir:
+        return artifact_dir
+    project_name = dependency.get("project_name")
+    timestamp = dependency.get("timestamp")
+    if (
+        isinstance(project_name, str)
+        and project_name
+        and isinstance(timestamp, str)
+        and timestamp
+    ):
+        return f"{project_name}:{timestamp}"
+    name = dependency.get("name")
+    if isinstance(name, str) and name:
+        return name
+    return "<artifact dependency>"

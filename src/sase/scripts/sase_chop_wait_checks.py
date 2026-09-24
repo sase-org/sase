@@ -27,9 +27,11 @@ from sase.core.time import get_timezone
 from sase.core.wait_dependency_resolution import (
     KNOWN_DONE_OUTCOMES,
     WaitDependencyIndex,
+    confirm_dependency_resolution,
     dependency_resolution_status,
     read_json_dict as _read_json_dict,
 )
+from sase.core.wait_dependency_resolution._artifact_state import artifact_dir_key
 from sase.core.wait_dependency_resolution._types import ArtifactCandidate
 from sase.notifications.models import Notification, normalize_notification_tags
 from sase.notifications.store import upsert_notification
@@ -71,6 +73,7 @@ def _run(
                 "artifacts": 0,
                 "waiting": 0,
                 "ready_written": 0,
+                "deferred_unconfirmed": 0,
             },
             reason="no_projects_dir",
         )
@@ -84,11 +87,13 @@ def _run(
     skipped_invalid = 0
     unresolved = 0
     unknown_outcome = 0
+    deferred_unconfirmed = 0
     terminal_blocker_logs = 0
     terminal_blocker_suppressed = 0
     dependency_index = WaitDependencyIndex.empty()
     pending_waiting_markers: list[_WaitingMarker] = []
     artifact_rows: list[tuple[Path, dict[str, Any], str]] = []
+    fresh_indexes: dict[tuple[tuple[str, ...], int], WaitDependencyIndex] = {}
 
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
@@ -196,6 +201,87 @@ def _run(
         for diagnostic in status.diagnostics:
             runtime.log(f"[wait_checks] {diagnostic}")
         if status.resolved:
+            member_dirs = dependency_index.dependency_member_dirs(
+                waiting_for,
+                wait_for_artifacts,
+                resolved_deps,
+                wait_fork_sources=wait_for_fork_sources,
+                wait_hoods=wait_for_hoods,
+                self_artifact_dir=waiting_marker.waiting_path.parent,
+            )
+            confirmation_projects = {waiting_marker.project_name}
+            confirmation_projects.update(
+                candidate.project_name
+                for candidate in dependency_index.artifacts_by_dir.values()
+                if artifact_dir_key(candidate.artifact_dir) in member_dirs
+                and candidate.project_name
+            )
+            confirmation_round = 0
+
+            def fresh_index(
+                projects: frozenset[str] = frozenset(confirmation_projects),
+            ) -> WaitDependencyIndex:
+                nonlocal confirmation_round
+                key = (tuple(sorted(projects)), confirmation_round)
+                confirmation_round += 1
+                cached = fresh_indexes.get(key)
+                if cached is not None:
+                    return cached
+                fresh = WaitDependencyIndex.empty(
+                    global_stored_tribes=dependency_index.global_stored_tribes,
+                )
+                # The resolving index may use a custom tribe-evidence path. Keep
+                # that already-loaded evidence exactly rather than allowing the
+                # confirmation pass to see a different tribe universe.
+                fresh.agent_tribes = dict(dependency_index.agent_tribes)
+                fresh.add_many(
+                    _filesystem_dependency_rows(
+                        projects_dir,
+                        project_names=set(projects),
+                    )
+                )
+                fresh_indexes[key] = fresh
+                return fresh
+
+            try:
+                confirmation = confirm_dependency_resolution(
+                    dependency_index,
+                    fresh_index,
+                    waiting_for,
+                    wait_for_artifacts,
+                    resolved_deps,
+                    wait_fork_sources=wait_for_fork_sources,
+                    wait_beads=wait_for_beads,
+                    wait_hoods=wait_for_hoods,
+                    closed_bead_ids=closed_bead_ids,
+                    self_artifact_dir=waiting_marker.waiting_path.parent,
+                )
+            except Exception as exc:  # noqa: BLE001 - a failed confirmation must park.
+                deferred_unconfirmed += 1
+                runtime.log(
+                    "[wait_checks] Deferred release for "
+                    f"{data.get('cl_name', 'unknown')}: could not confirm "
+                    f"dependency membership ({exc})",
+                )
+                continue
+            if not confirmation.confirmed:
+                deferred_unconfirmed += 1
+                cl_name = data.get("cl_name", "unknown")
+                if confirmation.new_member_dirs:
+                    runtime.log(
+                        "[wait_checks] Deferred release for "
+                        f"{cl_name}: dependency membership changed since the "
+                        "resolving view (new: "
+                        f"{', '.join(confirmation.new_member_dirs)})",
+                    )
+                else:
+                    blocked = ", ".join(confirmation.status.blocked_on)
+                    runtime.log(
+                        "[wait_checks] Deferred release for "
+                        f"{cl_name}: fresh dependency view remains unresolved "
+                        f"(blocked on: {blocked or '<unknown>'})",
+                    )
+                continue
             cl_name = data.get("cl_name", "unknown")
             waited_on = ", ".join(waiting_for)
             if wait_for_beads:
@@ -284,6 +370,7 @@ def _run(
             "invalid": skipped_invalid,
             "unresolved": unresolved,
             "unknown_outcome": unknown_outcome,
+            "deferred_unconfirmed": deferred_unconfirmed,
         },
         reason=reason,
     )
@@ -291,6 +378,8 @@ def _run(
 
 def _filesystem_dependency_rows(
     projects_dir: Path,
+    *,
+    project_names: set[str] | None = None,
 ) -> list[tuple[Path, dict[str, Any], str]]:
     """Load ace-run agent_meta.json files for wait-dependency resolution."""
 
@@ -299,6 +388,8 @@ def _filesystem_dependency_rows(
         if not project_dir.is_dir():
             continue
         project_name = project_dir.name
+        if project_names is not None and project_name not in project_names:
+            continue
         for artifact_dir in iter_agent_artifact_dirs(
             project_name,
             "ace-run",
