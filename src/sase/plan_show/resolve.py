@@ -19,12 +19,16 @@ from pathlib import Path
 from typing import cast
 
 from sase.bead.cli_common import get_read_view
-from sase.main.plan_candidates import visible_pending_plan_notifications
 from sase.main.plan_inventory_collectors import collect_proposed_plans
 from sase.main.plan_inventory_paths import display_path_roots
-from sase.main.plan_pending import resolve_pending_plan
+from sase.main.plan_pending import (
+    PendingPlanAmbiguity,
+    PendingPlanMatch,
+    resolve_pending_plan,
+    resolve_pending_plan_selector,
+)
+from sase.main.plan_pending import pending_plans as _pending_plans
 from sase.notifications.models import Notification
-from sase.notifications.pending_actions import PENDING_ACTION_PREFIX_LEN
 from sase.plan_approval_actions import PlanApprovalActionError
 from sase.plan_search import facade
 from sase.plan_search.model import Plan, PlanSearchMatch
@@ -65,6 +69,7 @@ class _Resolved:
     path: Path
     status: PlanShowTargetStatus
     candidates: tuple[Path, ...]
+    notification: Notification | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,9 +177,16 @@ def _finalize(
             ),
         )
     kind = cast(PlanShowTargetKind, target_kind)
-    proposal = (
-        _proposal_context(resolve_pending_plan(raw)) if kind == "proposal" else None
+    notification = (
+        outcome.notification
+        if kind == "proposal"
+        and isinstance(outcome, _Resolved)
+        and outcome.notification is not None
+        else None
     )
+    if notification is None and kind == "proposal":
+        notification = resolve_pending_plan(raw)
+    proposal = _proposal_context(notification) if notification is not None else None
     bead = raw if kind == "bead" else None
     return load_plan_show_record(
         outcome.path,
@@ -219,23 +231,25 @@ def _rung_ref(raw: str, context: _Context) -> _RungOutcome:
 def _rung_proposal(raw: str, context: _Context) -> _RungOutcome:
     if _is_path_shaped(raw):
         return None
-    try:
-        notification = resolve_pending_plan(raw)
-    except PlanApprovalActionError as exc:
-        if exc.code == "ambiguous_prefix":
-            matches = _matching_pending_notifications(raw)
-            paths = tuple(
-                Path(plan_path)
-                for notification in matches
-                if (plan_path := _notification_plan_path(notification)) is not None
-            )
-            if paths:
-                return _Ambiguous(paths)
+    outcome = resolve_pending_plan_selector(raw)
+    if isinstance(outcome, PendingPlanMatch):
+        notification = outcome.plan.notification
+        plan_path = _notification_plan_path(notification)
+        if plan_path is None:
+            return None
+        resolved = Path(plan_path)
+        return _Resolved(resolved, "exact", (resolved,), notification)
+    if isinstance(outcome, PendingPlanAmbiguity):
+        paths = tuple(
+            Path(plan_path)
+            for candidate in outcome.candidates
+            if (plan_path := _notification_plan_path(candidate.notification))
+            is not None
+        )
+        if paths:
+            return _Ambiguous(paths)
         return None
-    plan_path = _notification_plan_path(notification)
-    if plan_path is None:
-        return None
-    return _Resolved(Path(plan_path), "exact", (Path(plan_path),))
+    return None
 
 
 def _rung_name(raw: str, context: _Context) -> _RungOutcome:
@@ -318,14 +332,6 @@ def _discovered_plans(context: _Context) -> tuple[PlanSearchMatch, ...]:
     return tuple(match for match in matches if match.plan.kind in _PLAN_SEARCH_KINDS)
 
 
-def _matching_pending_notifications(prefix: str) -> tuple[Notification, ...]:
-    return tuple(
-        notification
-        for notification in visible_pending_plan_notifications()
-        if notification.id == prefix or notification.id.startswith(prefix)
-    )
-
-
 def _notification_plan_path(notification: Notification) -> str | None:
     action_data = notification.action_data
     candidates = (
@@ -370,8 +376,7 @@ def _final_miss(raw: str, *, context: _Context) -> PlanShowMiss:
     )
     if not _is_path_shaped(raw):
         suggestions.extend(
-            notification.id[:PENDING_ACTION_PREFIX_LEN]
-            for notification in visible_pending_plan_notifications()
+            plan.display_name for plan in _pending_plans() if plan.display_name
         )
     return PlanShowMiss(target=raw, suggestions=tuple(suggestions))
 

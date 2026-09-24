@@ -141,7 +141,7 @@ and is harmless when no TUI is open.
 
 Humans can approve the pending proposal from sase's TUI or from the CLI. `sase plan`
 lists pending PlanApproval notifications, recent approvals, and inferred rejected
-archived proposals. `sase plan approve <id-prefix>` defaults to the tier authored in the
+archived proposals. `sase plan approve <name>` defaults to the tier authored in the
 plan; `--kind tale|epic` explicitly overrides it. The selected target schema is
 validated before the response, SDD copy, or notification dismissal, and failures leave
 the proposal pending.
@@ -183,9 +183,8 @@ known.
 records the approved plan in SDD without launching a coder. `--wait` accepts
 comma-separated agent names and `bead=<id>` entries; tale approvals apply that wait to
 the coder, and epic approvals apply it to the launched phase agents.
-`sase plan reject <id-prefix>` writes the same no-feedback rejection response as the
-TUI, then attempts to dismiss and user-kill the matching planner row when it can be
-found.
+`sase plan reject <name>` writes the same no-feedback rejection response as the TUI,
+then attempts to dismiss and user-kill the matching planner row when it can be found.
 
 To recall prior planning artifacts, `sase plan search [QUERY]` searches plans, research,
 and historical prompt snapshots in the resolved SDD store (the `repo` source, surfaced

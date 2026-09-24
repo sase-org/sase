@@ -5647,9 +5647,9 @@ actionable and can be retried after the archive problem is fixed.
 
 The same pending approvals are available from the CLI. Run `sase plan` to see pending
 proposals, recent approvals, and inferred rejected archived plans; run
-`sase plan approve <id-prefix> --kind approve|commit|epic|tale` or
-`sase plan reject <id-prefix>` to write the same response protocol used by the TUI
-modal. Use the `id_prefix` from a Proposed row; if the selector is omitted, the CLI acts
+`sase plan approve <name> --kind approve|commit|epic|tale` or `sase plan reject <name>`
+to write the same response protocol used by the TUI modal. Use the plan name from a
+Proposed row (the `id_prefix` still works); if the selector is omitted, the CLI acts
 only when exactly one proposal is pending. Omitting `--kind` uses the plan's authored
 tier. In the Plan Review modal, `enter` uses that same authored-tier default; use
 [Custom Approval](#custom-approval) to pick a different outcome. `approve` starts the

@@ -488,7 +488,9 @@ def test_plan_approve_bad_wait_spec_exits_2_before_resolving_plan(
     )
 
     with (
-        patch("sase.main.plan_approve_handler.resolve_pending_plan") as resolve,
+        patch(
+            "sase.main.plan_approve_handler.resolve_pending_plan_selector"
+        ) as resolve,
         pytest.raises(SystemExit) as exc_info,
     ):
         handle_plan_approve_command(args)

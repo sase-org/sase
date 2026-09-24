@@ -17,9 +17,17 @@ from typing import Literal, NoReturn, cast
 
 from sase.env_contracts import provider_project_dir_from_env
 from sase.main.plan_pending import (
+    PendingPlan,
     ensure_plan_notification_available,
+    pending_plans,
     plan_context_from_notification,
-    resolve_pending_plan,
+    resolve_pending_plan_selector,
+)
+from sase.main.plan_pending_diagnosis import miss_error_code
+from sase.main.plan_pending_render import (
+    render_ambiguity,
+    render_approve_success,
+    render_miss,
 )
 from sase.plan_approval_actions import (
     PlanApprovalActionError,
@@ -130,17 +138,14 @@ def handle_plan_approve_command(args: argparse.Namespace) -> NoReturn:
         )
         sys.exit(1)
     except PlanApprovalActionError as exc:
-        Console(stderr=True).print(f"[red]Error:[/red] {exc}")
-        if exc.code in {"missing_selector", "ambiguous_prefix", "not_found"}:
-            Console(stderr=True).print(
-                "[dim]Run `sase plan list` to see pending plans.[/dim]"
-            )
+        if not getattr(exc, "_sase_rendered", False):
+            Console(stderr=True).print(f"[red]Error:[/red] {exc}")
+            if exc.code in {"missing_selector", "ambiguous_prefix", "not_found"}:
+                Console(stderr=True).print(
+                    "[dim]Run `sase plan list` to see pending plans.[/dim]"
+                )
         sys.exit(2)
 
-    Console().print(
-        f"[green]{result.message}[/green] "
-        f"[dim]{result.notification_id[:8]} -> {result.response_path}[/dim]"
-    )
     if result.epic_launch_monitor_id is not None:
         monitor_id = result.epic_launch_monitor_id
         Console().print(
@@ -166,9 +171,10 @@ def _approve_plan_from_cli(
 ) -> PlanApprovalActionResult:
     """Resolve and approve a pending PlanApproval notification."""
     _validate_wait_spec_for_cli(wait)
-    notification = resolve_pending_plan(selector)
+    plan = _resolve_plan_for_cli(selector)
+    notification = plan.notification
     ensure_plan_notification_available(notification)
-    return execute_plan_approval_response(
+    result = execute_plan_approval_response(
         plan_context_from_notification(notification),
         kind,
         coder_prompt=coder_prompt,
@@ -177,6 +183,40 @@ def _approve_plan_from_cli(
         epic_launch_mode="launch",
         epic_launch_origin="cli",
     )
+    render_approve_success(
+        plan, result.message, result.notification_id, result.response_path
+    )
+    return result
+
+
+def _resolve_plan_for_cli(selector: str | None) -> PendingPlan:
+    """Resolve PLAN through the structured selector, rendering misses."""
+    from sase.main.plan_pending import PendingPlanAmbiguity, PendingPlanMiss
+
+    outcome = resolve_pending_plan_selector(selector)
+    if isinstance(outcome, PendingPlanAmbiguity):
+        render_ambiguity(outcome, pending_plans())
+        raise _rendered_error(
+            "ambiguous_prefix", outcome.selector, "action prefix is ambiguous"
+        )
+    if isinstance(outcome, PendingPlanMiss):
+        render_miss(outcome, pending_plans())
+        code = (
+            "missing_selector" if outcome.selector is None else miss_error_code(outcome)
+        )
+        raise _rendered_error(code, outcome.selector or "selector", outcome.header)
+    return outcome.plan
+
+
+class _RenderedSelectionError(PlanApprovalActionError):
+    """A selection error already rendered by the shared renderer."""
+
+    _sase_rendered = True
+
+
+def _rendered_error(code: str, target: str, message: str) -> PlanApprovalActionError:
+    """Build a selection error already rendered by the shared renderer."""
+    return _RenderedSelectionError(code, target, message)
 
 
 def _validate_wait_spec_for_cli(wait: str | None) -> None:

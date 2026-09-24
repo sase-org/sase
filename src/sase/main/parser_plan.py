@@ -49,15 +49,19 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "approve",
         help="Approve one pending plan proposal",
         description=(
-            "Approve one pending PlanApproval notification by ID or unique "
-            "prefix from `sase plan list`. If SELECTOR is omitted, exactly one "
-            "pending proposal must exist."
+            "Approve one pending plan proposal. PLAN matches exactly first "
+            "(notification ID, archive or bundle path, name, "
+            "<shard>/<name>, plan: ref, or planner agent), then by "
+            "notification-ID prefix. If PLAN is omitted, exactly one pending "
+            "proposal must exist."
         ),
         epilog=(
             "examples:\n"
             "  sase plan approve\n"
-            "  sase plan approve abcdef12 --kind approve\n"
-            "  sase plan approve abcdef12 --kind tale --prompt 'Focus tests'\n"
+            "  sase plan approve updates_tab_cached_open\n"
+            "  sase plan approve 202609/unrelated_red_gate_bead_close.md -k tale\n"
+            "  sase plan approve ~/.sase/plans/202609/my_plan.md --kind tale\n"
+            "  sase plan approve 0qw --kind tale --prompt 'Focus tests'\n"
             "  sase plan approve abcdef12 --kind tale --wait 'sase-s7.2,bead=sase-64.3'\n"
             "  sase plan approve abcdef12 --kind commit"
         ),
@@ -66,8 +70,11 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
     approve_parser.add_argument(
         "selector",
         nargs="?",
-        metavar="SELECTOR",
-        help="Notification id or unique prefix from `sase plan list`",
+        metavar="PLAN",
+        help=(
+            "Pending plan: name (TAB completes), <shard>/<name>[.md], path, "
+            "plan: ref, planner agent, or notification ID/prefix"
+        ),
     )
     approve_parser.add_argument(
         "-k",
@@ -288,21 +295,34 @@ def register_plan_parser(subparsers: argparse._SubParsersAction) -> None:
         "reject",
         help="Reject one pending plan proposal",
         description=(
-            "Reject one pending PlanApproval notification by ID or unique "
-            "prefix from `sase plan list`. If SELECTOR is omitted, exactly one "
-            "pending proposal must exist. The rejection response is written "
+            "Reject one pending plan proposal. PLAN matches exactly first "
+            "(notification ID, archive or bundle path, name, "
+            "<shard>/<name>, plan: ref, or planner agent), then by "
+            "notification-ID prefix. If PLAN is omitted, exactly one pending "
+            "proposal must exist. The rejection response is written "
             "first; SASE then attempts to user-kill the matching planner agent "
             "and dismiss its Agents-tab row, the same cleanup path used by "
             "sase's TUI."
         ),
-        epilog=("examples:\n  sase plan reject\n  sase plan reject abcdef12"),
+        epilog=(
+            "examples:\n"
+            "  sase plan reject\n"
+            "  sase plan reject updates_tab_cached_open\n"
+            "  sase plan reject 202609/unrelated_red_gate_bead_close.md\n"
+            "  sase plan reject ~/.sase/plans/202609/my_plan.md\n"
+            "  sase plan reject 0qw\n"
+            "  sase plan reject abcdef12"
+        ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     reject_parser.add_argument(
         "selector",
         nargs="?",
-        metavar="SELECTOR",
-        help="Notification id or unique prefix from `sase plan list`",
+        metavar="PLAN",
+        help=(
+            "Pending plan: name (TAB completes), <shard>/<name>[.md], path, "
+            "plan: ref, planner agent, or notification ID/prefix"
+        ),
     )
 
     search_parser = plan_subparsers.add_parser(

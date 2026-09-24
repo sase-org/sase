@@ -7,11 +7,12 @@ import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, NoReturn
 
+from sase.main.plan_approve_handler import _resolve_plan_for_cli
 from sase.main.plan_pending import (
     ensure_plan_notification_available,
     plan_context_from_notification,
-    resolve_pending_plan,
 )
+from sase.main.plan_pending_render import render_reject_success
 from sase.plan_approval_actions import (
     PlanApprovalActionError,
     PlanApprovalActionResult,
@@ -39,19 +40,15 @@ def handle_plan_reject_command(args: argparse.Namespace) -> NoReturn:
     try:
         result = _reject_plan_from_cli(selector=getattr(args, "selector", None))
     except PlanApprovalActionError as exc:
-        Console(stderr=True).print(f"[red]Error:[/red] {exc}")
-        if exc.code in {"missing_selector", "ambiguous_prefix", "not_found"}:
-            Console(stderr=True).print(
-                "[dim]Run `sase plan list` to see pending plans.[/dim]"
-            )
+        if not getattr(exc, "_sase_rendered", False):
+            Console(stderr=True).print(f"[red]Error:[/red] {exc}")
+            if exc.code in {"missing_selector", "ambiguous_prefix", "not_found"}:
+                Console(stderr=True).print(
+                    "[dim]Run `sase plan list` to see pending plans.[/dim]"
+                )
         sys.exit(2)
 
-    action_result = result.action_result
     cleanup = result.cleanup
-    Console().print(
-        f"[green]{action_result.message}[/green] "
-        f"[dim]{action_result.notification_id[:8]} -> {action_result.response_path}[/dim]"
-    )
     if cleanup.warning:
         Console().print(f"[yellow]Warning:[/yellow] {cleanup.warning}")
     if cleanup.error:
@@ -74,11 +71,18 @@ def _reject_plan_from_cli(*, selector: str | None) -> _PlanRejectResult:
         perform_plan_rejection_cleanup,
     )
 
-    notification = resolve_pending_plan(selector)
+    plan = _resolve_plan_for_cli(selector)
+    notification = plan.notification
     ensure_plan_notification_available(notification)
     action_result = execute_plan_approval_response(
         plan_context_from_notification(notification),
         "reject",
+    )
+    render_reject_success(
+        plan,
+        action_result.message,
+        action_result.notification_id,
+        action_result.response_path,
     )
     cleanup = perform_plan_rejection_cleanup(notification)
     return _PlanRejectResult(action_result=action_result, cleanup=cleanup)

@@ -281,6 +281,77 @@ def test_rung_proposal_resolves_by_id_and_prefix(tmp_path: Path) -> None:
         assert result.proposal.id_prefix == "abcdef12"
 
 
+def test_rung_proposal_resolves_bare_name(tmp_path: Path) -> None:
+    sdd_root, plans_root, local_root = _roots(tmp_path)
+    plan_path = plans_root / "202608" / "named_proposal.md"
+    _write_plan(plan_path, title="Named Proposal")
+    append_notification(
+        Notification(
+            id="abcdef120001",
+            timestamp=datetime.now(get_timezone()).isoformat(),
+            sender="plan",
+            files=[str(plan_path)],
+            action="PlanApproval",
+            action_data={
+                "response_dir": "/tmp/resp",
+                "agent_cl_name": "demo-cl",
+                "agent_name": "planner",
+                "original_plan_file": str(plan_path),
+            },
+        )
+    )
+
+    result = _resolve(
+        "named_proposal",
+        sdd_root=sdd_root,
+        plans_root=plans_root,
+        local_root=local_root,
+        cwd=tmp_path,
+    )
+
+    assert isinstance(result, PlanShowRecord)
+    assert result.target.kind == "proposal"
+    assert result.proposal is not None
+    assert result.proposal.id_prefix == "abcdef12"
+
+
+def test_final_miss_suggests_pending_names(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sdd_root, plans_root, local_root = _roots(tmp_path)
+    # A non-path-shaped miss falls all the way to the ``bead`` rung; stub it
+    # so this test never touches the real repo's bead store.
+    _use_bead_view(monkeypatch, {})
+    plan_path = plans_root / "202608" / "named_proposal.md"
+    _write_plan(plan_path, title="Named Proposal")
+    append_notification(
+        Notification(
+            id="abcdef120001",
+            timestamp=datetime.now(get_timezone()).isoformat(),
+            sender="plan",
+            files=[str(plan_path)],
+            action="PlanApproval",
+            action_data={
+                "response_dir": "/tmp/resp",
+                "agent_cl_name": "demo-cl",
+                "agent_name": "planner",
+                "original_plan_file": str(plan_path),
+            },
+        )
+    )
+
+    result = _resolve(
+        "zzz_no_such_plan",
+        sdd_root=sdd_root,
+        plans_root=plans_root,
+        local_root=local_root,
+        cwd=tmp_path,
+    )
+
+    assert isinstance(result, PlanShowMiss)
+    assert "named_proposal" in result.suggestions
+
+
 def test_rung_proposal_ambiguous_prefix(tmp_path: Path) -> None:
     sdd_root, plans_root, local_root = _roots(tmp_path)
     first = plans_root / "202608" / "first.md"

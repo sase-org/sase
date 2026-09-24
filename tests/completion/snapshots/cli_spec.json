@@ -24463,7 +24463,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "dee1ac32a100c762",
+            "description_digest": "d68d1d4ef4e33279",
             "hidden": false,
             "mutex_groups": [],
             "name": "approve",
@@ -24563,8 +24563,8 @@
                 "choices": null,
                 "dest": "selector",
                 "is_remainder": false,
-                "kind": null,
-                "metavar": "SELECTOR",
+                "kind": "plan",
+                "metavar": "PLAN",
                 "nargs": "?",
                 "required": false,
                 "value_hint": "text"
@@ -25102,7 +25102,7 @@
           {
             "aliases": [],
             "default_child": null,
-            "description_digest": "1ac9ca2da9212890",
+            "description_digest": "cf50d12d2981d24f",
             "hidden": false,
             "mutex_groups": [],
             "name": "reject",
@@ -25133,8 +25133,8 @@
                 "choices": null,
                 "dest": "selector",
                 "is_remainder": false,
-                "kind": null,
-                "metavar": "SELECTOR",
+                "kind": "plan",
+                "metavar": "PLAN",
                 "nargs": "?",
                 "required": false,
                 "value_hint": "text"
