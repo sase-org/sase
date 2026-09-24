@@ -68,9 +68,17 @@ def resolved_from_envelope(envelope: dict[str, Any]) -> ResolvedToolArgv:
 
 
 def reserve_handoff_run(
-    resolved: ResolvedToolArgv, *, owner_kind: str, owner_id: str
+    resolved: ResolvedToolArgv,
+    *,
+    owner_kind: str,
+    owner_id: str,
+    agent: str | None = None,
 ) -> HandoffReservation:
-    """Reserve a ``created`` hand-off run; never raises."""
+    """Reserve a ``created`` hand-off run; never raises.
+
+    *agent* overrides the environment-derived attribution, for a launcher
+    that knows the durable agent name better than its own env does.
+    """
 
     run_id = secrets.token_hex(16)
     try:
@@ -93,6 +101,8 @@ def reserve_handoff_run(
         stdout_path=None,
         stderr_path=None,
     )
+    if agent and agent.strip():
+        request["agent"] = agent.strip()
     request["commit_running"] = False
     request["launch_mode"] = "handoff"
     request["launch"] = _envelope_from_resolved(resolved)

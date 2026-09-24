@@ -82,6 +82,7 @@ def maybe_reserve_monitor_tool_run(
     *,
     cwd: str | None,
     monitor_id: str,
+    starter_agent: str | None = None,
 ) -> _MonitorToolHandoff:
     """Reserve a monitor-owned hand-off run for *words*, or decline.
 
@@ -90,6 +91,11 @@ def maybe_reserve_monitor_tool_run(
     the E1.5 argv. Otherwise returns the shared reservation result, whose
     ``reserved`` flag tells the caller whether to adopt the worker argv or
     fall back with a reason line.
+
+    *starter_agent* is the starter's durable (possibly just-promoted) name.
+    It wins over the starter shell's ``SASE_AGENT_NAME``, which a family
+    promotion leaves stale, so the run is attributed exactly as an E1.5
+    wrapped run is through ``SASE_TOOL_RUN_AGENT``.
     """
     if not words:
         return _MonitorToolHandoff(attempted=False)
@@ -103,7 +109,7 @@ def maybe_reserve_monitor_tool_run(
     except Exception:  # noqa: BLE001 - resolution failure keeps E1.5 wrapping.
         return _MonitorToolHandoff(attempted=False)
     reservation = reserve_handoff_run(
-        resolved, owner_kind="monitor", owner_id=monitor_id
+        resolved, owner_kind="monitor", owner_id=monitor_id, agent=starter_agent
     )
     return _MonitorToolHandoff(attempted=True, reservation=reservation)
 

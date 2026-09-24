@@ -171,6 +171,26 @@ def test_reserve_declines_output_mode_words(tmp_path: Path) -> None:
     assert handoff.attempted is False
 
 
+def test_reserve_attributes_durable_starter_else_agent_env(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from sase.core.tool_run import tool_run_show
+
+    monkeypatch.setenv("SASE_AGENT_NAME", "acme")
+    promoted = maybe_reserve_monitor_tool_run(
+        ["--", "true"], cwd=str(tmp_path), monitor_id="m1", starter_agent="acme--0"
+    )
+    direct = maybe_reserve_monitor_tool_run(
+        ["--", "true"], cwd=str(tmp_path), monitor_id="m2"
+    )
+    assert promoted.reservation is not None and promoted.reservation.reserved
+    assert direct.reservation is not None and direct.reservation.reserved
+    promoted_run = tool_run_show(promoted.reservation.run_id)["run"]
+    direct_run = tool_run_show(direct.reservation.run_id)["run"]
+    assert promoted_run["agent"] == "acme--0"
+    assert direct_run["agent"] == "acme"
+
+
 def test_fallback_line_is_one_line() -> None:
     line = format_reservation_fallback_line("store gone")
     assert line == "sase: tool run not reserved (store gone); running wrapped\n"
@@ -230,8 +250,8 @@ def _start(
         return records
 
     monkeypatch.setattr(store_module, "project_records", live_records)
-    # Production starts run in the starter agent's own shell, so the
-    # reservation attributes SASE_AGENT_NAME directly.
+    # Production starts run in the starter agent's own shell, whose
+    # SASE_AGENT_NAME predates the start's family promotion.
     monkeypatch.setenv("SASE_AGENT_NAME", "acme")
     return start_monitor(
         StartMonitorRequest(
@@ -284,7 +304,11 @@ def test_named_upgrade_reserves_handoff(
     assert run.get("launch_mode") == "handoff"
     assert run.get("owner_kind") == "monitor"
     assert run.get("owner_id") == record.monitor_id
-    assert run.get("agent") == "acme"
+    # The start promotes the starter to a family; the run is attributed to
+    # that durable name, not the starter shell's now-stale SASE_AGENT_NAME.
+    starter = _meta(record)["monitor_starter_agent"]
+    assert starter and starter != "acme"
+    assert run.get("agent") == starter
     shown = tool_run_show(run_id)["run"]
     assert shown["state"] == "succeeded"
 

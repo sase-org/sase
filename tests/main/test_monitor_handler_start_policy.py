@@ -139,6 +139,7 @@ def test_start_loads_yaml_policy_before_calling_start_monitor(
         monitor_id = "abc123def456"
         member_agent_name = "acme--mon"
         artifacts_dir = str(tmp_path)
+        tool_run_id = None
 
     monkeypatch.setattr(
         "sase.main.monitor.start.start_monitor",

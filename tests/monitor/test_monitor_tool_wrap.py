@@ -5,7 +5,10 @@ launches stay byte-identical, an exact catalog match at the monitor cwd's
 project root upgrades to a named run, other verify-profile commands wrap
 ad-hoc in the proc argv only, and ``monitor_command`` /
 ``monitor_execution_argv`` stay byte-identical so ``-f`` host completion
-keeps resolving the raw command.
+keeps resolving the raw command. When a wrap produces a ToolRun, monitor
+start reserves it and the proc runs the claiming ``_adopt`` worker instead
+(``test_monitor_tool_handoff.py`` covers the reservation contract and the
+E1.5 fallback when reservation fails).
 """
 
 from __future__ import annotations
@@ -401,9 +404,10 @@ def test_verify_true_becomes_named_check_run(
     record = _start(
         tmp_path, monkeypatch, command="true", cwd=str(root), profile="verify"
     )
+    assert record.tool_run_id
     proc = get_proc(record.monitor_id)
     assert proc is not None
-    assert proc.argv == [*_sase_argv(), "tool", "run", "check"]
+    assert proc.argv == [*_sase_argv(), "tool", "_adopt", record.tool_run_id]
 
     meta = _meta(record)
     assert meta["monitor_command"] == "true"
@@ -415,6 +419,7 @@ def test_verify_true_becomes_named_check_run(
     runs = tool_run_list({"schema_version": 1, "limit": 10})["runs"]
     assert len(runs) == 1
     run = runs[0]
+    assert run.get("run_id") == record.tool_run_id
     assert run.get("tool_name") == "check"
     assert run.get("owner_kind") == "monitor"
     assert run.get("owner_id") == record.monitor_id  # type: ignore[attr-defined]
@@ -433,16 +438,17 @@ def test_verify_true_becomes_named_check_run(
 def test_verify_compound_becomes_single_adhoc_run(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from sase.core.tool_run import tool_run_list
+    from sase.core.tool_run import tool_run_list, tool_run_show
 
     root = _sandbox_project(tmp_path)
     command = "true && true"
     record = _start(
         tmp_path, monkeypatch, command=command, cwd=str(root), profile="verify"
     )
+    assert record.tool_run_id
     proc = get_proc(record.monitor_id)
     assert proc is not None
-    assert proc.argv == [*_sase_argv(), "tool", "run", "--", "/bin/sh", "-c", command]
+    assert proc.argv == [*_sase_argv(), "tool", "_adopt", record.tool_run_id]
     assert _meta(record)["monitor_command"] == command
 
     done = wait_for_done(record.artifacts_dir)
@@ -450,8 +456,12 @@ def test_verify_compound_becomes_single_adhoc_run(
 
     runs = tool_run_list({"schema_version": 1, "limit": 10})["runs"]
     assert len(runs) == 1
+    assert runs[0].get("run_id") == record.tool_run_id
     assert runs[0].get("owner_kind") == "monitor"
     assert runs[0].get("tool_name") is None
+    shown = tool_run_show(record.tool_run_id)["run"]
+    assert shown["state"] == "succeeded"
+    assert shown["launch_mode"] == "handoff"
 
 
 def test_no_profile_monitor_runs_raw_with_reason_line(
@@ -521,16 +531,20 @@ def test_already_wrapped_monitor_is_not_rewrapped(
         cwd=str(root),
         profile="verify",
     )
+    # The agent-written wrapper is reserved and run by the worker, not
+    # wrapped a second time.
+    assert record.tool_run_id
     proc = get_proc(record.monitor_id)
     assert proc is not None
-    assert proc.argv == ["/bin/sh", "-c", command]
+    assert proc.argv == [*_sase_argv(), "tool", "_adopt", record.tool_run_id]
 
     done = wait_for_done(record.artifacts_dir)
     assert done["monitor_state"] == "completed"
 
-    # One semantic run, not two: the inner named run records, nothing wraps it.
+    # One semantic run, not two.
     runs = tool_run_list({"schema_version": 1, "limit": 10})["runs"]
     assert len(runs) == 1
+    assert runs[0].get("run_id") == record.tool_run_id
     assert runs[0].get("tool_name") == "check"
 
 

@@ -346,7 +346,10 @@ def _start_monitor_locked(
         unwrapped_reason,
     )
     handoff = maybe_reserve_monitor_tool_run(
-        words, cwd=request.cwd, monitor_id=monitor_id
+        words,
+        cwd=request.cwd,
+        monitor_id=monitor_id,
+        starter_agent=lane_start.starter_agent,
     )
     if handoff.attempted:
         reservation = handoff.reservation

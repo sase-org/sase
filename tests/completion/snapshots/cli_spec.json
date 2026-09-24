@@ -34950,7 +34950,7 @@
                 "choices": null,
                 "dest": "tool_stop_run_id",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "tool_run",
                 "metavar": "RUN",
                 "nargs": null,
                 "required": true,
@@ -35016,7 +35016,7 @@
                   "--tail-lines"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "int"
               },
               {
                 "choices": null,
@@ -35032,7 +35032,7 @@
                   "--timeout"
                 ],
                 "takes_value": true,
-                "value_hint": null
+                "value_hint": "duration"
               }
             ],
             "path": [
@@ -35044,7 +35044,7 @@
                 "choices": null,
                 "dest": "tool_wait_run_id",
                 "is_remainder": false,
-                "kind": null,
+                "kind": "tool_run",
                 "metavar": "RUN",
                 "nargs": null,
                 "required": true,
