@@ -1960,7 +1960,9 @@ xprompts:
       authorization for a phase worker. Do not create beads yourself: record discovered follow-up work as a
       `PROPOSED FOLLOW-UP:` entry via
       `sase bead note {{ bead_id }} 'PROPOSED FOLLOW-UP: <one-line summary — detail>'`; the epic's land agent triages
-      these into task beads.
+      these into task beads. A check failure that reproduces identically on the clean base tree does not keep this bead
+      open: record it as a `PROPOSED FOLLOW-UP:` entry (citing any task bead that already tracks it) and close anyway;
+      nothing relaunches a phase left open.
   bd/work_task:
     tags: work_task_bead
     input:

@@ -107,7 +107,9 @@ def test_context_publishes_assigned_bead_and_template_action_placeholder(
         "close_policy": (
             "Use close only for the primary repository decision after the "
             "assigned bead is fully complete and verified; use keep for "
-            "intermediate commits and deferrals."
+            "intermediate commits and deferrals. A check failure that "
+            "reproduces identically on the clean base tree is outside the "
+            "bead's scope and never by itself justifies keep."
         ),
     }
 

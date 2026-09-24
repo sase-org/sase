@@ -161,6 +161,8 @@ def test_builtin_phase_prompt_keeps_single_bead_ownership() -> None:
         "is preparation and evidence for that ancestor's land agent"
     ) in prose
     assert "not authorization for a phase worker" in prose
+    assert "reproduces identically on the clean base tree" in prose
+    assert "nothing relaunches a phase left open" in prose
 
 
 def test_builtin_land_prompt_plans_remaining_work_only() -> None:
