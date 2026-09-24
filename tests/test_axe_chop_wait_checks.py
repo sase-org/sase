@@ -245,7 +245,7 @@ def test_wait_checks_no_projects_dir_emits_noop_summary(
 
     assert capsys.readouterr().out == (
         "wait_checks: projects=0 artifacts=0 waiting=0 ready_written=0 "
-        "reason=no_projects_dir\n"
+        "deferred_unconfirmed=0 reason=no_projects_dir\n"
     )
 
 

@@ -97,7 +97,13 @@ def _run(
     pending_waiting_markers: list[_WaitingMarker] = []
     artifact_rows: list[tuple[Path, dict[str, Any], str]] = []
     fresh_indexes: dict[tuple[tuple[str, ...], int], WaitDependencyIndex] = {}
+    # Run-scoped agent_meta.json cache. The confirmation pass re-lists artifact
+    # directories (so a successor created after the resolving view was built is
+    # still detected) but reuses metadata this run already loaded, keeping the
+    # scan-once contract. Index rows only read meta dicts, never mutate them.
+    meta_cache: dict[Path, dict[str, Any] | None] = {}
 
+    walked_dirs: set[Path] = set()
     for project_dir in projects_dir.iterdir():
         if not project_dir.is_dir():
             continue
@@ -109,6 +115,7 @@ def _run(
             projects_root=projects_dir,
         ):
             artifacts += 1
+            walked_dirs.add(artifact_dir)
 
             waiting_path = artifact_dir / "waiting.json"
             if waiting_path.exists():
@@ -127,7 +134,10 @@ def _run(
 
             if not use_full_walk:
                 continue
-            meta = _read_json_dict(artifact_dir / "agent_meta.json")
+            meta_path = artifact_dir / "agent_meta.json"
+            if meta_path not in meta_cache:
+                meta_cache[meta_path] = _read_json_dict(meta_path)
+            meta = meta_cache[meta_path]
             if meta is not None:
                 artifact_rows.append((artifact_dir, meta, project_dir.name))
 
@@ -137,8 +147,24 @@ def _run(
             if indexed:
                 artifact_rows = wait_rows_from_index_records(indexed)
             if not artifact_rows:
-                artifact_rows = _filesystem_dependency_rows(projects_dir)
+                artifact_rows = _filesystem_dependency_rows(
+                    projects_dir, meta_cache=meta_cache
+                )
         dependency_index.add_many(artifact_rows)
+        # Seed the cache from the resolving view (index records or the walk
+        # above) so the confirmation rescan only reads metadata for artifact
+        # directories the resolving view never saw: exactly the new-member
+        # signal the confirmation exists to detect.
+        for artifact_dir, meta, _project_name in artifact_rows:
+            meta_cache.setdefault(artifact_dir / "agent_meta.json", meta)
+        # Seed negatives for walked directories whose meta file is absent
+        # (waiter-only dirs usually): the rescan must not re-stat them into
+        # reads, while a directory the walk never saw stays a cache miss and
+        # is genuinely re-read.
+        for artifact_dir in walked_dirs:
+            meta_path = artifact_dir / "agent_meta.json"
+            if meta_path not in meta_cache and not meta_path.exists():
+                meta_cache[meta_path] = None
 
     wait_bead_cache = WaitBeadStatusCache()
 
@@ -218,6 +244,7 @@ def _run(
                     _filesystem_dependency_rows(
                         projects_dir,
                         project_names=set(projects),
+                        meta_cache=meta_cache,
                     )
                 )
                 fresh_indexes[key] = fresh
@@ -429,8 +456,14 @@ def _filesystem_dependency_rows(
     projects_dir: Path,
     *,
     project_names: set[str] | None = None,
+    meta_cache: dict[Path, dict[str, Any] | None] | None = None,
 ) -> list[tuple[Path, dict[str, Any], str]]:
-    """Load ace-run agent_meta.json files for wait-dependency resolution."""
+    """Load ace-run agent_meta.json files for wait-dependency resolution.
+
+    When meta_cache is given, reuse metadata already loaded earlier in the run
+    and only read files for artifact directories not yet seen. The directory
+    listing itself is always fresh.
+    """
 
     rows: list[tuple[Path, dict[str, Any], str]] = []
     for project_dir in projects_dir.iterdir():
@@ -444,7 +477,13 @@ def _filesystem_dependency_rows(
             "ace-run",
             projects_root=projects_dir,
         ):
-            meta = _read_json_dict(artifact_dir / "agent_meta.json")
+            meta_path = artifact_dir / "agent_meta.json"
+            if meta_cache is not None and meta_path in meta_cache:
+                meta = meta_cache[meta_path]
+            else:
+                meta = _read_json_dict(meta_path)
+                if meta_cache is not None:
+                    meta_cache[meta_path] = meta
             if meta is not None:
                 rows.append((artifact_dir, meta, project_name))
     return rows

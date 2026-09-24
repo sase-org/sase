@@ -17,6 +17,8 @@ def _environment(state_dir: Path, **values: str) -> dict[str, str]:
         key: value for key, value in os.environ.items() if not key.startswith("FAKEY_")
     }
     env.pop("NO_COLOR", None)
+    env.pop("FORCE_COLOR", None)
+    env.pop("CLICOLOR_FORCE", None)
     env.update(FAKEY_STATE_DIR=str(state_dir), **values)
     return env
 
@@ -142,11 +144,19 @@ def test_help_is_colored_sorted_and_all_long_options_have_aliases(
     tmp_path: Path,
 ) -> None:
     result = _run(
-        tmp_path, "--help", prompt="", env=_environment(tmp_path, TERM="xterm")
+        tmp_path,
+        "--help",
+        prompt="",
+        env=_environment(tmp_path, TERM="xterm", FORCE_COLOR="1"),
     )
 
     assert result.returncode == 0
     assert "\033[1;36musage:" in result.stdout
+    piped = _run(
+        tmp_path, "--help", prompt="", env=_environment(tmp_path, TERM="xterm")
+    )
+    assert piped.returncode == 0
+    assert "\033[" not in piped.stdout
     plain = re.sub(r"\033\[[0-9;]*m", "", result.stdout)
     positions = [
         plain.index(option)

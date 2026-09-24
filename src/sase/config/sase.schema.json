@@ -2290,6 +2290,41 @@
                 }
               }
             },
+            "command_line": {
+              "type": "object",
+              "description": "Bindings active only while the Command Line panel is focused",
+              "additionalProperties": false,
+              "properties": {
+                "toggle_full_height": {
+                  "type": "string",
+                  "description": "Toggle full height"
+                },
+                "clear_transcript": {
+                  "type": "string",
+                  "description": "Clear the transcript"
+                },
+                "hide_panel": {
+                  "type": "string",
+                  "description": "Hide the panel"
+                },
+                "hop_to_palette": {
+                  "type": "string",
+                  "description": "Hop to the command palette"
+                },
+                "history_prev": {
+                  "type": "string",
+                  "description": "Select the previous history entry"
+                },
+                "history_next": {
+                  "type": "string",
+                  "description": "Select the next history entry"
+                },
+                "history_search": {
+                  "type": "string",
+                  "description": "Search history"
+                }
+              }
+            },
             "config": {
               "type": "object",
               "description": "Bindings active only while the Admin Center Config hub is focused",

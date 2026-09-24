@@ -19,18 +19,20 @@ from __future__ import annotations
 import shlex
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 
 def _local_now() -> datetime:
     """Return now in the configured zone, falling back to the system zone."""
     try:
-        from sase.core.time import get_timezone
-
+        from sase.core.time import get_timezone, system_timezone
+    except Exception:  # noqa: BLE001 - Rust binding may be missing.
+        return datetime.now(UTC)
+    try:
         return datetime.now(get_timezone())
-    except Exception:  # noqa: BLE001 - Rust binding or tz data may be missing.
-        return datetime.now().astimezone()
+    except Exception:  # noqa: BLE001 - bad configured zone; use system zone.
+        return datetime.now(system_timezone())
 
 
 #: Minimum terminal width (columns) for the doc-peek card. Narrower

@@ -28,7 +28,7 @@ keep the fast path light:
 from __future__ import annotations
 
 import time
-from datetime import datetime
+from datetime import UTC, datetime, tzinfo
 from pathlib import Path
 from typing import Any
 
@@ -372,12 +372,31 @@ def _unquote(value: str) -> str:
     return value
 
 
+def _display_tzinfo() -> tzinfo:
+    """Configured timezone for display, falling back to system zone, then UTC.
+
+    ``sase.core.time`` stays a function-level import so module scope keeps the
+    fast-path contract (stdlib plus this package).
+    """
+    try:
+        from sase.core.time import get_timezone, system_timezone
+    except Exception:  # noqa: BLE001 - time helpers unavailable.
+        return UTC
+    try:
+        return get_timezone()
+    except Exception:  # noqa: BLE001 - configured zone unreadable.
+        try:
+            return system_timezone()
+        except Exception:  # noqa: BLE001 - last resort needs no tzdata.
+            return UTC
+
+
 def _short_age(timestamp: Any) -> str:
     """Format an ISO-8601 timestamp as a short age like ``4m``."""
     parsed = _parse_timestamp(timestamp)
     if parsed is None:
         return ""
-    total_seconds = int((datetime.now().astimezone() - parsed).total_seconds())
+    total_seconds = int((datetime.now(_display_tzinfo()) - parsed).total_seconds())
     if total_seconds < 0:
         return "now"
     if total_seconds < 60:
@@ -400,14 +419,14 @@ def _parse_timestamp(timestamp: Any) -> datetime | None:
     except ValueError:
         return None
     if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=datetime.now().astimezone().tzinfo)
+        parsed = parsed.replace(tzinfo=_display_tzinfo())
     return parsed
 
 
 def _row_sort_key(row: dict[str, Any]) -> datetime:
     """Sort key for newest-first ordering; malformed timestamps sink."""
     return _parse_timestamp(row.get("timestamp")) or datetime.min.replace(
-        tzinfo=datetime.now().astimezone().tzinfo
+        tzinfo=_display_tzinfo()
     )
 
 

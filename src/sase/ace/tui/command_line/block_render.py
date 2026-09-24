@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import re
 from collections import OrderedDict
-from datetime import datetime
 
 from rich.text import Text
+
+from sase.core.time import format_local
 
 #: Lines shown in a collapsed block body.
 COLLAPSED_BLOCK_LINES = 12
@@ -121,10 +122,7 @@ def block_header_right(
         return " · ".join(parts)
     stamp = ""
     if finished_at is not None:
-        try:
-            stamp = datetime.fromtimestamp(finished_at).strftime("%H:%M")
-        except (OSError, OverflowError, ValueError):
-            stamp = ""
+        stamp = format_local(finished_at, "%H:%M", default="")
     parts = []
     if exit_code is not None:
         parts.append(f"exit {exit_code}")
