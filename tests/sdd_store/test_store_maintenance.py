@@ -37,6 +37,7 @@ def test_under_fragmentation_thresholds_skips_gc(
     clone_dir = _clone_dir(tmp_path)
     monkeypatch.setattr(maintenance, "_PACK_FILE_THRESHOLD", 3)
     monkeypatch.setattr(maintenance, "_LOOSE_OBJECT_THRESHOLD", 3)
+    monkeypatch.setattr(maintenance, "_LOOSE_OBJECT_BYTES_THRESHOLD", 10**9)
     _write_pack_files(clone_dir, 3)
     _write_loose_objects(clone_dir, 3)
     monkeypatch.setattr(
@@ -45,6 +46,65 @@ def test_under_fragmentation_thresholds_skips_gc(
     )
 
     assert maybe_gc_sidecar_clone(clone_dir, tmp_path / "primary") is False
+
+
+def test_loose_bytes_above_threshold_runs_gc(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Few loose objects still trigger gc when their bytes are heavy.
+
+    Regression test for byte-heavy bead clones (one ~5 MB ``issues.jsonl``
+    blob per mutation) that stay below the count threshold.
+    """
+
+    clone_dir = _clone_dir(tmp_path)
+    primary = tmp_path / "primary"
+    monkeypatch.setattr(maintenance, "_PACK_FILE_THRESHOLD", 3)
+    monkeypatch.setattr(maintenance, "_LOOSE_OBJECT_THRESHOLD", 10)
+    # Three 7-byte objects: count 3 stays below threshold, bytes 21 exceed it.
+    monkeypatch.setattr(maintenance, "_LOOSE_OBJECT_BYTES_THRESHOLD", 20)
+    _write_loose_objects(clone_dir, 3)
+
+    calls: list[dict[str, object]] = []
+
+    def run_git(args: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        calls.append({"args": list(args), **kwargs})
+        return subprocess.CompletedProcess(
+            args=["git", *args], returncode=0, stdout="", stderr=""
+        )
+
+    monkeypatch.setattr("sase.sdd._commit.run_sdd_git", run_git)
+
+    assert maybe_gc_sidecar_clone(clone_dir, primary) is True
+    assert [call["args"] for call in calls] == [["gc"]]
+
+
+def test_loose_bytes_below_threshold_skips_gc(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    clone_dir = _clone_dir(tmp_path)
+    monkeypatch.setattr(maintenance, "_PACK_FILE_THRESHOLD", 3)
+    monkeypatch.setattr(maintenance, "_LOOSE_OBJECT_THRESHOLD", 10)
+    monkeypatch.setattr(maintenance, "_LOOSE_OBJECT_BYTES_THRESHOLD", 21)
+    _write_loose_objects(clone_dir, 3)
+    monkeypatch.setattr(
+        "sase.sdd._commit.run_sdd_git",
+        lambda *_a, **_kw: pytest.fail("unfragmented clone ran git gc"),
+    )
+
+    assert maybe_gc_sidecar_clone(clone_dir, tmp_path / "primary") is False
+
+
+def test_loose_object_stats_counts_bytes(tmp_path: Path) -> None:
+    clone_dir = _clone_dir(tmp_path)
+    _write_loose_objects(clone_dir, 3)
+
+    assert maintenance._loose_object_stats(clone_dir / ".git") == (
+        3,
+        3 * len("object\n"),
+    )
 
 
 @pytest.mark.parametrize(

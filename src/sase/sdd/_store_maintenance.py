@@ -11,6 +11,12 @@ _logger = logging.getLogger(__name__)
 
 _PACK_FILE_THRESHOLD = 8
 _LOOSE_OBJECT_THRESHOLD = 2_000
+# Bead sidecars commit a ~5 MB copy of the ``issues.jsonl`` projection on
+# every mutation, so a clone can hold gigabytes of loose objects while its
+# object *count* stays below ``_LOOSE_OBJECT_THRESHOLD`` (and below git's
+# count-based ``gc.auto``). Bound the ``--dissociate`` repack cost of fresh
+# workspace clones by triggering on loose-object *bytes* as well.
+_LOOSE_OBJECT_BYTES_THRESHOLD = 256 * 1024 * 1024
 _GC_TIMEOUT_SECONDS = 600.0
 _HEX_DIGITS = frozenset("0123456789abcdef")
 
@@ -44,9 +50,12 @@ def _clone_looks_fragmented(clone_dir: Path) -> bool:
     git_dir = clone_dir / ".git"
     if not git_dir.is_dir():
         return False
+    if _pack_file_count(git_dir) > _PACK_FILE_THRESHOLD:
+        return True
+    loose_count, loose_bytes = _loose_object_stats(git_dir)
     return (
-        _pack_file_count(git_dir) > _PACK_FILE_THRESHOLD
-        or _loose_object_count(git_dir) > _LOOSE_OBJECT_THRESHOLD
+        loose_count > _LOOSE_OBJECT_THRESHOLD
+        or loose_bytes > _LOOSE_OBJECT_BYTES_THRESHOLD
     )
 
 
@@ -58,16 +67,31 @@ def _pack_file_count(git_dir: Path) -> int:
 
 
 def _loose_object_count(git_dir: Path) -> int:
+    count, _ = _loose_object_stats(git_dir)
+    return count
+
+
+def _loose_object_stats(git_dir: Path) -> tuple[int, int]:
+    """Return ``(count, bytes)`` of loose objects under *git_dir*."""
+
     objects_dir = git_dir / "objects"
     if not objects_dir.is_dir():
-        return 0
+        return (0, 0)
 
     count = 0
+    total_bytes = 0
     for bucket in objects_dir.iterdir():
         if not bucket.is_dir() or not _is_loose_object_bucket(bucket.name):
             continue
-        count += sum(1 for path in bucket.iterdir() if path.is_file())
-    return count
+        for path in bucket.iterdir():
+            if not path.is_file():
+                continue
+            count += 1
+            try:
+                total_bytes += path.stat().st_size
+            except OSError:
+                continue
+    return (count, total_bytes)
 
 
 def _is_loose_object_bucket(name: str) -> bool:
