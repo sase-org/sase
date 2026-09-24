@@ -16,10 +16,15 @@ def submitted_vcs_xprompt_prefix(prompt: str) -> str | None:
 
     Project tags (``+<project>``) resolve through the tag-aware helper.
     """
-    from sase.project_tags import effective_vcs_workflow_tag
+    from sase.project_tags import (
+        effective_vcs_workflow_tag_with_catalog,
+        peek_project_tag_catalog,
+    )
     from sase.xprompt._parsing import extract_project_from_vcs_tag
 
-    tag = effective_vcs_workflow_tag(prompt.strip() + " ")
+    tag = effective_vcs_workflow_tag_with_catalog(
+        prompt.strip() + " ", peek_project_tag_catalog()
+    )
     if tag is None:
         return None
     ref = extract_project_from_vcs_tag(tag)

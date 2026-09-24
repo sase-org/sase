@@ -483,11 +483,47 @@ def effective_find_vcs_workflow_tag(prompt: str) -> str | None:
     return find_vcs_workflow_tag(prompt)
 
 
+def effective_vcs_workflow_tag_with_catalog(
+    prompt: str, catalog: Any | None
+) -> str | None:
+    """Snapshot-only :func:`effective_vcs_workflow_tag` for UI-thread paths.
+
+    Never loads or revalidates the catalog: a ``None`` (cold) catalog skips
+    tag expansion and falls back to the raw ``#`` extraction.
+    """
+
+    if catalog is not None and "+" in prompt:
+        try:
+            prompt = expand_project_tags_with_catalog(prompt, catalog)
+        except Exception:  # noqa: BLE001 - fall back to the raw prompt.
+            pass
+    from sase.xprompt import extract_vcs_workflow_tag
+
+    return extract_vcs_workflow_tag(prompt)
+
+
+def effective_find_vcs_workflow_tag_with_catalog(
+    prompt: str, catalog: Any | None
+) -> str | None:
+    """Snapshot-only :func:`effective_find_vcs_workflow_tag` (never loads)."""
+
+    if catalog is not None and "+" in prompt:
+        try:
+            prompt = expand_project_tags_with_catalog(prompt, catalog)
+        except Exception:  # noqa: BLE001 - fall back to the raw prompt.
+            pass
+    from sase.xprompt import find_vcs_workflow_tag
+
+    return find_vcs_workflow_tag(prompt)
+
+
 __all__ = [
     "ProjectTagError",
     "apply_project_tag_selection",
     "effective_find_vcs_workflow_tag",
+    "effective_find_vcs_workflow_tag_with_catalog",
     "effective_vcs_workflow_tag",
+    "effective_vcs_workflow_tag_with_catalog",
     "expand_project_tags",
     "expand_project_tags_report",
     "expand_project_tags_with_catalog",

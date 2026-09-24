@@ -152,13 +152,16 @@ class PromptBarRequestsMixin:
             if vcs_prefix:
                 if "+" in prompt_text:
                     from sase.project_tags import (
-                        expand_project_tags,
+                        expand_project_tags_with_catalog,
                         peek_project_tag_catalog,
                     )
 
-                    if peek_project_tag_catalog() is not None:
+                    catalog = peek_project_tag_catalog()
+                    if catalog is not None:
                         try:
-                            prompt_text = expand_project_tags(prompt_text)
+                            prompt_text = expand_project_tags_with_catalog(
+                                prompt_text, catalog
+                            )
                         except Exception:  # noqa: BLE001 - fall back to raw.
                             pass
                 from sase.xprompt import replace_vcs_workflow_tags
@@ -370,7 +373,7 @@ class PromptBarRequestsMixin:
                 prompt_text = origin_bar.active_text()
             if prompt_text:
                 from sase.project_tags import (
-                    effective_vcs_workflow_tag,
+                    effective_vcs_workflow_tag_with_catalog,
                     peek_project_tag_catalog,
                 )
                 from sase.xprompt._parsing import (
@@ -384,9 +387,12 @@ class PromptBarRequestsMixin:
                 )
 
                 vcs_tag = None
-                if "+" in prompt_text and peek_project_tag_catalog() is not None:
+                tag_catalog = peek_project_tag_catalog()
+                if "+" in prompt_text and tag_catalog is not None:
                     try:
-                        vcs_tag = effective_vcs_workflow_tag(prompt_text)
+                        vcs_tag = effective_vcs_workflow_tag_with_catalog(
+                            prompt_text, tag_catalog
+                        )
                     except Exception:  # noqa: BLE001 - fall back to raw.
                         vcs_tag = None
                 if vcs_tag is None and "#" in prompt_text:

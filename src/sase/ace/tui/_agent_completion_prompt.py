@@ -27,13 +27,14 @@ def _leading_workspace_tag(body: str) -> str | None:
     """
     if "+" in body:
         from sase.project_tags import (
-            effective_vcs_workflow_tag,
+            effective_vcs_workflow_tag_with_catalog,
             peek_project_tag_catalog,
         )
 
-        if peek_project_tag_catalog() is not None:
+        catalog = peek_project_tag_catalog()
+        if catalog is not None:
             try:
-                tag = effective_vcs_workflow_tag(body)
+                tag = effective_vcs_workflow_tag_with_catalog(body, catalog)
             except Exception:  # noqa: BLE001 - fall back to the raw tag.
                 tag = None
             if tag:
@@ -52,16 +53,17 @@ def _first_workspace_tag(body: str) -> str | None:
     """
     if "+" in body:
         from sase.project_tags import (
-            effective_find_vcs_workflow_tag,
-            effective_vcs_workflow_tag,
+            effective_find_vcs_workflow_tag_with_catalog,
+            effective_vcs_workflow_tag_with_catalog,
             peek_project_tag_catalog,
         )
 
-        if peek_project_tag_catalog() is not None:
+        catalog = peek_project_tag_catalog()
+        if catalog is not None:
             try:
-                tag = effective_vcs_workflow_tag(
-                    body
-                ) or effective_find_vcs_workflow_tag(body)
+                tag = effective_vcs_workflow_tag_with_catalog(
+                    body, catalog
+                ) or effective_find_vcs_workflow_tag_with_catalog(body, catalog)
             except Exception:  # noqa: BLE001 - fall back to the raw tag.
                 tag = None
             if tag:

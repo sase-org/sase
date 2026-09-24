@@ -237,13 +237,14 @@ class XPromptArgHintMixin(_MixinBase):
             # Tags expand first, but only when the catalog is already warm:
             # this runs on the keystroke path and must never build it.
             from sase.project_tags import (
-                effective_vcs_workflow_tag,
+                effective_vcs_workflow_tag_with_catalog,
                 peek_project_tag_catalog,
             )
 
-            if peek_project_tag_catalog() is not None:
+            catalog = peek_project_tag_catalog()
+            if catalog is not None:
                 try:
-                    tag = effective_vcs_workflow_tag(self.text)
+                    tag = effective_vcs_workflow_tag_with_catalog(self.text, catalog)
                 except Exception:  # noqa: BLE001 - fall back to the raw tag.
                     tag = None
         if tag is None and "#" in self.text:

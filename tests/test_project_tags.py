@@ -27,7 +27,9 @@ from sase.project_tags import (
     apply_project_tag_selection,
     build_targets,
     effective_find_vcs_workflow_tag,
+    effective_find_vcs_workflow_tag_with_catalog,
     effective_vcs_workflow_tag,
+    effective_vcs_workflow_tag_with_catalog,
     expand_project_tags,
     find_project_tag_trigger,
     find_project_tags,
@@ -266,6 +268,52 @@ def test_effective_tags_resolve_before_extraction() -> None:
     assert (effective_vcs_workflow_tag("+sase do x") or "").strip() == "#gh:sase"
     assert (effective_find_vcs_workflow_tag("do +sase x") or "").strip() == "#gh:sase"
     assert (effective_vcs_workflow_tag("#gh:sase do x") or "").strip() == "#gh:sase"
+
+
+def test_snapshot_effective_tags_never_load(tag_catalog: ProjectTagCatalog) -> None:
+    with patch.object(
+        tag_catalog_module,
+        "load_project_tag_catalog",
+        side_effect=AssertionError("snapshot helper must not load"),
+    ):
+        warm = effective_vcs_workflow_tag_with_catalog("+sase do x", tag_catalog)
+        assert (warm or "").strip() == "#gh:sase"
+        found = effective_find_vcs_workflow_tag_with_catalog("do +sase x", tag_catalog)
+        assert (found or "").strip() == "#gh:sase"
+        # Cold catalog: no expansion, raw ``#`` extraction only.
+        assert effective_vcs_workflow_tag_with_catalog("+sase do x", None) is None
+        cold = effective_vcs_workflow_tag_with_catalog("#gh:sase do x", None)
+        assert (cold or "").strip() == "#gh:sase"
+
+
+def test_launch_toast_prefix_never_loads_catalog(
+    tag_catalog: ProjectTagCatalog,
+) -> None:
+    from sase.ace.tui.actions.agent_workflow._launch_submit_helpers import (
+        submitted_vcs_xprompt_prefix,
+    )
+
+    with (
+        patch.object(
+            tag_catalog_module,
+            "load_project_tag_catalog",
+            side_effect=AssertionError("must not load"),
+        ),
+        patch(
+            "sase.project_tags.peek_project_tag_catalog",
+            return_value=tag_catalog,
+        ),
+    ):
+        assert submitted_vcs_xprompt_prefix("+sase do x") == "#gh:sase"
+    with (
+        patch.object(
+            tag_catalog_module,
+            "load_project_tag_catalog",
+            side_effect=AssertionError("must not load"),
+        ),
+        patch("sase.project_tags.peek_project_tag_catalog", return_value=None),
+    ):
+        assert submitted_vcs_xprompt_prefix("+sase do x") is None
 
 
 def test_project_tag_for_spellings() -> None:

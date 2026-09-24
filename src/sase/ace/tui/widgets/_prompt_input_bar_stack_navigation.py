@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from sase.project_tags import (
-    effective_vcs_workflow_tag,
+    effective_vcs_workflow_tag_with_catalog,
     known_project_tag_for,
     peek_project_tag_catalog,
 )
@@ -117,7 +117,9 @@ class PromptInputBarStackNavigationMixin(_MixinBase):
         vcs_tag = None
         if "+" in selected.text and catalog is not None:
             try:
-                vcs_tag = effective_vcs_workflow_tag(f"{selected.text} ")
+                vcs_tag = effective_vcs_workflow_tag_with_catalog(
+                    f"{selected.text} ", catalog
+                )
             except Exception:  # noqa: BLE001 - fall back to the raw tag.
                 vcs_tag = None
         if vcs_tag is None:
