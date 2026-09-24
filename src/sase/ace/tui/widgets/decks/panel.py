@@ -99,6 +99,12 @@ class DeckPanel(Vertical):
         ):
             yield AgentLLMCallsPanel()
         yield Static(classes="deck-empty-state")
+        with VerticalScroll(
+            id=f"agent-deck-panel-{i}-search-scroll",
+            classes="deck-scroll deck-search-scroll",
+        ):
+            yield Static(classes="deck-search-panel")
+        yield Static(classes="deck-search-command")
 
     def on_mount(self) -> None:
         """Apply the initial deck chrome."""
@@ -302,12 +308,85 @@ class DeckPanel(Vertical):
         """Return the Tools deck view."""
         return self.query_one(AgentLLMCallsPanel)
 
+    def active_main_card(self) -> str | None:
+        """Return the active Main card id without reaching into privates."""
+        try:
+            return self.main_view.active_card_id
+        except Exception:
+            pass
+        try:
+            return self._main_active_card
+        except Exception:
+            return None
+
     def active_scroll(self) -> VerticalScroll:
         """Return the displayed scroll container."""
         return self.query_one(
             f"#agent-deck-panel-{self._panel_index}-{self._deck.value}-scroll",
             VerticalScroll,
         )
+
+    def search_scroll(self) -> VerticalScroll:
+        """Return the per-panel search overlay scroll."""
+        return self.query_one(
+            f"#agent-deck-panel-{self._panel_index}-search-scroll",
+            VerticalScroll,
+        )
+
+    def search_panel(self) -> Static:
+        """Return the per-panel search overlay content widget."""
+        return self.query_one(
+            f"#agent-deck-panel-{self._panel_index}-search-scroll .deck-search-panel",
+            Static,
+        )
+
+    def search_command(self) -> Static:
+        """Return the per-panel search command line widget."""
+        return self.query_one(".deck-search-command", Static)
+
+    def show_search_overlay(self) -> None:
+        """Hide the active deck scroll and show the search overlay."""
+        try:
+            self.active_scroll().remove_class("-shown")
+        except Exception:
+            pass
+        try:
+            self.query_one(".deck-empty-state", Static).remove_class("-shown")
+        except Exception:
+            pass
+        try:
+            self.search_scroll().add_class("-shown")
+        except Exception:
+            pass
+        try:
+            self.search_panel().add_class("-shown")
+            self.search_command().add_class("-shown")
+        except Exception:
+            pass
+
+    def hide_search_overlay(self) -> None:
+        """Hide the overlay and restore the active deck scroll."""
+        try:
+            self.search_scroll().remove_class("-shown")
+        except Exception:
+            pass
+        try:
+            self.search_panel().update("")
+            self.search_panel().remove_class("-shown")
+        except Exception:
+            pass
+        try:
+            command = self.search_command()
+            command.update("")
+            command.border_title = ""
+            command.border_subtitle = ""
+            command.remove_class("-shown")
+        except Exception:
+            pass
+        try:
+            self.set_deck(self._deck)
+        except Exception:
+            pass
 
     def set_availability(self, availability: dict[DeckId, DeckAvailability]) -> None:
         """Store availability probes and refresh chrome."""

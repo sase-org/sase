@@ -66,7 +66,13 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
             )
         except Exception:
             return False
-        if not agent_detail.is_llm_calls_visible():
+        if bool(getattr(agent_detail, "decks_enabled", False)):
+            try:
+                if agent_detail.focused_tools_view() is None:  # type: ignore[attr-defined]
+                    return False
+            except Exception:
+                return False
+        elif not agent_detail.is_llm_calls_visible():
             return False
 
         if action == "expand":
@@ -106,6 +112,14 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
     def action_hooks_or_collapse(self) -> None:
         """Navigate/collapse/jump on Agents, or collapse elsewhere."""
         if self.current_tab == "agents":
+            try:
+                from ...widgets.decks.flag import agent_decks_active
+
+                if bool(agent_decks_active(self)):
+                    if self._route_llm_calls_detail_level("collapse"):
+                        return
+            except Exception:
+                pass
             self._collapse_fold()
         elif self.current_tab == "services":
             self._collapse_axe_fold()
@@ -185,6 +199,14 @@ class AgentFoldingMixin(AgentTreeFoldingMixin, AxeFoldingMixin):
         ``bead:sase-ug.10``.
         """
         if self.current_tab == "agents":
+            try:
+                from ...widgets.decks.flag import agent_decks_active
+
+                if bool(agent_decks_active(self)):
+                    if self._route_llm_calls_detail_level("max"):
+                        return
+            except Exception:
+                pass
             self.action_toggle_selected_agent_panels()  # type: ignore[attr-defined]
             return
         if self._route_llm_calls_detail_level("max"):

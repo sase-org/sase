@@ -10,6 +10,7 @@ from textual.message import Message
 from textual.widgets import Static
 
 from ._agent_detail_deck_layout import AgentDetailDeckLayoutMixin
+from ._agent_detail_deck_targets import AgentDetailDeckTargetsMixin
 from ._agent_detail_decks import AgentDetailDeckMixin
 from ._agent_detail_display import AgentDetailDisplayMixin
 from ._agent_detail_helpers import agent_prompt_panel_type
@@ -38,6 +39,7 @@ class AgentMetadataIdentityChanged(Message):
 
 class AgentDetail(
     AgentDetailDeckLayoutMixin,
+    AgentDetailDeckTargetsMixin,
     AgentDetailDeckMixin,
     AgentDetailDisplayMixin,
     AgentDetailStateMixin,
@@ -205,18 +207,7 @@ class AgentDetail(
             return False
         try:
             if self.decks_enabled:
-                area = self.deck_area
-                for deck_panel in area.visible_panels():
-                    try:
-                        main_view = deck_panel.main_view
-                    except Exception:
-                        continue
-                    if bool(getattr(main_view, "is_pinned_to_bottom", False)):
-                        reschedule = getattr(
-                            main_view, "_schedule_bottom_pin_reapply", None
-                        )
-                        if callable(reschedule):
-                            reschedule()
+                self.reapply_main_view_pins()  # type: ignore[attr-defined]
                 return expanded
             prompt_panel = self.query_one(
                 "#agent-prompt-panel", agent_prompt_panel_type()

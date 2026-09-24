@@ -285,6 +285,25 @@ class FoldNavigationMixin(NavigationMixinBase):
 
         try:
             detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
+        except Exception:
+            return None
+        if bool(getattr(detail, "decks_enabled", False)):
+            try:
+                resolved = detail.main_view_for_actions()  # type: ignore[attr-defined]
+                if resolved is None:
+                    self.notify(  # type: ignore[attr-defined]
+                        "Show the Main deck to fold a section"
+                    )
+                    return None
+                _panel, view = resolved
+                scroll = view.parent
+                if not isinstance(scroll, VerticalScroll):
+                    return None
+                row = max(0, int(scroll.scroll_y) - view.virtual_region.y)
+                return view.resolve_section_at_row(row, width=view.size.width)
+            except Exception:
+                return None
+        try:
             panel = detail.query_one("#agent-prompt-panel", AgentPromptPanel)
             scroll = detail.query_one("#agent-prompt-scroll", VerticalScroll)
         except Exception:

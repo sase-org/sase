@@ -142,8 +142,10 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
         with tui_trace("agent_detail.refresh_current_file"):
             if bool(getattr(self, "decks_enabled", False)):
                 try:
-                    panel = self.deck_area.focused_panel()  # type: ignore[attr-defined]
-                    panel.file_view.refresh_file(agent)
+                    from .decks.model import DeckId as _DeckId
+
+                    for panel in self.deck_area.panels_showing(_DeckId.FILES):  # type: ignore[attr-defined]
+                        panel.file_view.refresh_file(agent)
                 except Exception:
                     pass
                 return
@@ -250,17 +252,10 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
     def _llm_calls_panel_or_none(self) -> AgentLLMCallsPanel | None:
         if bool(getattr(self, "decks_enabled", False)):
             try:
-                from .decks.model import DeckId as _DeckId
-
-                focused = self.deck_area.focused_panel()  # type: ignore[attr-defined]
-                if focused.deck is _DeckId.TOOLS:
-                    return focused.tools_view
-                for panel in self.deck_area.visible_panels():  # type: ignore[attr-defined]
-                    if panel.deck is _DeckId.TOOLS:
-                        return panel.tools_view
+                focused_view = self.focused_tools_view()  # type: ignore[attr-defined]
+                return focused_view
             except Exception:
                 return None
-            return None
         try:
             return self.query_one("#agent-llm-calls-panel", AgentLLMCallsPanel)
         except NoMatches:
@@ -345,9 +340,21 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
         """
         if bool(getattr(self, "decks_enabled", False)):
             try:
+                from rich.console import Group
+
                 from .decks.model import DeckId as _DeckId
+                from .renderable_text import renderable_to_text
 
                 panel = self.deck_area.focused_panel()  # type: ignore[attr-defined]
+                deck = self.focused_deck()  # type: ignore[attr-defined]
+                if deck is _DeckId.MAIN or panel.deck is _DeckId.MAIN:
+                    card_id = panel.active_main_card()
+                    if card_id is not None:
+                        card = panel._main_document.card(card_id)
+                        if card is not None:
+                            text = renderable_to_text(Group(*card.renderables))
+                            return (None, text, ".md")
+                    return (None, None, "")
                 if panel.deck is _DeckId.FILES:
                     view = panel.file_view
                     return (
@@ -378,12 +385,10 @@ class AgentDetailStateMixin(AgentDetailPanelMixin):
         """Return the currently visible image path, or None."""
         if bool(getattr(self, "decks_enabled", False)):
             try:
-                from .decks.model import DeckId as _DeckId
-
-                panel = self.deck_area.focused_panel()  # type: ignore[attr-defined]
-                if panel.deck is not _DeckId.FILES:
+                view = self.focused_file_view()  # type: ignore[attr-defined]
+                if view is None:
                     return None
-                return panel.file_view.get_current_image_path()
+                return view.get_current_image_path()
             except Exception:
                 return None
         if not self.is_file_visible():

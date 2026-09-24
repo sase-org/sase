@@ -126,7 +126,6 @@ class ClipboardAgentsMixin(ClipboardBase):
     def _copy_file_path(self) -> None:
         """Copy the file path from the file panel (%E on agents tab)."""
         from ...widgets import AgentDetail
-        from ...widgets.file_panel import AgentFilePanel
 
         try:
             agent_detail = self.query_one("#agent-detail-panel", AgentDetail)  # type: ignore[attr-defined]
@@ -134,12 +133,20 @@ class ClipboardAgentsMixin(ClipboardBase):
             self.notify("Agent detail panel not found", severity="warning")  # type: ignore[attr-defined]
             return
 
-        if not agent_detail.is_file_visible():
-            self.notify("File panel is not visible", severity="warning")  # type: ignore[attr-defined]
-            return
+        if bool(getattr(agent_detail, "decks_enabled", False)):
+            file_panel = agent_detail.focused_file_view()  # type: ignore[attr-defined]
+            if file_panel is None:
+                self.notify("File panel is not visible", severity="warning")  # type: ignore[attr-defined]
+                return
+            file_path = file_panel.get_current_file_path()
+        else:
+            from ...widgets.file_panel import AgentFilePanel
 
-        file_panel = agent_detail.query_one("#agent-file-panel", AgentFilePanel)
-        file_path = file_panel.get_current_file_path()
+            if not agent_detail.is_file_visible():
+                self.notify("File panel is not visible", severity="warning")  # type: ignore[attr-defined]
+                return
+            file_panel = agent_detail.query_one("#agent-file-panel", AgentFilePanel)
+            file_path = file_panel.get_current_file_path()
         if file_path is None:
             self.notify("No file path (showing diff output)", severity="warning")  # type: ignore[attr-defined]
             return

@@ -356,8 +356,15 @@ def build_header_text(
         # Slow tool calls is not a SASE CONTEXT lane and is not guaranteed
         # zero-I/O (bead sase-l6 trace: up to ~114 ms cold), so it stays
         # behind the debounced path rather than joining the immediate paint.
-        from ._agent_slow_tools import append_slow_tool_calls_section
+        from ._agent_slow_tools import (
+            append_slow_tool_calls_section,
+            resolve_slow_tool_overflow_keys,
+        )
 
+        try:
+            _overflow_keys = resolve_slow_tool_overflow_keys()
+        except Exception:
+            _overflow_keys = {}
         slow_tool_section = append_slow_tool_calls_section(
             header_text,
             sources=summary.slow_tool_sources,
@@ -369,6 +376,7 @@ def build_header_text(
             scale=lane_scale,
             section_fold_overrides=lane_overrides,
             responsive_ranges=responsive_ranges,
+            overflow_hint_keys=_overflow_keys,
         )
 
     is_failed = agent.display_status == "FAILED"

@@ -208,7 +208,15 @@ class AgentFooterDisplayMixin:
                     panel_hint_collapse_available = bool(
                         enumerate_hint_targets(collapsible_only=True)
                     )
-            llm_calls_visible = agent_detail.is_llm_calls_visible()
+            if bool(getattr(agent_detail, "decks_enabled", False)):
+                try:
+                    llm_calls_visible = (
+                        agent_detail.focused_tools_view() is not None  # type: ignore[attr-defined]
+                    )
+                except Exception:
+                    llm_calls_visible = False
+            else:
+                llm_calls_visible = agent_detail.is_llm_calls_visible()
             left_navigation_kind: str | None = None
             resolve_left_navigation = getattr(
                 self, "_resolve_agent_left_navigation_target", None

@@ -279,6 +279,16 @@ class FileViewingMixin(HintMixinBase):
             return
 
         extra["family_container"] = agent.is_family_container_row
+        try:
+            from ...widgets import AgentDetail as _HintAgentDetail
+
+            _hint_detail = self.query_one("#agent-detail-panel", _HintAgentDetail)  # type: ignore[attr-defined]
+            if bool(getattr(_hint_detail, "decks_enabled", False)):
+                ensure = getattr(_hint_detail, "ensure_main_deck_shown", None)
+                if callable(ensure):
+                    ensure()
+        except Exception:
+            pass
 
         # Enter hint mode and paint the input before starting the annotated
         # document render. The readiness event bridges the after-refresh spawn

@@ -444,6 +444,16 @@ class FilePanelFileListMixin:
         """Return the last displayed file content, or None."""
         return self._last_file_content
 
+    def get_full_content(self) -> str | None:
+        """Return the full untruncated file content, or None."""
+        try:
+            full = getattr(self, "_full_content", None)
+            if isinstance(full, str):
+                return full
+        except Exception:
+            pass
+        return self._last_file_content
+
 
 def _is_terminal_agent(agent: Agent) -> bool:
     return agent_status_bucket(agent) in {"Done", "Failed"}

@@ -196,14 +196,20 @@ def build_workflow_detail_renderable(
     if slow_tool_sources is not None:
         from ._agent_slow_tools import (
             append_slow_tool_calls_section_no_fold_owner,
+            resolve_slow_tool_overflow_keys,
         )
 
+        try:
+            _overflow_keys = resolve_slow_tool_overflow_keys()
+        except Exception:
+            _overflow_keys = {}
         append_slow_tool_calls_section_no_fold_owner(
             body_text,
             sources=slow_tool_sources,
             agent=agent,
             now=DateTime.now(),
             threshold_ms=slow_tool_call_threshold_ms,
+            overflow_hint_keys=_overflow_keys,
         )
 
     # Separator + WORKFLOW STEPS header

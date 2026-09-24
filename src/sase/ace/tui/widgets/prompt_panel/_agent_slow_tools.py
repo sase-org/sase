@@ -80,6 +80,67 @@ class _SourcedSlowToolCall:
     source_index: int
 
 
+def slow_tool_overflow_hint(
+    overflow: int,
+    *,
+    decks_enabled: bool,
+    next_deck_key: str = "",
+    prev_deck_key: str = "",
+    view_picker_key: str = "",
+) -> str:
+    """Return the SLOW TOOL CALLS overflow line for ``overflow`` hidden calls."""
+    if decks_enabled:
+        if next_deck_key and prev_deck_key:
+            return (
+                f"+ {overflow} more · {next_deck_key}/{prev_deck_key} "
+                "→ Tools deck for the full LLM Calls timeline"
+            )
+        return f"+ {overflow} more · full timeline in LLM Calls"
+    if view_picker_key:
+        return (
+            f"+ {overflow} more · {view_picker_key} "
+            "→ LLM Calls view for the full timeline"
+        )
+    return f"+ {overflow} more · full timeline in LLM Calls"
+
+
+def resolve_slow_tool_overflow_keys(
+    app: object | None = None,
+) -> dict[str, str]:
+    """Resolve overflow-hint key labels from the live keymap, failing open."""
+    try:
+        if app is None:
+            from textual.app import App as _App
+
+            try:
+                app = _App.active_app  # type: ignore[attr-defined]
+            except Exception:
+                try:
+                    get_app = getattr(_App, "get_running_app", None)
+                    app = get_app() if callable(get_app) else None
+                except Exception:
+                    app = None
+        registry = getattr(app, "_keymap_registry", None)
+        app_keys = getattr(registry, "app", None)
+        if app_keys is None:
+            return {}
+        from ...keymaps.display import key_display_name as _display
+
+        out: dict[str, str] = {}
+        for attr, name in (
+            ("next_deck", "next_deck"),
+            ("prev_deck", "prev_deck"),
+            ("choose_agent_view", "view_picker"),
+        ):
+            try:
+                out[name] = _display(str(getattr(app_keys, attr)))
+            except Exception:
+                out[name] = ""
+        return out
+    except Exception:
+        return {}
+
+
 def append_slow_tool_calls_section(
     text: Text,
     *,
@@ -92,6 +153,7 @@ def append_slow_tool_calls_section(
     scale: FoldScale = AGENT_FOLD_SCALE,
     section_fold_overrides: Mapping[str, FoldLevel] | None = None,
     responsive_ranges: MutableMapping[str, tuple[int, int]] | None = None,
+    overflow_hint_keys: Mapping[str, str] | None = None,
 ) -> ResponsiveSlowToolCallsSection | None:
     """Append the SLOW TOOL CALLS section when any calls qualify."""
     overrides = section_fold_overrides or {}
@@ -111,6 +173,7 @@ def append_slow_tool_calls_section(
         heading_level=level,
         heading_scale=scale,
         responsive_ranges=responsive_ranges,
+        overflow_hint_keys=overflow_hint_keys,
     )
 
 
@@ -122,6 +185,7 @@ def append_slow_tool_calls_section_no_fold_owner(
     now: datetime,
     hint_state: HeaderHintState | None = None,
     threshold_ms: int = SLOW_TOOL_CALL_THRESHOLD_MS,
+    overflow_hint_keys: Mapping[str, str] | None = None,
 ) -> None:
     """Append the always-visible detail tier for a fold-inert aggregate."""
     _append_slow_tool_calls_section(
@@ -135,6 +199,7 @@ def append_slow_tool_calls_section_no_fold_owner(
         heading_level=None,
         heading_scale=None,
         responsive_ranges=None,
+        overflow_hint_keys=overflow_hint_keys,
     )
 
 
@@ -150,6 +215,7 @@ def _append_slow_tool_calls_section(
     heading_level: FoldLevel | None,
     heading_scale: FoldScale | None,
     responsive_ranges: MutableMapping[str, tuple[int, int]] | None,
+    overflow_hint_keys: Mapping[str, str] | None = None,
 ) -> ResponsiveSlowToolCallsSection | None:
     if not sources:
         return None
@@ -243,8 +309,28 @@ def _append_slow_tool_calls_section(
     overflow = len(slow_calls) - len(visible)
     overflow_tail = None
     if overflow > 0:
+        try:
+            from ..decks.flag import agent_decks_enabled
+
+            decks = bool(agent_decks_enabled())
+        except Exception:
+            decks = False
+        keys = overflow_hint_keys
+        if keys is None:
+            try:
+                keys = resolve_slow_tool_overflow_keys()
+            except Exception:
+                keys = {}
+        keys = keys or {}
+        hint = slow_tool_overflow_hint(
+            overflow,
+            decks_enabled=decks,
+            next_deck_key=str(keys.get("next_deck", "") or ""),
+            prev_deck_key=str(keys.get("prev_deck", "") or ""),
+            view_picker_key=str(keys.get("view_picker", "") or ""),
+        )
         overflow_tail = Text(
-            f"  + {overflow} more \u00b7 press ] for the full LLM Calls timeline\n",
+            f"  {hint}\n",
             style=COLOR_TRUNCATION,
             end="",
         )
@@ -443,4 +529,6 @@ __all__ = [
     "SLOW_TOOL_CALLS_SECTION_ID",
     "append_slow_tool_calls_section",
     "append_slow_tool_calls_section_no_fold_owner",
+    "resolve_slow_tool_overflow_keys",
+    "slow_tool_overflow_hint",
 ]

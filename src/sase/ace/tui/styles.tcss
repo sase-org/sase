@@ -4124,6 +4124,46 @@ HintInputBar #hint-escape-hint {
     display: block;
 }
 
+.deck-search-scroll {
+    height: 1fr;
+    border: solid $secondary;
+    padding: 1 2;
+    scrollbar-gutter: stable;
+    display: none;
+}
+
+.deck-search-scroll.-shown {
+    display: block;
+}
+
+.deck-search-panel {
+    width: auto;
+    min-width: 100%;
+    height: auto;
+    display: none;
+}
+
+.deck-search-panel.-shown {
+    display: block;
+}
+
+.deck-search-command {
+    width: 100%;
+    height: auto;
+    max-height: 3;
+    border: round $accent;
+    border-title-align: left;
+    border-subtitle-align: center;
+    background: $panel;
+    color: $text;
+    padding: 0 1;
+    display: none;
+}
+
+.deck-search-command.-shown {
+    display: block;
+}
+
 .deck-empty-state {
     height: 1fr;
     content-align: center middle;
