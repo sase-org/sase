@@ -47,6 +47,14 @@ from sase.completion.candidates.catalog_content import (
     memory_candidates,
     memory_source_path,
 )
+from sase.completion.candidates.catalog_entities import (
+    gate_candidates,
+    gate_source_path,
+    task_type_candidates,
+    task_type_source_path,
+    tool_run_candidates,
+    tool_run_source_path,
+)
 from sase.completion.candidates.catalog_projects import (
     patch_candidates,
     patch_source_path,
@@ -107,6 +115,9 @@ PROVIDERS: dict[ValueKind, tuple[_Fetch, _SourcePath]] = {
     ValueKind.MODEL: (model_candidates, model_source_path),
     ValueKind.PROVIDER: (provider_candidates, provider_source_path),
     ValueKind.SNIPPET: (snippet_candidates, snippet_source_path),
+    ValueKind.GATE: (gate_candidates, gate_source_path),
+    ValueKind.TOOL_RUN: (tool_run_candidates, tool_run_source_path),
+    ValueKind.TASK_TYPE: (task_type_candidates, task_type_source_path),
 }
 
 

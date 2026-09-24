@@ -10,7 +10,11 @@ from sase.completion.compat import (
     get_completion_compat_choices,
     get_completion_compat_option_strings,
 )
-from sase.completion.kinds import ValueKind, resolve_value_kind
+from sase.completion.kinds import (
+    ValueKind,
+    resolve_value_hint,
+    resolve_value_kind,
+)
 from sase.completion.model import (
     CommandSpec,
     CompletionSpec,
@@ -180,7 +184,7 @@ def _build_option(
         required=bool(getattr(action, "required", False)),
         metavar=_option_metavar(action),
         default=_display_default(action),
-        value_hint=_value_hint_for(action, kind),
+        value_hint=_value_hint_for(action, kind, command_path=command_path),
     )
 
 
@@ -199,7 +203,7 @@ def _build_positional(
         kind=kind,
         is_remainder=action.nargs in _REMAINDER_NARGS,
         required=_positional_required(action),
-        value_hint=_value_hint_for(action, kind),
+        value_hint=_value_hint_for(action, kind, command_path=command_path),
     )
 
 
@@ -243,16 +247,24 @@ def _positional_required(action: argparse.Action) -> bool:
     return bool(getattr(action, "required", True))
 
 
-def _value_hint_for(_action: argparse.Action, kind: ValueKind | None) -> str | None:
+def _value_hint_for(
+    action: argparse.Action,
+    kind: ValueKind | None,
+    *,
+    command_path: tuple[str, ...] = (),
+) -> str | None:
     """Return the free-form value hint for *action*, if any.
 
     Path-like kinds already carry a kind, but the resolver also wants a
-    coarse "path" hint; every other slot is None until the kind-coverage
-    phase lands its declarative hint table.
+    coarse "path" hint. A kinded non-path slot carries no hint (the kind is
+    the signal); an unkinded slot takes its hint from the declarative hint
+    table in ``sase.completion.kinds``.
     """
     if kind in (ValueKind.PATH, ValueKind.DIR):
         return "path"
-    return None
+    if kind is not None:
+        return None
+    return resolve_value_hint(action, command_path)
 
 
 def _resolved_choices(action: argparse.Action) -> tuple[str, ...] | None:
