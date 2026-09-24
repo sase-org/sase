@@ -71,6 +71,18 @@ def test_edit_hooks_fork_allows_tale_done_with_response_path() -> None:
     assert is_command_available(spec, CommandContext(tab="agents", agent=with_path))
 
 
+def test_edit_hooks_fork_allows_epic_created_with_response_path() -> None:
+    catalog = _catalog_by_id()
+    spec = catalog["app.edit_hooks"]
+    no_path = _make_agent(status="EPIC CREATED", response_path=None)
+    with_path = _make_agent(status="EPIC CREATED", response_path="/tmp/r.txt")
+    rejected = _make_agent(status="PLAN REJECTED", response_path="/tmp/r.txt")
+
+    assert not is_command_available(spec, CommandContext(tab="agents", agent=no_path))
+    assert is_command_available(spec, CommandContext(tab="agents", agent=with_path))
+    assert not is_command_available(spec, CommandContext(tab="agents", agent=rejected))
+
+
 def test_edit_hooks_fork_allows_named_clan_container() -> None:
     catalog = _catalog_by_id()
     spec = catalog["app.edit_hooks"]

@@ -1479,6 +1479,10 @@ message when available. The same action works on the synthetic container row for
 focus (`#fork:@<tribe>`). The reserved `@default` panel and grouping banners are not
 fork targets.
 
+Finished planner rows (`EPIC CREATED`, `PLAN COMMITTED`) are also fork targets; a family
+root forks its whole family, including the planner transcript and its gate/monitor
+shells. `PLAN REJECTED` and `STOPPED` rows are not fork targets.
+
 `F` also works on a stand-alone proc-shell row and on a monitor family member, active or
 settled. The prefilled reference is the shell's exact durable proc ID — not its reusable
 friendly name — so the eventual fork can never drift onto a different proc if that name

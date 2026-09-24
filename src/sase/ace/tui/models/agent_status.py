@@ -24,11 +24,16 @@ DISMISSABLE_STATUSES = {
     STOPPED_STATUS,
 }
 
-RESUMABLE_DONE_STATUSES = frozenset({"DONE", "PLAN DONE", "TALE DONE"})
+# Terminal rows whose finished chats can be opened or forked.  PLAN REJECTED
+# remains excluded because its outcome never releases the implied #fork wait;
+# STOPPED never ran, so it has no chat.
+RESUMABLE_DONE_STATUSES = frozenset(
+    {"DONE", "PLAN COMMITTED", "PLAN DONE", "TALE DONE", "EPIC CREATED"}
+)
 
 
 def is_resumable_done_status(status: str) -> bool:
-    """Return True for terminal agent rows that can resume a chat."""
+    """Return True for terminal agent rows whose chats can be opened or forked."""
     return status in RESUMABLE_DONE_STATUSES
 
 

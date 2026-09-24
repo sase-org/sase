@@ -321,6 +321,10 @@ def resolve_agent_prompt_target_scope(
             None,
         )
 
+    if agent.status in DISMISSABLE_STATUSES and not is_resumable_done_status(
+        agent.status
+    ):
+        return None, f"Cannot fork a {agent.status} agent"
     if not is_resumable_done_status(agent.status):
         return None, "Agent not finished yet"
     if not prompt_name:

@@ -138,6 +138,18 @@ def test_keybinding_footer_agent_bindings_tale_done_with_chat() -> None:
     assert ("r", "resume") not in bindings
 
 
+def test_keybinding_footer_epic_created_agent_with_chat_is_forkable() -> None:
+    footer = KeybindingFooter()
+    agent = _make_agent(status="EPIC CREATED", response_path="/tmp/chat.md")
+
+    bindings = footer._compute_agent_bindings(agent)
+
+    assert ("x", "dismiss") in bindings
+    assert ("e", "edit chat") in bindings
+    assert (_edit_hooks_key(footer), "fork") in bindings
+    assert ("x", "kill") not in bindings
+
+
 def test_keybinding_footer_failed_agent_advertises_fork_without_chat() -> None:
     footer = KeybindingFooter()
     agent = _make_agent(status="FAILED", response_path=None)

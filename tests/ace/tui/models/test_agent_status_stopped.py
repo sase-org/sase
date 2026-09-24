@@ -38,6 +38,12 @@ def test_stopped_is_not_resumable() -> None:
     assert is_resumable_done_status(STOPPED_STATUS) is False
 
 
+def test_only_forkable_finished_planner_statuses_are_resumable() -> None:
+    assert is_resumable_done_status("EPIC CREATED") is True
+    assert is_resumable_done_status("PLAN COMMITTED") is True
+    assert is_resumable_done_status("PLAN REJECTED") is False
+
+
 def test_stopped_is_not_revertable() -> None:
     # Dismissable but not revertable: the skipped slot never ran, so it has no
     # commits to revert.

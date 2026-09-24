@@ -50,6 +50,37 @@ def test_fork_agent_family_root_uses_root_name() -> None:
     assert app.prompt_bar_calls[0]["display_name"] == "fork(alice)"
 
 
+def test_fork_epic_created_family_root_uses_root_name() -> None:
+    a1 = _make_agent(
+        raw_suffix="20240101120000",
+        status="EPIC CREATED",
+        agent_name="alice-plan",
+        agent_session="alice",
+        agent_session_role="root",
+        plan_chain_root=True,
+    )
+    app = _FakeWaitApp([a1])
+
+    app.action_fork_agent()
+
+    assert app.prompt_bar_calls[0]["initial_text"] == "#fork:alice "
+    assert app.prompt_bar_calls[0]["display_name"] == "fork(alice)"
+
+
+def test_fork_plan_committed_named_agent_prefills_fork_prompt() -> None:
+    a1 = _make_agent(
+        raw_suffix="20240101120000",
+        status="PLAN COMMITTED",
+        agent_name="alice",
+    )
+    app = _FakeWaitApp([a1])
+
+    app.action_fork_agent()
+
+    assert app.prompt_bar_calls[0]["initial_text"] == "#fork:alice "
+    assert app.prompt_bar_calls[0]["display_name"] == "fork(alice)"
+
+
 def test_fork_running_named_agent_omits_explicit_wait() -> None:
     """A running named agent forks with #fork:<name> only.
 
@@ -97,7 +128,7 @@ def test_fork_failed_unnamed_agent_warns() -> None:
     assert ("No agent name found", "warning") in app.notifications
 
 
-def test_fork_stopped_agent_still_warns_not_finished() -> None:
+def test_fork_terminal_agent_that_cannot_be_forked_warns_accurately() -> None:
     a1 = _make_agent(
         raw_suffix="20240101120000",
         status="STOPPED",
@@ -108,7 +139,21 @@ def test_fork_stopped_agent_still_warns_not_finished() -> None:
     app.action_fork_agent()
 
     assert app.prompt_bar_calls == []
-    assert ("Agent not finished yet", "warning") in app.notifications
+    assert ("Cannot fork a STOPPED agent", "warning") in app.notifications
+
+
+def test_fork_plan_rejected_agent_warns_accurately() -> None:
+    a1 = _make_agent(
+        raw_suffix="20240101120000",
+        status="PLAN REJECTED",
+        agent_name="alice",
+    )
+    app = _FakeWaitApp([a1])
+
+    app.action_fork_agent()
+
+    assert app.prompt_bar_calls == []
+    assert ("Cannot fork a PLAN REJECTED agent", "warning") in app.notifications
 
 
 def test_wait_for_agent_one_mark_falls_through_to_single_agent() -> None:
