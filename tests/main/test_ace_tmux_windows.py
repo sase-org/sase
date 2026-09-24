@@ -110,7 +110,7 @@ def test_create_agent_tmux_window_uses_real_window_ids_on_isolated_socket(
             pass
 
 
-def test_fresh_agent_session_disappears_after_owned_window_cleanup(
+def test_fresh_agents_tmux_session_disappears_after_owned_window_cleanup(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -138,7 +138,7 @@ def test_fresh_agent_session_disappears_after_owned_window_cleanup(
                 "tmux",
                 "list-windows",
                 "-t",
-                ace_tmux._AGENTS_SESSION,
+                ace_tmux._AGENTS_TMUX_SESSION,
                 "-F",
                 "#{window_name}",
             ],
@@ -160,7 +160,7 @@ def test_fresh_agent_session_disappears_after_owned_window_cleanup(
         )
         ace_tmux.release_tmux_window_claim(window.screenshot_dir)
         has_session = runner.run(
-            ["tmux", "has-session", "-t", ace_tmux._AGENTS_SESSION],
+            ["tmux", "has-session", "-t", ace_tmux._AGENTS_TMUX_SESSION],
             capture_output=True,
             text=True,
             check=False,
@@ -219,7 +219,7 @@ def test_size_setup_failure_removes_owned_bootstrap_window(
 
         assert "failed to set tmux default-size" in str(excinfo.value)
         has_session = runner.run(
-            ["tmux", "has-session", "-t", ace_tmux._AGENTS_SESSION],
+            ["tmux", "has-session", "-t", ace_tmux._AGENTS_TMUX_SESSION],
             capture_output=True,
             text=True,
             check=False,
@@ -261,7 +261,7 @@ def test_preexisting_placeholder_window_is_preserved(
                 "new-session",
                 "-d",
                 "-s",
-                ace_tmux._AGENTS_SESSION,
+                ace_tmux._AGENTS_TMUX_SESSION,
                 "-n",
                 "placeholder",
             ],
@@ -292,7 +292,7 @@ def test_preexisting_placeholder_window_is_preserved(
                 "tmux",
                 "list-windows",
                 "-t",
-                ace_tmux._AGENTS_SESSION,
+                ace_tmux._AGENTS_TMUX_SESSION,
                 "-F",
                 "#{window_name}",
             ],

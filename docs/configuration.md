@@ -811,7 +811,7 @@ ace:
           cycle_stitches: "c" # `cycle_commits` is still accepted as a legacy alias
           cycle_hooks: "h"
           agents:
-            set_level_1: "1" # family 1-2; clan/session 1-3; tribe 1-4
+            set_level_1: "1" # family 1-2; clan/agent 1-3; tribe 1-4
             set_level_2: "2"
             set_level_3: "3"
             set_level_4: "4"
@@ -1393,9 +1393,9 @@ mode has:
 The built-in `fold_mode` direct actions are `set_level_1` through `set_level_3` for PR
 details and the nested `agents.set_level_1` through `agents.set_level_4` for Agents
 metadata. Their defaults produce `z1`-`z3` on PRs; Agents accepts levels 1-2 for a
-family, 1-3 for a clan or regular-agent session scope, and 1-4 for a selected whole
-tribe panel. The configured prefix and subkeys are used by dispatch, the command
-palette, footers, and help.
+family, 1-3 for a clan or single-agent scope, and 1-4 for a selected whole tribe panel.
+The configured prefix and subkeys are used by dispatch, the command palette, footers,
+and help.
 
 Query editing is one app-level action. `ace.keymaps.app.edit_query` controls Patches,
 Stitches, Plans, Files, Services, and the top-level Agents query editor, and defaults to
@@ -2358,9 +2358,9 @@ Source: `src/sase/llm_provider/retry_config.py`, `src/sase/llm_provider/config.p
 
 ### finalizers
 
-Configures host-owned completion finalizers for SASE-launched agent sessions. The
-bundled default selects the built-in commit instance, preserving ordinary commit
-enforcement without runtime-specific hooks.
+Configures host-owned completion finalizers for SASE-launched agent runs. The bundled
+default selects the built-in commit instance, preserving ordinary commit enforcement
+without runtime-specific hooks.
 
 ```yaml
 finalizers:

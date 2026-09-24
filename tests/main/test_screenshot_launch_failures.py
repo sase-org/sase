@@ -50,7 +50,7 @@ def test_local_capture_releases_claim_when_pre_create_launch_times_out(
     claim = (
         tmp_path
         / "new-window-requests"
-        / ace_tmux._AGENTS_SESSION
+        / ace_tmux._AGENTS_TMUX_SESSION
         / "sase_tmux_1"
         / ace_tmux._WINDOW_CLAIM_FILE
     )
@@ -86,7 +86,7 @@ def test_local_capture_cleans_window_and_claim_when_new_window_times_out_after_c
     assert not runner.windows
     assert any(
         call[:3] == ["tmux", "kill-window", "-t"]
-        and call[-1].startswith(f"{ace_tmux._AGENTS_SESSION}:sase_tmux_1_")
+        and call[-1].startswith(f"{ace_tmux._AGENTS_TMUX_SESSION}:sase_tmux_1_")
         for call in runner.calls
     )
     assert runner.screenshot_dir is not None

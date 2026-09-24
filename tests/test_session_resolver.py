@@ -12,7 +12,7 @@ from sase.ace.tui.thinking.session_resolver import (
     _find_most_recent_jsonl,
     _first_event_timestamp,
     _get_workspace_cwd,
-    resolve_agent_session,
+    resolve_agent_transcript,
 )
 
 
@@ -56,13 +56,13 @@ def test_find_most_recent_jsonl_single(tmp_path: Path) -> None:
     assert _find_most_recent_jsonl(tmp_path) == only
 
 
-# --- resolve_agent_session end-to-end ---
+# --- resolve_agent_transcript end-to-end ---
 
 
 @patch("sase.ace.tui.thinking.session_resolver._get_workspace_cwd")
 def test_resolve_workspace_failure(mock_cwd: object) -> None:
     mock_cwd.return_value = None  # type: ignore[union-attr]
-    assert resolve_agent_session(_make_agent()) is None
+    assert resolve_agent_transcript(_make_agent()) is None
 
 
 @patch("sase.ace.tui.thinking.session_resolver._cwd_to_claude_project_dir")
@@ -70,7 +70,7 @@ def test_resolve_workspace_failure(mock_cwd: object) -> None:
 def test_resolve_missing_claude_dir(mock_cwd: object, mock_dir: object) -> None:
     mock_cwd.return_value = "/home/user/projects/myproject"  # type: ignore[union-attr]
     mock_dir.return_value = Path("/nonexistent/path")  # type: ignore[union-attr]
-    assert resolve_agent_session(_make_agent()) is None
+    assert resolve_agent_transcript(_make_agent()) is None
 
 
 @patch("sase.ace.tui.thinking.session_resolver._find_most_recent_jsonl")
@@ -84,7 +84,7 @@ def test_resolve_no_jsonl(
     claude_dir.mkdir()
     mock_dir.return_value = claude_dir  # type: ignore[union-attr]
     mock_jsonl.return_value = None  # type: ignore[union-attr]
-    assert resolve_agent_session(_make_agent()) is None
+    assert resolve_agent_transcript(_make_agent()) is None
 
 
 # --- _first_event_timestamp ---

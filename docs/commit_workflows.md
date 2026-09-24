@@ -39,7 +39,7 @@ The agent receives an xprompt (`#commit`, `#propose`, or `#pr`) which sets the
 
 ### 2. Commit finalizer checks for uncommitted work
 
-When a provider invocation succeeds inside a SASE-launched agent session, the host-owned
+When a provider invocation succeeds inside a SASE-launched agent run, the host-owned
 [commit finalizer](#commit-finalizer) (`builtin@commit`) runs before normal success
 postprocessing. In practice this means the process has `SASE_AGENT_TIMESTAMP` set. The
 finalizer checks the main workspace for uncommitted changes through the active VCS
@@ -677,8 +677,8 @@ or overwritten.
 
 ## Commit Finalizer
 
-For SASE-launched agent sessions, the normal path is the host-owned finalizer controller
-in `src/sase/finalizers/controller.py` with the bundled `builtin@commit` provider in
+For SASE-launched agent runs, the normal path is the host-owned finalizer controller in
+`src/sase/finalizers/controller.py` with the bundled `builtin@commit` provider in
 `src/sase/finalizers/commit.py`. The finalizer plan is resolved before the model turn.
 Generated agent instructions tell the model to use `/sase_final` as its last normal
 action; the skill exits early when no payload is required. If a required declaration is

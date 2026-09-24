@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import subprocess
 
-_AGENTS_SESSION = "sase_ace_agents"
+_AGENTS_TMUX_SESSION = "sase_ace_agents"
 _WINDOW_PREFIX = "sase_tmux_"
 _BOOTSTRAP_WINDOW_PREFIX = "sase_bootstrap_"
 _MAX_WINDOW_ATTEMPTS = 1000

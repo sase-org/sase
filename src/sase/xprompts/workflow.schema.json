@@ -129,7 +129,7 @@
     },
     "environment": {
       "type": "object",
-      "description": "Environment variables to set at workflow start. Keys are variable names, values are strings (supporting Jinja2 templates rendered against input args). Set once before any steps run and persist for the entire agent session.",
+      "description": "Environment variables to set at workflow start. Keys are variable names, values are strings (supporting Jinja2 templates rendered against input args). Set once before any steps run and persist for the entire workflow run.",
       "additionalProperties": {
         "type": "string"
       }

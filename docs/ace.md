@@ -1567,7 +1567,7 @@ The default fold chords are:
 | `za`      | Cycle the foldable section, tribe `CLAN SUMMARIES`/`PROMPTS` entry, or family `SASE CONTEXT` lane at the top of the metadata viewport |
 | `zA`      | Toggle that foldable section or entry between collapsed and fully expanded                                                            |
 | `z1`-`z2` | Set a family directly to level 1 or 2                                                                                                 |
-| `z1`-`z3` | Set a clan or regular-agent session scope directly to level 1-3                                                                       |
+| `z1`-`z3` | Set a clan or single-agent scope directly to level 1-3                                                                                |
 | `z1`-`z4` | Set a selected whole tribe panel directly to level 1-4                                                                                |
 
 The `Fold: N/M` header field reports the position within the active scale, while glyphs
@@ -1579,7 +1579,7 @@ section override. A valid panel-level cycle, extreme toggle, or direct selection
 real per-section overrides. Fold state is shared by the Agents metadata panel: an
 ordinary agent's own three-level scale shapes its `NEIGHBORS` and `SLOW TOOL CALLS`
 sections, so `z*` chords have a visible effect on a regular sase agent, and the same
-session scope carries over to the next selected clan or family container. Most other
+clan/agent scope carries over to the next selected clan or family container. Most other
 sections on a regular-agent panel stay fold-inert, except the `SASE CONTEXT / BEAD`
 lane's multi-line values: at scale position 1 (`z1`, Collapsed), a task or phase
 worker's `Notes`, and a task worker's `+1 Evidence`, collapse to a one-line digest,

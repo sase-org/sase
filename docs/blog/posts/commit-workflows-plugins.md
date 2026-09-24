@@ -56,8 +56,8 @@ STITCHES entry and rewrites the marker with its ID.
 ## The Commit-Finalizer Contract
 
 Agents do not run `git commit` directly. They make changes; after a successful provider
-invocation inside a SASE-launched agent session, the shared commit finalizer checks the
-main workspace and configured Git linked repos for uncommitted state at their resolved
+invocation inside a SASE-launched agent run, the shared commit finalizer checks the main
+workspace and configured Git linked repos for uncommitted state at their resolved
 workspace directories. The
 `sase workspace open -p <linked_repo> -r "<reason>" <workspace_num>` command records
 manually opened linked workspaces for sase's TUI context, and `-p/--project` names the

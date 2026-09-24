@@ -9,17 +9,19 @@ from sase.ace.tui.models.agent import Agent
 from sase.core.time import get_timezone
 
 
-def resolve_agent_session(agent: Agent) -> Path | None:
+def resolve_agent_transcript(agent: Agent) -> Path | None:
     """Resolve an Agent to the most recent JSONL transcript path.
 
     Resolution chain: Agent → project_name → workspace CWD →
     hash CWD → ~/.claude/projects/{hash}/ → most recent .jsonl
     """
-    paths = resolve_agent_sessions(agent)
+    paths = resolve_agent_transcripts(agent)
     return paths[-1] if paths else None
 
 
-def resolve_agent_sessions(agent: Agent, since: datetime | None = None) -> list[Path]:
+def resolve_agent_transcripts(
+    agent: Agent, since: datetime | None = None
+) -> list[Path]:
     """Resolve an Agent to all JSONL transcript paths modified since a time.
 
     When ``since`` is provided, returns all JSONL files modified after that

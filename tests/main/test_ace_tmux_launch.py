@@ -38,7 +38,7 @@ def test_returns_sase_tmux_1_on_fresh_session(capsys, monkeypatch) -> None:
 
     out = capsys.readouterr().out
     assert "sase_tmux_window=sase_tmux_1" in out
-    assert "sase_tmux_session=agent-session-7" in out
+    assert "sase_tmux_session=agents-tmux-7" in out
     assert "sase_tmux_target=@1" in out
     assert "sase_tmux_window_id=@1" in out
     assert "sase_screenshot_dir=" in out
@@ -72,8 +72,8 @@ def test_claim_window_uses_local_claim_when_tmux_allows_duplicate_names(
     monkeypatch.setenv("TMUX", "/tmp/tmux-1000/default,1,0")
     fake = FakeTmux(in_tmux=True)
 
-    first = ace_tmux._claim_window("agent-session-7", "sleep 60", runner=fake)
-    second = ace_tmux._claim_window("agent-session-7", "sleep 60", runner=fake)
+    first = ace_tmux._claim_window("agents-tmux-7", "sleep 60", runner=fake)
+    second = ace_tmux._claim_window("agents-tmux-7", "sleep 60", runner=fake)
 
     assert first.window_name == "sase_tmux_1"
     assert second.window_name == "sase_tmux_2"
@@ -111,11 +111,11 @@ def test_outside_tmux_creates_agents_session(monkeypatch) -> None:
         ace_tmux.launch_ace_in_tmux(launch_args())
 
     assert any(
-        c[1] == "has-session" and ace_tmux._AGENTS_SESSION in c for c in fake.calls
+        c[1] == "has-session" and ace_tmux._AGENTS_TMUX_SESSION in c for c in fake.calls
     )
     new_window_call = next(c for c in fake.calls if c[1] == "new-window")
     target_arg = new_window_call[new_window_call.index("-t") + 1]
-    assert target_arg == f"{ace_tmux._AGENTS_SESSION}:"
+    assert target_arg == f"{ace_tmux._AGENTS_TMUX_SESSION}:"
 
 
 def test_outside_tmux_creates_session_when_missing(monkeypatch) -> None:

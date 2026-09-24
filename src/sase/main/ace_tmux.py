@@ -12,7 +12,7 @@ from pathlib import Path
 from sase.ace.tui.screenshot_export import screenshot_request_dir
 from sase.main import ace_tmux_session, ace_tmux_window
 from sase.main.ace_tmux_support import (
-    _AGENTS_SESSION,
+    _AGENTS_TMUX_SESSION,
     _BOOTSTRAP_WINDOW_PREFIX,
     _MAX_WINDOW_ATTEMPTS,
     _PROFILING_ENV_DEFAULTS,
@@ -62,10 +62,10 @@ def _resolve_or_create_session(
     )
 
 
-def _resolve_or_create_agent_session(
+def _resolve_or_create_agents_tmux_session(
     *, runner: _RunCommand | None = None, timeout: _TimeoutValue = None
 ) -> ResolvedSession:
-    return ace_tmux_session.resolve_or_create_agent_session(
+    return ace_tmux_session.resolve_or_create_agents_tmux_session(
         runner=_default_runner(runner), timeout=timeout, run_command=_run_tmux_command
     )
 
@@ -174,7 +174,7 @@ def create_agent_tmux_window(
     """Create an automation window in the detached agents tmux session."""
     run = _default_runner(runner)
     _require_tmux_binary()
-    resolved = _resolve_or_create_agent_session(runner=run, timeout=timeout)
+    resolved = _resolve_or_create_agents_tmux_session(runner=run, timeout=timeout)
     window = None
     if cols is not None and rows is not None:
         try:

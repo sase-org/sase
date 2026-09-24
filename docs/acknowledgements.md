@@ -34,7 +34,7 @@ infrastructure:
   chain from epic to phase to commit. For smaller tales, commit messages include a
   `SASE_PLAN=<path>` tag pointing back to the plan file. The result is spec-driven
   development where the full history of intent, decomposition, and execution is
-  preserved and queryable, not trapped in a single agent session's context window.
+  preserved and queryable, not trapped in a single agent's context window.
 - **sase's TUI instead of tmux** -- A single TUI provides unified navigation, filtering,
   and management across all active workstreams, replacing the manual tab-switching
   workflow.

@@ -111,8 +111,8 @@ and the stage list in `docs/commit_workflows.md` ("3. CommitWorkflow orchestrate
    before parent detection. Not in the prompt label list either, but worth flagging
    since it's a real PR-only stage that affects the output branch (`PR URL + Patch`).
 6. **Legacy stop-hook label is now stale.** The current code runs the provider-neutral
-   commit finalizer after a successful provider invocation inside a SASE agent session.
-   The old `Stop hook` label should become `Commit finalizer`, with no provider-native
+   commit finalizer after a successful provider invocation inside a SASE agent run. The
+   old `Stop hook` label should become `Commit finalizer`, with no provider-native
    stop-hook compatibility path implied.
 7. **Output branches are correct but the proposal branch is mislabeled imprecisely.**
    "Saved diff + STITCHES entry" matches the doc and code (proposals append a COMMITS

@@ -11,13 +11,13 @@ from .parser import (
     parse_thinking_blocks_multi,
     read_codex_thinking,
 )
-from .session_resolver import resolve_agent_session, resolve_agent_sessions
+from .session_resolver import resolve_agent_transcript, resolve_agent_transcripts
 
 __all__ = [
     "ThinkingBlock",
     "parse_thinking_blocks",
     "parse_thinking_blocks_multi",
     "read_codex_thinking",
-    "resolve_agent_session",
-    "resolve_agent_sessions",
+    "resolve_agent_transcript",
+    "resolve_agent_transcripts",
 ]

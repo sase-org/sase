@@ -238,7 +238,7 @@ that state change separately.
 
 Configured linked repositories use hidden internal `PROJECT_STATE: sibling` backing
 records rather than a project lifecycle state. Agents prepare them through `/sase_repo`.
-In a SASE-launched agent session, the audited open records the repo name and kind in run
+In a SASE-launched agent run, the audited open records the repo name and kind in run
 artifacts and the durable repo-open log; sase's TUI uses the artifact record for
 opened-repo context, and the commit finalizer enforces the linked or external repo the
 agent explicitly opened.

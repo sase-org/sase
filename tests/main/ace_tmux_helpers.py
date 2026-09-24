@@ -25,7 +25,7 @@ class FakeTmux:
         self,
         *,
         in_tmux: bool,
-        session_name: str = "agent-session-7",
+        session_name: str = "agents-tmux-7",
         existing_windows: tuple[str, ...] = (),
         pane_pid_base: int = 82316,
     ) -> None:
@@ -97,7 +97,9 @@ class FakeTmux:
         if sub == "new-window":
             assert "-n" in cmd
             window_name = cmd[cmd.index("-n") + 1]
-            session = self.session_name if self.in_tmux else ace_tmux._AGENTS_SESSION
+            session = (
+                self.session_name if self.in_tmux else ace_tmux._AGENTS_TMUX_SESSION
+            )
             n = len(self.windows) + 1
             window_id = f"@{n}"
             pane_pid = self.pane_pid_base + n

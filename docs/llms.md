@@ -58,8 +58,8 @@ Key design principles:
   via config or explicit override.
 - **Tier-based model selection**: Callers request a "large" or "small" tier; the
   provider maps it to a concrete model.
-- **Runtime-uniform commit enforcement**: SASE agent sessions use a shared commit
-  finalizer instead of provider-specific native stop hooks.
+- **Runtime-uniform commit enforcement**: SASE agent runs use a shared commit finalizer
+  instead of provider-specific native stop hooks.
 
 ### Source Layout
 
@@ -192,8 +192,8 @@ provider = get_provider("claude")  # Explicit provider name
 
 ## Commit Finalization
 
-For SASE agent sessions, `invoke_agent()` resolves the host-owned `finalizers` plan
-before the provider turn and runs the generic finalizer controller before success
+For SASE agent runs, `invoke_agent()` resolves the host-owned `finalizers` plan before
+the provider turn and runs the generic finalizer controller before success
 postprocessing after the provider returns. The bundled `builtin@commit` instance checks
 the active project workspace through the active VCS provider and checks configured
 linked repositories as Git worktrees at their resolved `workspace_dir`. Repositories
@@ -3252,8 +3252,8 @@ invoke_agent(prompt, agent_type, model_tier, ...)
 │   ├── Supply prompt via provider transport
 │   └── Stream stdout/stderr in real-time
 │
-├── 11. Run commit finalizer for SASE agent sessions
-│   ├── Skip when disabled or outside an agent session
+├── 11. Run commit finalizer for SASE agent runs
+│   ├── Skip when disabled or outside an agent run
 │   ├── Check main workspace and configured Git linked repos
 │   ├── Enforce dirty linked repo clones
 │   ├── Auto-commit exact tracked SDD done-status closeouts

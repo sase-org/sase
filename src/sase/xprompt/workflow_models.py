@@ -144,7 +144,7 @@ class Workflow:
         environment: Environment variables to set at workflow start. Keys are
             variable names, values are strings (supporting Jinja2 templates
             rendered against input args). Set once before any steps run and
-            persist for the entire agent session.
+            persist for the entire workflow run.
         description: Optional human-readable description of the workflow.
         skill_name: Provider-visible skill name when this workflow was
             converted from a canonical skill source, else ``None``.  Workflow

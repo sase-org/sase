@@ -51,7 +51,7 @@ class _FakeRunner:
         self.tmp_path = tmp_path
         self.cols = cols
         self.rows = rows
-        self.session = ace_tmux._AGENTS_SESSION
+        self.session = ace_tmux._AGENTS_TMUX_SESSION
         self.window = "sase_tmux_1"
         self.window_id = "@1"
         self.pane_pid = 4242
@@ -357,7 +357,7 @@ def test_local_capture_launches_renders_and_cleans_up(
     assert output.read_bytes() == b"PNG"
     assert result.png == output
     assert result.svg.name == "screen_1.svg"
-    assert result.tmux_session == ace_tmux._AGENTS_SESSION
+    assert result.tmux_session == ace_tmux._AGENTS_TMUX_SESSION
     assert result.tmux_window == "sase_tmux_1"
     assert result.tmux_pid == 4242
     assert any(

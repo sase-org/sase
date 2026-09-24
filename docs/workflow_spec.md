@@ -130,7 +130,7 @@ receive properly typed defaults without needing explicit conversion.
 ## Environment
 
 Workflows can declare environment variables that are set once before any steps run and
-persist for the entire agent session. Values support Jinja2 templates rendered against
+persist for the entire workflow run. Values support Jinja2 templates rendered against
 the workflow's input arguments.
 
 ```yaml
