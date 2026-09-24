@@ -13,7 +13,7 @@ import time
 from typing import Any
 
 from sase.core.process_identity import process_identity_token
-from sase.core.tool_run import tool_run_observe
+from sase.core.tool_run import tool_run_observe, tool_run_show
 from sase.telemetry.metrics import (
     TOOL_RUN_ATTEMPTS,
     TOOL_RUN_RECORDING_ERRORS,
@@ -203,8 +203,23 @@ def _execute_resolved(
         events_path=events_path,
         stdout_path=stdout_path,
         stderr_path=stderr_path,
+        stop_recorded=_foreground_stop_probe(run_id) if recorded else None,
     )
     return run_recorded_body(ctx, signals)
+
+
+def _foreground_stop_probe(run_id: str) -> Callable[[], bool]:
+    """Return a probe reporting whether a durable stop request exists."""
+
+    def _probe() -> bool:
+        try:
+            shown = tool_run_show(run_id)
+        except Exception:  # noqa: BLE001 - unknown stop never blocks execution.
+            return False
+        run = shown.get("run") if isinstance(shown, dict) else None
+        return isinstance(run, dict) and run.get("stop_request") is not None
+
+    return _probe
 
 
 def _stop_requested(ctx: RecordedRunContext) -> bool:
@@ -425,16 +440,27 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
     if state == "interrupted":
         cause = "interrupt"
     elif state == "signaled":
-        cause = "signal"
+        # A forwarded SIGTERM that settles a run with a durable stop
+        # request is a requested stop, not an anonymous signal. The core
+        # rejects stop_requested finishes carrying an exit code or signal,
+        # so a requested stop settles without either (like the pre-spawn
+        # path); the CLI still returns the signal-mapped code below.
+        cause = "stop_requested" if _stop_requested(ctx) else "signal"
     else:
         cause = "exited"
+    cli_code = exit_code
+    recorded_exit: int | None = exit_code
+    recorded_signal: int | None = signal_num
+    if cause == "stop_requested":
+        recorded_exit = None
+        recorded_signal = None
     if recorded:
         fingerprint_after = observe_fingerprint(resolved)
         finished = finish_tool_run(
             run_id,
             state=state,
-            exit_code=exit_code,
-            signal_num=signal_num,
+            exit_code=recorded_exit,
+            signal_num=recorded_signal,
             interruption_reason=interruption,
             duration_ms=duration_ms,
             child_pid=child_pid,
@@ -451,7 +477,9 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
         write_run_footer(
             durable_id=durable_id,
             state=state,
-            exit_code=exit_code,
+            # The footer reports the process outcome (the signal-mapped
+            # code); the ledger row for a requested stop carries no code.
+            exit_code=cli_code,
             duration_ms=duration_ms,
             compact=ctx.compact,
             tail_lines=ctx.tail_lines,
@@ -460,7 +488,7 @@ def run_recorded_body(ctx: RecordedRunContext, signals: SignalState) -> int:
             stages=list(ingestor.stages.values()) if ingestor is not None else (),
             truncation=truncation,
         )
-    return exit_code
+    return cli_code
 
 
 def _observe_spawned_child(run_id: str, *, child_pid: int, child_pgid: int) -> None:

@@ -62,6 +62,7 @@ class ToolShowCliRequest:
     run_id: str
     json: bool
     logs: bool
+    follow: bool = False
 
 
 def handle_runs(request: ToolRunsCliRequest) -> int:
@@ -111,10 +112,15 @@ def handle_show(request: ToolShowCliRequest) -> int:
     if request.json and request.logs:
         print("-j/--json and -l/--logs cannot be used together", file=sys.stderr)
         return 2
+    if request.follow and request.logs:
+        print("-F/--follow and -l/--logs cannot be used together", file=sys.stderr)
+        return 2
     run_id = request.run_id.strip()
     if not run_id:
         print("Usage: sase tool show RUN", file=sys.stderr)
         return 2
+    if request.follow:
+        return _handle_follow(request, run_id)
     reconcile_unsettled_tool_runs()
     try:
         envelope = tool_run_show(run_id)
@@ -145,6 +151,125 @@ def handle_show(request: ToolShowCliRequest) -> int:
             file=sys.stderr,
         )
     return 0
+
+
+def _handle_follow(request: ToolShowCliRequest, run_id: str) -> int:
+    """Stream the output of record until the run settles, then summarize.
+
+    Ctrl-C detaches the viewer and exits 130; the run continues.
+    ``-F -j`` waits, then prints the final JSON envelope instead of the
+    human summary.
+    """
+
+    from sase.tool.control import output_paths_for_run, wait_for_settlement
+    from sase.tool.control import UnknownRunError as _ControlUnknownRun
+
+    try:
+        first = tool_run_show(run_id)
+    except Exception as exc:  # noqa: BLE001 - query failures are nonzero.
+        print(str(exc), file=sys.stderr)
+        return 1
+    if not isinstance(first.get("run"), dict):
+        diagnostic = "; ".join(str(item) for item in first.get("diagnostics") or ())
+        print(diagnostic or f"tool run {run_id} was not found", file=sys.stderr)
+        return 2
+    offsets: dict[str, int] = {}
+    ingestor = _follow_ingestor(first.get("run"))
+    _stream_output_paths(first.get("run"), offsets)
+    if ingestor is not None:
+        for line in ingestor.tick():
+            print(line, file=sys.stderr)
+
+    def _on_poll(envelope: dict[str, Any]) -> None:
+        run = envelope.get("run")
+        if not isinstance(run, dict):
+            return
+        _stream_output_paths(run, offsets)
+        nonlocal ingestor
+        fresh = _follow_ingestor(run)
+        if fresh is not None and (ingestor is None or fresh.path != ingestor.path):
+            ingestor = fresh
+        if ingestor is not None:
+            for line in ingestor.tick():
+                print(line, file=sys.stderr)
+
+    try:
+        final = wait_for_settlement(run_id, on_poll=_on_poll)
+    except _ControlUnknownRun as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    except KeyboardInterrupt:
+        print(
+            "sase tool show: detached; the run continues",
+            file=sys.stderr,
+        )
+        return 130
+    if final is None:  # No deadline is ever passed here; the loop ends settled.
+        return 1
+    run = final.get("run")
+    if not isinstance(run, dict):
+        print(f"tool run {run_id} was not found", file=sys.stderr)
+        return 2
+    _stream_output_paths(run, offsets)
+    if ingestor is not None:
+        for line in ingestor.tick():
+            print(line, file=sys.stderr)
+    attach_timeline(final)
+    final["output_truncation"] = _output_truncation(run)
+    final["detail_retention"] = _detail_retention(run)
+    if request.json:
+        print(json.dumps(final, indent=2, sort_keys=True))
+        return 0
+    _print_show(final)
+    for diagnostic in final.get("diagnostics") or ():
+        print(str(diagnostic), file=sys.stderr)
+    return 0
+
+
+def _follow_ingestor(run: object):  # type: ignore[no-untyped-def]
+    if not isinstance(run, dict):
+        return None
+    logs = run.get("logs")
+    raw = logs.get("events_path") if isinstance(logs, dict) else None
+    if not raw:
+        return None
+    path = Path(str(raw))
+    if not path.is_file():
+        return None
+    from sase.tool.stage_protocol import StageIngestor
+
+    return StageIngestor(path=path, run_id=str(run.get("run_id") or ""))
+
+
+def _stream_output_paths(run: object, offsets: dict[str, int]) -> None:
+    """Print bytes appended to the output of record since the last poll."""
+
+    if not isinstance(run, dict):
+        return
+    from sase.tool.control import output_paths_for_run
+
+    for path in output_paths_for_run(run):
+        key = str(path)
+        start = offsets.get(key, 0)
+        try:
+            if not path.is_file():
+                continue
+            size = path.stat().st_size
+        except OSError:
+            continue
+        if size < start:
+            start = 0
+        if size == start:
+            continue
+        try:
+            with open(path, "rb") as handle:
+                handle.seek(start)
+                chunk = handle.read()
+        except OSError:
+            continue
+        offsets[key] = size
+        if chunk:
+            _write_bytes(sys.stdout, chunk)
 
 
 def _replay_logs(run: dict[str, Any]) -> int:
@@ -301,13 +426,27 @@ def _print_runs_table(envelope: dict[str, Any]) -> None:
         table.add_row(
             str(run.get("run_id") or EMPTY),
             format_tool_name(run),
-            format_state(run),
+            _format_runs_state(run),
             format_duration_ms(
                 run.get("duration_ms") if type(run.get("duration_ms")) is int else None
             ),
             format_argv(run),
         )
     console.print(table)
+
+
+def _format_runs_state(run: dict[str, Any]) -> str:
+    """Render the STATE cell, marking hand-offs and starting runs."""
+
+    state = format_state(run)
+    markers: list[str] = []
+    if str(run.get("launch_mode") or "") == "handoff":
+        markers.append("handoff")
+    if str(run.get("state") or "") == "created":
+        markers.append("starting")
+    if markers:
+        return f"{state} ({', '.join(markers)})"
+    return state
 
 
 def _print_show(envelope: dict[str, Any]) -> None:
@@ -321,21 +460,31 @@ def _print_show(envelope: dict[str, Any]) -> None:
         f"STATE     {format_state(run)}",
         f"ARGV      {format_argv(run)}",
         f"PROJECT   {run.get('project') or EMPTY}",
+        f"LAUNCH    {run.get('launch_mode') or 'foreground'}",
         f"OWNER     {_format_owner(run)}",
         f"PARENT    {run.get('parent_run_id') or EMPTY}",
         f"DURATION  {format_duration_ms(run.get('duration_ms') if type(run.get('duration_ms')) is int else None)}",
         f"EXIT      {run.get('exit_code') if run.get('exit_code') is not None else EMPTY}",
         f"SIGNAL    {run.get('signal') if run.get('signal') is not None else EMPTY}",
+        f"CAUSE     {run.get('terminal_cause') or EMPTY}",
+        f"SETTLED   {run.get('settled_by') or EMPTY}",
+        f"STOP      {_format_stop_request(run)}",
         f"LOST      {run.get('lost_reason') or EMPTY}",
         f"STDOUT    {logs.get('stdout_path') or EMPTY}",
         f"STDERR    {logs.get('stderr_path') or EMPTY}",
         f"EVENTS    {logs.get('events_path') or EMPTY}",
+        f"OWNERLOG  {logs.get('owner_log_path') or EMPTY}",
         f"EVIDENCE  {_format_evidence(run)}",
         f"MUTATED   {_format_optional_bool(run.get('mutated_input'))}",
         f"DIRTY     {_dirty_count(run.get('fingerprint_before'))} -> {_dirty_count(run.get('fingerprint_after'))}",
         f"TOOLCHAIN {_format_toolchain(run)}",
         f"SAMPLES   {len(envelope.get('samples') or ())}",
     ]
+    diagnostics = run.get("diagnostics") or ()
+    if diagnostics:
+        lines.append("DIAG")
+        for diagnostic in diagnostics:
+            lines.append(f"  {diagnostic}")
     if envelope.get("stages"):
         unattributed = envelope.get("unattributed_ms")
         unattr_line = (
@@ -433,6 +582,14 @@ def _format_owner(run: dict[str, Any]) -> str:
     if kind and owner_id:
         return f"{kind}:{owner_id}"
     return EMPTY
+
+
+def _format_stop_request(run: dict[str, Any]) -> str:
+    stop = run.get("stop_request")
+    if not isinstance(stop, dict):
+        return EMPTY
+    by = str(stop.get("requested_by") or "").strip()
+    return f"requested by {by}" if by else "requested"
 
 
 def _validate_limit(limit: int) -> int:

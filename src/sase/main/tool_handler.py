@@ -16,6 +16,12 @@ from sase.config.tools import (
     load_project_tool_catalog,
 )
 from sase.core.tool_run import tool_run_summary
+from sase.tool.control import (
+    ToolStopCliRequest,
+    ToolWaitCliRequest,
+    handle_stop,
+    handle_wait,
+)
 from sase.tool.executor import ToolRunCliRequest, execute_tool_run
 from sase.tool.liveness import reconcile_unsettled_tool_runs
 from sase.tool.query import (
@@ -78,10 +84,31 @@ def handle_tool_command(args: argparse.Namespace) -> None:
                     run_id=str(getattr(args, "tool_show_run_id", "") or ""),
                     json=bool(getattr(args, "tool_show_json", False)),
                     logs=bool(getattr(args, "tool_show_logs", False)),
+                    follow=bool(getattr(args, "tool_show_follow", False)),
                 )
             )
         )
-    print("Usage: sase tool {list,run,runs,show}", file=sys.stderr)
+    if subcommand == "stop":
+        sys.exit(
+            handle_stop(
+                ToolStopCliRequest(
+                    run_id=str(getattr(args, "tool_stop_run_id", "") or ""),
+                    json=bool(getattr(args, "tool_stop_json", False)),
+                )
+            )
+        )
+    if subcommand == "wait":
+        sys.exit(
+            handle_wait(
+                ToolWaitCliRequest(
+                    run_id=str(getattr(args, "tool_wait_run_id", "") or ""),
+                    json=bool(getattr(args, "tool_wait_json", False)),
+                    tail_lines=getattr(args, "tool_wait_tail_lines", None),
+                    timeout_raw=getattr(args, "tool_wait_timeout", None),
+                )
+            )
+        )
+    print("Usage: sase tool {list,run,runs,show,stop,wait}", file=sys.stderr)
     sys.exit(2)
 
 

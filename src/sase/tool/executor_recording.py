@@ -68,6 +68,14 @@ def build_begin_request(
         request["tool_name"] = resolved.tool_name
     if resolved.private_argv is not None:
         request["private_argv"] = list(resolved.private_argv)
+    # A foreground run under an enclosing owner (for example E1.5
+    # monitor-wrapped output) records the owner's log locator at begin so
+    # `show -l` and `show -F` can find that output as well. Runs recorded
+    # before this change simply lack the locator.
+    if owner_kind is not None:
+        owner_log = (os.environ.get("SASE_PROC_LOG_PATH") or "").strip()
+        if owner_log:
+            request["owner_log_path"] = owner_log
     return request
 
 

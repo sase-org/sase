@@ -34,7 +34,7 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
     tool_subparsers = tool_parser.add_subparsers(
         dest="tool_subcommand",
         help="Tool subcommands",
-        metavar="{list,run,runs,show}",
+        metavar="{list,run,runs,show,stop,wait}",
     )
 
     list_parser = tool_subparsers.add_parser(
@@ -209,14 +209,28 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
             "Show one ToolRun by exact run id. `-j` emits the versioned "
             "query envelope. `-l` replays retained stdout to stdout and "
             "retained stderr to stderr without claiming a total order "
-            "between streams. `-j` and `-l` cannot be combined."
+            "between streams. `-F` streams the output of record until the "
+            "run settles, then prints the terminal summary. `-j` and `-l` "
+            "cannot be combined; `-F` and `-l` cannot be combined; "
+            "`-F -j` waits, then prints the final JSON envelope. "
+            "Ctrl-C detaches the viewer (exit 130); the run continues. "
+            "Exit codes: 0 shown or followed, 1 store failure, "
+            "2 unknown run or usage."
         ),
         epilog=(
             "examples:\n"
             "  sase tool show 0f1a2b3c4d5e6f7a\n"
             "  sase tool show 0f1a2b3c4d5e6f7a -j\n"
-            "  sase tool show 0f1a2b3c4d5e6f7a -l"
+            "  sase tool show 0f1a2b3c4d5e6f7a -l\n"
+            "  sase tool show 0f1a2b3c4d5e6f7a -F"
         ),
+    )
+    show_parser.add_argument(
+        "-F",
+        "--follow",
+        action="store_true",
+        dest="tool_show_follow",
+        help="Stream the output of record until the run settles",
     )
     show_output = show_parser.add_mutually_exclusive_group()
     show_output.add_argument(
@@ -235,6 +249,90 @@ def register_tool_parser(subparsers: argparse._SubParsersAction) -> None:
     )
     show_parser.add_argument(
         "tool_show_run_id",
+        metavar="RUN",
+        help="Exact tool run id",
+    )
+
+    stop_parser = tool_subparsers.add_parser(
+        "stop",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Stop one tool run by exact id",
+        description=(
+            "Record a durable stop request for one ToolRun, then stop it "
+            "through its execution owner: a proc-owned hand-off through "
+            "the proc stop path, a monitor-owned hand-off through the "
+            "monitor stop path (the follow-up is suppressed), an inline "
+            "run by signaling its identity-matched wrapper. A nested "
+            "foreground run is refused with the owner command that stops "
+            "it. Reports `stop requested` separately from `stopped`. "
+            "Exit codes: 0 stop requested, stopped, or already settled; "
+            "2 unknown run or refused nested run; 1 owner control failed."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase tool stop 0f1a2b3c4d5e6f7a\n"
+            "  sase tool stop 0f1a2b3c4d5e6f7a -j"
+        ),
+    )
+    stop_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        dest="tool_stop_json",
+        help="Emit a versioned machine-readable JSON object",
+    )
+    stop_parser.add_argument(
+        "tool_stop_run_id",
+        metavar="RUN",
+        help="Exact tool run id",
+    )
+
+    wait_parser = tool_subparsers.add_parser(
+        "wait",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        help="Wait for one tool run to settle",
+        description=(
+            "Block until one ToolRun settles or the deadline passes. The "
+            "run is never affected. A settled run with an exit code "
+            "returns that code; a settled run without one returns 1. "
+            "A passed deadline returns 124. Ctrl-C returns 130; the run "
+            "continues. Exit codes: exit code of the run, 1 settled "
+            "without an exit code, 124 still running, 2 unknown run or "
+            "usage, 130 interrupted."
+        ),
+        epilog=(
+            "examples:\n"
+            "  sase tool wait 0f1a2b3c4d5e6f7a\n"
+            "  sase tool wait 0f1a2b3c4d5e6f7a -t 90s\n"
+            "  sase tool wait 0f1a2b3c4d5e6f7a -T 20"
+        ),
+    )
+    wait_parser.add_argument(
+        "-j",
+        "--json",
+        action="store_true",
+        dest="tool_wait_json",
+        help="Emit a versioned machine-readable JSON object",
+    )
+    wait_parser.add_argument(
+        "-T",
+        "--tail-lines",
+        type=int,
+        default=None,
+        metavar="N",
+        dest="tool_wait_tail_lines",
+        help="Append the last N lines of the output of record",
+    )
+    wait_parser.add_argument(
+        "-t",
+        "--timeout",
+        default=None,
+        metavar="DURATION",
+        dest="tool_wait_timeout",
+        help="Deadline: bare seconds or a duration like 90s / 45m / 2h",
+    )
+    wait_parser.add_argument(
+        "tool_wait_run_id",
         metavar="RUN",
         help="Exact tool run id",
     )
