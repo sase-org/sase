@@ -1,7 +1,7 @@
 """Guards that stop the runtime from generating non-terminal role names.
 
 Historical names such as ``4x--epic.f-0`` and ``fi--code.f0--code`` were
-written by SASE itself: resume-derived naming and family attachment appended
+written by SASE itself: resume-derived naming and agent-session attachment appended
 to a base that already carried a ``--<role>`` suffix. Classification of those
 names on disk is total, but generation stays strict.
 """
@@ -16,10 +16,10 @@ from sase.agent.clan_membership import (
     ClanMembershipError,
     resolve_or_create_clan_membership,
 )
-from sase.agent.family_attach import (
-    FamilyAttachDirective,
-    FamilyAttachError,
-    resolve_family_attach_plan,
+from sase.agent.agent_session_attach import (
+    AgentSessionAttachDirective,
+    AgentSessionAttachError,
+    resolve_agent_session_attach_plan,
 )
 from sase.agent.names import (
     generated_agent_name_is_valid,
@@ -29,11 +29,11 @@ from sase.agent.names import (
     wait_agent_name_template,
 )
 from sase.xprompt._exceptions import DirectiveError
-from tests._dynamic_agent_family_attach_helpers import (
+from tests._dynamic_agent_session_attach_helpers import (
     _artifact_record,
     _patch_attach_snapshot,
 )
-from tests.test_parallel_agent_family_launch import _launch_with_captured_spawns
+from tests.test_parallel_agent_session_launch import _launch_with_captured_spawns
 
 
 class TestGeneratedNameValidity:
@@ -78,7 +78,7 @@ class TestDerivedNameTemplates:
         assert wait_agent_name_template("foo.bar") == "foo.bar.w@"
         assert retry_agent_name_template("foo") == "foo.r@"
 
-    def test_family_member_bases_hang_off_the_family_name(self) -> None:
+    def test_session_member_bases_hang_off_the_session_name(self) -> None:
         assert resume_agent_name_template("foo--code") == "foo.f@"
         assert wait_agent_name_template("foo--code") == "foo.w@"
         assert retry_agent_name_template("foo--code") == "foo.r@"
@@ -88,8 +88,8 @@ class TestDerivedNameTemplates:
         assert wait_agent_name_template("4x--epic.f-0") == "4x.w@"
 
 
-class TestFamilyAttachGeneratedNames:
-    def test_attaching_to_a_family_member_parent_uses_the_family_base(
+class TestAgentSessionAttachGeneratedNames:
+    def test_attaching_to_a_session_member_parent_uses_the_session_base(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         _patch_attach_snapshot(
@@ -103,8 +103,8 @@ class TestFamilyAttachGeneratedNames:
             ],
         )
 
-        plan = resolve_family_attach_plan(
-            FamilyAttachDirective(parent="foo--code", suffix="reviewer"),
+        plan = resolve_agent_session_attach_plan(
+            AgentSessionAttachDirective(parent="foo--code", suffix="reviewer"),
             project_name="sase",
         )
 
@@ -125,13 +125,13 @@ class TestFamilyAttachGeneratedNames:
             ],
         )
 
-        plan = resolve_family_attach_plan(
-            FamilyAttachDirective(parent="research.worker", suffix="reviewer"),
+        plan = resolve_agent_session_attach_plan(
+            AgentSessionAttachDirective(parent="research.worker", suffix="reviewer"),
             project_name="sase",
         )
 
         assert plan.agent_name == "research.worker--reviewer"
-        assert plan.parent_family_member_name == "research.worker--0"
+        assert plan.parent_agent_session_member_name == "research.worker--0"
         assert generated_agent_name_is_valid(plan.agent_name)
 
     def test_legacy_parent_fails_with_an_actionable_error(
@@ -142,9 +142,9 @@ class TestFamilyAttachGeneratedNames:
             [_artifact_record(name="fi--code.f0", agent_session="fi--code.f0")],
         )
 
-        with pytest.raises(FamilyAttachError) as exc_info:
-            resolve_family_attach_plan(
-                FamilyAttachDirective(parent="fi--code.f0", suffix="code"),
+        with pytest.raises(AgentSessionAttachError) as exc_info:
+            resolve_agent_session_attach_plan(
+                AgentSessionAttachDirective(parent="fi--code.f0", suffix="code"),
                 project_name="sase",
             )
 

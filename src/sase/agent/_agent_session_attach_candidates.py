@@ -1,15 +1,15 @@
-"""Family attach artifact candidates and resolution support."""
+"""Agent-session attach artifact candidates and resolution support."""
 
 from __future__ import annotations
 
 import re
 from typing import Any
 
-from sase.agent import _family_attach_types as _types
+from sase.agent import _agent_session_attach_types as _types
 from sase.plan_chain import AGENT_SESSION_SEPARATOR
 
 
-def agent_family_snapshot(project_name: str) -> Any:
+def agent_session_snapshot(project_name: str) -> Any:
     from sase.core.agent_scan_facade import (
         default_agent_artifact_index_path,
         query_agent_artifact_index,
@@ -67,10 +67,10 @@ def candidate_from_record(record: Any) -> dict[str, Any]:
     }
 
 
-def candidate_from_sibling(sibling: _types.FamilyAttachSibling) -> dict[str, Any]:
+def candidate_from_sibling(sibling: _types.AgentSessionAttachSibling) -> dict[str, Any]:
     return {
         "name": sibling.name,
-        "workflow_name": sibling.family_base,
+        "workflow_name": sibling.agent_session_base_name,
         "project_name": sibling.project_name,
         "artifact_dir": sibling.artifact_dir,
         "timestamp": sibling.timestamp,
@@ -128,8 +128,8 @@ def record_by_artifact_dir(records: list[Any]) -> dict[str, Any]:
 
 
 def sibling_by_artifact_dir(
-    siblings: tuple[_types.FamilyAttachSibling, ...],
-) -> dict[str, _types.FamilyAttachSibling]:
+    siblings: tuple[_types.AgentSessionAttachSibling, ...],
+) -> dict[str, _types.AgentSessionAttachSibling]:
     return {sibling.artifact_dir: sibling for sibling in siblings}
 
 
@@ -142,7 +142,7 @@ def artifacts_timestamp_from_launch_timestamp(timestamp: str) -> str:
     return convert_timestamp_to_artifacts_format(timestamp)
 
 
-def family_base(record: Any, parent_name: str) -> str:
+def agent_session_base_from_record(record: Any, parent_name: str) -> str:
     meta = record.agent_meta
     if meta is not None and meta.agent_session:
         return meta.agent_session
@@ -151,7 +151,7 @@ def family_base(record: Any, parent_name: str) -> str:
     return agent_session_base(parent_name) or parent_name
 
 
-def known_family_suffixes(records: list[Any], parent_base: str) -> list[str]:
+def known_agent_session_suffixes(records: list[Any], parent_base: str) -> list[str]:
     from sase.core.agent_identity_facade import current_owner_agent_name_key
 
     suffixes: list[str] = []
@@ -176,8 +176,8 @@ def known_family_suffixes(records: list[Any], parent_base: str) -> list[str]:
     return suffixes
 
 
-def known_family_suffixes_from_siblings(
-    siblings: list[_types.FamilyAttachSibling],
+def known_agent_session_suffixes_from_siblings(
+    siblings: list[_types.AgentSessionAttachSibling],
     parent_base: str,
 ) -> list[str]:
     from sase.core.agent_identity_facade import current_owner_agent_name_key
@@ -187,8 +187,9 @@ def known_family_suffixes_from_siblings(
     prefix = f"{parent_key}{AGENT_SESSION_SEPARATOR}"
     for sibling in siblings:
         if (
-            sibling.family_base
-            and current_owner_agent_name_key(sibling.family_base) != parent_key
+            sibling.agent_session_base_name
+            and current_owner_agent_name_key(sibling.agent_session_base_name)
+            != parent_key
         ):
             continue
         local_name = current_owner_agent_name_key(sibling.name)
@@ -210,12 +211,12 @@ def known_agent_names(records: list[Any]) -> list[str]:
 
 
 def known_agent_names_from_siblings(
-    siblings: list[_types.FamilyAttachSibling],
+    siblings: list[_types.AgentSessionAttachSibling],
 ) -> list[str]:
     return [sibling.name for sibling in siblings if sibling.name]
 
 
-def family_sase_plan(records: list[Any], parent_base: str) -> str | None:
+def agent_session_sase_plan(records: list[Any], parent_base: str) -> str | None:
     from sase.core.agent_identity_facade import current_owner_agent_name_key
 
     parent_key = current_owner_agent_name_key(parent_base)
@@ -225,7 +226,7 @@ def family_sase_plan(records: list[Any], parent_base: str) -> str | None:
             return False
         return current_owner_agent_name_key(value) == parent_key
 
-    family_records = [
+    agent_session_records = [
         record
         for record in records
         if record.agent_meta is not None
@@ -235,8 +236,8 @@ def family_sase_plan(records: list[Any], parent_base: str) -> str | None:
             or _key_matches(record.agent_meta.name, parent_key)
         )
     ]
-    family_records.sort(key=lambda record: record.timestamp, reverse=True)
-    for record in family_records:
+    agent_session_records.sort(key=lambda record: record.timestamp, reverse=True)
+    for record in agent_session_records:
         meta = record.agent_meta
         if meta is None:
             continue
@@ -251,7 +252,7 @@ def family_sase_plan(records: list[Any], parent_base: str) -> str | None:
 
 
 def resolution_error_message(
-    directive: _types.FamilyAttachDirective,
+    directive: _types.AgentSessionAttachDirective,
     result: dict[str, Any],
     project_name: str,
 ) -> str:
@@ -259,24 +260,24 @@ def resolution_error_message(
     candidates = [dict(candidate) for candidate in result.get("candidates", [])]
     if kind == "absent":
         return (
-            f"Cannot attach family member with %i({directive.suffix}, "
+            f"Cannot attach session member with %i({directive.suffix}, "
             f"family={directive.parent}): parent agent '{directive.parent}' was not "
             f"found in project '{project_name}'."
         )
     if kind == "dismissed":
         return (
-            f"Cannot attach family member to dismissed parent '{directive.parent}'. "
+            f"Cannot attach session member to dismissed parent '{directive.parent}'. "
             "Revive the parent from the Agents tab before using "
             "%i(suffix, family=parent)."
         )
     if kind == "ambiguous":
         labels = ", ".join(_candidate_label(candidate) for candidate in candidates[:5])
         return (
-            f"Cannot attach family member to '{directive.parent}': multiple newest "
+            f"Cannot attach session member to '{directive.parent}': multiple newest "
             f"parent candidates matched ({labels}). Use the exact parent after "
             "dismissing or reviving duplicates."
         )
-    return f"Cannot attach family member to '{directive.parent}': {kind or 'unknown'}."
+    return f"Cannot attach session member to '{directive.parent}': {kind or 'unknown'}."
 
 
 def _candidate_label(candidate: dict[str, Any]) -> str:
@@ -368,17 +369,17 @@ def _candidate_is_dismissed(
 
 
 __all__ = [
-    "agent_family_snapshot",
+    "agent_session_snapshot",
     "artifacts_timestamp_from_launch_timestamp",
     "candidate_from_record",
     "candidate_from_sibling",
     "dismissed_identity_dicts",
-    "family_base",
-    "family_sase_plan",
+    "agent_session_base_from_record",
+    "agent_session_sase_plan",
     "known_agent_names",
     "known_agent_names_from_siblings",
-    "known_family_suffixes",
-    "known_family_suffixes_from_siblings",
+    "known_agent_session_suffixes",
+    "known_agent_session_suffixes_from_siblings",
     "record_by_artifact_dir",
     "record_cl_name",
     "resolution_error_message",

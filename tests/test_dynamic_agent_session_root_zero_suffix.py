@@ -1,4 +1,4 @@
-"""Legacy-loader coverage after family promotion moved to persisted metadata."""
+"""Legacy-loader coverage after session promotion moved to persisted metadata."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ def _bare_root(
     raw_suffix: str = "20260701010101",
     status: str = "RUNNING",
 ) -> Agent:
-    """A plain ``%i:foo`` top-level agent (no family metadata)."""
+    """A plain ``%i:foo`` top-level agent (no agent-session metadata)."""
     return Agent(
         agent_type=AgentType.RUNNING,
         cl_name="feature",
@@ -41,7 +41,7 @@ def _attached_member(
     raw_suffix: str = "20260701010202",
     agent_session: str = "foo",
 ) -> Agent:
-    """A ``%i(suffix, family=parent)`` family-member child row."""
+    """A ``%i(suffix, family=parent)`` session-member child row."""
     return Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="feature",
@@ -97,7 +97,7 @@ def test_legacy_bare_root_and_member_still_group_under_foo_banner() -> None:
         and len(entry.group.group_key) >= 2
     ]
     assert len(foo_banners) == 1
-    # The name-root banner covers both family rows.
+    # The name-root banner covers both session rows.
     assert set(foo_banners[0].agent_indices) == {0, 1}
     assert {root.agent_name, member.agent_name} == {"foo", "foo--bar"}
 
@@ -142,8 +142,8 @@ def test_explicit_zero_member_is_not_duplicated() -> None:
     assert explicit_zero.agent_name == "foo--0"
 
 
-def test_plan_chain_family_is_unaffected() -> None:
-    """A plan-chain family (``foo--plan`` + ``foo--code``) gets no ``--0``."""
+def test_plan_chain_session_is_unaffected() -> None:
+    """A plan-chain session (``foo--plan`` + ``foo--code``) gets no ``--0``."""
     plan_root = Agent(
         agent_type=AgentType.WORKFLOW,
         cl_name="feature",
@@ -174,7 +174,7 @@ def test_plan_chain_family_is_unaffected() -> None:
     assert header.plain.startswith("FAMILY\nName: foo\n")
 
 
-def test_legacy_plan_zero_root_presents_family_name() -> None:
+def test_legacy_plan_zero_root_presents_session_name() -> None:
     root = _bare_root(name="foo--plan-0", status="DONE")
     root.role_suffix = "--plan-0"
     root.agent_session = "foo"
@@ -186,7 +186,7 @@ def test_legacy_plan_zero_root_presents_family_name() -> None:
     assert root.presented_agent_name == "foo"
 
 
-def test_generic_root_presents_family_container_name() -> None:
+def test_generic_root_presents_session_container_name() -> None:
     root = _bare_root(name="foo--0")
     root.role_suffix = "--0"
     root.agent_session = "foo"
@@ -206,7 +206,7 @@ def test_generic_root_presents_family_container_name() -> None:
     assert header.plain.startswith("AGENT SHELL\nName: foo\n")
 
 
-def test_expanded_generic_family_keeps_concrete_member_names() -> None:
+def test_expanded_generic_session_keeps_concrete_member_names() -> None:
     root = _bare_root(name="foo--0", status="DONE")
     root.agent_type = AgentType.WORKFLOW
     root.workflow = "ace(run)"

@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from sase.agent.family_attach import FamilyAttachSibling
+from sase.agent.agent_session_attach import AgentSessionAttachSibling
 
 
 def _artifact_record(
@@ -77,11 +77,11 @@ def _patch_attach_snapshot(
     dismissed: list[dict[str, str | None]] | None = None,
 ) -> None:
     monkeypatch.setattr(
-        "sase.agent.family_attach.agent_family_snapshot",
+        "sase.agent.agent_session_attach.agent_session_snapshot",
         lambda _project_name: SimpleNamespace(records=records),
     )
     monkeypatch.setattr(
-        "sase.agent.family_attach.dismissed_identity_dicts",
+        "sase.agent.agent_session_attach.dismissed_identity_dicts",
         lambda: list(dismissed or []),
     )
     monkeypatch.setattr(
@@ -93,7 +93,7 @@ def _patch_attach_snapshot(
 def _in_batch_sibling(
     *,
     name: str = "foo",
-    family_base: str = "foo",
+    agent_session_base_name: str = "foo",
     timestamp: str = "20260701010202",
     artifact_dir: str = "/tmp/sase/artifacts/ace-run/20260701010202",
     project_name: str = "sase",
@@ -101,10 +101,10 @@ def _in_batch_sibling(
     workspace_dir: str | None = "/tmp/sase_8",
     workspace_num: int | None = 8,
     can_attach_parent: bool = True,
-) -> FamilyAttachSibling:
-    return FamilyAttachSibling(
+) -> AgentSessionAttachSibling:
+    return AgentSessionAttachSibling(
         name=name,
-        family_base=family_base,
+        agent_session_base_name=agent_session_base_name,
         timestamp=timestamp,
         artifact_dir=artifact_dir,
         project_name=project_name,

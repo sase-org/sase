@@ -62,7 +62,7 @@ def test_id_bead_combines_with_every_identity_form(
     assert directives.name == name
     assert directives.bead_id == "sase-1"
     assert directives.clan == clan
-    assert directives.family_attach_parent == family
+    assert directives.agent_session_attach_parent == family
     assert directives.tribe == tribe
 
 

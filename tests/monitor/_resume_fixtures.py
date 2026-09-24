@@ -12,7 +12,7 @@ import pytest
 import sase.monitor.followup as followup_module
 import sase.monitor.outcome_policy as outcome_policy_module
 import sase.procs.spawn as spawn_module
-from sase.agent._family_attach_types import FamilyAttachLaunchPlan
+from sase.agent._agent_session_attach_types import AgentSessionAttachLaunchPlan
 from sase.agent.launch_types import AgentLaunchResult
 from sase.continuation_capture._storage import continuation_root, sha_json
 from sase.monitor.models import MonitorRecord
@@ -78,9 +78,11 @@ def _terminal_monitor(
         cl_name="acme",
     )
 
-    def fake_resolve_plan(*args: object, **kwargs: object) -> FamilyAttachLaunchPlan:
+    def fake_resolve_plan(
+        *args: object, **kwargs: object
+    ) -> AgentSessionAttachLaunchPlan:
         del args, kwargs
-        return FamilyAttachLaunchPlan(
+        return AgentSessionAttachLaunchPlan(
             parent_arg="acme",
             suffix_arg="@",
             parent_name="acme--0",
@@ -90,8 +92,8 @@ def _terminal_monitor(
             role_suffix="--1",
             agent_name="acme--1",
             agent_session_role="code",
-            parent_family_member_name="acme--0",
-            parent_family_role_suffix="--0",
+            parent_agent_session_member_name="acme--0",
+            parent_agent_session_role_suffix="--0",
             parent_needs_rename=False,
             parent_project_name="proj",
             parent_is_running=False,
@@ -101,7 +103,7 @@ def _terminal_monitor(
         )
 
     monkeypatch.setattr(
-        followup_module, "resolve_family_attach_plan", fake_resolve_plan
+        followup_module, "resolve_agent_session_attach_plan", fake_resolve_plan
     )
 
     started = start_monitor(

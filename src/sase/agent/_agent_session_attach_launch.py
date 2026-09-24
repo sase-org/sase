@@ -1,4 +1,4 @@
-"""Launch-time family attach context and environment handling."""
+"""Launch-time agent-session attach context and environment handling."""
 
 from __future__ import annotations
 
@@ -8,40 +8,43 @@ import json
 import os
 from typing import Any, TYPE_CHECKING
 
-from sase.agent import _family_attach_candidates as _candidates
-from sase.agent import _family_attach_directives as _directives
-from sase.agent import _family_attach_resolution as _resolution
-from sase.agent import _family_attach_types as _types
-from sase.agent.detached_child import family_attach_env
+from sase.agent import _agent_session_attach_candidates as _candidates
+from sase.agent import _agent_session_attach_directives as _directives
+from sase.agent import _agent_session_attach_resolution as _resolution
+from sase.agent import _agent_session_attach_types as _types
+from sase.agent.detached_child import agent_session_attach_env
 
 if TYPE_CHECKING:
     from sase.agent.launch_executor_types import LaunchSpawnRequest
 
-_FamilyAttachPlanResolver = Callable[..., _types.FamilyAttachLaunchPlan]
+_AgentSessionAttachPlanResolver = Callable[..., _types.AgentSessionAttachLaunchPlan]
 
 
-def prepare_family_attach_launch(
+def prepare_agent_session_attach_launch(
     prompt: str,
     context: Any,
     extra_env: dict[str, str] | None,
     *,
-    pending_family_parents: list[_types.FamilyAttachSibling] | None = None,
-    resolve_family_attach_plan: _FamilyAttachPlanResolver | None = None,
+    pending_agent_session_parents: list[_types.AgentSessionAttachSibling] | None = None,
+    resolve_agent_session_attach_plan: _AgentSessionAttachPlanResolver | None = None,
 ) -> tuple[Any, dict[str, str] | None]:
-    """Resolve family attach metadata and return adjusted launch context/env."""
+    """Resolve agent-session attach metadata and return adjusted launch context/env."""
 
-    directive = _directives.extract_family_attach_directive(prompt)
+    directive = _directives.extract_agent_session_attach_directive(prompt)
     if directive is None:
         return context, extra_env
 
-    resolver = resolve_family_attach_plan or _resolution.resolve_family_attach_plan
+    resolver = (
+        resolve_agent_session_attach_plan
+        or _resolution.resolve_agent_session_attach_plan
+    )
     plan = resolver(
         directive,
         project_name=context.project_name,
-        pending_family_parents=pending_family_parents,
+        pending_agent_session_parents=pending_agent_session_parents,
     )
     env = dict(extra_env or {})
-    env.update(family_attach_env(plan))
+    env.update(agent_session_attach_env(plan))
     if plan.sase_plan:
         env["SASE_PLAN"] = plan.sase_plan
     if plan.model_alias_overrides:
@@ -62,7 +65,7 @@ def prepare_family_attach_launch(
         context_updates["deferred_workspace"] = True
         context_updates["use_preallocated_workspace"] = False
         if plan.parent_workspace_dir:
-            workspace_dir, workspace_num = _resolve_family_attach_workspace_pair(
+            workspace_dir, workspace_num = _resolve_agent_session_attach_workspace_pair(
                 context.project_name,
                 plan.parent_workspace_dir,
                 plan.parent_workspace_num,
@@ -73,7 +76,7 @@ def prepare_family_attach_launch(
                 context_updates["workspace_num"] = workspace_num
                 env["SASE_AGENT_DEFERRED_TARGET_WORKSPACE_NUM"] = str(workspace_num)
     elif plan.parent_workspace_dir and not context.is_home_mode:
-        workspace_dir, workspace_num = _resolve_family_attach_workspace_pair(
+        workspace_dir, workspace_num = _resolve_agent_session_attach_workspace_pair(
             context.project_name,
             plan.parent_workspace_dir,
             plan.parent_workspace_num,
@@ -89,18 +92,18 @@ def prepare_family_attach_launch(
     return context, env
 
 
-def _resolve_family_attach_workspace_pair(
+def _resolve_agent_session_attach_workspace_pair(
     project_name: str,
     workspace_dir: str,
     workspace_num: int | None,
 ) -> tuple[str, int]:
-    """Repair a family-attach ``(workspace_dir, workspace_num)`` pair.
+    """Repair an agent-session-attach ``(workspace_dir, workspace_num)`` pair.
 
     Enforces the corollary that ``workspace_num == 0`` may only ever be
     paired with the primary checkout (Phase `followup` of plan
     ``202608/workspace_claim_invariant.md``): a numbered directory arriving
     with a missing or zero number is repaired through the workspace
-    registry. Raises ``FamilyAttachError`` when the pair cannot be made
+    registry. Raises ``AgentSessionAttachError`` when the pair cannot be made
     self-consistent, rather than silently launching an unclaimed occupant
     of a numbered checkout.
     """
@@ -115,8 +118,8 @@ def _resolve_family_attach_workspace_pair(
             0, project_name, clean=False
         )
     except (RuntimeError, OSError, ValueError) as exc:
-        raise _types.FamilyAttachError(
-            f"Family attach plan named workspace directory {workspace_dir!r} with no "
+        raise _types.AgentSessionAttachError(
+            f"Agent session attach plan named workspace directory {workspace_dir!r} with no "
             "workspace number, and the primary checkout could not be resolved to "
             f"repair it: {exc}"
         ) from exc
@@ -125,8 +128,8 @@ def _resolve_family_attach_workspace_pair(
         primary_workspace_dir, workspace_dir, workspace_num
     )
     if resolved is None:
-        raise _types.FamilyAttachError(
-            f"Family attach plan named workspace directory {workspace_dir!r} with no "
+        raise _types.AgentSessionAttachError(
+            f"Agent session attach plan named workspace directory {workspace_dir!r} with no "
             "workspace number, and the workspace registry does not recognize it as "
             "a managed checkout. Refusing to launch into a numbered workspace "
             "directory without a claim."
@@ -134,21 +137,24 @@ def _resolve_family_attach_workspace_pair(
     return resolved
 
 
-def load_family_attach_plan_from_env(
+def load_agent_session_attach_plan_from_env(
     env: dict[str, str] | None = None,
-) -> _types.FamilyAttachLaunchPlan | None:
-    raw = (env or os.environ).get(_types.FAMILY_ATTACH_ENV)
+) -> _types.AgentSessionAttachLaunchPlan | None:
+    raw = (env or os.environ).get(_types.LEGACY_AGENT_FAMILY_ATTACH_ENV)
     if not raw:
         return None
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:
-        raise _types.FamilyAttachError(
+        raise _types.AgentSessionAttachError(
             "Invalid SASE_AGENT_FAMILY_ATTACH payload"
         ) from exc
     if not isinstance(data, dict):
-        raise _types.FamilyAttachError("Invalid SASE_AGENT_FAMILY_ATTACH payload")
-    return _types.FamilyAttachLaunchPlan(
+        raise _types.AgentSessionAttachError("Invalid SASE_AGENT_FAMILY_ATTACH payload")
+    agent_session_role = _attach_payload_value(data, "agent_session_role")
+    if agent_session_role is None:
+        raise KeyError("agent_session_role")
+    return _types.AgentSessionAttachLaunchPlan(
         parent_arg=str(data["parent_arg"]),
         suffix_arg=str(data["suffix_arg"]),
         parent_name=str(data["parent_name"]),
@@ -157,11 +163,14 @@ def load_family_attach_plan_from_env(
         parent_artifacts_dir=str(data["parent_artifacts_dir"]),
         role_suffix=str(data["role_suffix"]),
         agent_name=str(data["agent_name"]),
-        agent_session_role=str(data["agent_session_role"]),
-        parent_family_member_name=str(
-            data.get("parent_family_member_name") or data["parent_name"]
+        agent_session_role=str(agent_session_role),
+        parent_agent_session_member_name=str(
+            _attach_payload_value(data, "parent_agent_session_member_name")
+            or data["parent_name"]
         ),
-        parent_family_role_suffix=str(data.get("parent_family_role_suffix") or "--0"),
+        parent_agent_session_role_suffix=str(
+            _attach_payload_value(data, "parent_agent_session_role_suffix") or "--0"
+        ),
         parent_needs_rename=bool(data.get("parent_needs_rename", False)),
         parent_project_name=str(data.get("parent_project_name") or ""),
         parent_is_running=bool(data.get("parent_is_running", False)),
@@ -177,13 +186,31 @@ def load_family_attach_plan_from_env(
     )
 
 
-def build_family_attach_sibling_from_spawn(
+# legacy agent-family spelling: attach payloads exported by a parent that was
+# launched before the rename still carry these keys.
+_LEGACY_ATTACH_PAYLOAD_KEYS = {
+    "agent_session_role": "agent_family_role",
+    "parent_agent_session_member_name": "parent_family_member_name",
+    "parent_agent_session_role_suffix": "parent_family_role_suffix",
+}
+
+
+def _attach_payload_value(data: dict[str, Any], key: str) -> Any:
+    """Read *key* from an attach payload, falling back to its legacy spelling."""
+    value = data.get(key)
+    if value is None:
+        # legacy agent-family spelling
+        value = data.get(_LEGACY_ATTACH_PAYLOAD_KEYS[key])
+    return value
+
+
+def build_agent_session_attach_sibling_from_spawn(
     request: LaunchSpawnRequest,
     name: str,
     *,
-    family_base: str | None = None,
+    agent_session_base_name: str | None = None,
     can_attach_parent: bool = True,
-) -> _types.FamilyAttachSibling | None:
+) -> _types.AgentSessionAttachSibling | None:
     """Return the in-batch sibling descriptor for a successful spawn request."""
 
     if not name or not request.project_name or not request.workspace_dir:
@@ -195,7 +222,7 @@ def build_family_attach_sibling_from_spawn(
     artifact_timestamp = _candidates.artifacts_timestamp_from_launch_timestamp(
         request.timestamp
     )
-    base = family_base or agent_session_base(name) or name
+    base = agent_session_base_name or agent_session_base(name) or name
     from sase.llm_provider.launch_alias_overrides import SASE_MODEL_ALIAS_OVERRIDES_ENV
 
     raw_overrides = (request.extra_env or {}).get(SASE_MODEL_ALIAS_OVERRIDES_ENV, "")
@@ -206,9 +233,9 @@ def build_family_attach_sibling_from_spawn(
 
     raw_clan = (request.extra_env or {}).get(CLAN_MEMBERSHIP_ENV, "")
     clan_plan = decode_clan_membership_plan(raw_clan) if raw_clan else None
-    return _types.FamilyAttachSibling(
+    return _types.AgentSessionAttachSibling(
         name=name,
-        family_base=base,
+        agent_session_base_name=base,
         timestamp=artifact_timestamp,
         artifact_dir=str(
             canonical_agent_artifact_path(
@@ -222,7 +249,9 @@ def build_family_attach_sibling_from_spawn(
         workspace_dir=request.workspace_dir,
         workspace_num=request.workspace_num,
         can_attach_parent=can_attach_parent,
-        family_root_role_suffix=_prompt_family_root_role_suffix(request.prompt),
+        agent_session_root_role_suffix=_prompt_agent_session_root_role_suffix(
+            request.prompt
+        ),
         agent_clan=None if clan_plan is None else clan_plan.clan_name,
         agent_clan_generation=None if clan_plan is None else clan_plan.generation,
         model_alias_overrides=(
@@ -250,16 +279,18 @@ def _prompt_model_alias_overrides(prompt: str) -> dict[str, str]:
     return dict(directives.model_alias_overrides)
 
 
-def _prompt_family_root_role_suffix(prompt: str) -> str:
+def _prompt_agent_session_root_role_suffix(prompt: str) -> str:
     try:
         from sase.xprompt.directives import extract_prompt_directives
 
         _, directives = extract_prompt_directives(prompt)
     except Exception:
         return "--0"
-    from sase.agent._family_promotion import normalized_family_root_role_suffix
+    from sase.agent._agent_session_promotion import (
+        normalized_agent_session_root_role_suffix,
+    )
 
-    return normalized_family_root_role_suffix(
+    return normalized_agent_session_root_role_suffix(
         "--plan" if directives.auto_mode in {"plan", "tale", "epic"} else None
     )
 
@@ -290,9 +321,9 @@ def _int_or_none(value: object) -> int | None:
 
 
 __all__ = [
-    "build_family_attach_sibling_from_spawn",
-    "load_family_attach_plan_from_env",
-    "prepare_family_attach_launch",
+    "build_agent_session_attach_sibling_from_spawn",
+    "load_agent_session_attach_plan_from_env",
+    "prepare_agent_session_attach_launch",
     "_int_or_none",
     "_str_or_none",
 ]

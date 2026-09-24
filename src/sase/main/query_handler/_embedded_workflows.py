@@ -135,11 +135,11 @@ def expand_embedded_workflows_in_query(
 
         explicit_args = dict(bound.explicit_values)
 
-        from sase.agent.family_attach import (
-            default_with_feedback_parent_from_family_attach,
+        from sase.agent.agent_session_attach import (
+            default_with_feedback_parent_from_agent_session_attach,
         )
 
-        default_with_feedback_parent_from_family_attach(
+        default_with_feedback_parent_from_agent_session_attach(
             name,
             explicit_args,
             prompt=segment_source_query,

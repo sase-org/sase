@@ -332,13 +332,13 @@ def _verify_kill_and_edit_prompt(
     facing_agent = _facing_name(agent_name)
     facing_family = _facing_name(family_name)
     presented_row = facing_family if is_family_root else facing_agent
-    family_parent = _facing_name(directives.family_attach_parent)
+    agent_session_parent = _facing_name(directives.agent_session_attach_parent)
     original_clan = _prompt_clan_name(raw_prompt)
 
-    if family_parent:
+    if agent_session_parent:
         _verify_family_form(
             rewritten,
-            family_parent=family_parent,
+            agent_session_parent=agent_session_parent,
             facing_family=facing_family,
             facing_agent=facing_agent,
             presented_row=presented_row,
@@ -365,7 +365,11 @@ def _verify_kill_and_edit_prompt(
         )
 
     if original_clan and not directives.clan:
-        if family_parent and not is_family_root and family_parent != presented_row:
+        if (
+            agent_session_parent
+            and not is_family_root
+            and agent_session_parent != presented_row
+        ):
             return
         raise KillAndEditPromptError(
             "rewrite dropped clan membership",
@@ -377,7 +381,7 @@ def _verify_kill_and_edit_prompt(
 def _verify_family_form(
     rewritten: str,
     *,
-    family_parent: str,
+    agent_session_parent: str,
     facing_family: str | None,
     facing_agent: str | None,
     presented_row: str | None,
@@ -391,15 +395,15 @@ def _verify_family_form(
             agent_name=agent_name,
             produced=rewritten,
         )
-    if is_family_root or (presented_row and family_parent == presented_row):
+    if is_family_root or (presented_row and agent_session_parent == presented_row):
         raise KillAndEditPromptError(
-            f"family={family_parent} attaches the agent to itself",
+            f"family={agent_session_parent} attaches the agent to itself",
             agent_name=agent_name or presented_row,
             produced=rewritten,
         )
-    if facing_family and family_parent != facing_family:
+    if facing_family and agent_session_parent != facing_family:
         raise KillAndEditPromptError(
-            f"family={family_parent} does not match family {facing_family}",
+            f"family={agent_session_parent} does not match family {facing_family}",
             agent_name=agent_name,
             produced=rewritten,
         )
@@ -409,9 +413,9 @@ def _verify_family_form(
         shell_family = _facing_name(
             agent_session_base(facing_agent, include_legacy_dash=True)
         )
-        if shell_family and shell_family != family_parent:
+        if shell_family and shell_family != agent_session_parent:
             raise KillAndEditPromptError(
-                f"family={family_parent} does not match agent {facing_agent}",
+                f"family={agent_session_parent} does not match agent {facing_agent}",
                 agent_name=agent_name,
                 produced=rewritten,
             )

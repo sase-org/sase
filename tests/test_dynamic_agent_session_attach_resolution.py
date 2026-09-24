@@ -6,18 +6,18 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.agent._family_attach_candidates import family_sase_plan
-from sase.agent.family_attach import (
-    FamilyAttachDirective,
-    FamilyAttachError,
-    prepare_family_attach_launch,
-    resolve_family_attach_plan,
+from sase.agent._agent_session_attach_candidates import agent_session_sase_plan
+from sase.agent.agent_session_attach import (
+    AgentSessionAttachDirective,
+    AgentSessionAttachError,
+    prepare_agent_session_attach_launch,
+    resolve_agent_session_attach_plan,
 )
 from sase.agent.launch_executor import LaunchExecutionContext
 from sase.core.agent_identity_facade import AgentIdentitySnapshot, AgentOwnerIdentity
 from sase.workspace_provider.registry import record_workspace
 from sase.workspace_provider.store import WorkspaceStore
-from tests._dynamic_agent_family_attach_helpers import (
+from tests._dynamic_agent_session_attach_helpers import (
     _artifact_record,
     _in_batch_sibling,
     _patch_attach_snapshot,
@@ -34,14 +34,14 @@ def _register_workspace_checkout(primary_dir: Path, workspace_num: int) -> str:
     return str(checkout)
 
 
-def test_family_attach_absent_parent_error_uses_rust_resolution(
+def test_agent_session_attach_absent_parent_error_uses_rust_resolution(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_attach_snapshot(monkeypatch, [])
 
-    with pytest.raises(FamilyAttachError) as exc_info:
-        resolve_family_attach_plan(
-            FamilyAttachDirective(parent="missing", suffix="reviewer"),
+    with pytest.raises(AgentSessionAttachError) as exc_info:
+        resolve_agent_session_attach_plan(
+            AgentSessionAttachDirective(parent="missing", suffix="reviewer"),
             project_name="sase",
         )
 
@@ -50,7 +50,7 @@ def test_family_attach_absent_parent_error_uses_rust_resolution(
     )
 
 
-def test_family_attach_dismissed_parent_error_names_revive_path(
+def test_agent_session_attach_dismissed_parent_error_names_revive_path(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     parent = _artifact_record(name="foo", timestamp="20260701010101")
@@ -66,9 +66,9 @@ def test_family_attach_dismissed_parent_error_names_revive_path(
         ],
     )
 
-    with pytest.raises(FamilyAttachError) as exc_info:
-        resolve_family_attach_plan(
-            FamilyAttachDirective(parent="foo", suffix="reviewer"),
+    with pytest.raises(AgentSessionAttachError) as exc_info:
+        resolve_agent_session_attach_plan(
+            AgentSessionAttachDirective(parent="foo", suffix="reviewer"),
             project_name="sase",
         )
 
@@ -77,7 +77,7 @@ def test_family_attach_dismissed_parent_error_names_revive_path(
     assert "Revive the parent from the Agents tab" in message
 
 
-def test_family_attach_ambiguous_parent_error_lists_candidates(
+def test_agent_session_attach_ambiguous_parent_error_lists_candidates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     timestamp = "20260701010101"
@@ -99,9 +99,9 @@ def test_family_attach_ambiguous_parent_error_lists_candidates(
         ],
     )
 
-    with pytest.raises(FamilyAttachError) as exc_info:
-        resolve_family_attach_plan(
-            FamilyAttachDirective(parent="foo", suffix="reviewer"),
+    with pytest.raises(AgentSessionAttachError) as exc_info:
+        resolve_agent_session_attach_plan(
+            AgentSessionAttachDirective(parent="foo", suffix="reviewer"),
             project_name="sase",
         )
 
@@ -111,7 +111,7 @@ def test_family_attach_ambiguous_parent_error_lists_candidates(
     assert f"foo--code@{timestamp}" in message
 
 
-def test_family_attach_resolution_uses_newest_match_with_project_scope(
+def test_agent_session_attach_resolution_uses_newest_match_with_project_scope(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_attach_snapshot(
@@ -128,8 +128,8 @@ def test_family_attach_resolution_uses_newest_match_with_project_scope(
         ],
     )
 
-    plan = resolve_family_attach_plan(
-        FamilyAttachDirective(parent="foo", suffix="reviewer"),
+    plan = resolve_agent_session_attach_plan(
+        AgentSessionAttachDirective(parent="foo", suffix="reviewer"),
         project_name="sase",
     )
 
@@ -138,7 +138,7 @@ def test_family_attach_resolution_uses_newest_match_with_project_scope(
     assert plan.parent_artifacts_dir != "/tmp/other/foo"
 
 
-def test_family_attach_inherits_parent_model_alias_overrides(
+def test_agent_session_attach_inherits_parent_model_alias_overrides(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -153,11 +153,11 @@ def test_family_attach_inherits_parent_model_alias_overrides(
         [_artifact_record(name="foo", artifact_dir=parent_dir)],
     )
 
-    plan = resolve_family_attach_plan(
-        FamilyAttachDirective(parent="foo", suffix="reviewer"),
+    plan = resolve_agent_session_attach_plan(
+        AgentSessionAttachDirective(parent="foo", suffix="reviewer"),
         project_name="sase",
     )
-    _, env = prepare_family_attach_launch(
+    _, env = prepare_agent_session_attach_launch(
         "%i(reviewer, family=foo)\nReview",
         LaunchExecutionContext(
             cl_name="feature",
@@ -171,7 +171,7 @@ def test_family_attach_inherits_parent_model_alias_overrides(
     assert json.loads((env or {})["SASE_MODEL_ALIAS_OVERRIDES"]) == {"coder": "sonnet"}
 
 
-def test_family_attach_running_parent_builds_queued_plan(
+def test_agent_session_attach_running_parent_builds_queued_plan(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     record = _artifact_record(
@@ -181,8 +181,8 @@ def test_family_attach_running_parent_builds_queued_plan(
     )
     _patch_attach_snapshot(monkeypatch, [record])
 
-    plan = resolve_family_attach_plan(
-        FamilyAttachDirective(parent="foo", suffix="reviewer"),
+    plan = resolve_agent_session_attach_plan(
+        AgentSessionAttachDirective(parent="foo", suffix="reviewer"),
         project_name="sase",
     )
 
@@ -191,24 +191,26 @@ def test_family_attach_running_parent_builds_queued_plan(
     assert plan.parent_timestamp == "20260701010101"
     assert plan.agent_name == "foo--reviewer"
     assert plan.parent_needs_rename is True
-    assert plan.parent_family_member_name == "foo--0"
-    assert plan.parent_family_role_suffix == "--0"
+    assert plan.parent_agent_session_member_name == "foo--0"
+    assert plan.parent_agent_session_role_suffix == "--0"
     assert plan.parent_workspace_num == 7
 
 
-def test_family_attach_reserves_original_parent_zero_slot(
+def test_agent_session_attach_reserves_original_parent_zero_slot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_attach_snapshot(monkeypatch, [_artifact_record(name="foo")])
 
-    with pytest.raises(FamilyAttachError, match="reserved for the original parent"):
-        resolve_family_attach_plan(
-            FamilyAttachDirective(parent="foo", suffix="0"),
+    with pytest.raises(
+        AgentSessionAttachError, match="reserved for the original parent"
+    ):
+        resolve_agent_session_attach_plan(
+            AgentSessionAttachDirective(parent="foo", suffix="0"),
             project_name="sase",
         )
 
 
-def test_family_attach_reserves_original_plan_parent_slot(
+def test_agent_session_attach_reserves_original_plan_parent_slot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_attach_snapshot(
@@ -216,21 +218,23 @@ def test_family_attach_reserves_original_plan_parent_slot(
         [_artifact_record(name="foo", role_suffix="--plan")],
     )
 
-    with pytest.raises(FamilyAttachError, match="reserved for the original parent"):
-        resolve_family_attach_plan(
-            FamilyAttachDirective(parent="foo", suffix="plan"),
+    with pytest.raises(
+        AgentSessionAttachError, match="reserved for the original parent"
+    ):
+        resolve_agent_session_attach_plan(
+            AgentSessionAttachDirective(parent="foo", suffix="plan"),
             project_name="sase",
         )
 
-    plan = resolve_family_attach_plan(
-        FamilyAttachDirective(parent="foo", suffix="code"),
+    plan = resolve_agent_session_attach_plan(
+        AgentSessionAttachDirective(parent="foo", suffix="code"),
         project_name="sase",
     )
-    assert plan.parent_family_member_name == "foo--plan"
-    assert plan.parent_family_role_suffix == "--plan"
+    assert plan.parent_agent_session_member_name == "foo--plan"
+    assert plan.parent_agent_session_role_suffix == "--plan"
 
 
-def test_family_attach_inherits_parent_clan_identity(
+def test_agent_session_attach_inherits_parent_clan_identity(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_attach_snapshot(
@@ -244,27 +248,27 @@ def test_family_attach_inherits_parent_clan_identity(
         ],
     )
 
-    plan = resolve_family_attach_plan(
-        FamilyAttachDirective(parent="research.worker", suffix="reviewer"),
+    plan = resolve_agent_session_attach_plan(
+        AgentSessionAttachDirective(parent="research.worker", suffix="reviewer"),
         project_name="sase",
     )
 
     assert plan.parent_agent_clan == "research"
     assert plan.parent_agent_clan_generation == "20260701010000"
-    assert plan.parent_family_member_name == "research.worker--0"
+    assert plan.parent_agent_session_member_name == "research.worker--0"
     assert plan.agent_name == "research.worker--reviewer"
 
 
-def test_family_attach_resolves_in_batch_parent_without_artifact_meta(
+def test_agent_session_attach_resolves_in_batch_parent_without_artifact_meta(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_attach_snapshot(monkeypatch, [])
     sibling = _in_batch_sibling()
 
-    plan = resolve_family_attach_plan(
-        FamilyAttachDirective(parent="foo", suffix="reviewer"),
+    plan = resolve_agent_session_attach_plan(
+        AgentSessionAttachDirective(parent="foo", suffix="reviewer"),
         project_name="sase",
-        pending_family_parents=[sibling],
+        pending_agent_session_parents=[sibling],
     )
 
     assert plan.parent_is_running is True
@@ -278,7 +282,7 @@ def test_family_attach_resolves_in_batch_parent_without_artifact_meta(
     assert plan.agent_name == "foo--reviewer"
 
 
-def test_family_attach_launch_repairs_a_numbered_directory_missing_its_number(
+def test_agent_session_attach_launch_repairs_a_numbered_directory_missing_its_number(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """The parent's own meta can still record a numbered ``workspace_dir``
@@ -300,7 +304,7 @@ def test_family_attach_launch_repairs_a_numbered_directory_missing_its_number(
             return_value=("/tmp/sase_9", 9),
         ),
     ):
-        context, _ = prepare_family_attach_launch(
+        context, _ = prepare_agent_session_attach_launch(
             "%i(reviewer, family=foo)\nReview",
             LaunchExecutionContext(
                 cl_name="launcher",
@@ -314,7 +318,7 @@ def test_family_attach_launch_repairs_a_numbered_directory_missing_its_number(
     assert context.workspace_num == 9
 
 
-def test_family_attach_launch_repairs_a_deferred_running_parent_pairing(
+def test_agent_session_attach_launch_repairs_a_deferred_running_parent_pairing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_attach_snapshot(
@@ -339,7 +343,7 @@ def test_family_attach_launch_repairs_a_deferred_running_parent_pairing(
             return_value=("/tmp/sase_9", 9),
         ),
     ):
-        context, env = prepare_family_attach_launch(
+        context, env = prepare_agent_session_attach_launch(
             "%i(reviewer, family=foo)\nReview",
             LaunchExecutionContext(
                 cl_name="launcher",
@@ -358,7 +362,7 @@ def test_family_attach_launch_repairs_a_deferred_running_parent_pairing(
     assert env["SASE_AGENT_DEFERRED_TARGET_WORKSPACE_NUM"] == "9"
 
 
-def test_family_attach_launch_fails_loudly_when_pairing_is_unresolvable(
+def test_agent_session_attach_launch_fails_loudly_when_pairing_is_unresolvable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_attach_snapshot(
@@ -375,9 +379,9 @@ def test_family_attach_launch_fails_loudly_when_pairing_is_unresolvable(
             "sase.workspace_provider.resolve_consistent_workspace_pair",
             return_value=None,
         ),
-        pytest.raises(FamilyAttachError, match="Refusing to launch"),
+        pytest.raises(AgentSessionAttachError, match="Refusing to launch"),
     ):
-        prepare_family_attach_launch(
+        prepare_agent_session_attach_launch(
             "%i(reviewer, family=foo)\nReview",
             LaunchExecutionContext(
                 cl_name="launcher",
@@ -388,13 +392,13 @@ def test_family_attach_launch_fails_loudly_when_pairing_is_unresolvable(
         )
 
 
-def test_family_attach_launch_repairs_a_nested_managed_dir_to_its_owning_workspace(
+def test_agent_session_attach_launch_repairs_a_nested_managed_dir_to_its_owning_workspace(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A parent's own meta can record a directory nested inside a managed
     checkout -- not just the checkout root -- with no ``workspace_num``; the
     launch must repair via the real registry containment lookup to the
-    owning checkout instead of raising ``FamilyAttachError`` (plan
+    owning checkout instead of raising ``AgentSessionAttachError`` (plan
     ``202609/monitor_nested_cwd_workspace_resolution.md``)."""
     monkeypatch.setenv("SASE_WORKSPACE_ROOT", str(tmp_path / "managed"))
     primary = tmp_path / "primary"
@@ -412,7 +416,7 @@ def test_family_attach_launch_repairs_a_nested_managed_dir_to_its_owning_workspa
         "sase.running_field.get_workspace_directory_for_num",
         return_value=(str(primary), None),
     ):
-        context, _ = prepare_family_attach_launch(
+        context, _ = prepare_agent_session_attach_launch(
             "%i(reviewer, family=foo)\nReview",
             LaunchExecutionContext(
                 cl_name="launcher",
@@ -426,7 +430,7 @@ def test_family_attach_launch_repairs_a_nested_managed_dir_to_its_owning_workspa
     assert context.workspace_num == 9
 
 
-def test_family_attach_prefers_in_batch_parent_over_older_persisted_parent(
+def test_agent_session_attach_prefers_in_batch_parent_over_older_persisted_parent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_attach_snapshot(
@@ -448,26 +452,26 @@ def test_family_attach_prefers_in_batch_parent_over_older_persisted_parent(
         workspace_num=8,
     )
 
-    plan = resolve_family_attach_plan(
-        FamilyAttachDirective(parent="foo", suffix="reviewer"),
+    plan = resolve_agent_session_attach_plan(
+        AgentSessionAttachDirective(parent="foo", suffix="reviewer"),
         project_name="sase",
-        pending_family_parents=[sibling],
+        pending_agent_session_parents=[sibling],
     )
 
     assert plan.parent_artifacts_dir == sibling.artifact_dir
     assert plan.parent_workspace_num == 8
 
 
-def test_family_attach_auto_suffix_and_collision_include_in_batch_members(
+def test_agent_session_attach_auto_suffix_and_collision_include_in_batch_members(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_attach_snapshot(monkeypatch, [])
     pending = [_in_batch_sibling()]
 
-    first = resolve_family_attach_plan(
-        FamilyAttachDirective(parent="foo", suffix="@"),
+    first = resolve_agent_session_attach_plan(
+        AgentSessionAttachDirective(parent="foo", suffix="@"),
         project_name="sase",
-        pending_family_parents=pending,
+        pending_agent_session_parents=pending,
     )
     pending.append(
         _in_batch_sibling(
@@ -477,21 +481,21 @@ def test_family_attach_auto_suffix_and_collision_include_in_batch_members(
             can_attach_parent=True,
         )
     )
-    second = resolve_family_attach_plan(
-        FamilyAttachDirective(parent="foo", suffix="@"),
+    second = resolve_agent_session_attach_plan(
+        AgentSessionAttachDirective(parent="foo", suffix="@"),
         project_name="sase",
-        pending_family_parents=pending,
+        pending_agent_session_parents=pending,
     )
 
     assert first.role_suffix == "--1"
     assert second.role_suffix == "--2"
     assert second.parent_name == "foo--1"
     assert second.parent_timestamp == "20260701010303"
-    with pytest.raises(FamilyAttachError, match=r"%i\(@, family=foo\)"):
-        resolve_family_attach_plan(
-            FamilyAttachDirective(parent="foo", suffix="1"),
+    with pytest.raises(AgentSessionAttachError, match=r"%i\(@, family=foo\)"):
+        resolve_agent_session_attach_plan(
+            AgentSessionAttachDirective(parent="foo", suffix="1"),
             project_name="sase",
-            pending_family_parents=pending,
+            pending_agent_session_parents=pending,
         )
 
 
@@ -507,15 +511,15 @@ def test_family_attach_auto_suffix_and_collision_include_in_batch_members(
         ("security_review", "security_review"),
     ],
 )
-def test_family_attach_role_mapping_through_attach_path(
+def test_agent_session_attach_role_mapping_through_attach_path(
     monkeypatch: pytest.MonkeyPatch,
     suffix: str,
     expected_role: str,
 ) -> None:
     _patch_attach_snapshot(monkeypatch, [_artifact_record(name="foo")])
 
-    plan = resolve_family_attach_plan(
-        FamilyAttachDirective(parent="foo", suffix=suffix),
+    plan = resolve_agent_session_attach_plan(
+        AgentSessionAttachDirective(parent="foo", suffix=suffix),
         project_name="sase",
     )
 
@@ -531,7 +535,7 @@ def test_family_attach_role_mapping_through_attach_path(
         ("code", None, None),
     ],
 )
-def test_family_attach_sase_plan_env_only_for_code_with_parent_plan(
+def test_agent_session_attach_sase_plan_env_only_for_code_with_parent_plan(
     monkeypatch: pytest.MonkeyPatch,
     suffix: str,
     parent_plan_path: str | None,
@@ -541,7 +545,7 @@ def test_family_attach_sase_plan_env_only_for_code_with_parent_plan(
         monkeypatch,
         [_artifact_record(name="foo", sdd_plan_path=parent_plan_path)],
     )
-    _, env = prepare_family_attach_launch(
+    _, env = prepare_agent_session_attach_launch(
         f"%i({suffix}, family=foo)\nDo work",
         LaunchExecutionContext(
             cl_name="launcher",
@@ -566,7 +570,7 @@ def _configured_owner_identity() -> AgentIdentitySnapshot:
     )
 
 
-def test_family_attach_coder_resolves_when_snapshot_has_empty_agent_names(
+def test_agent_session_attach_coder_resolves_when_snapshot_has_empty_agent_names(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -597,8 +601,8 @@ def test_family_attach_coder_resolves_when_snapshot_has_empty_agent_names(
         ],
     )
 
-    plan = resolve_family_attach_plan(
-        FamilyAttachDirective(parent="foo", suffix="code"),
+    plan = resolve_agent_session_attach_plan(
+        AgentSessionAttachDirective(parent="foo", suffix="code"),
         project_name="sase",
     )
 
@@ -607,7 +611,7 @@ def test_family_attach_coder_resolves_when_snapshot_has_empty_agent_names(
     assert plan.sase_plan == parent_plan
 
 
-def test_family_sase_plan_skips_empty_identity_fields(
+def test_agent_session_sase_plan_skips_empty_identity_fields(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(
@@ -631,4 +635,4 @@ def test_family_sase_plan_skips_empty_identity_fields(
         ),
     ]
 
-    assert family_sase_plan(records, "foo") == matching_plan
+    assert agent_session_sase_plan(records, "foo") == matching_plan

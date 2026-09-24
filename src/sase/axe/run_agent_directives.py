@@ -255,9 +255,9 @@ def extract_directives_and_write_meta(
         # retain the built-in fork reference during analysis.
         fork_reference_prompt = raw_resolved_prompt
 
-    from sase.agent.family_attach import load_family_attach_plan_from_env
+    from sase.agent.agent_session_attach import load_agent_session_attach_plan_from_env
 
-    family_attach_plan = load_family_attach_plan_from_env()
+    agent_session_attach_plan = load_agent_session_attach_plan_from_env()
     from sase.agent.clan_membership import (
         ClanMembershipError,
         consume_clan_membership_plan_from_env,
@@ -289,8 +289,8 @@ def extract_directives_and_write_meta(
         )
     if (
         directives.tribe is not None
-        and family_attach_plan is not None
-        and family_attach_plan.parent_agent_clan
+        and agent_session_attach_plan is not None
+        and agent_session_attach_plan.parent_agent_clan
     ):
         raise ClanMembershipError(
             "Cannot use %id(..., tribe=...) on a family attachment that "
@@ -312,8 +312,8 @@ def extract_directives_and_write_meta(
     )
 
     explicit_alias_overrides = dict(directives.model_alias_overrides)
-    if not explicit_alias_overrides and family_attach_plan is not None:
-        explicit_alias_overrides = dict(family_attach_plan.model_alias_overrides)
+    if not explicit_alias_overrides and agent_session_attach_plan is not None:
+        explicit_alias_overrides = dict(agent_session_attach_plan.model_alias_overrides)
     model_alias_overrides = dict(
         active_launch_alias_overrides(explicit_alias_overrides or None)
     )
@@ -360,15 +360,15 @@ def extract_directives_and_write_meta(
         wait_names.append(fork_wait_target)
         if fork_tribe is None:
             implicit_fork_wait_targets.append(fork_wait_target)
-    if family_attach_plan and family_attach_plan.parent_is_running:
-        if family_attach_plan.parent_name not in wait_names:
-            wait_names.append(family_attach_plan.parent_name)
+    if agent_session_attach_plan and agent_session_attach_plan.parent_is_running:
+        if agent_session_attach_plan.parent_name not in wait_names:
+            wait_names.append(agent_session_attach_plan.parent_name)
         wait_identity_deps.append(
             {
-                "project_name": family_attach_plan.parent_project_name,
-                "timestamp": family_attach_plan.parent_timestamp,
-                "artifact_dir": family_attach_plan.parent_artifacts_dir,
-                "name": family_attach_plan.parent_name,
+                "project_name": agent_session_attach_plan.parent_project_name,
+                "timestamp": agent_session_attach_plan.parent_timestamp,
+                "artifact_dir": agent_session_attach_plan.parent_artifacts_dir,
+                "name": agent_session_attach_plan.parent_name,
             }
         )
 
@@ -398,7 +398,7 @@ def extract_directives_and_write_meta(
     auto_dismiss = os.environ.get("SASE_AGENT_AUTO_DISMISS")
     name_request = prepare_agent_name_request(
         directives=directives,
-        family_attach_plan=family_attach_plan,
+        agent_session_attach_plan=agent_session_attach_plan,
         fork_reference_prompt=fork_reference_prompt,
         wait_names=wait_names,
         auto_dismiss=auto_dismiss,
@@ -535,7 +535,7 @@ def extract_directives_and_write_meta(
     identity = resolve_agent_identity(
         name_request,
         directives=directives,
-        family_attach_plan=family_attach_plan,
+        agent_session_attach_plan=agent_session_attach_plan,
         clan_membership_plan=clan_membership_plan,
         artifacts_dir=artifacts_dir,
         metadata_inputs=metadata_inputs,

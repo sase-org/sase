@@ -479,7 +479,7 @@ class WaitDependencyIndexQueries(
                     == tribe
                 )
                 return
-            add_candidates(self.families.get(name))
+            add_candidates(self.agent_sessions.get(name))
             add_candidates(self.workflows.get(name))
             for generation in self.clans.get(name, {}).values():
                 add_candidates(generation)
@@ -488,9 +488,9 @@ class WaitDependencyIndexQueries(
 
         def add_candidate_members(candidate: ArtifactCandidate) -> None:
             add_candidates((candidate,))
-            family_name = candidate.family_name or candidate.name
-            if family_name:
-                add_candidates(self.families.get(family_name))
+            agent_session_name = candidate.agent_session_name or candidate.name
+            if agent_session_name:
+                add_candidates(self.agent_sessions.get(agent_session_name))
             if candidate.clan_name is not None:
                 generations = self.clans.get(candidate.clan_name, {})
                 if candidate.clan_generation is not None:

@@ -110,15 +110,15 @@ def promote_to_workflow(
     role_suffix: str,
 ) -> None:
     """Rename the initial agent into the first plan-chain family member."""
-    from sase.agent._family_promotion import (
-        normalized_family_root_role_suffix,
-        promote_agent_to_family,
+    from sase.agent._agent_session_promotion import (
+        normalized_agent_session_root_role_suffix,
+        promote_agent_to_agent_session,
     )
 
-    promote_agent_to_family(
+    promote_agent_to_agent_session(
         artifacts_dir,
         base_name,
-        root_role_suffix=normalized_family_root_role_suffix(role_suffix),
+        root_role_suffix=normalized_agent_session_root_role_suffix(role_suffix),
     )
 
 

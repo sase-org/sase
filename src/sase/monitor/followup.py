@@ -1,7 +1,7 @@
 """Launch the follow-up agent into a monitor's lane once it goes terminal.
 
 Reuses the same ``%id(<suffix>, family=<parent>)`` family-attach machinery a
-user-typed directive would trigger (:mod:`sase.agent.family_attach`): the
+user-typed directive would trigger (:mod:`sase.agent.agent_session_attach`): the
 monitor's lane is resolved to a family-attach plan, encoded into the child's
 launch environment, and the child's own runner boot adopts the resulting name,
 family, and role when it starts -- exactly as it would for an interactive
@@ -19,8 +19,13 @@ from dataclasses import replace
 import os
 from typing import Any
 
-from sase.agent._family_attach_resolution import resolve_family_attach_plan
-from sase.agent._family_attach_types import FamilyAttachDirective, FamilyAttachError
+from sase.agent._agent_session_attach_resolution import (
+    resolve_agent_session_attach_plan,
+)
+from sase.agent._agent_session_attach_types import (
+    AgentSessionAttachDirective,
+    AgentSessionAttachError,
+)
 from sase.agent.detached_child import spawn_family_successor
 from sase.agent.launcher import spawn_agent_subprocess
 from sase.axe.run_agent_helpers_artifacts import update_meta_field
@@ -319,11 +324,11 @@ def launch_followup_agent(
         return f"{prefix}{vcs_prefix}{prompt}" if prefix or vcs_prefix else prompt
 
     try:
-        resolved_plan = resolve_family_attach_plan(
-            FamilyAttachDirective(parent=lane, suffix="@"),
+        resolved_plan = resolve_agent_session_attach_plan(
+            AgentSessionAttachDirective(parent=lane, suffix="@"),
             project_name=project_name,
         )
-    except (FamilyAttachError, RuntimeError, OSError, ValueError) as exc:
+    except (AgentSessionAttachError, RuntimeError, OSError, ValueError) as exc:
         return _record_not_launchable(artifacts_dir, meta, str(exc), _compose(None))
 
     reserved_name = resolved_plan.agent_name
@@ -371,7 +376,7 @@ def launch_followup_agent(
     ) -> Any:
         maybe_crash("before_spawn")
         result = spawn_family_successor(
-            FamilyAttachDirective(parent=lane, suffix="@"),
+            AgentSessionAttachDirective(parent=lane, suffix="@"),
             project_name=project_name,
             prompt=prompt,
             workspace_dir=workspace_dir,

@@ -194,8 +194,8 @@ class PromptDirectives:
     clan_tribe: str | None = None
     clan_summary: str | None = None
     clan_summary_script: str | None = None
-    family_attach_parent: str | None = None
-    family_attach_suffix: str | None = None
+    agent_session_attach_parent: str | None = None
+    agent_session_attach_suffix: str | None = None
     name_template: str | None = None
     name_template_base: str | None = None
     name_indexed_template: bool = False

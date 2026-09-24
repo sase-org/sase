@@ -8,7 +8,7 @@ from sase.agent.names._registry_agent_mutations import (
 )
 from sase.agent.names._registry_group_mutations import (
     claim_registered_clan_name as claim_registered_clan_name,
-    convert_registered_agent_to_family as convert_registered_agent_to_family,
+    convert_registered_agent_to_agent_session as convert_registered_agent_to_agent_session,
     release_planned_registered_clan_name as release_planned_registered_clan_name,
     reserve_registered_clan_name as reserve_registered_clan_name,
 )
@@ -24,7 +24,7 @@ __all__ = [
     "RegistryMutationOperations",
     "claim_registered_clan_name",
     "claim_registered_name",
-    "convert_registered_agent_to_family",
+    "convert_registered_agent_to_agent_session",
     "delete_registered_name",
     "release_planned_registered_clan_name",
     "release_planned_registered_name",

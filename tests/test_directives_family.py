@@ -362,7 +362,7 @@ def test_clan_directive_rejects_duplicate_alias_occurrence() -> None:
         extract_prompt_directives("%clan:root\n%c:other\nDo work")
 
 
-def test_clan_directive_conflicts_with_serial_family_attach() -> None:
+def test_clan_directive_conflicts_with_serial_agent_session_attach() -> None:
     prompt = "%i(reviewer, family=parent)\n%clan:parent\nDo work"
 
     with pytest.raises(

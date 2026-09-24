@@ -54,7 +54,7 @@ class _CollectedDirectives:
     clan_summary_script_present: bool = False
     name_clan_arg: str | None = None
     name_force_reuse: bool = False
-    name_family_args: tuple[str, str] | None = None
+    name_agent_session_args: tuple[str, str] | None = None
     literal_directives: set[str] = field(default_factory=set)
     regions_to_remove: list[tuple[int, int]] = field(default_factory=list)
     proc_code: CodeValue | None = None
@@ -536,10 +536,10 @@ def _validate_clan_directive_contract(collected: _CollectedDirectives) -> None:
             "Cannot combine %clan with %id(..., tribe=...); use "
             "%clan(<clan>, tribe=<tribe>) to set the clan's tribe."
         )
-    if "clan" in collected.seen and collected.name_family_args is not None:
+    if "clan" in collected.seen and collected.name_agent_session_args is not None:
         raise DirectiveError(
             "Cannot combine %clan with %id(..., family=...); choose clan "
-            "membership or serial family attachment."
+            "membership or serial agent-session attachment."
         )
 
 
@@ -593,7 +593,7 @@ def _collect_name_paren_args(
     positional_args: list[str],
     named_args: dict[str, str],
 ) -> tuple[list[str], bool]:
-    from sase.agent.family_attach import parse_name_directive_args
+    from sase.agent.agent_session_attach import parse_name_directive_args
 
     try:
         parsed_name = parse_name_directive_args(
@@ -611,10 +611,13 @@ def _collect_name_paren_args(
         collected.seen["tribe"] = parsed_name.tribe
     if parsed_name.force_reuse:
         collected.name_force_reuse = True
-    if parsed_name.family_parent is not None and parsed_name.family_suffix is not None:
-        collected.name_family_args = (
-            parsed_name.family_parent,
-            parsed_name.family_suffix,
+    if (
+        parsed_name.agent_session_parent is not None
+        and parsed_name.agent_session_suffix is not None
+    ):
+        collected.name_agent_session_args = (
+            parsed_name.agent_session_parent,
+            parsed_name.agent_session_suffix,
         )
         match_end = paren_end + 1
         if "id" in collected.seen:

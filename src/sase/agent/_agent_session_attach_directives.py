@@ -1,11 +1,11 @@
-"""Directive parsing helpers for ``%id(suffix, family=parent)`` attach."""
+"""Directive parsing helpers for ``%id(suffix, family=parent)`` agent-session attach."""
 
 from __future__ import annotations
 
 import re
 from typing import Any
 
-from sase.agent import _family_attach_types as _types
+from sase.agent import _agent_session_attach_types as _types
 from sase.plan_chain import AGENT_SESSION_SEPARATOR
 
 _SUFFIX_TOKEN_RE = re.compile(r"^[A-Za-z0-9_]+$")
@@ -19,7 +19,7 @@ def parse_name_directive_args(
     *,
     source: str,
 ) -> _types.ParsedNameDirective:
-    """Classify ``%id`` / ``%i`` arguments as plain naming or family attach."""
+    """Classify ``%id`` / ``%i`` arguments as plain naming or agent-session attach."""
 
     unknown_keys = sorted(
         key for key in named_args if key not in _NAME_DIRECTIVE_KEYWORDS
@@ -76,33 +76,33 @@ def parse_name_directive_args(
             force_reuse=force_reuse,
         )
 
-    family = named_args.get("family")
-    if family is not None:
+    parent_arg = named_args.get("family")
+    if parent_arg is not None:
         if len(positional_args) != 1:
             raise ValueError(
                 f"The family= keyword on {source} requires exactly one positional "
                 "suffix; use %id(<suffix>, family=<family>) or "
                 "%id(@, family=<family>)."
             )
-        parent = family.strip()
+        parent = parent_arg.strip()
         suffix = positional_args[0].strip()
         force_reuse = suffix.startswith("!")
         if force_reuse:
             suffix = suffix[1:]
         if not parent:
             raise ValueError(
-                f"The family= keyword on {source} requires a non-empty family name."
+                f"The family= keyword on {source} requires a non-empty agent session name."
             )
         if not suffix:
             raise ValueError(
                 f"The family= keyword on {source} requires a non-empty suffix."
             )
-        normalize_family_suffix_arg(suffix)
+        normalize_agent_session_suffix_arg(suffix)
         return _types.ParsedNameDirective(
             bead_id=bead_id,
             force_reuse=force_reuse,
-            family_parent=parent,
-            family_suffix=suffix,
+            agent_session_parent=parent,
+            agent_session_suffix=suffix,
         )
 
     tribe = named_args.get("tribe")
@@ -129,10 +129,10 @@ def parse_name_directive_args(
     )
 
 
-def extract_family_attach_directive(
+def extract_agent_session_attach_directive(
     prompt: str,
-) -> _types.FamilyAttachDirective | None:
-    """Return the first top-level family attach directive in *prompt*."""
+) -> _types.AgentSessionAttachDirective | None:
+    """Return the first top-level agent-session attach directive in *prompt*."""
 
     if "%" not in prompt:
         return None
@@ -163,22 +163,25 @@ def extract_family_attach_directive(
             named_args,
             source=f"%{raw_name}",
         )
-        if parsed.family_parent is not None and parsed.family_suffix is not None:
-            return _types.FamilyAttachDirective(
-                parsed.family_parent,
-                parsed.family_suffix,
+        if (
+            parsed.agent_session_parent is not None
+            and parsed.agent_session_suffix is not None
+        ):
+            return _types.AgentSessionAttachDirective(
+                parsed.agent_session_parent,
+                parsed.agent_session_suffix,
                 force_reuse=parsed.force_reuse,
             )
     return None
 
 
-def _family_attach_parent_from_prompt(prompt: str) -> str | None:
+def _agent_session_attach_parent_from_prompt(prompt: str) -> str | None:
     """Return the parent named by a top-level ``%id(suffix, family=parent)``."""
-    directive = extract_family_attach_directive(prompt)
+    directive = extract_agent_session_attach_directive(prompt)
     return None if directive is None else directive.parent
 
 
-def default_with_feedback_parent_from_family_attach(
+def default_with_feedback_parent_from_agent_session_attach(
     workflow_name: str,
     args: dict[str, Any],
     *,
@@ -186,7 +189,7 @@ def default_with_feedback_parent_from_family_attach(
     reference_offset: int | None = None,
     fenced_ranges: list[tuple[int, int]] | None = None,
 ) -> None:
-    """Default ``#with_feedback``'s parent from a co-occurring family attach."""
+    """Default ``#with_feedback``'s parent from a co-occurring agent-session attach."""
     if workflow_name != "with_feedback" or args.get("parent"):
         return
     if reference_offset is not None:
@@ -195,7 +198,7 @@ def default_with_feedback_parent_from_family_attach(
             reference_offset,
             fenced_ranges or [],
         )
-    parent = _family_attach_parent_from_prompt(prompt)
+    parent = _agent_session_attach_parent_from_prompt(prompt)
     if parent:
         args["parent"] = parent
 
@@ -224,25 +227,25 @@ def _prompt_segment_at_offset(
     return prompt[start:end]
 
 
-def normalize_family_suffix_arg(suffix: str) -> str:
+def normalize_agent_session_suffix_arg(suffix: str) -> str:
     if suffix == "@":
         return f"{AGENT_SESSION_SEPARATOR}@"
     if suffix.startswith((".", "-")) or AGENT_SESSION_SEPARATOR in suffix:
         raise ValueError(
-            f"Invalid %i family suffix '{suffix}'. Pass the bare suffix "
-            "without a family separator, e.g. %i(reviewer, family=parent)."
+            f"Invalid %i session suffix '{suffix}'. Pass the bare suffix "
+            "without a session separator, e.g. %i(reviewer, family=parent)."
         )
     if not _SUFFIX_TOKEN_RE.fullmatch(suffix):
         raise ValueError(
-            f"Invalid %i family suffix '{suffix}'. Use letters, numbers, "
+            f"Invalid %i session suffix '{suffix}'. Use letters, numbers, "
             "and underscores only, or @ to allocate the next free suffix."
         )
     return f"{AGENT_SESSION_SEPARATOR}{suffix}"
 
 
 __all__ = [
-    "default_with_feedback_parent_from_family_attach",
-    "extract_family_attach_directive",
-    "normalize_family_suffix_arg",
+    "default_with_feedback_parent_from_agent_session_attach",
+    "extract_agent_session_attach_directive",
+    "normalize_agent_session_suffix_arg",
     "parse_name_directive_args",
 ]

@@ -1,4 +1,4 @@
-"""Persist the first member identity when an agent becomes a family."""
+"""Persist the first member identity when an agent becomes an agent session."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import time
 from collections.abc import Mapping
 from typing import Any
 
-from sase.agent._family_attach_types import FamilyAttachError
+from sase.agent._agent_session_attach_types import AgentSessionAttachError
 from sase.plan_chain import (
     AGENT_SESSION_SEPARATOR,
     PLAN_CHAIN_PLAN_SUFFIX,
@@ -24,8 +24,8 @@ _GENERIC_ROOT_SUFFIX = f"{AGENT_SESSION_SEPARATOR}0"
 _PLAN_ROOT_SUFFIX = PLAN_CHAIN_PLAN_SUFFIX
 
 
-def family_root_role_suffix(meta: Mapping[str, object]) -> str:
-    """Return the persisted suffix for a bare agent becoming a family member."""
+def agent_session_root_role_suffix(meta: Mapping[str, object]) -> str:
+    """Return the persisted suffix for a bare agent becoming a session member."""
     role_suffix = meta.get("role_suffix")
     canonical = canonical_plan_chain_suffix(role_suffix)
     if (
@@ -38,37 +38,37 @@ def family_root_role_suffix(meta: Mapping[str, object]) -> str:
     return _GENERIC_ROOT_SUFFIX
 
 
-def normalized_family_root_role_suffix(role_suffix: str | None) -> str:
-    """Normalize a caller's original role into its first family-member slot."""
+def normalized_agent_session_root_role_suffix(role_suffix: str | None) -> str:
+    """Normalize a caller's original role into its first session-member slot."""
     if canonical_plan_chain_suffix(role_suffix) == PLAN_CHAIN_PLAN_SUFFIX:
         return _PLAN_ROOT_SUFFIX
     return _GENERIC_ROOT_SUFFIX
 
 
-def promote_family_parent_for_attach(
+def promote_agent_session_parent_for_attach(
     plan: Any,
     *,
     wait_for_meta_seconds: float = 5.0,
 ) -> str:
-    """Rename the original parent described by a family-attach launch plan."""
+    """Rename the original parent described by an agent-session-attach launch plan."""
     if not plan.parent_needs_rename:
         return plan.parent_name
-    return promote_agent_to_family(
+    return promote_agent_to_agent_session(
         plan.parent_artifacts_dir,
         plan.parent_base,
-        root_role_suffix=plan.parent_family_role_suffix,
+        root_role_suffix=plan.parent_agent_session_role_suffix,
         wait_for_meta_seconds=wait_for_meta_seconds,
     )
 
 
-def promote_agent_to_family(
+def promote_agent_to_agent_session(
     artifacts_dir: str | Path,
     base_name: str,
     *,
     root_role_suffix: str | None = None,
     wait_for_meta_seconds: float = 0.0,
 ) -> str:
-    """Persistently rename a bare agent and reserve its family container.
+    """Persistently rename a bare agent and reserve its session container.
 
     The artifact directory is timestamp-keyed, so only metadata and the name
     registry change. Both mutations run under the global name-allocation lock;
@@ -98,26 +98,26 @@ def promote_agent_to_family(
         )
         current_name = meta.get("name")
         if not isinstance(current_name, str) or not current_name:
-            raise FamilyAttachError(
-                f"Cannot create agent family '{base_name}': parent metadata "
+            raise AgentSessionAttachError(
+                f"Cannot create agent session '{base_name}': parent metadata "
                 "does not contain a name."
             )
 
-        existing_family = agent_session_value(meta)
-        family_prefix = f"{durable_base}{AGENT_SESSION_SEPARATOR}"
-        legacy_family_prefix = f"{base_name}{AGENT_SESSION_SEPARATOR}"
-        if current_name.startswith((family_prefix, legacy_family_prefix)):
-            if not isinstance(existing_family, str) or (
-                current_owner_agent_name_key(existing_family, identity)
+        existing_agent_session = agent_session_value(meta)
+        agent_session_prefix = f"{durable_base}{AGENT_SESSION_SEPARATOR}"
+        legacy_agent_session_prefix = f"{base_name}{AGENT_SESSION_SEPARATOR}"
+        if current_name.startswith((agent_session_prefix, legacy_agent_session_prefix)):
+            if not isinstance(existing_agent_session, str) or (
+                current_owner_agent_name_key(existing_agent_session, identity)
                 != current_owner_agent_name_key(durable_base, identity)
             ):
-                raise FamilyAttachError(
-                    f"Cannot create agent family '{base_name}': parent "
-                    f"'{current_name}' belongs to a different family."
+                raise AgentSessionAttachError(
+                    f"Cannot create agent session '{base_name}': parent "
+                    f"'{current_name}' belongs to a different agent session."
                 )
-            from sase.agent.names import convert_registered_agent_to_family
+            from sase.agent.names import convert_registered_agent_to_agent_session
 
-            convert_registered_agent_to_family(
+            convert_registered_agent_to_agent_session(
                 durable_base,
                 current_name,
                 artifact_path,
@@ -128,20 +128,20 @@ def promote_agent_to_family(
         if current_owner_agent_name_key(
             current_name, identity
         ) != current_owner_agent_name_key(durable_base, identity):
-            raise FamilyAttachError(
-                f"Cannot create agent family '{base_name}': resolved parent "
+            raise AgentSessionAttachError(
+                f"Cannot create agent session '{base_name}': resolved parent "
                 f"is named '{current_name}'."
             )
 
-        derived_suffix = family_root_role_suffix(meta)
+        derived_suffix = agent_session_root_role_suffix(meta)
         suffix = (
             _PLAN_ROOT_SUFFIX
             if _PLAN_ROOT_SUFFIX in {root_role_suffix, derived_suffix}
             else root_role_suffix or derived_suffix
         )
         if suffix not in {_GENERIC_ROOT_SUFFIX, _PLAN_ROOT_SUFFIX}:
-            raise FamilyAttachError(
-                f"Cannot create agent family '{base_name}': invalid original "
+            raise AgentSessionAttachError(
+                f"Cannot create agent session '{base_name}': invalid original "
                 f"member suffix '{suffix}'."
             )
         member_name = f"{durable_base}{suffix}"
@@ -157,9 +157,9 @@ def promote_agent_to_family(
 
         _write_json_atomic(meta_path, promoted)
         try:
-            from sase.agent.names import convert_registered_agent_to_family
+            from sase.agent.names import convert_registered_agent_to_agent_session
 
-            convert_registered_agent_to_family(
+            convert_registered_agent_to_agent_session(
                 durable_base,
                 member_name,
                 artifact_path,
@@ -191,8 +191,8 @@ def _read_meta_with_retry(path: Path, *, timeout_seconds: float) -> dict[str, An
         except (FileNotFoundError, json.JSONDecodeError, OSError):
             pass
         if time.monotonic() >= deadline:
-            raise FamilyAttachError(
-                f"Cannot create agent family: parent metadata is unavailable at {path}."
+            raise AgentSessionAttachError(
+                f"Cannot create agent session: parent metadata is unavailable at {path}."
             )
         time.sleep(0.05)
 
@@ -221,8 +221,8 @@ def _write_json_atomic(path: Path, data: Mapping[str, object]) -> None:
 
 
 __all__ = [
-    "family_root_role_suffix",
-    "normalized_family_root_role_suffix",
-    "promote_agent_to_family",
-    "promote_family_parent_for_attach",
+    "agent_session_root_role_suffix",
+    "normalized_agent_session_root_role_suffix",
+    "promote_agent_to_agent_session",
+    "promote_agent_session_parent_for_attach",
 ]

@@ -471,8 +471,10 @@ def test_forced_family_member_relaunch_keeps_its_family_parent_resolvable(
     """
     from pathlib import Path
 
-    from sase.agent._family_attach_resolution import resolve_family_attach_plan
-    from sase.agent._family_attach_types import FamilyAttachDirective
+    from sase.agent._agent_session_attach_resolution import (
+        resolve_agent_session_attach_plan,
+    )
+    from sase.agent._agent_session_attach_types import AgentSessionAttachDirective
     from sase.agent.force_reuse_launch import (
         apply_force_reuse_launch,
         plan_force_reuse_launch,
@@ -514,8 +516,10 @@ def test_forced_family_member_relaunch_keeps_its_family_parent_resolvable(
         assert root.exists()
         assert {family_name, plan_name} <= get_reserved_agent_names()
 
-        attach_plan = resolve_family_attach_plan(
-            FamilyAttachDirective(parent=family_name, suffix="code", force_reuse=True),
+        attach_plan = resolve_agent_session_attach_plan(
+            AgentSessionAttachDirective(
+                parent=family_name, suffix="code", force_reuse=True
+            ),
             project_name="proj",
         )
 

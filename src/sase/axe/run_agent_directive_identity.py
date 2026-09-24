@@ -15,7 +15,7 @@ from sase.axe.run_agent_directive_metadata import (
 
 if TYPE_CHECKING:
     from sase.agent.clan_membership import ClanMembershipPlan
-    from sase.agent.family_attach import FamilyAttachLaunchPlan
+    from sase.agent.agent_session_attach import AgentSessionAttachLaunchPlan
     from sase.xprompt.directives import PromptDirectives
 
 log = logging.getLogger(__name__)
@@ -47,14 +47,16 @@ class AgentIdentity:
 def prepare_agent_name_request(
     *,
     directives: PromptDirectives,
-    family_attach_plan: FamilyAttachLaunchPlan | None,
+    agent_session_attach_plan: AgentSessionAttachLaunchPlan | None,
     fork_reference_prompt: str,
     wait_names: list[str],
     auto_dismiss: str | None,
 ) -> _AgentNameRequest:
     """Capture environment-driven name inputs before provider resolution."""
     agent_name = (
-        family_attach_plan.agent_name if family_attach_plan else directives.name
+        agent_session_attach_plan.agent_name
+        if agent_session_attach_plan
+        else directives.name
     )
     resume_name: str | None = None
     wait_name: str | None = None
@@ -78,7 +80,7 @@ def prepare_agent_name_request(
     # collision checks.
     generated_name = os.environ.pop("SASE_AGENT_GENERATED_NAME", None) == "1"
     user_explicit = (
-        bool(family_attach_plan) or directives.name_explicit
+        bool(agent_session_attach_plan) or directives.name_explicit
     ) and not generated_name
     requires_lock = bool(
         agent_name or repeat_name or resume_name or wait_name or not auto_dismiss
@@ -98,7 +100,7 @@ def resolve_agent_identity(
     request: _AgentNameRequest,
     *,
     directives: PromptDirectives,
-    family_attach_plan: FamilyAttachLaunchPlan | None,
+    agent_session_attach_plan: AgentSessionAttachLaunchPlan | None,
     clan_membership_plan: ClanMembershipPlan | None,
     artifacts_dir: str,
     metadata_inputs: AgentMetadataInputs,
@@ -197,7 +199,7 @@ def resolve_agent_identity(
             directives=directives,
             agent_name=agent_name,
             agent_tribe=agent_tribe,
-            family_attach_plan=family_attach_plan,
+            agent_session_attach_plan=agent_session_attach_plan,
             clan_membership_plan=clan_membership_plan,
         )
 

@@ -372,8 +372,8 @@ def test_with_feedback_xprompt_defaults_parent_from_family_attach(
     )
 
     assert cleaned.lstrip() == expected
-    assert directives.family_attach_parent == "parent_agent"
-    assert directives.family_attach_suffix == "@"
+    assert directives.agent_session_attach_parent == "parent_agent"
+    assert directives.agent_session_attach_suffix == "@"
     assert workflows[0].context["parent"] == "parent_agent"
     assert workflows[0].workflow_name == "with_feedback"
 
@@ -438,8 +438,8 @@ def test_with_q_and_a_xprompt_composes_with_family_attach_directive(
     )
 
     assert cleaned.lstrip() == expected
-    assert directives.family_attach_parent == "parent_agent"
-    assert directives.family_attach_suffix == "@"
+    assert directives.agent_session_attach_parent == "parent_agent"
+    assert directives.agent_session_attach_suffix == "@"
     assert workflows[0].workflow_name == "with_q_and_a"
 
 

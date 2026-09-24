@@ -156,14 +156,14 @@ def test_collision_validation_suggests_clan_hood_name(tmp_path: Path) -> None:
 def test_collision_validation_preserves_family_container(tmp_path: Path) -> None:
     from sase.agent.names import (
         claim_registered_name,
-        convert_registered_agent_to_family,
+        convert_registered_agent_to_agent_session,
     )
 
     artifacts_dir = tmp_path / ".sase/projects/proj/artifacts/ace-run/run1"
     artifacts_dir.mkdir(parents=True)
     with patch.object(Path, "home", return_value=tmp_path):
         claim_registered_name("review", artifacts_dir)
-        convert_registered_agent_to_family("review", "review--0", artifacts_dir)
+        convert_registered_agent_to_agent_session("review", "review--0", artifacts_dir)
         with pytest.raises(
             AgentNameFamilyCollisionError,
             match=r"Attach a member with %i\(suffix, family=parent\)",
@@ -182,7 +182,9 @@ def test_forced_reuse_requires_confirmation_on_non_tui_surfaces() -> None:
         validate_launch_name_requests(["%id:!foo\nDo work"])
 
 
-def test_forced_family_attach_requires_confirmation_and_derives_exact_owner() -> None:
+def test_forced_agent_session_attach_requires_confirmation_and_derives_exact_owner() -> (
+    None
+):
     prompt = "%id(!code, family=foo)\nDo work"
 
     with pytest.raises(AgentNameReuseConfirmationRequiredError, match="foo--code"):
@@ -195,7 +197,9 @@ def test_forced_family_attach_requires_confirmation_and_derives_exact_owner() ->
     )
 
 
-def test_forced_family_attach_does_not_relax_direct_family_shaped_names() -> None:
+def test_forced_agent_session_attach_does_not_relax_direct_session_shaped_names() -> (
+    None
+):
     preflight_launch_name_requests(
         ["%id(!code, family=foo)\nDo work"],
         allow_force_reuse=True,

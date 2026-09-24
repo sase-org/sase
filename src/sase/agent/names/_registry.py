@@ -477,7 +477,9 @@ claim_registered_name = _mutations.claim_registered_name
 reserve_registered_name = _mutations.reserve_registered_name
 reserve_registered_clan_name = _mutations.reserve_registered_clan_name
 claim_registered_clan_name = _mutations.claim_registered_clan_name
-convert_registered_agent_to_family = _mutations.convert_registered_agent_to_family
+convert_registered_agent_to_agent_session = (
+    _mutations.convert_registered_agent_to_agent_session
+)
 release_planned_registered_clan_name = _mutations.release_planned_registered_clan_name
 reserve_registered_template_name = _mutations.reserve_registered_template_name
 reserve_registered_template_names = _mutations.reserve_registered_template_names

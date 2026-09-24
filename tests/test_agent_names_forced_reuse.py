@@ -20,7 +20,7 @@ import pytest
 from sase.agent.names import (
     ForcedReuseCleanupError,
     claim_registered_name,
-    convert_registered_agent_to_family,
+    convert_registered_agent_to_agent_session,
     get_reserved_agent_names,
     lookup_registered_name,
     rebuild_name_registry,
@@ -58,7 +58,7 @@ def test_stale_session_container_skips_wipe_and_releases(tmp_path: Path) -> None
     root.mkdir(parents=True)
     with patch.object(Path, "home", return_value=tmp_path):
         claim_registered_name("foo", root)
-        convert_registered_agent_to_family("foo", "foo--0", root)
+        convert_registered_agent_to_agent_session("foo", "foo--0", root)
         assert lookup_registered_name("foo")["container_kind"] == "session"
 
         skipped = wipe_agent_name_for_reuse("foo")

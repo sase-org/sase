@@ -14,7 +14,7 @@ def rewrite_retry_prompt_name(
     directive_alias: Literal["id", "i"] = "id",
 ) -> str:
     """Replace or prepend the top-level prompt ``%id`` directive for retry."""
-    from sase.agent.family_attach import extract_family_attach_directive
+    from sase.agent.agent_session_attach import extract_agent_session_attach_directive
     from sase.xprompt.directive_edit import set_prompt_name
 
     # A retry name is already the concrete derived name (for example,
@@ -22,7 +22,7 @@ def rewrite_retry_prompt_name(
     # as a bare family suffix, producing an invalid directive. Drop only that
     # obsolete membership attachment; orthogonal launch metadata such as
     # bead= must survive the retry.
-    family_retry = extract_family_attach_directive(raw_prompt) is not None
+    family_retry = extract_agent_session_attach_directive(raw_prompt) is not None
     return set_prompt_name(
         raw_prompt,
         retry_name,

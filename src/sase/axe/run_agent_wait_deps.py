@@ -14,6 +14,7 @@ from pathlib import Path
 from sase.axe.run_agent_wait_markers import read_json_dict
 from sase.bead.wait_status import closed_bead_ids_for_waits
 from sase.core.wait_dependency_resolution import (
+    WaitDependencyIndex,
     build_wait_dependency_index,
     confirm_dependency_resolution,
     dependency_resolution_status,
@@ -62,7 +63,7 @@ def initial_dependencies_resolved(
     try:
         global_stored_tribes = stored_tribe_names_for_resolution()
 
-        def build_index():
+        def build_index() -> WaitDependencyIndex:
             index = build_wait_dependency_index(project_name)
             index.global_stored_tribes = global_stored_tribes
             return index

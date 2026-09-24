@@ -4,11 +4,11 @@ from unittest.mock import patch
 
 import pytest
 
-from sase.agent.family_attach import (
-    FamilyAttachDirective,
-    FamilyAttachError,
-    default_with_feedback_parent_from_family_attach,
-    extract_family_attach_directive,
+from sase.agent.agent_session_attach import (
+    AgentSessionAttachDirective,
+    AgentSessionAttachError,
+    default_with_feedback_parent_from_agent_session_attach,
+    extract_agent_session_attach_directive,
 )
 from sase.agent.launch_validation import validate_launch_name_requests
 from sase.agent.multi_prompt_reference_directives import extract_static_name_directive
@@ -20,13 +20,13 @@ from sase.xprompt._exceptions import DirectiveError
 from sase.xprompt.directives import extract_prompt_directives
 
 
-def test_name_directive_family_attach_form_parses_and_strips() -> None:
+def test_name_directive_agent_session_attach_form_parses_and_strips() -> None:
     cleaned, directives = extract_prompt_directives("%i(reviewer, family=foo)\nDo work")
 
     assert cleaned == "Do work"
     assert directives.name is None
-    assert directives.family_attach_parent == "foo"
-    assert directives.family_attach_suffix == "reviewer"
+    assert directives.agent_session_attach_parent == "foo"
+    assert directives.agent_session_attach_suffix == "reviewer"
 
 
 def test_name_directive_single_positional_keeps_plain_name_behavior() -> None:
@@ -34,7 +34,7 @@ def test_name_directive_single_positional_keeps_plain_name_behavior() -> None:
 
     assert cleaned == "Do work"
     assert directives.name == "foo"
-    assert directives.family_attach_parent is None
+    assert directives.agent_session_attach_parent is None
 
 
 def test_name_directive_rejects_positional_family_form_and_unknown_keywords() -> None:
@@ -61,7 +61,7 @@ def test_name_directive_family_keyword_requires_suffix_and_parent() -> None:
     ):
         extract_prompt_directives("%id(family=foo)\nDo work")
 
-    with pytest.raises(DirectiveError, match="requires a non-empty family name"):
+    with pytest.raises(DirectiveError, match="requires a non-empty agent session name"):
         extract_prompt_directives("%id(reviewer, family=)\nDo work")
 
 
@@ -91,49 +91,51 @@ def test_name_directive_tribe_keyword_parses() -> None:
     assert directives.tribe == "research"
 
 
-def test_name_directive_rejects_legacy_family_suffix_spellings() -> None:
-    with pytest.raises(DirectiveError, match="without a family separator"):
+def test_name_directive_rejects_legacy_agent_session_suffix_spellings() -> None:
+    with pytest.raises(DirectiveError, match="without a session separator"):
         extract_prompt_directives("%i(.reviewer, family=foo)\nDo work")
 
-    with pytest.raises(DirectiveError, match="without a family separator"):
+    with pytest.raises(DirectiveError, match="without a session separator"):
         extract_prompt_directives("%i(-reviewer, family=foo)\nDo work")
 
 
-def test_prelaunch_name_helpers_ignore_family_attach_form() -> None:
+def test_prelaunch_name_helpers_ignore_agent_session_attach_form() -> None:
     prompt = "%i(reviewer, family=foo)\nDo work"
 
     assert extract_static_name_directive(prompt) is None
     validate_launch_name_requests([prompt])
 
 
-def test_extract_family_attach_directive() -> None:
-    directive = extract_family_attach_directive("%model:codex/gpt-5\n%i(@, family=foo)")
+def test_extract_agent_session_attach_directive() -> None:
+    directive = extract_agent_session_attach_directive(
+        "%model:codex/gpt-5\n%i(@, family=foo)"
+    )
 
-    assert directive == FamilyAttachDirective(parent="foo", suffix="@")
+    assert directive == AgentSessionAttachDirective(parent="foo", suffix="@")
 
 
-def test_extract_forced_family_attach_directive() -> None:
+def test_extract_forced_agent_session_attach_directive() -> None:
     prompt = "%id(!code, family=foo, bead=sase-1)\nDo work"
 
     cleaned, directives = extract_prompt_directives(prompt)
-    directive = extract_family_attach_directive(prompt)
+    directive = extract_agent_session_attach_directive(prompt)
 
     assert cleaned == "Do work"
     assert directives.name_force_reuse is True
-    assert directives.family_attach_parent == "foo"
-    assert directives.family_attach_suffix == "code"
+    assert directives.agent_session_attach_parent == "foo"
+    assert directives.agent_session_attach_suffix == "code"
     assert directives.bead_id == "sase-1"
-    assert directive == FamilyAttachDirective(
+    assert directive == AgentSessionAttachDirective(
         parent="foo",
         suffix="code",
         force_reuse=True,
     )
 
 
-def test_with_feedback_parent_default_uses_family_attach_directive() -> None:
+def test_with_feedback_parent_default_uses_agent_session_attach_directive() -> None:
     args: dict[str, str] = {"feedback": "tighten tests"}
 
-    default_with_feedback_parent_from_family_attach(
+    default_with_feedback_parent_from_agent_session_attach(
         "with_feedback",
         args,
         prompt="%i(@, family=foo) #with_feedback:: tighten tests",
@@ -142,7 +144,7 @@ def test_with_feedback_parent_default_uses_family_attach_directive() -> None:
     assert args["parent"] == "foo"
 
 
-def test_custom_family_role_classifies_plan_chain_metadata() -> None:
+def test_custom_agent_session_role_classifies_plan_chain_metadata() -> None:
     meta = {
         "name": "foo--reviewer",
         "workflow_name": "foo",
@@ -156,12 +158,14 @@ def test_custom_family_role_classifies_plan_chain_metadata() -> None:
     assert is_plan_chain_artifact_meta(meta)
 
 
-def test_family_attach_collision_message_suggests_auto_suffix() -> None:
-    from sase.agent._family_attach_resolution import _ensure_family_name_available
+def test_agent_session_attach_collision_message_suggests_auto_suffix() -> None:
+    from sase.agent._agent_session_attach_resolution import (
+        _ensure_agent_session_name_available,
+    )
 
     with patch("sase.agent.names.get_reserved_agent_names", return_value={"foo--bar"}):
-        with pytest.raises(FamilyAttachError, match=r"%i\(@, family=foo\)"):
-            _ensure_family_name_available(
+        with pytest.raises(AgentSessionAttachError, match=r"%i\(@, family=foo\)"):
+            _ensure_agent_session_name_available(
                 "foo--bar",
-                FamilyAttachDirective(parent="foo", suffix="bar"),
+                AgentSessionAttachDirective(parent="foo", suffix="bar"),
             )

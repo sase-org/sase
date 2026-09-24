@@ -118,13 +118,13 @@ def claim_registered_clan_name(
         operations.save_entries(entries)
 
 
-def convert_registered_agent_to_family(
+def convert_registered_agent_to_agent_session(
     operations: RegistryMutationOperations,
     name: str,
     member_name: str,
     claiming_dir: str | Path,
 ) -> None:
-    """Convert one agent claim into a family container plus member claim."""
+    """Convert one agent claim into a session container plus member claim."""
     with operations.lock():
         identity = AgentIdentitySnapshot.current()
         name = normalize_owned_agent_name(name, identity)

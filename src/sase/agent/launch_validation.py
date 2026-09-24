@@ -37,7 +37,7 @@ class _LaunchNameRequest:
     name_template: bool
     prompt_index: int
     bead_id: str | None = None
-    family_attach_parent: str | None = None
+    agent_session_attach_parent: str | None = None
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ class _ParsedLaunchNameDirective:
     name: str
     force_reuse: bool
     name_template: bool
-    family_attach_parent: str | None = None
+    agent_session_attach_parent: str | None = None
     bead_id: str | None = None
 
 
@@ -212,7 +212,7 @@ def _explicit_launch_name_requests(prompts: list[str]) -> list[_LaunchNameReques
                 name_template=parsed.name_template,
                 prompt_index=i,
                 bead_id=parsed.bead_id,
-                family_attach_parent=parsed.family_attach_parent,
+                agent_session_attach_parent=parsed.agent_session_attach_parent,
             )
         )
     return requests
@@ -348,8 +348,8 @@ def _preflight_launch_name_requests(
 
     if not allow_reserved_family_separator_names:
         for request in requests:
-            if request.family_attach_parent is not None:
-                validate_user_agent_name(request.family_attach_parent)
+            if request.agent_session_attach_parent is not None:
+                validate_user_agent_name(request.agent_session_attach_parent)
             elif not request.name_template:
                 validate_user_agent_name(request.name)
 
@@ -556,7 +556,7 @@ def _iter_explicit_name_directives(
             if paren_end is not None:
                 inner = protected[paren_start + 1 : paren_end]
                 positional_args, named_args = parse_args(inner)
-                from sase.agent.family_attach import parse_name_directive_args
+                from sase.agent.agent_session_attach import parse_name_directive_args
 
                 try:
                     parsed = parse_name_directive_args(
@@ -567,25 +567,27 @@ def _iter_explicit_name_directives(
                 except ValueError as exc:
                     raise _AgentNameDirectiveSyntaxError(str(exc)) from exc
                 if (
-                    parsed.family_parent is not None
-                    and parsed.family_suffix is not None
+                    parsed.agent_session_parent is not None
+                    and parsed.agent_session_suffix is not None
                 ):
                     if not parsed.force_reuse:
                         if stop_after_first_directive:
                             return directives
                         continue
-                    from sase.agent.family_attach import normalize_family_suffix_arg
+                    from sase.agent.agent_session_attach import (
+                        normalize_agent_session_suffix_arg,
+                    )
 
                     exact_name = (
-                        f"{parsed.family_parent}"
-                        f"{normalize_family_suffix_arg(parsed.family_suffix)}"
+                        f"{parsed.agent_session_parent}"
+                        f"{normalize_agent_session_suffix_arg(parsed.agent_session_suffix)}"
                     )
                     directives.append(
                         _ParsedLaunchNameDirective(
                             name=exact_name,
                             force_reuse=True,
                             name_template=False,
-                            family_attach_parent=parsed.family_parent,
+                            agent_session_attach_parent=parsed.agent_session_parent,
                             bead_id=parsed.bead_id,
                         )
                     )

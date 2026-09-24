@@ -184,10 +184,12 @@ def record_parent_refusal(
 
 def _parent_artifacts_dir(env: Mapping[str, str]) -> str | None:
     try:
-        from sase.agent._family_attach_types import FAMILY_ATTACH_ENV
+        from sase.agent._agent_session_attach_types import (
+            LEGACY_AGENT_FAMILY_ATTACH_ENV,
+        )
     except Exception:
         return None
-    raw = env.get(FAMILY_ATTACH_ENV)
+    raw = env.get(LEGACY_AGENT_FAMILY_ATTACH_ENV)
     if not raw:
         return None
     try:

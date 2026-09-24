@@ -10,12 +10,12 @@ from unittest.mock import patch
 import pytest
 
 from sase.ace.tui.models.agent import Agent, AgentType
-from sase.agent.family_attach import (
-    FAMILY_ATTACH_ENV,
-    FamilyAttachLaunchPlan,
-    prepare_family_attach_launch,
+from sase.agent.agent_session_attach import (
+    LEGACY_AGENT_FAMILY_ATTACH_ENV,
+    AgentSessionAttachLaunchPlan,
+    prepare_agent_session_attach_launch,
 )
-from sase.agent._family_promotion import promote_agent_to_family
+from sase.agent._agent_session_promotion import promote_agent_to_agent_session
 from sase.agent.launch_executor import LaunchExecutionContext
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.axe.run_agent_directives import extract_directives_and_write_meta
@@ -25,14 +25,14 @@ from sase.plan_chain import (
     AGENT_SESSION_ROLE_KEY,
     PLAN_CHAIN_PARENT_TIMESTAMP_FIELD,
 )
-from tests._dynamic_agent_family_attach_helpers import (
+from tests._dynamic_agent_session_attach_helpers import (
     _artifact_record,
     _patch_attach_snapshot,
     _write_agent_artifact,
 )
 
 
-def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
+def test_agent_session_attach_metadata_matches_runner_followup_and_tui_agent_session_child(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -88,7 +88,7 @@ def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
     )
 
     prompt = "%i(code, family=foo)\nDo work"
-    prepared_context, env = prepare_family_attach_launch(
+    prepared_context, env = prepare_agent_session_attach_launch(
         prompt,
         LaunchExecutionContext(
             cl_name="launcher",
@@ -209,13 +209,13 @@ def test_family_attach_metadata_matches_runner_followup_and_tui_family_child(
     assert tui_agent.is_family_member_child is True
 
 
-def test_family_attach_child_inherits_parent_clan_metadata(
+def test_agent_session_attach_child_inherits_parent_clan_metadata(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     child_dir = tmp_path / "child"
     child_dir.mkdir()
-    plan = FamilyAttachLaunchPlan(
+    plan = AgentSessionAttachLaunchPlan(
         parent_arg="research.worker",
         suffix_arg="reviewer",
         parent_name="research.worker--0",
@@ -225,8 +225,8 @@ def test_family_attach_child_inherits_parent_clan_metadata(
         role_suffix="--reviewer",
         agent_name="research.worker--reviewer",
         agent_session_role="reviewer",
-        parent_family_member_name="research.worker--0",
-        parent_family_role_suffix="--0",
+        parent_agent_session_member_name="research.worker--0",
+        parent_agent_session_role_suffix="--0",
         parent_needs_rename=False,
         parent_project_name="sase",
         parent_cl_name="feature",
@@ -234,7 +234,7 @@ def test_family_attach_child_inherits_parent_clan_metadata(
         parent_agent_clan_generation="20260701010000",
     )
     prompt = "%i(reviewer, family=research.worker)\nReview"
-    monkeypatch.setenv(FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    monkeypatch.setenv(LEGACY_AGENT_FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
     monkeypatch.setenv(INTERNAL_AGENT_NAME_BYPASS_ENV, "1")
 
     with (
@@ -293,13 +293,13 @@ def test_family_attach_child_inherits_parent_clan_metadata(
         )
 
 
-def test_family_attach_parent_workspace_num_does_not_clobber_claimed_run(
+def test_agent_session_attach_parent_workspace_num_does_not_clobber_claimed_run(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     child_dir = tmp_path / "child"
     child_dir.mkdir()
-    plan = FamilyAttachLaunchPlan(
+    plan = AgentSessionAttachLaunchPlan(
         parent_arg="foo",
         suffix_arg="reviewer",
         parent_name="foo--0",
@@ -309,8 +309,8 @@ def test_family_attach_parent_workspace_num_does_not_clobber_claimed_run(
         role_suffix="--reviewer",
         agent_name="foo--reviewer",
         agent_session_role="reviewer",
-        parent_family_member_name="foo--0",
-        parent_family_role_suffix="--0",
+        parent_agent_session_member_name="foo--0",
+        parent_agent_session_role_suffix="--0",
         parent_needs_rename=False,
         parent_project_name="sase",
         parent_cl_name="feature",
@@ -318,7 +318,7 @@ def test_family_attach_parent_workspace_num_does_not_clobber_claimed_run(
         parent_workspace_num=7,
     )
     prompt = "%i(reviewer, family=foo)\nReview"
-    monkeypatch.setenv(FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    monkeypatch.setenv(LEGACY_AGENT_FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
     monkeypatch.setenv(INTERNAL_AGENT_NAME_BYPASS_ENV, "1")
 
     with (
@@ -363,7 +363,7 @@ def test_family_attach_parent_workspace_num_does_not_clobber_claimed_run(
         ("%queue(weight=0.25)\n%i(reviewer, family=foo)\nReview", 0.25, True),
     ],
 )
-def test_family_attach_child_preserves_queue_weight_provenance(
+def test_agent_session_attach_child_preserves_queue_weight_provenance(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     prompt: str,
@@ -384,7 +384,7 @@ def test_family_attach_child_preserves_queue_weight_provenance(
     )
     child_dir = tmp_path / "child"
     child_dir.mkdir()
-    plan = FamilyAttachLaunchPlan(
+    plan = AgentSessionAttachLaunchPlan(
         parent_arg="foo",
         suffix_arg="reviewer",
         parent_name="foo--0",
@@ -394,13 +394,13 @@ def test_family_attach_child_preserves_queue_weight_provenance(
         role_suffix="--reviewer",
         agent_name="foo--reviewer",
         agent_session_role="reviewer",
-        parent_family_member_name="foo--0",
-        parent_family_role_suffix="--0",
+        parent_agent_session_member_name="foo--0",
+        parent_agent_session_role_suffix="--0",
         parent_needs_rename=False,
         parent_project_name="sase",
         parent_cl_name="feature",
     )
-    monkeypatch.setenv(FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
+    monkeypatch.setenv(LEGACY_AGENT_FAMILY_ATTACH_ENV, json.dumps(asdict(plan)))
     monkeypatch.setenv(INTERNAL_AGENT_NAME_BYPASS_ENV, "1")
 
     with (
@@ -439,7 +439,9 @@ def test_family_attach_child_preserves_queue_weight_provenance(
     assert child_meta["queue_weight_explicit"] is expected_explicit
 
 
-def test_family_parent_meta_wait_happens_before_name_lock(tmp_path: Path) -> None:
+def test_agent_session_parent_meta_wait_happens_before_name_lock(
+    tmp_path: Path,
+) -> None:
     events: list[str] = []
 
     @contextmanager
@@ -457,14 +459,14 @@ def test_family_parent_meta_wait_happens_before_name_lock(tmp_path: Path) -> Non
             return_value=allocation_lock(),
         ),
         patch(
-            "sase.agent._family_promotion._read_meta_with_retry",
+            "sase.agent._agent_session_promotion._read_meta_with_retry",
             side_effect=read_meta,
         ),
-        patch("sase.agent._family_promotion._write_json_atomic"),
-        patch("sase.agent.names.convert_registered_agent_to_family"),
-        patch("sase.agent._family_promotion._refresh_artifact_index"),
+        patch("sase.agent._agent_session_promotion._write_json_atomic"),
+        patch("sase.agent.names.convert_registered_agent_to_agent_session"),
+        patch("sase.agent._agent_session_promotion._refresh_artifact_index"),
     ):
-        promote_agent_to_family(
+        promote_agent_to_agent_session(
             tmp_path,
             "foo",
             wait_for_meta_seconds=5.0,
@@ -473,7 +475,7 @@ def test_family_parent_meta_wait_happens_before_name_lock(tmp_path: Path) -> Non
     assert events == ["read:5.0", "lock", "read:0.0"]
 
 
-def test_plan_family_promotion_is_idempotent_and_plan_suffix_wins(
+def test_plan_agent_session_promotion_is_idempotent_and_plan_suffix_wins(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -486,12 +488,12 @@ def test_plan_family_promotion_is_idempotent_and_plan_suffix_wins(
         encoding="utf-8",
     )
 
-    first = promote_agent_to_family(
+    first = promote_agent_to_agent_session(
         artifact_dir,
         "foo",
         root_role_suffix="--0",
     )
-    second = promote_agent_to_family(
+    second = promote_agent_to_agent_session(
         artifact_dir,
         "foo",
         root_role_suffix="--0",
@@ -501,7 +503,7 @@ def test_plan_family_promotion_is_idempotent_and_plan_suffix_wins(
     assert json.loads(meta_path.read_text(encoding="utf-8"))["role_suffix"] == "--plan"
 
 
-def test_family_promotion_qualifies_legacy_parent_once(
+def test_agent_session_promotion_qualifies_legacy_parent_once(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -528,8 +530,8 @@ def test_family_promotion_qualifies_legacy_parent_once(
         encoding="utf-8",
     )
 
-    first = promote_agent_to_family(artifact_dir, "foo")
-    second = promote_agent_to_family(artifact_dir, "athena.foo")
+    first = promote_agent_to_agent_session(artifact_dir, "foo")
+    second = promote_agent_to_agent_session(artifact_dir, "athena.foo")
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
 
     assert first == second == "foo--plan"

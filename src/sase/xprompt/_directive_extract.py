@@ -93,7 +93,7 @@ def extract_prompt_directives(
             prompt = strip_disabled_region_markers(prompt)
         return unprotect_fenced_blocks(prompt, fenced_blocks), PromptDirectives()
 
-    name_explicit = collected.name_family_args is None and bool(
+    name_explicit = collected.name_agent_session_args is None and bool(
         collected.seen.get("id")
     )
     name_force_reuse = collected.name_force_reuse
@@ -102,7 +102,7 @@ def extract_prompt_directives(
         collected.seen["id"] = collected.seen["id"][1:]
 
     if (
-        collected.name_family_args is None
+        collected.name_agent_session_args is None
         and "id" in collected.seen
         and not collected.seen["id"]
     ):
@@ -269,14 +269,14 @@ def extract_prompt_directives(
         clan_tribe=clan_tribe,
         clan_summary=clan_summary,
         clan_summary_script=clan_summary_script,
-        family_attach_parent=(
-            collected.name_family_args[0]
-            if collected.name_family_args is not None
+        agent_session_attach_parent=(
+            collected.name_agent_session_args[0]
+            if collected.name_agent_session_args is not None
             else None
         ),
-        family_attach_suffix=(
-            collected.name_family_args[1]
-            if collected.name_family_args is not None
+        agent_session_attach_suffix=(
+            collected.name_agent_session_args[1]
+            if collected.name_agent_session_args is not None
             else None
         ),
         name_template=name_info.name_template,

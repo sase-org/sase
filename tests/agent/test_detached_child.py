@@ -3,23 +3,27 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+import json
 from typing import Any
 
-from sase.agent._family_attach_types import (
-    FamilyAttachDirective,
-    FamilyAttachLaunchPlan,
+import pytest
+
+from sase.agent._agent_session_attach_types import (
+    LEGACY_AGENT_FAMILY_ATTACH_ENV,
+    AgentSessionAttachDirective,
+    AgentSessionAttachLaunchPlan,
 )
 from sase.agent.detached_child import (
-    family_attach_env,
+    agent_session_attach_env,
     spawn_detached_child,
     spawn_family_successor,
 )
-from sase.agent.family_attach import load_family_attach_plan_from_env
+from sase.agent.agent_session_attach import load_agent_session_attach_plan_from_env
 from sase.agent.launch_types import AgentLaunchResult
 from sase.workflows.utils import get_project_file_path
 
 
-def _fake_plan(**overrides: Any) -> FamilyAttachLaunchPlan:
+def _fake_plan(**overrides: Any) -> AgentSessionAttachLaunchPlan:
     defaults: dict[str, Any] = {
         "parent_arg": "acme",
         "suffix_arg": "@",
@@ -30,13 +34,13 @@ def _fake_plan(**overrides: Any) -> FamilyAttachLaunchPlan:
         "role_suffix": "--1",
         "agent_name": "acme--1",
         "agent_session_role": "root",
-        "parent_family_member_name": "acme--0",
-        "parent_family_role_suffix": "--0",
+        "parent_agent_session_member_name": "acme--0",
+        "parent_agent_session_role_suffix": "--0",
         "parent_needs_rename": False,
         "parent_project_name": "proj",
     }
     defaults.update(overrides)
-    return FamilyAttachLaunchPlan(**defaults)
+    return AgentSessionAttachLaunchPlan(**defaults)
 
 
 def _fake_result(**overrides: Any) -> AgentLaunchResult:
@@ -50,16 +54,72 @@ def _fake_result(**overrides: Any) -> AgentLaunchResult:
     return AgentLaunchResult(**defaults)
 
 
-class TestFamilyAttachEnv:
-    def test_round_trips_through_load_family_attach_plan_from_env(self) -> None:
+class TestAgentSessionAttachEnv:
+    def test_round_trips_through_load_agent_session_attach_plan_from_env(
+        self,
+    ) -> None:
         plan = _fake_plan()
 
-        env = family_attach_env(plan)
+        env = agent_session_attach_env(plan)
 
         assert env["SASE_INTERNAL_AGENT_NAME_BYPASS"] == "1"
-        loaded = load_family_attach_plan_from_env(env)
+        loaded = load_agent_session_attach_plan_from_env(env)
         assert loaded is not None
         assert asdict(loaded) == asdict(plan)
+
+    def test_payload_emits_only_agent_session_keys(self) -> None:
+        env = agent_session_attach_env(_fake_plan())
+
+        payload = json.loads(env[LEGACY_AGENT_FAMILY_ATTACH_ENV])
+
+        assert payload["agent_session_role"] == "root"
+        assert payload["parent_agent_session_member_name"] == "acme--0"
+        assert payload["parent_agent_session_role_suffix"] == "--0"
+        assert "agent_family_role" not in payload
+        assert "parent_family_member_name" not in payload
+        assert "parent_family_role_suffix" not in payload
+
+    def test_loads_pre_rename_legacy_payload_keys(self) -> None:
+        plan = _fake_plan(
+            agent_session_role="reviewer",
+            parent_agent_session_member_name="acme--plan",
+            parent_agent_session_role_suffix="--plan",
+        )
+        payload = asdict(plan)
+        payload["agent_family_role"] = payload.pop("agent_session_role")
+        payload["parent_family_member_name"] = payload.pop(
+            "parent_agent_session_member_name"
+        )
+        payload["parent_family_role_suffix"] = payload.pop(
+            "parent_agent_session_role_suffix"
+        )
+        env = {LEGACY_AGENT_FAMILY_ATTACH_ENV: json.dumps(payload)}
+
+        loaded = load_agent_session_attach_plan_from_env(env)
+
+        assert loaded == plan
+
+    def test_legacy_payload_without_parent_keys_uses_defaults(self) -> None:
+        payload = asdict(_fake_plan(agent_session_role="reviewer"))
+        payload["agent_family_role"] = payload.pop("agent_session_role")
+        del payload["parent_agent_session_member_name"]
+        del payload["parent_agent_session_role_suffix"]
+        env = {LEGACY_AGENT_FAMILY_ATTACH_ENV: json.dumps(payload)}
+
+        loaded = load_agent_session_attach_plan_from_env(env)
+
+        assert loaded is not None
+        assert loaded.agent_session_role == "reviewer"
+        assert loaded.parent_agent_session_member_name == "acme"
+        assert loaded.parent_agent_session_role_suffix == "--0"
+
+    def test_payload_missing_role_key_is_rejected(self) -> None:
+        payload = asdict(_fake_plan())
+        del payload["agent_session_role"]
+        env = {LEGACY_AGENT_FAMILY_ATTACH_ENV: json.dumps(payload)}
+
+        with pytest.raises(KeyError):
+            load_agent_session_attach_plan_from_env(env)
 
 
 class TestSpawnDetachedChild:
@@ -149,14 +209,14 @@ class TestSpawnFamilySuccessor:
             return _fake_result(timestamp=kwargs["timestamp"])
 
         def fake_resolve(
-            directive: FamilyAttachDirective, *, project_name: str
-        ) -> FamilyAttachLaunchPlan:
+            directive: AgentSessionAttachDirective, *, project_name: str
+        ) -> AgentSessionAttachLaunchPlan:
             assert directive.parent == "acme"
             assert project_name == "proj"
             return plan
 
         result = spawn_family_successor(
-            FamilyAttachDirective(parent="acme", suffix="@"),
+            AgentSessionAttachDirective(parent="acme", suffix="@"),
             project_name="proj",
             prompt="do work",
             workspace_dir="/tmp/ws",
@@ -173,7 +233,7 @@ class TestSpawnFamilySuccessor:
         assert captured["vcs_ref"] is None
         env = captured["extra_env"]
         assert env["SASE_INTERNAL_AGENT_NAME_BYPASS"] == "1"
-        launched_plan = load_family_attach_plan_from_env(env)
+        launched_plan = load_agent_session_attach_plan_from_env(env)
         assert launched_plan is not None
         assert launched_plan.parent_is_running is False
         assert launched_plan.agent_session_role == "feedback"
@@ -191,7 +251,7 @@ class TestSpawnFamilySuccessor:
             )
 
         result = spawn_family_successor(
-            FamilyAttachDirective(parent="acme", suffix="@"),
+            AgentSessionAttachDirective(parent="acme", suffix="@"),
             project_name="proj",
             prompt="do work",
             workspace_dir="/tmp/ws",
@@ -213,7 +273,7 @@ class TestSpawnFamilySuccessor:
             return _fake_result(timestamp=kwargs["timestamp"])
 
         spawn_family_successor(
-            FamilyAttachDirective(parent="acme", suffix="@"),
+            AgentSessionAttachDirective(parent="acme", suffix="@"),
             project_name="proj",
             prompt="#gh:sase do work",
             workspace_dir="/tmp/ws",

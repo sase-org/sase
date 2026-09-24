@@ -9,13 +9,13 @@ hand-roll the timestamp reservation, workflow-name derivation, and
 ``spawn_agent_subprocess`` call; :func:`spawn_detached_child` is that shared
 claim-continuity primitive.
 
-:func:`family_attach_env` and :func:`spawn_family_successor` layer the
-``%id(<suffix>, family=<parent>)`` family-attach machinery
-(:mod:`sase.agent.family_attach`) on top, for the monitor-follow-up spawn.
-They import the low-level ``_family_attach_*`` modules directly rather than
-the ``sase.agent.family_attach`` facade, because that facade's
-``_family_attach_launch`` submodule imports this module for
-``family_attach_env`` -- going through the facade here would cycle back.
+:func:`agent_session_attach_env` and :func:`spawn_family_successor` layer the
+``%id(<suffix>, family=<parent>)`` agent-session-attach machinery
+(:mod:`sase.agent.agent_session_attach`) on top, for the monitor-follow-up spawn.
+They import the low-level ``_agent_session_attach_*`` modules directly rather than
+the ``sase.agent.agent_session_attach`` facade, because that facade's
+``_agent_session_attach_launch`` submodule imports this module for
+``agent_session_attach_env`` -- going through the facade here would cycle back.
 
 Explicitly **not** merged here: ``bead/work.py`` builds ``%id(!name,
 bead=...)`` prompt directives and launches through ``launch_agents_from_cwd``,
@@ -30,14 +30,14 @@ import json
 from collections.abc import Callable
 from dataclasses import asdict, replace
 
-from sase.agent import _family_attach_resolution as _resolution
-from sase.agent import _family_attach_types as _types
+from sase.agent import _agent_session_attach_resolution as _resolution
+from sase.agent import _agent_session_attach_types as _types
 from sase.agent.launch_types import AgentLaunchResult
 from sase.agent.launch_validation import INTERNAL_AGENT_NAME_BYPASS_ENV
 from sase.core.agent_launch_facade import reserve_launch_timestamp_batch
 
-FamilyAttachDirective = _types.FamilyAttachDirective
-FamilyAttachLaunchPlan = _types.FamilyAttachLaunchPlan
+AgentSessionAttachDirective = _types.AgentSessionAttachDirective
+AgentSessionAttachLaunchPlan = _types.AgentSessionAttachLaunchPlan
 
 #: A ``spawn_agent_subprocess``-shaped callable. Callers that expose their own
 #: module-level ``spawn_agent_subprocess`` name for tests to monkeypatch
@@ -45,17 +45,17 @@ FamilyAttachLaunchPlan = _types.FamilyAttachLaunchPlan
 #: module resolving its own import, so the monkeypatch keeps taking effect.
 SpawnFn = Callable[..., AgentLaunchResult]
 
-#: A ``resolve_family_attach_plan``-shaped callable, injectable for tests the
-#: same way :func:`sase.agent._family_attach_launch.prepare_family_attach_launch`
+#: A ``resolve_agent_session_attach_plan``-shaped callable, injectable for tests the
+#: same way :func:`sase.agent._agent_session_attach_launch.prepare_agent_session_attach_launch`
 #: takes its own resolver.
-ResolvePlanFn = Callable[..., FamilyAttachLaunchPlan]
+ResolvePlanFn = Callable[..., AgentSessionAttachLaunchPlan]
 
 
-def family_attach_env(plan: FamilyAttachLaunchPlan) -> dict[str, str]:
-    """Encode ``plan`` into the env vars a family-attach child boot reads."""
+def agent_session_attach_env(plan: AgentSessionAttachLaunchPlan) -> dict[str, str]:
+    """Encode ``plan`` into the env vars an agent-session-attach child boot reads."""
     return {
         INTERNAL_AGENT_NAME_BYPASS_ENV: "1",
-        _types.FAMILY_ATTACH_ENV: json.dumps(asdict(plan), sort_keys=True),
+        _types.LEGACY_AGENT_FAMILY_ATTACH_ENV: json.dumps(asdict(plan), sort_keys=True),
     }
 
 
@@ -110,7 +110,7 @@ def spawn_detached_child(
 
 
 def spawn_family_successor(
-    directive: FamilyAttachDirective,
+    directive: AgentSessionAttachDirective,
     *,
     project_name: str,
     prompt: str,
@@ -128,7 +128,7 @@ def spawn_family_successor(
 
     Applies the overrides an out-of-process starter must set on its own
     resolved plan (``parent_is_running=False``, the starter's own role, and
-    the workspace it is handing off), layers :func:`family_attach_env`, and
+    the workspace it is handing off), layers :func:`agent_session_attach_env`, and
     delegates to :func:`spawn_detached_child`. ``vcs_ref`` is the starter's
     VCS workflow type plus ref, forwarded so the child inherits the same
     pre-allocation env the launcher already knows how to emit. The
@@ -136,7 +136,7 @@ def spawn_family_successor(
     returned result's ``agent_name`` is always filled in from the resolved
     plan.
     """
-    resolve = resolve_plan or _resolution.resolve_family_attach_plan
+    resolve = resolve_plan or _resolution.resolve_agent_session_attach_plan
     plan = resolve(directive, project_name=project_name)
     launch_plan = replace(
         plan,
@@ -152,7 +152,7 @@ def spawn_family_successor(
         workspace_num=workspace_num,
         cl_name=cl_name or launch_plan.agent_name,
         transfer_from_pid=transfer_from_pid,
-        extra_env={**family_attach_env(launch_plan), **(extra_env or {})},
+        extra_env={**agent_session_attach_env(launch_plan), **(extra_env or {})},
         vcs_ref=vcs_ref,
         spawn_fn=spawn_fn,
     )
@@ -160,9 +160,9 @@ def spawn_family_successor(
 
 
 __all__: list[str] = [
-    "FamilyAttachDirective",
+    "AgentSessionAttachDirective",
     "SpawnFn",
-    "family_attach_env",
+    "agent_session_attach_env",
     "spawn_detached_child",
     "spawn_family_successor",
 ]

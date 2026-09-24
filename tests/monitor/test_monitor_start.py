@@ -537,7 +537,7 @@ def test_monitor_claim_survives_stale_cleanup_allocation_and_followup_transfer(
             )
 
         monkeypatch.setattr(
-            "sase.agent._family_attach_resolution.resolve_family_attach_plan",
+            "sase.agent._agent_session_attach_resolution.resolve_agent_session_attach_plan",
             lambda *_args, **_kwargs: FollowupPlan(),
         )
         monkeypatch.setattr(followup_module, "spawn_agent_subprocess", fake_spawn)

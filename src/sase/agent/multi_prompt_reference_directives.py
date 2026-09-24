@@ -80,14 +80,14 @@ def extract_static_name_directive(prompt: str) -> str | None:
             if paren_end is not None:
                 inner = protected[paren_start + 1 : paren_end]
                 positional_args, named_args = parse_args(inner)
-                from sase.agent.family_attach import parse_name_directive_args
+                from sase.agent.agent_session_attach import parse_name_directive_args
 
                 parsed = parse_name_directive_args(
                     positional_args,
                     named_args,
                     source=f"%{raw_name}",
                 )
-                if parsed.family_parent is not None:
+                if parsed.agent_session_parent is not None:
                     return None
                 value = parsed.plain_name or ""
                 if parsed.clan is not None:

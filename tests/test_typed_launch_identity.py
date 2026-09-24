@@ -166,8 +166,12 @@ def test_plan_typed_launch_units_preserves_identity_forms(
         assert directives.clan_declared is False
         assert directives.name == f"{agent.clan}.{agent.identity}"
     elif agent.agent_session_attach_parent is not None:
-        assert directives.family_attach_parent == agent.agent_session_attach_parent
-        assert directives.family_attach_suffix == agent.agent_session_attach_suffix
+        assert (
+            directives.agent_session_attach_parent == agent.agent_session_attach_parent
+        )
+        assert (
+            directives.agent_session_attach_suffix == agent.agent_session_attach_suffix
+        )
     elif agent.tribe is not None:
         assert directives.tribe == agent.tribe
         if agent.identity is not None:

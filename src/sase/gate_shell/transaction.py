@@ -336,7 +336,7 @@ def _resolve_project_name() -> str:
 
 
 def _resolve_creator(project_name: str) -> _CreatorContext:
-    from sase.agent._family_promotion import promote_agent_to_family
+    from sase.agent._agent_session_promotion import promote_agent_to_agent_session
     import sase.monitor.store_lane as monitor_store
 
     caller = monitor_store.default_caller() or os.environ.get("SASE_AGENT_NAME")
@@ -360,7 +360,9 @@ def _resolve_creator(project_name: str) -> _CreatorContext:
     durable_lane = str(agent_session_value(raw_meta) or "").strip()
     target_name = str(raw_meta.get("name") or caller)
     if not durable_lane:
-        promoted_name = promote_agent_to_family(ctx.record.artifact_dir, target_name)
+        promoted_name = promote_agent_to_agent_session(
+            ctx.record.artifact_dir, target_name
+        )
         durable_lane = agent_session_base(promoted_name) or target_name
         raw_meta = _read_meta(ctx.record.artifact_dir)
     workspace_num = _optional_int(raw_meta.get("workspace_num"))

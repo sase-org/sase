@@ -8,7 +8,7 @@ from tests._agent_artifact_marker_audit_helpers import (
 )
 
 _REVIEWED_PATH_PASSING_CONTEXTS: dict[str, PathPassingReview] = {
-    "src/sase/agent/_family_promotion.py:promote_agent_to_family": PathPassingReview(
+    "src/sase/agent/_agent_session_promotion.py:promote_agent_to_agent_session": PathPassingReview(
         lifecycle_coverage=(
             "Atomically rewrites agent_meta.json and immediately refreshes the "
             "Tier 1 artifact index for the same artifacts directory."

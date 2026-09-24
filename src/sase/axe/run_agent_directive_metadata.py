@@ -30,7 +30,7 @@ from sase.bead.work import (
 
 if TYPE_CHECKING:
     from sase.agent.clan_membership import ClanMembershipPlan
-    from sase.agent.family_attach import FamilyAttachLaunchPlan
+    from sase.agent.agent_session_attach import AgentSessionAttachLaunchPlan
     from sase.xprompt.directives import PromptDirectives
 
 
@@ -208,7 +208,7 @@ def build_agent_meta(
     directives: PromptDirectives,
     agent_name: str | None,
     agent_tribe: str | None,
-    family_attach_plan: FamilyAttachLaunchPlan | None,
+    agent_session_attach_plan: AgentSessionAttachLaunchPlan | None,
     clan_membership_plan: ClanMembershipPlan | None,
 ) -> dict[str, Any]:
     """Build launch metadata after the agent identity has been allocated."""
@@ -310,8 +310,8 @@ def build_agent_meta(
         agent_meta["patch_name"] = inputs.cl_name
         agent_meta["changespec_name"] = inputs.cl_name
         agent_meta.setdefault("cl_name", inputs.cl_name)
-    if family_attach_plan:
-        _add_family_metadata(agent_meta, family_attach_plan)
+    if agent_session_attach_plan:
+        _add_family_metadata(agent_meta, agent_session_attach_plan)
     if clan_membership_plan:
         _add_clan_metadata(
             agent_meta,
@@ -352,9 +352,11 @@ def _existing_queue_weight(meta: Mapping[str, Any], *, source: str) -> float | N
 
 
 def _read_parent_agent_meta(
-    family_attach_plan: FamilyAttachLaunchPlan,
+    agent_session_attach_plan: AgentSessionAttachLaunchPlan,
 ) -> dict[str, Any] | None:
-    meta_path = os.path.join(family_attach_plan.parent_artifacts_dir, "agent_meta.json")
+    meta_path = os.path.join(
+        agent_session_attach_plan.parent_artifacts_dir, "agent_meta.json"
+    )
     try:
         with open(meta_path, encoding="utf-8") as f:
             parent_meta = json.load(f)
@@ -364,16 +366,16 @@ def _read_parent_agent_meta(
 
 
 def _parent_queue_weight(
-    family_attach_plan: FamilyAttachLaunchPlan,
+    agent_session_attach_plan: AgentSessionAttachLaunchPlan,
 ) -> float | None:
-    parent_meta = _read_parent_agent_meta(family_attach_plan)
+    parent_meta = _read_parent_agent_meta(agent_session_attach_plan)
     if parent_meta is None:
         return None
     return _existing_queue_weight(parent_meta, source="family parent metadata")
 
 
 def _parent_runner_claim_owner_key(
-    family_attach_plan: FamilyAttachLaunchPlan,
+    agent_session_attach_plan: AgentSessionAttachLaunchPlan,
 ) -> str | None:
     """Return the parent's durable claim owner key, straight off its own file.
 
@@ -383,7 +385,7 @@ def _parent_runner_claim_owner_key(
     predecessor's owner key forward durably instead of needing to re-derive
     it from a scan that may no longer include the parent at all.
     """
-    parent_meta = _read_parent_agent_meta(family_attach_plan)
+    parent_meta = _read_parent_agent_meta(agent_session_attach_plan)
     if parent_meta is None:
         return None
     owner_key = parent_meta.get("runner_claim_owner_key")
@@ -414,55 +416,57 @@ def _qualify_agent_identity_metadata(agent_meta: dict[str, Any]) -> None:
 
 def _add_family_metadata(
     agent_meta: dict[str, Any],
-    family_attach_plan: FamilyAttachLaunchPlan,
+    agent_session_attach_plan: AgentSessionAttachLaunchPlan,
 ) -> None:
-    from sase.agent.family_attach import promote_family_parent_for_attach
+    from sase.agent.agent_session_attach import promote_agent_session_parent_for_attach
     from sase.plan_chain import PLAN_CHAIN_PARENT_TIMESTAMP_FIELD
 
-    promote_family_parent_for_attach(family_attach_plan)
-    agent_meta["name"] = family_attach_plan.agent_name
-    agent_meta["workflow_name"] = family_attach_plan.parent_base
-    agent_meta["role_suffix"] = family_attach_plan.role_suffix
-    agent_meta["parent_timestamp"] = family_attach_plan.parent_timestamp
-    agent_meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] = family_attach_plan.parent_timestamp
+    promote_agent_session_parent_for_attach(agent_session_attach_plan)
+    agent_meta["name"] = agent_session_attach_plan.agent_name
+    agent_meta["workflow_name"] = agent_session_attach_plan.parent_base
+    agent_meta["role_suffix"] = agent_session_attach_plan.role_suffix
+    agent_meta["parent_timestamp"] = agent_session_attach_plan.parent_timestamp
+    agent_meta[PLAN_CHAIN_PARENT_TIMESTAMP_FIELD] = (
+        agent_session_attach_plan.parent_timestamp
+    )
     set_agent_session_fields(
         agent_meta,
-        session=family_attach_plan.parent_base,
-        role=family_attach_plan.agent_session_role,
+        session=agent_session_attach_plan.parent_base,
+        role=agent_session_attach_plan.agent_session_role,
     )
     claimed_workspace_num = agent_meta.get("workspace_num")
     run_has_claimed_workspace = (
         isinstance(claimed_workspace_num, int) and claimed_workspace_num > 0
     )
-    if family_attach_plan.parent_workspace_dir and not run_has_claimed_workspace:
-        agent_meta["workspace_dir"] = family_attach_plan.parent_workspace_dir
+    if agent_session_attach_plan.parent_workspace_dir and not run_has_claimed_workspace:
+        agent_meta["workspace_dir"] = agent_session_attach_plan.parent_workspace_dir
     if (
-        family_attach_plan.parent_workspace_num is not None
+        agent_session_attach_plan.parent_workspace_num is not None
         and not run_has_claimed_workspace
     ):
-        agent_meta["workspace_num"] = family_attach_plan.parent_workspace_num
-    if family_attach_plan.parent_cl_name:
-        agent_meta["patch_name"] = family_attach_plan.parent_cl_name
-        agent_meta["changespec_name"] = family_attach_plan.parent_cl_name
-        agent_meta["cl_name"] = family_attach_plan.parent_cl_name
+        agent_meta["workspace_num"] = agent_session_attach_plan.parent_workspace_num
+    if agent_session_attach_plan.parent_cl_name:
+        agent_meta["patch_name"] = agent_session_attach_plan.parent_cl_name
+        agent_meta["changespec_name"] = agent_session_attach_plan.parent_cl_name
+        agent_meta["cl_name"] = agent_session_attach_plan.parent_cl_name
     if agent_meta.get("queue_weight_explicit") is not True:
-        parent_queue_weight = _parent_queue_weight(family_attach_plan)
+        parent_queue_weight = _parent_queue_weight(agent_session_attach_plan)
         if parent_queue_weight is not None:
             agent_meta["queue_weight"] = parent_queue_weight
             agent_meta["queue_weight_explicit"] = False
-    parent_owner_key = _parent_runner_claim_owner_key(family_attach_plan)
+    parent_owner_key = _parent_runner_claim_owner_key(agent_session_attach_plan)
     if parent_owner_key is not None:
         agent_meta["runner_claim_owner_key"] = parent_owner_key
-    if family_attach_plan.parent_agent_clan:
+    if agent_session_attach_plan.parent_agent_clan:
         from sase.agent.clan_membership import (
             AGENT_CLAN_FIELD,
             AGENT_CLAN_GENERATION_FIELD,
         )
 
-        agent_meta[AGENT_CLAN_FIELD] = family_attach_plan.parent_agent_clan
-        if family_attach_plan.parent_agent_clan_generation:
+        agent_meta[AGENT_CLAN_FIELD] = agent_session_attach_plan.parent_agent_clan
+        if agent_session_attach_plan.parent_agent_clan_generation:
             agent_meta[AGENT_CLAN_GENERATION_FIELD] = (
-                family_attach_plan.parent_agent_clan_generation
+                agent_session_attach_plan.parent_agent_clan_generation
             )
 
 

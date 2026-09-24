@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from sase.agent.gate_intent import GATE_INTENT_PREFIX, atomic_write_json
-from sase.agent._family_attach_types import FAMILY_ATTACH_ENV
+from sase.agent._agent_session_attach_types import LEGACY_AGENT_FAMILY_ATTACH_ENV
 from sase.llm_provider._invoke import invoke_agent
 from sase.llm_provider.continuation_budget import (
     CONTINUATION_BUDGET_DECISION_FILENAME,
@@ -285,7 +285,7 @@ def test_monitor_continuation_budget_refusal_records_nonlaunchable(
     monkeypatch.setenv(MONITOR_CONTINUATION_ENV, "1")
     monkeypatch.setenv("SASE_CONTINUATION_CONTEXT_LIMIT_BYTES", "32")
     monkeypatch.setenv(
-        FAMILY_ATTACH_ENV,
+        LEGACY_AGENT_FAMILY_ATTACH_ENV,
         json.dumps({"parent_artifacts_dir": str(parent)}),
     )
 

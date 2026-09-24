@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from sase.agent.detached_child import (
-    FamilyAttachDirective,
+    AgentSessionAttachDirective,
     SpawnFn,
     spawn_family_successor,
 )
@@ -394,7 +394,7 @@ def spawn_shell_family_successor(
 ) -> AgentLaunchResult:
     """Spawn the next agent member in *family* using family-attach semantics."""
     return spawn_family_successor(
-        FamilyAttachDirective(parent=family, suffix=suffix or "@"),
+        AgentSessionAttachDirective(parent=family, suffix=suffix or "@"),
         project_name=project_name,
         prompt=prompt,
         workspace_dir=workspace_dir,

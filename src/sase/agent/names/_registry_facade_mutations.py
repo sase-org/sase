@@ -75,14 +75,14 @@ class _RegistryMutationFacade:
             self._mutation_operations(), name, generation, claiming_dir
         )
 
-    def convert_registered_agent_to_family(
+    def convert_registered_agent_to_agent_session(
         self,
         name: str,
         member_name: str,
         claiming_dir: str | Path,
     ) -> None:
-        """Convert one agent claim into a family container plus member claim."""
-        _registry_mutations.convert_registered_agent_to_family(
+        """Convert one agent claim into a session container plus member claim."""
+        _registry_mutations.convert_registered_agent_to_agent_session(
             self._mutation_operations(), name, member_name, claiming_dir
         )
 

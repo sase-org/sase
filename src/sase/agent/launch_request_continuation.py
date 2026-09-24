@@ -172,11 +172,13 @@ def _launch_targets_requester_family_lane(
     prompt: str, context: Mapping[str, str]
 ) -> bool:
     try:
-        from sase.agent.family_attach import extract_family_attach_directive
+        from sase.agent.agent_session_attach import (
+            extract_agent_session_attach_directive,
+        )
     except Exception:
         return False
 
-    directive = extract_family_attach_directive(prompt)
+    directive = extract_agent_session_attach_directive(prompt)
     if directive is None:
         return False
     parent = directive.parent.strip()

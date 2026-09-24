@@ -168,7 +168,7 @@ def spawn_segments_into(
     previous_agent_name: str | None = None
     previous_agent_context: BatchPredecessorContextWire | None = None
     upstreams: list[dict[str, Any]] = []
-    pending_family_parents: list[Any] = []
+    pending_agent_session_parents: list[Any] = []
     multi_agent_prompt_file: str | None = None
     for i, segment in enumerate(segments):
         segment = canonicalize_project_aliases_in_prompt(segment)
@@ -455,7 +455,7 @@ def spawn_segments_into(
                     allow_reserved_family_separator_names=(
                         allow_reserved_family_separator_names
                     ),
-                    pending_family_parents=pending_family_parents,
+                    pending_agent_session_parents=pending_agent_session_parents,
                 )
         except Exception:
             clan_prepass.release_uncommitted_clan_reservations()

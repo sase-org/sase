@@ -19,7 +19,7 @@ from sase.agent.names import (
     claim_registered_clan_name,
     claim_registered_name,
     claim_registered_names,
-    convert_registered_agent_to_family,
+    convert_registered_agent_to_agent_session,
     get_reserved_agent_names,
     get_reserved_clan_names,
     get_reserved_family_names,
@@ -387,7 +387,7 @@ def test_family_conversion_reserves_base_and_original_member(tmp_path: Path) -> 
     with patch.object(Path, "home", return_value=tmp_path):
         claim_registered_name("foo", root_dir)
         before_conversion = agent_name_registry_freshness_token()
-        convert_registered_agent_to_family("foo", "foo--0", root_dir)
+        convert_registered_agent_to_agent_session("foo", "foo--0", root_dir)
 
         assert get_reserved_family_names() == {"foo"}
         assert agent_name_registry_freshness_token() > before_conversion
@@ -418,7 +418,7 @@ def test_auto_prefix_hood_neighbor_does_not_block_family_conversion(
             encoding="utf-8",
         )
         rebuild_name_registry()
-        convert_registered_agent_to_family("sq", "sq--plan", root_dir)
+        convert_registered_agent_to_agent_session("sq", "sq--plan", root_dir)
 
         assert lookup_registered_name("sq")["container_kind"] == "session"
         assert lookup_registered_name("sq--plan")["reservation_kind"] == "claimed"
@@ -442,7 +442,7 @@ def test_family_conversion_still_rejects_other_exact_claim_owner(
     with patch.object(Path, "home", return_value=tmp_path):
         rebuild_name_registry()
         with pytest.raises(NameCollisionError, match="agent name 'sq'"):
-            convert_registered_agent_to_family("sq", "sq--plan", root_dir)
+            convert_registered_agent_to_agent_session("sq", "sq--plan", root_dir)
 
 
 def test_template_reservation_rejects_existing_namespace_descendant(

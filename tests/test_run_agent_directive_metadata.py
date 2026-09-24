@@ -104,7 +104,7 @@ def test_child_identity_persists_and_publishes_one_local_machine_hood(
     _prompt, directives = extract_prompt_directives("%id:foo\nDo work")
     request = prepare_agent_name_request(
         directives=directives,
-        family_attach_plan=None,
+        agent_session_attach_plan=None,
         fork_reference_prompt="",
         wait_names=[],
         auto_dismiss=None,
@@ -140,7 +140,7 @@ def test_child_identity_persists_and_publishes_one_local_machine_hood(
         identity = resolve_agent_identity(
             request,
             directives=directives,
-            family_attach_plan=None,
+            agent_session_attach_plan=None,
             clan_membership_plan=None,
             artifacts_dir=str(artifacts_dir),
             metadata_inputs=inputs,

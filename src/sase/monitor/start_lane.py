@@ -88,9 +88,11 @@ def resolve_lane_start(
 
     durable_lane = str(agent_session_value(raw_meta) or "").strip()
     if not durable_lane:
-        from sase.agent._family_promotion import promote_agent_to_family
+        from sase.agent._agent_session_promotion import promote_agent_to_agent_session
 
-        promoted_name = promote_agent_to_family(selected.artifact_dir, identity.target)
+        promoted_name = promote_agent_to_agent_session(
+            selected.artifact_dir, identity.target
+        )
         durable_lane = agent_session_base(promoted_name) or identity.target
         raw_meta = read_start_meta(selected.artifact_dir)
 

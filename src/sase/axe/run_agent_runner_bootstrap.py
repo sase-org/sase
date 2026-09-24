@@ -122,9 +122,9 @@ def _inherit_parent_commit_finalizer_baseline(artifacts_dir: str) -> bool:
     """
     import shutil
 
-    from sase.agent.family_attach import (
-        FamilyAttachError,
-        load_family_attach_plan_from_env,
+    from sase.agent.agent_session_attach import (
+        AgentSessionAttachError,
+        load_agent_session_attach_plan_from_env,
     )
     from sase.llm_provider.commit_finalizer_baseline import (
         BASELINE_FILENAME,
@@ -132,8 +132,8 @@ def _inherit_parent_commit_finalizer_baseline(artifacts_dir: str) -> bool:
     )
 
     try:
-        plan = load_family_attach_plan_from_env()
-    except FamilyAttachError:
+        plan = load_agent_session_attach_plan_from_env()
+    except AgentSessionAttachError:
         return False
     if plan is None:
         return False

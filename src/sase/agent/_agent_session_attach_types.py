@@ -1,10 +1,12 @@
-"""Shared family attach data types."""
+"""Shared agent-session attach data types."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-FAMILY_ATTACH_ENV = "SASE_AGENT_FAMILY_ATTACH"
+# legacy agent-family spelling: the handoff variable keeps its name until
+# ``SASE_AGENT_SESSION_ATTACH`` is introduced.
+LEGACY_AGENT_FAMILY_ATTACH_ENV = "SASE_AGENT_FAMILY_ATTACH"
 
 
 @dataclass(frozen=True)
@@ -14,19 +16,19 @@ class ParsedNameDirective:
     clan: str | None = None
     tribe: str | None = None
     force_reuse: bool = False
-    family_parent: str | None = None
-    family_suffix: str | None = None
+    agent_session_parent: str | None = None
+    agent_session_suffix: str | None = None
 
 
 @dataclass(frozen=True)
-class FamilyAttachDirective:
+class AgentSessionAttachDirective:
     parent: str
     suffix: str
     force_reuse: bool = False
 
 
 @dataclass(frozen=True)
-class FamilyAttachLaunchPlan:
+class AgentSessionAttachLaunchPlan:
     parent_arg: str
     suffix_arg: str
     parent_name: str
@@ -36,8 +38,8 @@ class FamilyAttachLaunchPlan:
     role_suffix: str
     agent_name: str
     agent_session_role: str
-    parent_family_member_name: str
-    parent_family_role_suffix: str
+    parent_agent_session_member_name: str
+    parent_agent_session_role_suffix: str
     parent_needs_rename: bool
     parent_project_name: str
     parent_is_running: bool = False
@@ -51,11 +53,11 @@ class FamilyAttachLaunchPlan:
 
 
 @dataclass(frozen=True)
-class FamilyAttachSibling:
+class AgentSessionAttachSibling:
     """Launch-batch sibling known before its async artifact metadata is written."""
 
     name: str
-    family_base: str
+    agent_session_base_name: str
     timestamp: str
     artifact_dir: str
     project_name: str
@@ -63,21 +65,21 @@ class FamilyAttachSibling:
     workspace_dir: str | None = None
     workspace_num: int | None = None
     can_attach_parent: bool = True
-    family_root_role_suffix: str = "--0"
+    agent_session_root_role_suffix: str = "--0"
     agent_clan: str | None = None
     agent_clan_generation: str | None = None
     model_alias_overrides: dict[str, str] = field(default_factory=dict)
 
 
-class FamilyAttachError(RuntimeError):
+class AgentSessionAttachError(RuntimeError):
     """Raised when a ``%id(suffix, family=parent)`` launch cannot be prepared."""
 
 
 __all__ = [
-    "FAMILY_ATTACH_ENV",
-    "FamilyAttachDirective",
-    "FamilyAttachError",
-    "FamilyAttachLaunchPlan",
-    "FamilyAttachSibling",
+    "LEGACY_AGENT_FAMILY_ATTACH_ENV",
+    "AgentSessionAttachDirective",
+    "AgentSessionAttachError",
+    "AgentSessionAttachLaunchPlan",
+    "AgentSessionAttachSibling",
     "ParsedNameDirective",
 ]
