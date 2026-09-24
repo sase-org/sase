@@ -310,8 +310,15 @@ def work_from_plan_file_locked(
                     raise
                 try:
                     hooks.publish_epic_rollback(store)
-                except Exception:
-                    raise
+                except Exception as publish_exc:
+                    # The rollback is committed locally but unpublished, so do
+                    # not retry; keep the relocation detail in the resume error.
+                    raise EpicFromPlanError(
+                        f"{retry_exc}; rollback publication also failed: {publish_exc}",
+                        graph_published=True,
+                        retry_requires_push=retry_exc.retry_requires_push,
+                        relocated_epic_id=relocated_id,
+                    ) from publish_exc
                 relocation_retries += 1
                 timer.fields["relocation_retries"] = relocation_retries
                 if render:

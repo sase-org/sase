@@ -595,6 +595,67 @@ def test_plan_file_stops_after_three_relocated_attempts(
     assert "bead_id" not in frontmatter
 
 
+def test_plan_file_relocation_rollback_publication_failure_stops_retrying(
+    project_dir: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An unpublished rollback never retries and keeps the relocation detail."""
+    from sase.bead.epic_from_plan import EpicFromPlanError
+
+    source = project_dir / "rollout.md"
+    source.write_text(EPIC_PLAN, encoding="utf-8")
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._commit_plan_file",
+        lambda *_args, **_kwargs: True,
+    )
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._write_and_commit_plan_file",
+        write_plan_update,
+    )
+    publications: list[str] = []
+
+    def failing_publish(_store: object) -> bool:
+        publications.append("rollback")
+        raise RuntimeError("remote rejected")
+
+    monkeypatch.setattr(
+        "sase.bead.cli_work_from_plan._publish_epic_rollback",
+        failing_publish,
+    )
+
+    attempts: list[int] = []
+
+    def relocated(*_args: object, **_kwargs: object) -> object:
+        attempts.append(1)
+        raise EpicFromPlanError(
+            "epic sase-1 was renumbered to sase-99 during publication",
+            graph_published=True,
+            rollback_performed=True,
+            relocated_epic_id="sase-99",
+        )
+
+    monkeypatch.setattr(
+        "sase.bead.epic_from_plan.create_and_launch_epic_from_plan",
+        relocated,
+    )
+
+    with pytest.raises(PlanFileWorkError) as excinfo:
+        work_from_plan_file(
+            str(source),
+            dry_run=False,
+            yes=True,
+            no_push=True,
+            render=False,
+        )
+
+    assert attempts == [1]
+    assert publications == ["rollback"]
+    message = str(excinfo.value)
+    assert "renumbered to sase-99" in message
+    assert "rollback publication also failed: remote rejected" in message
+    assert "sase bead work" in (excinfo.value.resume_command or "")
+
+
 def test_resume_relinks_plan_to_moved_epic(
     project_dir: Path,
     monkeypatch: pytest.MonkeyPatch,
